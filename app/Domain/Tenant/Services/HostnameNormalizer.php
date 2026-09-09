@@ -21,6 +21,14 @@ final class HostnameNormalizer
             throw new DomainException('RESERVED_HOSTNAME', 'This hostname is reserved by the Platform.');
         }
 
+        $rootDomain = strtolower(trim((string) config('tenancy.root_domain'), '.'));
+        $reservedHostnames = collect(config('tenancy.reserved_slugs'))
+            ->map(fn (string $slug): string => strtolower($slug).'.'.$rootDomain)
+            ->push($rootDomain);
+        if ($reservedHostnames->contains($hostname)) {
+            throw new DomainException('RESERVED_HOSTNAME', 'This hostname is reserved by the Platform.');
+        }
+
         return $hostname;
     }
 }

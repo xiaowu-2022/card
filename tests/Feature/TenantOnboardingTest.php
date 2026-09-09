@@ -1,5 +1,6 @@
 <?php
 
+use App\Application\Admin\CreateAdminInvitationAction;
 use App\Application\Tenant\ActivateTenantAction;
 use App\Application\Tenant\ActivateTenantDomainAction;
 use App\Application\Tenant\AddCustomDomainAction;
@@ -11,7 +12,9 @@ use App\Application\Tenant\SuspendTenantAction;
 use App\Application\Tenant\UpdateTenantBusinessSettingsAction;
 use App\Application\Tenant\UpdateTenantLocalesAction;
 use App\Domain\Admin\Models\AdminInvitation;
+use App\Domain\Admin\Models\AdminMembership;
 use App\Domain\Admin\Models\AdminUser;
+use App\Domain\Admin\Models\Role;
 use App\Domain\Audit\Models\AuditLog;
 use App\Domain\Tenant\Enums\TenantDomainStatus;
 use App\Domain\Tenant\Enums\TenantStatus;
@@ -79,13 +82,30 @@ it('activates an eligible foundation without claiming business readiness', funct
 });
 
 it('suspends and reactivates an active tenant without deleting history', function (): void {
+    Mail::fake();
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
     $actor = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $tenantOwner = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
+    $issued = app(CreateAdminInvitationAction::class)->execute(
+        $tenant,
+        'history@a.localhost',
+        Role::query()->where('name', 'SUPPORT')->firstOrFail(),
+        $tenantOwner,
+    );
     $domainCount = $tenant->domains()->count();
+    $membershipCount = AdminMembership::query()->where('scope_id', $tenant->id)->count();
+    $invitationCount = AdminInvitation::query()->where('tenant_id', $tenant->id)->count();
+    $historicalAuditId = AuditLog::query()
+        ->where('action', 'ADMIN_INVITED')
+        ->where('resource_id', $issued->invitation->id)
+        ->value('id');
 
     app(SuspendTenantAction::class)->execute($tenant->id, $actor);
     expect($tenant->fresh()->status)->toBe(TenantStatus::Suspended)
         ->and($tenant->domains()->count())->toBe($domainCount)
+        ->and(AdminMembership::query()->where('scope_id', $tenant->id)->count())->toBe($membershipCount)
+        ->and(AdminInvitation::query()->where('tenant_id', $tenant->id)->count())->toBe($invitationCount)
+        ->and(AuditLog::query()->whereKey($historicalAuditId)->exists())->toBeTrue()
         ->and(AuditLog::query()->where('action', 'TENANT_SUSPENDED')->exists())->toBeTrue();
 
     app(ReactivateTenantAction::class)->execute($tenant->id, $actor);
@@ -150,6 +170,7 @@ it('enforces the custom domain state machine and tenant ownership', function ():
     expect($domain->fresh()->status)->toBe(TenantDomainStatus::Active)
         ->and($domain->fresh()->is_primary)->toBeTrue()
         ->and(TenantDomain::query()->where('tenant_id', $tenantA->id)->where('is_primary', true)->count())->toBe(1);
+    expect(fn () => app(DeleteTenantDomainAction::class)->execute($tenantA->id, $domain->id, $actor))->toThrow(DomainException::class);
 });
 
 it('rejects duplicate hostnames and protects the immutable system domain', function (): void {

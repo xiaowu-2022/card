@@ -3,6 +3,7 @@
 use App\Domain\Admin\Enums\AdminUserStatus;
 use App\Domain\Admin\Enums\MembershipStatus;
 use App\Domain\Admin\Enums\ScopeType;
+use App\Domain\Admin\Models\AdminInvitation;
 use App\Domain\Admin\Models\AdminMembership;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Audit\Models\AuditLog;
@@ -71,9 +72,15 @@ it('enforces per-surface login throttling', function (): void {
 
 it('logs out and invalidates the selected guard session', function (): void {
     $admin = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $adminCount = AdminUser::query()->count();
+    $membershipCount = AdminMembership::query()->count();
+    $invitationCount = AdminInvitation::query()->count();
     $this->actingAs($admin, 'platform_admin')->post('http://admin.localhost/platform/logout')->assertRedirect('/platform/login');
     $this->assertGuest('platform_admin');
-    expect(AuditLog::query()->where('action', 'ADMIN_LOGOUT')->exists())->toBeTrue();
+    expect(AuditLog::query()->where('action', 'ADMIN_LOGOUT')->exists())->toBeTrue()
+        ->and(AdminUser::query()->count())->toBe($adminCount)
+        ->and(AdminMembership::query()->count())->toBe($membershipCount)
+        ->and(AdminInvitation::query()->count())->toBe($invitationCount);
 });
 
 it('refuses client tenant ids when authorizing tenant admin access', function (): void {

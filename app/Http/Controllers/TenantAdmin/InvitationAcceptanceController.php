@@ -7,6 +7,7 @@ use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Tenant\TenantContext;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AcceptAdminInvitationRequest;
+use App\Support\Errors\DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -28,13 +29,23 @@ final class InvitationAcceptanceController extends Controller
 
     public function store(AcceptAdminInvitationRequest $request, string $token, TenantContext $tenantContext, AcceptAdminInvitationAction $accept): RedirectResponse
     {
-        $accepted = $accept->execute(
-            $token,
-            $tenantContext->id(),
-            $request->string('name')->toString(),
-            $request->string('password')->toString(),
-            $request->attributes->get('request_id'),
-        );
+        $request->ensureIdentityConfirmationIsNotRateLimited($token, $tenantContext->id());
+        try {
+            $accepted = $accept->execute(
+                $token,
+                $tenantContext->id(),
+                $request->string('name')->toString(),
+                $request->string('password')->toString(),
+                $request->attributes->get('request_id'),
+            );
+        } catch (DomainException $exception) {
+            if ($exception->errorCode === 'ADMIN_CONFIRMATION_FAILED') {
+                $request->hitIdentityConfirmationRateLimiter($token, $tenantContext->id());
+            }
+
+            throw $exception;
+        }
+        $request->clearIdentityConfirmationRateLimiter($token, $tenantContext->id());
         Auth::guard('tenant_admin')->login($accepted->admin);
         $request->session()->regenerate();
 

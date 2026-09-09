@@ -26,8 +26,10 @@ final readonly class UpdateTenantBusinessSettingsAction
             $fields = ['required_security_deposit_amount', 'required_security_deposit_asset', 'allow_wallet_topup', 'allow_withdrawal'];
             $before = $settings->only($fields);
             $settings->update([
-                ...$data,
                 'required_security_deposit_amount' => $amount->amount(),
+                'required_security_deposit_asset' => $data['required_security_deposit_asset'],
+                'allow_wallet_topup' => $data['allow_wallet_topup'],
+                'allow_withdrawal' => $data['allow_withdrawal'],
             ]);
             $this->audit->record($tenant->id, 'ADMIN', $actor->id, 'TENANT_BUSINESS_SETTINGS_UPDATED', 'tenant_business_settings', $tenant->id, $before, $settings->fresh()->only($fields), $requestId);
         });

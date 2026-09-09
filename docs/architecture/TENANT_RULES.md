@@ -12,7 +12,8 @@
 - Cross-tenant negative tests are required for every new tenant-scoped module.
 - Admin invitation links are generated from the invited Tenant's current primary/system domain. The token is valid only when that host resolves the same Tenant; it cannot be accepted on another Tenant or the Platform host.
 - Tenant slugs are normalized, globally unique, protected from reserved Platform names, and immutable through ordinary Phase 1 settings. Creation always provides an active `{slug}.{PLATFORM_ROOT_DOMAIN}` system domain.
-- System domains cannot be deleted. Custom hostnames are globally unique and move through PENDING_VERIFICATION, VERIFIED, and ACTIVE. Only ACTIVE domains may become primary; one primary is switched atomically.
+- System domains cannot be deleted. Custom hostnames are globally unique and move through `PENDING_VERIFICATION`, `VERIFIED`, `ACTIVE`, `FAILED`, or `DISABLED`. Primary designation is an independent `is_primary` dimension, never a lifecycle status: `ACTIVE + is_primary=true` is the canonical primary domain. Multiple domains may be ACTIVE, but only one may be primary. Only ACTIVE domains may become primary and the switch is atomic. A primary domain cannot be disabled or deleted until another ACTIVE domain is selected first.
+- V1 accepts ASCII hostnames only. Schemes, paths, ports, wildcards, userinfo, Unicode/IDN input, the Platform root/host, and reserved Platform subdomains are rejected. IDN support requires an explicit future architecture change with reliable IDNA normalization.
 
 Locale priority is User Preference -> Cookie -> Accept-Language -> IP suggestion -> Tenant default. IP is a first-use suggestion, never coercion. Database timestamps are TIMESTAMPTZ/UTC; tenant timezone controls display and business calendars.
 
@@ -25,4 +26,4 @@ Surface availability is separate from resolution:
 
 The database can enforce at most one default locale. The Application layer must also preserve at least one enabled locale because that cross-row cardinality rule is not represented by a simple ordinary constraint.
 
-Foundation activation is derived by `TenantOnboardingStatusService` from Tenant creation, an active Owner membership, valid branding, locale invariants, KYC/business settings, and an active system domain. No client or Admin can submit an `onboarding_complete` override. `ACTIVE` means the Tenant web foundation is enabled; it never implies Card Provider/Product or money readiness.
+Foundation activation is derived by `TenantOnboardingStatusService` from Tenant creation, an active Owner membership, valid branding, locale invariants, KYC/business settings, and an active system domain. The creation defaults—Tenant name as brand name and a valid default HEX primary color—intentionally satisfy the branding portion until an Owner customizes them. No client or Admin can submit an `onboarding_complete` override. `ACTIVE` means the Tenant web foundation is enabled; it never implies Card Provider/Product or money readiness.

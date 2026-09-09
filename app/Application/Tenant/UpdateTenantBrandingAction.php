@@ -25,7 +25,11 @@ final readonly class UpdateTenantBrandingAction
             $branding = $tenant->branding()->lockForUpdate()->firstOrFail();
             $before = $branding->only(['brand_name', 'logo_object_key', 'favicon_object_key', 'primary_color', 'support_email', 'support_url', 'copyright_text']);
             $branding->update([
-                ...$data,
+                'brand_name' => $data['brand_name'],
+                'primary_color' => $data['primary_color'],
+                'support_email' => $data['support_email'],
+                'support_url' => $data['support_url'],
+                'copyright_text' => $data['copyright_text'],
                 'logo_object_key' => $newLogo ?? $branding->logo_object_key,
                 'favicon_object_key' => $newFavicon ?? $branding->favicon_object_key,
             ]);

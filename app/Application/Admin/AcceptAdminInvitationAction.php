@@ -57,7 +57,7 @@ final readonly class AcceptAdminInvitationAction
             $admin = AdminUser::query()->whereRaw('LOWER(email) = ?', [strtolower($invitation->email)])->lockForUpdate()->first();
             if ($admin) {
                 if ($admin->status !== AdminUserStatus::Active || ! Hash::check($password, $admin->password)) {
-                    throw new DomainException('ADMIN_CONFIRMATION_FAILED', 'The existing administrator password could not be confirmed.');
+                    throw new DomainException('ADMIN_CONFIRMATION_FAILED', 'The existing administrator identity could not be confirmed.');
                 }
             } else {
                 Validator::make(

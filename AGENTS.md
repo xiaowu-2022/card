@@ -6,6 +6,7 @@ These rules are mandatory for every future change. If a requested feature requir
 
 - Never trust `tenant_id` from client input. Tenant web requests resolve `Host -> tenant_domains -> TenantContext`.
 - Tenant resolution requires an ACTIVE domain but is independent of Tenant lifecycle status. Apply DRAFT/ACTIVE/SUSPENDED/CLOSED availability in a separate surface policy.
+- Keep domain lifecycle status separate from `is_primary`; never add a `PRIMARY` domain status. Reject Unicode/IDN domains until an explicit IDNA design is approved.
 - Every tenant business query must be tenant-scoped by both `tenant_id` and resource id.
 - Tenant Admin must never access another tenant. A membership and the resolved tenant must match.
 - Platform roles cannot back Tenant memberships and Tenant roles cannot back Platform memberships; preserve the database-level scope match.
@@ -26,6 +27,7 @@ These rules are mandatory for every future change. If a requested feature requir
 
 - Mock and real Card Providers must implement `CardProviderInterface`; business code depends only on that contract.
 - Never call an external provider API inside a long database transaction.
+- Never implement domain verification as an unrestricted HTTP fetch; production verification must be DNS-only or explicitly SSRF-hardened.
 - Provider timeout or an unconfirmed response is `UNKNOWN`, not `FAILED`; reconcile before retry/refund.
 - Provider adapters handle HTTP, authentication, and mapping only. They must never modify Wallet, Ledger, Deposit, or Commission.
 - Never store Provider credentials in plaintext. Existing secrets are replace/test/disable only, never revealed.
