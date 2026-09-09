@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { Home, IdCard, LockKeyhole, UserRound } from 'lucide-react';
+import { Home, IdCard, UserRound, WalletCards } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { AppMark } from '@/components/shared/AppMark';
 import { Button } from '@/components/ui/button';
@@ -7,9 +7,9 @@ import type { SharedProps } from '@/types/global';
 
 const nav = [
     { label: 'Dashboard', href: '/dashboard', icon: Home },
+    { label: 'Wallet', href: '/wallet', icon: WalletCards },
     { label: 'Verify', href: '/kyc', icon: IdCard },
     { label: 'Account', href: '/account', icon: UserRound },
-    { label: 'Security', href: '/account/security', icon: LockKeyhole },
 ];
 
 export function UserLayout({ children }: { children: ReactNode }) {

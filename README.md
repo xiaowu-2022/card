@@ -1,6 +1,6 @@
 # Aperture Cards — Virtual Card SaaS
 
-Phase 3 identity and KYC foundation for a tenant-aware Laravel modular monolith. Tenant-scoped End User authentication, private NATIONAL_ID submission, Mock OCR, manual Tenant review, derived KYC status, and verified Identity Records are real. Wallet, cards, balances, transactions, products, and real providers remain intentionally absent or explicit demo UI.
+Phase 4 Wallet and immutable double-entry Ledger foundation for a tenant-aware Laravel modular monolith. Tenant-scoped End User authentication, hardened KYC, explicit Wallet activation, Ledger Accounts, idempotent atomic Postings, reconciliation, and read-only financial views are real. Top-up, payment, withdrawal, deposit payment/refund, cards, products, and real providers remain intentionally absent or explicit local demo UI.
 
 ## Requirements
 
@@ -53,13 +53,21 @@ Set independent, stable `KYC_DATA_ENCRYPTION_KEY` (exactly 32 bytes, optionally 
 4. Approve, reject, or request resubmission. Approval only creates an Identity Record; it never creates a Wallet or Card.
 5. Raw document viewing requires `kyc.document.view` plus current-password confirmation. Access uses an audited, short-lived signed private stream. SUPPORT can read basic KYC metadata but cannot review or view documents; FINANCE_VIEWER has no KYC permissions.
 
+## Phase 4 Wallet and Ledger workflow
+
+1. KYC approval does not create a Wallet. The approved active User opens `/wallet` and explicitly activates the Tenant default-asset Wallet.
+2. Activation creates one Wallet, five User Ledger Accounts, and ensures four Tenant system Accounts, all at `0.00000000`; it creates no synthetic Ledger Entry.
+3. `/wallet` shows real available/security-deposit account values and backend-calculated qualification. No top-up, withdrawal, or deposit-payment action exists.
+4. Tenant Admins use `/admin/users/{user}/wallet` with `wallet.read` and `/admin/users/{user}/ledger` with `ledger.read`. Both are strictly read-only.
+5. Run `php artisan ledger:reconcile` to compare cached balances with Posting truth. A mismatch returns a non-zero status and is never automatically repaired.
+
 ## Phase 1 admin workflow
 
 1. Sign in at `http://admin.localhost:8000/platform/login` and create a Tenant from the Tenant directory.
 2. Open Mailpit at `http://localhost:8025`. The Owner invitation link targets the new Tenant's `{slug}.localhost` host, expires after 72 hours, and is single-use.
 3. Accept the invitation, choose a strong password, and sign in through that Tenant's `/admin/login`. An existing Admin email confirms its current password and receives only the new Tenant membership.
 4. Complete branding, locales, manual KYC policy, decimal-string security-deposit configuration, and domain settings under `/admin/onboarding`.
-5. Activate the computed foundation when every required item passes. This enables the Tenant web foundation only; Card Product, Provider, Wallet, and Ledger readiness remain false and unavailable.
+5. Activate the computed foundation when every required item passes. This enables the Tenant web foundation only; User Wallet activation still requires approved KYC, while Card Product, Provider, and payment readiness remain false and unavailable.
 
 Custom domains begin in `PENDING_VERIFICATION`. For the local adapter, `cards.example.test` is configured as verifiable; add it, check verification, activate it, then optionally make it primary. Add any browser-resolvable local hostname mapping you need outside the application. Production must replace the local verifier and provision SSL before serving a custom host.
 
@@ -69,6 +77,7 @@ Custom domains begin in `PENDING_VERIFICATION`. For the local adapter, `cards.ex
 docker compose run --rm app php artisan migrate:fresh --seed
 docker compose run --rm app php artisan test
 docker compose run --rm app vendor/bin/pint --test
+docker compose run --rm app php artisan ledger:reconcile
 docker compose run --rm node npm run typecheck
 docker compose run --rm node npm run lint
 docker compose run --rm node npm run format:check
@@ -85,4 +94,4 @@ Private KYC files use `KYC_DOCUMENT_DISK`; the local default is `private`. Ident
 
 ## Architecture
 
-Start with [Architecture](docs/architecture/ARCHITECTURE.md), [Tenant Rules](docs/architecture/TENANT_RULES.md), [User Authentication Rules](docs/architecture/USER_AUTH_RULES.md), [KYC Rules](docs/architecture/KYC_RULES.md), [Money Rules](docs/architecture/MONEY_RULES.md), [Card Provider Rules](docs/architecture/CARD_PROVIDER_RULES.md), and mandatory [Agent Rules](AGENTS.md).
+Start with [Architecture](docs/architecture/ARCHITECTURE.md), [Tenant Rules](docs/architecture/TENANT_RULES.md), [User Authentication Rules](docs/architecture/USER_AUTH_RULES.md), [KYC Rules](docs/architecture/KYC_RULES.md), [Money Rules](docs/architecture/MONEY_RULES.md), [Ledger Rules](docs/architecture/LEDGER_RULES.md), [Card Provider Rules](docs/architecture/CARD_PROVIDER_RULES.md), and mandatory [Agent Rules](AGENTS.md).

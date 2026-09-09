@@ -9,9 +9,10 @@ import { UserLayout } from '@/layouts/UserLayout';
 type Props = {
     account: { displayName: string | null; status: string; verifiedChannel: string } | null;
     kycStatus: 'NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESUBMISSION_REQUIRED';
+    walletStatus: string | null;
 };
 
-export default function Dashboard({ account, kycStatus }: Props) {
+export default function Dashboard({ account, kycStatus, walletStatus }: Props) {
     return (
         <UserLayout>
             <Head title="Dashboard" />
@@ -73,7 +74,7 @@ export default function Dashboard({ account, kycStatus }: Props) {
                             ['Account created', true],
                             ['Contact verified', true],
                             ['Identity verification', kycStatus === 'APPROVED'],
-                            ['Wallet', false],
+                            ['Wallet activated', walletStatus === 'ACTIVE'],
                             ['Security deposit', false],
                             ['Virtual card', false],
                         ].map(([label, done]) => (
@@ -86,7 +87,7 @@ export default function Dashboard({ account, kycStatus }: Props) {
                                 <span className={done ? 'font-medium' : 'text-muted-foreground'}>
                                     {label}
                                 </span>
-                                {!done && (
+                                {!done && label !== 'Wallet activated' && (
                                     <span className="ml-auto text-xs font-medium text-muted-foreground">
                                         Coming later
                                     </span>

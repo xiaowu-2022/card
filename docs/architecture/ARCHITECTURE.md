@@ -24,7 +24,7 @@ Custom domains follow `PENDING_VERIFICATION -> VERIFIED -> ACTIVE`. Verification
 
 ## Money and providers
 
-`Money` uses Brick Math decimal arithmetic at eight decimal places. Phase 0 has no Ledger tables or money-changing workflow. Future Ledger is immutable double-entry storage; no administrator has balance mutation powers.
+`Money` uses Brick Math decimal arithmetic at eight decimal places and enforces PostgreSQL `NUMERIC(20,8)` bounds. Phase 4 owns Wallet and the dependency-free Ledger core. Wallets contain lifecycle/asset ownership but no balance; Ledger Accounts cache balances while immutable Postings remain authoritative. `LedgerWriter` is the sole posting path and atomically applies deterministic locks, canonical idempotency, exact zero-sum validation, history insertion, and cached balances. PostgreSQL independently enforces ownership/asset relationships, non-zero postings, minimum balanced entries at transaction completion, negative policies, and Entry/Posting immutability. No administrator has balance mutation powers.
 
 Card business code will depend on `CardProviderInterface`. `MockCardProvider` exercises the same contract and explicit SUCCESS/FAILED/TIMEOUT/UNKNOWN paths. An external call is made only after local intent/hold commits, then settled or released in a new transaction. A timeout is UNKNOWN.
 
@@ -32,4 +32,4 @@ Production card access is always `CardProviderInterface -> third-party Provider 
 
 ## Current phase boundary
 
-Phase 3.1 completes the KYC security acceptance boundary: canonical identity hashing, dedicated data encryption, migration of legacy KYC ciphertext/hash data, retry-safe OCR, concurrency locks, immutable review/submission data, scoped recent authentication, and hardened private image delivery. Mock OCR remains local/testing only. The project intentionally stops before Wallet/Ledger, payments, withdrawals, security-deposit workflows, Card Product, card issue/load, real providers, agents, commission, and SaaS billing. KYC approval has no cross-Domain side effects.
+Phase 4 completes Wallet activation and the immutable double-entry Ledger core. KYC approval remains side-effect free; an eligible User explicitly activates the default-asset Wallet in a separate Application Action. Activation provisions zero-balance accounts without a synthetic Entry. User and Tenant Admin surfaces are read-only except User self-activation. The project intentionally stops before top-up/payment, withdrawal, security-deposit payment/refund, Card Product, card issue/load, real providers, agents, commission, and SaaS billing.

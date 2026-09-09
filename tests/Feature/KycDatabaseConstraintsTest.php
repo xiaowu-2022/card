@@ -55,10 +55,14 @@ it('requires a positive identity account limit and keeps identity hash non-uniqu
     expect(fn () => $this->tenantA->kycSettings()->update(['max_accounts_per_identity' => 101]))->toThrow(QueryException::class);
 });
 
-it('creates only Phase 3 KYC tables and no future money or card tables', function (): void {
+it('retains Phase 3 KYC tables alongside Phase 4 ledger but no later business tables', function (): void {
     expect(Schema::hasTable('kyc_applications'))->toBeTrue()
-        ->and(Schema::hasTable('identity_records'))->toBeTrue();
-    foreach (['wallets', 'ledger_accounts', 'ledger_entries', 'ledger_postings', 'wallet_topup_orders', 'withdrawal_orders', 'security_deposit_refund_requests', 'card_products', 'card_provider_connections', 'user_cards'] as $futureTable) {
+        ->and(Schema::hasTable('identity_records'))->toBeTrue()
+        ->and(Schema::hasTable('wallets'))->toBeTrue()
+        ->and(Schema::hasTable('ledger_accounts'))->toBeTrue()
+        ->and(Schema::hasTable('ledger_entries'))->toBeTrue()
+        ->and(Schema::hasTable('ledger_postings'))->toBeTrue();
+    foreach (['wallet_topup_orders', 'withdrawal_orders', 'security_deposit_refund_requests', 'card_products', 'card_provider_connections', 'user_cards'] as $futureTable) {
         expect(Schema::hasTable($futureTable))->toBeFalse();
     }
 });

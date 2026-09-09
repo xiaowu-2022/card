@@ -20,6 +20,13 @@ These rules are mandatory for every future change. If a requested feature requir
 - Never create generic balance setters or helpers named `setBalance`, `updateBalance`, `adjustBalance`, `creditBalance`, `debitBalance`, `manualCredit`, or `manualDebit`.
 - Never manually modify wallet, security-deposit, or commission balances—not even for Platform Owner.
 - Never edit or delete Ledger history. Correct errors through a new reversal/refund business flow.
+- Never write `LedgerPosting` directly from business code; every committed event goes through `LedgerWriter`.
+- Never update `LedgerAccount.balance` outside `LedgerWriter`, and never expose a generic balance adjustment endpoint.
+- Never create manual-adjustment, correction, or administrator-adjustment accounts.
+- Every Ledger event must be idempotent, contain one asset only, and sum exactly to zero with at least two non-zero postings.
+- User-owned accounts and Tenant fee revenue must never become negative; only the defined Tenant clearing account types permit negative balances.
+- Ledger Entries and Postings are immutable. Reversal is always a new business-authorized Entry, never an edit.
+- Reconciliation reports posting/cache mismatches and must never silently repair them.
 - Money must use decimal strings and `NUMERIC(20,8)`; never float/double/real or JavaScript numbers.
 - Every future money-changing request must be idempotent. Persist intent and hold, commit, call external providers, then settle/release in a new transaction.
 
@@ -78,4 +85,4 @@ These rules are mandatory for every future change. If a requested feature requir
 
 ## Phase boundaries
 
-Phase 3 contains Tenant-scoped KYC submissions, private NATIONAL_ID documents, Mock OCR, manual review, derived KYC status, current Identity Records, duplicate limits, sensitive access, and KYC audit. It does not contain wallets, ledgers, top-ups, withdrawals, deposit/refund flows, products, card issue/load, real providers, agents, commissions, or billing.
+Phase 4 contains independently activated User Wallets, provisioned Ledger Accounts, immutable balanced Ledger Entries/Postings, cached balances, idempotent atomic posting, read-only reconciliation, eligibility, and read-only User/Tenant Admin views. It does not contain top-ups, payments, withdrawals, deposit payment/refund, card issue/load, products, real providers, agents, commissions, manual adjustments, or billing.

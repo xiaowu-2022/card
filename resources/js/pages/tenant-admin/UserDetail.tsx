@@ -1,4 +1,4 @@
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import {
@@ -32,6 +32,7 @@ type Props = { user: UserDetail; audit: Array<{ id: string; action: string; crea
 export default function UserDetailPage({ user, audit }: Props) {
     const canSuspend =
         usePage<SharedProps>().props.auth.admin?.permissions.includes('users.suspend') ?? false;
+    const permissions = usePage<SharedProps>().props.auth.admin?.permissions ?? [];
     const action =
         user.status === 'ACTIVE' ? 'suspend' : user.status === 'SUSPENDED' ? 'reactivate' : null;
     return (
@@ -143,9 +144,22 @@ export default function UserDetailPage({ user, audit }: Props) {
                                 <p>Email: {user.email ?? 'Not added'}</p>
                                 <p>Phone: {user.phone ?? 'Not added'}</p>
                                 <p>Locale: {user.locale ?? 'Tenant default'}</p>
-                                <p className="text-muted-foreground">
-                                    KYC: Not implemented / not submitted.
-                                </p>
+                                <div className="flex flex-wrap gap-2 pt-2">
+                                    {permissions.includes('wallet.read') && (
+                                        <Button asChild variant="secondary" size="sm">
+                                            <Link href={`/admin/users/${user.id}/wallet`}>
+                                                View wallet
+                                            </Link>
+                                        </Button>
+                                    )}
+                                    {permissions.includes('ledger.read') && (
+                                        <Button asChild variant="secondary" size="sm">
+                                            <Link href={`/admin/users/${user.id}/ledger`}>
+                                                View ledger
+                                            </Link>
+                                        </Button>
+                                    )}
+                                </div>
                             </CardContent>
                         </Card>
                     </TabsContent>

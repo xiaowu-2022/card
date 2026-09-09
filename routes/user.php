@@ -4,6 +4,7 @@ use App\Http\Controllers\Public\LandingController;
 use App\Http\Controllers\User\AccountController;
 use App\Http\Controllers\User\CardsController;
 use App\Http\Controllers\User\DashboardController;
+use App\Http\Controllers\User\DemoWalletController;
 use App\Http\Controllers\User\KycController;
 use App\Http\Controllers\User\RegistrationController;
 use App\Http\Controllers\User\UserAuthController;
@@ -21,7 +22,7 @@ Route::middleware('tenant.surface:end-user')->group(function (): void {
     });
     if (app()->environment(['local', 'testing'])) {
         Route::get('/demo', DashboardController::class)->name('user.dashboard');
-        Route::get('/demo/wallet', WalletController::class)->name('user.wallet');
+        Route::get('/demo/wallet', DemoWalletController::class)->name('user.demo.wallet');
         Route::get('/demo/cards', CardsController::class)->name('user.cards');
     }
 });
@@ -36,6 +37,7 @@ Route::middleware('tenant.surface:user-auth')->group(function (): void {
         Route::get('/account/restricted', [AccountController::class, 'restricted'])->name('user.account.restricted');
         Route::get('/account/security', [AccountController::class, 'security'])->name('user.account.security');
         Route::get('/kyc', [KycController::class, 'show'])->name('user.kyc');
+        Route::get('/wallet', [WalletController::class, 'show'])->name('user.wallet');
         Route::post('/account/security/password', [AccountController::class, 'changePassword'])->middleware('throttle:5,1')->name('user.account.password');
         Route::post('/logout', [UserAuthController::class, 'destroy'])->name('user.logout');
     });
@@ -45,6 +47,7 @@ Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operat
     Route::get('/dashboard', DashboardController::class)->name('user.authenticated.dashboard');
     Route::get('/account', [AccountController::class, 'show'])->name('user.account');
     Route::post('/kyc/applications', [KycController::class, 'store'])->name('user.kyc.applications.store');
+    Route::post('/wallet/activate', [WalletController::class, 'activate'])->name('user.wallet.activate');
 });
 
 if (app()->environment('testing')) {

@@ -17,6 +17,8 @@ Forbidden rules:
 - KYC depends on Tenant/User identity references and Audit orchestration only. Its Domain and OCR adapter never depend on Wallet, Ledger, SecurityDeposit, Card, or CardProvider.
 - KYC cryptography and OCR contracts are KYC-owned boundaries. OCR adapters return hints only and cannot write review status.
 - Future Wallet eligibility may query a derived KYC status through an Application boundary; KYC never calls Wallet.
+- Ledger has no business-Domain dependency. Wallet may depend on Ledger provisioning abstractions; the Application layer coordinates Tenant, User, KYC, and Wallet activation.
+- Business modules may construct a business-specific immutable posting plan and call `LedgerWriter`; they may not create Postings or mutate cached balances directly.
 - Tenant settings modify requirements, not user balances or deposits.
 - Circular Domain dependencies are prohibited.
 

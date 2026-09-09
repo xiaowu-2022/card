@@ -15,6 +15,8 @@ final readonly class Money implements JsonSerializable, Stringable
 {
     private const SCALE = 8;
 
+    private const MAX_INTEGER_DIGITS = 12;
+
     private BigDecimal $decimal;
 
     public string $assetCode;
@@ -35,6 +37,11 @@ final readonly class Money implements JsonSerializable, Stringable
 
         if (strlen($fraction) > self::SCALE) {
             throw new InvalidArgumentException('Amount must have at most 8 decimal places.');
+        }
+
+        $integer = ltrim(strtok(ltrim($amount, '+-'), '.') ?: '0', '0');
+        if (strlen($integer) > self::MAX_INTEGER_DIGITS) {
+            throw new InvalidArgumentException('Amount exceeds NUMERIC(20,8) ledger bounds.');
         }
 
         $this->assetCode = $assetCode;
@@ -84,6 +91,11 @@ final readonly class Money implements JsonSerializable, Stringable
     public function isPositive(): bool
     {
         return $this->decimal->isPositive();
+    }
+
+    public function isNegative(): bool
+    {
+        return $this->decimal->isNegative();
     }
 
     public function jsonSerialize(): array

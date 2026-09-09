@@ -12,6 +12,7 @@
 - Cross-tenant negative tests are required for every new tenant-scoped module.
 - End User identity is Tenant-scoped. Email and phone uniqueness, challenge lookup, credential lookup, verification, and challenge consumption always include the resolved Tenant. The same normalized contact may independently exist in different Tenants.
 - KYC applications, identities, review queues, resubmission links, document access, OCR jobs, and duplicate counts always begin with trusted Tenant scope. Client `tenant_id` and known foreign UUIDs never switch or reveal Tenant data.
+- Wallet activation receives the trusted Tenant/User identifiers from authenticated Application code. Wallet, Account, Entry, Posting, eligibility, reconciliation, and Admin reads are Tenant-scoped; composite database keys prevent cross-Tenant User/Wallet/Account/Entry relationships. Client input never selects Ledger Tenant or Account instructions.
 - Tenant suspension or disabling KYC blocks new User KYC submissions while allowing explicitly authorized reviewers to finish already-pending applications. CLOSED makes the Tenant Admin surface unavailable and retains history. KYC identity limits are `1..100`; settings changes and approvals lock the same Tenant KYC settings row for deterministic ordering.
 - Admin invitation links are generated from the invited Tenant's current primary/system domain. The token is valid only when that host resolves the same Tenant; it cannot be accepted on another Tenant or the Platform host.
 - Tenant slugs are normalized, globally unique, protected from reserved Platform names, and immutable through ordinary Phase 1 settings. Creation always provides an active `{slug}.{PLATFORM_ROOT_DOMAIN}` system domain.
@@ -24,7 +25,7 @@ Surface availability is separate from resolution:
 
 - DRAFT: Tenant Admin allowed for setup; normal End User operations unavailable.
 - ACTIVE: Tenant Admin and End User allowed.
-- SUSPENDED: Tenant Admin allowed; existing End Users may authenticate and use only explicitly allowlisted restricted/account-security/logout routes. Restricted access is deny-by-default, registration and operational routes are blocked, and status is re-evaluated on every request.
+- SUSPENDED: Tenant Admin allowed; existing End Users may authenticate and use only explicitly allowlisted restricted/account-security/logout and Wallet read-only routes. Restricted access is deny-by-default, registration, Wallet activation, and financial/card mutations are blocked, and status is re-evaluated on every request.
 - CLOSED: normal End User unavailable and Tenant Admin unavailable in V1; retained records remain inspectable to authorized Platform scope.
 
 The database can enforce at most one default locale. The Application layer must also preserve at least one enabled locale because that cross-row cardinality rule is not represented by a simple ordinary constraint.

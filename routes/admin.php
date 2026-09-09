@@ -11,6 +11,7 @@ use App\Http\Controllers\TenantAdmin\TeamController;
 use App\Http\Controllers\TenantAdmin\TenantAdminAuthController;
 use App\Http\Controllers\TenantAdmin\TenantSettingsController;
 use App\Http\Controllers\TenantAdmin\UsersController;
+use App\Http\Controllers\TenantAdmin\UserWalletController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('tenant.surface:tenant-admin')->prefix('admin')->name('tenant-admin.')->group(function (): void {
@@ -30,6 +31,9 @@ Route::middleware('tenant.surface:tenant-admin')->prefix('admin')->name('tenant-
         Route::post('/users/{user}/suspend', [UsersController::class, 'suspend'])->whereUuid('user')->name('users.suspend');
         Route::post('/users/{user}/reactivate', [UsersController::class, 'reactivate'])->whereUuid('user')->name('users.reactivate');
     });
+
+    Route::middleware('admin.scope:tenant,wallet.read')->get('/users/{user}/wallet', [UserWalletController::class, 'show'])->whereUuid('user')->name('users.wallet');
+    Route::middleware('admin.scope:tenant,ledger.read')->get('/users/{user}/ledger', [UserWalletController::class, 'ledger'])->whereUuid('user')->name('users.ledger');
 
     Route::middleware('admin.scope:tenant,kyc.read')->group(function (): void {
         Route::get('/kyc', [KycController::class, 'index'])->name('kyc.index');

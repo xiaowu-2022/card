@@ -24,7 +24,6 @@ use App\Domain\Tenant\Services\TenantOnboardingStatusService;
 use App\Mail\AdminInvitationMail;
 use App\Support\Errors\DomainException;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Schema;
 
 beforeEach(fn () => $this->seed());
 
@@ -150,8 +149,8 @@ it('rejects imprecise and negative deposit configuration without creating money 
     $this->actingAs($actor, 'tenant_admin')->post('http://a.localhost/admin/settings/business', [...$base, 'required_security_deposit_amount' => '1.123456789'])
         ->assertSessionHasErrors('required_security_deposit_amount');
     expect(fn () => app(UpdateTenantBusinessSettingsAction::class)->execute($tenant, [...$base, 'required_security_deposit_amount' => '-1.00'], $actor))->toThrow(DomainException::class)
-        ->and(Schema::hasTable('wallets'))->toBeFalse()
-        ->and(Schema::hasTable('ledger_entries'))->toBeFalse();
+        ->and(DB::table('wallets')->count())->toBe(0)
+        ->and(DB::table('ledger_entries')->count())->toBe(0);
 });
 
 it('enforces the custom domain state machine and tenant ownership', function (): void {

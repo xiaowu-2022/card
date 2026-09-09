@@ -1,6 +1,6 @@
 # Database Schema Plan
 
-Phase 0 creates Tenant/Admin/Audit foundations. Phase 1 extends Admin authentication without adding future business tables. Phase 2 adds exactly `users`, `user_profiles`, `user_preferences`, and `registration_challenges`. Phase 3 adds exactly `kyc_applications` and `identity_records`. UUID is the universal business primary-key strategy. Status is uppercase PHP backed enum plus VARCHAR/CHECK. Timestamps are timezone-aware. Core deletion is RESTRICT, not cascading history removal.
+Phase 0 creates Tenant/Admin/Audit foundations. Phase 1 extends Admin authentication without adding future business tables. Phase 2 adds exactly `users`, `user_profiles`, `user_preferences`, and `registration_challenges`. Phase 3 adds exactly `kyc_applications` and `identity_records`. Phase 4 adds exactly `wallets`, `ledger_accounts`, `ledger_entries`, and `ledger_postings`. UUID is the universal business primary-key strategy. Status is uppercase PHP backed enum plus VARCHAR/CHECK. Timestamps are timezone-aware. Core deletion is RESTRICT, not cascading history removal.
 
 PostgreSQL constraints include global unique hostname/slug/admin email/permission/role, one primary domain per tenant, one default locale per tenant, valid state checks, nonnegative deposit requirement, and explicit Platform-null/Tenant-non-null membership scope. `admin_memberships.scope_id` references `tenants.id` when present, and the composite role/scope foreign key guarantees that Platform roles cannot back Tenant memberships or vice versa. The Application layer preserves at least one enabled tenant locale through `UpdateTenantLocalesAction`; this cross-row cardinality rule is intentionally not misrepresented as an ordinary row constraint.
 
@@ -10,9 +10,10 @@ Phase 2 constraints include Tenant-scoped nullable email/phone uniqueness, at le
 
 Phase 3 KYC applications store explicit NATIONAL_ID/country, dedicated-key encrypted identity, a canonical Tenant+document-type+country+number 64-character HMAC, private object keys, independent OCR/review states, review attribution, and immutable timestamps. Composite foreign keys bind applications and direct-predecessor resubmission links to the same Tenant/User. A partial unique index permits one PENDING application per User. Identity Records bind to the same Tenant/User/source application, are unique per `(tenant_id,user_id)`, and index—but never uniquely constrain—`(tenant_id,identity_hash)`. Phase 3.1 data migrations re-protect existing APP_KEY ciphertext/recompute hashes and constrain Tenant identity limits to `1..100`; the original Phase 3 migration remains unchanged.
 
+Phase 4 Wallets are unique by `(tenant_id,user_id,asset_code)` and use a composite foreign key to prevent cross-Tenant User ownership. Ledger Accounts use `NUMERIC(20,8)` cached balances, exact User Wallet ownership FKs, partial Tenant-system uniqueness, fixed account-type ownership, status, asset, and negative-policy checks. Ledger Entries are unique by Tenant/Event Key and contain canonical hashes, business references, optional same-Tenant/same-asset reversal references, and no pending state. Posting composite FKs force Tenant/Asset agreement with both Entry and Account; deltas are non-zero and account duplication within an Entry is forbidden. Deferred constraint triggers require at least two Postings with an exact zero sum, while immediate triggers reject Entry/Posting update or delete.
+
 Future migrations are added only with their owning phase:
 
-- Wallet/Ledger: `wallets`, `ledger_accounts`, `ledger_entries`, `ledger_postings`.
 - Payment: `wallet_topup_orders`, `payment_provider_transactions`, `payment_provider_events`.
 - Withdrawal: `withdrawal_orders`, `withdrawal_destinations`.
 - Security Deposit: `security_deposit_refund_requests`; never a mutable `security_deposits` balance table.
