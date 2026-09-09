@@ -26,6 +26,11 @@ These rules are mandatory for every future change. If a requested feature requir
 - Every Ledger event must be idempotent, contain one asset only, and sum exactly to zero with at least two non-zero postings.
 - User-owned accounts and Tenant fee revenue must never become negative; only the defined Tenant clearing account types permit negative balances.
 - Ledger Entries and Postings are immutable. Reversal is always a new business-authorized Entry, never an edit.
+- Every completed Ledger Entry is permanently sealed. Postings may be inserted only while its parent Entry is unsealed inside `LedgerWriter`; late Postings are forbidden even when they preserve a zero sum.
+- The database must validate at transaction completion that every cached Ledger Account balance equals the sum of its sealed Postings. Triggers validate but never calculate or repair balances.
+- Follow the global financial lock order: business aggregate/order row, business advisory lock, Ledger event transaction lock, Ledger Accounts sorted by UUID, then derived rows. Only `LedgerWriter` locks Ledger Accounts.
+- `LedgerWriter` must remain safe inside an outer business transaction and must never commit or release locks independently of that outer boundary.
+- Wallet activation and User lifecycle mutations lock Tenant before User so they cannot invert the shared ownership lock order through Audit foreign keys.
 - Reconciliation reports posting/cache mismatches and must never silently repair them.
 - Money must use decimal strings and `NUMERIC(20,8)`; never float/double/real or JavaScript numbers.
 - Every future money-changing request must be idempotent. Persist intent and hold, commit, call external providers, then settle/release in a new transaction.
@@ -72,6 +77,7 @@ These rules are mandatory for every future change. If a requested feature requir
 - User `ACTIVE` means account access only; it never means KYC approval, Wallet readiness, deposit qualification, or card eligibility. Suspending a User restricts access and never changes money or cards.
 - KYC status is derived from immutable applications/current Identity Record, never stored on `users`. OCR is untrusted assistance and never automatic approval.
 - KYC review transitions only from PENDING, approval enforces the Tenant identity limit under a database lock, and no KYC action creates Wallet/Ledger/Deposit/Card state.
+- V1 requires the Security Deposit asset to equal the Tenant default asset. Once a Wallet or Ledger Account exists, the Tenant default asset is frozen until a separately designed migration/multi-asset workflow.
 - KYC document access requires separate permission, current Tenant scope, recent Admin password confirmation, short-lived signed private access, and a sanitized audit event.
 
 ## UI
@@ -81,6 +87,7 @@ These rules are mandatory for every future change. If a requested feature requir
 - Do not expose Ledger/clearing/posting terms or raw provider errors to end users.
 - Do not add arbitrary tenant CSS/JS, custom React uploads, dashboard builders, or page builders.
 - Avoid glassmorphism, large gradients, neon/crypto styling, decorative 3D cards, and complex animation.
+- User mobile UI follows the shared PokePay-inspired baseline for information density and navigation behavior without copying its brand, assets, or visual identity; this is a design contract, not a second UI framework.
 - Critical actions require explicit warning and confirmation; a toast is insufficient.
 
 ## Phase boundaries

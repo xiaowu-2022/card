@@ -13,7 +13,7 @@ final class LedgerPosting extends Model
 
     public $timestamps = false;
 
-    protected $guarded = [];
+    protected $guarded = ['*'];
 
     protected function casts(): array
     {

@@ -35,6 +35,19 @@ arch('Ledger core does not depend on business domains')
         'App\Domain\Payment',
         'App\Domain\Withdrawal',
         'App\Domain\Commission',
+        'App\Domain\Agent',
+        'App\Domain\PhotonPay',
+    ]);
+
+arch('Wallet domain does not depend on KYC persistence or future financial domains')
+    ->expect('App\Domain\Wallet')
+    ->not->toUse([
+        'App\Domain\Kyc',
+        'App\Domain\Payment',
+        'App\Domain\Withdrawal',
+        'App\Domain\SecurityDeposit',
+        'App\Domain\Card',
+        'App\Domain\CardProvider',
     ]);
 
 it('keeps OCR providers away from review state and KYC approval away from financial side effects', function (): void {
@@ -113,4 +126,14 @@ it('keeps direct ledger persistence writes inside the ledger core', function ():
     expect($businessSources)->not->toContain('LedgerPosting::create', "table('ledger_postings')", 'table("ledger_postings")')
         ->and($controllerSources)->not->toContain('LedgerPosting', 'LedgerWriter', 'LedgerPostingPlan', 'ledger_accounts')
         ->and($kycApproval)->not->toContain('WalletProvisioner', 'ActivateUserWalletAction', 'LedgerWriter');
+});
+
+it('keeps ledger account locks and external IO out of application callers', function (): void {
+    $applicationSources = collect(glob(app_path('Application/**/*.php')))
+        ->map(fn (string $path): string => file_get_contents($path))->implode("\n");
+    $ledgerSources = collect(glob(app_path('Domain/Ledger/**/*.php')))
+        ->map(fn (string $path): string => file_get_contents($path))->implode("\n");
+
+    expect($applicationSources)->not->toMatch('/LedgerAccount.*lockForUpdate/s')
+        ->and($ledgerSources)->not->toContain('Http::', 'Mail::', 'Storage::', 'PhotonPay');
 });

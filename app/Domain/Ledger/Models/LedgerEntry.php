@@ -13,11 +13,11 @@ final class LedgerEntry extends Model
 
     public $timestamps = false;
 
-    protected $guarded = [];
+    protected $guarded = ['*'];
 
     protected function casts(): array
     {
-        return ['posted_at' => 'immutable_datetime', 'created_at' => 'immutable_datetime'];
+        return ['posted_at' => 'immutable_datetime', 'sealed_at' => 'immutable_datetime', 'created_at' => 'immutable_datetime'];
     }
 
     protected static function booted(): void

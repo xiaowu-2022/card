@@ -25,6 +25,9 @@ final class LedgerEventHasher
 
     public function advisoryLockKey(string $tenantId, string $eventKey): int
     {
-        return intval(substr(hash('sha256', "ledger-event-lock-v1\0{$tenantId}\0{$eventKey}"), 0, 15), 16);
+        /** @var array{high:int,low:int} $words */
+        $words = unpack('Nhigh/Nlow', substr(hash('sha256', "ledger-event-lock-v1\0{$tenantId}\0{$eventKey}", true), 0, 8));
+
+        return ($words['high'] << 32) | $words['low'];
     }
 }

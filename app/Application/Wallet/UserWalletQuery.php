@@ -18,6 +18,7 @@ final readonly class UserWalletQuery
         $eligibility = $this->eligibility->forUser($tenant, $user);
         $activity = $eligibility['wallet'] === null ? [] : LedgerEntry::query()
             ->where('ledger_entries.tenant_id', $tenantId)
+            ->whereNotNull('ledger_entries.sealed_at')
             ->whereHas('postings.account', fn ($query) => $query->where('ledger_accounts.user_id', $userId))
             ->latest('posted_at')->limit(20)->get()->map(fn (LedgerEntry $entry): array => [
                 'id' => $entry->id,

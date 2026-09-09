@@ -19,7 +19,9 @@ Forbidden rules:
 - Future Wallet eligibility may query a derived KYC status through an Application boundary; KYC never calls Wallet.
 - Ledger has no business-Domain dependency. Wallet may depend on Ledger provisioning abstractions; the Application layer coordinates Tenant, User, KYC, and Wallet activation.
 - Business modules may construct a business-specific immutable posting plan and call `LedgerWriter`; they may not create Postings or mutate cached balances directly.
+- Business actions own their aggregate/order transaction and call `LedgerWriter` inside it. They follow the shared lock hierarchy and never pre-lock Ledger Accounts; the writer owns event and sorted Account locks and participates in the outer transaction.
 - Tenant settings modify requirements, not user balances or deposits.
+- Wallet Domain has no KYC persistence dependency; the Application activation action may query the KYC status boundary. Ledger remains independent of KYC, Wallet, Payment, Withdrawal, Security Deposit, Card, Card Provider, Agent, Commission, and provider-specific adapters.
 - Circular Domain dependencies are prohibited.
 
 Architecture tests enforce representative namespace boundaries. When a cross-Domain use case grows, add an Application Action rather than introducing a reverse dependency.

@@ -41,6 +41,7 @@ final class TenantAdminWalletQuery
     {
         User::query()->where('tenant_id', $tenantId)->whereKey($userId)->firstOrFail();
         $entries = LedgerEntry::query()->where('ledger_entries.tenant_id', $tenantId)
+            ->whereNotNull('ledger_entries.sealed_at')
             ->whereHas('postings.account', fn ($query) => $query->where('ledger_accounts.user_id', $userId))
             ->with(['postings' => fn ($query) => $query->whereHas('account', fn ($account) => $account->where('ledger_accounts.user_id', $userId))])
             ->latest('posted_at')->paginate(20)->through(fn (LedgerEntry $entry): array => [

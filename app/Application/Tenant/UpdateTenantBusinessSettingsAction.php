@@ -16,18 +16,23 @@ final readonly class UpdateTenantBusinessSettingsAction
     /** @param array{required_security_deposit_amount:string,required_security_deposit_asset:string,allow_wallet_topup:bool,allow_withdrawal:bool} $data */
     public function execute(Tenant $tenant, array $data, AdminUser $actor, ?string $requestId = null): void
     {
-        $amount = Money::of($data['required_security_deposit_amount'], $data['required_security_deposit_asset']);
+        $asset = strtoupper(trim($data['required_security_deposit_asset']));
+        $amount = Money::of($data['required_security_deposit_amount'], $asset);
         if (! $amount->isZero() && ! $amount->isPositive()) {
             throw new DomainException('NEGATIVE_DEPOSIT_REQUIREMENT', 'Security deposit requirement cannot be negative.');
         }
 
-        DB::transaction(function () use ($tenant, $data, $amount, $actor, $requestId): void {
-            $settings = $tenant->businessSettings()->lockForUpdate()->firstOrFail();
+        DB::transaction(function () use ($tenant, $data, $amount, $asset, $actor, $requestId): void {
+            $lockedTenant = Tenant::query()->whereKey($tenant->id)->lockForUpdate()->firstOrFail();
+            if ($asset !== $lockedTenant->default_asset) {
+                throw new DomainException('SECURITY_DEPOSIT_ASSET_MISMATCH', 'Security deposit asset must match the Tenant default asset.');
+            }
+            $settings = $lockedTenant->businessSettings()->lockForUpdate()->firstOrFail();
             $fields = ['required_security_deposit_amount', 'required_security_deposit_asset', 'allow_wallet_topup', 'allow_withdrawal'];
             $before = $settings->only($fields);
             $settings->update([
                 'required_security_deposit_amount' => $amount->amount(),
-                'required_security_deposit_asset' => $data['required_security_deposit_asset'],
+                'required_security_deposit_asset' => $asset,
                 'allow_wallet_topup' => $data['allow_wallet_topup'],
                 'allow_withdrawal' => $data['allow_withdrawal'],
             ]);

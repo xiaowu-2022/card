@@ -22,17 +22,19 @@ final readonly class WalletEligibilityService
     public function forUser(Tenant $tenant, User $user): array
     {
         $kycStatus = $this->kycStatus->forUser($tenant->id, $user->id);
-        $wallet = Wallet::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->where('asset_code', strtoupper($tenant->default_asset))->first();
+        $tenantAsset = strtoupper((string) $tenant->default_asset);
+        $wallet = Wallet::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->first();
         $requiredAsset = strtoupper((string) $tenant->businessSettings->required_security_deposit_asset);
         $required = Money::of($tenant->businessSettings->required_security_deposit_amount, $requiredAsset);
         $deposit = Money::of('0', $requiredAsset);
         $available = null;
+        $assetMismatch = $wallet !== null && ($wallet->asset_code !== $requiredAsset || $wallet->asset_code !== $tenantAsset);
         if ($wallet) {
             $accounts = LedgerAccount::query()->where('tenant_id', $tenant->id)->where('wallet_id', $wallet->id)->get()->keyBy(fn (LedgerAccount $account): string => $account->account_type->value);
             $availableAccount = $accounts->get(LedgerAccountType::UserAvailable->value);
             $depositAccount = $accounts->get(LedgerAccountType::UserSecurityDeposit->value);
             $available = $availableAccount ? Money::of($availableAccount->balance, $availableAccount->asset_code) : null;
-            if ($depositAccount && $depositAccount->asset_code === $requiredAsset) {
+            if (! $assetMismatch && $depositAccount && $depositAccount->asset_code === $requiredAsset) {
                 $deposit = Money::of($depositAccount->balance, $requiredAsset);
             }
         }
@@ -54,7 +56,9 @@ final readonly class WalletEligibilityService
         if (! $wallet || $wallet->status !== WalletStatus::Active) {
             $reasons[] = 'WALLET_NOT_ACTIVE';
         }
-        if ($deposit->compare($required) < 0) {
+        if ($assetMismatch) {
+            $reasons[] = 'SECURITY_DEPOSIT_ASSET_MISMATCH';
+        } elseif ($deposit->compare($required) < 0) {
             $reasons[] = 'SECURITY_DEPOSIT_INSUFFICIENT';
         }
         $reasons[] = 'CARD_SERVICE_NOT_CONFIGURED';
@@ -65,7 +69,7 @@ final readonly class WalletEligibilityService
             'kycStatus' => $kycStatus->value,
             'walletStatus' => $wallet?->status->value,
             'canActivate' => $tenant->status === TenantStatus::Active && $user->status === UserStatus::Active && $kycStatus === KycUserStatus::Approved && $wallet === null,
-            'depositSatisfied' => $deposit->compare($required) >= 0,
+            'depositSatisfied' => ! $assetMismatch && $deposit->compare($required) >= 0,
             'canUseCardService' => false,
             'reasonCodes' => $reasons,
             'wallet' => $wallet ? ['id' => $wallet->id, 'asset' => $wallet->asset_code, 'status' => $wallet->status->value] : null,

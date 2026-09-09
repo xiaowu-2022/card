@@ -10,16 +10,26 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use LogicException;
 
 final class Wallet extends Model
 {
     use HasUuids;
 
-    protected $guarded = [];
+    protected $fillable = ['tenant_id', 'user_id', 'asset_code', 'status'];
 
     protected function casts(): array
     {
         return ['status' => WalletStatus::class];
+    }
+
+    protected static function booted(): void
+    {
+        self::updating(function (self $wallet): void {
+            if ($wallet->isDirty(['tenant_id', 'user_id', 'asset_code'])) {
+                throw new LogicException('Wallet identity is immutable.');
+            }
+        });
     }
 
     public function tenant(): BelongsTo

@@ -37,8 +37,12 @@ final readonly class ActivateUserWalletAction
             }
 
             $assetCode = strtoupper(trim($tenant->default_asset));
-            $existing = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', $assetCode)->first();
+            $existing = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->first();
             if ($existing) {
+                if ($existing->asset_code !== $assetCode) {
+                    throw new DomainException('WALLET_ASSET_MISMATCH', 'The existing Wallet asset does not match the Tenant financial asset.', 409);
+                }
+
                 return new WalletActivationResult($existing, false);
             }
             if ($this->kycStatus->forUser($tenantId, $userId) !== KycUserStatus::Approved) {

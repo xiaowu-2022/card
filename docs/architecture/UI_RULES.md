@@ -1,5 +1,7 @@
 # UI Rules
 
+The shared User mobile design contract uses a PokePay-inspired baseline for information hierarchy, compact financial presentation, and bottom-navigation behavior without copying PokePay branding, assets, proprietary screens, or visual identity. All surfaces continue to use the single project Design System. A broader token/theme adjustment is a separate UI Baseline Patch, not part of the Phase 4.1 Ledger audit.
+
 The shared direction is light, clean, neutral, professional financial software. Information architecture and interaction patterns may learn from Stripe/Brex admin, Wise wallet, and Revolut card experiences without copying brand visuals.
 
 Use shadcn/ui primitives plus focused project wrappers only. Do not add a second UI framework. Status always combines text and color using SUCCESS/WARNING/DANGER/INFO/NEUTRAL semantics. Tenant primary color affects primary controls, links, active navigation, and selected states; it never overrides risk colors.

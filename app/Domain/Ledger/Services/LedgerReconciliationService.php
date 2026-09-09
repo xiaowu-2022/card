@@ -14,10 +14,13 @@ final class LedgerReconciliationService
     {
         $query = LedgerAccount::query()
             ->leftJoin('ledger_postings', 'ledger_postings.ledger_account_id', '=', 'ledger_accounts.id')
+            ->leftJoin('ledger_entries', function ($join): void {
+                $join->on('ledger_entries.id', '=', 'ledger_postings.ledger_entry_id')->whereNotNull('ledger_entries.sealed_at');
+            })
             ->select([
                 'ledger_accounts.id', 'ledger_accounts.tenant_id', 'ledger_accounts.account_type',
                 'ledger_accounts.asset_code', 'ledger_accounts.balance',
-                DB::raw('COALESCE(SUM(ledger_postings.delta), 0)::numeric(20,8) AS posting_balance'),
+                DB::raw('COALESCE(SUM(CASE WHEN ledger_entries.id IS NOT NULL THEN ledger_postings.delta ELSE 0 END), 0)::numeric(20,8) AS posting_balance'),
             ])
             ->groupBy('ledger_accounts.id');
         $this->scope($query, $tenantId, $accountId);

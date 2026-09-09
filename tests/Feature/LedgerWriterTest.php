@@ -144,7 +144,13 @@ it('has a deferred database invariant for minimum posting count and exact balanc
 it('reconciles cached balances against posting truth and never repairs mismatches', function (): void {
     app(LedgerWriter::class)->post(phaseFourPlan($this, 'core:test:reconcile'));
     expect(app(LedgerReconciliationService::class)->mismatches())->toBe([]);
-    DB::table('ledger_accounts')->where('id', $this->available->id)->update(['balance' => '101.00000000']);
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+    DB::statement('ALTER TABLE ledger_accounts DISABLE TRIGGER ledger_account_cache_from_account');
+    try {
+        DB::table('ledger_accounts')->where('id', $this->available->id)->update(['balance' => '101.00000000']);
+    } finally {
+        DB::statement('ALTER TABLE ledger_accounts ENABLE TRIGGER ledger_account_cache_from_account');
+    }
     $this->artisan('ledger:reconcile', ['--account' => $this->available->id])->assertFailed()->expectsOutputToContain('No data was changed');
     expect(app(LedgerReconciliationService::class)->mismatches(null, $this->available->id))->toHaveCount(1)
         ->and($this->available->fresh()->balance)->toBe('101.00000000');
