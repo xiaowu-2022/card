@@ -17,7 +17,7 @@ final class UpdateTenantKycSettingsRequest extends FormRequest
     {
         return [
             'enabled' => ['required', 'boolean'],
-            'max_accounts_per_identity' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'max_accounts_per_identity' => ['required', 'integer', 'min:1', 'max:100'],
             'review_mode' => ['required', Rule::in(['MANUAL'])],
         ];
     }

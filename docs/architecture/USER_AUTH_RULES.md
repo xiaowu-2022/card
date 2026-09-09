@@ -12,3 +12,4 @@
 - User sessions use host-only cookies and an independent guard. The Tenant-aware provider scopes session restoration itself by resolved Tenant plus user id, and request middleware clears mismatched/disabled identities. User and Tenant status are read again for every request, so suspension/closure affects existing sessions immediately.
 - Registration/login rate limits hash normalized contact identifiers before building Redis/cache keys. Raw contacts, OTPs, tokens, and passwords never appear in rate-limit keys. If `APP_KEY` supplies the OTP HMAC secret, rotating it invalidates outstanding short-lived registration challenges.
 - Registration/authentication does not create or mutate KYC, Wallet, Ledger, deposit, or Card state.
+- Authentication is required for KYC submission. Suspended Users may read `/kyc` but cannot submit; KYC status remains a derived KYC concern and is never an authentication flag on `users`.

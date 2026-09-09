@@ -14,6 +14,11 @@ it('redacts sensitive values recursively', function (): void {
         'code' => '123456',
         'code_hash' => 'hashed-code',
         'verification_code' => '654321',
+        'identity_number_encrypted' => 'encrypted-identity',
+        'identity_hash' => 'identity-hash',
+        'ocr_result' => ['candidate_identity_number' => 'ID-1234'],
+        'document_url' => 'https://private.example/document?signature=secret',
+        'signed_url' => 'https://private.example/signed',
         'secret' => 'provider-secret',
         'nested' => [
             'ProviderToken' => 'token-value',
@@ -37,6 +42,11 @@ it('redacts sensitive values recursively', function (): void {
         'code' => '[REDACTED]',
         'code_hash' => '[REDACTED]',
         'verification_code' => '[REDACTED]',
+        'identity_number_encrypted' => '[REDACTED]',
+        'identity_hash' => '[REDACTED]',
+        'ocr_result' => '[REDACTED]',
+        'document_url' => '[REDACTED]',
+        'signed_url' => '[REDACTED]',
         'secret' => '[REDACTED]',
         'nested' => [
             'ProviderToken' => '[REDACTED]',

@@ -39,6 +39,8 @@ These rules are mandatory for every future change. If a requested feature requir
 - Never dump an entire request in a sensitive flow.
 - Never expose unrestricted Eloquent models as API JSON; use explicit DTOs/Resources and allowlisted fields.
 - KYC documents use private storage. Identity lookup uses encrypted values plus keyed HMAC, never plaintext indexes.
+- Never expose KYC identity ciphertext/HMAC, document object keys, signed URLs, or encrypted OCR results in ordinary model serialization, Inertia props, logs, or audit.
+- `KYC_IDENTITY_HASH_KEY` is a stable data key; rotation requires a planned re-hash migration and must never be treated as routine API-key rotation.
 
 ## Architecture
 
@@ -60,6 +62,9 @@ These rules are mandatory for every future change. If a requested feature requir
 - Tenant User session restoration must query by resolved Tenant and user id. User/Tenant status is re-evaluated on every request; restricted access is deny-by-default with an explicit safe-route allowlist.
 - Rate-limit keys must hash normalized email/phone and never contain raw contact data, OTPs, tokens, or passwords.
 - User `ACTIVE` means account access only; it never means KYC approval, Wallet readiness, deposit qualification, or card eligibility. Suspending a User restricts access and never changes money or cards.
+- KYC status is derived from immutable applications/current Identity Record, never stored on `users`. OCR is untrusted assistance and never automatic approval.
+- KYC review transitions only from PENDING, approval enforces the Tenant identity limit under a database lock, and no KYC action creates Wallet/Ledger/Deposit/Card state.
+- KYC document access requires separate permission, current Tenant scope, recent Admin password confirmation, short-lived signed private access, and a sanitized audit event.
 
 ## UI
 
@@ -72,4 +77,4 @@ These rules are mandatory for every future change. If a requested feature requir
 
 ## Phase boundaries
 
-Phase 2 contains real Tenant-scoped End User registration, contact verification, authentication, account security, restricted access, and Tenant Admin user status management. It does not contain KYC applications, wallets, ledgers, top-ups, withdrawals, deposit/refund flows, products, card issue/load, real providers, agents, commissions, or billing.
+Phase 3 contains Tenant-scoped KYC submissions, private NATIONAL_ID documents, Mock OCR, manual review, derived KYC status, current Identity Records, duplicate limits, sensitive access, and KYC audit. It does not contain wallets, ledgers, top-ups, withdrawals, deposit/refund flows, products, card issue/load, real providers, agents, commissions, or billing.

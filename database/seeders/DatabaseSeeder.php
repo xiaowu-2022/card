@@ -108,7 +108,7 @@ final class DatabaseSeeder extends Seeder
         TenantBranding::query()->firstOrCreate(['tenant_id' => $tenant->id], ['brand_name' => $name.' Cards', 'primary_color' => $primaryColor, 'support_email' => 'support@'.$hostname]);
         TenantLocale::query()->firstOrCreate(['tenant_id' => $tenant->id, 'locale' => 'en'], ['enabled' => true, 'is_default' => true]);
         TenantBusinessSetting::query()->firstOrCreate(['tenant_id' => $tenant->id], ['required_security_deposit_amount' => '100.00000000', 'required_security_deposit_asset' => 'USD']);
-        TenantKycSetting::query()->firstOrCreate(['tenant_id' => $tenant->id], ['enabled' => false, 'review_mode' => 'MANUAL']);
+        TenantKycSetting::query()->firstOrCreate(['tenant_id' => $tenant->id], ['enabled' => true, 'max_accounts_per_identity' => 1, 'review_mode' => 'MANUAL']);
 
         return $tenant;
     }

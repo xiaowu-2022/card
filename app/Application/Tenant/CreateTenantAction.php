@@ -73,7 +73,7 @@ final readonly class CreateTenantAction
             TenantKycSetting::query()->create([
                 'tenant_id' => $tenant->id,
                 'enabled' => false,
-                'max_accounts_per_identity' => null,
+                'max_accounts_per_identity' => 1,
                 'review_mode' => KycReviewMode::Manual,
             ]);
 

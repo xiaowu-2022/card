@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Domain\CardProvider\Contracts\CardProviderInterface;
 use App\Domain\CardProvider\Enums\MockProviderMode;
+use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
 use App\Domain\Notification\Contracts\EmailVerificationSender;
 use App\Domain\Notification\Contracts\SmsVerificationSender;
 use App\Domain\Tenant\Contracts\DomainVerificationService;
@@ -12,6 +13,7 @@ use App\Infrastructure\Auth\TenantUserProvider;
 use App\Infrastructure\Mail\LaravelEmailVerificationSender;
 use App\Infrastructure\Providers\Card\MockCardProvider;
 use App\Infrastructure\Providers\Domain\LocalDomainVerificationService;
+use App\Infrastructure\Providers\Kyc\MockKycOcrProvider;
 use App\Infrastructure\Sms\FakeSmsVerificationSender;
 use App\Infrastructure\Sms\UnavailableSmsVerificationSender;
 use Illuminate\Support\Facades\Auth;
@@ -40,6 +42,13 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return new MockCardProvider(MockProviderMode::from((string) config('card-provider.mock_mode')));
+        });
+        $this->app->bind(KycOcrProviderInterface::class, function (): KycOcrProviderInterface {
+            if (config('kyc.ocr_driver') !== 'mock') {
+                throw new RuntimeException('Configured KYC OCR driver is not installed.');
+            }
+
+            return new MockKycOcrProvider((string) config('kyc.mock_ocr_mode'));
         });
     }
 

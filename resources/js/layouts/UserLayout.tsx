@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { Home, LockKeyhole, UserRound } from 'lucide-react';
+import { Home, IdCard, LockKeyhole, UserRound } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { AppMark } from '@/components/shared/AppMark';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,7 @@ import type { SharedProps } from '@/types/global';
 
 const nav = [
     { label: 'Dashboard', href: '/dashboard', icon: Home },
+    { label: 'Verify', href: '/kyc', icon: IdCard },
     { label: 'Account', href: '/account', icon: UserRound },
     { label: 'Security', href: '/account/security', icon: LockKeyhole },
 ];
@@ -59,7 +60,7 @@ export function UserLayout({ children }: { children: ReactNode }) {
                     {children}
                 </main>
             </div>
-            <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-3 border-t bg-surface px-1 pb-[max(.5rem,env(safe-area-inset-bottom))] pt-2 md:hidden">
+            <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t bg-surface px-1 pb-[max(.5rem,env(safe-area-inset-bottom))] pt-2 md:hidden">
                 {nav.map((item) => (
                     <Link
                         key={item.label}

@@ -8,6 +8,8 @@ PublicLayout, UserLayout, TenantAdminLayout, and PlatformLayout remain separate 
 
 Phase 2 registration is a progressive contact -> code -> password flow, never one giant form. OTP fields support paste, numeric keyboards, autocomplete, labels, and visible errors. The authenticated User Dashboard shows only real account/contact state and marks KYC/Wallet/Card steps as unavailable; it never displays mock balances or cards. Restricted users retain clear links to account security and logout.
 
+Phase 3 adds a mobile-first `/kyc` status/submission flow and desktop-first `/admin/kyc` review queue/detail. End Users see derived review state but not internal OCR progress, object keys, or document images. Admin detail displays backend-masked identity and OCR hints; original images remain behind recent authentication and separate permission. Review decisions use durable feedback and explicit confirmation.
+
 White-label V1 allows logo, brand name, favicon, primary color, support information, and basic public copy through safe tokens. It does not allow custom CSS/JS/React, free themes, dashboard layout builders, or page builders.
 
 Toast is for low-risk feedback such as saved/copied. Important failures and critical actions use durable inline feedback or an AlertDialog with explicit consequences and confirmation. Internal Ledger terminology and raw provider codes/JSON never appear to users. Motion is limited to short dialog, drawer, dropdown, hover, and navigation transitions. Accessibility requires labels, keyboard use, visible focus, adequate contrast, readable type, and non-color-only state.

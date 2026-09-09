@@ -1,15 +1,17 @@
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { CheckCircle2, CircleDashed, ShieldCheck } from 'lucide-react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { UserLayout } from '@/layouts/UserLayout';
 
 type Props = {
     account: { displayName: string | null; status: string; verifiedChannel: string } | null;
+    kycStatus: 'NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESUBMISSION_REQUIRED';
 };
 
-export default function Dashboard({ account }: Props) {
+export default function Dashboard({ account, kycStatus }: Props) {
     return (
         <UserLayout>
             <Head title="Dashboard" />
@@ -17,7 +19,7 @@ export default function Dashboard({ account }: Props) {
                 <PageHeader
                     eyebrow="Account"
                     title={account?.displayName ? `Welcome, ${account.displayName}` : 'Welcome'}
-                    description="Your contact is verified. Identity verification will become available in the next phase."
+                    description="Your contact is verified. Complete identity verification when you are ready."
                 />
                 <div className="grid gap-4 md:grid-cols-2">
                     <Card>
@@ -52,8 +54,11 @@ export default function Dashboard({ account }: Props) {
                                 <div>
                                     <p className="font-semibold">Identity verification</p>
                                     <p className="mt-1 text-sm text-muted-foreground">
-                                        Not started · available in the next phase.
+                                        {kycStatus.replaceAll('_', ' ')}
                                     </p>
+                                    <Button asChild size="sm" className="mt-4">
+                                        <Link href="/kyc">View verification</Link>
+                                    </Button>
                                 </div>
                             </div>
                         </CardContent>
@@ -67,7 +72,7 @@ export default function Dashboard({ account }: Props) {
                         {[
                             ['Account created', true],
                             ['Contact verified', true],
-                            ['Identity verification', false],
+                            ['Identity verification', kycStatus === 'APPROVED'],
                             ['Wallet', false],
                             ['Security deposit', false],
                             ['Virtual card', false],

@@ -410,16 +410,16 @@ function BusinessForm({ settings }: { settings: SettingsData }) {
 function KycForm({ settings }: { settings: SettingsData }) {
     const form = useForm({
         enabled: settings.kyc.enabled,
-        max_accounts_per_identity: settings.kyc.maxAccountsPerIdentity?.toString() ?? '',
+        max_accounts_per_identity: settings.kyc.maxAccountsPerIdentity?.toString() ?? '1',
         review_mode: 'MANUAL',
     });
     return (
         <>
             <Alert>
-                <AlertTitle>Manual configuration foundation</AlertTitle>
+                <AlertTitle>Manual review policy</AlertTitle>
                 <AlertDescription>
-                    No KYC application, OCR, provider, or review workflow is implemented in this
-                    phase.
+                    KYC submissions require explicit review. OCR can assist reviewers but never
+                    approves an identity automatically.
                 </AlertDescription>
             </Alert>
             <Card className="max-w-3xl">
@@ -431,16 +431,12 @@ function KycForm({ settings }: { settings: SettingsData }) {
                         className="space-y-5"
                         onSubmit={(event) => {
                             event.preventDefault();
-                            form.transform((data) => ({
-                                ...data,
-                                max_accounts_per_identity: data.max_accounts_per_identity || null,
-                            }));
                             form.post('/admin/settings/kyc');
                         }}
                     >
                         <ToggleRow
                             label="KYC enabled"
-                            description="Stores policy intent only."
+                            description="Controls whether active users can submit identity documents."
                             checked={form.data.enabled}
                             onChange={(value) => form.setData('enabled', value)}
                         />

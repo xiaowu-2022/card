@@ -1,8 +1,11 @@
 <?php
 
+use App\Http\Controllers\TenantAdmin\AdminRecentAuthenticationController;
 use App\Http\Controllers\TenantAdmin\DashboardController;
 use App\Http\Controllers\TenantAdmin\DomainManagementController;
 use App\Http\Controllers\TenantAdmin\InvitationAcceptanceController;
+use App\Http\Controllers\TenantAdmin\KycController;
+use App\Http\Controllers\TenantAdmin\KycDocumentController;
 use App\Http\Controllers\TenantAdmin\OnboardingController;
 use App\Http\Controllers\TenantAdmin\TeamController;
 use App\Http\Controllers\TenantAdmin\TenantAdminAuthController;
@@ -26,6 +29,21 @@ Route::middleware('tenant.surface:tenant-admin')->prefix('admin')->name('tenant-
     Route::middleware('admin.scope:tenant,users.suspend')->group(function (): void {
         Route::post('/users/{user}/suspend', [UsersController::class, 'suspend'])->whereUuid('user')->name('users.suspend');
         Route::post('/users/{user}/reactivate', [UsersController::class, 'reactivate'])->whereUuid('user')->name('users.reactivate');
+    });
+
+    Route::middleware('admin.scope:tenant,kyc.read')->group(function (): void {
+        Route::get('/kyc', [KycController::class, 'index'])->name('kyc.index');
+        Route::get('/kyc/{kyc}', [KycController::class, 'show'])->whereUuid('kyc')->name('kyc.show');
+    });
+    Route::middleware('admin.scope:tenant,kyc.review')->group(function (): void {
+        Route::post('/kyc/{kyc}/approve', [KycController::class, 'approve'])->whereUuid('kyc')->name('kyc.approve');
+        Route::post('/kyc/{kyc}/reject', [KycController::class, 'reject'])->whereUuid('kyc')->name('kyc.reject');
+        Route::post('/kyc/{kyc}/resubmission', [KycController::class, 'requireResubmission'])->whereUuid('kyc')->name('kyc.resubmission');
+    });
+    Route::middleware('admin.scope:tenant,kyc.document.view')->post('/recent-auth', [AdminRecentAuthenticationController::class, 'store'])->middleware('throttle:5,1')->name('recent-auth.store');
+    Route::middleware(['admin.scope:tenant,kyc.document.view', 'admin.recent-auth'])->group(function (): void {
+        Route::post('/kyc/{kyc}/documents/{side}/access', [KycDocumentController::class, 'access'])->whereUuid('kyc')->whereIn('side', ['front', 'back'])->name('kyc.documents.access');
+        Route::get('/kyc/{kyc}/documents/{side}', [KycDocumentController::class, 'show'])->whereUuid('kyc')->whereIn('side', ['front', 'back'])->middleware('signed')->name('kyc.documents.show');
     });
 
     Route::middleware('admin.scope:tenant,tenant_settings.manage')->group(function (): void {

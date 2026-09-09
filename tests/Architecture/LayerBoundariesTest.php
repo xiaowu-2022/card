@@ -6,7 +6,23 @@ arch('domain does not depend on HTTP or infrastructure')
 
 arch('KYC domain does not depend on Card')
     ->expect('App\Domain\Kyc')
-    ->not->toUse('App\Domain\Card');
+    ->not->toUse([
+        'App\Domain\Card',
+        'App\Domain\CardProvider',
+        'App\Domain\Wallet',
+        'App\Domain\Ledger',
+        'App\Domain\SecurityDeposit',
+    ]);
+
+arch('KYC OCR infrastructure does not depend on Wallet Ledger or Card')
+    ->expect('App\Infrastructure\Providers\Kyc')
+    ->not->toUse([
+        'App\Domain\Card',
+        'App\Domain\CardProvider',
+        'App\Domain\Wallet',
+        'App\Domain\Ledger',
+        'App\Domain\SecurityDeposit',
+    ]);
 
 arch('User domain remains independent from future business domains')
     ->expect('App\Domain\User')

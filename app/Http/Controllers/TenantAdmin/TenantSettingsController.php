@@ -60,7 +60,7 @@ final class TenantSettingsController extends Controller
     {
         /** @var AdminUser $actor */
         $actor = $request->user('tenant_admin');
-        $update->execute($context->tenant(), $request->boolean('enabled'), $request->integer('max_accounts_per_identity') ?: null, $actor, $request->attributes->get('request_id'));
+        $update->execute($context->tenant(), $request->boolean('enabled'), $request->integer('max_accounts_per_identity'), $actor, $request->attributes->get('request_id'));
 
         return back()->with('success', 'KYC configuration updated.');
     }

@@ -1,6 +1,6 @@
 # Aperture Cards — Virtual Card SaaS
 
-Phase 2 identity foundation for a tenant-aware Laravel modular monolith. Admin control-plane features plus Tenant-scoped End User registration, contact verification, login, account security, restricted access, and Tenant Admin user status management are real. Wallet, KYC applications, cards, balances, transactions, products, and providers remain intentionally absent or explicit demo UI.
+Phase 3 identity and KYC foundation for a tenant-aware Laravel modular monolith. Tenant-scoped End User authentication, private NATIONAL_ID submission, Mock OCR, manual Tenant review, derived KYC status, and verified Identity Records are real. Wallet, cards, balances, transactions, products, and real providers remain intentionally absent or explicit demo UI.
 
 ## Requirements
 
@@ -26,8 +26,8 @@ PostgreSQL is authoritative. Redis backs cache, queue, and local sessions. Start
 
 Modern browsers resolve `*.localhost` to loopback without hosts-file changes.
 
-- Tenant A public/user: `http://a.localhost:8000/`, register `/register`, login `/login`, authenticated Dashboard `/dashboard`
-- Tenant A Admin: `http://a.localhost:8000/admin/login`, setup `/admin/onboarding`
+- Tenant A public/user: `http://a.localhost:8000/`, register `/register`, login `/login`, Dashboard `/dashboard`, KYC `/kyc`
+- Tenant A Admin: `http://a.localhost:8000/admin/login`, setup `/admin/onboarding`, KYC review `/admin/kyc`
 - Tenant B: replace `a.localhost` with `b.localhost`
 - Platform Admin: `http://admin.localhost:8000/platform/login`, tenants `/platform/tenants`
 
@@ -42,6 +42,16 @@ Local/test-only Admin credentials: `owner@platform.local`, `owner@a.localhost`, 
 5. Tenant Admins with `users.read` use `/admin/users`; `users.suspend` controls suspend/reactivate actions. These status actions never modify money or cards.
 
 Forgot-password and contact-change workflows are intentionally absent because each requires its own verified recovery challenge design.
+
+## Phase 3 local KYC workflow
+
+Set a dedicated, stable `KYC_IDENTITY_HASH_KEY` with at least 32 characters. It is a data-protection key and must not be casually rotated. Local documents use the non-public `private` disk under `storage/app/private`; production should point `KYC_DOCUMENT_DISK` to a private S3-compatible disk. Never place KYC files under `public/storage`.
+
+1. Sign in as the seeded Tenant User and open `/kyc`. Submit NATIONAL_ID front/back test images (JPEG, PNG, or WEBP only; do not use real identity data).
+2. Start a queue worker with `docker compose run --rm app php artisan queue:work`. `KYC_OCR_DRIVER=mock` produces a bounded encrypted OCR hint; set `KYC_MOCK_OCR_MODE=FAILED` to exercise manual review after OCR failure.
+3. Sign in as Tenant Owner or a KYC Reviewer and open `/admin/kyc`. Search/filter the queue and open a submission.
+4. Approve, reject, or request resubmission. Approval only creates an Identity Record; it never creates a Wallet or Card.
+5. Raw document viewing requires `kyc.document.view` plus current-password confirmation. Access uses an audited, short-lived signed private stream. SUPPORT can read basic KYC metadata but cannot review or view documents; FINANCE_VIEWER has no KYC permissions.
 
 ## Phase 1 admin workflow
 
@@ -71,8 +81,8 @@ Without Docker, set `DB_HOST`, `REDIS_HOST`, and `MAIL_HOST` to `127.0.0.1`, the
 
 Copy `.env.example`; do not commit secrets. `SESSION_DOMAIN` must stay empty so authentication cookies are host-only and do not leak between tenant subdomains. `PLATFORM_ADMIN_HOST` is never resolved as a tenant. `CARD_PROVIDER_DRIVER=mock` selects the contract-compatible test provider through dependency injection.
 
-Private future KYC files use the `private` disk. Provider credentials must use encrypted secret storage or a secret manager, never ordinary plaintext fields.
+Private KYC files use `KYC_DOCUMENT_DISK`; the local default is `private`. Identity values and normalized OCR output are encrypted. Duplicate matching uses a Tenant-scoped HMAC with `KYC_IDENTITY_HASH_KEY`. Provider credentials must use encrypted secret storage or a secret manager, never ordinary plaintext fields.
 
 ## Architecture
 
-Start with [Architecture](docs/architecture/ARCHITECTURE.md), [Tenant Rules](docs/architecture/TENANT_RULES.md), [User Authentication Rules](docs/architecture/USER_AUTH_RULES.md), [Money Rules](docs/architecture/MONEY_RULES.md), [Card Provider Rules](docs/architecture/CARD_PROVIDER_RULES.md), and mandatory [Agent Rules](AGENTS.md).
+Start with [Architecture](docs/architecture/ARCHITECTURE.md), [Tenant Rules](docs/architecture/TENANT_RULES.md), [User Authentication Rules](docs/architecture/USER_AUTH_RULES.md), [KYC Rules](docs/architecture/KYC_RULES.md), [Money Rules](docs/architecture/MONEY_RULES.md), [Card Provider Rules](docs/architecture/CARD_PROVIDER_RULES.md), and mandatory [Agent Rules](AGENTS.md).

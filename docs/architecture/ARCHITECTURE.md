@@ -10,6 +10,8 @@ Phase 1 activates the administrative control plane. `platform_admin` and `tenant
 
 Phase 2 activates the End User identity plane through a separate `tenant_user` guard and `users` table. Credential lookup and session restoration are Tenant-scoped from the first query. Registration is challenge-first: PostgreSQL stores the authoritative HMAC-hashed OTP lifecycle, valid verified state is reused only by its initiating browser session, and the User/profile/preferences are created atomically only after a verified challenge is locked and consumed. Email delivery occurs after the state transaction through Laravel Mail; SMS uses a capability-aware contract with a test fake and no log-based local transport.
 
+Phase 3 adds the independent KYC Domain. An authenticated User submits a NATIONAL_ID to private storage; immutable KYC application history is OCR-assisted and manually reviewed into at most one current Identity Record per User. Identity values are encrypted and matched only through a dedicated-key Tenant-scoped HMAC. OCR runs after commit with explicit Tenant/Application ids and never approves. Raw documents require separate RBAC, recent Tenant Admin password confirmation, expiring signed access, and audit.
+
 ## Tenant context
 
 Tenant web traffic resolves the normalized HTTP host through an ACTIVE `tenant_domains` record and binds its Tenant to `TenantContext` regardless of the Tenant lifecycle status. Resolution answers ownership only; a separate `TenantSurfaceAvailability` policy decides whether the End User or Tenant Admin surface is allowed, restricted, or unavailable. Application code passes the tenant id explicitly into actions and Domain services. The Platform Admin host bypasses tenant resolution and is rejected by tenant middleware.
@@ -30,4 +32,4 @@ Production card access is always `CardProviderInterface -> third-party Provider 
 
 ## Current phase boundary
 
-Phase 2 includes real End User registration, verification, authentication, account/password security, restricted status access, and Tenant Admin user listing/status actions. It intentionally stops before KYC applications, Wallet/Ledger, payments, withdrawals, security-deposit workflows, Card Product, card issue/load, real providers, agents, commission, and SaaS billing. The authenticated Dashboard contains no fake financial state; legacy `/demo/*` routes are local/testing-only non-business previews.
+Phase 3 includes real KYC submission, private documents, Mock OCR, manual Tenant review, derived status, verified Identity Records, duplicate enforcement, and sensitive-document access. It intentionally stops before Wallet/Ledger, payments, withdrawals, security-deposit workflows, Card Product, card issue/load, real providers, agents, commission, and SaaS billing. KYC approval has no cross-Domain side effects.

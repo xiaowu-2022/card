@@ -1,6 +1,6 @@
 # Database Schema Plan
 
-Phase 0 creates Tenant/Admin/Audit foundations. Phase 1 extends Admin authentication without adding future business tables. Phase 2 adds exactly `users`, `user_profiles`, `user_preferences`, and `registration_challenges`. UUID is the universal business primary-key strategy. Status is uppercase PHP backed enum plus VARCHAR/CHECK. Timestamps are timezone-aware. Core deletion is RESTRICT, not cascading history removal.
+Phase 0 creates Tenant/Admin/Audit foundations. Phase 1 extends Admin authentication without adding future business tables. Phase 2 adds exactly `users`, `user_profiles`, `user_preferences`, and `registration_challenges`. Phase 3 adds exactly `kyc_applications` and `identity_records`. UUID is the universal business primary-key strategy. Status is uppercase PHP backed enum plus VARCHAR/CHECK. Timestamps are timezone-aware. Core deletion is RESTRICT, not cascading history removal.
 
 PostgreSQL constraints include global unique hostname/slug/admin email/permission/role, one primary domain per tenant, one default locale per tenant, valid state checks, nonnegative deposit requirement, and explicit Platform-null/Tenant-non-null membership scope. `admin_memberships.scope_id` references `tenants.id` when present, and the composite role/scope foreign key guarantees that Platform roles cannot back Tenant memberships or vice versa. The Application layer preserves at least one enabled tenant locale through `UpdateTenantLocalesAction`; this cross-row cardinality rule is intentionally not misrepresented as an ordinary row constraint.
 
@@ -8,9 +8,10 @@ Phase 1 adds a case-insensitive unique Admin email index, an Admin status CHECK 
 
 Phase 2 constraints include Tenant-scoped nullable email/phone uniqueness, at least one User contact, E.164 phone shape, User/challenge enum checks, and composite `(user_id, tenant_id)` foreign keys preventing profile/preference cross-Tenant relationships. Registration challenges store a 64-character HMAC digest, verification attempts, expiry, lifecycle timestamps, and consumption separately from VERIFIED status. A partial unique index permits at most one PENDING row per Tenant and destination; application locking classifies expired PENDING rows before replacement and reuses valid VERIFIED/unconsumed state.
 
+Phase 3 KYC applications store explicit NATIONAL_ID/country, encrypted identity, Tenant-scoped 64-character HMAC, private object keys, independent OCR/review states, review attribution, and immutable timestamps. Composite foreign keys bind applications and resubmission links to the same Tenant/User. A partial unique index permits one PENDING application per User. Identity Records bind to the same Tenant/User/source application, are unique per `(tenant_id,user_id)`, and index—but never uniquely constrain—`(tenant_id,identity_hash)`. Tenant KYC limits are non-null and at least one.
+
 Future migrations are added only with their owning phase:
 
-- KYC: `kyc_applications`, `identity_records`.
 - Wallet/Ledger: `wallets`, `ledger_accounts`, `ledger_entries`, `ledger_postings`.
 - Payment: `wallet_topup_orders`, `payment_provider_transactions`, `payment_provider_events`.
 - Withdrawal: `withdrawal_orders`, `withdrawal_destinations`.

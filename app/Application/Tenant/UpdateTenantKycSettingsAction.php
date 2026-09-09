@@ -12,7 +12,7 @@ final readonly class UpdateTenantKycSettingsAction
 {
     public function __construct(private AuditLogger $audit) {}
 
-    public function execute(Tenant $tenant, bool $enabled, ?int $maxAccountsPerIdentity, AdminUser $actor, ?string $requestId = null): void
+    public function execute(Tenant $tenant, bool $enabled, int $maxAccountsPerIdentity, AdminUser $actor, ?string $requestId = null): void
     {
         DB::transaction(function () use ($tenant, $enabled, $maxAccountsPerIdentity, $actor, $requestId): void {
             $settings = $tenant->kycSettings()->lockForUpdate()->firstOrFail();

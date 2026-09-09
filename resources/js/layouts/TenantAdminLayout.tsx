@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { BarChart3, Globe2, ListChecks, Menu, Settings, Users } from 'lucide-react';
+import { BarChart3, Globe2, ListChecks, Menu, ScanFace, Settings, Users } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { AppMark } from '@/components/shared/AppMark';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import type { SharedProps } from '@/types/global';
 const items = [
     { label: 'Overview', href: '/admin/demo', icon: BarChart3, permission: 'users.read' },
     { label: 'Users', href: '/admin/users', icon: Users, permission: 'users.read' },
+    { label: 'KYC review', href: '/admin/kyc', icon: ScanFace, permission: 'kyc.read' },
     {
         label: 'Setup',
         href: '/admin/onboarding',
