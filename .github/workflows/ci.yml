@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: card_platform
+          POSTGRES_USER: card_platform
+          POSTGRES_PASSWORD: local-development-only
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U card_platform -d card_platform"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:8-alpine
+        ports: [6379:6379]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 2s
+          --health-timeout 3s --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql, intl, pcntl
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: composer install --no-interaction --prefer-dist
+      - run: npm ci
+      - run: cp .env.example .env && php artisan key:generate
+      - name: PHP tests
+        env:
+          DB_HOST: 127.0.0.1
+          REDIS_HOST: 127.0.0.1
+        run: php artisan test
+      - run: vendor/bin/pint --test
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run build

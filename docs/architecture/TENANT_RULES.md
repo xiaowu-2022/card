@@ -1,0 +1,23 @@
+# Tenant Rules
+
+- Web tenant identity comes only from trusted Host -> ACTIVE `tenant_domains` record -> Tenant -> `TenantContext`. Resolver ownership lookup never filters on Tenant lifecycle status.
+- Query parameters, headers, form fields, and JSON `tenant_id` never select a tenant.
+- Platform Admin uses `PLATFORM_ADMIN_HOST` and must never resolve as a tenant domain.
+- Host-only session cookies are required; do not configure a shared parent-domain session cookie. An authenticated future user must also satisfy `user.tenant_id === resolved_tenant.id`.
+- Tenant Admin authorization requires an ACTIVE TENANT membership whose `scope_id` equals the resolved tenant.
+- Tenant-scoped queries use `tenant_id + resource_id`; unscoped `Model::find($id)` is forbidden for tenant APIs.
+- Tenant jobs carry trusted `tenant_id` and `resource_id`. Schedulers use explicit ids. Webhooks map trusted provider connection/merchant/resource/order ids back to a tenant and ignore submitted tenant ids.
+- Tenants are suspended or closed, not deleted. Platform-owned resources may have null owner tenant only when their owner scope is PLATFORM.
+- Domain->Tenant, branding, locale, and status may be cached and invalidated after change. Redis never owns balances.
+- Cross-tenant negative tests are required for every new tenant-scoped module.
+
+Locale priority is User Preference -> Cookie -> Accept-Language -> IP suggestion -> Tenant default. IP is a first-use suggestion, never coercion. Database timestamps are TIMESTAMPTZ/UTC; tenant timezone controls display and business calendars.
+
+Surface availability is separate from resolution:
+
+- DRAFT: Tenant Admin allowed for setup; normal End User operations unavailable.
+- ACTIVE: Tenant Admin and End User allowed.
+- SUSPENDED: Tenant Admin allowed; End User is RESTRICTED, preserving future explicitly allowlisted read-only/recovery access while new registration, money, and card operations remain blocked.
+- CLOSED: normal End User unavailable and Tenant Admin unavailable in V1; retained records remain inspectable to authorized Platform scope.
+
+The database can enforce at most one default locale. The Application layer must also preserve at least one enabled locale because that cross-row cardinality rule is not represented by a simple ordinary constraint.

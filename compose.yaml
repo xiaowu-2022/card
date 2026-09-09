@@ -1,0 +1,51 @@
+services:
+  app:
+    build: .
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  node:
+    image: node:22-alpine
+    working_dir: /app
+    command: npm run dev -- --host 0.0.0.0
+    volumes:
+      - .:/app
+    ports:
+      - "5173:5173"
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: card_platform
+      POSTGRES_USER: card_platform
+      POSTGRES_PASSWORD: local-development-only
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U card_platform -d card_platform"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  postgres-data:

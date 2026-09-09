@@ -1,0 +1,7 @@
+.git
+.env
+node_modules
+vendor
+public/build
+storage/logs/*
+database/database.sqlite

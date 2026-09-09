@@ -1,0 +1,25 @@
+<?php
+
+namespace App\Domain\Admin\Models;
+
+use App\Domain\Admin\Enums\ScopeType;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+
+final class Role extends Model
+{
+    use HasUuids;
+
+    protected $guarded = [];
+
+    protected function casts(): array
+    {
+        return ['scope_type' => ScopeType::class];
+    }
+
+    public function permissions(): BelongsToMany
+    {
+        return $this->belongsToMany(Permission::class, 'role_permissions');
+    }
+}
