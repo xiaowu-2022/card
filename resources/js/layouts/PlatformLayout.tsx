@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import {
     Activity,
     Boxes,
@@ -14,6 +14,7 @@ import {
 import type { ReactNode } from 'react';
 import { AppMark } from '@/components/shared/AppMark';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
     Sheet,
     SheetContent,
@@ -21,13 +22,14 @@ import {
     SheetTitle,
     SheetTrigger,
 } from '@/components/ui/sheet';
+import type { SharedProps } from '@/types/global';
 
 const groups = [
     {
         label: 'Workspace',
         items: [
             { label: 'Dashboard', href: '/platform/demo', icon: Activity },
-            { label: 'Tenants', href: '/platform/demo/tenants', icon: Building2 },
+            { label: 'Tenants', href: '/platform/tenants', icon: Building2 },
         ],
     },
     {
@@ -66,6 +68,13 @@ const PlatformNav = () => (
 );
 
 export function PlatformLayout({ children }: { children: ReactNode }) {
+    const { auth, flash } = usePage<SharedProps>().props;
+    const initials = auth.admin?.name
+        .split(' ')
+        .map((part) => part[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase();
     return (
         <div className="min-h-screen">
             <aside className="fixed inset-y-0 left-0 hidden w-64 border-r bg-surface p-5 lg:block">
@@ -101,11 +110,25 @@ export function PlatformLayout({ children }: { children: ReactNode }) {
                         Sandbox
                     </span>
                     <span className="grid size-8 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white">
-                        PO
+                        {initials ?? 'PA'}
                     </span>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => router.post('/platform/logout')}
+                    >
+                        Sign out
+                    </Button>
                 </div>
             </header>
-            <main className="min-w-0 p-4 sm:p-6 lg:ml-64 lg:p-8 xl:p-10">{children}</main>
+            <main className="min-w-0 p-4 sm:p-6 lg:ml-64 lg:p-8 xl:p-10">
+                {flash.success && (
+                    <Alert className="mb-6 border-emerald-200 bg-emerald-50">
+                        <AlertDescription>{flash.success}</AlertDescription>
+                    </Alert>
+                )}
+                {children}
+            </main>
         </div>
     );
 }

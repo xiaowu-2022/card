@@ -6,11 +6,17 @@ The platform is one Laravel 13 application, one React 19/Inertia 3 frontend, one
 
 Four independent surfaces share one design system: Public Website, Tenant User Center, Tenant Admin, and Platform Admin. Routes live in `public.php`, `user.php`, `admin.php`, `platform.php`, and `webhooks.php`. End-user and admin identities are separate; Platform and Tenant admin authority is expressed by scoped memberships and permissions.
 
+Phase 1 activates the administrative control plane. `platform_admin` and `tenant_admin` are separate session guards over the Admin identity provider. Login authorization requires an ACTIVE AdminUser plus an ACTIVE membership for the exact scope, role, and permission. Platform tenant creation and Tenant settings use thin Controllers over Application Actions; audit records are emitted at the same orchestration boundary. Admin invitations use random single-use tokens whose SHA-256 hashes alone are persisted.
+
 ## Tenant context
 
 Tenant web traffic resolves the normalized HTTP host through an ACTIVE `tenant_domains` record and binds its Tenant to `TenantContext` regardless of the Tenant lifecycle status. Resolution answers ownership only; a separate `TenantSurfaceAvailability` policy decides whether the End User or Tenant Admin surface is allowed, restricted, or unavailable. Application code passes the tenant id explicitly into actions and Domain services. The Platform Admin host bypasses tenant resolution and is rejected by tenant middleware.
 
 DRAFT permits Tenant Admin setup but not End User operations. ACTIVE permits both. SUSPENDED permits Tenant Admin and is represented as RESTRICTED for End User so later phases can expose deliberately allowlisted read-only/recovery routes while blocking registration and new financial/card operations. CLOSED blocks normal End User and V1 Tenant Admin surfaces, while retained records remain available to authorized Platform inspection. Status transitions never delete tenant history.
+
+Tenant creation atomically creates the DRAFT tenant, immutable active system subdomain, branding, initial locale, business/KYC configuration, and Owner invitation. `TenantOnboardingStatusService` derives `foundation_ready` from persisted facts; no mutable completion flag exists. DRAFT to ACTIVE means the web foundation is available, never that issuing cards or handling funds is ready. `business_ready` remains false until later Product/Provider phases.
+
+Custom domains follow `PENDING_VERIFICATION -> VERIFIED -> ACTIVE`. Verification is behind `DomainVerificationService`; local development has a deterministic adapter and production must supply DNS verification. Becoming ACTIVE does not claim a certificate exists: SSL remains an infrastructure status. Only an ACTIVE domain can become primary, and PostgreSQL preserves one primary per tenant.
 
 ## Money and providers
 
@@ -20,6 +26,6 @@ Card business code will depend on `CardProviderInterface`. `MockCardProvider` ex
 
 Production card access is always `CardProviderInterface -> third-party Provider Adapter`. A local card pool is development-only Mock infrastructure and is not a production Card Domain or schema model.
 
-## Future phase boundary
+## Current phase boundary
 
-Phase 0 intentionally stops before formal end-user registration, KYC, Wallet/Ledger, payments, withdrawals, security-deposit workflows, Card Product, card issue/load, real providers, agents, commission, and SaaS billing. Static UI records do not represent persisted business data.
+Phase 1 includes real Admin authentication, RBAC enforcement, tenant onboarding, settings, invitation, domain, and lifecycle actions. It intentionally stops before formal end-user registration, KYC applications, Wallet/Ledger, payments, withdrawals, security-deposit workflows, Card Product, card issue/load, real providers, agents, commission, and SaaS billing. Static user/card/wallet UI records do not represent persisted business data.

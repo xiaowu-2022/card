@@ -1,6 +1,6 @@
 # Aperture Cards — Virtual Card SaaS
 
-Phase 0 foundation for a tenant-aware Laravel modular monolith. All wallet, KYC, card, balance, and transaction screens currently use explicit static demo data; formal business workflows are intentionally absent.
+Phase 1 administrative foundation for a tenant-aware Laravel modular monolith. Admin authentication, tenant creation, invitation acceptance, onboarding settings, domains, team membership, and foundation activation are real. Wallet, KYC applications, cards, balances, transactions, products, and providers remain intentionally absent or explicit demo UI.
 
 ## Requirements
 
@@ -15,7 +15,7 @@ docker compose build app
 docker compose run --rm app composer install
 docker compose run --rm node npm install
 docker compose run --rm app php artisan key:generate
-docker compose up -d postgres redis
+docker compose up -d postgres redis mailpit
 docker compose run --rm app php artisan migrate --seed
 docker compose up app node
 ```
@@ -27,11 +27,21 @@ PostgreSQL is authoritative. Redis backs cache, queue, and local sessions. Start
 Modern browsers resolve `*.localhost` to loopback without hosts-file changes.
 
 - Tenant A public/user: `http://a.localhost:8000/`, demo `/demo`, wallet `/demo/wallet`, cards `/demo/cards`, login `/login`
-- Tenant A Admin: `http://a.localhost:8000/admin/login`, demo `/admin/demo`
+- Tenant A Admin: `http://a.localhost:8000/admin/login`, setup `/admin/onboarding`
 - Tenant B: replace `a.localhost` with `b.localhost`
-- Platform Admin: `http://admin.localhost:8000/platform/login`, demo `/platform/demo`
+- Platform Admin: `http://admin.localhost:8000/platform/login`, tenants `/platform/tenants`
 
-Local/test-only seeded credentials (login is not wired in Phase 0): `owner@platform.local`, `owner@a.localhost`, and `owner@b.localhost`, each with `local-password`. Production seeding never creates these accounts or any fixed password.
+Local/test-only seeded credentials: `owner@platform.local`, `owner@a.localhost`, and `owner@b.localhost`, each with `local-password`. Production seeding never creates these accounts or any fixed password. Invitation mail is captured by Mailpit at `http://localhost:8025`; raw invitation tokens are never stored in the database.
+
+## Phase 1 admin workflow
+
+1. Sign in at `http://admin.localhost:8000/platform/login` and create a Tenant from the Tenant directory.
+2. Open Mailpit at `http://localhost:8025`. The Owner invitation link targets the new Tenant's `{slug}.localhost` host, expires after 72 hours, and is single-use.
+3. Accept the invitation, choose a strong password, and sign in through that Tenant's `/admin/login`. An existing Admin email confirms its current password and receives only the new Tenant membership.
+4. Complete branding, locales, manual KYC policy, decimal-string security-deposit configuration, and domain settings under `/admin/onboarding`.
+5. Activate the computed foundation when every required item passes. This enables the Tenant web foundation only; Card Product, Provider, Wallet, and Ledger readiness remain false and unavailable.
+
+Custom domains begin in `PENDING_VERIFICATION`. For the local adapter, `cards.example.test` is configured as verifiable; add it, check verification, activate it, then optionally make it primary. Add any browser-resolvable local hostname mapping you need outside the application. Production must replace the local verifier and provision SSL before serving a custom host.
 
 ## Validation commands
 
@@ -45,7 +55,7 @@ docker compose run --rm node npm run format:check
 docker compose run --rm node npm run build
 ```
 
-Without Docker, set `DB_HOST`/`REDIS_HOST` to `127.0.0.1`, then use `composer install`, `npm install`, `php artisan migrate --seed`, `php artisan serve`, and `npm run dev`.
+Without Docker, set `DB_HOST`, `REDIS_HOST`, and `MAIL_HOST` to `127.0.0.1`, then use `composer install`, `npm install`, `php artisan migrate --seed`, `php artisan serve`, and `npm run dev`.
 
 ## Environment
 

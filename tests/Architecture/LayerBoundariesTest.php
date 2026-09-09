@@ -29,8 +29,18 @@ arch('controllers remain final and use controller suffix')
         'App\Http\Controllers\TenantAdmin\DashboardController',
         'App\Http\Controllers\TenantAdmin\UsersController',
         'App\Http\Controllers\TenantAdmin\SettingsController',
+        'App\Http\Controllers\TenantAdmin\TenantAdminAuthController',
+        'App\Http\Controllers\TenantAdmin\InvitationAcceptanceController',
+        'App\Http\Controllers\TenantAdmin\OnboardingController',
+        'App\Http\Controllers\TenantAdmin\TenantSettingsController',
+        'App\Http\Controllers\TenantAdmin\DomainManagementController',
+        'App\Http\Controllers\TenantAdmin\TeamController',
         'App\Http\Controllers\Platform\DashboardController',
         'App\Http\Controllers\Platform\TenantsController',
+        'App\Http\Controllers\Platform\PlatformAuthController',
+        'App\Http\Controllers\Platform\TenantManagementController',
+        'App\Http\Controllers\Platform\TenantLifecycleController',
+        'App\Http\Controllers\Platform\TenantInvitationController',
     ])
     ->classes()
     ->toBeFinal()

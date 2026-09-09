@@ -12,4 +12,14 @@ export interface TenantSharedProps {
 export interface SharedProps extends InertiaPageProps {
     requestId: string;
     tenant: TenantSharedProps | null;
+    auth: {
+        admin: null | {
+            id: string;
+            name: string;
+            email: string;
+            scope: 'PLATFORM' | 'TENANT';
+            permissions: string[];
+        };
+    };
+    flash: { success: string | null };
 }

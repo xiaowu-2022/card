@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AuthorizeAdminScope;
 use App\Http\Middleware\EnsureTenantSurfaceAvailable;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\RequestIdMiddleware;
@@ -10,6 +11,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -30,6 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'inertia' => HandleInertiaRequests::class,
             'tenant' => ResolveTenantFromHost::class,
             'tenant.surface' => EnsureTenantSurfaceAvailable::class,
+            'admin.scope' => AuthorizeAdminScope::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -38,7 +41,15 @@ return Application::configure(basePath: dirname(__DIR__))
         );
         $exceptions->render(function (DomainException $exception, Request $request): ?Response {
             if (! ($request->expectsJson() || $request->is('api/*'))) {
-                return null;
+                if (! $request->isMethod('GET')) {
+                    return back()->withErrors(['form' => $exception->getMessage()]);
+                }
+
+                return Inertia::render('errors/DomainError', [
+                    'status' => $exception->httpStatus,
+                    'message' => $exception->getMessage(),
+                    'requestId' => $request->attributes->get('request_id'),
+                ])->toResponse($request)->setStatusCode($exception->httpStatus);
             }
 
             return response()->json([

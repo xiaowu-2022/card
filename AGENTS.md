@@ -48,6 +48,10 @@ These rules are mandatory for every future change. If a requested feature requir
 - Do not silently modify completed Domain contracts.
 - Preserve existing migrations after formal phases begin; use new migrations for changes.
 - Audit history is append-only by Application contract. Eloquent guards are defense in depth, not a claim that privileged direct database access is impossible.
+- Admin authentication must always validate AdminUser status plus an ACTIVE membership for the exact Platform or resolved Tenant scope; a password or role name alone is insufficient.
+- Admin invitation tokens must remain cryptographically random, hash-only at rest, expiring, single-use, Tenant-host scoped, and absent from logs/audit data. Resend must invalidate the previous token.
+- Tenant foundation activation must remain computed from persisted requirements. Never add a writable onboarding-complete override or equate Tenant ACTIVE with Card/Provider/money readiness.
+- System domains are immutable. Custom domains must pass PENDING_VERIFICATION -> VERIFIED -> ACTIVE, and only ACTIVE domains can become primary.
 
 ## UI
 
@@ -60,4 +64,4 @@ These rules are mandatory for every future change. If a requested feature requir
 
 ## Phase boundaries
 
-Phase 0 contains foundations and unmistakable static demo data only. It does not contain real registration, OTP, KYC, wallets, ledgers, top-ups, withdrawals, deposits/refunds, products, card issue/load, providers, agents, commissions, or billing.
+Phase 1 contains real Admin authentication, tenant onboarding/settings, Admin invitations/RBAC enforcement, domain verification state, and tenant foundation lifecycle. User/card/wallet demo data is still unmistakably static. It does not contain real end-user registration, OTP, KYC applications, wallets, ledgers, top-ups, withdrawals, deposit/refund flows, products, card issue/load, real providers, agents, commissions, or billing.

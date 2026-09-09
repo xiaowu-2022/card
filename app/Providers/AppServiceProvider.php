@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use App\Domain\CardProvider\Contracts\CardProviderInterface;
 use App\Domain\CardProvider\Enums\MockProviderMode;
+use App\Domain\Tenant\Contracts\DomainVerificationService;
 use App\Domain\Tenant\TenantContext;
 use App\Infrastructure\Providers\Card\MockCardProvider;
+use App\Infrastructure\Providers\Domain\LocalDomainVerificationService;
 use Illuminate\Support\ServiceProvider;
 use RuntimeException;
 
@@ -17,6 +19,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(TenantContext::class);
+        $this->app->bind(DomainVerificationService::class, LocalDomainVerificationService::class);
 
         $this->app->bind(CardProviderInterface::class, function (): CardProviderInterface {
             $driver = config('card-provider.driver');

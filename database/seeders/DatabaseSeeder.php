@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Domain\Admin\Enums\AdminUserStatus;
 use App\Domain\Admin\Enums\MembershipStatus;
 use App\Domain\Admin\Enums\ScopeType;
 use App\Domain\Admin\Models\AdminMembership;
@@ -31,13 +32,14 @@ final class DatabaseSeeder extends Seeder
             'provider_operation.read', 'provider_operation.retry', 'provider_credentials.manage',
             'card_product.read', 'card_product.manage', 'card_limit.manage',
             'tenant_settings.manage', 'audit.read',
+            'admin_team.read', 'admin_team.manage', 'tenant.activate',
         ])->mapWithKeys(fn (string $name) => [$name => Permission::query()->firstOrCreate(['name' => $name])]);
 
         $roles = [
             'PLATFORM_OWNER' => [ScopeType::Platform, $permissions->keys()->all()],
-            'PLATFORM_ADMIN' => [ScopeType::Platform, ['tenant.read', 'tenant.manage', 'users.read', 'kyc.read', 'wallet.read', 'ledger.read', 'cards.read', 'card_product.read', 'card_product.manage', 'provider_operation.read', 'audit.read']],
+            'PLATFORM_ADMIN' => [ScopeType::Platform, ['tenant.read', 'tenant.manage', 'admin_team.read', 'admin_team.manage', 'users.read', 'kyc.read', 'wallet.read', 'ledger.read', 'cards.read', 'card_product.read', 'card_product.manage', 'provider_operation.read', 'audit.read']],
             'PLATFORM_AUDITOR' => [ScopeType::Platform, ['tenant.read', 'users.read', 'kyc.read', 'wallet.read', 'ledger.read', 'cards.read', 'provider_operation.read', 'audit.read']],
-            'TENANT_OWNER' => [ScopeType::Tenant, ['users.read', 'users.suspend', 'kyc.read', 'kyc.review', 'kyc.document.view', 'wallet.read', 'ledger.read', 'cards.read', 'cards.reveal_sensitive', 'card_load.process', 'card_product.read', 'card_product.manage', 'card_limit.manage', 'tenant_settings.manage', 'audit.read']],
+            'TENANT_OWNER' => [ScopeType::Tenant, ['admin_team.read', 'admin_team.manage', 'tenant.activate', 'users.read', 'users.suspend', 'kyc.read', 'kyc.review', 'kyc.document.view', 'wallet.read', 'ledger.read', 'cards.read', 'cards.reveal_sensitive', 'card_load.process', 'card_product.read', 'card_product.manage', 'card_limit.manage', 'tenant_settings.manage', 'audit.read']],
             'TENANT_ADMIN' => [ScopeType::Tenant, ['users.read', 'users.suspend', 'kyc.read', 'wallet.read', 'ledger.read', 'cards.read', 'card_product.read', 'card_product.manage', 'tenant_settings.manage', 'audit.read']],
             'KYC_REVIEWER' => [ScopeType::Tenant, ['users.read', 'kyc.read', 'kyc.review', 'kyc.document.view']],
             'CARD_OPERATOR' => [ScopeType::Tenant, ['users.read', 'wallet.read', 'cards.read', 'cards.reveal_sensitive', 'card_load.process', 'provider_operation.read', 'provider_operation.retry']],
@@ -60,9 +62,9 @@ final class DatabaseSeeder extends Seeder
         $tenantA = $this->tenant('Tenant A', 'tenant-a', 'a.localhost', '#155EEF');
         $tenantB = $this->tenant('Tenant B', 'tenant-b', 'b.localhost', '#6941C6');
 
-        $platformOwner = AdminUser::query()->firstOrCreate(['email' => 'owner@platform.local'], ['name' => 'Platform Owner', 'password' => Hash::make('local-password')]);
-        $ownerA = AdminUser::query()->firstOrCreate(['email' => 'owner@a.localhost'], ['name' => 'Tenant Owner A', 'password' => Hash::make('local-password')]);
-        $ownerB = AdminUser::query()->firstOrCreate(['email' => 'owner@b.localhost'], ['name' => 'Tenant Owner B', 'password' => Hash::make('local-password')]);
+        $platformOwner = AdminUser::query()->firstOrCreate(['email' => 'owner@platform.local'], ['name' => 'Platform Owner', 'password' => Hash::make('local-password'), 'status' => AdminUserStatus::Active]);
+        $ownerA = AdminUser::query()->firstOrCreate(['email' => 'owner@a.localhost'], ['name' => 'Tenant Owner A', 'password' => Hash::make('local-password'), 'status' => AdminUserStatus::Active]);
+        $ownerB = AdminUser::query()->firstOrCreate(['email' => 'owner@b.localhost'], ['name' => 'Tenant Owner B', 'password' => Hash::make('local-password'), 'status' => AdminUserStatus::Active]);
 
         AdminMembership::query()->firstOrCreate(
             ['admin_user_id' => $platformOwner->id, 'scope_type' => ScopeType::Platform, 'scope_id' => null],

@@ -36,6 +36,16 @@ final class Tenant extends Model
         return $this->hasOne(TenantBranding::class);
     }
 
+    public function businessSettings(): HasOne
+    {
+        return $this->hasOne(TenantBusinessSetting::class);
+    }
+
+    public function kycSettings(): HasOne
+    {
+        return $this->hasOne(TenantKycSetting::class);
+    }
+
     public function locales(): HasMany
     {
         return $this->hasMany(TenantLocale::class);

@@ -12,12 +12,13 @@ beforeEach(fn () => $this->seed());
 it('resolves a draft tenant for admin setup but blocks its end-user surface', function (): void {
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
     $activeTenant = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
+    $admin = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
     $tenant->update(['status' => TenantStatus::Draft]);
 
     $this->getJson('http://a.localhost/__tenant/context')
         ->assertOk()
         ->assertJson(['tenant_id' => $tenant->id]);
-    $this->get('http://a.localhost/admin/demo')->assertOk();
+    $this->actingAs($admin, 'tenant_admin')->get('http://a.localhost/admin/demo')->assertOk();
     $this->get('http://a.localhost/demo')->assertServiceUnavailable();
     $this->withHeader('X-Tenant-ID', $activeTenant->id)
         ->get('http://a.localhost/demo?tenant_id='.$activeTenant->id)
@@ -25,18 +26,20 @@ it('resolves a draft tenant for admin setup but blocks its end-user surface', fu
 });
 
 it('allows an active tenant on end-user and tenant-admin surfaces', function (): void {
+    $admin = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
     $this->get('http://a.localhost/demo')->assertOk();
-    $this->get('http://a.localhost/admin/demo')->assertOk();
+    $this->actingAs($admin, 'tenant_admin')->get('http://a.localhost/admin/demo')->assertOk();
 });
 
 it('resolves a suspended tenant without treating it as nonexistent', function (): void {
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
+    $admin = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
     $tenant->update(['status' => TenantStatus::Suspended]);
 
     $this->getJson('http://a.localhost/__tenant/context')
         ->assertOk()
         ->assertJson(['tenant_id' => $tenant->id]);
-    $this->get('http://a.localhost/admin/demo')->assertOk();
+    $this->actingAs($admin, 'tenant_admin')->get('http://a.localhost/admin/demo')->assertOk();
     $this->get('http://a.localhost/demo')->assertStatus(423);
 });
 

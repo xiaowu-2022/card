@@ -10,6 +10,9 @@
 - Tenants are suspended or closed, not deleted. Platform-owned resources may have null owner tenant only when their owner scope is PLATFORM.
 - Domain->Tenant, branding, locale, and status may be cached and invalidated after change. Redis never owns balances.
 - Cross-tenant negative tests are required for every new tenant-scoped module.
+- Admin invitation links are generated from the invited Tenant's current primary/system domain. The token is valid only when that host resolves the same Tenant; it cannot be accepted on another Tenant or the Platform host.
+- Tenant slugs are normalized, globally unique, protected from reserved Platform names, and immutable through ordinary Phase 1 settings. Creation always provides an active `{slug}.{PLATFORM_ROOT_DOMAIN}` system domain.
+- System domains cannot be deleted. Custom hostnames are globally unique and move through PENDING_VERIFICATION, VERIFIED, and ACTIVE. Only ACTIVE domains may become primary; one primary is switched atomically.
 
 Locale priority is User Preference -> Cookie -> Accept-Language -> IP suggestion -> Tenant default. IP is a first-use suggestion, never coercion. Database timestamps are TIMESTAMPTZ/UTC; tenant timezone controls display and business calendars.
 
@@ -21,3 +24,5 @@ Surface availability is separate from resolution:
 - CLOSED: normal End User unavailable and Tenant Admin unavailable in V1; retained records remain inspectable to authorized Platform scope.
 
 The database can enforce at most one default locale. The Application layer must also preserve at least one enabled locale because that cross-row cardinality rule is not represented by a simple ordinary constraint.
+
+Foundation activation is derived by `TenantOnboardingStatusService` from Tenant creation, an active Owner membership, valid branding, locale invariants, KYC/business settings, and an active system domain. No client or Admin can submit an `onboarding_complete` override. `ACTIVE` means the Tenant web foundation is enabled; it never implies Card Provider/Product or money readiness.
