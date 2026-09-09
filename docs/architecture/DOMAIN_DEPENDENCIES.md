@@ -15,6 +15,7 @@ Forbidden rules:
 - A CardProvider adapter never imports Wallet/Ledger models or changes funds.
 - KYC approval changes KYC/Identity and writes Audit only; it does not create or modify funds.
 - KYC depends on Tenant/User identity references and Audit orchestration only. Its Domain and OCR adapter never depend on Wallet, Ledger, SecurityDeposit, Card, or CardProvider.
+- KYC cryptography and OCR contracts are KYC-owned boundaries. OCR adapters return hints only and cannot write review status.
 - Future Wallet eligibility may query a derived KYC status through an Application boundary; KYC never calls Wallet.
 - Tenant settings modify requirements, not user balances or deposits.
 - Circular Domain dependencies are prohibited.

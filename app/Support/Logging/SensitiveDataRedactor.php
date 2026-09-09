@@ -4,7 +4,7 @@ namespace App\Support\Logging;
 
 final class SensitiveDataRedactor
 {
-    private const SENSITIVE_KEY_PATTERN = '/^(?:code|code_hash|verification_code|verification_code_hash|identity_number_encrypted|identity_hash|ocr_result|ocr_result_encrypted|document_url|signed_url|(?:.*_)?(?:password(?:_confirmation)?|otp|identity_number|identity_document|api_key|secret|token|pan|cvv|authorization|cookie|set_cookie))$/';
+    private const SENSITIVE_KEY_PATTERN = '/^(?:code|code_hash|verification_code|verification_code_hash|identity_number_encrypted|identity_hash|ocr_result|ocr_result_encrypted|document_url|signed_url|front_object_key|back_object_key|(?:.*_)?(?:password(?:_confirmation)?|otp|identity_number|identity_document|api_key|secret|token|pan|cvv|authorization|cookie|set_cookie))$/';
 
     /** @param array<string, mixed> $data @return array<string, mixed> */
     public function redact(array $data): array

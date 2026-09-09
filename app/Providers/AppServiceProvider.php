@@ -8,15 +8,19 @@ use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
 use App\Domain\Notification\Contracts\EmailVerificationSender;
 use App\Domain\Notification\Contracts\SmsVerificationSender;
 use App\Domain\Tenant\Contracts\DomainVerificationService;
+use App\Domain\Tenant\Repositories\TenantDomainRepository;
 use App\Domain\Tenant\TenantContext;
 use App\Infrastructure\Auth\TenantUserProvider;
 use App\Infrastructure\Mail\LaravelEmailVerificationSender;
 use App\Infrastructure\Providers\Card\MockCardProvider;
 use App\Infrastructure\Providers\Domain\LocalDomainVerificationService;
 use App\Infrastructure\Providers\Kyc\MockKycOcrProvider;
+use App\Infrastructure\Providers\Kyc\UnavailableKycOcrProvider;
 use App\Infrastructure\Sms\FakeSmsVerificationSender;
 use App\Infrastructure\Sms\UnavailableSmsVerificationSender;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use RuntimeException;
 
@@ -44,11 +48,11 @@ class AppServiceProvider extends ServiceProvider
             return new MockCardProvider(MockProviderMode::from((string) config('card-provider.mock_mode')));
         });
         $this->app->bind(KycOcrProviderInterface::class, function (): KycOcrProviderInterface {
-            if (config('kyc.ocr_driver') !== 'mock') {
-                throw new RuntimeException('Configured KYC OCR driver is not installed.');
+            if (config('kyc.ocr_driver') === 'mock' && app()->environment(['local', 'testing'])) {
+                return new MockKycOcrProvider((string) config('kyc.mock_ocr_mode'));
             }
 
-            return new MockKycOcrProvider((string) config('kyc.mock_ocr_mode'));
+            return new UnavailableKycOcrProvider;
         });
     }
 
@@ -62,5 +66,13 @@ class AppServiceProvider extends ServiceProvider
             $config['model'],
             $app->make(TenantContext::class),
         ));
+        RateLimiter::for('kyc-documents', function ($request): Limit {
+            $adminId = Auth::guard('tenant_admin')->id() ?? 'guest';
+            $tenantId = app(TenantDomainRepository::class)
+                ->resolveActiveHostname(strtolower(rtrim($request->getHost(), '.')))?->tenant_id ?? 'unknown';
+
+            return Limit::perMinute((int) config('kyc.document_access_rate_limit_per_minute'))
+                ->by("{$tenantId}:{$adminId}");
+        });
     }
 }

@@ -25,7 +25,7 @@ beforeEach(function (): void {
 });
 
 it('enforces tenant user consistency and valid KYC values in PostgreSQL', function (): void {
-    $protected = app(IdentityNumberProtector::class)->protect($this->tenantA->id, 'DB-1234');
+    $protected = app(IdentityNumberProtector::class)->protect($this->tenantA->id, 'NATIONAL_ID', 'MY', 'DB-1234');
     expect(fn () => DB::table('kyc_applications')->insert([
         'id' => (string) Str::uuid(), 'tenant_id' => $this->tenantA->id, 'user_id' => $this->userB->id,
         'document_type' => 'PASSPORT', 'document_country' => 'malaysia',
@@ -37,7 +37,7 @@ it('enforces tenant user consistency and valid KYC values in PostgreSQL', functi
 
 it('prevents a cross-user or cross-tenant resubmission link at database level', function (): void {
     $applicationA = app(SubmitKycApplicationAction::class)->execute($this->tenantA, $this->userA, 'MY', 'DB-A', kycTestImage('front.jpg'), kycTestImage('back.jpg'));
-    $protected = app(IdentityNumberProtector::class)->protect($this->tenantB->id, 'DB-B');
+    $protected = app(IdentityNumberProtector::class)->protect($this->tenantB->id, 'NATIONAL_ID', 'MY', 'DB-B');
     expect(fn () => DB::table('kyc_applications')->insert([
         'id' => (string) Str::uuid(), 'tenant_id' => $this->tenantB->id, 'user_id' => $this->userB->id,
         'resubmission_of_id' => $applicationA->id, 'document_type' => KycDocumentType::NationalId->value, 'document_country' => 'MY',
@@ -52,6 +52,7 @@ it('requires a positive identity account limit and keeps identity hash non-uniqu
     expect($indexes)->not->toContain('UNIQUE (identity_hash)')
         ->and($indexes)->toContain('kyc_one_pending_application_per_user');
     expect(fn () => $this->tenantA->kycSettings()->update(['max_accounts_per_identity' => 0]))->toThrow(QueryException::class);
+    expect(fn () => $this->tenantA->kycSettings()->update(['max_accounts_per_identity' => 101]))->toThrow(QueryException::class);
 });
 
 it('creates only Phase 3 KYC tables and no future money or card tables', function (): void {

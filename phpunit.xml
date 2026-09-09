@@ -35,6 +35,7 @@
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="KYC_IDENTITY_HASH_KEY" value="testing-only-kyc-identity-hmac-key-32-bytes"/>
+        <env name="KYC_DATA_ENCRYPTION_KEY" value="base64:ZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGQ="/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>

@@ -37,7 +37,7 @@ Local/test-only Admin credentials: `owner@platform.local`, `owner@a.localhost`, 
 
 1. Open a Tenant's `/register`, choose Email or Phone, and request a verification code.
 2. Email codes arrive in Mailpit. Phone verification is behind `SmsVerificationSender`; automated tests use a safe in-memory fake, while local browser phone delivery remains unavailable until an approved SMS adapter is configured. OTPs are never printed to application logs.
-3. Verify the six-digit code, create a strong password, and enter the real `/dashboard`. Only account/contact state is shown; KYC is clearly the next unavailable phase and no mock balance appears.
+3. Verify the six-digit code, create a strong password, and enter `/dashboard`. Account/contact and derived KYC status are shown; no mock balance appears.
 4. Sign in through `/login`. A suspended User or a User under a suspended Tenant reaches `/account/restricted` but retains password-change and logout access.
 5. Tenant Admins with `users.read` use `/admin/users`; `users.suspend` controls suspend/reactivate actions. These status actions never modify money or cards.
 
@@ -45,7 +45,7 @@ Forgot-password and contact-change workflows are intentionally absent because ea
 
 ## Phase 3 local KYC workflow
 
-Set a dedicated, stable `KYC_IDENTITY_HASH_KEY` with at least 32 characters. It is a data-protection key and must not be casually rotated. Local documents use the non-public `private` disk under `storage/app/private`; production should point `KYC_DOCUMENT_DISK` to a private S3-compatible disk. Never place KYC files under `public/storage`.
+Set independent, stable `KYC_DATA_ENCRYPTION_KEY` (exactly 32 bytes, optionally `base64:` encoded) and `KYC_IDENTITY_HASH_KEY` (at least 32 characters). They protect persistent data, never fall back to `APP_KEY`, and must not be casually rotated without a dedicated migration. Local documents use the non-public `private` disk under `storage/app/private`; production should point `KYC_DOCUMENT_DISK` to a private S3-compatible disk. Never place KYC files under `public/storage`.
 
 1. Sign in as the seeded Tenant User and open `/kyc`. Submit NATIONAL_ID front/back test images (JPEG, PNG, or WEBP only; do not use real identity data).
 2. Start a queue worker with `docker compose run --rm app php artisan queue:work`. `KYC_OCR_DRIVER=mock` produces a bounded encrypted OCR hint; set `KYC_MOCK_OCR_MODE=FAILED` to exercise manual review after OCR failure.
@@ -81,7 +81,7 @@ Without Docker, set `DB_HOST`, `REDIS_HOST`, and `MAIL_HOST` to `127.0.0.1`, the
 
 Copy `.env.example`; do not commit secrets. `SESSION_DOMAIN` must stay empty so authentication cookies are host-only and do not leak between tenant subdomains. `PLATFORM_ADMIN_HOST` is never resolved as a tenant. `CARD_PROVIDER_DRIVER=mock` selects the contract-compatible test provider through dependency injection.
 
-Private KYC files use `KYC_DOCUMENT_DISK`; the local default is `private`. Identity values and normalized OCR output are encrypted. Duplicate matching uses a Tenant-scoped HMAC with `KYC_IDENTITY_HASH_KEY`. Provider credentials must use encrypted secret storage or a secret manager, never ordinary plaintext fields.
+Private KYC files use `KYC_DOCUMENT_DISK`; the local default is `private`. Identity values and minimized OCR output use the dedicated KYC cipher. Duplicate matching uses a canonical Tenant+document-type+country+number HMAC. Mock OCR is prohibited outside local/testing. Provider credentials must use encrypted secret storage or a secret manager, never ordinary plaintext fields.
 
 ## Architecture
 

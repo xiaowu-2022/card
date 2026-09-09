@@ -30,7 +30,7 @@ final readonly class RejectKycAction
 
     private function assertSafeMessage(KycApplication $application, string $message): void
     {
-        if (mb_strlen(trim($message)) < 3 || mb_strlen(trim($message)) > 500) {
+        if (mb_strlen(trim($message)) < 3 || mb_strlen(trim($message)) > 500 || str_contains($message, '<') || str_contains($message, '>')) {
             throw new DomainException('REVIEW_MESSAGE_INVALID', 'Enter a reviewer message between 3 and 500 characters.');
         }
         $identity = $this->identities->decrypt($application->identity_number_encrypted);

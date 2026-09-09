@@ -26,6 +26,20 @@ final class KycApplication extends Model
     protected static function booted(): void
     {
         self::deleting(fn () => throw new LogicException('KYC applications are immutable history and cannot be deleted.'));
+        self::updating(function (self $application): void {
+            $immutable = [
+                'id', 'tenant_id', 'user_id', 'resubmission_of_id', 'document_type', 'document_country',
+                'identity_number_encrypted', 'identity_hash', 'front_object_key', 'back_object_key', 'submitted_at',
+            ];
+            if ($application->isDirty($immutable)) {
+                throw new LogicException('Submitted KYC identity data and documents are immutable.');
+            }
+
+            $reviewFields = ['review_status', 'review_reason_code', 'review_message', 'reviewed_by_admin_user_id', 'reviewed_at'];
+            if ($application->isDirty($reviewFields) && $application->getRawOriginal('review_status') !== KycReviewStatus::Pending->value) {
+                throw new LogicException('Reviewed KYC applications are immutable.');
+            }
+        });
     }
 
     protected function casts(): array

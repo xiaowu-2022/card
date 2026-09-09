@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\TenantAdmin;
 
+use App\Application\Admin\TenantAdminRecentAuthentication;
 use App\Application\Kyc\ApproveKycAction;
 use App\Application\Kyc\RejectKycAction;
 use App\Application\Kyc\RequireKycResubmissionAction;
@@ -27,15 +28,14 @@ final class KycController extends Controller
         ]);
     }
 
-    public function show(string $kyc, Request $request, TenantContext $context, TenantKycQueueQuery $query): Response
+    public function show(string $kyc, Request $request, TenantContext $context, TenantKycQueueQuery $query, TenantAdminRecentAuthentication $recent): Response
     {
         /** @var AdminUser $admin */
         $admin = Auth::guard('tenant_admin')->user();
-        $recentAt = $request->session()->get("tenant_admin.recent_auth_at.{$admin->id}");
 
         return Inertia::render('tenant-admin/KycDetail', [
             ...$query->detail($context->id(), $kyc),
-            'recentlyAuthenticated' => is_int($recentAt) && $recentAt >= now()->subSeconds((int) config('kyc.admin_recent_auth_ttl_seconds'))->getTimestamp(),
+            'recentlyAuthenticated' => $recent->valid($request->session(), $admin, $context->id()),
         ]);
     }
 

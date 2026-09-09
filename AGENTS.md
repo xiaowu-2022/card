@@ -40,7 +40,8 @@ These rules are mandatory for every future change. If a requested feature requir
 - Never expose unrestricted Eloquent models as API JSON; use explicit DTOs/Resources and allowlisted fields.
 - KYC documents use private storage. Identity lookup uses encrypted values plus keyed HMAC, never plaintext indexes.
 - Never expose KYC identity ciphertext/HMAC, document object keys, signed URLs, or encrypted OCR results in ordinary model serialization, Inertia props, logs, or audit.
-- `KYC_IDENTITY_HASH_KEY` is a stable data key; rotation requires a planned re-hash migration and must never be treated as routine API-key rotation.
+- `KYC_DATA_ENCRYPTION_KEY` and `KYC_IDENTITY_HASH_KEY` are stable persistent-data keys; rotation requires a dedicated verified re-encryption/re-hash migration and must never be treated as routine API-key rotation. KYC encryption must never silently fall back to `APP_KEY` or plaintext.
+- Canonical identity matching includes Tenant, document type, country, and normalized number through unambiguous serialization. Never put raw identity data in advisory-lock, cache, rate-limit, audit, or log keys.
 
 ## Architecture
 

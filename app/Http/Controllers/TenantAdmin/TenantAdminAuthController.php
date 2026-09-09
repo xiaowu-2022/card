@@ -4,6 +4,7 @@ namespace App\Http\Controllers\TenantAdmin;
 
 use App\Application\Admin\AuthenticateAdminAction;
 use App\Application\Admin\LogoutAdminAction;
+use App\Application\Admin\TenantAdminRecentAuthentication;
 use App\Domain\Admin\Enums\ScopeType;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Admin\Services\AuthorizationService;
@@ -54,12 +55,13 @@ final class TenantAdminAuthController extends Controller
             : '/admin/demo');
     }
 
-    public function destroy(Request $request, TenantContext $tenantContext, LogoutAdminAction $logout): RedirectResponse
+    public function destroy(Request $request, TenantContext $tenantContext, LogoutAdminAction $logout, TenantAdminRecentAuthentication $recent): RedirectResponse
     {
         $admin = Auth::guard('tenant_admin')->user();
         if ($admin instanceof AdminUser) {
             $logout->execute($admin, $tenantContext->id(), $request->attributes->get('request_id'), $request->ip(), $request->userAgent());
         }
+        $recent->forget($request->session());
         Auth::guard('tenant_admin')->logout();
         $request->session()->regenerate(true);
         $request->session()->regenerateToken();

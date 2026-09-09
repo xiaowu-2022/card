@@ -4,6 +4,7 @@ use App\Application\Kyc\ApproveKycAction;
 use App\Application\Kyc\RejectKycAction;
 use App\Application\Kyc\RequireKycResubmissionAction;
 use App\Application\Kyc\SubmitKycApplicationAction;
+use App\Application\Tenant\UpdateTenantKycSettingsAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Audit\Models\AuditLog;
 use App\Domain\Kyc\Enums\KycReviewReason;
@@ -11,13 +12,16 @@ use App\Domain\Kyc\Enums\KycReviewStatus;
 use App\Domain\Kyc\Enums\KycUserStatus;
 use App\Domain\Kyc\Models\IdentityRecord;
 use App\Domain\Kyc\Models\KycApplication;
+use App\Domain\Kyc\Services\IdentityHashGenerator;
 use App\Domain\Kyc\Services\KycStatusService;
+use App\Domain\Tenant\Enums\TenantStatus;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Enums\UserStatus;
 use App\Domain\User\Models\User;
 use App\Domain\User\Models\UserPreference;
 use App\Domain\User\Models\UserProfile;
 use App\Support\Errors\DomainException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -70,6 +74,34 @@ it('supports only terminal reject or resubmission-required transitions from pend
         ->and(fn () => app(RejectKycAction::class)->execute($this->tenant->id, $application->id, $this->reviewer, KycReviewReason::Other, 'Another decision.'))->toThrow(DomainException::class);
 })->with(['REJECTED', 'RESUBMISSION_REQUIRED']);
 
+it('allows only one competing review transition', function (string $first, string $second): void {
+    $application = submitReviewableKyc($this, $this->user, "RACE-{$first}-{$second}");
+    $run = function (string $decision) use ($application): void {
+        if ($decision === 'approve') {
+            app(ApproveKycAction::class)->execute($this->tenant->id, $application->id, $this->reviewer);
+
+            return;
+        }
+        if ($decision === 'reject') {
+            app(RejectKycAction::class)->execute($this->tenant->id, $application->id, $this->reviewer, KycReviewReason::Other, 'Rejected after review.');
+
+            return;
+        }
+        app(RequireKycResubmissionAction::class)->execute($this->tenant->id, $application->id, $this->reviewer, KycReviewReason::DocumentUnreadable, 'Please submit clearer images.');
+    };
+    $run($first);
+
+    try {
+        $run($second);
+        $this->fail('Expected the competing review transition to be rejected.');
+    } catch (DomainException $exception) {
+        expect($exception->errorCode)->toBe('KYC_ALREADY_REVIEWED');
+    }
+})->with([
+    ['approve', 'reject'], ['approve', 'resubmit'], ['reject', 'approve'],
+    ['reject', 'resubmit'], ['resubmit', 'approve'], ['resubmit', 'reject'],
+]);
+
 it('allows only resubmission-required applications to create a linked replacement', function (): void {
     $application = submitReviewableKyc($this, $this->user, 'ID-OLD');
     app(RequireKycResubmissionAction::class)->execute($this->tenant->id, $application->id, $this->reviewer, KycReviewReason::DocumentUnreadable, 'Please upload clearer images.');
@@ -117,6 +149,79 @@ it('keeps duplicate identity limits independent between tenants', function (): v
 
     expect(IdentityRecord::query()->where('identity_hash', $applicationA->identity_hash)->count())->toBe(1)
         ->and(IdentityRecord::query()->count())->toBe(2);
+});
+
+it('does not treat the same number in different countries as one identity slot', function (): void {
+    $other = makePhaseThreeUser($this->tenant, 'cross-country@a.localhost');
+    $malaysia = app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'MY', '123456789', kycTestImage('my-front.jpg'), kycTestImage('my-back.jpg'));
+    $singapore = app(SubmitKycApplicationAction::class)->execute($this->tenant, $other, 'SG', '123456789', kycTestImage('sg-front.jpg'), kycTestImage('sg-back.jpg'));
+
+    app(ApproveKycAction::class)->execute($this->tenant->id, $malaysia->id, $this->reviewer);
+    app(ApproveKycAction::class)->execute($this->tenant->id, $singapore->id, $this->reviewer);
+
+    expect($malaysia->identity_hash)->not->toBe($singapore->identity_hash)
+        ->and(IdentityRecord::query()->where('tenant_id', $this->tenant->id)->count())->toBe(2);
+});
+
+it('serializes approvals by canonical identity and leaves the losing application pending', function (): void {
+    $other = makePhaseThreeUser($this->tenant, 'concurrent@a.localhost');
+    $first = submitReviewableKyc($this, $this->user, 'CONCURRENT-ID');
+    $second = submitReviewableKyc($this, $other, 'CONCURRENT-ID');
+    $lockKey = app(IdentityHashGenerator::class)->advisoryLockKey($first->identity_hash);
+    $otherPdo = new PDO(
+        sprintf('pgsql:host=%s;port=%s;dbname=%s', config('database.connections.pgsql.host'), config('database.connections.pgsql.port'), config('database.connections.pgsql.database')),
+        config('database.connections.pgsql.username'),
+        config('database.connections.pgsql.password'),
+    );
+    DB::statement('SELECT pg_advisory_xact_lock(?)', [$lockKey]);
+    $available = $otherPdo->query("SELECT pg_try_advisory_xact_lock({$lockKey})")->fetchColumn();
+    expect($available)->toBeFalse();
+
+    app(ApproveKycAction::class)->execute($this->tenant->id, $first->id, $this->reviewer);
+    expect(fn () => app(ApproveKycAction::class)->execute($this->tenant->id, $second->id, $this->reviewer))->toThrow(DomainException::class)
+        ->and($second->fresh()->review_status)->toBe(KycReviewStatus::Pending)
+        ->and(IdentityRecord::query()->count())->toBe(1);
+});
+
+it('locks the same KYC settings row in settings changes and approvals', function (): void {
+    $queries = [];
+    DB::listen(function ($query) use (&$queries): void {
+        $queries[] = strtolower($query->sql);
+    });
+    app(UpdateTenantKycSettingsAction::class)->execute($this->tenant, true, 2, $this->reviewer);
+    $application = submitReviewableKyc($this, $this->user, 'SETTINGS-LOCK-ID');
+    app(ApproveKycAction::class)->execute($this->tenant->id, $application->id, $this->reviewer);
+
+    expect(collect($queries)->filter(fn (string $sql): bool => str_contains($sql, 'tenant_kyc_settings') && str_contains($sql, 'for update'))->count())->toBeGreaterThanOrEqual(2);
+});
+
+it('allows pending cleanup review while KYC or tenant submissions are suspended', function (): void {
+    $application = submitReviewableKyc($this, $this->user, 'PENDING-CLEANUP');
+    $this->tenant->kycSettings()->update(['enabled' => false]);
+    $this->tenant->update(['status' => TenantStatus::Suspended]);
+
+    $this->actingAs($this->reviewer, 'tenant_admin')->post("http://a.localhost/admin/kyc/{$application->id}/approve")->assertRedirect();
+    expect($application->fresh()->review_status)->toBe(KycReviewStatus::Approved);
+});
+
+it('cannot review or infer another tenant application by UUID', function (): void {
+    $tenantB = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
+    $userB = User::query()->where('tenant_id', $tenantB->id)->firstOrFail();
+    $applicationB = app(SubmitKycApplicationAction::class)->execute($tenantB, $userB, 'MY', 'ISOLATED-ID', kycTestImage('front.jpg'), kycTestImage('back.jpg'));
+
+    $this->actingAs($this->reviewer, 'tenant_admin')->post("http://a.localhost/admin/kyc/{$applicationB->id}/approve")->assertNotFound();
+    $this->post("http://a.localhost/admin/kyc/{$applicationB->id}/reject", ['reason_code' => 'OTHER', 'review_message' => 'Invalid request.'])->assertNotFound();
+    expect($applicationB->fresh()->review_status)->toBe(KycReviewStatus::Pending);
+});
+
+it('rejects HTML in reviewer messages and renders messages as text only', function (): void {
+    $application = submitReviewableKyc($this, $this->user, 'REVIEW-XSS');
+    $this->actingAs($this->reviewer, 'tenant_admin')->post("http://a.localhost/admin/kyc/{$application->id}/reject", [
+        'reason_code' => 'OTHER', 'review_message' => '<script>alert(1)</script>',
+    ])->assertSessionHasErrors('review_message');
+
+    expect($application->fresh()->review_status)->toBe(KycReviewStatus::Pending)
+        ->and(file_get_contents(resource_path('js/pages/user/Kyc.tsx')))->not->toContain('dangerouslySetInnerHTML');
 });
 
 it('does not invalidate existing identities when the tenant lowers its limit', function (): void {

@@ -19,6 +19,7 @@ use App\Support\Errors\DomainException;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Throwable;
@@ -49,7 +50,7 @@ final readonly class SubmitKycApplicationAction
                 throw new DomainException('KYC_DOCUMENT_STORAGE_FAILED', 'The documents could not be stored. Please try again.', 503);
             }
             $stored[] = $backKey;
-            $protected = $this->identities->protect($tenant->id, $identityNumber);
+            $protected = $this->identities->protect($tenant->id, KycDocumentType::NationalId->value, $country, $identityNumber);
 
             $application = DB::transaction(function () use ($tenant, $user, $country, $applicationId, $frontKey, $backKey, $protected, $requestId): KycApplication {
                 $currentTenant = Tenant::query()->whereKey($tenant->id)->lockForUpdate()->firstOrFail();
@@ -94,8 +95,17 @@ final readonly class SubmitKycApplicationAction
 
             return $application;
         } catch (Throwable $exception) {
-            foreach ($stored as $objectKey) {
-                Storage::disk($disk)->delete($objectKey);
+            foreach ($stored as $side => $objectKey) {
+                try {
+                    Storage::disk($disk)->delete($objectKey);
+                } catch (Throwable $cleanupException) {
+                    Log::warning('KYC document cleanup failed.', [
+                        'tenant_id' => $tenant->id,
+                        'kyc_application_id' => $applicationId,
+                        'document_sequence' => $side,
+                        'error_class' => $cleanupException::class,
+                    ]);
+                }
             }
             if ($exception instanceof QueryException && $exception->getCode() === '23505') {
                 throw new DomainException('KYC_ALREADY_PENDING', 'Identity verification is already under review.');

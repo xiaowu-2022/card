@@ -76,6 +76,18 @@ it('does not redact unrelated keys merely containing short character sequences',
         ->toBe(['company_name' => 'Aperture']);
 });
 
+it('redacts every KYC spelling without broad id-key false positives', function (): void {
+    $input = [
+        'identityNumber' => 'secret', 'identity_hash' => 'secret', 'identityHash' => 'secret',
+        'ocrResult' => ['candidate' => 'secret'], 'signedUrl' => 'secret', 'document_url' => 'secret',
+        'frontObjectKey' => 'secret', 'back_object_key' => 'secret', 'application_id' => 'safe-id',
+    ];
+    $redacted = (new SensitiveDataRedactor)->redact($input);
+
+    expect(array_values(array_diff_key($redacted, ['application_id' => true])))->each->toBe('[REDACTED]')
+        ->and($redacted['application_id'])->toBe('safe-id');
+});
+
 it('redacts context and bearer credentials at the logging processor boundary', function (): void {
     $handler = new TestHandler;
     $logger = new Logger(new MonologLogger('redaction-test', [$handler]));

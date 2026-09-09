@@ -24,6 +24,15 @@ arch('KYC OCR infrastructure does not depend on Wallet Ledger or Card')
         'App\Domain\SecurityDeposit',
     ]);
 
+it('keeps OCR providers away from review state and KYC approval away from financial side effects', function (): void {
+    $providerSources = collect(glob(app_path('Infrastructure/Providers/Kyc/*.php')))
+        ->map(fn (string $path): string => file_get_contents($path))->implode("\n");
+    $approval = file_get_contents(app_path('Application/Kyc/ApproveKycAction.php'));
+
+    expect($providerSources)->not->toContain('review_status', 'KycReviewStatus')
+        ->and($approval)->not->toContain('Wallet', 'Ledger', 'Balance', 'Deposit', 'Card');
+});
+
 arch('User domain remains independent from future business domains')
     ->expect('App\Domain\User')
     ->not->toUse([
@@ -63,6 +72,10 @@ arch('controllers remain final and use controller suffix')
         'App\Http\Controllers\TenantAdmin\TenantSettingsController',
         'App\Http\Controllers\TenantAdmin\DomainManagementController',
         'App\Http\Controllers\TenantAdmin\TeamController',
+        'App\Http\Controllers\TenantAdmin\AdminRecentAuthenticationController',
+        'App\Http\Controllers\TenantAdmin\KycController',
+        'App\Http\Controllers\TenantAdmin\KycDocumentController',
+        'App\Http\Controllers\User\KycController',
         'App\Http\Controllers\Platform\DashboardController',
         'App\Http\Controllers\Platform\TenantsController',
         'App\Http\Controllers\Platform\PlatformAuthController',

@@ -4,13 +4,13 @@ namespace App\Application\Kyc;
 
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Kyc\Services\IdentityNumberProtector;
+use App\Domain\Kyc\Services\KycDataCipher;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 
 final readonly class TenantKycQueueQuery
 {
-    public function __construct(private IdentityNumberProtector $identities) {}
+    public function __construct(private IdentityNumberProtector $identities, private KycDataCipher $cipher) {}
 
     /** @return LengthAwarePaginator<int, array<string, mixed>> */
     public function paginate(string $tenantId, ?string $search, ?string $status, ?string $date): LengthAwarePaginator
@@ -45,7 +45,7 @@ final readonly class TenantKycQueueQuery
     public function detail(string $tenantId, string $applicationId): array
     {
         $application = KycApplication::query()->where('tenant_id', $tenantId)->whereKey($applicationId)->with(['user.profile', 'reviewer'])->firstOrFail();
-        $ocr = $application->ocr_result_encrypted ? json_decode(Crypt::decryptString($application->ocr_result_encrypted), true, 8, JSON_THROW_ON_ERROR) : null;
+        $ocr = $application->ocr_result_encrypted ? json_decode($this->cipher->decrypt($application->ocr_result_encrypted), true, 8, JSON_THROW_ON_ERROR) : null;
 
         return [
             'application' => [
@@ -56,7 +56,7 @@ final readonly class TenantKycQueueQuery
                 'maskedIdentityNumber' => $this->identities->maskEncrypted($application->identity_number_encrypted),
                 'documentsSubmitted' => true,
                 'ocrStatus' => $application->ocr_status->value,
-                'ocrSummary' => $ocr ? ['candidateIdentityNumber' => $ocr['candidate_identity_number'] ? $this->mask((string) $ocr['candidate_identity_number']) : null, 'candidateName' => $ocr['candidate_name'], 'confidence' => $ocr['confidence']] : null,
+                'ocrSummary' => $ocr ? ['identityMatch' => $ocr['candidate_identity_match'] ?? 'UNKNOWN', 'candidateName' => $ocr['candidate_name'], 'confidence' => $ocr['confidence']] : null,
                 'reviewStatus' => $application->review_status->value,
                 'reviewReasonCode' => $application->review_reason_code,
                 'reviewMessage' => $application->review_message,
@@ -65,10 +65,5 @@ final readonly class TenantKycQueueQuery
                 'reviewedAt' => $application->reviewed_at?->toIso8601String(),
             ],
         ];
-    }
-
-    private function mask(string $value): string
-    {
-        return str_repeat('*', max(4, mb_strlen($value) - 4)).mb_substr($value, -4);
     }
 }

@@ -22,7 +22,7 @@ final readonly class RequireKycResubmissionAction
             if ($application->review_status !== KycReviewStatus::Pending) {
                 throw new DomainException('KYC_ALREADY_REVIEWED', 'This application has already been reviewed.', 409);
             }
-            if (mb_strlen(trim($message)) < 3 || mb_strlen(trim($message)) > 500) {
+            if (mb_strlen(trim($message)) < 3 || mb_strlen(trim($message)) > 500 || str_contains($message, '<') || str_contains($message, '>')) {
                 throw new DomainException('REVIEW_MESSAGE_INVALID', 'Enter a reviewer message between 3 and 500 characters.');
             }
             $identity = $this->identities->decrypt($application->identity_number_encrypted);

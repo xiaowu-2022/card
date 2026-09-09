@@ -18,7 +18,7 @@ final class ReviewKycApplicationRequest extends FormRequest
     {
         return [
             'reason_code' => ['required', Rule::enum(KycReviewReason::class)],
-            'review_message' => ['required', 'string', 'min:3', 'max:500'],
+            'review_message' => ['required', 'string', 'min:3', 'max:500', 'not_regex:/[<>]/'],
         ];
     }
 }

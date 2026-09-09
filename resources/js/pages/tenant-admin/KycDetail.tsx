@@ -36,7 +36,7 @@ type Application = {
     documentsSubmitted: boolean;
     ocrStatus: string;
     ocrSummary: {
-        candidateIdentityNumber: string | null;
+        identityMatch: 'MATCH' | 'MISMATCH' | 'UNKNOWN';
         candidateName: string | null;
         confidence: string | null;
     } | null;
@@ -126,11 +126,8 @@ export default function KycDetail({
                                 {application.ocrSummary && (
                                     <div className="grid gap-4 sm:grid-cols-3">
                                         <Info
-                                            label="Detected number"
-                                            value={
-                                                application.ocrSummary.candidateIdentityNumber ??
-                                                '—'
-                                            }
+                                            label="Identity comparison"
+                                            value={application.ocrSummary.identityMatch}
                                         />
                                         <Info
                                             label="Candidate name"
