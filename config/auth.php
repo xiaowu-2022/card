@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Admin\Models\AdminUser;
+use App\Domain\User\Models\User;
 
 return [
 
@@ -38,6 +39,10 @@ return [
     */
 
     'guards' => [
+        'tenant_user' => [
+            'driver' => 'session',
+            'provider' => 'tenant_users',
+        ],
         'tenant_admin' => [
             'driver' => 'session',
             'provider' => 'admins',
@@ -66,6 +71,10 @@ return [
     */
 
     'providers' => [
+        'tenant_users' => [
+            'driver' => 'eloquent',
+            'model' => User::class,
+        ],
         'admins' => [
             'driver' => 'eloquent',
             'model' => AdminUser::class,

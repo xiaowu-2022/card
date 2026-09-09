@@ -15,6 +15,7 @@ import type { SharedProps } from '@/types/global';
 
 const items = [
     { label: 'Overview', href: '/admin/demo', icon: BarChart3, permission: 'users.read' },
+    { label: 'Users', href: '/admin/users', icon: Users, permission: 'users.read' },
     {
         label: 'Setup',
         href: '/admin/onboarding',

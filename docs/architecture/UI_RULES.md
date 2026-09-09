@@ -4,7 +4,9 @@ The shared direction is light, clean, neutral, professional financial software. 
 
 Use shadcn/ui primitives plus focused project wrappers only. Do not add a second UI framework. Status always combines text and color using SUCCESS/WARNING/DANGER/INFO/NEUTRAL semantics. Tenant primary color affects primary controls, links, active navigation, and selected states; it never overrides risk colors.
 
-PublicLayout, UserLayout, TenantAdminLayout, and PlatformLayout remain separate surfaces. User pages are mobile-first: 375, 768, and 1440 px must be fully usable; mobile uses Home/Wallet/Cards/Account bottom navigation and stacked transaction rows rather than compressed desktop tables. Admin is desktop-first with sidebar/topbar and a mobile drawer; 375 px remains readable with basic actions.
+PublicLayout, UserLayout, TenantAdminLayout, and PlatformLayout remain separate surfaces. User pages are mobile-first: 375, 768, and 1440 px must be fully usable. Phase 2 mobile navigation exposes only Dashboard, Account, and Security; future Wallet/Card navigation is added only with its owning business phase. Admin is desktop-first with sidebar/topbar and a mobile drawer; 375 px remains readable with basic actions.
+
+Phase 2 registration is a progressive contact -> code -> password flow, never one giant form. OTP fields support paste, numeric keyboards, autocomplete, labels, and visible errors. The authenticated User Dashboard shows only real account/contact state and marks KYC/Wallet/Card steps as unavailable; it never displays mock balances or cards. Restricted users retain clear links to account security and logout.
 
 White-label V1 allows logo, brand name, favicon, primary color, support information, and basic public copy through safe tokens. It does not allow custom CSS/JS/React, free themes, dashboard layout builders, or page builders.
 

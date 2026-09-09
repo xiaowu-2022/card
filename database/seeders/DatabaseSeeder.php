@@ -18,6 +18,10 @@ use App\Domain\Tenant\Models\TenantBusinessSetting;
 use App\Domain\Tenant\Models\TenantDomain;
 use App\Domain\Tenant\Models\TenantKycSetting;
 use App\Domain\Tenant\Models\TenantLocale;
+use App\Domain\User\Enums\UserStatus;
+use App\Domain\User\Models\User;
+use App\Domain\User\Models\UserPreference;
+use App\Domain\User\Models\UserProfile;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -74,6 +78,9 @@ final class DatabaseSeeder extends Seeder
             ['admin_user_id' => $ownerA->id, 'scope_type' => ScopeType::Tenant, 'scope_id' => $tenantA->id],
             ['role_id' => $roleModels['TENANT_OWNER']->id, 'status' => MembershipStatus::Active],
         );
+
+        $this->user($tenantA, 'user@a.localhost', 'Tenant A User');
+        $this->user($tenantB, 'user@b.localhost', 'Tenant B User');
         AdminMembership::query()->firstOrCreate(
             ['admin_user_id' => $ownerB->id, 'scope_type' => ScopeType::Tenant, 'scope_id' => $tenantB->id],
             ['role_id' => $roleModels['TENANT_OWNER']->id, 'status' => MembershipStatus::Active],
@@ -104,5 +111,15 @@ final class DatabaseSeeder extends Seeder
         TenantKycSetting::query()->firstOrCreate(['tenant_id' => $tenant->id], ['enabled' => false, 'review_mode' => 'MANUAL']);
 
         return $tenant;
+    }
+
+    private function user(Tenant $tenant, string $email, string $displayName): void
+    {
+        $user = User::query()->firstOrCreate(
+            ['tenant_id' => $tenant->id, 'email' => $email],
+            ['phone' => null, 'password_hash' => Hash::make('local-password'), 'status' => UserStatus::Active, 'email_verified_at' => now()],
+        );
+        UserProfile::query()->firstOrCreate(['user_id' => $user->id], ['tenant_id' => $tenant->id, 'display_name' => $displayName]);
+        UserPreference::query()->firstOrCreate(['user_id' => $user->id], ['tenant_id' => $tenant->id, 'locale' => $tenant->default_locale]);
     }
 }

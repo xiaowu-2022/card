@@ -1,6 +1,6 @@
 # Aperture Cards — Virtual Card SaaS
 
-Phase 1 administrative foundation for a tenant-aware Laravel modular monolith. Admin authentication, tenant creation, invitation acceptance, onboarding settings, domains, team membership, and foundation activation are real. Wallet, KYC applications, cards, balances, transactions, products, and providers remain intentionally absent or explicit demo UI.
+Phase 2 identity foundation for a tenant-aware Laravel modular monolith. Admin control-plane features plus Tenant-scoped End User registration, contact verification, login, account security, restricted access, and Tenant Admin user status management are real. Wallet, KYC applications, cards, balances, transactions, products, and providers remain intentionally absent or explicit demo UI.
 
 ## Requirements
 
@@ -26,12 +26,22 @@ PostgreSQL is authoritative. Redis backs cache, queue, and local sessions. Start
 
 Modern browsers resolve `*.localhost` to loopback without hosts-file changes.
 
-- Tenant A public/user: `http://a.localhost:8000/`, demo `/demo`, wallet `/demo/wallet`, cards `/demo/cards`, login `/login`
+- Tenant A public/user: `http://a.localhost:8000/`, register `/register`, login `/login`, authenticated Dashboard `/dashboard`
 - Tenant A Admin: `http://a.localhost:8000/admin/login`, setup `/admin/onboarding`
 - Tenant B: replace `a.localhost` with `b.localhost`
 - Platform Admin: `http://admin.localhost:8000/platform/login`, tenants `/platform/tenants`
 
-Local/test-only seeded credentials: `owner@platform.local`, `owner@a.localhost`, and `owner@b.localhost`, each with `local-password`. Production seeding never creates these accounts or any fixed password. Invitation mail is captured by Mailpit at `http://localhost:8025`; raw invitation tokens are never stored in the database.
+Local/test-only Admin credentials: `owner@platform.local`, `owner@a.localhost`, and `owner@b.localhost`, each with `local-password`. Seeded End Users are `user@a.localhost` and `user@b.localhost`, also with `local-password`, but each exists only in its respective Tenant. Production seeding never creates these accounts or any fixed password. Invitation and email verification mail is captured by Mailpit at `http://localhost:8025`; raw invitation tokens and OTPs are never stored in the database.
+
+## Phase 2 End User workflow
+
+1. Open a Tenant's `/register`, choose Email or Phone, and request a verification code.
+2. Email codes arrive in Mailpit. Phone verification is behind `SmsVerificationSender`; automated tests use a safe in-memory fake, while local browser phone delivery remains unavailable until an approved SMS adapter is configured. OTPs are never printed to application logs.
+3. Verify the six-digit code, create a strong password, and enter the real `/dashboard`. Only account/contact state is shown; KYC is clearly the next unavailable phase and no mock balance appears.
+4. Sign in through `/login`. A suspended User or a User under a suspended Tenant reaches `/account/restricted` but retains password-change and logout access.
+5. Tenant Admins with `users.read` use `/admin/users`; `users.suspend` controls suspend/reactivate actions. These status actions never modify money or cards.
+
+Forgot-password and contact-change workflows are intentionally absent because each requires its own verified recovery challenge design.
 
 ## Phase 1 admin workflow
 
@@ -65,4 +75,4 @@ Private future KYC files use the `private` disk. Provider credentials must use e
 
 ## Architecture
 
-Start with [Architecture](docs/architecture/ARCHITECTURE.md), [Tenant Rules](docs/architecture/TENANT_RULES.md), [Money Rules](docs/architecture/MONEY_RULES.md), [Card Provider Rules](docs/architecture/CARD_PROVIDER_RULES.md), and mandatory [Agent Rules](AGENTS.md).
+Start with [Architecture](docs/architecture/ARCHITECTURE.md), [Tenant Rules](docs/architecture/TENANT_RULES.md), [User Authentication Rules](docs/architecture/USER_AUTH_RULES.md), [Money Rules](docs/architecture/MONEY_RULES.md), [Card Provider Rules](docs/architecture/CARD_PROVIDER_RULES.md), and mandatory [Agent Rules](AGENTS.md).

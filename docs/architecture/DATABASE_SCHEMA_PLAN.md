@@ -1,14 +1,15 @@
 # Database Schema Plan
 
-Phase 0 creates only `tenants`, `tenant_domains`, `tenant_branding`, `tenant_locales`, `tenant_business_settings`, `tenant_kyc_settings`, `admin_users`, `admin_memberships`, `admin_invitations`, `roles`, `permissions`, `role_permissions`, and append-only `audit_logs`. Phase 1 reuses these tables and adds only a new migration: `admin_users.status`, `admin_users.last_login_at`, and invitation acceptance/cancellation metadata. No future business table is introduced. UUID is the universal business primary-key strategy. Status is uppercase PHP backed enum plus VARCHAR/CHECK. Timestamps are timezone-aware. Core deletion is RESTRICT, not cascading history removal.
+Phase 0 creates Tenant/Admin/Audit foundations. Phase 1 extends Admin authentication without adding future business tables. Phase 2 adds exactly `users`, `user_profiles`, `user_preferences`, and `registration_challenges`. UUID is the universal business primary-key strategy. Status is uppercase PHP backed enum plus VARCHAR/CHECK. Timestamps are timezone-aware. Core deletion is RESTRICT, not cascading history removal.
 
 PostgreSQL constraints include global unique hostname/slug/admin email/permission/role, one primary domain per tenant, one default locale per tenant, valid state checks, nonnegative deposit requirement, and explicit Platform-null/Tenant-non-null membership scope. `admin_memberships.scope_id` references `tenants.id` when present, and the composite role/scope foreign key guarantees that Platform roles cannot back Tenant memberships or vice versa. The Application layer preserves at least one enabled tenant locale through `UpdateTenantLocalesAction`; this cross-row cardinality rule is intentionally not misrepresented as an ordinary row constraint.
 
 Phase 1 adds a case-insensitive unique Admin email index, an Admin status CHECK for ACTIVE/SUSPENDED, and a partial unique index permitting at most one PENDING invitation per Tenant and case-insensitive email. Invitation tokens remain hashes in `token_hash`; `accepted_by`, `accepted_at`, and `cancelled_at` preserve lifecycle attribution. The existing unique hostname and partial primary-domain/default-locale indexes remain authoritative.
 
+Phase 2 constraints include Tenant-scoped nullable email/phone uniqueness, at least one User contact, E.164 phone shape, User/challenge enum checks, and composite `(user_id, tenant_id)` foreign keys preventing profile/preference cross-Tenant relationships. Registration challenges store a 64-character HMAC digest, verification attempts, expiry, lifecycle timestamps, and consumption separately from VERIFIED status.
+
 Future migrations are added only with their owning phase:
 
-- User: `users`, `user_profiles`, `user_preferences`, `registration_challenges`.
 - KYC: `kyc_applications`, `identity_records`.
 - Wallet/Ledger: `wallets`, `ledger_accounts`, `ledger_entries`, `ledger_postings`.
 - Payment: `wallet_topup_orders`, `payment_provider_transactions`, `payment_provider_events`.

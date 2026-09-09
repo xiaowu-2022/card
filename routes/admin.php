@@ -18,8 +18,14 @@ Route::middleware('tenant.surface:tenant-admin')->prefix('admin')->name('tenant-
 
     Route::middleware('admin.scope:tenant,users.read')->group(function (): void {
         Route::get('/demo', DashboardController::class)->name('dashboard');
-        Route::get('/demo/users', UsersController::class)->name('users');
+        Route::get('/users', [UsersController::class, 'index'])->name('users');
+        Route::get('/users/{user}', [UsersController::class, 'show'])->whereUuid('user')->name('users.show');
         Route::post('/logout', [TenantAdminAuthController::class, 'destroy'])->name('logout');
+    });
+
+    Route::middleware('admin.scope:tenant,users.suspend')->group(function (): void {
+        Route::post('/users/{user}/suspend', [UsersController::class, 'suspend'])->whereUuid('user')->name('users.suspend');
+        Route::post('/users/{user}/reactivate', [UsersController::class, 'reactivate'])->whereUuid('user')->name('users.reactivate');
     });
 
     Route::middleware('admin.scope:tenant,tenant_settings.manage')->group(function (): void {

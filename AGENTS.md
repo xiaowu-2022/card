@@ -54,6 +54,9 @@ These rules are mandatory for every future change. If a requested feature requir
 - Admin invitation tokens must remain cryptographically random, hash-only at rest, expiring, single-use, Tenant-host scoped, and absent from logs/audit data. Resend must invalidate the previous token.
 - Tenant foundation activation must remain computed from persisted requirements. Never add a writable onboarding-complete override or equate Tenant ACTIVE with Card/Provider/money readiness.
 - System domains are immutable. Custom domains must pass PENDING_VERIFICATION -> VERIFIED -> ACTIVE, and only ACTIVE domains can become primary.
+- End User and Admin identities/guards remain separate. Every End User credential lookup starts with resolved `tenant_id`; never perform a global email/phone lookup and check Tenant afterward.
+- Registration creates a User only from a locked, VERIFIED, unexpired, unconsumed Tenant-scoped challenge. OTPs are HMAC-hashed, never persisted or logged raw, and PostgreSQL remains authoritative.
+- User `ACTIVE` means account access only; it never means KYC approval, Wallet readiness, deposit qualification, or card eligibility. Suspending a User restricts access and never changes money or cards.
 
 ## UI
 
@@ -66,4 +69,4 @@ These rules are mandatory for every future change. If a requested feature requir
 
 ## Phase boundaries
 
-Phase 1 contains real Admin authentication, tenant onboarding/settings, Admin invitations/RBAC enforcement, domain verification state, and tenant foundation lifecycle. User/card/wallet demo data is still unmistakably static. It does not contain real end-user registration, OTP, KYC applications, wallets, ledgers, top-ups, withdrawals, deposit/refund flows, products, card issue/load, real providers, agents, commissions, or billing.
+Phase 2 contains real Tenant-scoped End User registration, contact verification, authentication, account security, restricted access, and Tenant Admin user status management. It does not contain KYC applications, wallets, ledgers, top-ups, withdrawals, deposit/refund flows, products, card issue/load, real providers, agents, commissions, or billing.

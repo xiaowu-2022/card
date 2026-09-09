@@ -33,8 +33,8 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                         <Button asChild variant="ghost" size="sm">
                             <Link href="/login">Log in</Link>
                         </Button>
-                        <Button size="sm" disabled>
-                            Register soon
+                        <Button asChild size="sm">
+                            <Link href="/register">Register</Link>
                         </Button>
                     </nav>
                     <Sheet>
@@ -59,7 +59,9 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                                 <Button asChild variant="ghost" className="justify-start">
                                     <Link href="/login">Log in</Link>
                                 </Button>
-                                <Button disabled>Register soon</Button>
+                                <Button asChild>
+                                    <Link href="/register">Register</Link>
+                                </Button>
                             </nav>
                         </SheetContent>
                     </Sheet>
@@ -68,7 +70,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
             <main>{children}</main>
             <footer className="border-t bg-background">
                 <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:justify-between sm:px-6 lg:px-8">
-                    <p>© 2026 {brand}. Demo environment.</p>
+                    <p>© 2026 {brand}.</p>
                     <p>Support · Privacy · Terms</p>
                 </div>
             </footer>

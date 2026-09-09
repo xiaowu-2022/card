@@ -10,6 +10,7 @@
 - Tenants are suspended or closed, not deleted. Platform-owned resources may have null owner tenant only when their owner scope is PLATFORM.
 - Domain->Tenant, branding, locale, and status may be cached and invalidated after change. Redis never owns balances.
 - Cross-tenant negative tests are required for every new tenant-scoped module.
+- End User identity is Tenant-scoped. Email and phone uniqueness, challenge lookup, credential lookup, verification, and challenge consumption always include the resolved Tenant. The same normalized contact may independently exist in different Tenants.
 - Admin invitation links are generated from the invited Tenant's current primary/system domain. The token is valid only when that host resolves the same Tenant; it cannot be accepted on another Tenant or the Platform host.
 - Tenant slugs are normalized, globally unique, protected from reserved Platform names, and immutable through ordinary Phase 1 settings. Creation always provides an active `{slug}.{PLATFORM_ROOT_DOMAIN}` system domain.
 - System domains cannot be deleted. Custom hostnames are globally unique and move through `PENDING_VERIFICATION`, `VERIFIED`, `ACTIVE`, `FAILED`, or `DISABLED`. Primary designation is an independent `is_primary` dimension, never a lifecycle status: `ACTIVE + is_primary=true` is the canonical primary domain. Multiple domains may be ACTIVE, but only one may be primary. Only ACTIVE domains may become primary and the switch is atomic. A primary domain cannot be disabled or deleted until another ACTIVE domain is selected first.
@@ -21,7 +22,7 @@ Surface availability is separate from resolution:
 
 - DRAFT: Tenant Admin allowed for setup; normal End User operations unavailable.
 - ACTIVE: Tenant Admin and End User allowed.
-- SUSPENDED: Tenant Admin allowed; End User is RESTRICTED, preserving future explicitly allowlisted read-only/recovery access while new registration, money, and card operations remain blocked.
+- SUSPENDED: Tenant Admin allowed; existing End Users may authenticate and use only restricted/account-security/logout routes. Registration and operational routes are blocked.
 - CLOSED: normal End User unavailable and Tenant Admin unavailable in V1; retained records remain inspectable to authorized Platform scope.
 
 The database can enforce at most one default locale. The Application layer must also preserve at least one enabled locale because that cross-row cardinality rule is not represented by a simple ordinary constraint.

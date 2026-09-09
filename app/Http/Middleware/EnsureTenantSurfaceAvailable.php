@@ -8,6 +8,7 @@ use App\Domain\Tenant\Services\TenantSurfaceAvailability;
 use App\Domain\Tenant\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 use UnexpectedValueException;
 
@@ -25,6 +26,9 @@ final readonly class EnsureTenantSurfaceAvailable
         $access = $this->availability->accessFor($this->context->tenant()->status, $surface);
 
         if ($access === TenantSurfaceAccess::Restricted) {
+            if (Auth::guard('tenant_user')->check()) {
+                return redirect('/account/restricted');
+            }
             abort(423, 'This tenant surface is currently restricted.');
         }
 

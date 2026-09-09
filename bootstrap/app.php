@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Middleware\AuthorizeAdminScope;
+use App\Http\Middleware\EnsureAuthenticatedTenantUser;
+use App\Http\Middleware\EnsureOperationalUser;
 use App\Http\Middleware\EnsureTenantSurfaceAvailable;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\RequestIdMiddleware;
@@ -33,6 +35,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant' => ResolveTenantFromHost::class,
             'tenant.surface' => EnsureTenantSurfaceAvailable::class,
             'admin.scope' => AuthorizeAdminScope::class,
+            'user.authenticated' => EnsureAuthenticatedTenantUser::class,
+            'user.operational' => EnsureOperationalUser::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

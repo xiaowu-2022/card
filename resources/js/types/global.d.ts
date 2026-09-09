@@ -20,6 +20,13 @@ export interface SharedProps extends InertiaPageProps {
             scope: 'PLATFORM' | 'TENANT';
             permissions: string[];
         };
+        user: null | {
+            id: string;
+            displayName: string | null;
+            email: string | null;
+            phone: string | null;
+            status: 'ACTIVE' | 'SUSPENDED' | 'DISABLED';
+        };
     };
     flash: { success: string | null };
 }

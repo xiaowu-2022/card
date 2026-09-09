@@ -20,6 +20,10 @@ final class TenantSurfaceAvailability
                 TenantStatus::Suspended => TenantSurfaceAccess::Restricted,
                 TenantStatus::Draft, TenantStatus::Closed => TenantSurfaceAccess::Unavailable,
             },
+            TenantSurface::UserAuth, TenantSurface::UserRestricted => match ($status) {
+                TenantStatus::Active, TenantStatus::Suspended => TenantSurfaceAccess::Allowed,
+                TenantStatus::Draft, TenantStatus::Closed => TenantSurfaceAccess::Unavailable,
+            },
         };
     }
 }
