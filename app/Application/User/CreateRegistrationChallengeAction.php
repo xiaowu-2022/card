@@ -32,8 +32,16 @@ final readonly class CreateRegistrationChallengeAction
         private AuditLogger $audit,
     ) {}
 
-    public function execute(Tenant $tenant, RegistrationChannel $channel, string $destination, ?string $region = null, ?string $requestId = null): CreatedRegistrationChallenge
+    /** @param list<string> $reusableChallengeIds */
+    public function execute(Tenant $tenant, RegistrationChannel $channel, string $destination, ?string $region = null, ?string $requestId = null, array $reusableChallengeIds = []): CreatedRegistrationChallenge
     {
+        if ($channel === RegistrationChannel::Email && ! $this->emailSender->isAvailable()) {
+            throw new DomainException('EMAIL_VERIFICATION_UNAVAILABLE', 'Email verification is not available in this environment.', 503);
+        }
+        if ($channel === RegistrationChannel::Phone && ! $this->smsSender->isAvailable()) {
+            throw new DomainException('PHONE_VERIFICATION_UNAVAILABLE', 'Phone verification is not available in this environment.', 503);
+        }
+
         $destination = $channel === RegistrationChannel::Email
             ? $this->emails->normalize($destination)
             : $this->phones->normalize($destination, $region);
@@ -43,10 +51,44 @@ final readonly class CreateRegistrationChallengeAction
         $rawCode = (string) random_int(100000, 999999);
 
         try {
-            $challenge = DB::transaction(function () use ($tenant, $channel, $destination, $id, $rawCode, $requestId): RegistrationChallenge {
+            [$challenge, $reusedVerified] = DB::transaction(function () use ($tenant, $channel, $destination, $id, $rawCode, $requestId, $existing, $reusableChallengeIds): array {
+                DB::select('SELECT pg_advisory_xact_lock(?)', [$this->registrationLockKey($tenant->id, $channel, $destination)]);
+                $pending = RegistrationChallenge::query()
+                    ->where('tenant_id', $tenant->id)
+                    ->where('channel', $channel)
+                    ->where('destination', $destination)
+                    ->where('status', RegistrationChallengeStatus::Pending)
+                    ->lockForUpdate()
+                    ->get();
+
+                foreach ($pending as $pendingChallenge) {
+                    if ($pendingChallenge->expires_at->isPast()) {
+                        $pendingChallenge->update(['status' => RegistrationChallengeStatus::Expired]);
+                    }
+                }
+
+                if (! $existing && $reusableChallengeIds !== []) {
+                    $verified = RegistrationChallenge::query()
+                        ->where('tenant_id', $tenant->id)
+                        ->where('channel', $channel)
+                        ->where('destination', $destination)
+                        ->where('status', RegistrationChallengeStatus::Verified)
+                        ->whereNull('consumed_at')
+                        ->where('expires_at', '>', now())
+                        ->whereIn('id', $reusableChallengeIds)
+                        ->latest('verified_at')
+                        ->lockForUpdate()
+                        ->first();
+                    if ($verified) {
+                        return [$verified, true];
+                    }
+                }
+
                 $recent = RegistrationChallenge::query()
                     ->where('tenant_id', $tenant->id)
+                    ->where('channel', $channel)
                     ->where('destination', $destination)
+                    ->where('status', RegistrationChallengeStatus::Pending)
                     ->where('created_at', '>', now()->subSeconds((int) config('user-auth.resend_cooldown_seconds')))
                     ->lockForUpdate()
                     ->exists();
@@ -56,6 +98,7 @@ final readonly class CreateRegistrationChallengeAction
 
                 RegistrationChallenge::query()
                     ->where('tenant_id', $tenant->id)
+                    ->where('channel', $channel)
                     ->where('destination', $destination)
                     ->where('status', RegistrationChallengeStatus::Pending)
                     ->lockForUpdate()
@@ -77,7 +120,7 @@ final readonly class CreateRegistrationChallengeAction
                     'destination' => $this->masker->mask($channel, $destination),
                 ], $requestId);
 
-                return $challenge;
+                return [$challenge, false];
             });
         } catch (QueryException $exception) {
             if ($exception->getCode() === '23505') {
@@ -87,16 +130,21 @@ final readonly class CreateRegistrationChallengeAction
             throw $exception;
         }
 
-        if ($channel === RegistrationChannel::Email) {
+        if (! $reusedVerified && $channel === RegistrationChannel::Email) {
             $existing
                 ? $this->emailSender->sendExistingAccountNotice($tenant, $destination)
                 : $this->emailSender->sendVerificationCode($tenant, $destination, $rawCode);
-        } else {
+        } elseif (! $reusedVerified) {
             $existing
                 ? $this->smsSender->sendExistingAccountNotice($tenant, $destination)
                 : $this->smsSender->sendVerificationCode($tenant, $destination, $rawCode);
         }
 
-        return new CreatedRegistrationChallenge($challenge, $rawCode, $existing);
+        return new CreatedRegistrationChallenge($challenge, $reusedVerified ? null : $rawCode, $existing, $reusedVerified);
+    }
+
+    private function registrationLockKey(string $tenantId, RegistrationChannel $channel, string $destination): int
+    {
+        return intval(substr(hash('sha256', $tenantId.'|'.$channel->value.'|'.$destination), 0, 15), 16);
     }
 }

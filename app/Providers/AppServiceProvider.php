@@ -8,11 +8,13 @@ use App\Domain\Notification\Contracts\EmailVerificationSender;
 use App\Domain\Notification\Contracts\SmsVerificationSender;
 use App\Domain\Tenant\Contracts\DomainVerificationService;
 use App\Domain\Tenant\TenantContext;
+use App\Infrastructure\Auth\TenantUserProvider;
 use App\Infrastructure\Mail\LaravelEmailVerificationSender;
 use App\Infrastructure\Providers\Card\MockCardProvider;
 use App\Infrastructure\Providers\Domain\LocalDomainVerificationService;
 use App\Infrastructure\Sms\FakeSmsVerificationSender;
 use App\Infrastructure\Sms\UnavailableSmsVerificationSender;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\ServiceProvider;
 use RuntimeException;
 
@@ -46,6 +48,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Auth::provider('tenant-eloquent', fn ($app, array $config): TenantUserProvider => new TenantUserProvider(
+            $app['hash'],
+            $config['model'],
+            $app->make(TenantContext::class),
+        ));
     }
 }

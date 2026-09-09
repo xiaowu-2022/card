@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AuthorizeAdminScope;
+use App\Http\Middleware\EnforceTenantUserSessionScope;
 use App\Http\Middleware\EnsureAuthenticatedTenantUser;
 use App\Http\Middleware\EnsureOperationalUser;
 use App\Http\Middleware\EnsureTenantSurfaceAvailable;
@@ -20,8 +21,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         using: function (): void {
             Route::middleware('web')->group(base_path('routes/public.php'));
-            Route::middleware(['web', 'tenant', 'inertia'])->group(base_path('routes/user.php'));
-            Route::middleware(['web', 'tenant', 'inertia'])->group(base_path('routes/admin.php'));
+            Route::middleware(['web', 'tenant', 'user.session-scope', 'inertia'])->group(base_path('routes/user.php'));
+            Route::middleware(['web', 'tenant', 'user.session-scope', 'inertia'])->group(base_path('routes/admin.php'));
             Route::middleware(['web', 'inertia'])->domain((string) config('tenancy.platform_admin_host'))->group(base_path('routes/platform.php'));
             Route::middleware('api')->prefix('webhooks')->group(base_path('routes/webhooks.php'));
         },
@@ -37,6 +38,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin.scope' => AuthorizeAdminScope::class,
             'user.authenticated' => EnsureAuthenticatedTenantUser::class,
             'user.operational' => EnsureOperationalUser::class,
+            'user.session-scope' => EnforceTenantUserSessionScope::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

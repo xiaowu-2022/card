@@ -8,6 +8,11 @@ use App\Support\Errors\DomainException;
 
 final class UnavailableSmsVerificationSender implements SmsVerificationSender
 {
+    public function isAvailable(): bool
+    {
+        return false;
+    }
+
     public function sendVerificationCode(Tenant $tenant, string $destination, string $code): void
     {
         throw new DomainException('SMS_TRANSPORT_UNAVAILABLE', 'Phone verification is not available in this environment.', 503);

@@ -61,7 +61,7 @@ final class TenantAdminAuthController extends Controller
             $logout->execute($admin, $tenantContext->id(), $request->attributes->get('request_id'), $request->ip(), $request->userAgent());
         }
         Auth::guard('tenant_admin')->logout();
-        $request->session()->invalidate();
+        $request->session()->regenerate(true);
         $request->session()->regenerateToken();
 
         return redirect('/admin/login');

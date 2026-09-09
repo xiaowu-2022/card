@@ -24,6 +24,7 @@ final readonly class RegisterUserAction
     {
         try {
             return DB::transaction(function () use ($tenant, $challengeId, $password, $displayName, $locale, $requestId): User {
+                $currentTenant = Tenant::query()->whereKey($tenant->id)->lockForUpdate()->firstOrFail();
                 $challenge = RegistrationChallenge::query()->where('tenant_id', $tenant->id)->whereKey($challengeId)->lockForUpdate()->first();
                 if (! $challenge || $challenge->status !== RegistrationChallengeStatus::Verified || $challenge->consumed_at !== null || $challenge->expires_at->isPast()) {
                     throw new DomainException('REGISTRATION_CHALLENGE_NOT_VERIFIED', 'A valid verified challenge is required.');
@@ -41,7 +42,12 @@ final readonly class RegisterUserAction
                     'phone_verified_at' => $phone ? now() : null,
                 ]);
                 UserProfile::query()->create(['tenant_id' => $tenant->id, 'user_id' => $user->id, 'display_name' => $displayName ? trim($displayName) : null]);
-                $selectedLocale = $tenant->locales()->where('enabled', true)->where('locale', $locale)->exists() ? $locale : $tenant->default_locale;
+                $selectedLocale = $currentTenant->locales()->where('enabled', true)->where('locale', $locale)->exists()
+                    ? $locale
+                    : $currentTenant->locales()->where('enabled', true)->where('is_default', true)->value('locale');
+                if (! is_string($selectedLocale)) {
+                    throw new DomainException('TENANT_LOCALE_UNAVAILABLE', 'Registration is temporarily unavailable.');
+                }
                 UserPreference::query()->create(['tenant_id' => $tenant->id, 'user_id' => $user->id, 'locale' => $selectedLocale]);
                 $challenge->update(['consumed_at' => now()]);
                 $this->audit->record($tenant->id, 'USER', $user->id, 'USER_REGISTERED', 'user', $user->id, null, ['channel' => $challenge->channel->value], $requestId);

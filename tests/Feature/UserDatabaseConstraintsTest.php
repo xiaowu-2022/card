@@ -1,10 +1,14 @@
 <?php
 
+use App\Application\User\CreateRegistrationChallengeAction;
 use App\Domain\Tenant\Models\Tenant;
+use App\Domain\User\Enums\RegistrationChannel;
 use App\Domain\User\Enums\UserStatus;
+use App\Domain\User\Models\RegistrationChallenge;
 use App\Domain\User\Models\User;
 use App\Domain\User\Models\UserPreference;
 use App\Domain\User\Models\UserProfile;
+use App\Support\Errors\DomainException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -33,6 +37,22 @@ it('rejects duplicate email in the same tenant', function (): void {
     phaseTwoUser($tenant->id, 'duplicate@example.test', null);
 })->throws(QueryException::class);
 
+it('normalizes email case in the application and rejects uppercase storage at the database boundary', function (): void {
+    $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
+    $normalized = phaseTwoUser($tenant->id, ' User.Case@Example.Test ', null);
+    expect($normalized->email)->toBe('user.case@example.test');
+
+    DB::table('users')->insert([
+        'id' => (string) str()->uuid(),
+        'tenant_id' => $tenant->id,
+        'email' => 'Upper@Example.Test',
+        'password_hash' => Hash::make('StrongPass1234'),
+        'status' => UserStatus::Active->value,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+})->throws(QueryException::class);
+
 it('rejects duplicate phone in the same tenant', function (): void {
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
     phaseTwoUser($tenant->id, null, '+60111111111');
@@ -45,6 +65,25 @@ it('requires at least one contact', function (): void {
 
 it('rejects malformed stored phones', function (): void {
     phaseTwoUser(Tenant::query()->where('slug', 'tenant-a')->value('id'), null, '60123');
+})->throws(QueryException::class);
+
+it('rejects obvious invalid phone variants through the registration boundary', function (string $phone): void {
+    $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
+    app(CreateRegistrationChallengeAction::class)->execute($tenant, RegistrationChannel::Phone, $phone);
+})->with(['+0123456789', '123456', '+60abc'])->throws(DomainException::class);
+
+it('enforces at most one pending registration challenge per tenant destination', function (): void {
+    $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
+    $attributes = [
+        'tenant_id' => $tenant->id,
+        'channel' => 'EMAIL',
+        'destination' => 'pending-race@example.test',
+        'code_hash' => str_repeat('a', 64),
+        'status' => 'PENDING',
+        'expires_at' => now()->addMinutes(10),
+    ];
+    RegistrationChallenge::query()->create($attributes);
+    RegistrationChallenge::query()->create($attributes);
 })->throws(QueryException::class);
 
 it('rejects a profile linked across tenants', function (): void {

@@ -3,7 +3,7 @@
 - Web tenant identity comes only from trusted Host -> ACTIVE `tenant_domains` record -> Tenant -> `TenantContext`. Resolver ownership lookup never filters on Tenant lifecycle status.
 - Query parameters, headers, form fields, and JSON `tenant_id` never select a tenant.
 - Platform Admin uses `PLATFORM_ADMIN_HOST` and must never resolve as a tenant domain.
-- Host-only session cookies are required; do not configure a shared parent-domain session cookie. An authenticated future user must also satisfy `user.tenant_id === resolved_tenant.id`.
+- Host-only session cookies are required; do not configure a shared parent-domain session cookie. Tenant User login and session restoration queries both start with the resolved Tenant; a copied identity cannot restore on another Tenant host.
 - Tenant Admin authorization requires an ACTIVE TENANT membership whose `scope_id` equals the resolved tenant.
 - Tenant-scoped queries use `tenant_id + resource_id`; unscoped `Model::find($id)` is forbidden for tenant APIs.
 - Tenant jobs carry trusted `tenant_id` and `resource_id`. Schedulers use explicit ids. Webhooks map trusted provider connection/merchant/resource/order ids back to a tenant and ignore submitted tenant ids.
@@ -22,7 +22,7 @@ Surface availability is separate from resolution:
 
 - DRAFT: Tenant Admin allowed for setup; normal End User operations unavailable.
 - ACTIVE: Tenant Admin and End User allowed.
-- SUSPENDED: Tenant Admin allowed; existing End Users may authenticate and use only restricted/account-security/logout routes. Registration and operational routes are blocked.
+- SUSPENDED: Tenant Admin allowed; existing End Users may authenticate and use only explicitly allowlisted restricted/account-security/logout routes. Restricted access is deny-by-default, registration and operational routes are blocked, and status is re-evaluated on every request.
 - CLOSED: normal End User unavailable and Tenant Admin unavailable in V1; retained records remain inspectable to authorized Platform scope.
 
 The database can enforce at most one default locale. The Application layer must also preserve at least one enabled locale because that cross-row cardinality rule is not represented by a simple ordinary constraint.

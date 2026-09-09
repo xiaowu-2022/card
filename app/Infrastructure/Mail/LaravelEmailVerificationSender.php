@@ -10,6 +10,11 @@ use Illuminate\Support\Facades\Mail;
 
 final class LaravelEmailVerificationSender implements EmailVerificationSender
 {
+    public function isAvailable(): bool
+    {
+        return true;
+    }
+
     public function sendVerificationCode(Tenant $tenant, string $destination, string $code): void
     {
         Mail::to($destination)->send(new UserVerificationCodeMail($tenant, $code));

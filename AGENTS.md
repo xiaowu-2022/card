@@ -56,6 +56,9 @@ These rules are mandatory for every future change. If a requested feature requir
 - System domains are immutable. Custom domains must pass PENDING_VERIFICATION -> VERIFIED -> ACTIVE, and only ACTIVE domains can become primary.
 - End User and Admin identities/guards remain separate. Every End User credential lookup starts with resolved `tenant_id`; never perform a global email/phone lookup and check Tenant afterward.
 - Registration creates a User only from a locked, VERIFIED, unexpired, unconsumed Tenant-scoped challenge. OTPs are HMAC-hashed, never persisted or logged raw, and PostgreSQL remains authoritative.
+- Expired PENDING challenges become EXPIRED before replacement. A still-valid VERIFIED/unconsumed challenge is reused only for its initiating browser session; another session must prove contact ownership with a new OTP, whose verification expires the older verified state.
+- Tenant User session restoration must query by resolved Tenant and user id. User/Tenant status is re-evaluated on every request; restricted access is deny-by-default with an explicit safe-route allowlist.
+- Rate-limit keys must hash normalized email/phone and never contain raw contact data, OTPs, tokens, or passwords.
 - User `ACTIVE` means account access only; it never means KYC approval, Wallet readiness, deposit qualification, or card eligibility. Suspending a User restricts access and never changes money or cards.
 
 ## UI

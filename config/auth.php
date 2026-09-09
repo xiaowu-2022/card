@@ -72,7 +72,7 @@ return [
 
     'providers' => [
         'tenant_users' => [
-            'driver' => 'eloquent',
+            'driver' => 'tenant-eloquent',
             'model' => User::class,
         ],
         'admins' => [

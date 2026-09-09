@@ -3,6 +3,7 @@
 namespace App\Application\User;
 
 use App\Domain\Audit\Services\AuditLogger;
+use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Enums\RegistrationChallengeStatus;
 use App\Domain\User\Models\RegistrationChallenge;
 use App\Domain\User\Services\OtpHasher;
@@ -16,6 +17,7 @@ final readonly class VerifyRegistrationChallengeAction
     public function execute(string $tenantId, string $challengeId, string $code, ?string $requestId = null): RegistrationChallenge
     {
         [$challenge, $error] = DB::transaction(function () use ($tenantId, $challengeId, $code, $requestId): array {
+            Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
             $challenge = RegistrationChallenge::query()->where('tenant_id', $tenantId)->whereKey($challengeId)->lockForUpdate()->first();
             if (! $challenge || $challenge->status !== RegistrationChallengeStatus::Pending) {
                 return [$challenge, ['REGISTRATION_CHALLENGE_INVALID', 'This verification challenge is not available.', 422]];
@@ -40,6 +42,15 @@ final readonly class VerifyRegistrationChallengeAction
                 return [$challenge, ['REGISTRATION_CODE_INVALID', 'The verification code is invalid.', 422]];
             }
 
+            RegistrationChallenge::query()
+                ->where('tenant_id', $tenantId)
+                ->where('channel', $challenge->channel)
+                ->where('destination', $challenge->destination)
+                ->where('status', RegistrationChallengeStatus::Verified)
+                ->whereNull('consumed_at')
+                ->where('expires_at', '>', now())
+                ->lockForUpdate()
+                ->update(['expires_at' => now()]);
             $challenge->update(['status' => RegistrationChallengeStatus::Verified, 'verified_at' => now()]);
             $this->audit->record($tenantId, 'ANONYMOUS', null, 'REGISTRATION_CHALLENGE_VERIFIED', 'registration_challenge', $challenge->id, null, ['channel' => $challenge->channel->value], $requestId);
 

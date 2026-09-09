@@ -10,6 +10,11 @@ final class FakeSmsVerificationSender implements SmsVerificationSender
     /** @var list<array{tenant_id:string,destination:string,code:?string,type:string}> */
     private array $messages = [];
 
+    public function isAvailable(): bool
+    {
+        return true;
+    }
+
     public function sendVerificationCode(Tenant $tenant, string $destination, string $code): void
     {
         $this->messages[] = ['tenant_id' => $tenant->id, 'destination' => $destination, 'code' => $code, 'type' => 'verification'];

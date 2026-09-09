@@ -48,7 +48,7 @@ final class UserAuthController extends Controller
             $audit->record($context->id(), 'USER', $user->id, 'USER_LOGOUT', 'user_authentication', null, null, null, $request->attributes->get('request_id'), $request->ip(), $request->userAgent());
         }
         Auth::guard('tenant_user')->logout();
-        $request->session()->invalidate();
+        $request->session()->regenerate(true);
         $request->session()->regenerateToken();
 
         return redirect('/login');

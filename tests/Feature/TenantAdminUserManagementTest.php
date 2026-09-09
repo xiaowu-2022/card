@@ -45,9 +45,26 @@ it('ignores client-controlled tenant and status fields during registration', fun
     $challenge = RegistrationChallenge::query()->create([
         'tenant_id' => $tenantA->id, 'channel' => 'EMAIL', 'destination' => 'allowlist@example.test', 'code_hash' => str_repeat('a', 64), 'status' => 'VERIFIED', 'expires_at' => now()->addMinutes(10), 'verified_at' => now(),
     ]);
-    $this->post("http://a.localhost/register/challenges/{$challenge->id}/complete", [
-        'password' => 'StrongPass1234', 'password_confirmation' => 'StrongPass1234', 'tenant_id' => $tenantB->id, 'status' => 'DISABLED', 'email_verified_at' => now()->toIso8601String(),
+    $this->withSession(['registration.challenge_ids' => [$challenge->id]])->post("http://a.localhost/register/challenges/{$challenge->id}/complete", [
+        'password' => 'StrongPass1234',
+        'password_confirmation' => 'StrongPass1234',
+        'tenant_id' => $tenantB->id,
+        'status' => 'DISABLED',
+        'email_verified_at' => now()->toIso8601String(),
+        'phone_verified_at' => now()->toIso8601String(),
+        'last_login_at' => now()->toIso8601String(),
+        'password_hash' => 'attacker-controlled',
+        'attempt_count' => 99,
+        'verified_at' => null,
+        'consumed_at' => null,
+        'locked_at' => now()->toIso8601String(),
     ])->assertRedirect('/dashboard');
     $user = User::query()->where('email', 'allowlist@example.test')->firstOrFail();
-    expect($user->tenant_id)->toBe($tenantA->id)->and($user->status)->toBe(UserStatus::Active);
+    expect($user->tenant_id)->toBe($tenantA->id)
+        ->and($user->status)->toBe(UserStatus::Active)
+        ->and($user->phone_verified_at)->toBeNull()
+        ->and($user->last_login_at)->toBeNull()
+        ->and($challenge->fresh()->attempt_count)->toBe(0)
+        ->and($challenge->fresh()->locked_at)->toBeNull()
+        ->and($challenge->fresh()->consumed_at)->not->toBeNull();
 });

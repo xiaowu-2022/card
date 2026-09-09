@@ -11,6 +11,9 @@ it('redacts sensitive values recursively', function (): void {
         'email' => 'safe@example.test',
         'password' => 'password-value',
         'password_confirmation' => 'secret-value',
+        'code' => '123456',
+        'code_hash' => 'hashed-code',
+        'verification_code' => '654321',
         'secret' => 'provider-secret',
         'nested' => [
             'ProviderToken' => 'token-value',
@@ -31,6 +34,9 @@ it('redacts sensitive values recursively', function (): void {
         'email' => 'safe@example.test',
         'password' => '[REDACTED]',
         'password_confirmation' => '[REDACTED]',
+        'code' => '[REDACTED]',
+        'code_hash' => '[REDACTED]',
+        'verification_code' => '[REDACTED]',
         'secret' => '[REDACTED]',
         'nested' => [
             'ProviderToken' => '[REDACTED]',

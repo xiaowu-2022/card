@@ -8,7 +8,8 @@ final readonly class CreatedRegistrationChallenge
 {
     public function __construct(
         public RegistrationChallenge $challenge,
-        public string $rawCode,
+        public ?string $rawCode,
         public bool $existingAccount = false,
+        public bool $reusedVerified = false,
     ) {}
 }

@@ -8,6 +8,18 @@ arch('KYC domain does not depend on Card')
     ->expect('App\Domain\Kyc')
     ->not->toUse('App\Domain\Card');
 
+arch('User domain remains independent from future business domains')
+    ->expect('App\Domain\User')
+    ->not->toUse([
+        'App\Domain\Kyc',
+        'App\Domain\Wallet',
+        'App\Domain\Ledger',
+        'App\Domain\SecurityDeposit',
+        'App\Domain\Card',
+        'App\Domain\CardProduct',
+        'App\Domain\CardProvider',
+    ]);
+
 arch('provider adapters do not depend on money or deposit domains')
     ->expect('App\Infrastructure\Providers')
     ->not->toUse([

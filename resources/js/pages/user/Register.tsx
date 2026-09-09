@@ -1,5 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { useState } from 'react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/form-field';
@@ -7,9 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PublicLayout } from '@/layouts/PublicLayout';
 
-export default function Register() {
-    const [channel, setChannel] = useState<'EMAIL' | 'PHONE'>('EMAIL');
+type Props = { registration: { emailAvailable: boolean; phoneAvailable: boolean } };
+
+export default function Register({ registration }: Props) {
+    const initialChannel = registration.emailAvailable ? 'EMAIL' : 'PHONE';
+    const [channel, setChannel] = useState<'EMAIL' | 'PHONE'>(initialChannel);
     const form = useForm({ channel, destination: '', region: '' });
+    const formError = (form.errors as Record<string, string>).form;
     const selectChannel = (value: string) => {
         const selected = value as 'EMAIL' | 'PHONE';
         setChannel(selected);
@@ -28,9 +33,19 @@ export default function Register() {
                     </CardHeader>
                     <CardContent>
                         <Tabs value={channel} onValueChange={selectChannel} className="mb-6">
-                            <TabsList className="grid w-full grid-cols-2">
-                                <TabsTrigger value="EMAIL">Email</TabsTrigger>
-                                <TabsTrigger value="PHONE">Phone</TabsTrigger>
+                            <TabsList
+                                className={
+                                    registration.emailAvailable && registration.phoneAvailable
+                                        ? 'grid w-full grid-cols-2'
+                                        : 'grid w-full grid-cols-1'
+                                }
+                            >
+                                {registration.emailAvailable && (
+                                    <TabsTrigger value="EMAIL">Email</TabsTrigger>
+                                )}
+                                {registration.phoneAvailable && (
+                                    <TabsTrigger value="PHONE">Phone</TabsTrigger>
+                                )}
                             </TabsList>
                         </Tabs>
                         <form
@@ -40,6 +55,12 @@ export default function Register() {
                                 form.post('/register/challenges');
                             }}
                         >
+                            {formError && (
+                                <Alert className="border-red-200 bg-red-50 text-red-800">
+                                    <AlertTitle>Unable to send code</AlertTitle>
+                                    <AlertDescription>{formError}</AlertDescription>
+                                </Alert>
+                            )}
                             {channel === 'EMAIL' ? (
                                 <FormField
                                     id="destination"

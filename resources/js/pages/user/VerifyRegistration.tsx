@@ -18,6 +18,8 @@ export default function VerifyRegistration({ challenge }: Props) {
     });
     const verified = challenge.status === 'VERIFIED';
     const unavailable = !['PENDING', 'VERIFIED'].includes(challenge.status);
+    const verifyFormError = (verify.errors as Record<string, string>).form;
+    const completeFormError = (complete.errors as Record<string, string>).form;
     return (
         <PublicLayout>
             <Head title={verified ? 'Finish registration' : 'Verify contact'} />
@@ -49,6 +51,12 @@ export default function VerifyRegistration({ challenge }: Props) {
                                     complete.post(`/register/challenges/${challenge.id}/complete`);
                                 }}
                             >
+                                {completeFormError && (
+                                    <Alert className="border-red-200 bg-red-50 text-red-800">
+                                        <AlertTitle>Unable to create account</AlertTitle>
+                                        <AlertDescription>{completeFormError}</AlertDescription>
+                                    </Alert>
+                                )}
                                 <FormField
                                     id="display_name"
                                     label="Display name"
@@ -112,6 +120,12 @@ export default function VerifyRegistration({ challenge }: Props) {
                                     verify.post(`/register/challenges/${challenge.id}/verify`);
                                 }}
                             >
+                                {verifyFormError && (
+                                    <Alert className="border-red-200 bg-red-50 text-red-800">
+                                        <AlertTitle>Verification failed</AlertTitle>
+                                        <AlertDescription>{verifyFormError}</AlertDescription>
+                                    </Alert>
+                                )}
                                 <FormField
                                     id="code"
                                     label="Verification code"

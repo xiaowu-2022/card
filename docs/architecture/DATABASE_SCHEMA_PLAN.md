@@ -6,7 +6,7 @@ PostgreSQL constraints include global unique hostname/slug/admin email/permissio
 
 Phase 1 adds a case-insensitive unique Admin email index, an Admin status CHECK for ACTIVE/SUSPENDED, and a partial unique index permitting at most one PENDING invitation per Tenant and case-insensitive email. Invitation tokens remain hashes in `token_hash`; `accepted_by`, `accepted_at`, and `cancelled_at` preserve lifecycle attribution. The existing unique hostname and partial primary-domain/default-locale indexes remain authoritative.
 
-Phase 2 constraints include Tenant-scoped nullable email/phone uniqueness, at least one User contact, E.164 phone shape, User/challenge enum checks, and composite `(user_id, tenant_id)` foreign keys preventing profile/preference cross-Tenant relationships. Registration challenges store a 64-character HMAC digest, verification attempts, expiry, lifecycle timestamps, and consumption separately from VERIFIED status.
+Phase 2 constraints include Tenant-scoped nullable email/phone uniqueness, at least one User contact, E.164 phone shape, User/challenge enum checks, and composite `(user_id, tenant_id)` foreign keys preventing profile/preference cross-Tenant relationships. Registration challenges store a 64-character HMAC digest, verification attempts, expiry, lifecycle timestamps, and consumption separately from VERIFIED status. A partial unique index permits at most one PENDING row per Tenant and destination; application locking classifies expired PENDING rows before replacement and reuses valid VERIFIED/unconsumed state.
 
 Future migrations are added only with their owning phase:
 

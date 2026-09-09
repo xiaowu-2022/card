@@ -1,5 +1,6 @@
 import { Head, useForm } from '@inertiajs/react';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/form-field';
@@ -8,6 +9,7 @@ import { UserLayout } from '@/layouts/UserLayout';
 
 export default function Security() {
     const form = useForm({ current_password: '', password: '', password_confirmation: '' });
+    const formError = (form.errors as Record<string, string>).form;
     return (
         <UserLayout>
             <Head title="Account security" />
@@ -31,6 +33,12 @@ export default function Security() {
                                 });
                             }}
                         >
+                            {formError && (
+                                <Alert className="border-red-200 bg-red-50 text-red-800">
+                                    <AlertTitle>Password not changed</AlertTitle>
+                                    <AlertDescription>{formError}</AlertDescription>
+                                </Alert>
+                            )}
                             <FormField
                                 id="current_password"
                                 label="Current password"

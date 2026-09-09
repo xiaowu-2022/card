@@ -18,9 +18,11 @@ Route::middleware('tenant.surface:end-user')->group(function (): void {
         Route::post('/register/challenges/{challenge}/verify', [RegistrationController::class, 'verify'])->whereUuid('challenge')->name('user.registration.challenge.verify');
         Route::post('/register/challenges/{challenge}/complete', [RegistrationController::class, 'complete'])->whereUuid('challenge')->name('user.registration.complete');
     });
-    Route::get('/demo', DashboardController::class)->name('user.dashboard');
-    Route::get('/demo/wallet', WalletController::class)->name('user.wallet');
-    Route::get('/demo/cards', CardsController::class)->name('user.cards');
+    if (app()->environment(['local', 'testing'])) {
+        Route::get('/demo', DashboardController::class)->name('user.dashboard');
+        Route::get('/demo/wallet', WalletController::class)->name('user.wallet');
+        Route::get('/demo/cards', CardsController::class)->name('user.cards');
+    }
 });
 
 Route::middleware('tenant.surface:user-auth')->group(function (): void {

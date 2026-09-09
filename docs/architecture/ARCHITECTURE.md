@@ -8,7 +8,7 @@ Four independent surfaces share one design system: Public Website, Tenant User C
 
 Phase 1 activates the administrative control plane. `platform_admin` and `tenant_admin` are separate session guards over the Admin identity provider. Login authorization requires an ACTIVE AdminUser plus an ACTIVE membership for the exact scope, role, and permission. Platform tenant creation and Tenant settings use thin Controllers over Application Actions; audit records are emitted at the same orchestration boundary. Admin invitations use random single-use tokens whose SHA-256 hashes alone are persisted.
 
-Phase 2 activates the End User identity plane through a separate `tenant_user` guard and `users` table. Credential resolution is Tenant-scoped from the first query. Registration is challenge-first: PostgreSQL stores the authoritative HMAC-hashed OTP lifecycle, and the User/profile/preferences are created atomically only after a verified challenge is locked and consumed. Email delivery uses a contract backed by Laravel Mail; SMS uses a contract with a test fake and no log-based local transport.
+Phase 2 activates the End User identity plane through a separate `tenant_user` guard and `users` table. Credential lookup and session restoration are Tenant-scoped from the first query. Registration is challenge-first: PostgreSQL stores the authoritative HMAC-hashed OTP lifecycle, valid verified state is reused only by its initiating browser session, and the User/profile/preferences are created atomically only after a verified challenge is locked and consumed. Email delivery occurs after the state transaction through Laravel Mail; SMS uses a capability-aware contract with a test fake and no log-based local transport.
 
 ## Tenant context
 
@@ -30,4 +30,4 @@ Production card access is always `CardProviderInterface -> third-party Provider 
 
 ## Current phase boundary
 
-Phase 2 includes real End User registration, verification, authentication, account/password security, restricted status access, and Tenant Admin user listing/status actions. It intentionally stops before KYC applications, Wallet/Ledger, payments, withdrawals, security-deposit workflows, Card Product, card issue/load, real providers, agents, commission, and SaaS billing. The authenticated Dashboard contains no fake financial state; legacy `/demo/*` routes remain explicitly non-business previews only.
+Phase 2 includes real End User registration, verification, authentication, account/password security, restricted status access, and Tenant Admin user listing/status actions. It intentionally stops before KYC applications, Wallet/Ledger, payments, withdrawals, security-deposit workflows, Card Product, card issue/load, real providers, agents, commission, and SaaS billing. The authenticated Dashboard contains no fake financial state; legacy `/demo/*` routes are local/testing-only non-business previews.
