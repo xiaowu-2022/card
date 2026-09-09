@@ -1,7 +1,6 @@
 import { Head } from '@inertiajs/react';
-import { AlertTriangle } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { UserPageHeader } from '@/components/user/UserPageHeader';
+import { UserStatusBanner } from '@/components/user/UserStatusBanner';
 import { UserLayout } from '@/layouts/UserLayout';
 
 export default function Restricted({ tenantRestricted }: { tenantRestricted: boolean }) {
@@ -9,26 +8,21 @@ export default function Restricted({ tenantRestricted }: { tenantRestricted: boo
         <UserLayout>
             <Head title="Account restricted" />
             <div className="mx-auto max-w-2xl space-y-6">
-                <Alert>
-                    <AlertTriangle className="size-5" />
-                    <AlertTitle>Your account is currently restricted.</AlertTitle>
-                    <AlertDescription>
-                        {tenantRestricted
-                            ? 'This service is temporarily restricted for all users of this organization.'
-                            : 'Your account has limited access. You can still review account security and change your password.'}
-                    </AlertDescription>
-                </Alert>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>What you can do</CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground">
-                        <p>
-                            Review account details, change your password, contact support, or sign
-                            out. Financial and card operations are unavailable.
-                        </p>
-                    </CardContent>
-                </Card>
+                <UserPageHeader title="Account" />
+                <UserStatusBanner
+                    tone="warning"
+                    title="Your account is currently restricted"
+                    description={
+                        tenantRestricted
+                            ? 'This service is temporarily restricted for all users of your organization.'
+                            : 'You can still review account security and change your password.'
+                    }
+                    action={{ label: 'Review security', href: '/account/security' }}
+                />
+                <p className="px-1 text-sm leading-6 text-muted-foreground">
+                    Financial and card actions are unavailable while access is restricted. Contact
+                    support if you need help.
+                </p>
             </div>
         </UserLayout>
     );

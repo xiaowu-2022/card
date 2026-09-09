@@ -6,10 +6,12 @@ export function MoneyDisplay({
     amount,
     asset,
     compact = false,
+    hideSymbol = false,
 }: {
     amount: MoneyAmount;
     asset: string;
     compact?: boolean;
+    hideSymbol?: boolean;
 }) {
     const [integer = '0', fraction = ''] = amount.split('.');
     const sign = integer.startsWith('-') ? '-' : '';
@@ -21,9 +23,9 @@ export function MoneyDisplay({
     const rendered = `${sign}${grouped}.${precision}`;
     return (
         <span className="tabular-nums">
-            {symbols[asset] ?? ''}
+            {!hideSymbol && (symbols[asset] ?? '')}
             {rendered}
-            {!symbols[asset] && ` ${asset}`}
+            {!hideSymbol && !symbols[asset] && ` ${asset}`}
         </span>
     );
 }

@@ -1,6 +1,6 @@
 import { Head, useForm } from '@inertiajs/react';
-import { CheckCircle2, Clock3, FileWarning, ShieldCheck, XCircle } from 'lucide-react';
-import { PageHeader } from '@/components/shared/PageHeader';
+import { UserPageHeader } from '@/components/user/UserPageHeader';
+import { UserStatusBanner } from '@/components/user/UserStatusBanner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,31 +25,33 @@ type Props = {
 const content = {
     NOT_SUBMITTED: {
         title: 'Identity verification',
-        description: 'Verify your identity to continue setting up your account.',
-        icon: ShieldCheck,
+        description: 'Verify your identity to continue.',
+        tone: 'neutral',
     },
     PENDING: {
         title: 'Verification under review',
-        description:
-            'Your documents were submitted securely. We will update this page after manual review.',
-        icon: Clock3,
+        description: 'Your information has been submitted.',
+        tone: 'pending',
     },
     APPROVED: {
         title: 'Identity verified',
-        description: 'Your identity has been manually verified.',
-        icon: CheckCircle2,
+        description: 'Your identity verification is complete.',
+        tone: 'success',
     },
     REJECTED: {
         title: 'Verification could not be approved',
         description: 'Please contact support for assistance.',
-        icon: XCircle,
+        tone: 'warning',
     },
     RESUBMISSION_REQUIRED: {
-        title: 'Additional documents required',
+        title: 'Action required',
         description: 'Please submit a new set of identity documents.',
-        icon: FileWarning,
+        tone: 'warning',
     },
-} satisfies Record<KycStatus, { title: string; description: string; icon: typeof ShieldCheck }>;
+} satisfies Record<
+    KycStatus,
+    { title: string; description: string; tone: 'neutral' | 'pending' | 'success' | 'warning' }
+>;
 
 export default function Kyc({ kyc, canSubmit, maxDocumentMb }: Props) {
     const form = useForm<{
@@ -60,44 +62,22 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb }: Props) {
         form?: string;
     }>({ document_country: 'MY', identity_number: '', front: null, back: null, form: undefined });
     const state = content[kyc.status];
-    const Icon = state.icon;
     return (
         <UserLayout>
             <Head title="Identity verification" />
-            <div className="mx-auto max-w-3xl space-y-6">
-                <PageHeader
-                    eyebrow="Account verification"
+            <div className="mx-auto max-w-3xl space-y-6 sm:space-y-8">
+                <UserPageHeader title="Identity verification" backHref="/account" />
+                <UserStatusBanner
                     title={state.title}
-                    description={state.description}
+                    description={
+                        kyc.reviewMessage && kyc.status === 'RESUBMISSION_REQUIRED'
+                            ? kyc.reviewMessage
+                            : state.description
+                    }
+                    tone={state.tone}
                 />
-                <Card>
-                    <CardContent className="flex gap-4 p-5 sm:p-6">
-                        <div className="grid size-11 shrink-0 place-items-center rounded-full bg-muted">
-                            <Icon className="size-5 text-primary" />
-                        </div>
-                        <div className="min-w-0 space-y-2 text-sm">
-                            <p className="font-semibold">
-                                Status: {kyc.status.replaceAll('_', ' ')}
-                            </p>
-                            {kyc.reviewMessage && (
-                                <Alert>
-                                    <AlertDescription>{kyc.reviewMessage}</AlertDescription>
-                                </Alert>
-                            )}
-                            {kyc.verifiedAt && (
-                                <p className="text-muted-foreground">
-                                    Verified {new Date(kyc.verifiedAt).toLocaleDateString()}
-                                </p>
-                            )}
-                            {kyc.documentCountry && <p>Document country: {kyc.documentCountry}</p>}
-                            {kyc.maskedIdentityNumber && (
-                                <p>Identity number: {kyc.maskedIdentityNumber}</p>
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
                 {canSubmit && (
-                    <Card>
+                    <Card className="rounded-[var(--user-radius-lg)] shadow-none">
                         <CardHeader>
                             <CardTitle>
                                 {kyc.status === 'RESUBMISSION_REQUIRED'

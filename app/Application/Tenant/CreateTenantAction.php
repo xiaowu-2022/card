@@ -54,7 +54,7 @@ final readonly class CreateTenantAction
             TenantBranding::query()->create([
                 'tenant_id' => $tenant->id,
                 'brand_name' => $tenant->name,
-                'primary_color' => '#155EEF',
+                'primary_color' => '#39AD8D',
                 'support_email' => $data['owner_email'],
             ]);
             TenantLocale::query()->create([

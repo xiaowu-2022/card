@@ -1,12 +1,12 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { CheckCircle2, Landmark, ShieldCheck } from 'lucide-react';
-import { EmptyState } from '@/components/shared/EmptyState';
+import { CheckCircle2, ShieldCheck } from 'lucide-react';
 import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { StatusBadge } from '@/components/shared/StatusBadge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { UserActivityList } from '@/components/user/UserActivityList';
+import { UserBalanceHero } from '@/components/user/UserBalanceHero';
+import { UserPageHeader } from '@/components/user/UserPageHeader';
+import { UserSection } from '@/components/user/UserSection';
+import { UserStatusBanner } from '@/components/user/UserStatusBanner';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserLayout } from '@/layouts/UserLayout';
 import type { MoneyAmount } from '@/types/global';
 
@@ -30,162 +30,114 @@ type Props = {
     activity: Array<{ id: string; eventType: string; asset: string; postedAt: string }>;
 };
 
-function WalletBlock({ eligibility }: { eligibility: Eligibility }) {
+function InactiveWallet({ eligibility }: { eligibility: Eligibility }) {
     if (eligibility.kycStatus === 'APPROVED' && eligibility.canActivate) {
         return (
-            <Card>
-                <CardContent className="flex flex-col items-start gap-5 p-6 sm:p-8">
-                    <div className="grid size-12 place-items-center rounded-full bg-emerald-50 text-emerald-700">
-                        <CheckCircle2 className="size-6" />
-                    </div>
-                    <div>
-                        <h2 className="text-xl font-semibold">Your identity is verified.</h2>
-                        <p className="mt-2 text-sm text-muted-foreground">
-                            Activate your wallet to create your account in{' '}
-                            {eligibility.depositRequired.asset}. No funds move during activation.
-                        </p>
-                    </div>
-                    <Button onClick={() => router.post('/wallet/activate')}>Activate wallet</Button>
-                </CardContent>
-            </Card>
+            <section className="rounded-[var(--user-radius-lg)] border bg-surface p-5 sm:p-7">
+                <span className="grid size-11 place-items-center rounded-full bg-emerald-50 text-success">
+                    <CheckCircle2 className="size-5" />
+                </span>
+                <h2 className="mt-5 text-xl font-semibold">Your identity is verified</h2>
+                <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
+                    Activate your wallet to continue. Activation does not move funds.
+                </p>
+                <Button
+                    className="mt-5 w-full sm:w-auto"
+                    onClick={() => router.post('/wallet/activate')}
+                >
+                    Activate wallet
+                </Button>
+            </section>
         );
     }
 
     const copy: Record<string, string> = {
         NOT_SUBMITTED: 'Verify your identity before activating a wallet.',
-        PENDING: 'Your identity review is still in progress.',
-        REJECTED: 'Your identity application was not approved. Contact support for next steps.',
-        RESUBMISSION_REQUIRED: 'Please submit the requested replacement identity documents.',
+        PENDING: 'Your identity verification is under review.',
+        REJECTED: 'Identity verification is unavailable. Contact support for assistance.',
+        RESUBMISSION_REQUIRED: 'Updated identity documents are required before you can continue.',
     };
+    const canVisitKyc =
+        eligibility.kycStatus === 'NOT_SUBMITTED' ||
+        eligibility.kycStatus === 'RESUBMISSION_REQUIRED';
     return (
-        <Card>
-            <CardContent className="flex flex-col items-start gap-5 p-6 sm:p-8">
-                <div className="grid size-12 place-items-center rounded-full bg-slate-100 text-slate-700">
-                    <ShieldCheck className="size-6" />
-                </div>
-                <div>
-                    <h2 className="text-xl font-semibold">Wallet is not activated</h2>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                        {copy[eligibility.kycStatus] ??
-                            'Wallet activation is currently unavailable.'}
-                    </p>
-                </div>
-                {(eligibility.kycStatus === 'NOT_SUBMITTED' ||
-                    eligibility.kycStatus === 'RESUBMISSION_REQUIRED') && (
-                    <Button asChild variant="secondary">
-                        <Link href="/kyc">Go to identity verification</Link>
-                    </Button>
-                )}
-            </CardContent>
-        </Card>
+        <section className="rounded-[var(--user-radius-lg)] border bg-surface p-5 sm:p-7">
+            <span className="grid size-11 place-items-center rounded-full bg-muted text-muted-foreground">
+                <ShieldCheck className="size-5" />
+            </span>
+            <h2 className="mt-5 text-xl font-semibold">Wallet is not activated</h2>
+            <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
+                {copy[eligibility.kycStatus] ?? 'Wallet activation is currently unavailable.'}
+            </p>
+            {canVisitKyc ? (
+                <Button asChild variant="secondary" className="mt-5 w-full sm:w-auto">
+                    <Link href="/kyc">Identity verification</Link>
+                </Button>
+            ) : null}
+        </section>
     );
 }
 
 export default function Wallet({ eligibility, activity }: Props) {
-    const activated = eligibility.wallet !== null;
+    const activated = eligibility.wallet !== null && eligibility.available !== null;
+    const activityItems = activity.map((entry) => ({
+        id: entry.id,
+        title: 'Wallet activity',
+        postedAt: entry.postedAt,
+        asset: entry.asset,
+        direction: 'NEUTRAL' as const,
+    }));
+
     return (
         <UserLayout>
             <Head title="Wallet" />
-            <div className="space-y-6">
-                <PageHeader
-                    eyebrow="Account"
-                    title="Wallet"
-                    description="Your balances come directly from the immutable account ledger."
-                />
+            <div className="space-y-6 sm:space-y-8">
+                <UserPageHeader title="Wallet" backHref="/dashboard" />
                 {!activated ? (
-                    <WalletBlock eligibility={eligibility} />
+                    <InactiveWallet eligibility={eligibility} />
                 ) : (
                     <>
-                        {(eligibility.userStatus !== 'ACTIVE' ||
-                            eligibility.tenantStatus !== 'ACTIVE') && (
-                            <Alert>
-                                <AlertDescription>
-                                    This wallet is available in read-only mode while the account or
-                                    tenant is restricted.
-                                </AlertDescription>
-                            </Alert>
-                        )}
-                        <Card className="bg-slate-950 text-white">
-                            <CardContent className="p-6 sm:p-8">
-                                <div className="flex items-start justify-between gap-4">
-                                    <div>
-                                        <p className="text-sm text-slate-300">Available balance</p>
-                                        <p className="mt-2 text-3xl font-semibold sm:text-4xl">
-                                            {eligibility.available && (
-                                                <MoneyDisplay {...eligibility.available} />
-                                            )}
-                                        </p>
-                                    </div>
-                                    <StatusBadge
-                                        status={
-                                            eligibility.walletStatus === 'ACTIVE'
-                                                ? 'SUCCESS'
-                                                : 'WARNING'
-                                        }
-                                        label={eligibility.walletStatus ?? 'UNKNOWN'}
-                                    />
+                        {eligibility.userStatus !== 'ACTIVE' ||
+                        eligibility.tenantStatus !== 'ACTIVE' ? (
+                            <UserStatusBanner
+                                tone="warning"
+                                title="Wallet access is restricted"
+                                description="You can review your balance, but financial actions are unavailable."
+                            />
+                        ) : null}
+                        <UserBalanceHero
+                            amount={eligibility.available!.amount}
+                            asset={eligibility.available!.asset}
+                        />
+                        <UserSection title="Security deposit">
+                            <div className="rounded-[var(--user-radius-md)] border bg-surface px-5 py-5">
+                                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                                    <span className="text-2xl font-semibold">
+                                        <MoneyDisplay {...eligibility.depositCurrent} compact />
+                                    </span>
+                                    <span className="text-sm text-muted-foreground">
+                                        of <MoneyDisplay {...eligibility.depositRequired} compact />{' '}
+                                        required
+                                    </span>
                                 </div>
-                                <p className="mt-7 text-xs text-slate-400">
-                                    Account asset · {eligibility.wallet?.asset}
+                                <p className="mt-3 text-sm font-medium text-muted-foreground">
+                                    {eligibility.depositSatisfied ? (
+                                        'Requirement met'
+                                    ) : (
+                                        <>
+                                            <MoneyDisplay
+                                                {...eligibility.depositRemaining}
+                                                compact
+                                            />{' '}
+                                            remaining
+                                        </>
+                                    )}
                                 </p>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Landmark className="size-5" />
-                                    Security deposit
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="grid gap-5 sm:grid-cols-3">
-                                {[
-                                    ['Current', eligibility.depositCurrent],
-                                    ['Required', eligibility.depositRequired],
-                                    ['Remaining', eligibility.depositRemaining],
-                                ].map(([label, money]) => (
-                                    <div key={label as string} className="rounded-lg border p-4">
-                                        <p className="text-sm text-muted-foreground">
-                                            {label as string}
-                                        </p>
-                                        <p className="mt-2 text-lg font-semibold">
-                                            <MoneyDisplay {...(money as Money)} />
-                                        </p>
-                                    </div>
-                                ))}
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Recent activity</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                {activity.length === 0 ? (
-                                    <EmptyState
-                                        title="No activity yet"
-                                        description="Completed financial activity will appear here."
-                                    />
-                                ) : (
-                                    <div className="divide-y">
-                                        {activity.map((entry) => (
-                                            <div
-                                                key={entry.id}
-                                                className="flex items-center justify-between gap-4 py-4"
-                                            >
-                                                <div>
-                                                    <p className="font-medium">Account activity</p>
-                                                    <p className="text-sm text-muted-foreground">
-                                                        {new Date(entry.postedAt).toLocaleString()}
-                                                    </p>
-                                                </div>
-                                                <span className="text-sm text-muted-foreground">
-                                                    {entry.asset}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
+                            </div>
+                        </UserSection>
+                        <UserSection title="Recent activity">
+                            <UserActivityList items={activityItems} />
+                        </UserSection>
                     </>
                 )}
             </div>

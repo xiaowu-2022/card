@@ -21,12 +21,12 @@ export default function VerifyRegistration({ challenge }: Props) {
     const verifyFormError = (verify.errors as Record<string, string>).form;
     const completeFormError = (complete.errors as Record<string, string>).form;
     return (
-        <PublicLayout>
+        <PublicLayout compact>
             <Head title={verified ? 'Finish registration' : 'Verify contact'} />
-            <div className="mx-auto max-w-md px-4 py-12 sm:py-20">
-                <Card>
+            <div className="mx-auto max-w-md px-4 pt-6 pb-12 sm:pt-12 sm:pb-20">
+                <Card className="rounded-[var(--user-radius-lg)] shadow-[0_12px_40px_rgba(23,32,28,0.06)]">
                     <CardHeader>
-                        <CardTitle>
+                        <CardTitle className="text-2xl">
                             {verified ? 'Create your password' : 'Enter verification code'}
                         </CardTitle>
                         <p className="mt-1 text-sm text-muted-foreground">

@@ -8,12 +8,12 @@ import { PublicLayout } from '@/layouts/PublicLayout';
 export default function Login() {
     const form = useForm({ identifier: '', password: '', region: '' });
     return (
-        <PublicLayout>
+        <PublicLayout compact>
             <Head title="Sign in" />
-            <div className="mx-auto max-w-md px-4 py-12 sm:py-20">
-                <Card>
+            <div className="mx-auto max-w-md px-4 pt-6 pb-12 sm:pt-12 sm:pb-20">
+                <Card className="rounded-[var(--user-radius-lg)] shadow-[0_12px_40px_rgba(23,32,28,0.06)]">
                     <CardHeader>
-                        <CardTitle>Welcome back</CardTitle>
+                        <CardTitle className="text-2xl">Welcome back</CardTitle>
                         <p className="mt-1 text-sm text-muted-foreground">
                             Sign in with your verified email or international phone number.
                         </p>

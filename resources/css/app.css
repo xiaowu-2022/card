@@ -28,6 +28,44 @@
         sans-serif;
 }
 
+.user-theme {
+    --user-primary: #39ad8d;
+    --user-primary-readable: #277660;
+    --user-primary-hover: color-mix(in srgb, var(--user-primary) 86%, #000000);
+    --user-primary-soft: color-mix(in srgb, var(--user-primary) 12%, #ffffff);
+    --user-background: #f5f7f5;
+    --user-surface: #ffffff;
+    --user-surface-muted: #f0f3f1;
+    --user-text: #17201c;
+    --user-text-secondary: #68736e;
+    --user-border: #e2e7e4;
+    --user-radius-sm: 0.75rem;
+    --user-radius-md: 1rem;
+    --user-radius-lg: 1.5rem;
+    --tenant-primary: var(--user-primary);
+    --background: var(--user-background);
+    --foreground: var(--user-text);
+    --surface: var(--user-surface);
+    --muted: var(--user-surface-muted);
+    --muted-foreground: var(--user-text-secondary);
+    --border: var(--user-border);
+}
+
+.user-theme .bg-primary:hover {
+    background-color: var(--user-primary-hover);
+}
+
+.user-theme .text-primary {
+    color: var(--user-primary-readable);
+}
+
+.user-theme button,
+.user-theme input,
+.user-theme select,
+.user-theme textarea {
+    min-height: 2.75rem;
+}
+
 * {
     border-color: var(--border);
 }

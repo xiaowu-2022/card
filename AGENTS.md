@@ -88,6 +88,11 @@ These rules are mandatory for every future change. If a requested feature requir
 - Do not add arbitrary tenant CSS/JS, custom React uploads, dashboard builders, or page builders.
 - Avoid glassmorphism, large gradients, neon/crypto styling, decorative 3D cards, and complex animation.
 - User mobile UI follows the shared PokePay-inspired baseline for information density and navigation behavior without copying its brand, assets, or visual identity; this is a design contract, not a second UI framework.
+- End User pages are mobile-first, with 375 px as the primary User UI acceptance width.
+- Never expose raw business, Ledger, KYC provider, or Card Provider states to End Users.
+- Never create fake feature buttons for unfinished financial capabilities; reveal actions only when their business flow exists.
+- Do not wrap every User section or activity row in a Card. User financial UI prioritizes balance, the primary next action, and activity.
+- Admin UI remains separate from the consumer mobile design language; User theme tokens must not leak into Tenant Admin or Platform Admin.
 - Critical actions require explicit warning and confirmation; a toast is insufficient.
 
 ## Phase boundaries

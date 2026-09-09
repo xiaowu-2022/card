@@ -46,7 +46,7 @@ final class HandleInertiaRequests extends Middleware
                 'name' => $tenant->name,
                 'branding' => [
                     'brandName' => $tenant->branding?->brand_name ?? $tenant->name,
-                    'primaryColor' => $tenant->branding?->primary_color ?? '#155EEF',
+                    'primaryColor' => $tenant->branding?->primary_color ?? '#39AD8D',
                     'logoUrl' => $tenant->branding?->logo_object_key ? Storage::disk('public')->url($tenant->branding->logo_object_key) : null,
                 ],
                 'locales' => $tenant->locales->where('enabled', true)->pluck('locale')->values(),

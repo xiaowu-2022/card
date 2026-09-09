@@ -21,12 +21,12 @@ export default function Register({ registration }: Props) {
         form.setData({ channel: selected, destination: '', region: '' });
     };
     return (
-        <PublicLayout>
+        <PublicLayout compact>
             <Head title="Create account" />
-            <div className="mx-auto max-w-md px-4 py-12 sm:py-20">
-                <Card>
+            <div className="mx-auto max-w-md px-4 pt-6 pb-12 sm:pt-12 sm:pb-20">
+                <Card className="rounded-[var(--user-radius-lg)] shadow-[0_12px_40px_rgba(23,32,28,0.06)]">
                     <CardHeader>
-                        <CardTitle>Create your account</CardTitle>
+                        <CardTitle className="text-2xl">Create your account</CardTitle>
                         <p className="mt-1 text-sm text-muted-foreground">
                             First, verify one contact method.
                         </p>

@@ -1,101 +1,91 @@
-import { Head, Link } from '@inertiajs/react';
-import { CheckCircle2, CircleDashed, ShieldCheck } from 'lucide-react';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { StatusBadge } from '@/components/shared/StatusBadge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Head } from '@inertiajs/react';
+import { UserBalanceHero } from '@/components/user/UserBalanceHero';
+import { UserPageHeader } from '@/components/user/UserPageHeader';
+import { UserStatusBanner } from '@/components/user/UserStatusBanner';
 import { UserLayout } from '@/layouts/UserLayout';
+import type { MoneyAmount } from '@/types/global';
 
+type KycStatus = 'NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESUBMISSION_REQUIRED';
 type Props = {
     account: { displayName: string | null; status: string; verifiedChannel: string } | null;
-    kycStatus: 'NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESUBMISSION_REQUIRED';
-    walletStatus: string | null;
+    kycStatus: KycStatus;
+    wallet: { status: string; available: { amount: MoneyAmount; asset: string } } | null;
 };
 
-export default function Dashboard({ account, kycStatus, walletStatus }: Props) {
+function NextStep({ kycStatus, hasWallet }: { kycStatus: KycStatus; hasWallet: boolean }) {
+    if (kycStatus === 'NOT_SUBMITTED') {
+        return (
+            <UserStatusBanner
+                title="Complete identity verification"
+                description="Verify your identity before using financial services."
+                action={{ label: 'Verify now', href: '/kyc' }}
+            />
+        );
+    }
+    if (kycStatus === 'PENDING') {
+        return (
+            <UserStatusBanner
+                tone="pending"
+                title="Verification under review"
+                description="Your information has been submitted. We will let you know when review is complete."
+            />
+        );
+    }
+    if (kycStatus === 'RESUBMISSION_REQUIRED') {
+        return (
+            <UserStatusBanner
+                tone="warning"
+                title="Action required"
+                description="We need updated identity documents before you can continue."
+                action={{ label: 'Review request', href: '/kyc' }}
+            />
+        );
+    }
+    if (kycStatus === 'REJECTED') {
+        return (
+            <UserStatusBanner
+                tone="warning"
+                title="Verification unavailable"
+                description="We could not verify your identity. Contact support for assistance."
+            />
+        );
+    }
+    if (!hasWallet) {
+        return (
+            <UserStatusBanner
+                tone="success"
+                title="Your identity is verified"
+                description="Activate your wallet to continue."
+                action={{ label: 'Activate wallet', href: '/wallet' }}
+            />
+        );
+    }
+    return (
+        <UserStatusBanner
+            tone="success"
+            title="You're ready"
+            description="Your identity is verified and your wallet is active."
+        />
+    );
+}
+
+export default function Dashboard({ account, kycStatus, wallet }: Props) {
+    const name = account?.displayName?.trim();
     return (
         <UserLayout>
-            <Head title="Dashboard" />
-            <div className="space-y-6">
-                <PageHeader
-                    eyebrow="Account"
-                    title={account?.displayName ? `Welcome, ${account.displayName}` : 'Welcome'}
-                    description="Your contact is verified. Complete identity verification when you are ready."
+            <Head title="Home" />
+            <div className="space-y-6 sm:space-y-8">
+                <UserPageHeader
+                    title={name ? `Hello, ${name}` : 'Hello'}
+                    description="Here’s what matters right now."
                 />
-                <div className="grid gap-4 md:grid-cols-2">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Account status</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm text-muted-foreground">Access</span>
-                                <StatusBadge
-                                    status="SUCCESS"
-                                    label={account?.status ?? 'Preview'}
-                                />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm text-muted-foreground">
-                                    Verified contact
-                                </span>
-                                <span className="text-sm font-semibold">
-                                    {account?.verifiedChannel ?? '—'}
-                                </span>
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Next step</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="flex gap-3">
-                                <ShieldCheck className="mt-0.5 size-5 text-primary" />
-                                <div>
-                                    <p className="font-semibold">Identity verification</p>
-                                    <p className="mt-1 text-sm text-muted-foreground">
-                                        {kycStatus.replaceAll('_', ' ')}
-                                    </p>
-                                    <Button asChild size="sm" className="mt-4">
-                                        <Link href="/kyc">View verification</Link>
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Getting started</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {[
-                            ['Account created', true],
-                            ['Contact verified', true],
-                            ['Identity verification', kycStatus === 'APPROVED'],
-                            ['Wallet activated', walletStatus === 'ACTIVE'],
-                            ['Security deposit', false],
-                            ['Virtual card', false],
-                        ].map(([label, done]) => (
-                            <div key={String(label)} className="flex items-center gap-3">
-                                {done ? (
-                                    <CheckCircle2 className="size-5 text-success" />
-                                ) : (
-                                    <CircleDashed className="size-5 text-muted-foreground" />
-                                )}
-                                <span className={done ? 'font-medium' : 'text-muted-foreground'}>
-                                    {label}
-                                </span>
-                                {!done && label !== 'Wallet activated' && (
-                                    <span className="ml-auto text-xs font-medium text-muted-foreground">
-                                        Coming later
-                                    </span>
-                                )}
-                            </div>
-                        ))}
-                    </CardContent>
-                </Card>
+                {wallet ? (
+                    <UserBalanceHero
+                        amount={wallet.available.amount}
+                        asset={wallet.available.asset}
+                    />
+                ) : null}
+                <NextStep kycStatus={kycStatus} hasWallet={wallet !== null} />
             </div>
         </UserLayout>
     );

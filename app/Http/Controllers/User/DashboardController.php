@@ -18,7 +18,7 @@ final class DashboardController extends Controller
         /** @var User|null $user */
         $user = Auth::guard('tenant_user')->user();
 
-        $wallet = $user ? $wallets->get($context->id(), $user->id)['eligibility']['wallet'] : null;
+        $walletData = $user ? $wallets->get($context->id(), $user->id)['eligibility'] : null;
 
         return Inertia::render('user/Dashboard', [
             'account' => $user ? [
@@ -27,7 +27,10 @@ final class DashboardController extends Controller
                 'verifiedChannel' => $user->email_verified_at ? 'Email' : 'Phone',
             ] : null,
             'kycStatus' => $user ? $kycStatuses->forUser($context->id(), $user->id)->value : 'NOT_SUBMITTED',
-            'walletStatus' => $wallet['status'] ?? null,
+            'wallet' => $walletData && $walletData['wallet'] ? [
+                'status' => $walletData['wallet']['status'],
+                'available' => $walletData['available'],
+            ] : null,
         ]);
     }
 }

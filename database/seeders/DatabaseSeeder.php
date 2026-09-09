@@ -63,7 +63,7 @@ final class DatabaseSeeder extends Seeder
             return;
         }
 
-        $tenantA = $this->tenant('Tenant A', 'tenant-a', 'a.localhost', '#155EEF');
+        $tenantA = $this->tenant('Tenant A', 'tenant-a', 'a.localhost', '#39AD8D');
         $tenantB = $this->tenant('Tenant B', 'tenant-b', 'b.localhost', '#6941C6');
 
         $platformOwner = AdminUser::query()->firstOrCreate(['email' => 'owner@platform.local'], ['name' => 'Platform Owner', 'password' => Hash::make('local-password'), 'status' => AdminUserStatus::Active]);
