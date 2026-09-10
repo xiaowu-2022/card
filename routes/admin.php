@@ -13,6 +13,7 @@ use App\Http\Controllers\TenantAdmin\TenantSettingsController;
 use App\Http\Controllers\TenantAdmin\TopupController;
 use App\Http\Controllers\TenantAdmin\UsersController;
 use App\Http\Controllers\TenantAdmin\UserWalletController;
+use App\Http\Controllers\TenantAdmin\WithdrawalController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('tenant.surface:tenant-admin')->prefix('admin')->name('tenant-admin.')->group(function (): void {
@@ -39,6 +40,17 @@ Route::middleware('tenant.surface:tenant-admin')->prefix('admin')->name('tenant-
         Route::get('/topups', [TopupController::class, 'index'])->name('topups.index');
         Route::get('/topups/{topup}', [TopupController::class, 'show'])->whereUuid('topup')->name('topups.show');
     });
+    Route::middleware('admin.scope:tenant,withdrawals.read')->group(function (): void {
+        Route::get('/withdrawals', [WithdrawalController::class, 'index'])->name('withdrawals.index');
+        Route::get('/withdrawals/{withdrawal}', [WithdrawalController::class, 'show'])->whereUuid('withdrawal')->name('withdrawals.show');
+    });
+    Route::middleware('admin.scope:tenant,withdrawals.review')->group(function (): void {
+        Route::post('/withdrawals/recent-auth', [AdminRecentAuthenticationController::class, 'store'])->middleware('throttle:5,1')->name('withdrawals.recent-auth');
+        Route::post('/withdrawals/{withdrawal}/approve', [WithdrawalController::class, 'approve'])->whereUuid('withdrawal')->name('withdrawals.approve');
+        Route::post('/withdrawals/{withdrawal}/reject', [WithdrawalController::class, 'reject'])->whereUuid('withdrawal')->name('withdrawals.reject');
+        Route::post('/withdrawals/{withdrawal}/verify', [WithdrawalController::class, 'verify'])->whereUuid('withdrawal')->middleware('throttle:10,1')->name('withdrawals.verify');
+    });
+    Route::middleware(['admin.scope:tenant,withdrawals.review', 'admin.recent-auth'])->post('/withdrawals/{withdrawal}/reveal', [WithdrawalController::class, 'reveal'])->whereUuid('withdrawal')->middleware('throttle:10,1')->name('withdrawals.reveal');
 
     Route::middleware('admin.scope:tenant,kyc.read')->group(function (): void {
         Route::get('/kyc', [KycController::class, 'index'])->name('kyc.index');

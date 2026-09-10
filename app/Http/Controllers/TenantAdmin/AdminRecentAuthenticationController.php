@@ -23,6 +23,6 @@ final class AdminRecentAuthenticationController extends Controller
         }
         $recent->mark($request->session(), $admin, $tenantContext->id());
 
-        return back()->with('success', 'Sensitive document access unlocked for 15 minutes.');
+        return back()->with('success', 'Sensitive access unlocked for 15 minutes.');
     }
 }

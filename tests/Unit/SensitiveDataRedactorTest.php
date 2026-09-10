@@ -88,6 +88,22 @@ it('redacts every KYC spelling without broad id-key false positives', function (
         ->and($redacted['application_id'])->toBe('safe-id');
 });
 
+it('redacts withdrawal destination secrets while preserving safe masks', function (): void {
+    $redacted = app(SensitiveDataRedactor::class)->redact([
+        'withdrawal_address' => 'T'.str_repeat('A', 33),
+        'address_ciphertext' => 'encrypted-payload',
+        'address_hash' => str_repeat('a', 64),
+        'masked_address' => 'TAAAAA…AAAAA',
+    ]);
+
+    expect($redacted)->toBe([
+        'withdrawal_address' => '[REDACTED]',
+        'address_ciphertext' => '[REDACTED]',
+        'address_hash' => '[REDACTED]',
+        'masked_address' => 'TAAAAA…AAAAA',
+    ]);
+});
+
 it('redacts context and bearer credentials at the logging processor boundary', function (): void {
     $handler = new TestHandler;
     $logger = new Logger(new MonologLogger('redaction-test', [$handler]));

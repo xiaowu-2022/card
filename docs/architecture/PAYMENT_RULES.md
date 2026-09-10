@@ -43,3 +43,7 @@ Internal request id and Provider request id are separate idempotency layers even
 Recovery scans bounded batches, includes stale uninitiated transactions, and is guarded by scheduler overlap protection plus a PostgreSQL advisory lock. It holds no database lock across Provider I/O. Jobs carry explicit Tenant/resource ids, bind the Tenant only for execution, and clear `TenantContext` in `finally`.
 
 `payments:reconcile` is read-only and performs no Provider I/O. Every CREDITED Order must link its same-Tenant/same-asset sealed `WALLET_TOPUP_CREDIT` Entry with deterministic key and Order reference. The Entry must contain exactly `TENANT_TOPUP_CLEARING -amount` and the Order Wallet's `USER_AVAILABLE +amount`; wrong, duplicate, unlinked, and orphan top-up Entries fail reconciliation without repair.
+
+## V1 crypto rail direction
+
+Withdrawal and Payment remain separate boundaries. Phase 7 withdrawal is a manual external USDT-TRC20 send followed by exact read-only blockchain verification; its gateway cannot mutate Ledger. A future USDT-TRC20 deposit flow will monitor a server-assigned address, persist confirmed transfer truth as PAID, and then reuse the existing `CreditWalletTopupAction` for CREDITED. Browser claims never establish a deposit. V1 has no bank/fiat rail, FX, or multi-chain routing.

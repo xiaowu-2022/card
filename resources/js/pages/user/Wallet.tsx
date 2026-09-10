@@ -1,5 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { CheckCircle2, Plus, ShieldCheck } from 'lucide-react';
+import { ArrowUpRight, CheckCircle2, Plus, ShieldCheck } from 'lucide-react';
 import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
 import { UserActivityList } from '@/components/user/UserActivityList';
 import { UserBalanceHero } from '@/components/user/UserBalanceHero';
@@ -38,6 +38,7 @@ type Props = {
     topupAvailable?: boolean;
     depositFundingAvailable?: boolean;
     depositHasEnoughAvailable?: boolean;
+    withdrawalAvailable?: boolean;
 };
 
 function InactiveWallet({ eligibility }: { eligibility: Eligibility }) {
@@ -94,6 +95,7 @@ export default function Wallet({
     topupAvailable = false,
     depositFundingAvailable = false,
     depositHasEnoughAvailable = false,
+    withdrawalAvailable = false,
 }: Props) {
     const activated = eligibility.wallet !== null && eligibility.available !== null;
     const activityItems = activity.map((entry) => ({
@@ -136,9 +138,22 @@ export default function Wallet({
                             amount={eligibility.available!.amount}
                             asset={eligibility.available!.asset}
                         />
-                        {topupAvailable ? (
+                        {topupAvailable || withdrawalAvailable ? (
                             <UserQuickActions
-                                actions={[{ label: 'Top up', href: '/wallet/top-up', icon: Plus }]}
+                                actions={[
+                                    ...(topupAvailable
+                                        ? [{ label: 'Top up', href: '/wallet/top-up', icon: Plus }]
+                                        : []),
+                                    ...(withdrawalAvailable
+                                        ? [
+                                              {
+                                                  label: 'Withdraw',
+                                                  href: '/wallet/withdraw',
+                                                  icon: ArrowUpRight,
+                                              },
+                                          ]
+                                        : []),
+                                ]}
                             />
                         ) : null}
                         <UserSection title="Security deposit">

@@ -36,6 +36,9 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="KYC_IDENTITY_HASH_KEY" value="testing-only-kyc-identity-hmac-key-32-bytes"/>
         <env name="KYC_DATA_ENCRYPTION_KEY" value="base64:ZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGQ="/>
+        <env name="WITHDRAWAL_ADDRESS_ENCRYPTION_KEY" value="base64:ZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWU="/>
+        <env name="WITHDRAWAL_ADDRESS_HASH_KEY" value="base64:ZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmY="/>
+        <env name="BLOCKCHAIN_GATEWAY_DRIVER" value="mock"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>

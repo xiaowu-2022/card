@@ -18,10 +18,12 @@ Phase 5 adds exactly `wallet_topup_orders`, `payment_provider_transactions`, and
 
 Phase 5.1 adds no table. `2026_09_10_000610_harden_payment_settlement_integrity` adds initiation attempt/lease timestamps, a partial unique Ledger-link index, and a financial-state CHECK. CREDITED requires paid/credited times plus its Ledger reference and cannot transition away or be relinked; PAID/REFUNDED require paid time and every non-CREDITED state has no credit time/link. Existing composite foreign keys enforce same Tenant/asset, while Provider request ids, non-null transaction ids, and Event ids remain unique within Provider scope.
 
+Phase 7 adds exactly `withdrawal_destinations`, `withdrawal_orders`, and `withdrawal_transaction_attempts`. Destinations bind Tenant/User through composite keys, fix asset/network to USDT/TRON, store ciphertext plus keyed HMAC and a safe mask, and reject address identity mutation. Orders bind the exact Tenant/User/Wallet/destination/asset/network, use positive `NUMERIC(20,8)`, unique Tenant request ids, canonical request hashes, and same-Tenant/same-asset Ledger links. Successful transaction and financial identity fields are immutable. Attempts permanently and globally reserve `(TRON, tx_hash)` so one chain transfer cannot be reused across Orders; composite foreign keys prevent cross-Tenant attachment.
+
 Future migrations are added only with their owning phase:
 
 - Payment: completed in Phase 5; future migrations extend it rather than recreating these tables.
-- Withdrawal: `withdrawal_orders`, `withdrawal_destinations`.
+- Withdrawal: completed in Phase 7; future migrations extend the three Phase 7 tables rather than recreating them.
 - Security Deposit: `security_deposit_refund_requests`; never a mutable `security_deposits` balance table.
 - Card Product: `card_products`, `card_product_availability`, `tenant_card_product_configs`, `user_card_limits`.
 - Provider: `card_provider_connections`, `provider_card_products`, `card_provider_operations`, `card_provider_events`.

@@ -107,4 +107,4 @@ These rules are mandatory for every future change. If a requested feature requir
 
 ## Phase boundaries
 
-Phase 6 adds only synchronous, exact-remaining Security Deposit funding through LedgerWriter. It does not contain deposit refund/release, withdrawals, card issue/load, products, real providers, agents, commissions, manual adjustments, or billing.
+Phase 7 adds only fixed USDT-TRC20 manual withdrawal: immediate exact hold, Tenant Admin manual external send, independent exact blockchain verification, and exact settle/release. Never let the client select the rail, Wallet, Tenant, User, fee, or hold amount. Full withdrawal addresses require dedicated encryption/HMAC, masked ordinary output, and recent-auth Admin reveal without address content in logs or audit. A transaction hash can belong to only one Order; pending/timeout/unavailable verification never means failed or settled. Mock chain verification is local/testing only. This phase does not contain automated/custodial payout, private keys, monitored crypto deposit, bank/fiat or multi-chain rails, Security Deposit refund, cards, real providers, agents, commissions, manual adjustments, or billing.

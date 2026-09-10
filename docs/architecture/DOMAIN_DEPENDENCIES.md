@@ -10,6 +10,7 @@ Allowed rules:
 - Payment Application Actions may call the Payment Provider and later build the one fixed top-up posting plan for `LedgerWriter`. Payment Domain models and Payment Provider adapters do not depend on Ledger.
 - Payment Provider is independent from Card Provider. A webhook Controller verifies, normalizes, persists, and dispatches only; it never settles Ledger.
 - Payment state transitions are owned by the Payment Domain policy. Cross-Domain top-up settlement and business-to-Ledger reconciliation live in Application; Ledger remains unaware of Payment.
+- Withdrawal Application Actions may query eligibility, construct the three fixed withdrawal posting plans, and call `LedgerWriter`. The Withdrawal Domain owns destinations/orders and a read-only blockchain verification contract; gateway adapters never import or mutate Wallet/Ledger.
 
 Forbidden rules:
 
@@ -26,5 +27,6 @@ Forbidden rules:
 - Tenant settings modify requirements, not user balances or deposits.
 - Wallet Domain has no KYC persistence dependency; the Application activation action may query the KYC status boundary. Ledger remains independent of KYC, Wallet, Payment, Withdrawal, Security Deposit, Card, Card Provider, Agent, Commission, and provider-specific adapters.
 - Circular Domain dependencies are prohibited.
+- Blockchain gateway calls run outside business/Ledger transactions. Exact verified evidence is passed back to the Withdrawal Application Action; Ledger never depends on Withdrawal or chain-specific adapters.
 
 Architecture tests enforce representative namespace boundaries. When a cross-Domain use case grows, add an Application Action rather than introducing a reverse dependency.

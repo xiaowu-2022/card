@@ -6,6 +6,7 @@ import {
     ListChecks,
     Menu,
     ScanFace,
+    ArrowUpRight,
     Settings,
     Users,
 } from 'lucide-react';
@@ -31,6 +32,12 @@ const items = [
         href: '/admin/topups',
         icon: CircleDollarSign,
         permission: 'wallet_topups.read',
+    },
+    {
+        label: 'Withdrawals',
+        href: '/admin/withdrawals',
+        icon: ArrowUpRight,
+        permission: 'withdrawals.read',
     },
     {
         label: 'Setup',

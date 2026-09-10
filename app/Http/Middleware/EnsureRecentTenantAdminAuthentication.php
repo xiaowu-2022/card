@@ -18,7 +18,7 @@ final readonly class EnsureRecentTenantAdminAuthentication
     {
         $admin = Auth::guard('tenant_admin')->user();
         $valid = $admin instanceof AdminUser && $this->recent->valid($request->session(), $admin, $this->tenantContext->id());
-        abort_unless($valid, 403, 'Confirm your password before viewing identity documents.');
+        abort_unless($valid, 403, 'Confirm your password before accessing sensitive information.');
 
         return $next($request);
     }

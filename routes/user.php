@@ -12,6 +12,7 @@ use App\Http\Controllers\User\SecurityDepositController;
 use App\Http\Controllers\User\UserAuthController;
 use App\Http\Controllers\User\WalletController;
 use App\Http\Controllers\User\WalletTopupController;
+use App\Http\Controllers\User\WithdrawalController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('tenant.surface:end-user')->group(function (): void {
@@ -57,6 +58,11 @@ Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operat
     Route::get('/security-deposit', [SecurityDepositController::class, 'show'])->name('user.security-deposit.show');
     Route::post('/security-deposit/fund', [SecurityDepositController::class, 'fund'])->middleware('throttle:security-deposit-funding')->name('user.security-deposit.fund');
     Route::get('/security-deposit/success', [SecurityDepositController::class, 'success'])->name('user.security-deposit.success');
+    Route::get('/wallet/withdraw', [WithdrawalController::class, 'create'])->name('user.withdrawals.create');
+    Route::post('/wallet/withdrawal-destinations', [WithdrawalController::class, 'storeDestination'])->middleware('throttle:withdrawals')->name('user.withdrawal-destinations.store');
+    Route::post('/wallet/withdrawals', [WithdrawalController::class, 'store'])->middleware('throttle:withdrawals')->name('user.withdrawals.store');
+    Route::get('/wallet/withdrawals/{withdrawal}', [WithdrawalController::class, 'show'])->whereUuid('withdrawal')->name('user.withdrawals.show');
+    Route::post('/wallet/withdrawals/{withdrawal}/cancel', [WithdrawalController::class, 'cancel'])->whereUuid('withdrawal')->middleware('throttle:withdrawals')->name('user.withdrawals.cancel');
 
     if (app()->environment(['local', 'testing'])) {
         Route::get('/__mock/payments/{providerRequest}', [MockPaymentController::class, 'show'])->whereUuid('providerRequest')->name('mock-payments.show');

@@ -92,6 +92,15 @@ arch('Payment domain remains independent from Ledger and Card Provider')
     ->expect('App\Domain\Payment')
     ->not->toUse(['App\Domain\Ledger', 'App\Domain\CardProvider']);
 
+arch('Withdrawal domain and blockchain adapters remain independent from Ledger persistence')
+    ->expect(['App\Domain\Withdrawal', 'App\Infrastructure\Providers\Blockchain'])
+    ->not->toUse([
+        'App\Domain\Ledger',
+        'App\Domain\Wallet',
+        'App\Domain\Payment',
+        'App\Domain\CardProvider',
+    ]);
+
 it('keeps webhook controllers away from ledger settlement', function (): void {
     $source = file_get_contents(app_path('Http/Controllers/Webhooks/PaymentWebhookController.php'));
     expect($source)->not->toContain('LedgerWriter', 'LedgerPosting', 'CreditWalletTopupAction');

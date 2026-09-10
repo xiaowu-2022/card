@@ -12,8 +12,11 @@ use App\Domain\Payment\Enums\MockPaymentMode;
 use App\Domain\Tenant\Contracts\DomainVerificationService;
 use App\Domain\Tenant\Repositories\TenantDomainRepository;
 use App\Domain\Tenant\TenantContext;
+use App\Domain\Withdrawal\Contracts\BlockchainGatewayInterface;
 use App\Infrastructure\Auth\TenantUserProvider;
 use App\Infrastructure\Mail\LaravelEmailVerificationSender;
+use App\Infrastructure\Providers\Blockchain\MockBlockchainGateway;
+use App\Infrastructure\Providers\Blockchain\UnavailableBlockchainGateway;
 use App\Infrastructure\Providers\Card\MockCardProvider;
 use App\Infrastructure\Providers\Domain\LocalDomainVerificationService;
 use App\Infrastructure\Providers\Kyc\MockKycOcrProvider;
@@ -50,6 +53,13 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return new UnavailablePaymentProvider;
+        });
+        $this->app->singleton(BlockchainGatewayInterface::class, function (): BlockchainGatewayInterface {
+            if (config('withdrawal.blockchain_driver') === 'mock' && app()->environment(['local', 'testing'])) {
+                return new MockBlockchainGateway((string) config('withdrawal.mock_verification_mode'));
+            }
+
+            return new UnavailableBlockchainGateway;
         });
 
         $this->app->bind(CardProviderInterface::class, function (): CardProviderInterface {
@@ -99,6 +109,12 @@ class AppServiceProvider extends ServiceProvider
             $userId = Auth::guard('tenant_user')->id() ?? 'guest';
 
             return Limit::perMinute((int) config('security-deposit.funding_rate_limit_per_minute'))->by("{$tenantId}:{$userId}");
+        });
+        RateLimiter::for('withdrawals', function (): Limit {
+            $tenantId = app(TenantContext::class)->hasTenant() ? app(TenantContext::class)->id() : 'unknown';
+            $userId = Auth::guard('tenant_user')->id() ?? 'guest';
+
+            return Limit::perMinute((int) config('withdrawal.creation_rate_limit_per_minute'))->by("{$tenantId}:{$userId}");
         });
     }
 }

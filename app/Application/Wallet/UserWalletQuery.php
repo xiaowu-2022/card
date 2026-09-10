@@ -54,6 +54,13 @@ final readonly class UserWalletQuery
                 && ! in_array('SECURITY_DEPOSIT_ASSET_MISMATCH', $eligibility['reasonCodes'], true)
                 && Money::of($eligibility['available']['amount'], $eligibility['available']['asset'])
                     ->compare(Money::of($eligibility['depositRemaining']['amount'], $eligibility['depositRemaining']['asset'])) >= 0,
+            'withdrawalAvailable' => $eligibility['wallet'] !== null
+                && $eligibility['wallet']['asset'] === 'USDT'
+                && $eligibility['walletStatus'] === 'ACTIVE'
+                && $eligibility['tenantStatus'] === 'ACTIVE'
+                && $eligibility['userStatus'] === 'ACTIVE'
+                && $eligibility['kycStatus'] === 'APPROVED'
+                && (bool) $tenant->businessSettings->allow_withdrawal,
         ];
     }
 }

@@ -7,11 +7,11 @@ use Illuminate\Support\Facades\Schema;
 
 beforeEach(fn () => $this->seed());
 
-it('creates exactly the Phase 5 payment tables and their financial constraints', function (): void {
+it('retains the Phase 5 payment tables and constraints beside Phase 7 Withdrawal', function (): void {
     expect(Schema::hasTable('wallet_topup_orders'))->toBeTrue()
         ->and(Schema::hasTable('payment_provider_transactions'))->toBeTrue()
         ->and(Schema::hasTable('payment_provider_events'))->toBeTrue()
-        ->and(Schema::hasTable('withdrawal_orders'))->toBeFalse()
+        ->and(Schema::hasTable('withdrawal_orders'))->toBeTrue()
         ->and(Schema::hasTable('security_deposit_refund_requests'))->toBeFalse()
         ->and(Schema::hasTable('user_cards'))->toBeFalse();
     $constraints = DB::table('pg_constraint')->whereIn('conname', [
