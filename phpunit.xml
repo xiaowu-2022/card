@@ -39,6 +39,10 @@
         <env name="WITHDRAWAL_ADDRESS_ENCRYPTION_KEY" value="base64:ZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWU="/>
         <env name="WITHDRAWAL_ADDRESS_HASH_KEY" value="base64:ZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmY="/>
         <env name="BLOCKCHAIN_GATEWAY_DRIVER" value="mock"/>
+        <env name="TRON_USDT_DEPOSIT_ADDRESS" value="T111111111111111111111111111111111"/>
+        <env name="TRON_USDT_TOKEN_CONTRACT" value="T222222222222222222222222222222222"/>
+        <env name="TRON_TOPUP_VALIDITY_MINUTES" value="30"/>
+        <env name="TRON_TOPUP_REQUIRED_CONFIRMATIONS" value="20"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>

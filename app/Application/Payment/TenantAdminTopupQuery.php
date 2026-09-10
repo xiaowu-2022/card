@@ -29,6 +29,8 @@ final class TenantAdminTopupQuery
             'id' => $order->id, 'reference' => strtoupper(substr(str_replace('-', '', $order->id), 0, 12)),
             'userId' => $order->user_id, 'amount' => $order->amount, 'asset' => $order->asset_code,
             'status' => $order->status->value, 'provider' => $order->payment_provider,
+            'requestedAmount' => $order->requested_amount, 'expectedAmount' => $order->expected_amount,
+            'identificationIncrement' => $order->identification_increment, 'network' => $order->network_code,
             'createdAt' => $order->created_at->toIso8601String(), 'paidAt' => $order->paid_at?->toIso8601String(),
             'creditedAt' => $order->credited_at?->toIso8601String(),
         ];
@@ -46,6 +48,12 @@ final class TenantAdminTopupQuery
                 },
                 'providerException' => $order->providerTransaction?->events
                     ->contains(fn ($event): bool => $event->processing_status->value === 'REQUIRES_REVIEW') ?? false,
+                'depositAddress' => $order->deposit_address,
+                'expiresAt' => $order->expires_at?->toIso8601String(),
+                'matchedTxHash' => $order->matched_tx_hash,
+                'matchedTransferIndex' => $order->matched_transfer_index,
+                'blockchainDetectedAt' => $order->blockchain_detected_at?->toIso8601String(),
+                'blockchainConfirmedAt' => $order->blockchain_confirmed_at?->toIso8601String(),
             ];
         }
 

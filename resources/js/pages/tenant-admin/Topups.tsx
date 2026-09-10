@@ -18,7 +18,11 @@ type Order = {
     reference: string;
     userId: string;
     amount: MoneyAmount;
+    requestedAmount: MoneyAmount | null;
+    expectedAmount: MoneyAmount | null;
+    identificationIncrement: MoneyAmount | null;
     asset: string;
+    network: string | null;
     status: string;
     provider: string;
     createdAt: string;
@@ -41,13 +45,14 @@ export default function Topups({ orders }: { orders: { data: Order[] } }) {
                 title="Top-ups"
                 description="Read-only wallet funding orders and settlement state."
             />
-            <div className="mt-6 rounded-xl border bg-surface">
+            <div className="mt-6 overflow-x-auto rounded-xl border bg-surface">
                 <Table>
                     <TableHeader>
                         <TableRow>
                             <TableHead>Order</TableHead>
                             <TableHead>User</TableHead>
-                            <TableHead>Amount</TableHead>
+                            <TableHead>Requested</TableHead>
+                            <TableHead>Exact amount</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Provider</TableHead>
                             <TableHead>Created</TableHead>
@@ -71,10 +76,22 @@ export default function Topups({ orders }: { orders: { data: Order[] } }) {
                                 </TableCell>
                                 <TableCell>
                                     <MoneyDisplay
-                                        amount={order.amount}
+                                        amount={order.requestedAmount ?? order.amount}
                                         asset={order.asset}
                                         compact
                                     />
+                                </TableCell>
+                                <TableCell>
+                                    <MoneyDisplay
+                                        amount={order.expectedAmount ?? order.amount}
+                                        asset={order.asset}
+                                        compact
+                                    />
+                                    {order.network ? (
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            TRC20
+                                        </span>
+                                    ) : null}
                                 </TableCell>
                                 <TableCell>
                                     <StatusBadge status={tone(order.status)} label={order.status} />

@@ -17,4 +17,9 @@ final class UnavailableBlockchainGateway implements BlockchainGatewayInterface
     {
         throw new DomainException('BLOCKCHAIN_VERIFICATION_UNAVAILABLE', 'Blockchain verification is currently unavailable.', 503);
     }
+
+    public function listIncomingUsdtTrc20Transfers(string $destination): array
+    {
+        throw new DomainException('BLOCKCHAIN_MONITOR_UNAVAILABLE', 'Blockchain monitoring is currently unavailable.', 503);
+    }
 }

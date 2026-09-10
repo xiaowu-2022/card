@@ -44,6 +44,7 @@ final class RecoverPayments extends Command
         $limit = max(1, min((int) config('payment.recovery_batch_size'), 500));
         $tenantId = $this->option('tenant');
         $uninitiated = PaymentProviderTransaction::query()->when($tenantId, fn ($q) => $q->where('tenant_id', $tenantId))
+            ->where('provider', '<>', 'trc20-shared')
             ->whereNull('provider_transaction_id')
             ->whereIn('status', [
                 PaymentProviderTransactionStatus::Pending->value,
@@ -77,6 +78,7 @@ final class RecoverPayments extends Command
             CreditWalletTopupJob::dispatch($order->tenant_id, $order->id);
         }
         $transactions = PaymentProviderTransaction::query()->when($tenantId, fn ($q) => $q->where('tenant_id', $tenantId))
+            ->where('provider', '<>', 'trc20-shared')
             ->where('status', PaymentProviderTransactionStatus::Unknown->value)
             ->whereNotIn('id', $uninitiated->pluck('id'))
             ->where('updated_at', '<=', now()->subMinutes((int) config('payment.unknown_after_minutes')))

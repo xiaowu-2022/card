@@ -10,9 +10,7 @@ final class CreateWalletTopupRequest extends FormRequest
     {
         return [
             'request_id' => ['required', 'uuid'],
-            'wallet_id' => ['required', 'uuid'],
-            'amount' => ['required', 'string', 'regex:/^\d+(?:\.\d{1,8})?$/', 'max:21'],
-            'asset' => ['required', 'string', 'regex:/^[A-Z0-9]{3,12}$/'],
+            'requested_amount' => ['required', 'string', 'regex:/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/', 'max:16'],
         ];
     }
 }

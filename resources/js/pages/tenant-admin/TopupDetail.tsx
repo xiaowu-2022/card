@@ -9,7 +9,11 @@ type Order = {
     reference: string;
     userId: string;
     amount: MoneyAmount;
+    requestedAmount: MoneyAmount | null;
+    expectedAmount: MoneyAmount | null;
+    identificationIncrement: MoneyAmount | null;
     asset: string;
+    network: string | null;
     status: string;
     provider: string;
     providerStatus: string | null;
@@ -21,11 +25,37 @@ type Order = {
     externalPaymentStatus: string;
     internalCreditStatus: string;
     providerException: boolean;
+    depositAddress: string | null;
+    expiresAt: string | null;
+    matchedTxHash: string | null;
+    matchedTransferIndex: number | null;
+    blockchainDetectedAt: string | null;
+    blockchainConfirmedAt: string | null;
 };
 export default function TopupDetail({ order }: { order: Order }) {
     const rows = [
         ['External payment status', order.externalPaymentStatus],
         ['Internal credit status', order.internalCreditStatus],
+        ['Requested amount', order.requestedAmount ?? '—'],
+        ['Expected amount', order.expectedAmount ?? order.amount],
+        ['Identification increment', order.identificationIncrement ?? '—'],
+        ['Network', order.network ? 'TRON / TRC20' : '—'],
+        ['Shared deposit address', order.depositAddress ?? '—'],
+        ['Expires', order.expiresAt ? new Date(order.expiresAt).toLocaleString() : '—'],
+        ['Matched transaction', order.matchedTxHash ?? '—'],
+        ['Transfer event index', order.matchedTransferIndex?.toString() ?? '—'],
+        [
+            'Blockchain detected',
+            order.blockchainDetectedAt
+                ? new Date(order.blockchainDetectedAt).toLocaleString()
+                : '—',
+        ],
+        [
+            'Blockchain confirmed',
+            order.blockchainConfirmedAt
+                ? new Date(order.blockchainConfirmedAt).toLocaleString()
+                : '—',
+        ],
         ['Provider event exception', order.providerException ? 'Review required' : 'None'],
         ['Immutable order status', order.status],
         ['Safe provider reference', order.providerReference ?? '—'],

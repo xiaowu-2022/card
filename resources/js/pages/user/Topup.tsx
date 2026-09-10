@@ -13,12 +13,22 @@ import { Input } from '@/components/ui/input';
 import { UserLayout } from '@/layouts/UserLayout';
 import type { MoneyAmount } from '@/types/global';
 
+type OrderStatus =
+    | 'WAITING'
+    | 'CONFIRMING'
+    | 'ADDING_FUNDS'
+    | 'PROCESSING'
+    | 'COMPLETED'
+    | 'FAILED'
+    | 'CANCELLED'
+    | 'EXPIRED';
 type Order = {
     id: string;
     reference: string;
-    amount: MoneyAmount;
+    requestedAmount: MoneyAmount;
+    expectedAmount: MoneyAmount;
     asset: string;
-    status: 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
+    status: OrderStatus;
     createdAt: string;
 };
 type Props = {
@@ -28,28 +38,38 @@ type Props = {
     orders: Order[];
 };
 
-const statusLabel = (status: Order['status']) =>
+const statusLabel = (status: OrderStatus) =>
     ({
+        WAITING: 'Waiting for payment',
+        CONFIRMING: 'Confirming transaction',
+        ADDING_FUNDS: 'Adding funds to wallet',
         PROCESSING: 'Processing',
-        COMPLETED: 'Completed',
+        COMPLETED: 'Top-up complete',
         FAILED: 'Failed',
         CANCELLED: 'Cancelled',
-        EXPIRED: 'Expired',
+        EXPIRED: 'Top-up expired',
     })[status];
+
+const compactAmount = (amount: MoneyAmount) => {
+    const [integer, fraction = ''] = amount.split('.');
+    const trimmed = fraction.replace(/0+$/, '');
+    return trimmed ? `${integer}.${trimmed}` : integer;
+};
 
 export default function Topup({ available, wallet, topupAvailable, orders }: Props) {
     const [amount, setAmount] = useState('');
     const [reviewing, setReviewing] = useState(false);
     const [processing, setProcessing] = useState(false);
     const requestId = useRef(crypto.randomUUID());
-    const canContinue = /^\d+(?:\.\d{1,8})?$/.test(amount) && !/^0+(?:\.0+)?$/.test(amount);
+    const canContinue =
+        /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(amount) && !/^0+(?:\.0+)?$/.test(amount);
 
     const submit = () => {
         if (!wallet || !canContinue || processing) return;
         setProcessing(true);
         router.post(
             '/wallet/top-ups',
-            { request_id: requestId.current, wallet_id: wallet.id, amount, asset: wallet.asset },
+            { request_id: requestId.current, requested_amount: amount },
             { onFinish: () => setProcessing(false) },
         );
     };
@@ -66,37 +86,36 @@ export default function Topup({ available, wallet, topupAvailable, orders }: Pro
                     <UserStatusBanner
                         tone="warning"
                         title="Top-up unavailable"
-                        description="Top-up is not available for this account right now."
+                        description="An active verified USDT wallet is required for TRC20 top-ups."
                     />
                 ) : reviewing ? (
                     <section className="rounded-[var(--user-radius-lg)] border bg-surface p-5 sm:p-7">
-                        <h2 className="text-lg font-semibold">Review your top-up</h2>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Review
+                        </p>
+                        <h2 className="mt-2 text-lg font-semibold">Create payment instructions</h2>
                         <dl className="mt-5 divide-y border-y">
-                            <div className="flex justify-between py-4 text-sm">
-                                <dt className="text-muted-foreground">Amount</dt>
+                            <div className="flex justify-between gap-4 py-4 text-sm">
+                                <dt className="text-muted-foreground">Requested</dt>
                                 <dd className="font-semibold">
-                                    <MoneyDisplay amount={amount} asset={wallet.asset} compact />
+                                    <MoneyDisplay amount={amount} asset="USDT" compact />
                                 </dd>
                             </div>
-                            <div className="flex justify-between py-4 text-sm">
-                                <dt className="text-muted-foreground">You'll receive</dt>
-                                <dd className="font-semibold">
-                                    <MoneyDisplay amount={amount} asset={wallet.asset} compact />
-                                </dd>
+                            <div className="flex justify-between gap-4 py-4 text-sm">
+                                <dt className="text-muted-foreground">Network</dt>
+                                <dd className="font-semibold">TRC20</dd>
                             </div>
                         </dl>
+                        <p className="mt-4 text-sm leading-6 text-muted-foreground">
+                            A 0.01–0.99 identification amount will be added. Your wallet receives
+                            the full exact amount sent; it is not a fee.
+                        </p>
                         <div className="mt-5 grid gap-3 sm:flex sm:justify-end">
-                            <Button
-                                variant="secondary"
-                                onClick={() => {
-                                    requestId.current = crypto.randomUUID();
-                                    setReviewing(false);
-                                }}
-                            >
+                            <Button variant="secondary" onClick={() => setReviewing(false)}>
                                 Back
                             </Button>
                             <Button disabled={processing} onClick={submit}>
-                                {processing ? 'Opening payment…' : 'Continue to payment'}
+                                {processing ? 'Creating instructions…' : 'Continue'}
                             </Button>
                         </div>
                     </section>
@@ -112,9 +131,12 @@ export default function Topup({ available, wallet, topupAvailable, orders }: Pro
                                     value={amount}
                                     onChange={(event) => setAmount(event.target.value)}
                                 />
-                                <span className="text-sm font-semibold">{wallet.asset}</span>
+                                <span className="text-sm font-semibold">USDT</span>
                             </div>
                         </FormField>
+                        <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                            TRON network (TRC20) · No top-up fee
+                        </p>
                         <Button
                             className="mt-5 w-full"
                             disabled={!canContinue}
@@ -135,13 +157,14 @@ export default function Topup({ available, wallet, topupAvailable, orders }: Pro
                             {orders.map((order) => (
                                 <UserListRow
                                     key={order.id}
-                                    title="Wallet top up"
-                                    description={`${order.reference} · ${new Date(order.createdAt).toLocaleString()}`}
+                                    href={`/wallet/top-ups/${order.id}/return`}
+                                    title="USDT top up"
+                                    description={`Requested ${compactAmount(order.requestedAmount)} · ${new Date(order.createdAt).toLocaleString()}`}
                                     value={
                                         <span className="text-right">
                                             <span className="block font-semibold">
                                                 <MoneyDisplay
-                                                    amount={order.amount}
+                                                    amount={order.expectedAmount}
                                                     asset={order.asset}
                                                     compact
                                                 />

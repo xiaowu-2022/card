@@ -2,8 +2,7 @@
 
 namespace App\Http\Controllers\User;
 
-use App\Application\Payment\CreateWalletTopupAction;
-use App\Application\Payment\TenantPaymentReturnUrl;
+use App\Application\Payment\CreateTrc20WalletTopupAction;
 use App\Application\Payment\UserWalletTopupQuery;
 use App\Domain\Tenant\TenantContext;
 use App\Domain\User\Models\User;
@@ -24,19 +23,14 @@ final class WalletTopupController extends Controller
         return Inertia::render('user/Topup', $query->get($context->id(), $user->id));
     }
 
-    public function store(CreateWalletTopupRequest $request, TenantContext $context, CreateWalletTopupAction $action, TenantPaymentReturnUrl $returnUrl): HttpResponse
+    public function store(CreateWalletTopupRequest $request, TenantContext $context, CreateTrc20WalletTopupAction $action): HttpResponse
     {
         /** @var User $user */
         $user = Auth::guard('tenant_user')->user();
         $result = $action->execute(
-            $context->id(), $user->id, $request->string('wallet_id')->toString(), $request->input('amount'),
-            $request->string('asset')->toString(), $request->string('request_id')->toString(),
-            $returnUrl->forResolvedHost($context->id(), $request->getHost(), $request->getPort()),
+            $context->id(), $user->id, $request->input('requested_amount'), $request->string('request_id')->toString(),
             $request->attributes->get('request_id'),
         );
-        if ($result->checkoutUrl) {
-            return Inertia::location($result->checkoutUrl);
-        }
 
         return redirect()->route('user.topups.return', ['topup' => $result->order->id]);
     }

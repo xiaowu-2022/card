@@ -7,6 +7,7 @@ use App\Http\Controllers\User\DashboardController;
 use App\Http\Controllers\User\DemoWalletController;
 use App\Http\Controllers\User\KycController;
 use App\Http\Controllers\User\MockPaymentController;
+use App\Http\Controllers\User\MockTrc20TopupController;
 use App\Http\Controllers\User\RegistrationController;
 use App\Http\Controllers\User\SecurityDepositController;
 use App\Http\Controllers\User\UserAuthController;
@@ -67,6 +68,7 @@ Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operat
     if (app()->environment(['local', 'testing'])) {
         Route::get('/__mock/payments/{providerRequest}', [MockPaymentController::class, 'show'])->whereUuid('providerRequest')->name('mock-payments.show');
         Route::post('/__mock/payments/{providerRequest}/complete', [MockPaymentController::class, 'complete'])->whereUuid('providerRequest')->name('mock-payments.complete');
+        Route::post('/__mock/topups/{topup}/complete', [MockTrc20TopupController::class, 'store'])->whereUuid('topup')->name('mock-trc20-topups.complete');
     }
 });
 

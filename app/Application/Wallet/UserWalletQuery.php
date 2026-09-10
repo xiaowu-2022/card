@@ -5,13 +5,13 @@ namespace App\Application\Wallet;
 use App\Domain\Ledger\Enums\LedgerAccountType;
 use App\Domain\Ledger\Models\LedgerEntry;
 use App\Domain\Ledger\ValueObjects\Money;
-use App\Domain\Payment\Contracts\PaymentProviderInterface;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
+use App\Domain\Withdrawal\Contracts\BlockchainGatewayInterface;
 
 final readonly class UserWalletQuery
 {
-    public function __construct(private WalletEligibilityService $eligibility, private PaymentProviderInterface $paymentProvider) {}
+    public function __construct(private WalletEligibilityService $eligibility, private BlockchainGatewayInterface $blockchainGateway) {}
 
     /** @return array<string, mixed> */
     public function get(string $tenantId, string $userId): array
@@ -41,8 +41,11 @@ final readonly class UserWalletQuery
             'topupAvailable' => $eligibility['wallet'] !== null
                 && $eligibility['userStatus'] === 'ACTIVE'
                 && $eligibility['tenantStatus'] === 'ACTIVE'
+                && $eligibility['wallet']['asset'] === 'USDT'
                 && $tenant->businessSettings->allow_wallet_topup
-                && $this->paymentProvider->available(),
+                && $this->blockchainGateway->available()
+                && (string) config('payment.trc20_deposit_address') !== ''
+                && (string) config('payment.trc20_token_contract') !== '',
             'depositFundingAvailable' => $eligibility['wallet'] !== null
                 && $eligibility['userStatus'] === 'ACTIVE'
                 && $eligibility['tenantStatus'] === 'ACTIVE'
