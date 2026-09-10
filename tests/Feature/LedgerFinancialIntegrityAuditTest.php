@@ -282,5 +282,5 @@ it('exposes no generic financial mutation route or permission', function (): voi
     });
 
     expect(Permission::query()->whereIn('name', $forbidden)->exists())->toBeFalse()
-        ->and($routes->pluck('uri')->values()->all())->toBe(['wallet/activate']);
+        ->and($routes->pluck('uri')->values()->all())->toBe(['wallet/activate', 'wallet/top-ups']);
 });

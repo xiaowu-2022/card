@@ -7,6 +7,8 @@ Allowed rules:
 - Application Actions coordinate multiple Domains and pass explicit identifiers/DTOs.
 - Card workflows may ask Ledger for a business-specific posting operation and CardProvider for an external operation.
 - Payment and Withdrawal actions follow order -> hold -> provider -> settle/release.
+- Payment Application Actions may call the Payment Provider and later build the one fixed top-up posting plan for `LedgerWriter`. Payment Domain models and Payment Provider adapters do not depend on Ledger.
+- Payment Provider is independent from Card Provider. A webhook Controller verifies, normalizes, persists, and dispatches only; it never settles Ledger.
 
 Forbidden rules:
 

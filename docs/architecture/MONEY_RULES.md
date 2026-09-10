@@ -16,6 +16,10 @@ Entries and Postings contain only completed financial facts and have no pending/
 
 No external I/O occurs inside a Ledger transaction. Future provider workflows must persist intent/hold and commit, perform I/O, then settle/release in a new transaction. UNKNOWN remains reconcilable and is never treated as FAILED.
 
+Phase 5 top-up credits use exactly `TENANT_TOPUP_CLEARING -amount` and `USER_AVAILABLE +amount`, with no fee and no FX. `PAID` is external truth and leaves the balance unchanged; `CREDITED` follows only after the deterministic Ledger event `wallet_topup:{order_uuid}:credit` commits. Queue delivery is at-least-once while database locks and Ledger idempotency make the financial effect exactly-once.
+
+Starting a new top-up requires operational eligibility. Completing an already externally paid settlement must continue after later User, Tenant, or Wallet suspension when the defined accounts remain writable. A missing/unwritable settlement path stays explicit and recoverable; it is not silently refunded or credited. A post-credit refund/chargeback is review-only until a separate business-authorized Ledger workflow exists.
+
 Security Deposit is the USER_SECURITY_DEPOSIT balance, never a separate mutable balance row or persisted qualification flag. Qualification is calculated from the current Ledger balance and current Tenant requirement. Phase 4 displays this state but implements no deposit payment/refund.
 
 V1 has no FX or multi-asset qualification: the Security Deposit asset must equal the Tenant default asset. An unexpected Wallet/requirement mismatch fails closed without cross-asset arithmetic. Changing the required amount changes only real-time qualification and never moves money. Once financial Accounts exist, the default/deposit asset cannot be changed through ordinary settings.

@@ -31,7 +31,7 @@ final class DatabaseSeeder extends Seeder
     {
         $permissions = collect([
             'tenant.read', 'tenant.manage', 'users.read', 'users.suspend',
-            'kyc.read', 'kyc.review', 'kyc.document.view', 'wallet.read', 'ledger.read',
+            'kyc.read', 'kyc.review', 'kyc.document.view', 'wallet.read', 'ledger.read', 'wallet_topups.read',
             'cards.read', 'cards.reveal_sensitive', 'card_load.process',
             'provider_operation.read', 'provider_operation.retry', 'provider_credentials.manage',
             'card_product.read', 'card_product.manage', 'card_limit.manage',
@@ -41,13 +41,13 @@ final class DatabaseSeeder extends Seeder
 
         $roles = [
             'PLATFORM_OWNER' => [ScopeType::Platform, $permissions->keys()->all()],
-            'PLATFORM_ADMIN' => [ScopeType::Platform, ['tenant.read', 'tenant.manage', 'admin_team.read', 'admin_team.manage', 'users.read', 'kyc.read', 'wallet.read', 'ledger.read', 'cards.read', 'card_product.read', 'card_product.manage', 'provider_operation.read', 'audit.read']],
+            'PLATFORM_ADMIN' => [ScopeType::Platform, ['tenant.read', 'tenant.manage', 'admin_team.read', 'admin_team.manage', 'users.read', 'kyc.read', 'wallet.read', 'ledger.read', 'wallet_topups.read', 'cards.read', 'card_product.read', 'card_product.manage', 'provider_operation.read', 'audit.read']],
             'PLATFORM_AUDITOR' => [ScopeType::Platform, ['tenant.read', 'users.read', 'kyc.read', 'wallet.read', 'ledger.read', 'cards.read', 'provider_operation.read', 'audit.read']],
-            'TENANT_OWNER' => [ScopeType::Tenant, ['admin_team.read', 'admin_team.manage', 'tenant.activate', 'users.read', 'users.suspend', 'kyc.read', 'kyc.review', 'kyc.document.view', 'wallet.read', 'ledger.read', 'cards.read', 'cards.reveal_sensitive', 'card_load.process', 'card_product.read', 'card_product.manage', 'card_limit.manage', 'tenant_settings.manage', 'audit.read']],
-            'TENANT_ADMIN' => [ScopeType::Tenant, ['users.read', 'users.suspend', 'kyc.read', 'wallet.read', 'ledger.read', 'cards.read', 'card_product.read', 'card_product.manage', 'tenant_settings.manage', 'audit.read']],
+            'TENANT_OWNER' => [ScopeType::Tenant, ['admin_team.read', 'admin_team.manage', 'tenant.activate', 'users.read', 'users.suspend', 'kyc.read', 'kyc.review', 'kyc.document.view', 'wallet.read', 'ledger.read', 'wallet_topups.read', 'cards.read', 'cards.reveal_sensitive', 'card_load.process', 'card_product.read', 'card_product.manage', 'card_limit.manage', 'tenant_settings.manage', 'audit.read']],
+            'TENANT_ADMIN' => [ScopeType::Tenant, ['users.read', 'users.suspend', 'kyc.read', 'wallet.read', 'ledger.read', 'wallet_topups.read', 'cards.read', 'card_product.read', 'card_product.manage', 'tenant_settings.manage', 'audit.read']],
             'KYC_REVIEWER' => [ScopeType::Tenant, ['users.read', 'kyc.read', 'kyc.review', 'kyc.document.view']],
             'CARD_OPERATOR' => [ScopeType::Tenant, ['users.read', 'wallet.read', 'cards.read', 'cards.reveal_sensitive', 'card_load.process', 'provider_operation.read', 'provider_operation.retry']],
-            'FINANCE_VIEWER' => [ScopeType::Tenant, ['users.read', 'wallet.read', 'ledger.read']],
+            'FINANCE_VIEWER' => [ScopeType::Tenant, ['users.read', 'wallet.read', 'ledger.read', 'wallet_topups.read']],
             'SUPPORT' => [ScopeType::Tenant, ['users.read', 'kyc.read', 'cards.read']],
         ];
 
@@ -107,7 +107,7 @@ final class DatabaseSeeder extends Seeder
         ]);
         TenantBranding::query()->firstOrCreate(['tenant_id' => $tenant->id], ['brand_name' => $name.' Cards', 'primary_color' => $primaryColor, 'support_email' => 'support@'.$hostname]);
         TenantLocale::query()->firstOrCreate(['tenant_id' => $tenant->id, 'locale' => 'en'], ['enabled' => true, 'is_default' => true]);
-        TenantBusinessSetting::query()->firstOrCreate(['tenant_id' => $tenant->id], ['required_security_deposit_amount' => '100.00000000', 'required_security_deposit_asset' => 'USD']);
+        TenantBusinessSetting::query()->firstOrCreate(['tenant_id' => $tenant->id], ['required_security_deposit_amount' => '100.00000000', 'required_security_deposit_asset' => 'USD', 'allow_wallet_topup' => true]);
         TenantKycSetting::query()->firstOrCreate(['tenant_id' => $tenant->id], ['enabled' => true, 'max_accounts_per_identity' => 1, 'review_mode' => 'MANUAL']);
 
         return $tenant;

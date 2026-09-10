@@ -43,6 +43,11 @@ These rules are mandatory for every future change. If a requested feature requir
 - Provider timeout or an unconfirmed response is `UNKNOWN`, not `FAILED`; reconcile before retry/refund.
 - Provider adapters handle HTTP, authentication, and mapping only. They must never modify Wallet, Ledger, Deposit, or Commission.
 - Never store Provider credentials in plaintext. Existing secrets are replace/test/disable only, never revealed.
+- Never credit a wallet from a browser redirect and never treat Provider `PAID` as internal `CREDITED`.
+- Never let Payment Provider adapters mutate Ledger directly, and never trust webhook `tenant_id`; derive Tenant only from a verified provider resource mapping.
+- Never retry an UNKNOWN provider request with a new business request id. Query or await a verified webhook using the stable provider request id.
+- Never credit a mismatched amount or asset, and never expose manual mark-paid, mark-credited, force-success, or generic wallet-credit endpoints.
+- Already-paid external settlements continue after later User or Tenant suspension. Every top-up credit uses `wallet_topup:{order_uuid}:credit` as its deterministic Ledger event key.
 
 ## Sensitive data
 
@@ -97,4 +102,4 @@ These rules are mandatory for every future change. If a requested feature requir
 
 ## Phase boundaries
 
-Phase 4 contains independently activated User Wallets, provisioned Ledger Accounts, immutable balanced Ledger Entries/Postings, cached balances, idempotent atomic posting, read-only reconciliation, eligibility, and read-only User/Tenant Admin views. It does not contain top-ups, payments, withdrawals, deposit payment/refund, card issue/load, products, real providers, agents, commissions, manual adjustments, or billing.
+Phase 5 adds Wallet Top-up Orders, a separate Payment Provider boundary, signed minimal Webhook Events, PAID/CREDITED separation, idempotent Ledger settlement, and recovery. It does not contain withdrawals, deposit payment/refund, card issue/load, products, real providers, agents, commissions, manual adjustments, or billing.

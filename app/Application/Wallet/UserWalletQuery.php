@@ -2,13 +2,15 @@
 
 namespace App\Application\Wallet;
 
+use App\Domain\Ledger\Enums\LedgerAccountType;
 use App\Domain\Ledger\Models\LedgerEntry;
+use App\Domain\Payment\Contracts\PaymentProviderInterface;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 
 final readonly class UserWalletQuery
 {
-    public function __construct(private WalletEligibilityService $eligibility) {}
+    public function __construct(private WalletEligibilityService $eligibility, private PaymentProviderInterface $paymentProvider) {}
 
     /** @return array<string, mixed> */
     public function get(string $tenantId, string $userId): array
@@ -20,13 +22,26 @@ final readonly class UserWalletQuery
             ->where('ledger_entries.tenant_id', $tenantId)
             ->whereNotNull('ledger_entries.sealed_at')
             ->whereHas('postings.account', fn ($query) => $query->where('ledger_accounts.user_id', $userId))
-            ->latest('posted_at')->limit(20)->get()->map(fn (LedgerEntry $entry): array => [
-                'id' => $entry->id,
-                'eventType' => $entry->event_type,
-                'asset' => $entry->asset_code,
-                'postedAt' => $entry->posted_at->toIso8601String(),
-            ])->all();
+            ->with(['postings.account'])->latest('posted_at')->limit(20)->get()->map(function (LedgerEntry $entry) use ($userId): array {
+                $posting = $entry->postings->first(fn ($item) => $item->account?->user_id === $userId && $item->account?->account_type === LedgerAccountType::UserAvailable);
 
-        return ['eligibility' => $eligibility, 'activity' => $activity];
+                return [
+                    'id' => $entry->id,
+                    'eventType' => $entry->event_type,
+                    'asset' => $entry->asset_code,
+                    'amount' => $posting?->delta,
+                    'postedAt' => $entry->posted_at->toIso8601String(),
+                ];
+            })->all();
+
+        return [
+            'eligibility' => $eligibility,
+            'activity' => $activity,
+            'topupAvailable' => $eligibility['wallet'] !== null
+                && $eligibility['userStatus'] === 'ACTIVE'
+                && $eligibility['tenantStatus'] === 'ACTIVE'
+                && $tenant->businessSettings->allow_wallet_topup
+                && $this->paymentProvider->available(),
+        ];
     }
 }

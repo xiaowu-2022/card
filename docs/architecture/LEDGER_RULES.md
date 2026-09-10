@@ -37,3 +37,7 @@ Account Tenant, Wallet, User, Type, and Asset and Wallet Tenant, User, and Asset
 Reconciliation compares the cached Account value to the authoritative Posting sum, reports safe identifiers, exits non-zero on mismatch, and never auto-fixes. End Users see business-friendly activity rather than Account/Postings/clearing terminology. Tenant Admin views are permission-gated and read-only. Amounts leave PHP only as `{ amount: string, asset: string }`.
 
 Production Ledger table write privileges belong only to the Application role and controlled migrations. Analytics users, BI tools, support scripts, and ad-hoc operational users must be read-only. Direct SQL is an operationally privileged boundary, not a supported Posting path.
+
+## Phase 5 top-up posting
+
+`CreditWalletTopupAction` owns the only top-up settlement plan: `TENANT_TOPUP_CLEARING -amount` and `USER_AVAILABLE +amount`, event type `WALLET_TOPUP_CREDIT`, reference type `WALLET_TOPUP_ORDER`, and event key `wallet_topup:{order_uuid}:credit`. It locks the Top-up Order, then its business advisory key, before entering `LedgerWriter`; only the writer locks Accounts. The Order becomes CREDITED and records the Entry id inside the same outer transaction, so neither state can commit alone.

@@ -7,6 +7,8 @@ use App\Domain\CardProvider\Enums\MockProviderMode;
 use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
 use App\Domain\Notification\Contracts\EmailVerificationSender;
 use App\Domain\Notification\Contracts\SmsVerificationSender;
+use App\Domain\Payment\Contracts\PaymentProviderInterface;
+use App\Domain\Payment\Enums\MockPaymentMode;
 use App\Domain\Tenant\Contracts\DomainVerificationService;
 use App\Domain\Tenant\Repositories\TenantDomainRepository;
 use App\Domain\Tenant\TenantContext;
@@ -16,6 +18,8 @@ use App\Infrastructure\Providers\Card\MockCardProvider;
 use App\Infrastructure\Providers\Domain\LocalDomainVerificationService;
 use App\Infrastructure\Providers\Kyc\MockKycOcrProvider;
 use App\Infrastructure\Providers\Kyc\UnavailableKycOcrProvider;
+use App\Infrastructure\Providers\Payment\MockPaymentProvider;
+use App\Infrastructure\Providers\Payment\UnavailablePaymentProvider;
 use App\Infrastructure\Sms\FakeSmsVerificationSender;
 use App\Infrastructure\Sms\UnavailableSmsVerificationSender;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -37,6 +41,16 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(SmsVerificationSender::class, fn () => app()->environment('testing')
             ? new FakeSmsVerificationSender
             : new UnavailableSmsVerificationSender);
+        $this->app->singleton(PaymentProviderInterface::class, function (): PaymentProviderInterface {
+            if (config('payment.driver') === 'mock' && app()->environment(['local', 'testing'])) {
+                return new MockPaymentProvider(
+                    MockPaymentMode::from((string) config('payment.mock_mode')),
+                    (string) config('payment.mock_webhook_secret'),
+                );
+            }
+
+            return new UnavailablePaymentProvider;
+        });
 
         $this->app->bind(CardProviderInterface::class, function (): CardProviderInterface {
             $driver = config('card-provider.driver');

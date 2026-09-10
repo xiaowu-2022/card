@@ -10,6 +10,7 @@ use App\Http\Controllers\TenantAdmin\OnboardingController;
 use App\Http\Controllers\TenantAdmin\TeamController;
 use App\Http\Controllers\TenantAdmin\TenantAdminAuthController;
 use App\Http\Controllers\TenantAdmin\TenantSettingsController;
+use App\Http\Controllers\TenantAdmin\TopupController;
 use App\Http\Controllers\TenantAdmin\UsersController;
 use App\Http\Controllers\TenantAdmin\UserWalletController;
 use Illuminate\Support\Facades\Route;
@@ -34,6 +35,10 @@ Route::middleware('tenant.surface:tenant-admin')->prefix('admin')->name('tenant-
 
     Route::middleware('admin.scope:tenant,wallet.read')->get('/users/{user}/wallet', [UserWalletController::class, 'show'])->whereUuid('user')->name('users.wallet');
     Route::middleware('admin.scope:tenant,ledger.read')->get('/users/{user}/ledger', [UserWalletController::class, 'ledger'])->whereUuid('user')->name('users.ledger');
+    Route::middleware('admin.scope:tenant,wallet_topups.read')->group(function (): void {
+        Route::get('/topups', [TopupController::class, 'index'])->name('topups.index');
+        Route::get('/topups/{topup}', [TopupController::class, 'show'])->whereUuid('topup')->name('topups.show');
+    });
 
     Route::middleware('admin.scope:tenant,kyc.read')->group(function (): void {
         Route::get('/kyc', [KycController::class, 'index'])->name('kyc.index');

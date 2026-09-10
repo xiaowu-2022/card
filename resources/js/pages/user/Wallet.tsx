@@ -1,11 +1,12 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { CheckCircle2, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, Plus, ShieldCheck } from 'lucide-react';
 import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
 import { UserActivityList } from '@/components/user/UserActivityList';
 import { UserBalanceHero } from '@/components/user/UserBalanceHero';
 import { UserPageHeader } from '@/components/user/UserPageHeader';
 import { UserSection } from '@/components/user/UserSection';
 import { UserStatusBanner } from '@/components/user/UserStatusBanner';
+import { UserQuickActions } from '@/components/user/UserQuickActions';
 import { Button } from '@/components/ui/button';
 import { UserLayout } from '@/layouts/UserLayout';
 import type { MoneyAmount } from '@/types/global';
@@ -27,7 +28,14 @@ type Eligibility = {
 };
 type Props = {
     eligibility: Eligibility;
-    activity: Array<{ id: string; eventType: string; asset: string; postedAt: string }>;
+    activity: Array<{
+        id: string;
+        eventType: string;
+        asset: string;
+        amount?: MoneyAmount;
+        postedAt: string;
+    }>;
+    topupAvailable?: boolean;
 };
 
 function InactiveWallet({ eligibility }: { eligibility: Eligibility }) {
@@ -78,14 +86,16 @@ function InactiveWallet({ eligibility }: { eligibility: Eligibility }) {
     );
 }
 
-export default function Wallet({ eligibility, activity }: Props) {
+export default function Wallet({ eligibility, activity, topupAvailable = false }: Props) {
     const activated = eligibility.wallet !== null && eligibility.available !== null;
     const activityItems = activity.map((entry) => ({
         id: entry.id,
-        title: 'Wallet activity',
+        title: entry.eventType === 'WALLET_TOPUP_CREDIT' ? 'Wallet top up' : 'Wallet activity',
         postedAt: entry.postedAt,
         asset: entry.asset,
-        direction: 'NEUTRAL' as const,
+        amount: entry.amount,
+        direction:
+            entry.eventType === 'WALLET_TOPUP_CREDIT' ? ('CREDIT' as const) : ('NEUTRAL' as const),
     }));
 
     return (
@@ -109,6 +119,11 @@ export default function Wallet({ eligibility, activity }: Props) {
                             amount={eligibility.available!.amount}
                             asset={eligibility.available!.asset}
                         />
+                        {topupAvailable ? (
+                            <UserQuickActions
+                                actions={[{ label: 'Top up', href: '/wallet/top-up', icon: Plus }]}
+                            />
+                        ) : null}
                         <UserSection title="Security deposit">
                             <div className="rounded-[var(--user-radius-md)] border bg-surface px-5 py-5">
                                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">

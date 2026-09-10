@@ -6,9 +6,11 @@ use App\Http\Controllers\User\CardsController;
 use App\Http\Controllers\User\DashboardController;
 use App\Http\Controllers\User\DemoWalletController;
 use App\Http\Controllers\User\KycController;
+use App\Http\Controllers\User\MockPaymentController;
 use App\Http\Controllers\User\RegistrationController;
 use App\Http\Controllers\User\UserAuthController;
 use App\Http\Controllers\User\WalletController;
+use App\Http\Controllers\User\WalletTopupController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('tenant.surface:end-user')->group(function (): void {
@@ -38,6 +40,8 @@ Route::middleware('tenant.surface:user-auth')->group(function (): void {
         Route::get('/account/security', [AccountController::class, 'security'])->name('user.account.security');
         Route::get('/kyc', [KycController::class, 'show'])->name('user.kyc');
         Route::get('/wallet', [WalletController::class, 'show'])->name('user.wallet');
+        Route::get('/wallet/top-up', [WalletTopupController::class, 'index'])->name('user.topups.index');
+        Route::get('/wallet/top-ups/{topup}/return', [WalletTopupController::class, 'returned'])->whereUuid('topup')->name('user.topups.return');
         Route::post('/account/security/password', [AccountController::class, 'changePassword'])->middleware('throttle:5,1')->name('user.account.password');
         Route::post('/logout', [UserAuthController::class, 'destroy'])->name('user.logout');
     });
@@ -48,6 +52,12 @@ Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operat
     Route::get('/account', [AccountController::class, 'show'])->name('user.account');
     Route::post('/kyc/applications', [KycController::class, 'store'])->name('user.kyc.applications.store');
     Route::post('/wallet/activate', [WalletController::class, 'activate'])->name('user.wallet.activate');
+    Route::post('/wallet/top-ups', [WalletTopupController::class, 'store'])->name('user.topups.store');
+
+    if (app()->environment(['local', 'testing'])) {
+        Route::get('/__mock/payments/{providerRequest}', [MockPaymentController::class, 'show'])->whereUuid('providerRequest')->name('mock-payments.show');
+        Route::post('/__mock/payments/{providerRequest}/complete', [MockPaymentController::class, 'complete'])->whereUuid('providerRequest')->name('mock-payments.complete');
+    }
 });
 
 if (app()->environment('testing')) {

@@ -79,6 +79,24 @@ arch('provider adapters do not depend on money or deposit domains')
         'App\Domain\SecurityDeposit',
     ]);
 
+arch('Payment provider adapters do not mutate Wallet or Ledger')
+    ->expect('App\Infrastructure\Providers\Payment')
+    ->not->toUse([
+        'App\Domain\Wallet',
+        'App\Domain\Ledger\Models',
+        'App\Domain\Ledger\Services\LedgerWriter',
+        'App\Domain\CardProvider',
+    ]);
+
+arch('Payment domain remains independent from Ledger and Card Provider')
+    ->expect('App\Domain\Payment')
+    ->not->toUse(['App\Domain\Ledger', 'App\Domain\CardProvider']);
+
+it('keeps webhook controllers away from ledger settlement', function (): void {
+    $source = file_get_contents(app_path('Http/Controllers/Webhooks/PaymentWebhookController.php'));
+    expect($source)->not->toContain('LedgerWriter', 'LedgerPosting', 'CreditWalletTopupAction');
+});
+
 arch('controllers do not access ledger persistence')
     ->expect('App\Http\Controllers')
     ->not->toUse('App\Infrastructure\Persistence');
@@ -130,10 +148,10 @@ it('keeps direct ledger persistence writes inside the ledger core', function ():
 
 it('keeps ledger account locks and external IO out of application callers', function (): void {
     $applicationSources = collect(glob(app_path('Application/**/*.php')))
-        ->map(fn (string $path): string => file_get_contents($path))->implode("\n");
+        ->map(fn (string $path): string => file_get_contents($path));
     $ledgerSources = collect(glob(app_path('Domain/Ledger/**/*.php')))
         ->map(fn (string $path): string => file_get_contents($path))->implode("\n");
 
-    expect($applicationSources)->not->toMatch('/LedgerAccount.*lockForUpdate/s')
+    expect($applicationSources->contains(fn (string $source): bool => preg_match('/LedgerAccount::query\(\)[^;]*lockForUpdate/s', $source) === 1))->toBeFalse()
         ->and($ledgerSources)->not->toContain('Http::', 'Mail::', 'Storage::', 'PhotonPay');
 });

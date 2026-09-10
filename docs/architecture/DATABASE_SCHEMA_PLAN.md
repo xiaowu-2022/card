@@ -14,9 +14,11 @@ Phase 4 Wallets are unique by `(tenant_id,user_id,asset_code)` and use a composi
 
 Phase 4.1 adds only `2026_09_09_000510_harden_wallet_ledger_integrity`: it safely aligns existing development Deposit assets, backfills existing valid Entries as sealed, and adds no table. A Posting can be inserted only for an unsealed parent. The only Entry update is initial sealing; later inserts/updates/deletes are rejected. Deferred triggers require sealing, at least two Postings, exact zero sum, and Account cache equality with sealed Posting sums. Wallet and Account financial identity columns are immutable, Tenant default asset freezes after Wallet/Account creation, and Deposit asset must equal it.
 
+Phase 5 adds exactly `wallet_topup_orders`, `payment_provider_transactions`, and `payment_provider_events`. Top-up Orders bind Tenant, User, Wallet, and asset through composite foreign keys; `(tenant_id,request_id)` is unique and immutable financial identity includes the canonical request hash and positive `NUMERIC(20,8)` amount. Provider Transactions are one-per-Order with stable unique Provider request identity and normalized states. Provider Events have unique Provider event identity, a same-Tenant transaction mapping, digest-only payload evidence, immutable normalized facts, and independent processing status. A credited Order may reference its exact same-Tenant/same-asset sealed Ledger Entry.
+
 Future migrations are added only with their owning phase:
 
-- Payment: `wallet_topup_orders`, `payment_provider_transactions`, `payment_provider_events`.
+- Payment: completed in Phase 5; future migrations extend it rather than recreating these tables.
 - Withdrawal: `withdrawal_orders`, `withdrawal_destinations`.
 - Security Deposit: `security_deposit_refund_requests`; never a mutable `security_deposits` balance table.
 - Card Product: `card_products`, `card_product_availability`, `tenant_card_product_configs`, `user_card_limits`.
