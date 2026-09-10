@@ -39,7 +39,7 @@ const groups = [
             { label: 'KYC', href: '#', icon: FileCheck2 },
             { label: 'Wallet', href: '#', icon: WalletCards },
             { label: 'Cards', href: '#', icon: CreditCard },
-            { label: 'Products', href: '#', icon: Boxes },
+            { label: 'Products', href: '/platform/card-products', icon: Boxes },
             { label: 'Providers', href: '#', icon: ServerCog },
         ],
     },

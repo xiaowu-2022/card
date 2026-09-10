@@ -92,6 +92,16 @@ arch('Payment domain remains independent from Ledger and Card Provider')
     ->expect('App\Domain\Payment')
     ->not->toUse(['App\Domain\Ledger', 'App\Domain\CardProvider']);
 
+arch('Card Product domain remains configuration-only')
+    ->expect('App\Domain\CardProduct')
+    ->not->toUse([
+        'App\Domain\Wallet',
+        'App\Domain\Ledger',
+        'App\Domain\Kyc',
+        'App\Domain\Card',
+        'App\Domain\CardProvider',
+    ]);
+
 arch('Withdrawal domain and blockchain adapters remain independent from Ledger persistence')
     ->expect(['App\Domain\Withdrawal', 'App\Infrastructure\Providers\Blockchain'])
     ->not->toUse([
@@ -130,6 +140,7 @@ arch('controllers remain final and use controller suffix')
         'App\Http\Controllers\TenantAdmin\KycController',
         'App\Http\Controllers\TenantAdmin\KycDocumentController',
         'App\Http\Controllers\TenantAdmin\UserWalletController',
+        'App\Http\Controllers\TenantAdmin\CardProductController',
         'App\Http\Controllers\User\KycController',
         'App\Http\Controllers\Platform\DashboardController',
         'App\Http\Controllers\Platform\TenantsController',
@@ -137,6 +148,7 @@ arch('controllers remain final and use controller suffix')
         'App\Http\Controllers\Platform\TenantManagementController',
         'App\Http\Controllers\Platform\TenantLifecycleController',
         'App\Http\Controllers\Platform\TenantInvitationController',
+        'App\Http\Controllers\Platform\CardProductController',
     ])
     ->classes()
     ->toBeFinal()

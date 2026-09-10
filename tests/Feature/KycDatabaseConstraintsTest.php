@@ -55,7 +55,7 @@ it('requires a positive identity account limit and keeps identity hash non-uniqu
     expect(fn () => $this->tenantA->kycSettings()->update(['max_accounts_per_identity' => 101]))->toThrow(QueryException::class);
 });
 
-it('retains KYC Ledger Payment and Phase 7 Withdrawal but no later business tables', function (): void {
+it('retains completed foundations and Phase 9 Card Product but no later business tables', function (): void {
     expect(Schema::hasTable('kyc_applications'))->toBeTrue()
         ->and(Schema::hasTable('identity_records'))->toBeTrue()
         ->and(Schema::hasTable('wallets'))->toBeTrue()
@@ -67,8 +67,10 @@ it('retains KYC Ledger Payment and Phase 7 Withdrawal but no later business tabl
         ->and(Schema::hasTable('payment_provider_events'))->toBeTrue()
         ->and(Schema::hasTable('withdrawal_destinations'))->toBeTrue()
         ->and(Schema::hasTable('withdrawal_orders'))->toBeTrue()
-        ->and(Schema::hasTable('withdrawal_transaction_attempts'))->toBeTrue();
-    foreach (['security_deposit_refund_requests', 'card_products', 'card_provider_connections', 'user_cards'] as $futureTable) {
+        ->and(Schema::hasTable('withdrawal_transaction_attempts'))->toBeTrue()
+        ->and(Schema::hasTable('card_products'))->toBeTrue()
+        ->and(Schema::hasTable('tenant_card_product_configs'))->toBeTrue();
+    foreach (['security_deposit_refund_requests', 'card_provider_connections', 'user_cards'] as $futureTable) {
         expect(Schema::hasTable($futureTable))->toBeFalse();
     }
 });

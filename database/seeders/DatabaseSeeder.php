@@ -9,6 +9,10 @@ use App\Domain\Admin\Models\AdminMembership;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Admin\Models\Permission;
 use App\Domain\Admin\Models\Role;
+use App\Domain\CardProduct\Enums\CardProductStatus;
+use App\Domain\CardProduct\Enums\TenantCardProductStatus;
+use App\Domain\CardProduct\Models\CardProduct;
+use App\Domain\CardProduct\Models\TenantCardProductConfig;
 use App\Domain\Tenant\Enums\TenantDomainStatus;
 use App\Domain\Tenant\Enums\TenantDomainType;
 use App\Domain\Tenant\Enums\TenantStatus;
@@ -85,6 +89,23 @@ final class DatabaseSeeder extends Seeder
             ['admin_user_id' => $ownerB->id, 'scope_type' => ScopeType::Tenant, 'scope_id' => $tenantB->id],
             ['role_id' => $roleModels['TENANT_OWNER']->id, 'status' => MembershipStatus::Active],
         );
+
+        $product = CardProduct::query()->where('provider', 'PHOTONPAY')
+            ->where('provider_product_ref', 'DEMO-MILLE-REGULAR-54493747')->first() ?? new CardProduct;
+        if (! $product->exists) {
+            $product->forceFill([
+                'provider' => 'PHOTONPAY',
+                'provider_product_ref' => 'DEMO-MILLE-REGULAR-54493747',
+                'name' => 'Mille Card',
+                'card_currency' => 'USD',
+                'card_type' => 'REGULAR',
+                'minimum_initial_load' => '20.00000000',
+                'minimum_reload' => '20.00000000',
+                'status' => CardProductStatus::Active,
+            ])->save();
+        }
+        $this->cardProductConfig($tenantA, $product, 'Mille Card', '5.00000000');
+        $this->cardProductConfig($tenantB, $product, 'Mille Card', '8.00000000');
     }
 
     private function tenant(string $name, string $slug, string $hostname, string $primaryColor): Tenant
@@ -121,5 +142,22 @@ final class DatabaseSeeder extends Seeder
         );
         UserProfile::query()->firstOrCreate(['user_id' => $user->id], ['tenant_id' => $tenant->id, 'display_name' => $displayName]);
         UserPreference::query()->firstOrCreate(['user_id' => $user->id], ['tenant_id' => $tenant->id, 'locale' => $tenant->default_locale]);
+    }
+
+    private function cardProductConfig(Tenant $tenant, CardProduct $product, string $displayName, string $openingFee): void
+    {
+        $config = TenantCardProductConfig::query()->where('tenant_id', $tenant->id)
+            ->where('card_product_id', $product->id)->first() ?? new TenantCardProductConfig;
+        if (! $config->exists) {
+            $config->forceFill([
+                'tenant_id' => $tenant->id,
+                'card_product_id' => $product->id,
+                'display_name' => $displayName,
+                'opening_fee' => $openingFee,
+                'max_cards_per_user' => 3,
+                'status' => TenantCardProductStatus::Active,
+                'sort_order' => 10,
+            ])->save();
+        }
     }
 }

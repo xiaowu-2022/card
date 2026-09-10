@@ -2,6 +2,7 @@ import { Link, router, usePage } from '@inertiajs/react';
 import {
     BarChart3,
     CircleDollarSign,
+    CreditCard,
     Globe2,
     ListChecks,
     Menu,
@@ -38,6 +39,12 @@ const items = [
         href: '/admin/withdrawals',
         icon: ArrowUpRight,
         permission: 'withdrawals.read',
+    },
+    {
+        label: 'Card products',
+        href: '/admin/card-products',
+        icon: CreditCard,
+        permission: 'card_product.read',
     },
     {
         label: 'Setup',

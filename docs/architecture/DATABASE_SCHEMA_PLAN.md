@@ -20,12 +20,14 @@ Phase 5.1 adds no table. `2026_09_10_000610_harden_payment_settlement_integrity`
 
 Phase 7 adds exactly `withdrawal_destinations`, `withdrawal_orders`, and `withdrawal_transaction_attempts`. Destinations bind Tenant/User through composite keys, fix asset/network to USDT/TRON, store ciphertext plus keyed HMAC and a safe mask, and reject address identity mutation. Orders bind the exact Tenant/User/Wallet/destination/asset/network, use positive `NUMERIC(20,8)`, unique Tenant request ids, canonical request hashes, and same-Tenant/same-asset Ledger links. Successful transaction and financial identity fields are immutable. Attempts permanently and globally reserve `(TRON, tx_hash)` so one chain transfer cannot be reused across Orders; composite foreign keys prevent cross-Tenant attachment.
 
+Phase 9 adds exactly `card_products` and `tenant_card_product_configs`. Platform products have unique `(provider,provider_product_ref)` identity and are constrained to PHOTONPAY, USD, REGULAR, positive provider minimums of at least 20, and DRAFT/ACTIVE/INACTIVE. Tenant configurations are unique by `(tenant_id,card_product_id)`, use `NUMERIC(20,8)` nonnegative opening fees, a positive bounded card limit, ACTIVE/INACTIVE status, and RESTRICT foreign keys. No load-fee, User Card, provider credential, price-version, or balance table is introduced.
+
 Future migrations are added only with their owning phase:
 
 - Payment: completed in Phase 5; future migrations extend it rather than recreating these tables.
 - Withdrawal: completed in Phase 7; future migrations extend the three Phase 7 tables rather than recreating them.
 - Security Deposit: `security_deposit_refund_requests`; never a mutable `security_deposits` balance table.
-- Card Product: `card_products`, `card_product_availability`, `tenant_card_product_configs`, `user_card_limits`.
+- Card Product: Phase 9 creates `card_products` and `tenant_card_product_configs`; availability and user limits are represented by this lean pair, with no extra tables.
 - Provider: `card_provider_connections`, `provider_card_products`, `card_provider_operations`, `card_provider_events`.
 - Card: `card_issue_orders`, `user_cards`, `card_load_orders`; optional later snapshots/transactions.
 - Later only: agents/relations, commission rules/records, refund orders, risk cases/rules, tenant subscriptions/invoices, FX orders.

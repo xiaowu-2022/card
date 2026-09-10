@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Platform\CardProductController;
 use App\Http\Controllers\Platform\DashboardController;
 use App\Http\Controllers\Platform\PlatformAuthController;
 use App\Http\Controllers\Platform\TenantInvitationController;
@@ -17,6 +18,12 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::get('/tenants', [TenantManagementController::class, 'index'])->name('tenants.index');
         Route::get('/tenants/{tenant}', [TenantManagementController::class, 'show'])->whereUuid('tenant')->name('tenants.show');
         Route::post('/logout', [PlatformAuthController::class, 'destroy'])->name('logout');
+    });
+
+    Route::middleware('admin.scope:platform,card_product.read')->get('/card-products', [CardProductController::class, 'index'])->name('card-products.index');
+    Route::middleware('admin.scope:platform,card_product.manage')->group(function (): void {
+        Route::post('/card-products', [CardProductController::class, 'store'])->name('card-products.store');
+        Route::put('/card-products/{cardProduct}', [CardProductController::class, 'update'])->whereUuid('cardProduct')->name('card-products.update');
     });
 
     Route::middleware('admin.scope:platform,tenant.manage')->group(function (): void {

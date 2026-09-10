@@ -52,6 +52,7 @@ Route::middleware('tenant.surface:user-auth')->group(function (): void {
 
 Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operational'])->group(function (): void {
     Route::get('/dashboard', DashboardController::class)->name('user.authenticated.dashboard');
+    Route::get('/cards', CardsController::class)->name('user.authenticated.cards');
     Route::get('/account', [AccountController::class, 'show'])->name('user.account');
     Route::post('/kyc/applications', [KycController::class, 'store'])->name('user.kyc.applications.store');
     Route::post('/wallet/activate', [WalletController::class, 'activate'])->name('user.wallet.activate');

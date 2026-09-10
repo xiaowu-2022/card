@@ -30,8 +30,8 @@ it('uses real wallet presentation and removes fake card and money content', func
         ->and($wallet)
         ->not->toContain('USER_AVAILABLE', 'USER_SECURITY_DEPOSIT', 'ledger account', 'immutable account ledger')
         ->and($cards)
-        ->toContain('Virtual cards will be available here')
-        ->not->toContain('TEST / MOCK', 'VISA', '•••• 1234', 'Reveal', 'Freeze');
+        ->toContain('Get card · Coming next', 'No charge is made and no card is created')
+        ->not->toContain('providerProductRef', 'CardBin', 'TEST / MOCK', 'VISA', '•••• 1234', 'Reveal', 'Freeze');
 });
 
 it('does not expose internal KYC state or provider metadata in the user page', function (): void {

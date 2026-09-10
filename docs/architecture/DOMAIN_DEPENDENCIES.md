@@ -11,6 +11,7 @@ Allowed rules:
 - Payment Provider is independent from Card Provider. A webhook Controller verifies, normalizes, persists, and dispatches only; it never settles Ledger.
 - Payment state transitions are owned by the Payment Domain policy. Cross-Domain top-up settlement and business-to-Ledger reconciliation live in Application; Ledger remains unaware of Payment.
 - Withdrawal Application Actions may query eligibility, construct the three fixed withdrawal posting plans, and call `LedgerWriter`. The Withdrawal Domain owns destinations/orders and a read-only blockchain verification contract; gateway adapters never import or mutate Wallet/Ledger.
+- CardProduct owns platform catalog and Tenant sales configuration only. User readiness is composed in an Application query from CardProduct and existing Wallet eligibility; CardProduct Domain does not depend on Wallet, Ledger, KYC, or CardProvider.
 
 Forbidden rules:
 
