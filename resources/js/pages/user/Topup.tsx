@@ -1,5 +1,5 @@
 import { Head, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
 import { UserBalanceHero } from '@/components/user/UserBalanceHero';
 import { UserEmptyState } from '@/components/user/UserEmptyState';
@@ -41,14 +41,15 @@ export default function Topup({ available, wallet, topupAvailable, orders }: Pro
     const [amount, setAmount] = useState('');
     const [reviewing, setReviewing] = useState(false);
     const [processing, setProcessing] = useState(false);
+    const requestId = useRef(crypto.randomUUID());
     const canContinue = /^\d+(?:\.\d{1,8})?$/.test(amount) && !/^0+(?:\.0+)?$/.test(amount);
 
     const submit = () => {
-        if (!wallet || !canContinue) return;
+        if (!wallet || !canContinue || processing) return;
         setProcessing(true);
         router.post(
             '/wallet/top-ups',
-            { request_id: crypto.randomUUID(), wallet_id: wallet.id, amount, asset: wallet.asset },
+            { request_id: requestId.current, wallet_id: wallet.id, amount, asset: wallet.asset },
             { onFinish: () => setProcessing(false) },
         );
     };
@@ -85,7 +86,13 @@ export default function Topup({ available, wallet, topupAvailable, orders }: Pro
                             </div>
                         </dl>
                         <div className="mt-5 grid gap-3 sm:flex sm:justify-end">
-                            <Button variant="secondary" onClick={() => setReviewing(false)}>
+                            <Button
+                                variant="secondary"
+                                onClick={() => {
+                                    requestId.current = crypto.randomUUID();
+                                    setReviewing(false);
+                                }}
+                            >
                                 Back
                             </Button>
                             <Button disabled={processing} onClick={submit}>

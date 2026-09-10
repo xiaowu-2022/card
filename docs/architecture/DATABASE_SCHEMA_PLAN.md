@@ -16,6 +16,8 @@ Phase 4.1 adds only `2026_09_09_000510_harden_wallet_ledger_integrity`: it safel
 
 Phase 5 adds exactly `wallet_topup_orders`, `payment_provider_transactions`, and `payment_provider_events`. Top-up Orders bind Tenant, User, Wallet, and asset through composite foreign keys; `(tenant_id,request_id)` is unique and immutable financial identity includes the canonical request hash and positive `NUMERIC(20,8)` amount. Provider Transactions are one-per-Order with stable unique Provider request identity and normalized states. Provider Events have unique Provider event identity, a same-Tenant transaction mapping, digest-only payload evidence, immutable normalized facts, and independent processing status. A credited Order may reference its exact same-Tenant/same-asset sealed Ledger Entry.
 
+Phase 5.1 adds no table. `2026_09_10_000610_harden_payment_settlement_integrity` adds initiation attempt/lease timestamps, a partial unique Ledger-link index, and a financial-state CHECK. CREDITED requires paid/credited times plus its Ledger reference and cannot transition away or be relinked; PAID/REFUNDED require paid time and every non-CREDITED state has no credit time/link. Existing composite foreign keys enforce same Tenant/asset, while Provider request ids, non-null transaction ids, and Event ids remain unique within Provider scope.
+
 Future migrations are added only with their owning phase:
 
 - Payment: completed in Phase 5; future migrations extend it rather than recreating these tables.

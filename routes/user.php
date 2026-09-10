@@ -52,7 +52,7 @@ Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operat
     Route::get('/account', [AccountController::class, 'show'])->name('user.account');
     Route::post('/kyc/applications', [KycController::class, 'store'])->name('user.kyc.applications.store');
     Route::post('/wallet/activate', [WalletController::class, 'activate'])->name('user.wallet.activate');
-    Route::post('/wallet/top-ups', [WalletTopupController::class, 'store'])->name('user.topups.store');
+    Route::post('/wallet/top-ups', [WalletTopupController::class, 'store'])->middleware('throttle:wallet-topups')->name('user.topups.store');
 
     if (app()->environment(['local', 'testing'])) {
         Route::get('/__mock/payments/{providerRequest}', [MockPaymentController::class, 'show'])->whereUuid('providerRequest')->name('mock-payments.show');

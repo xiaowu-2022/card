@@ -41,3 +41,5 @@ Production Ledger table write privileges belong only to the Application role and
 ## Phase 5 top-up posting
 
 `CreditWalletTopupAction` owns the only top-up settlement plan: `TENANT_TOPUP_CLEARING -amount` and `USER_AVAILABLE +amount`, event type `WALLET_TOPUP_CREDIT`, reference type `WALLET_TOPUP_ORDER`, and event key `wallet_topup:{order_uuid}:credit`. It locks the Top-up Order, then its business advisory key, before entering `LedgerWriter`; only the writer locks Accounts. The Order becomes CREDITED and records the Entry id inside the same outer transaction, so neither state can commit alone.
+
+The database requires CREDITED to have paid/credited timestamps and a unique same-Tenant/same-asset Ledger reference, and forbids reversing or relinking that fact. `ledger:reconcile` validates Account caches; the separate read-only `payments:reconcile` validates exact business-to-Ledger identity and the two-Posting top-up accounting path. Neither command repairs history.

@@ -27,6 +27,9 @@ final readonly class PersistPaymentProviderEventAction
             throw new DomainException('PAYMENT_PROVIDER_UNAVAILABLE', 'Payment provider is unavailable.', 404);
         }
         $rawBody = $request->getContent();
+        if (strlen($rawBody) > (int) config('payment.webhook_max_bytes')) {
+            throw new DomainException('PAYMENT_WEBHOOK_TOO_LARGE', 'Webhook payload is too large.', 413);
+        }
         $event = $this->provider->normalizeWebhook($this->provider->verifyWebhook($request, $rawBody));
         $event = $this->validateFinancialFields($event);
         $transaction = $this->mappedTransaction($providerName, $event);
@@ -83,12 +86,21 @@ final readonly class PersistPaymentProviderEventAction
         if ($event->providerRequestId === null && $event->providerTransactionId === null) {
             return null;
         }
-        $byRequest = $event->providerRequestId === null ? null : PaymentProviderTransaction::query()
-            ->where('provider', $providerName)->where('provider_request_id', $event->providerRequestId)->first();
-        $byTransaction = $event->providerTransactionId === null ? null : PaymentProviderTransaction::query()
-            ->where('provider', $providerName)->where('provider_transaction_id', $event->providerTransactionId)->first();
+        $byRequestMatches = $event->providerRequestId === null ? collect() : PaymentProviderTransaction::query()
+            ->where('provider', $providerName)->where('provider_request_id', $event->providerRequestId)->limit(2)->get();
+        $byTransactionMatches = $event->providerTransactionId === null ? collect() : PaymentProviderTransaction::query()
+            ->where('provider', $providerName)->where('provider_transaction_id', $event->providerTransactionId)->limit(2)->get();
+        if ($byRequestMatches->count() > 1 || $byTransactionMatches->count() > 1) {
+            throw new DomainException('PAYMENT_MAPPING_AMBIGUOUS', 'Payment resource mapping is invalid.', 409);
+        }
+        $byRequest = $byRequestMatches->first();
+        $byTransaction = $byTransactionMatches->first();
         if ($byRequest && $byTransaction && $byRequest->id !== $byTransaction->id) {
-            return null;
+            if ($byRequest->tenant_id !== $byTransaction->tenant_id) {
+                throw new DomainException('PAYMENT_MAPPING_AMBIGUOUS', 'Payment resource mapping is invalid.', 409);
+            }
+
+            return $byRequest;
         }
 
         return $byRequest ?? $byTransaction;

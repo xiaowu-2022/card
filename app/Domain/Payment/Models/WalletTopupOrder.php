@@ -33,6 +33,10 @@ final class WalletTopupOrder extends Model
             if ($order->isDirty(['tenant_id', 'user_id', 'wallet_id', 'request_id', 'request_hash', 'asset_code', 'amount', 'payment_provider'])) {
                 throw new LogicException('Top-up order financial identity is immutable.');
             }
+            if ($order->getOriginal('status') === WalletTopupStatus::Credited->value
+                && $order->isDirty(['status', 'paid_at', 'credited_at', 'ledger_entry_id'])) {
+                throw new LogicException('Credited top-up is an immutable financial fact.');
+            }
         });
     }
 

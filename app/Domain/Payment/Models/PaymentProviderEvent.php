@@ -42,6 +42,11 @@ final class PaymentProviderEvent extends Model
 
     public function isRefundLike(): bool
     {
-        return str_contains(strtoupper($this->event_type), 'REFUND') || str_contains(strtoupper($this->event_type), 'CHARGEBACK');
+        $type = strtoupper($this->event_type);
+
+        return str_contains($type, 'REFUND')
+            || str_contains($type, 'CHARGEBACK')
+            || str_contains($type, 'REVERSAL')
+            || str_contains($type, 'DISPUTE');
     }
 }

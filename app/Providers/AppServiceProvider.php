@@ -88,5 +88,11 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute((int) config('kyc.document_access_rate_limit_per_minute'))
                 ->by("{$tenantId}:{$adminId}");
         });
+        RateLimiter::for('wallet-topups', function (): Limit {
+            $tenantId = app(TenantContext::class)->hasTenant() ? app(TenantContext::class)->id() : 'unknown';
+            $userId = Auth::guard('tenant_user')->id() ?? 'guest';
+
+            return Limit::perMinute((int) config('payment.topup_rate_limit_per_minute'))->by("{$tenantId}:{$userId}");
+        });
     }
 }

@@ -7,15 +7,25 @@ use App\Application\Payment\CreditWalletTopupAction;
 use App\Application\Payment\PersistPaymentProviderEventAction;
 use App\Application\Payment\ProcessPaymentProviderEventAction;
 use App\Application\Payment\QueryPaymentStatusAction;
+use App\Application\Payment\TenantPaymentReturnUrl;
 use App\Application\Wallet\ActivateUserWalletAction;
 use App\Domain\Admin\Models\AdminUser;
+use App\Domain\Ledger\DTOs\LedgerPostingInstruction;
+use App\Domain\Ledger\DTOs\LedgerPostingPlan;
 use App\Domain\Ledger\Enums\LedgerAccountType;
 use App\Domain\Ledger\Models\LedgerAccount;
 use App\Domain\Ledger\Models\LedgerEntry;
+use App\Domain\Ledger\Services\LedgerWriter;
+use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Payment\Contracts\PaymentProviderInterface;
+use App\Domain\Payment\DTOs\NormalizedPaymentEvent;
+use App\Domain\Payment\DTOs\PaymentInitiationRequest;
+use App\Domain\Payment\DTOs\PaymentProviderResult;
+use App\Domain\Payment\DTOs\VerifiedPaymentWebhook;
 use App\Domain\Payment\Enums\PaymentEventProcessingStatus;
 use App\Domain\Payment\Enums\PaymentProviderTransactionStatus;
 use App\Domain\Payment\Enums\WalletTopupStatus;
+use App\Domain\Payment\Exceptions\PaymentProviderTimeoutException;
 use App\Domain\Payment\Models\PaymentProviderEvent;
 use App\Domain\Payment\Models\PaymentProviderTransaction;
 use App\Domain\Payment\Models\WalletTopupOrder;
@@ -25,9 +35,11 @@ use App\Domain\User\Enums\UserStatus;
 use App\Domain\User\Models\User;
 use App\Infrastructure\Providers\Payment\UnavailablePaymentProvider;
 use App\Jobs\CreditWalletTopupJob;
+use App\Jobs\InitiateWalletTopupPaymentJob;
 use App\Jobs\ProcessPaymentProviderEventJob;
 use App\Jobs\QueryPaymentStatusJob;
 use App\Support\Errors\DomainException;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -202,16 +214,20 @@ it('does not allow stale events to reverse paid or credited state', function ():
     expect($order->fresh()->status)->toBe(WalletTopupStatus::Paid);
 });
 
-it('continues already-paid settlement after user or tenant suspension', function (string $case): void {
+it('continues already-paid settlement after operational eligibility changes', function (string $case): void {
     $order = createPhaseFiveTopup($this);
     $event = phaseFiveEvent($this, $order, 'event-suspend-'.$case);
     app(ProcessPaymentProviderEventAction::class)->execute($this->tenant->id, $event->id);
-    $case === 'user'
-        ? $this->user->update(['status' => UserStatus::Suspended])
-        : $this->tenant->update(['status' => TenantStatus::Suspended, 'suspended_at' => now()]);
+    match ($case) {
+        'user-suspended' => $this->user->update(['status' => UserStatus::Suspended]),
+        'user-disabled' => $this->user->update(['status' => UserStatus::Disabled]),
+        'tenant' => $this->tenant->update(['status' => TenantStatus::Suspended, 'suspended_at' => now()]),
+        'wallet' => $this->wallet->update(['status' => 'SUSPENDED']),
+        'setting' => $this->tenant->businessSettings()->update(['allow_wallet_topup' => false]),
+    };
     app(CreditWalletTopupAction::class)->execute($this->tenant->id, $order->id);
     expect($order->fresh()->status)->toBe(WalletTopupStatus::Credited);
-})->with(['user', 'tenant']);
+})->with(['user-suspended', 'user-disabled', 'tenant', 'wallet', 'setting']);
 
 it('does not debit a credited top-up when a refund arrives', function (): void {
     $order = createPhaseFiveTopup($this);
@@ -222,8 +238,22 @@ it('does not debit a credited top-up when a refund arrives', function (): void {
     app(ProcessPaymentProviderEventAction::class)->execute($this->tenant->id, $refund->id);
     $available = LedgerAccount::query()->where('wallet_id', $this->wallet->id)->where('account_type', LedgerAccountType::UserAvailable->value)->firstOrFail();
     expect($refund->fresh()->processing_status)->toBe(PaymentEventProcessingStatus::RequiresReview)
+        ->and($order->fresh()->status)->toBe(WalletTopupStatus::Credited)
         ->and($available->balance)->toBe('100.00000000')->and(LedgerEntry::query()->count())->toBe(1);
 });
+
+it('keeps credited immutable for every post-credit exception type', function (string $eventType): void {
+    $order = createPhaseFiveTopup($this);
+    $success = phaseFiveEvent($this, $order, 'event-credit-'.$eventType);
+    app(ProcessPaymentProviderEventAction::class)->execute($this->tenant->id, $success->id);
+    $entry = app(CreditWalletTopupAction::class)->execute($this->tenant->id, $order->id);
+    $exception = phaseFiveEvent($this, $order, 'event-exception-'.$eventType, 'FAILED', eventType: $eventType);
+    app(ProcessPaymentProviderEventAction::class)->execute($this->tenant->id, $exception->id);
+
+    expect($order->fresh()->status)->toBe(WalletTopupStatus::Credited)
+        ->and($order->fresh()->ledger_entry_id)->toBe($entry->id)
+        ->and($exception->fresh()->processing_status)->toBe(PaymentEventProcessingStatus::RequiresReview);
+})->with(['PAYMENT_REFUNDED', 'PAYMENT_CHARGEBACK', 'PAYMENT_REVERSAL', 'PAYMENT_DISPUTE']);
 
 it('prevents a queued credit when a verified refund arrives before settlement', function (): void {
     $order = createPhaseFiveTopup($this);
@@ -244,6 +274,14 @@ it('treats browser return query parameters as read-only and isolates tenant orde
     $userB = User::query()->where('tenant_id', $tenantB->id)->firstOrFail();
     $this->actingAs($userB, 'tenant_user')->get("http://b.localhost/wallet/top-ups/{$order->id}/return")->assertNotFound();
     expect($order->fresh()->status)->toBe(WalletTopupStatus::Processing)->and(LedgerEntry::query()->count())->toBe(0);
+});
+
+it('builds provider return URLs only from the resolved persisted active tenant domain', function (): void {
+    $builder = app(TenantPaymentReturnUrl::class);
+    expect($builder->forResolvedHost($this->tenant->id, 'a.localhost', 8000))
+        ->toBe('http://a.localhost:8000/wallet/top-ups/__ORDER__/return')
+        ->and(fn () => $builder->forResolvedHost($this->tenant->id, 'evil.example', 8000))
+        ->toThrow(DomainException::class);
 });
 
 it('keeps tenant admin top-up lists and details read-only and tenant scoped', function (): void {
@@ -277,4 +315,204 @@ it('recovery redispatches persisted events paid orders and stale unknown queries
     $this->artisan('payments:recover')->assertSuccessful();
     Queue::assertPushed(ProcessPaymentProviderEventJob::class, fn ($job) => $job->eventId === $event->id);
     Queue::assertPushed(CreditWalletTopupJob::class, fn ($job) => $job->orderId === $order->id);
+});
+
+it('recovers the commit-before-initiation crash window with the same provider request id', function (): void {
+    $order = createPhaseFiveTopup($this);
+    DB::table('payment_provider_transactions')->where('wallet_topup_order_id', $order->id)->update([
+        'provider_transaction_id' => null,
+        'status' => PaymentProviderTransactionStatus::Pending->value,
+        'initiation_attempted_at' => null,
+        'initiation_lease_expires_at' => null,
+        'updated_at' => now()->subMinute(),
+    ]);
+    Queue::fake();
+    $this->artisan('payments:recover')->assertSuccessful();
+    Queue::assertPushed(InitiateWalletTopupPaymentJob::class, fn ($job) => $job->tenantId === $this->tenant->id
+        && $job->orderId === $order->id && str_contains($job->returnUrl, 'a.localhost'));
+});
+
+it('recovers when the provider accepted initiation but the response was lost', function (): void {
+    $provider = new class implements PaymentProviderInterface
+    {
+        public ?PaymentInitiationRequest $accepted = null;
+
+        public function name(): string
+        {
+            return 'mock';
+        }
+
+        public function available(): bool
+        {
+            return true;
+        }
+
+        public function initiatePayment(PaymentInitiationRequest $request): PaymentProviderResult
+        {
+            $this->accepted = $request;
+            throw new PaymentProviderTimeoutException('Response lost after acceptance.');
+        }
+
+        public function queryPayment(string $providerRequestId): PaymentProviderResult
+        {
+            return new PaymentProviderResult(PaymentProviderTransactionStatus::Succeeded, $providerRequestId, 'accepted-resource', $this->accepted->amount, $this->accepted->assetCode);
+        }
+
+        public function verifyWebhook(Request $request, string $rawBody): VerifiedPaymentWebhook
+        {
+            return new VerifiedPaymentWebhook($rawBody);
+        }
+
+        public function normalizeWebhook(VerifiedPaymentWebhook $webhook): NormalizedPaymentEvent
+        {
+            throw new LogicException('Not used by this test.');
+        }
+    };
+    $this->app->instance(PaymentProviderInterface::class, $provider);
+    $order = createPhaseFiveTopup($this, '37.00000000');
+    $transaction = PaymentProviderTransaction::query()->where('wallet_topup_order_id', $order->id)->firstOrFail();
+    expect($transaction->status)->toBe(PaymentProviderTransactionStatus::Unknown)
+        ->and($provider->accepted->providerRequestId)->toBe($transaction->provider_request_id);
+
+    app(QueryPaymentStatusAction::class)->execute($this->tenant->id, $transaction->id);
+    expect($order->fresh()->status)->toBe(WalletTopupStatus::Paid)
+        ->and($order->fresh()->paid_at)->not->toBeNull();
+});
+
+it('keeps a paid order recoverable when ledger settlement temporarily fails', function (): void {
+    $order = createPhaseFiveTopup($this);
+    DB::table('wallet_topup_orders')->where('id', $order->id)->update([
+        'status' => WalletTopupStatus::Paid->value, 'paid_at' => now(), 'updated_at' => now(),
+    ]);
+    $available = LedgerAccount::query()->where('wallet_id', $this->wallet->id)
+        ->where('account_type', LedgerAccountType::UserAvailable->value)->firstOrFail();
+    DB::table('ledger_accounts')->where('id', $available->id)->update(['status' => 'CLOSED', 'updated_at' => now()]);
+    expect(fn () => app(CreditWalletTopupAction::class)->execute($this->tenant->id, $order->id))->toThrow(DomainException::class);
+    expect($order->fresh()->status)->toBe(WalletTopupStatus::Paid)->and(LedgerEntry::query()->count())->toBe(0);
+
+    DB::table('ledger_accounts')->where('id', $available->id)->update(['status' => 'ACTIVE', 'updated_at' => now()]);
+    app(CreditWalletTopupAction::class)->execute($this->tenant->id, $order->id);
+    expect($order->fresh()->status)->toBe(WalletTopupStatus::Credited)->and(LedgerEntry::query()->count())->toBe(1);
+});
+
+it('applies a tenant and user scoped top-up creation limiter', function (): void {
+    $route = collect(Route::getRoutes())->first(fn ($candidate) => $candidate->getName() === 'user.topups.store');
+    expect($route->gatherMiddleware())->toContain('throttle:wallet-topups');
+});
+
+it('enforces credited financial facts and one ledger link at the database boundary', function (): void {
+    $order = createPhaseFiveTopup($this);
+    expect(fn () => DB::transaction(fn () => DB::table('wallet_topup_orders')->where('id', $order->id)->update([
+        'status' => WalletTopupStatus::Credited->value, 'paid_at' => now(), 'updated_at' => now(),
+    ])))->toThrow(QueryException::class);
+
+    DB::table('wallet_topup_orders')->where('id', $order->id)->update([
+        'status' => WalletTopupStatus::Paid->value, 'paid_at' => now(), 'updated_at' => now(),
+    ]);
+    $entry = app(CreditWalletTopupAction::class)->execute($this->tenant->id, $order->id);
+    expect(fn () => DB::transaction(fn () => DB::table('wallet_topup_orders')->where('id', $order->id)->update([
+        'status' => WalletTopupStatus::Refunded->value, 'credited_at' => null, 'ledger_entry_id' => null, 'updated_at' => now(),
+    ])))->toThrow(QueryException::class);
+
+    $other = createPhaseFiveTopup($this, '25.00000000');
+    expect(fn () => DB::transaction(fn () => DB::table('wallet_topup_orders')->where('id', $other->id)->update([
+        'status' => WalletTopupStatus::Credited->value, 'paid_at' => now(), 'credited_at' => now(),
+        'ledger_entry_id' => $entry->id, 'updated_at' => now(),
+    ])))->toThrow(QueryException::class);
+
+    $tenantB = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
+    $userB = User::query()->where('tenant_id', $tenantB->id)->firstOrFail();
+    $applicationB = app(SubmitKycApplicationAction::class)->execute(
+        $tenantB, $userB, 'MY', 'TOPUP-B-'.$userB->id, kycTestImage('topup-b-front.png'), kycTestImage('topup-b-back.png'),
+    );
+    $reviewerB = AdminUser::query()->where('email', 'owner@b.localhost')->firstOrFail();
+    app(ApproveKycAction::class)->execute($tenantB->id, $applicationB->id, $reviewerB);
+    $walletB = app(ActivateUserWalletAction::class)->execute($tenantB->id, $userB->id)->wallet;
+    $orderB = app(CreateWalletTopupAction::class)->execute(
+        $tenantB->id, $userB->id, $walletB->id, '10', 'USD', (string) Str::uuid(),
+        'http://b.localhost/wallet/top-ups/__ORDER__/return',
+    )->order;
+    expect(fn () => DB::transaction(fn () => DB::table('wallet_topup_orders')->where('id', $orderB->id)->update([
+        'status' => WalletTopupStatus::Credited->value, 'paid_at' => now(), 'credited_at' => now(),
+        'ledger_entry_id' => $entry->id, 'updated_at' => now(),
+    ])))->toThrow(QueryException::class);
+});
+
+it('rejects payment financial identity mutation and duplicate provider mappings', function (): void {
+    $first = createPhaseFiveTopup($this);
+    $second = createPhaseFiveTopup($this, '25.00000000');
+    $firstTransaction = PaymentProviderTransaction::query()->where('wallet_topup_order_id', $first->id)->firstOrFail();
+    $secondTransaction = PaymentProviderTransaction::query()->where('wallet_topup_order_id', $second->id)->firstOrFail();
+    expect(fn () => DB::transaction(fn () => DB::table('wallet_topup_orders')->where('id', $first->id)->update(['amount' => '101.00000000'])))
+        ->toThrow(QueryException::class)
+        ->and(fn () => DB::transaction(fn () => DB::table('wallet_topup_orders')->where('id', $first->id)->update(['asset_code' => 'EUR'])))
+        ->toThrow(QueryException::class)
+        ->and(fn () => DB::transaction(fn () => DB::table('payment_provider_transactions')->where('id', $secondTransaction->id)
+            ->update(['provider_request_id' => $firstTransaction->provider_request_id])))
+        ->toThrow(QueryException::class)
+        ->and(fn () => DB::transaction(fn () => DB::table('payment_provider_transactions')->where('id', $secondTransaction->id)
+            ->update(['provider_transaction_id' => $firstTransaction->provider_transaction_id])))
+        ->toThrow(QueryException::class);
+
+    $event = phaseFiveEvent($this, $first, 'immutable-event');
+    expect(fn () => DB::transaction(fn () => DB::table('payment_provider_events')->where('id', $event->id)->update(['amount' => '99.00000000'])))
+        ->toThrow(QueryException::class);
+});
+
+it('rejects overprecision scientific notation oversized bodies and conflicting resource references', function (): void {
+    $orderA = createPhaseFiveTopup($this);
+    $orderB = createPhaseFiveTopup($this, '25.00000000');
+    expect(fn () => phaseFiveEvent($this, $orderA, 'overprecision', amount: '100.000000001'))->toThrow(DomainException::class)
+        ->and(fn () => phaseFiveEvent($this, $orderA, 'scientific', amount: '1e2'))->toThrow(DomainException::class);
+
+    config(['payment.webhook_max_bytes' => 32]);
+    $body = json_encode(['event_id' => str_repeat('x', 40)], JSON_THROW_ON_ERROR);
+    $request = Request::create('/webhooks/payments/mock', 'POST', [], [], [], [], $body);
+    $request->headers->set('X-Mock-Signature', hash_hmac('sha256', $body, (string) config('payment.mock_webhook_secret')));
+    expect(fn () => app(PersistPaymentProviderEventAction::class)->execute('mock', $request))->toThrow(DomainException::class);
+    config(['payment.webhook_max_bytes' => 65536]);
+
+    $transactionB = PaymentProviderTransaction::query()->where('wallet_topup_order_id', $orderB->id)->firstOrFail();
+    $transactionA = PaymentProviderTransaction::query()->where('wallet_topup_order_id', $orderA->id)->firstOrFail();
+    $conflictBody = json_encode([
+        'event_id' => 'resource-conflict', 'event_type' => 'PAYMENT_SUCCEEDED',
+        'provider_request_id' => $transactionA->provider_request_id,
+        'provider_transaction_id' => $transactionB->provider_transaction_id,
+        'status' => 'SUCCEEDED', 'amount' => '100.00000000', 'asset' => 'USD',
+    ], JSON_THROW_ON_ERROR);
+    $conflictRequest = Request::create('/webhooks/payments/mock', 'POST', [], [], [], [], $conflictBody);
+    $conflictRequest->headers->set('X-Mock-Signature', hash_hmac('sha256', $conflictBody, (string) config('payment.mock_webhook_secret')));
+    $conflict = app(PersistPaymentProviderEventAction::class)->execute('mock', $conflictRequest);
+    app(ProcessPaymentProviderEventAction::class)->execute($this->tenant->id, $conflict->id);
+    expect($conflict->fresh()->processing_status)->toBe(PaymentEventProcessingStatus::RequiresReview)
+        ->and($orderA->fresh()->status)->toBe(WalletTopupStatus::Processing);
+});
+
+it('reconciles the exact top-up accounting path and detects a balanced wrong entry', function (): void {
+    $order = createPhaseFiveTopup($this);
+    DB::table('wallet_topup_orders')->where('id', $order->id)->update([
+        'status' => WalletTopupStatus::Paid->value, 'paid_at' => now(), 'updated_at' => now(),
+    ]);
+    app(CreditWalletTopupAction::class)->execute($this->tenant->id, $order->id);
+    $this->artisan('ledger:reconcile')->assertSuccessful();
+    $this->artisan('payments:reconcile')->assertSuccessful();
+
+    $wrongOrder = createPhaseFiveTopup($this, '25.00000000');
+    $available = LedgerAccount::query()->where('wallet_id', $this->wallet->id)
+        ->where('account_type', LedgerAccountType::UserAvailable->value)->firstOrFail();
+    $wrongClearing = LedgerAccount::query()->where('tenant_id', $this->tenant->id)->whereNull('wallet_id')
+        ->where('account_type', LedgerAccountType::TenantWithdrawalClearing->value)->firstOrFail();
+    $wrongEntry = app(LedgerWriter::class)->post(new LedgerPostingPlan(
+        $this->tenant->id, 'USD', "wallet_topup:{$wrongOrder->id}:credit", 'WALLET_TOPUP_CREDIT',
+        'WALLET_TOPUP_ORDER', $wrongOrder->id, null, [
+            new LedgerPostingInstruction($wrongClearing->id, Money::of('-25', 'USD')),
+            new LedgerPostingInstruction($available->id, Money::of('25', 'USD')),
+        ],
+    ));
+    DB::table('wallet_topup_orders')->where('id', $wrongOrder->id)->update([
+        'status' => WalletTopupStatus::Credited->value, 'paid_at' => now(), 'credited_at' => now(),
+        'ledger_entry_id' => $wrongEntry->id, 'updated_at' => now(),
+    ]);
+    $this->artisan('ledger:reconcile')->assertSuccessful();
+    $this->artisan('payments:reconcile')->assertFailed();
 });

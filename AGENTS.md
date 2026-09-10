@@ -48,6 +48,8 @@ These rules are mandatory for every future change. If a requested feature requir
 - Never retry an UNKNOWN provider request with a new business request id. Query or await a verified webhook using the stable provider request id.
 - Never credit a mismatched amount or asset, and never expose manual mark-paid, mark-credited, force-success, or generic wallet-credit endpoints.
 - Already-paid external settlements continue after later User or Tenant suspension. Every top-up credit uses `wallet_topup:{order_uuid}:credit` as its deterministic Ledger event key.
+- `CREDITED` is an immutable financial fact. Post-credit refunds, chargebacks, reversals, and disputes mark the Provider Event `REQUIRES_REVIEW`; they never overwrite the Order or debit Ledger in Phase 5.
+- Payment initiation recovery must reuse the same Provider request id. Query/webhook transitions are monotonic, and `payments:reconcile` remains read-only while validating each credited Order's exact accounting path.
 
 ## Sensitive data
 

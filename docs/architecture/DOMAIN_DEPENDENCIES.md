@@ -9,6 +9,7 @@ Allowed rules:
 - Payment and Withdrawal actions follow order -> hold -> provider -> settle/release.
 - Payment Application Actions may call the Payment Provider and later build the one fixed top-up posting plan for `LedgerWriter`. Payment Domain models and Payment Provider adapters do not depend on Ledger.
 - Payment Provider is independent from Card Provider. A webhook Controller verifies, normalizes, persists, and dispatches only; it never settles Ledger.
+- Payment state transitions are owned by the Payment Domain policy. Cross-Domain top-up settlement and business-to-Ledger reconciliation live in Application; Ledger remains unaware of Payment.
 
 Forbidden rules:
 

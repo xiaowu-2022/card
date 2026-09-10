@@ -20,6 +20,8 @@ Phase 5 top-up credits use exactly `TENANT_TOPUP_CLEARING -amount` and `USER_AVA
 
 Starting a new top-up requires operational eligibility. Completing an already externally paid settlement must continue after later User, Tenant, or Wallet suspension when the defined accounts remain writable. A missing/unwritable settlement path stays explicit and recoverable; it is not silently refunded or credited. A post-credit refund/chargeback is review-only until a separate business-authorized Ledger workflow exists.
 
+Provider money is accepted only as a plain decimal string that canonicalizes without rounding to the snapshotted eight-place amount. Overprecision and scientific notation are rejected, asset codes are adapter-normalized before comparison, and missing or unknown financial facts never produce credit.
+
 Security Deposit is the USER_SECURITY_DEPOSIT balance, never a separate mutable balance row or persisted qualification flag. Qualification is calculated from the current Ledger balance and current Tenant requirement. Phase 4 displays this state but implements no deposit payment/refund.
 
 V1 has no FX or multi-asset qualification: the Security Deposit asset must equal the Tenant default asset. An unexpected Wallet/requirement mismatch fails closed without cross-asset arithmetic. Changing the required amount changes only real-time qualification and never moves money. Once financial Accounts exist, the default/deposit asset cannot be changed through ordinary settings.

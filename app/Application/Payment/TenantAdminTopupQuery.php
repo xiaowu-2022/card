@@ -16,7 +16,8 @@ final class TenantAdminTopupQuery
     /** @return array<string, mixed> */
     public function detail(string $tenantId, string $orderId): array
     {
-        $order = WalletTopupOrder::query()->where('tenant_id', $tenantId)->whereKey($orderId)->with('providerTransaction')->firstOrFail();
+        $order = WalletTopupOrder::query()->where('tenant_id', $tenantId)->whereKey($orderId)
+            ->with('providerTransaction.events')->firstOrFail();
 
         return ['order' => $this->present($order, true)];
     }
@@ -36,6 +37,15 @@ final class TenantAdminTopupQuery
                 'providerStatus' => $order->providerTransaction?->status->value,
                 'providerReference' => $order->provider_transaction_id,
                 'ledgerEntryId' => $order->ledger_entry_id,
+                'externalPaymentStatus' => $order->providerTransaction?->status->value ?? 'PENDING',
+                'internalCreditStatus' => match ($order->status->value) {
+                    'CREDITED' => 'CREDITED',
+                    'PAID' => 'CREDIT_PENDING',
+                    'REFUNDED' => 'NOT_CREDITED',
+                    default => 'NOT_READY',
+                },
+                'providerException' => $order->providerTransaction?->events
+                    ->contains(fn ($event): bool => $event->processing_status->value === 'REQUIRES_REVIEW') ?? false,
             ];
         }
 

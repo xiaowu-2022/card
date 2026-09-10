@@ -18,11 +18,16 @@ type Order = {
     createdAt: string;
     paidAt: string | null;
     creditedAt: string | null;
+    externalPaymentStatus: string;
+    internalCreditStatus: string;
+    providerException: boolean;
 };
 export default function TopupDetail({ order }: { order: Order }) {
     const rows = [
-        ['Internal order status', order.status],
-        ['Provider transaction status', order.providerStatus ?? 'Pending'],
+        ['External payment status', order.externalPaymentStatus],
+        ['Internal credit status', order.internalCreditStatus],
+        ['Provider event exception', order.providerException ? 'Review required' : 'None'],
+        ['Immutable order status', order.status],
         ['Safe provider reference', order.providerReference ?? '—'],
         ['Ledger entry reference', order.ledgerEntryId ?? '—'],
         ['Created', new Date(order.createdAt).toLocaleString()],

@@ -17,8 +17,10 @@ it('creates exactly the Phase 5 payment tables and their financial constraints',
     $constraints = DB::table('pg_constraint')->whereIn('conname', [
         'topup_status_check', 'topup_asset_check', 'topup_amount_check', 'topup_wallet_owner_fk',
         'payment_transaction_order_fk', 'payment_event_transaction_fk', 'payment_event_processing_check',
+        'topup_financial_state_check',
     ])->pluck('conname');
-    expect($constraints)->toHaveCount(7);
+    expect($constraints)->toHaveCount(8)
+        ->and(Schema::hasColumns('payment_provider_transactions', ['initiation_attempted_at', 'initiation_lease_expires_at']))->toBeTrue();
 });
 
 it('rejects invalid direct payment amounts and states at the database boundary', function (): void {

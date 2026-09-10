@@ -19,6 +19,9 @@ final readonly class NormalizedPaymentEvent
 
     public function isRefund(): bool
     {
-        return str_contains(strtoupper($this->eventType), 'REFUND') || str_contains(strtoupper($this->eventType), 'CHARGEBACK');
+        $type = strtoupper($this->eventType);
+
+        return str_contains($type, 'REFUND') || str_contains($type, 'CHARGEBACK')
+            || str_contains($type, 'REVERSAL') || str_contains($type, 'DISPUTE');
     }
 }

@@ -27,3 +27,19 @@ Queue delivery is at-least-once. Financial effect is exactly-once through databa
 Starting new funding requires ACTIVE Tenant, ACTIVE User, APPROVED KYC, ACTIVE Wallet, enabled Tenant setting, and an available Payment Provider. Completing already-accepted settlement does not re-check User or Tenant ACTIVE state: externally paid money must still be credited after later suspension. An unwritable/missing settlement Account remains operator-visible PAID for recovery; it is never silently refunded or falsely credited.
 
 Refund or chargeback received after CREDITED is persisted and marked `REQUIRES_REVIEW`; Phase 5 never performs an arbitrary debit. No manual mark-paid, mark-credited, balance adjustment, or force-success production endpoint exists.
+
+## Phase 5.1 integrity locks
+
+`CREDITED` is an immutable financial fact: paid time, credited time, and the unique Ledger link are permanent. A verified refund, chargeback, reversal, or dispute after credit leaves the Order and Ledger unchanged and marks only the immutable Provider Event `REQUIRES_REVIEW`. Before credit, a full refund may transition `PAID -> REFUNDED` only while both credit time and Ledger link are null. Refund and credit lock the same Order, so the only race outcomes are REFUNDED without an Entry or CREDITED with exactly one Entry plus a review Event.
+
+Provider and Order transitions use the shared Payment state policy. Pending/processing/unknown evidence never downgrades SUCCEEDED, opposing terminal evidence never uses last-write-wins, and a verified success racing local expiry takes precedence so external money is not lost. Provider request and non-null transaction references are unique within Provider scope. Resolution checks both independently, fails closed on ambiguity, and requires both to identify the same transaction when present.
+
+Signature verification uses exact received bytes before normalized facts are trusted. The immutable raw-body SHA-256 digest is replay/conflict evidence, not authentication. Webhook body and normalized field lengths are bounded. Overprecision, scientific notation, missing amount/asset, unknown asset, or mismatched references cannot produce credit.
+
+Adapters classify a definitive Provider rejection as FAILED and ambiguous transport failures—including connection loss after sending—as UNKNOWN. Application code never converts an arbitrary exception or timeout into definitive failure.
+
+Internal request id and Provider request id are separate idempotency layers even when derived from stable UUIDs. A committed uninitiated transaction is recoverable: initiation claims and commits a short lease before external I/O, records `initiation_attempted_at`, and always reuses the original Provider request id. Every adapter must make repeated initiation with that id resolve the same external resource, covering both pre-call crashes and responses lost after acceptance.
+
+Recovery scans bounded batches, includes stale uninitiated transactions, and is guarded by scheduler overlap protection plus a PostgreSQL advisory lock. It holds no database lock across Provider I/O. Jobs carry explicit Tenant/resource ids, bind the Tenant only for execution, and clear `TenantContext` in `finally`.
+
+`payments:reconcile` is read-only and performs no Provider I/O. Every CREDITED Order must link its same-Tenant/same-asset sealed `WALLET_TOPUP_CREDIT` Entry with deterministic key and Order reference. The Entry must contain exactly `TENANT_TOPUP_CLEARING -amount` and the Order Wallet's `USER_AVAILABLE +amount`; wrong, duplicate, unlinked, and orphan top-up Entries fail reconciliation without repair.

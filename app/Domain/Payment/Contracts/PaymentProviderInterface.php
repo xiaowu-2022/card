@@ -14,6 +14,10 @@ interface PaymentProviderInterface
 
     public function available(): bool;
 
+    /**
+     * Repeating initiation with the same providerRequestId MUST be idempotent and
+     * resolve the same external payment resource. A new semantic request id is forbidden.
+     */
     public function initiatePayment(PaymentInitiationRequest $request): PaymentProviderResult;
 
     public function queryPayment(string $providerRequestId): PaymentProviderResult;

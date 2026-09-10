@@ -89,16 +89,24 @@ final class MockPaymentProvider implements PaymentProviderInterface
         } catch (JsonException) {
             throw new DomainException('PAYMENT_WEBHOOK_INVALID', 'Webhook payload is invalid.');
         }
-        if (! is_array($data) || ! is_string($data['event_id'] ?? null) || strlen($data['event_id']) > 180) {
+        if (! is_array($data) || ! is_string($data['event_id'] ?? null) || $data['event_id'] === '' || strlen($data['event_id']) > 180) {
             throw new DomainException('PAYMENT_WEBHOOK_INVALID', 'Webhook event identity is invalid.');
+        }
+        foreach (['provider_transaction_id', 'provider_request_id'] as $reference) {
+            if (isset($data[$reference]) && (! is_string($data[$reference]) || $data[$reference] === '' || strlen($data[$reference]) > 180)) {
+                throw new DomainException('PAYMENT_WEBHOOK_INVALID', 'Webhook resource identity is invalid.');
+            }
+        }
+        if (isset($data['event_type']) && (! is_string($data['event_type']) || $data['event_type'] === '' || strlen($data['event_type']) > 80)) {
+            throw new DomainException('PAYMENT_WEBHOOK_INVALID', 'Webhook event type is invalid.');
         }
         $status = isset($data['status']) ? PaymentProviderTransactionStatus::tryFrom((string) $data['status']) : null;
 
         return new NormalizedPaymentEvent(
             $data['event_id'],
-            substr((string) ($data['event_type'] ?? 'PAYMENT_UPDATED'), 0, 80),
-            isset($data['provider_transaction_id']) ? substr((string) $data['provider_transaction_id'], 0, 180) : null,
-            isset($data['provider_request_id']) ? substr((string) $data['provider_request_id'], 0, 180) : null,
+            (string) ($data['event_type'] ?? 'PAYMENT_UPDATED'),
+            $data['provider_transaction_id'] ?? null,
+            $data['provider_request_id'] ?? null,
             $status,
             isset($data['amount']) && is_string($data['amount']) ? $data['amount'] : null,
             isset($data['asset']) && is_string($data['asset']) ? strtoupper($data['asset']) : null,

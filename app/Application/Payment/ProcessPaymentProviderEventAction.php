@@ -8,11 +8,14 @@ use App\Domain\Payment\Enums\WalletTopupStatus;
 use App\Domain\Payment\Models\PaymentProviderEvent;
 use App\Domain\Payment\Models\PaymentProviderTransaction;
 use App\Domain\Payment\Models\WalletTopupOrder;
+use App\Domain\Payment\Services\PaymentStateTransitionPolicy;
 use App\Jobs\CreditWalletTopupJob;
 use Illuminate\Support\Facades\DB;
 
 final readonly class ProcessPaymentProviderEventAction
 {
+    public function __construct(private PaymentStateTransitionPolicy $transitions) {}
+
     public function execute(string $tenantId, string $eventId): void
     {
         $shouldCredit = DB::transaction(function () use ($tenantId, $eventId): bool {
@@ -25,16 +28,26 @@ final readonly class ProcessPaymentProviderEventAction
             $transaction = PaymentProviderTransaction::query()->where('tenant_id', $tenantId)->whereKey($event->payment_provider_transaction_id)->lockForUpdate()->firstOrFail();
             $order = WalletTopupOrder::query()->where('tenant_id', $tenantId)->whereKey($transaction->wallet_topup_order_id)->lockForUpdate()->firstOrFail();
 
+            if (($event->provider_request_id !== null && ! hash_equals($transaction->provider_request_id, $event->provider_request_id))
+                || ($event->provider_transaction_id !== null && $transaction->provider_transaction_id !== null
+                    && ! hash_equals($transaction->provider_transaction_id, $event->provider_transaction_id))) {
+                $event->processing_status = PaymentEventProcessingStatus::RequiresReview;
+                $event->processed_at = now();
+                $event->save();
+
+                return false;
+            }
+
             if ($event->isRefundLike()) {
-                if ($order->status !== WalletTopupStatus::Credited) {
+                if ($order->status === WalletTopupStatus::Paid && $order->ledger_entry_id === null && $order->credited_at === null) {
                     $transaction->status = PaymentProviderTransactionStatus::Failed;
                     $transaction->save();
                     $order->status = WalletTopupStatus::Refunded;
                     $order->save();
+                    $event->processing_status = PaymentEventProcessingStatus::Processed;
+                } else {
+                    $event->processing_status = PaymentEventProcessingStatus::RequiresReview;
                 }
-                $event->processing_status = $order->status === WalletTopupStatus::Credited
-                    ? PaymentEventProcessingStatus::RequiresReview
-                    : PaymentEventProcessingStatus::Processed;
                 $event->processed_at = now();
                 $event->save();
 
@@ -73,14 +86,16 @@ final readonly class ProcessPaymentProviderEventAction
                 return false;
             }
             if ($status === PaymentProviderTransactionStatus::Succeeded) {
-                if (in_array($order->status, [WalletTopupStatus::Failed, WalletTopupStatus::Cancelled, WalletTopupStatus::Expired], true)) {
+                $decision = $this->transitions->providerTransition($transaction->status, $status);
+                $expiredSuccess = $order->status === WalletTopupStatus::Expired;
+                if (($decision === 'CONFLICT' && ! $expiredSuccess) || ! $this->transitions->orderMayTransition($order->status, WalletTopupStatus::Paid)) {
                     $event->processing_status = PaymentEventProcessingStatus::RequiresReview;
                     $event->processed_at = now();
                     $event->save();
 
                     return false;
                 }
-                $transaction->status = PaymentProviderTransactionStatus::Succeeded;
+                $transaction->status = $status;
                 $transaction->provider_transaction_id ??= $event->provider_transaction_id;
                 $transaction->save();
                 if (! in_array($order->status, [WalletTopupStatus::Paid, WalletTopupStatus::Credited], true)) {
@@ -90,21 +105,34 @@ final readonly class ProcessPaymentProviderEventAction
                     $order->save();
                 }
             } elseif (in_array($status, [PaymentProviderTransactionStatus::Pending, PaymentProviderTransactionStatus::Processing, PaymentProviderTransactionStatus::Unknown], true)) {
-                if (! in_array($order->status, [WalletTopupStatus::Paid, WalletTopupStatus::Credited], true)) {
-                    $transaction->status = $status;
-                    $transaction->save();
-                    $order->status = WalletTopupStatus::Processing;
-                    $order->save();
-                }
-            } elseif ($status === PaymentProviderTransactionStatus::Failed) {
-                if (in_array($order->status, [WalletTopupStatus::Paid, WalletTopupStatus::Credited], true)) {
+                $decision = $this->transitions->providerTransition($transaction->status, $status);
+                if ($decision === 'CONFLICT') {
                     $event->processing_status = PaymentEventProcessingStatus::RequiresReview;
                     $event->processed_at = now();
                     $event->save();
 
                     return false;
                 }
-                $transaction->status = PaymentProviderTransactionStatus::Failed;
+                if (! in_array($order->status, [WalletTopupStatus::Paid, WalletTopupStatus::Credited], true)) {
+                    if ($decision === 'APPLY') {
+                        $transaction->status = $status;
+                        $transaction->save();
+                    }
+                    if ($this->transitions->orderMayTransition($order->status, WalletTopupStatus::Processing)) {
+                        $order->status = WalletTopupStatus::Processing;
+                        $order->save();
+                    }
+                }
+            } elseif ($status === PaymentProviderTransactionStatus::Failed) {
+                $decision = $this->transitions->providerTransition($transaction->status, $status);
+                if ($decision === 'CONFLICT' || ! $this->transitions->orderMayTransition($order->status, WalletTopupStatus::Failed)) {
+                    $event->processing_status = PaymentEventProcessingStatus::RequiresReview;
+                    $event->processed_at = now();
+                    $event->save();
+
+                    return false;
+                }
+                $transaction->status = $status;
                 $transaction->save();
                 $order->status = WalletTopupStatus::Failed;
                 $order->failed_at = now();

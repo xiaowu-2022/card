@@ -3,6 +3,8 @@
 namespace App\Jobs;
 
 use App\Application\Payment\CreditWalletTopupAction;
+use App\Domain\Tenant\Models\Tenant;
+use App\Domain\Tenant\TenantContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -17,8 +19,13 @@ final class CreditWalletTopupJob implements ShouldQueue
 
     public function __construct(public readonly string $tenantId, public readonly string $orderId) {}
 
-    public function handle(CreditWalletTopupAction $action): void
+    public function handle(CreditWalletTopupAction $action, TenantContext $context): void
     {
-        $action->execute($this->tenantId, $this->orderId);
+        $context->set(Tenant::query()->whereKey($this->tenantId)->firstOrFail());
+        try {
+            $action->execute($this->tenantId, $this->orderId);
+        } finally {
+            $context->clear();
+        }
     }
 }

@@ -5,6 +5,8 @@ namespace App\Jobs;
 use App\Application\Payment\ProcessPaymentProviderEventAction;
 use App\Domain\Payment\Enums\PaymentEventProcessingStatus;
 use App\Domain\Payment\Models\PaymentProviderEvent;
+use App\Domain\Tenant\Models\Tenant;
+use App\Domain\Tenant\TenantContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -20,9 +22,14 @@ final class ProcessPaymentProviderEventJob implements ShouldQueue
 
     public function __construct(public readonly string $tenantId, public readonly string $eventId) {}
 
-    public function handle(ProcessPaymentProviderEventAction $action): void
+    public function handle(ProcessPaymentProviderEventAction $action, TenantContext $context): void
     {
-        $action->execute($this->tenantId, $this->eventId);
+        $context->set(Tenant::query()->whereKey($this->tenantId)->firstOrFail());
+        try {
+            $action->execute($this->tenantId, $this->eventId);
+        } finally {
+            $context->clear();
+        }
     }
 
     public function failed(?Throwable $exception): void

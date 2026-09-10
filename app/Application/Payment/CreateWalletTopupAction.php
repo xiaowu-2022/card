@@ -8,11 +8,8 @@ use App\Domain\Kyc\Enums\KycUserStatus;
 use App\Domain\Kyc\Services\KycStatusService;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Payment\Contracts\PaymentProviderInterface;
-use App\Domain\Payment\DTOs\PaymentInitiationRequest;
 use App\Domain\Payment\Enums\PaymentProviderTransactionStatus;
 use App\Domain\Payment\Enums\WalletTopupStatus;
-use App\Domain\Payment\Exceptions\PaymentProviderTimeoutException;
-use App\Domain\Payment\Models\PaymentProviderTransaction;
 use App\Domain\Payment\Models\WalletTopupOrder;
 use App\Domain\Tenant\Enums\TenantStatus;
 use App\Domain\Tenant\Models\Tenant;
@@ -20,13 +17,11 @@ use App\Domain\User\Enums\UserStatus;
 use App\Domain\User\Models\User;
 use App\Domain\Wallet\Enums\WalletStatus;
 use App\Domain\Wallet\Models\Wallet;
-use App\Jobs\QueryPaymentStatusJob;
 use App\Support\Errors\DomainException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
-use Throwable;
 
 final readonly class CreateWalletTopupAction
 {
@@ -34,6 +29,7 @@ final readonly class CreateWalletTopupAction
         private PaymentProviderInterface $provider,
         private KycStatusService $kycStatus,
         private AuditLogger $audit,
+        private InitiateWalletTopupPaymentAction $initiatePayment,
     ) {}
 
     public function execute(string $tenantId, string $userId, string $walletId, mixed $amount, string $assetCode, string $requestId, string $returnUrl, ?string $auditRequestId = null): CreatedWalletTopup
@@ -126,49 +122,9 @@ final readonly class CreateWalletTopupAction
             return new CreatedWalletTopup($order, null, false);
         }
 
-        try {
-            $result = $this->provider->initiatePayment(new PaymentInitiationRequest(
-                $tenantId, $order->id, $order->id, $order->amount, $order->asset_code, str_replace('__ORDER__', $order->id, $returnUrl),
-            ));
-            $checkoutUrl = $this->validateCheckoutUrl($result->checkoutUrl);
-            DB::transaction(function () use ($tenantId, $order, $result): void {
-                $locked = WalletTopupOrder::query()->where('tenant_id', $tenantId)->whereKey($order->id)->lockForUpdate()->firstOrFail();
-                $transaction = PaymentProviderTransaction::query()->where('tenant_id', $tenantId)->where('wallet_topup_order_id', $locked->id)->lockForUpdate()->firstOrFail();
-                $transaction->provider_transaction_id = $result->providerTransactionId;
-                $transaction->status = $result->status;
-                $transaction->save();
-                $locked->provider_transaction_id = $result->providerTransactionId;
-                $locked->status = $result->status === PaymentProviderTransactionStatus::Failed ? WalletTopupStatus::Failed : WalletTopupStatus::Processing;
-                $locked->failed_at = $result->status === PaymentProviderTransactionStatus::Failed ? now() : null;
-                $locked->save();
-            }, 3);
-            if (in_array($result->status, [PaymentProviderTransactionStatus::Succeeded, PaymentProviderTransactionStatus::Unknown], true)) {
-                $transactionId = PaymentProviderTransaction::query()->where('tenant_id', $tenantId)->where('wallet_topup_order_id', $order->id)->value('id');
-                QueryPaymentStatusJob::dispatch($tenantId, $transactionId);
-            }
-        } catch (PaymentProviderTimeoutException) {
-            $checkoutUrl = null;
-            $this->markUnknown($tenantId, $order->id);
-        } catch (DomainException $exception) {
-            throw $exception;
-        } catch (Throwable) {
-            $checkoutUrl = null;
-            $this->markUnknown($tenantId, $order->id);
-        }
+        $checkoutUrl = $this->initiatePayment->execute($tenantId, $order->id, $returnUrl);
 
         return new CreatedWalletTopup($order->fresh(), $checkoutUrl, true);
-    }
-
-    private function markUnknown(string $tenantId, string $orderId): void
-    {
-        DB::transaction(function () use ($tenantId, $orderId): void {
-            $order = WalletTopupOrder::query()->where('tenant_id', $tenantId)->whereKey($orderId)->lockForUpdate()->firstOrFail();
-            $transaction = PaymentProviderTransaction::query()->where('tenant_id', $tenantId)->where('wallet_topup_order_id', $orderId)->lockForUpdate()->firstOrFail();
-            $transaction->status = PaymentProviderTransactionStatus::Unknown;
-            $transaction->save();
-            $order->status = WalletTopupStatus::Processing;
-            $order->save();
-        }, 3);
     }
 
     private function requestHash(string $tenantId, string $userId, string $walletId, string $amount, string $asset): string
@@ -184,18 +140,5 @@ final readonly class CreateWalletTopupAction
         $words = unpack('Nhigh/Nlow', substr(hash('sha256', "topup-request-v1\0{$tenantId}\0{$requestId}", true), 0, 8));
 
         return ($words['high'] << 32) | $words['low'];
-    }
-
-    private function validateCheckoutUrl(?string $url): ?string
-    {
-        if ($url === null) {
-            return null;
-        }
-        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
-        if (! in_array($scheme, app()->environment(['local', 'testing']) ? ['http', 'https'] : ['https'], true)) {
-            throw new DomainException('PAYMENT_REDIRECT_INVALID', 'Payment destination is invalid.', 502);
-        }
-
-        return $url;
     }
 }
