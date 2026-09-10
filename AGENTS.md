@@ -34,6 +34,9 @@ These rules are mandatory for every future change. If a requested feature requir
 - Reconciliation reports posting/cache mismatches and must never silently repair them.
 - Money must use decimal strings and `NUMERIC(20,8)`; never float/double/real or JavaScript numbers.
 - Every future money-changing request must be idempotent. Persist intent and hold, commit, call external providers, then settle/release in a new transaction.
+- Never accept a client-selected Security Deposit amount, asset, Wallet, User, or Tenant. Funding transfers exactly the current server-calculated remaining requirement.
+- Never mutate `USER_SECURITY_DEPOSIT` outside `LedgerWriter`, create a separate Deposit balance table, or automatically refund excess after a requirement decrease.
+- Tenant and Platform administrators cannot fund, adjust, release, or refund Security Deposit. Refund remains forbidden until the Card cancellation and Provider balance-check workflow exists.
 
 ## Provider safety
 
@@ -104,4 +107,4 @@ These rules are mandatory for every future change. If a requested feature requir
 
 ## Phase boundaries
 
-Phase 5 adds Wallet Top-up Orders, a separate Payment Provider boundary, signed minimal Webhook Events, PAID/CREDITED separation, idempotent Ledger settlement, and recovery. It does not contain withdrawals, deposit payment/refund, card issue/load, products, real providers, agents, commissions, manual adjustments, or billing.
+Phase 6 adds only synchronous, exact-remaining Security Deposit funding through LedgerWriter. It does not contain deposit refund/release, withdrawals, card issue/load, products, real providers, agents, commissions, manual adjustments, or billing.

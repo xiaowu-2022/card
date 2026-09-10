@@ -36,6 +36,8 @@ type Props = {
         postedAt: string;
     }>;
     topupAvailable?: boolean;
+    depositFundingAvailable?: boolean;
+    depositHasEnoughAvailable?: boolean;
 };
 
 function InactiveWallet({ eligibility }: { eligibility: Eligibility }) {
@@ -86,16 +88,31 @@ function InactiveWallet({ eligibility }: { eligibility: Eligibility }) {
     );
 }
 
-export default function Wallet({ eligibility, activity, topupAvailable = false }: Props) {
+export default function Wallet({
+    eligibility,
+    activity,
+    topupAvailable = false,
+    depositFundingAvailable = false,
+    depositHasEnoughAvailable = false,
+}: Props) {
     const activated = eligibility.wallet !== null && eligibility.available !== null;
     const activityItems = activity.map((entry) => ({
         id: entry.id,
-        title: entry.eventType === 'WALLET_TOPUP_CREDIT' ? 'Wallet top up' : 'Wallet activity',
+        title:
+            entry.eventType === 'WALLET_TOPUP_CREDIT'
+                ? 'Wallet top up'
+                : entry.eventType === 'SECURITY_DEPOSIT_FUND'
+                  ? 'Security deposit'
+                  : 'Wallet activity',
         postedAt: entry.postedAt,
         asset: entry.asset,
         amount: entry.amount,
         direction:
-            entry.eventType === 'WALLET_TOPUP_CREDIT' ? ('CREDIT' as const) : ('NEUTRAL' as const),
+            entry.eventType === 'WALLET_TOPUP_CREDIT'
+                ? ('CREDIT' as const)
+                : entry.eventType === 'SECURITY_DEPOSIT_FUND'
+                  ? ('DEBIT' as const)
+                  : ('NEUTRAL' as const),
     }));
 
     return (
@@ -148,6 +165,21 @@ export default function Wallet({ eligibility, activity, topupAvailable = false }
                                         </>
                                     )}
                                 </p>
+                                {depositFundingAvailable ? (
+                                    <Button asChild className="mt-5 w-full sm:w-auto">
+                                        <Link
+                                            href={
+                                                depositHasEnoughAvailable
+                                                    ? '/security-deposit'
+                                                    : '/wallet/top-up'
+                                            }
+                                        >
+                                            {depositHasEnoughAvailable
+                                                ? 'Pay security deposit'
+                                                : 'Top up wallet'}
+                                        </Link>
+                                    </Button>
+                                ) : null}
                             </div>
                         </UserSection>
                         <UserSection title="Recent activity">

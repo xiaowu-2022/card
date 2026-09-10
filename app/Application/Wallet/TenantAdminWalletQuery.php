@@ -6,6 +6,7 @@ use App\Domain\Ledger\Enums\LedgerAccountType;
 use App\Domain\Ledger\Models\LedgerAccount;
 use App\Domain\Ledger\Models\LedgerEntry;
 use App\Domain\Ledger\ValueObjects\Money;
+use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use App\Domain\Wallet\Models\Wallet;
 
@@ -26,11 +27,21 @@ final class TenantAdminWalletQuery
         ];
         $hold = collect([LedgerAccountType::UserWithdrawalHold, LedgerAccountType::UserCardIssueHold, LedgerAccountType::UserCardFundingHold])
             ->reduce(fn (Money $sum, LedgerAccountType $type): Money => $sum->add(Money::of($accounts->get($type->value)?->balance ?? '0', $wallet->asset_code)), Money::of('0', $wallet->asset_code));
+        $settings = Tenant::query()->whereKey($tenantId)->with('businessSettings')->firstOrFail()->businessSettings;
+        $required = Money::of($settings->required_security_deposit_amount, $settings->required_security_deposit_asset);
+        $current = Money::of($accounts->get(LedgerAccountType::UserSecurityDeposit->value)?->balance ?? '0', $wallet->asset_code);
+        $remaining = $required->subtract($current);
+        if ($remaining->isNegative()) {
+            $remaining = Money::of('0', $wallet->asset_code);
+        }
 
         return ['wallet' => [
             'id' => $wallet->id, 'status' => $wallet->status->value, 'asset' => $wallet->asset_code,
             'available' => $amount(LedgerAccountType::UserAvailable),
             'securityDeposit' => $amount(LedgerAccountType::UserSecurityDeposit),
+            'securityDepositRequired' => $required->jsonSerialize(),
+            'securityDepositRemaining' => $remaining->jsonSerialize(),
+            'securityDepositSatisfied' => $current->compare($required) >= 0,
             'holdTotal' => $hold->jsonSerialize(),
             'createdAt' => $wallet->created_at->toIso8601String(),
         ]];

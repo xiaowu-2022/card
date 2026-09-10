@@ -94,5 +94,11 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute((int) config('payment.topup_rate_limit_per_minute'))->by("{$tenantId}:{$userId}");
         });
+        RateLimiter::for('security-deposit-funding', function (): Limit {
+            $tenantId = app(TenantContext::class)->hasTenant() ? app(TenantContext::class)->id() : 'unknown';
+            $userId = Auth::guard('tenant_user')->id() ?? 'guest';
+
+            return Limit::perMinute((int) config('security-deposit.funding_rate_limit_per_minute'))->by("{$tenantId}:{$userId}");
+        });
     }
 }

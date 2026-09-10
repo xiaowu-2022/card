@@ -6,13 +6,21 @@ import { UserLayout } from '@/layouts/UserLayout';
 import type { MoneyAmount } from '@/types/global';
 
 type KycStatus = 'NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESUBMISSION_REQUIRED';
+type WalletState = {
+    status: string;
+    available: { amount: MoneyAmount; asset: string };
+    depositSatisfied: boolean;
+    depositRemaining: { amount: MoneyAmount; asset: string };
+    depositHasEnoughAvailable: boolean;
+    topupAvailable: boolean;
+};
 type Props = {
     account: { displayName: string | null; status: string; verifiedChannel: string } | null;
     kycStatus: KycStatus;
-    wallet: { status: string; available: { amount: MoneyAmount; asset: string } } | null;
+    wallet: WalletState | null;
 };
 
-function NextStep({ kycStatus, hasWallet }: { kycStatus: KycStatus; hasWallet: boolean }) {
+function NextStep({ kycStatus, wallet }: { kycStatus: KycStatus; wallet: WalletState | null }) {
     if (kycStatus === 'NOT_SUBMITTED') {
         return (
             <UserStatusBanner
@@ -50,13 +58,30 @@ function NextStep({ kycStatus, hasWallet }: { kycStatus: KycStatus; hasWallet: b
             />
         );
     }
-    if (!hasWallet) {
+    if (!wallet) {
         return (
             <UserStatusBanner
                 tone="success"
                 title="Your identity is verified"
                 description="Activate your wallet to continue."
                 action={{ label: 'Activate wallet', href: '/wallet' }}
+            />
+        );
+    }
+    if (!wallet.depositSatisfied) {
+        const canPay = wallet.depositHasEnoughAvailable;
+        return (
+            <UserStatusBanner
+                tone="warning"
+                title="Complete your security deposit"
+                description={`${wallet.depositRemaining.amount} ${wallet.depositRemaining.asset} remaining`}
+                action={
+                    canPay
+                        ? { label: 'Pay security deposit', href: '/security-deposit' }
+                        : wallet.topupAvailable
+                          ? { label: 'Top up wallet', href: '/wallet/top-up' }
+                          : undefined
+                }
             />
         );
     }
@@ -85,7 +110,7 @@ export default function Dashboard({ account, kycStatus, wallet }: Props) {
                         asset={wallet.available.asset}
                     />
                 ) : null}
-                <NextStep kycStatus={kycStatus} hasWallet={wallet !== null} />
+                <NextStep kycStatus={kycStatus} wallet={wallet} />
             </div>
         </UserLayout>
     );

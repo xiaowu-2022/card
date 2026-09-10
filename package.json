@@ -9,7 +9,8 @@
     "lint": "eslint resources/js --max-warnings=0",
     "format": "prettier --write resources/js resources/css",
     "format:check": "prettier --check resources/js resources/css",
-    "test:browser:phase5": "node tests/Browser/phase-five-responsive.mjs"
+    "test:browser:phase5": "node tests/Browser/phase-five-responsive.mjs",
+    "test:browser:phase6": "node tests/Browser/phase-six-responsive.mjs"
   },
   "dependencies": {
     "@inertiajs/react": "^3.7.0",

@@ -15,6 +15,9 @@ type Wallet = {
     asset: string;
     available: Money;
     securityDeposit: Money;
+    securityDepositRequired: Money;
+    securityDepositRemaining: Money;
+    securityDepositSatisfied: boolean;
     holdTotal: Money;
     createdAt: string;
 };
@@ -46,10 +49,12 @@ export default function UserWallet({ userId, wallet }: { userId: string; wallet:
                                     />
                                 </div>
                             </CardHeader>
-                            <CardContent className="grid gap-4 sm:grid-cols-3">
+                            <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                                 {[
                                     ['Available', wallet.available],
-                                    ['Security deposit', wallet.securityDeposit],
+                                    ['Current deposit', wallet.securityDeposit],
+                                    ['Required deposit', wallet.securityDepositRequired],
+                                    ['Remaining deposit', wallet.securityDepositRemaining],
                                     ['Holds', wallet.holdTotal],
                                 ].map(([label, value]) => (
                                     <div key={label as string} className="rounded-lg border p-4">
@@ -61,6 +66,23 @@ export default function UserWallet({ userId, wallet }: { userId: string; wallet:
                                         </p>
                                     </div>
                                 ))}
+                                <div className="rounded-lg border p-4">
+                                    <p className="text-sm text-muted-foreground">Deposit status</p>
+                                    <div className="mt-2">
+                                        <StatusBadge
+                                            status={
+                                                wallet.securityDepositSatisfied
+                                                    ? 'SUCCESS'
+                                                    : 'WARNING'
+                                            }
+                                            label={
+                                                wallet.securityDepositSatisfied
+                                                    ? 'Satisfied'
+                                                    : 'Required'
+                                            }
+                                        />
+                                    </div>
+                                </div>
                             </CardContent>
                         </Card>
                         <p className="text-sm text-muted-foreground">

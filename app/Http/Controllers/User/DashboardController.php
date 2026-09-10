@@ -18,7 +18,8 @@ final class DashboardController extends Controller
         /** @var User|null $user */
         $user = Auth::guard('tenant_user')->user();
 
-        $walletData = $user ? $wallets->get($context->id(), $user->id)['eligibility'] : null;
+        $walletResult = $user ? $wallets->get($context->id(), $user->id) : null;
+        $walletData = $walletResult['eligibility'] ?? null;
 
         return Inertia::render('user/Dashboard', [
             'account' => $user ? [
@@ -30,6 +31,10 @@ final class DashboardController extends Controller
             'wallet' => $walletData && $walletData['wallet'] ? [
                 'status' => $walletData['wallet']['status'],
                 'available' => $walletData['available'],
+                'depositSatisfied' => $walletData['depositSatisfied'],
+                'depositRemaining' => $walletData['depositRemaining'],
+                'depositHasEnoughAvailable' => $walletResult['depositHasEnoughAvailable'],
+                'topupAvailable' => $walletResult['topupAvailable'],
             ] : null,
         ]);
     }

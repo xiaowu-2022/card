@@ -8,6 +8,7 @@ use App\Http\Controllers\User\DemoWalletController;
 use App\Http\Controllers\User\KycController;
 use App\Http\Controllers\User\MockPaymentController;
 use App\Http\Controllers\User\RegistrationController;
+use App\Http\Controllers\User\SecurityDepositController;
 use App\Http\Controllers\User\UserAuthController;
 use App\Http\Controllers\User\WalletController;
 use App\Http\Controllers\User\WalletTopupController;
@@ -53,6 +54,9 @@ Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operat
     Route::post('/kyc/applications', [KycController::class, 'store'])->name('user.kyc.applications.store');
     Route::post('/wallet/activate', [WalletController::class, 'activate'])->name('user.wallet.activate');
     Route::post('/wallet/top-ups', [WalletTopupController::class, 'store'])->middleware('throttle:wallet-topups')->name('user.topups.store');
+    Route::get('/security-deposit', [SecurityDepositController::class, 'show'])->name('user.security-deposit.show');
+    Route::post('/security-deposit/fund', [SecurityDepositController::class, 'fund'])->middleware('throttle:security-deposit-funding')->name('user.security-deposit.fund');
+    Route::get('/security-deposit/success', [SecurityDepositController::class, 'success'])->name('user.security-deposit.success');
 
     if (app()->environment(['local', 'testing'])) {
         Route::get('/__mock/payments/{providerRequest}', [MockPaymentController::class, 'show'])->whereUuid('providerRequest')->name('mock-payments.show');
