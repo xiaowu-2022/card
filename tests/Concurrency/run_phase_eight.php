@@ -117,6 +117,24 @@ $crossTenantAmounts = WalletTopupOrder::query()->where('status', WalletTopupStat
 
 DB::table('wallet_topup_orders')->where('status', WalletTopupStatus::Pending->value)
     ->update(['status' => WalletTopupStatus::Cancelled->value, 'cancelled_at' => now(), 'updated_at' => now()]);
+$unknownOrder = $create($tenantA->id, $userA1->id)->order;
+DB::table('wallet_topup_orders')->where('id', $unknownOrder->id)
+    ->update(['status' => WalletTopupStatus::Unknown->value, 'updated_at' => now()]);
+$reviewOrder = $create($tenantA->id, $userA1->id)->order;
+DB::table('wallet_topup_orders')->where('id', $reviewOrder->id)
+    ->update(['status' => WalletTopupStatus::RequiresReview->value, 'updated_at' => now()]);
+$unresolvedReservedAmounts = collect([$unknownOrder->expected_amount, $reviewOrder->expected_amount]);
+$unresolvedReservationAllocation = $parallel([
+    fn () => $create($tenantA->id, $userA1->id),
+    fn () => $create($tenantB->id, $userB->id),
+]);
+$unresolvedConcurrentAmounts = WalletTopupOrder::query()->where('status', WalletTopupStatus::Pending->value)->pluck('expected_amount');
+
+DB::table('wallet_topup_orders')->whereIn('status', [
+    WalletTopupStatus::Pending->value,
+    WalletTopupStatus::Unknown->value,
+    WalletTopupStatus::RequiresReview->value,
+])->update(['status' => WalletTopupStatus::Cancelled->value, 'cancelled_at' => now(), 'updated_at' => now()]);
 $scanOrder = $create($tenantA->id, $userA1->id)->order;
 $scanTransfer = new IncomingBlockchainTransfer(
     'TRON', hash('sha256', 'phase-eight-concurrent-scan'), 0, $scanOrder->token_contract,
@@ -142,8 +160,11 @@ CarbonImmutable::setTestNow();
 
 $scanEntries = LedgerEntry::query()->where('event_key', "wallet_topup:{$scanOrder->id}:credit")->count();
 $expiryEntries = LedgerEntry::query()->where('event_key', "wallet_topup:{$expiryOrder->id}:credit")->count();
-$valid = $sameTenant === [0, 0] && $crossTenant === [0, 0] && $duplicateScan === [0, 0] && $expiryVsDetection === [0, 0]
+$valid = $sameTenant === [0, 0] && $crossTenant === [0, 0] && $unresolvedReservationAllocation === [0, 0]
+    && $duplicateScan === [0, 0] && $expiryVsDetection === [0, 0]
     && $sameTenantAmounts->unique()->count() === 2 && $crossTenantAmounts->unique()->count() === 2
+    && $unresolvedConcurrentAmounts->unique()->count() === 2
+    && $unresolvedConcurrentAmounts->intersect($unresolvedReservedAmounts)->isEmpty()
     && $scanOrder->fresh()->status === WalletTopupStatus::Credited && $scanEntries === 1
     && $expiryOrder->fresh()->status === WalletTopupStatus::Credited && $expiryEntries === 1
     && app(LedgerReconciliationService::class)->mismatches() === [];
@@ -153,6 +174,9 @@ echo json_encode([
     'same_tenant_unique_amounts' => $sameTenantAmounts->unique()->count(),
     'cross_tenant_allocation_children' => $crossTenant,
     'cross_tenant_unique_amounts' => $crossTenantAmounts->unique()->count(),
+    'unresolved_reservation_children' => $unresolvedReservationAllocation,
+    'unresolved_reservation_unique_amounts' => $unresolvedConcurrentAmounts->unique()->count(),
+    'unresolved_reservation_bypasses' => $unresolvedConcurrentAmounts->intersect($unresolvedReservedAmounts)->count(),
     'duplicate_scan_children' => $duplicateScan,
     'duplicate_scan_ledger_entries' => $scanEntries,
     'expiry_vs_detection_children' => $expiryVsDetection,

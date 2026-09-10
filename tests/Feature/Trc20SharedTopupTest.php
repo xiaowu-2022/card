@@ -170,6 +170,52 @@ it('prevents active expected-amount collisions between different requested bases
         ->and($differentBase->expected_amount)->toBe('100.52000000');
 });
 
+it('keeps unresolved expected amounts reserved in both allocation and PostgreSQL', function (WalletTopupStatus $status): void {
+    $reserved = createTrc20Topup($this);
+    DB::table('wallet_topup_orders')->where('id', $reserved->id)->update([
+        'status' => $status->value,
+        'updated_at' => now(),
+    ]);
+
+    $next = createTrc20Topup($this);
+    expect($next->expected_amount)->not->toBe($reserved->expected_amount);
+
+    $duplicate = $reserved->getAttributes();
+    $duplicate['id'] = (string) Str::uuid();
+    $duplicate['request_id'] = (string) Str::uuid();
+    $duplicate['request_hash'] = str_repeat('b', 64);
+    $duplicate['status'] = WalletTopupStatus::Pending->value;
+    $duplicate['created_at'] = now();
+    $duplicate['updated_at'] = now();
+    expect(fn () => DB::table('wallet_topup_orders')->insert($duplicate))->toThrow(QueryException::class);
+})->with([
+    'UNKNOWN' => WalletTopupStatus::Unknown,
+    'REQUIRES_REVIEW' => WalletTopupStatus::RequiresReview,
+]);
+
+it('releases an unresolved amount only after it becomes definitively closed', function (): void {
+    $orders = collect();
+    foreach (range(1, 99) as $_) {
+        $orders->push(createTrc20Topup($this));
+    }
+    $reserved = $orders->first();
+    DB::table('wallet_topup_orders')->where('id', $reserved->id)->update([
+        'status' => WalletTopupStatus::Unknown->value,
+        'updated_at' => now(),
+    ]);
+
+    expect(fn () => createTrc20Topup($this))->toThrow(DomainException::class);
+
+    DB::table('wallet_topup_orders')->where('id', $reserved->id)->update([
+        'status' => WalletTopupStatus::Failed->value,
+        'failed_at' => now(),
+        'updated_at' => now(),
+    ]);
+    $reused = createTrc20Topup($this);
+
+    expect($reused->expected_amount)->toBe($reserved->expected_amount);
+});
+
 it('releases a CREDITED suffix while preferring all still-unused eligible slots', function (): void {
     $orders = collect();
     foreach (range(1, 99) as $_) {

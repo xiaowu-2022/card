@@ -6,6 +6,8 @@ enum WalletTopupStatus: string
 {
     case Pending = 'PENDING';
     case Processing = 'PROCESSING';
+    case Unknown = 'UNKNOWN';
+    case RequiresReview = 'REQUIRES_REVIEW';
     case Paid = 'PAID';
     case Credited = 'CREDITED';
     case Failed = 'FAILED';

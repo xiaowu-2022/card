@@ -29,7 +29,7 @@ final readonly class CreateTrc20WalletTopupAction
     private const PROVIDER = 'trc20-shared';
 
     /** @var list<string> */
-    private const RESERVED_STATUSES = ['PENDING', 'PROCESSING', 'PAID'];
+    private const RESERVED_STATUSES = ['PENDING', 'PROCESSING', 'UNKNOWN', 'PAID', 'REQUIRES_REVIEW'];
 
     public function __construct(
         private BlockchainGatewayInterface $gateway,

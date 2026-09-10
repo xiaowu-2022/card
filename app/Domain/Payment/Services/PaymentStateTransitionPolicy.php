@@ -40,7 +40,8 @@ final class PaymentStateTransitionPolicy
             WalletTopupStatus::Paid => in_array($incoming, [WalletTopupStatus::Credited, WalletTopupStatus::Refunded], true),
             WalletTopupStatus::Expired => $incoming === WalletTopupStatus::Paid,
             WalletTopupStatus::Failed, WalletTopupStatus::Cancelled => false,
-            WalletTopupStatus::Pending, WalletTopupStatus::Processing => $incoming !== WalletTopupStatus::Credited,
+            WalletTopupStatus::Pending, WalletTopupStatus::Processing,
+            WalletTopupStatus::Unknown, WalletTopupStatus::RequiresReview => $incoming !== WalletTopupStatus::Credited,
         };
     }
 }

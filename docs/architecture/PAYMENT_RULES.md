@@ -8,6 +8,8 @@ Browser redirects, return URLs, query strings, JavaScript, and client-submitted 
 
 Orders permit the core transitions `PENDING -> PROCESSING|PAID|FAILED|CANCELLED|EXPIRED`, `PROCESSING -> PAID|FAILED|CANCELLED|EXPIRED`, and `PAID -> CREDITED`. Stale pending events cannot reverse PAID, and CREDITED is terminal in Phase 5. Conflicting terminal events require trusted Provider query/reconciliation; last webhook does not win.
 
+TRC20 Orders may additionally remain `UNKNOWN` or `REQUIRES_REVIEW` while their outcome is unresolved. These states retain the exact expected-amount reservation until trusted resolution reaches a definitive closed state.
+
 ## Idempotency and isolation
 
 Creation requires a client UUID, unique as `(tenant_id, request_id)`, with a canonical request hash over operation, Tenant, User, Wallet, amount, and asset. The same request and payload returns the existing Order; changed content is `IDEMPOTENCY_CONFLICT`. The stable Order UUID is the Provider request id. UNKNOWN reconciliation never generates a new semantic request.
@@ -48,7 +50,7 @@ Recovery scans bounded batches, includes stale uninitiated transactions, and is 
 
 V1 accepts only USDT on TRON/TRC20 through one public, environment-configured shared deposit address. Users receive no individual address. A request supplies only a UUID and a decimal requested amount with at most two decimal places. The server allocates an identifier from `0.01..0.99`, stores `amount = expected_amount = requested_amount + identification_increment`, and credits that full exact amount without a fee or FX.
 
-Allocation takes a short PostgreSQL address-scoped advisory lock. It excludes expected amounts reserved by PENDING, PROCESSING, or PAID orders across every Tenant, derives historical use from `wallet_topup_orders`, and chooses the least-used eligible increment with oldest-use then numeric tie-breaking. A partial unique index is the final active-reservation defense. Historical uniqueness is deliberately forbidden: CREDITED, EXPIRED, CANCELLED, and FAILED allocations are reusable, but least-used selection prevents disproportionate reuse. Exhausting all 99 active possibilities returns `TOPUP_AMOUNT_SLOTS_EXHAUSTED`.
+Allocation takes a short PostgreSQL address-scoped advisory lock. It excludes expected amounts reserved by PENDING, PROCESSING, UNKNOWN, PAID, or REQUIRES_REVIEW orders across every Tenant, derives historical use from `wallet_topup_orders`, and chooses the least-used eligible increment with oldest-use then numeric tie-breaking. A partial unique index protects the same unresolved states as the final active-reservation defense. Historical uniqueness is deliberately forbidden: CREDITED, EXPIRED, CANCELLED, and FAILED allocations are reusable, but least-used selection prevents disproportionate reuse. Exhausting all 99 active possibilities returns `TOPUP_AMOUNT_SLOTS_EXHAUSTED`.
 
 Instructions expire after 30 minutes by default. Only an overdue PENDING order with no matched transfer may expire. Detection stores immutable normalized transaction hash/event index and moves the order to PROCESSING, preserving its reservation past nominal expiry while confirmations remain insufficient. A late or inexact transfer is never guessed or rounded into a match.
 
