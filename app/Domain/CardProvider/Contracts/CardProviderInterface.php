@@ -2,15 +2,29 @@
 
 namespace App\Domain\CardProvider\Contracts;
 
+use App\Domain\CardProvider\DTOs\CardholderRequestDTO;
 use App\Domain\CardProvider\DTOs\IssueCardRequestDTO;
 use App\Domain\CardProvider\DTOs\ProviderBalanceDTO;
 use App\Domain\CardProvider\DTOs\ProviderCardDTO;
+use App\Domain\CardProvider\DTOs\ProviderCardholderDTO;
 use App\Domain\CardProvider\DTOs\ProviderOperationDTO;
 use App\Domain\CardProvider\DTOs\ProviderSensitiveCardDTO;
 use App\Domain\CardProvider\DTOs\ProviderTransactionDTO;
 
 interface CardProviderInterface
 {
+    public function name(): string;
+
+    public function available(): bool;
+
+    public function createCardholder(CardholderRequestDTO $request): ProviderCardholderDTO;
+
+    public function updateCardholder(CardholderRequestDTO $request): ProviderCardholderDTO;
+
+    public function getCardholder(string $providerCardholderId): ProviderCardholderDTO;
+
+    public function productAvailable(string $providerProductReference, string $cardCurrency): bool;
+
     public function issueCard(IssueCardRequestDTO $request): ProviderOperationDTO;
 
     public function getCard(string $providerCardId): ProviderCardDTO;

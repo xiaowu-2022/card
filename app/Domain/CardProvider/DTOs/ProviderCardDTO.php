@@ -9,10 +9,11 @@ final readonly class ProviderCardDTO
         public string $providerCardToken,
         public string $maskedPan,
         public string $last4,
-        public int $expiryMonth,
-        public int $expiryYear,
+        public ?int $expiryMonth,
+        public ?int $expiryYear,
         public string $assetCode,
         public string $status,
         public bool $isTest,
+        public ?string $providerBalance = null,
     ) {}
 }

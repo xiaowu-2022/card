@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Platform\CardOperationsController;
 use App\Http\Controllers\Platform\CardProductController;
 use App\Http\Controllers\Platform\DashboardController;
 use App\Http\Controllers\Platform\PlatformAuthController;
@@ -21,6 +22,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     });
 
     Route::middleware('admin.scope:platform,card_product.read')->get('/card-products', [CardProductController::class, 'index'])->name('card-products.index');
+    Route::middleware('admin.scope:platform,cards.read')->get('/cards', CardOperationsController::class)->name('cards.index');
     Route::middleware('admin.scope:platform,card_product.manage')->group(function (): void {
         Route::post('/card-products', [CardProductController::class, 'store'])->name('card-products.store');
         Route::put('/card-products/{cardProduct}', [CardProductController::class, 'update'])->whereUuid('cardProduct')->name('card-products.update');

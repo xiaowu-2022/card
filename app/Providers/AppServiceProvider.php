@@ -18,6 +18,9 @@ use App\Infrastructure\Mail\LaravelEmailVerificationSender;
 use App\Infrastructure\Providers\Blockchain\MockBlockchainGateway;
 use App\Infrastructure\Providers\Blockchain\UnavailableBlockchainGateway;
 use App\Infrastructure\Providers\Card\MockCardProvider;
+use App\Infrastructure\Providers\Card\PhotonPayCardProvider;
+use App\Infrastructure\Providers\Card\PhotonPayCardResponseNormalizer;
+use App\Infrastructure\Providers\Card\UnavailableCardProvider;
 use App\Infrastructure\Providers\Domain\LocalDomainVerificationService;
 use App\Infrastructure\Providers\Kyc\MockKycOcrProvider;
 use App\Infrastructure\Providers\Kyc\UnavailableKycOcrProvider;
@@ -29,7 +32,6 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
-use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -65,11 +67,29 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(CardProviderInterface::class, function (): CardProviderInterface {
             $driver = config('card-provider.driver');
 
-            if ($driver !== 'mock') {
-                throw new RuntimeException("Card provider driver [{$driver}] is not installed.");
+            if ($driver === 'mock' && app()->environment(['local', 'testing'])) {
+                return new MockCardProvider(
+                    MockProviderMode::from((string) config('card-provider.mock_mode')),
+                    (string) config('card-provider.mock_cardholder_mode'),
+                );
+            }
+            if ($driver === 'photonpay') {
+                $config = config('card-provider.photonpay');
+
+                return new PhotonPayCardProvider(
+                    (string) $config['base_url'],
+                    (string) $config['app_id'],
+                    (string) $config['app_secret'],
+                    (string) $config['private_key'],
+                    (string) $config['account_id_usd'],
+                    filled($config['member_id']) ? (string) $config['member_id'] : null,
+                    filled($config['matrix_account']) ? (string) $config['matrix_account'] : null,
+                    (int) $config['timeout_seconds'],
+                    new PhotonPayCardResponseNormalizer,
+                );
             }
 
-            return new MockCardProvider(MockProviderMode::from((string) config('card-provider.mock_mode')));
+            return new UnavailableCardProvider;
         });
         $this->app->bind(KycOcrProviderInterface::class, function (): KycOcrProviderInterface {
             if (config('kyc.ocr_driver') === 'mock' && app()->environment(['local', 'testing'])) {
@@ -115,6 +135,12 @@ class AppServiceProvider extends ServiceProvider
             $userId = Auth::guard('tenant_user')->id() ?? 'guest';
 
             return Limit::perMinute((int) config('withdrawal.creation_rate_limit_per_minute'))->by("{$tenantId}:{$userId}");
+        });
+        RateLimiter::for('cards', function (): Limit {
+            $tenantId = app(TenantContext::class)->hasTenant() ? app(TenantContext::class)->id() : 'unknown';
+            $userId = Auth::guard('tenant_user')->id() ?? 'guest';
+
+            return Limit::perMinute(10)->by("{$tenantId}:{$userId}");
         });
     }
 }

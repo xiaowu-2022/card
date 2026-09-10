@@ -8,7 +8,7 @@ use App\Domain\CardProvider\Exceptions\ProviderRejectedException;
 use App\Domain\CardProvider\Exceptions\ProviderUnknownResultException;
 use App\Infrastructure\Providers\Card\MockCardProvider;
 
-$request = fn () => new IssueCardRequestDTO('TEST-PRODUCT', 'TEST-HOLDER', 'USD', 'test-request-1');
+$request = fn () => new IssueCardRequestDTO('TEST-PRODUCT', 'TEST-HOLDER', 'USD', '20.00', 'test-request-1');
 
 it('implements the shared provider contract and succeeds in success mode', function () use ($request): void {
     $provider = new MockCardProvider(MockProviderMode::Success);
@@ -24,6 +24,9 @@ it('exposes every locked card provider capability', function (): void {
 
     expect($methods)->toContain(
         'issueCard',
+        'createCardholder',
+        'getCardholder',
+        'productAvailable',
         'getCard',
         'revealCard',
         'loadCard',

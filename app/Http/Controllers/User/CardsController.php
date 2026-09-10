@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\User;
 
+use App\Application\Card\UserCardCenterQuery;
 use App\Application\CardProduct\CardProductCatalogQuery;
 use App\Domain\Tenant\TenantContext;
 use App\Domain\User\Models\User;
@@ -12,11 +13,26 @@ use Inertia\Response;
 
 final class CardsController extends Controller
 {
-    public function __invoke(TenantContext $context, CardProductCatalogQuery $query): Response
+    public function index(TenantContext $context, UserCardCenterQuery $query): Response
     {
-        /** @var User|null $user */
+        /** @var User $user */
         $user = Auth::guard('tenant_user')->user();
 
-        return Inertia::render('user/Cards', $query->user($context->id(), $user?->id));
+        return Inertia::render('user/Cards', $query->get($context->id(), $user->id));
+    }
+
+    public function demo(TenantContext $context, CardProductCatalogQuery $query): Response
+    {
+        return Inertia::render('user/Cards', $query->user($context->id(), null) + [
+            'providerAvailable' => true,
+            'kycApproved' => false,
+            'availableBalance' => null,
+            'walletAsset' => 'USDT',
+            'profile' => [],
+            'cardholder' => ['state' => 'setup', 'safeReason' => null, 'submittedAt' => null, 'syncedAt' => null],
+            'issueOrders' => [],
+            'cards' => [],
+            'demo' => true,
+        ]);
     }
 }

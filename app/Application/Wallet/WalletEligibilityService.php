@@ -61,7 +61,12 @@ final readonly class WalletEligibilityService
         } elseif ($deposit->compare($required) < 0) {
             $reasons[] = 'SECURITY_DEPOSIT_INSUFFICIENT';
         }
-        $reasons[] = 'CARD_SERVICE_NOT_CONFIGURED';
+        $cardFoundationReady = $tenant->status === TenantStatus::Active
+            && $user->status === UserStatus::Active
+            && $kycStatus === KycUserStatus::Approved
+            && $wallet?->status === WalletStatus::Active
+            && ! $assetMismatch
+            && $deposit->compare($required) >= 0;
 
         return [
             'userStatus' => $user->status->value,
@@ -70,7 +75,7 @@ final readonly class WalletEligibilityService
             'walletStatus' => $wallet?->status->value,
             'canActivate' => $tenant->status === TenantStatus::Active && $user->status === UserStatus::Active && $kycStatus === KycUserStatus::Approved && $wallet === null,
             'depositSatisfied' => ! $assetMismatch && $deposit->compare($required) >= 0,
-            'canUseCardService' => false,
+            'canUseCardService' => $cardFoundationReady,
             'reasonCodes' => $reasons,
             'wallet' => $wallet ? ['id' => $wallet->id, 'asset' => $wallet->asset_code, 'status' => $wallet->status->value] : null,
             'available' => $available?->jsonSerialize(),

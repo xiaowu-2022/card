@@ -1,0 +1,13 @@
+# PhotonPay Integration Rules
+
+Phase 10 supports one PhotonPay product shape: a regular (`recharge`) virtual USD card linked to a READY PhotonPay Cardholder. The configured `cardBin` is an opaque provider product reference and is checked through `getCardBin` before a real issue. The issue request sends the selected Cardholder, the configured USD account, one stable Card Issue Order UUID as `requestId`, and the requested initial card balance as `arrivalAmount`.
+
+The real adapter authenticates with PhotonPay's Basic authorization header and signs the exact JSON request body with the configured RSA PKCS#8 private key using MD5withRSA. GET and file-upload requests do not invent a body signature. Credentials exist only in environment/secret configuration; production fails closed if HTTPS, account configuration, or a valid private key is missing. Mock is allowed only in local/testing and is never a production fallback.
+
+Our KYC approval and PhotonPay Cardholder review are independent states. Approved KYC identity values and private document files are read only inside the Cardholder Application Action. Documents are uploaded backend-to-backend through `/file/apiUpload/issuing_cardholder_identity_certificate`; the browser receives no KYC object key or URL. Identity number, document bytes, and provider raw response are not copied into `provider_cardholders`, audit, queue payloads, or logs.
+
+Cardholder creation precedes all financial reservation. PENDING, ACTION_REQUIRED, REJECTED, DISABLED, and UNKNOWN cannot issue. An ambiguous `addCardholder` result becomes UNKNOWN and is never blindly retried; status sync is permitted only when a stable Provider Cardholder ID exists. Provider status never changes our KYC status.
+
+Opening a card follows two committed boundaries: TX1 locks and validates Tenant/User/product/Cardholder/Wallet state, creates the order, and posts separate opening-fee and initial-funding holds; the adapter then calls `openCard` without database locks; TX2 applies a trusted result. A timeout keeps both holds and is queried with the same `requestId` via `getRequestResult`. A definitive failure releases both holds. A success creates exactly one safe User Card and settles both holds.
+
+PhotonPay card balance is provider truth and is stored only as a timestamped read-model cache. A safely parsed initial balance, when returned, must equal the requested `arrivalAmount` before settlement; a mismatch stays UNKNOWN. The adapter also validates the returned USD regular-card identity, immediately derives `last4`/masked display, and discards full card number and CVV. Phase 10 exposes no PAN/CVV reveal, existing-card reload, freeze, unfreeze, cancel, transaction history, webhook, or Card balance mutation.

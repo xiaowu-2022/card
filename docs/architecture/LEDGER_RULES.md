@@ -43,3 +43,9 @@ Production Ledger table write privileges belong only to the Application role and
 `CreditWalletTopupAction` owns the only top-up settlement plan: `TENANT_TOPUP_CLEARING -amount` and `USER_AVAILABLE +amount`, event type `WALLET_TOPUP_CREDIT`, reference type `WALLET_TOPUP_ORDER`, and event key `wallet_topup:{order_uuid}:credit`. It locks the Top-up Order, then its business advisory key, before entering `LedgerWriter`; only the writer locks Accounts. The Order becomes CREDITED and records the Entry id inside the same outer transaction, so neither state can commit alone.
 
 The database requires CREDITED to have paid/credited timestamps and a unique same-Tenant/same-asset Ledger reference, and forbids reversing or relinking that fact. `ledger:reconcile` validates Account caches; the separate read-only `payments:reconcile` validates exact business-to-Ledger identity and the two-Posting top-up accounting path. Neither command repairs history.
+
+## Phase 10 Card issue posting
+
+Cardholder review never reserves money. Once the Cardholder is READY, Card Issue TX1 creates the immutable order and two independent holds: `USER_AVAILABLE -> USER_CARD_ISSUE_HOLD` for the non-zero opening fee and `USER_AVAILABLE -> USER_CARD_FUNDING_HOLD` for the exact initial load. A zero opening fee skips its Ledger event; zero Postings are never created.
+
+On trusted success, TX2 moves the fee hold to `TENANT_FEE_REVENUE` and the funding hold to `TENANT_CARD_FUNDING_CLEARING`, using deterministic keys `card_issue:{order_uuid}:fee_settle` and `card_issue:{order_uuid}:funding_settle`. On definitive failure, equivalent release events return each hold to `USER_AVAILABLE`. PROCESSING/UNKNOWN retains both holds. Provider timeout never releases money and recovery always queries the same Provider request ID. PhotonPay fees and future card activity never create local Wallet effects in Phase 10.

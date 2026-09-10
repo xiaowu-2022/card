@@ -11,7 +11,8 @@
     "format:check": "prettier --check resources/js resources/css",
     "test:browser:phase5": "node tests/Browser/phase-five-responsive.mjs",
     "test:browser:phase6": "node tests/Browser/phase-six-responsive.mjs",
-    "test:browser:phase9": "node tests/Browser/phase-nine-responsive.mjs"
+    "test:browser:phase9": "node tests/Browser/phase-nine-responsive.mjs",
+    "test:browser:phase10": "node tests/Browser/phase-ten-responsive.mjs"
   },
   "dependencies": {
     "@inertiajs/react": "^3.7.0",

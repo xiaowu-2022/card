@@ -11,5 +11,6 @@ final readonly class ProviderOperationDTO
         public ProviderOperationStatus $status,
         public ?string $resourceId = null,
         public ?string $message = null,
+        public ?ProviderCardDTO $card = null,
     ) {}
 }

@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\Public\LandingController;
 use App\Http\Controllers\User\AccountController;
+use App\Http\Controllers\User\CardIssueController;
 use App\Http\Controllers\User\CardsController;
+use App\Http\Controllers\User\CardSetupController;
 use App\Http\Controllers\User\DashboardController;
 use App\Http\Controllers\User\DemoWalletController;
 use App\Http\Controllers\User\KycController;
@@ -28,7 +30,7 @@ Route::middleware('tenant.surface:end-user')->group(function (): void {
     if (app()->environment(['local', 'testing'])) {
         Route::get('/demo', DashboardController::class)->name('user.dashboard');
         Route::get('/demo/wallet', DemoWalletController::class)->name('user.demo.wallet');
-        Route::get('/demo/cards', CardsController::class)->name('user.cards');
+        Route::get('/demo/cards', [CardsController::class, 'demo'])->name('user.cards');
     }
 });
 
@@ -52,7 +54,11 @@ Route::middleware('tenant.surface:user-auth')->group(function (): void {
 
 Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operational'])->group(function (): void {
     Route::get('/dashboard', DashboardController::class)->name('user.authenticated.dashboard');
-    Route::get('/cards', CardsController::class)->name('user.authenticated.cards');
+    Route::get('/cards', [CardsController::class, 'index'])->name('user.authenticated.cards');
+    Route::post('/cards/cardholder', [CardSetupController::class, 'store'])->middleware('throttle:cards')->name('user.cards.cardholder.store');
+    Route::post('/cards/cardholder/sync', [CardSetupController::class, 'sync'])->middleware('throttle:cards')->name('user.cards.cardholder.sync');
+    Route::post('/cards/issues', [CardIssueController::class, 'store'])->middleware('throttle:cards')->name('user.cards.issues.store');
+    Route::post('/cards/issues/{issue}/sync', [CardIssueController::class, 'sync'])->whereUuid('issue')->middleware('throttle:cards')->name('user.cards.issues.sync');
     Route::get('/account', [AccountController::class, 'show'])->name('user.account');
     Route::post('/kyc/applications', [KycController::class, 'store'])->name('user.kyc.applications.store');
     Route::post('/wallet/activate', [WalletController::class, 'activate'])->name('user.wallet.activate');

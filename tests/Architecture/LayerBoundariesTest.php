@@ -127,6 +127,8 @@ arch('controllers remain final and use controller suffix')
         'App\Http\Controllers\User\WalletController',
         'App\Http\Controllers\User\DemoWalletController',
         'App\Http\Controllers\User\CardsController',
+        'App\Http\Controllers\User\CardSetupController',
+        'App\Http\Controllers\User\CardIssueController',
         'App\Http\Controllers\TenantAdmin\DashboardController',
         'App\Http\Controllers\TenantAdmin\UsersController',
         'App\Http\Controllers\TenantAdmin\SettingsController',
@@ -141,6 +143,7 @@ arch('controllers remain final and use controller suffix')
         'App\Http\Controllers\TenantAdmin\KycDocumentController',
         'App\Http\Controllers\TenantAdmin\UserWalletController',
         'App\Http\Controllers\TenantAdmin\CardProductController',
+        'App\Http\Controllers\TenantAdmin\CardOperationsController',
         'App\Http\Controllers\User\KycController',
         'App\Http\Controllers\Platform\DashboardController',
         'App\Http\Controllers\Platform\TenantsController',
@@ -149,6 +152,7 @@ arch('controllers remain final and use controller suffix')
         'App\Http\Controllers\Platform\TenantLifecycleController',
         'App\Http\Controllers\Platform\TenantInvitationController',
         'App\Http\Controllers\Platform\CardProductController',
+        'App\Http\Controllers\Platform\CardOperationsController',
     ])
     ->classes()
     ->toBeFinal()

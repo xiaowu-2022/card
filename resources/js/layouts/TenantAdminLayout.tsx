@@ -41,6 +41,12 @@ const items = [
         permission: 'withdrawals.read',
     },
     {
+        label: 'Card operations',
+        href: '/admin/cards',
+        icon: CreditCard,
+        permission: 'cards.read',
+    },
+    {
         label: 'Card products',
         href: '/admin/card-products',
         icon: CreditCard,

@@ -22,14 +22,16 @@ Phase 7 adds exactly `withdrawal_destinations`, `withdrawal_orders`, and `withdr
 
 Phase 9 adds exactly `card_products` and `tenant_card_product_configs`. Platform products have unique `(provider,provider_product_ref)` identity and are constrained to PHOTONPAY, USD, REGULAR, positive provider minimums of at least 20, and DRAFT/ACTIVE/INACTIVE. Tenant configurations are unique by `(tenant_id,card_product_id)`, use `NUMERIC(20,8)` nonnegative opening fees, a positive bounded card limit, ACTIVE/INACTIVE status, and RESTRICT foreign keys. No load-fee, User Card, provider credential, price-version, or balance table is introduced.
 
+Phase 10 extends `user_profiles` with the smallest complete-or-null Cardholder name, birth-date, nationality, and residential-address group and adds exactly `provider_cardholders`, `card_issue_orders`, and `user_cards`. Provider Cardholders are unique by Tenant/User/Provider and external Provider identity. Issue Orders bind Tenant/User/USDT Wallet/product/Tenant config/Cardholder through composite ownership keys, snapshot fixed PHOTONPAY/USD identity and `NUMERIC(20,8)` amounts, and uniquely reserve both browser and Provider request identities. Safe User Cards are one-per-Issue-Order with unique Provider Card identity, masked PAN/last4 checks, and an optional nonnegative Provider-balance cache. Deferred financial-state validation requires holds for every Order, settlement references only for SUCCEEDED, and release references only for FAILED. No PAN, CVV, Provider payload, identity number, KYC object key, Card reload, Card transaction, or Provider credential table is added.
+
 Future migrations are added only with their owning phase:
 
 - Payment: completed in Phase 5; future migrations extend it rather than recreating these tables.
 - Withdrawal: completed in Phase 7; future migrations extend the three Phase 7 tables rather than recreating them.
 - Security Deposit: `security_deposit_refund_requests`; never a mutable `security_deposits` balance table.
 - Card Product: Phase 9 creates `card_products` and `tenant_card_product_configs`; availability and user limits are represented by this lean pair, with no extra tables.
-- Provider: `card_provider_connections`, `provider_card_products`, `card_provider_operations`, `card_provider_events`.
-- Card: `card_issue_orders`, `user_cards`, `card_load_orders`; optional later snapshots/transactions.
+- Provider: Phase 10 creates `provider_cardholders`; future connections, events, and wider operation storage require their owning phases.
+- Card: Phase 10 creates `card_issue_orders` and `user_cards`; `card_load_orders` and optional transaction snapshots remain future work.
 - Later only: agents/relations, commission rules/records, refund orders, risk cases/rules, tenant subscriptions/invoices, FX orders.
 
 Core tenant business tables carry `tenant_id NOT NULL`, including future users, wallets, all Ledger rows, KYC/identity, top-up/withdrawal, issue/card/load, and deposit refund requests. Platform-owned resources are the explicit exception via owner_scope and nullable owner_tenant_id. JSONB is limited to audit/provider/unpredictable metadata and is not a universal settings substitute.

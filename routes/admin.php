@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\TenantAdmin\AdminRecentAuthenticationController;
+use App\Http\Controllers\TenantAdmin\CardOperationsController;
 use App\Http\Controllers\TenantAdmin\CardProductController;
 use App\Http\Controllers\TenantAdmin\DashboardController;
 use App\Http\Controllers\TenantAdmin\DomainManagementController;
@@ -46,6 +47,7 @@ Route::middleware('tenant.surface:tenant-admin')->prefix('admin')->name('tenant-
         Route::get('/withdrawals/{withdrawal}', [WithdrawalController::class, 'show'])->whereUuid('withdrawal')->name('withdrawals.show');
     });
     Route::middleware('admin.scope:tenant,card_product.read')->get('/card-products', [CardProductController::class, 'index'])->name('card-products.index');
+    Route::middleware('admin.scope:tenant,cards.read')->get('/cards', CardOperationsController::class)->name('cards.index');
     Route::middleware('admin.scope:tenant,card_product.manage')->put('/card-products/{cardProduct}', [CardProductController::class, 'update'])->whereUuid('cardProduct')->name('card-products.update');
     Route::middleware('admin.scope:tenant,withdrawals.review')->group(function (): void {
         Route::post('/withdrawals/recent-auth', [AdminRecentAuthenticationController::class, 'store'])->middleware('throttle:5,1')->name('withdrawals.recent-auth');

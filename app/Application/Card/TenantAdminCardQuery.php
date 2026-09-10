@@ -1,0 +1,45 @@
+<?php
+
+namespace App\Application\Card;
+
+use App\Domain\Card\Models\CardIssueOrder;
+use App\Domain\Card\Models\ProviderCardholder;
+use App\Domain\Card\Models\UserCard;
+
+final class TenantAdminCardQuery
+{
+    /** @return array<string,mixed> */
+    public function get(string $tenantId): array
+    {
+        return [
+            'cardholders' => ProviderCardholder::query()->where('tenant_id', $tenantId)->with('user:id,tenant_id,email')
+                ->latest('updated_at')->limit(100)->get()->map(fn (ProviderCardholder $holder): array => [
+                    'id' => $holder->id,
+                    'userEmail' => $holder->user->email,
+                    'status' => $holder->status->value,
+                    'safeReason' => $holder->safe_reason,
+                    'updatedAt' => $holder->updated_at->toIso8601String(),
+                ])->all(),
+            'orders' => CardIssueOrder::query()->where('tenant_id', $tenantId)->with(['user:id,tenant_id,email', 'product:id,name'])
+                ->latest('created_at')->limit(100)->get()->map(fn (CardIssueOrder $order): array => [
+                    'id' => $order->id,
+                    'userEmail' => $order->user->email,
+                    'productName' => $order->product->name,
+                    'openingFee' => $order->opening_fee,
+                    'initialLoadAmount' => $order->initial_load_amount,
+                    'status' => $order->status->value,
+                    'requestedAt' => $order->requested_at->toIso8601String(),
+                ])->all(),
+            'cards' => UserCard::query()->where('tenant_id', $tenantId)->with(['user:id,tenant_id,email', 'product:id,name'])
+                ->latest('created_at')->limit(100)->get()->map(fn (UserCard $card): array => [
+                    'id' => $card->id,
+                    'userEmail' => $card->user->email,
+                    'productName' => $card->product->name,
+                    'maskedPan' => $card->masked_pan,
+                    'currency' => $card->card_currency,
+                    'balance' => $card->provider_balance,
+                    'providerStatus' => $card->provider_status,
+                ])->all(),
+        ];
+    }
+}

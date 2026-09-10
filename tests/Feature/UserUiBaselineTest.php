@@ -19,7 +19,7 @@ it('keeps the consumer navigation to home wallet cards and me only', function ()
         ->not->toContain("label: 'KYC'", "label: 'Verify'", "label: 'Transactions'", "label: 'Support'", "label: 'Settings'");
 });
 
-it('uses real wallet presentation and removes fake card and money content', function (): void {
+it('uses real wallet and Phase 10 card presentation without fake or sensitive content', function (): void {
     $dashboard = file_get_contents(resource_path('js/pages/user/Dashboard.tsx'));
     $wallet = file_get_contents(resource_path('js/pages/user/Wallet.tsx'));
     $cards = file_get_contents(resource_path('js/pages/user/Cards.tsx'));
@@ -30,7 +30,7 @@ it('uses real wallet presentation and removes fake card and money content', func
         ->and($wallet)
         ->not->toContain('USER_AVAILABLE', 'USER_SECURITY_DEPOSIT', 'ledger account', 'immutable account ledger')
         ->and($cards)
-        ->toContain('Get card · Coming next', 'No charge is made and no card is created')
+        ->toContain('Your cards', 'Open card')
         ->not->toContain('providerProductRef', 'CardBin', 'TEST / MOCK', 'VISA', '•••• 1234', 'Reveal', 'Freeze');
 });
 

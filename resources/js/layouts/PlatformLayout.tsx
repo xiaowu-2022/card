@@ -38,7 +38,7 @@ const groups = [
             { label: 'Users', href: '#', icon: Users },
             { label: 'KYC', href: '#', icon: FileCheck2 },
             { label: 'Wallet', href: '#', icon: WalletCards },
-            { label: 'Cards', href: '#', icon: CreditCard },
+            { label: 'Cards', href: '/platform/cards', icon: CreditCard },
             { label: 'Products', href: '/platform/card-products', icon: Boxes },
             { label: 'Providers', href: '#', icon: ServerCog },
         ],

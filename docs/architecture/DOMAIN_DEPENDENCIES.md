@@ -12,6 +12,7 @@ Allowed rules:
 - Payment state transitions are owned by the Payment Domain policy. Cross-Domain top-up settlement and business-to-Ledger reconciliation live in Application; Ledger remains unaware of Payment.
 - Withdrawal Application Actions may query eligibility, construct the three fixed withdrawal posting plans, and call `LedgerWriter`. The Withdrawal Domain owns destinations/orders and a read-only blockchain verification contract; gateway adapters never import or mutate Wallet/Ledger.
 - CardProduct owns platform catalog and Tenant sales configuration only. User readiness is composed in an Application query from CardProduct and existing Wallet eligibility; CardProduct Domain does not depend on Wallet, Ledger, KYC, or CardProvider.
+- Card Application Actions may coordinate KYC read state/private documents, User profile, CardProduct, CardProvider, Wallet, Ledger, and Audit. Card Domain models store Cardholder/Issue/Card state but never call providers or write Ledger. The PhotonPay adapter depends only on provider-neutral CardProvider DTOs/contracts and HTTP; it never imports business financial models.
 
 Forbidden rules:
 

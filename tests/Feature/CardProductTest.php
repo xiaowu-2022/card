@@ -146,7 +146,7 @@ it('enforces the small schema and rejects unsupported provider product shapes', 
     expect(Schema::hasTable('card_products'))->toBeTrue()
         ->and(Schema::hasTable('tenant_card_product_configs'))->toBeTrue()
         ->and(Schema::hasColumns('tenant_card_product_configs', ['load_fee_fixed', 'load_fee_rate', 'card_load_percentage_fee', 'card_load_fixed_fee']))->toBeFalse()
-        ->and(Schema::hasTable('user_cards'))->toBeFalse();
+        ->and(Schema::hasTable('user_cards'))->toBeTrue();
 
     expect(fn () => DB::table('card_products')->insert([
         'id' => (string) Str::uuid(), 'provider' => 'OTHER', 'provider_product_ref' => 'INVALID-0001',
