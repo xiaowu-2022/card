@@ -35,7 +35,7 @@ $prepare = function (string $slug, string $ownerEmail, string $identity, string 
     $owner = AdminUser::query()->where('email', $ownerEmail)->firstOrFail();
     app(UpdateTenantBusinessSettingsAction::class)->execute($tenant, [
         'required_security_deposit_amount' => '50', 'required_security_deposit_asset' => 'USD', 'allow_wallet_topup' => true, 'allow_withdrawal' => false,
-    ], $owner);
+    ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
     $image = tempnam(sys_get_temp_dir(), 'phase6-browser-');
     file_put_contents($image, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true));
     $application = app(SubmitKycApplicationAction::class)->execute(

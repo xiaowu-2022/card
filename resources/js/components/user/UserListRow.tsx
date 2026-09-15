@@ -1,3 +1,4 @@
+import { useClientTranslation } from '@/i18n';
 import { Link } from '@inertiajs/react';
 import { ChevronRight } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -21,6 +22,7 @@ export function UserListRow({
     destructive?: boolean;
     onClick?: () => void;
 }) {
+    useClientTranslation();
     const classes = cn(
         'flex min-h-14 w-full min-w-0 items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/70',
         destructive && 'text-danger',

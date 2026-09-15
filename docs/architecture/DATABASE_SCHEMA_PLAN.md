@@ -1,5 +1,65 @@
 # Database Schema Plan
 
+Password recovery (2026-09-11): additive migration 001600 creates
+`user_password_resets`, a tenant-scoped, browser-bound, HMAC-OTP-only proof with
+encrypted destination and nullable existing-user mapping. See USER_PASSWORD_RECOVERY.md.
+
+Account session hardening (2026-09-11): additive migration 001500 adds nonnegative
+server-owned `users.session_version` default 0. It contains no session token or device
+data and is hidden from model serialization. See USER_AUTH_RULES.md. No money or
+existing identity fields are rewritten.
+
+KYC company-policy extension (2026-09-11): migration 001000 adds AUTOMATIC to the
+supported local policy and `kyc_applications.automatically_approved` default false.
+Only automatic APPROVED records may omit an administrator; terminal review
+provenance is immutable. See KYC_RULES.md. No existing application is auto-approved
+or reassigned by the migration, and no financial schema changes are introduced.
+
+## Promotion and guarantee lifecycle (authorized 2026-09-11)
+
+See [Promotion contracts](PROMOTION_REQUIREMENTS.md) for `promotion_levels`,
+`promotion_members`, `promotion_company_invitations`, immutable challenge binding,
+`promotion_funding_events`, `commission_awards`, `commission_transfers`,
+`initial_deposit_intents` and `security_deposit_refund_requests`. The additive
+migrations preserve every existing balance and historical record. USER_COMMISSION
+is a standalone Tenant/User/USDT Ledger account; TENANT_COMMISSION_CLEARING is a
+dedicated negative-permitted company expense counter-account. Exact deferred
+Ledger evidence constraints protect funding, commission transfer and refund receipts.
+There is no company budget balance table, direct commission payout or manual adjustment.
+
+2026-09-11 authorized extension: [Card management](CARD_MANAGEMENT.md) supersedes historical Phase 10 exclusions only for the existing PhotonPay regular virtual USD product. It adds scoped management orders, a verified notification inbox, and safe transaction read models; all Ledger, tenant and sensitive-data safety rules remain in force.
+
+## Company Proton SMTP configuration
+
+`tenant_email_settings`: unique Tenant FK, enabled, public sender, encrypted SMTP Token,
+daily recipient limit and configuration version. `registration_challenges.email_delivery_uncertain`
+persists the pre-send boundary. `tenant_email_test_requests` stores idempotent test intent and
+PENDING/ACCEPTED/REJECTED/UNKNOWN outcomes with a recipient HMAC, never a raw recipient/token.
+No user or financial state is changed by settings/tests. See [TENANT_EMAIL.md](TENANT_EMAIL.md).
+
+## Company Aliyun SMS configuration
+
+`tenant_sms_settings`: UUID id, unique Tenant FK, disabled-by-default switch,
+encrypted AccessKey pair, signature/templates, bounded resend interval and OTP TTL.
+`registration_challenges.sms_delivery_uncertain` persists an unconfirmed send before
+HTTP so a timeout/crash cannot trigger a blind resend of a live challenge.
+See [TENANT_SMS.md](TENANT_SMS.md) for the explicit SMS contract extension and recovery rules.
+
+## Public User account IDs
+
+`users.account_id`: immutable, server-assigned `VARCHAR(12) NOT NULL`, shaped
+as creation date in the Tenant timezone plus four random digits. Unique within
+Tenant; the User UUID primary key and all existing foreign keys are unchanged.
+The additive migration backfills retained users and serializes future allocation
+on the Tenant row. No new tables or financial states. See [USER_ACCOUNT_IDS.md](USER_ACCOUNT_IDS.md).
+
+## Tenant About articles extension
+
+`tenant_articles`: UUID id; Tenant FK; fixed article_key (terms/privacy/account-closure);
+locale (en/zh-CN/ms/es); plain-text body capped at 50,000 characters; timestamps.
+Unique tenant_id/article_key/locale, checked keys/locales/length. No publishing
+states or financial behavior. See [TENANT_ARTICLES.md](TENANT_ARTICLES.md).
+
 Phase 0 creates Tenant/Admin/Audit foundations. Phase 1 extends Admin authentication without adding future business tables. Phase 2 adds exactly `users`, `user_profiles`, `user_preferences`, and `registration_challenges`. Phase 3 adds exactly `kyc_applications` and `identity_records`. Phase 4 adds exactly `wallets`, `ledger_accounts`, `ledger_entries`, and `ledger_postings`. UUID is the universal business primary-key strategy. Status is uppercase PHP backed enum plus VARCHAR/CHECK. Timestamps are timezone-aware. Core deletion is RESTRICT, not cascading history removal.
 
 PostgreSQL constraints include global unique hostname/slug/admin email/permission/role, one primary domain per tenant, one default locale per tenant, valid state checks, nonnegative deposit requirement, and explicit Platform-null/Tenant-non-null membership scope. `admin_memberships.scope_id` references `tenants.id` when present, and the composite role/scope foreign key guarantees that Platform roles cannot back Tenant memberships or vice versa. The Application layer preserves at least one enabled tenant locale through `UpdateTenantLocalesAction`; this cross-row cardinality rule is intentionally not misrepresented as an ordinary row constraint.
@@ -24,6 +84,8 @@ Phase 9 adds exactly `card_products` and `tenant_card_product_configs`. Platform
 
 Phase 10 extends `user_profiles` with the smallest complete-or-null Cardholder name, birth-date, nationality, and residential-address group and adds exactly `provider_cardholders`, `card_issue_orders`, and `user_cards`. Provider Cardholders are unique by Tenant/User/Provider and external Provider identity. Issue Orders bind Tenant/User/USDT Wallet/product/Tenant config/Cardholder through composite ownership keys, snapshot fixed PHOTONPAY/USD identity and `NUMERIC(20,8)` amounts, and uniquely reserve both browser and Provider request identities. Safe User Cards are one-per-Issue-Order with unique Provider Card identity, masked PAN/last4 checks, and an optional nonnegative Provider-balance cache. Deferred financial-state validation requires holds for every Order, settlement references only for SUCCEEDED, and release references only for FAILED. No PAN, CVV, Provider payload, identity number, KYC object key, Card reload, Card transaction, or Provider credential table is added.
 
+Approved per-card revision: `2026_09_10_001100_scope_cardholder_materials_to_each_card` removes account-level holder uniqueness and adds a Tenant/User-scoped request UUID, product binding, HMAC request fingerprint, encrypted material envelope and submission revision to `provider_cardholders`. `card_issue_orders.cardholder_request_id` is composite-FK-bound to the same Tenant/User/product/holder request. A partial unique index permits one Order per new application. Insert/update guards prevent new legacy-style issues or reassignment of an application's immutable identity. Legacy rows and their original financial links are retained unchanged. Documents are encrypted on the private disk; their keys and personal details are inside hidden encrypted envelopes. This supersedes the Phase 10 account-profile/KYC-reuse assumption; see `PER_CARD_MATERIALS.md`.
+
 Future migrations are added only with their owning phase:
 
 - Payment: completed in Phase 5; future migrations extend it rather than recreating these tables.
@@ -39,3 +101,25 @@ Core tenant business tables carry `tenant_id NOT NULL`, including future users, 
 Once later phases accumulate data, existing migrations are immutable historical artifacts; schema changes use new migrations and update this document.
 
 Production has no `card_inventory` or `card_inventory_import_batches` core tables. Any local card-pool fixture belongs only to Mock/development infrastructure and cannot become a production issuance source.
+# Sequential promotion invitation extension (2026-09-11)
+
+Migration 001100 replaces company/member code format with six digits and adds
+`promotion_invitation_counter` (singleton transactional next value) and
+`promotion_invitation_aliases` (immutable tenant-scoped legacy owner mapping).
+Existing UUID relationships and financial rows are preserved. See
+`PROMOTION_INVITATION_CODES.md` for allocation, capacity and migration contracts.
+# Wallet transfer extension (2026-09-11)
+
+Migration 001200 adds immutable `wallet_transfers` receipts with same-company,
+same-asset sender/recipient wallet ownership FKs and bidirectional sealed entry
+evidence. No new balance store. See `WALLET_TRANSFERS.md`.
+## Support extension (2026-09-11)
+
+`support_conversations` and `support_messages` add company/user-scoped text and
+private-image chat with stable send request IDs and per-conversation sequences.
+See [SUPPORT_CHAT.md](SUPPORT_CHAT.md) for schema, encryption and access constraints.
+# Account information extension (2026-09-11)
+
+`user_contact_changes` stores tenant/user-owned, browser-bound, encrypted-destination
+OTP intents for verified contact replacement. See [USER_ACCOUNT_INFORMATION.md](USER_ACCOUNT_INFORMATION.md)
+for columns, expiry/consumption semantics, unique constraints and restricted access.

@@ -19,7 +19,7 @@ beforeEach(fn () => $this->seed());
 it('stores only a hash and builds the invitation on the correct tenant host', function (): void {
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
     $role = Role::query()->where('name', 'TENANT_ADMIN')->firstOrFail();
-    $actor = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
+    $actor = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
     $issued = app(IssueAdminInvitationAction::class)->execute($tenant, 'new@example.test', $role, $actor);
 
     expect($issued->rawToken)->toHaveLength(64)
@@ -30,7 +30,7 @@ it('stores only a hash and builds the invitation on the correct tenant host', fu
 
 it('accepts a valid invitation once and creates a tenant-scoped membership', function (): void {
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
-    $issued = app(IssueAdminInvitationAction::class)->execute($tenant, 'fresh@example.test', Role::query()->where('name', 'TENANT_ADMIN')->firstOrFail(), AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail());
+    $issued = app(IssueAdminInvitationAction::class)->execute($tenant, 'fresh@example.test', Role::query()->where('name', 'TENANT_ADMIN')->firstOrFail(), AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
     $accepted = app(AcceptAdminInvitationAction::class)->execute($issued->rawToken, $tenant->id, 'Fresh Admin', 'StrongPass1234');
 
     expect($accepted->invitation->status)->toBe(InvitationStatus::Accepted)
@@ -42,7 +42,7 @@ it('accepts a valid invitation once and creates a tenant-scoped membership', fun
 it('rejects an invitation on another tenant host and when expired or cancelled', function (): void {
     $tenantA = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
     $tenantB = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
-    $issued = app(IssueAdminInvitationAction::class)->execute($tenantA, 'host@example.test', Role::query()->where('name', 'TENANT_ADMIN')->firstOrFail(), AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail());
+    $issued = app(IssueAdminInvitationAction::class)->execute($tenantA, 'host@example.test', Role::query()->where('name', 'TENANT_ADMIN')->firstOrFail(), AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
 
     $this->get("http://b.localhost/admin/invitations/{$issued->rawToken}")->assertNotFound();
     $issued->invitation->update(['expires_at' => now()->subMinute()]);
@@ -55,7 +55,7 @@ it('rejects an invitation on another tenant host and when expired or cancelled',
 it('reuses an existing admin identity without copying memberships', function (): void {
     $tenantB = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
     $existing = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
-    $issued = app(IssueAdminInvitationAction::class)->execute($tenantB, $existing->email, Role::query()->where('name', 'SUPPORT')->firstOrFail(), AdminUser::query()->where('email', 'owner@b.localhost')->firstOrFail());
+    $issued = app(IssueAdminInvitationAction::class)->execute($tenantB, $existing->email, Role::query()->where('name', 'SUPPORT')->firstOrFail(), AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
     $accepted = app(AcceptAdminInvitationAction::class)->execute($issued->rawToken, $tenantB->id, $existing->name, 'local-password');
 
     expect($accepted->admin->id)->toBe($existing->id)
@@ -65,7 +65,7 @@ it('reuses an existing admin identity without copying memberships', function ():
 it('resending invalidates the old token and sends only the replacement link', function (): void {
     Mail::fake();
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
-    $actor = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
+    $actor = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
     $old = app(IssueAdminInvitationAction::class)->execute($tenant, 'resend@example.test', Role::query()->where('name', 'SUPPORT')->firstOrFail(), $actor);
     $new = app(ResendAdminInvitationAction::class)->execute($tenant, $old->invitation->id, $actor);
 

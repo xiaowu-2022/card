@@ -52,9 +52,13 @@ final readonly class RegisterUserAction
                 $challenge->update(['consumed_at' => now()]);
                 $this->audit->record($tenant->id, 'USER', $user->id, 'USER_REGISTERED', 'user', $user->id, null, ['channel' => $challenge->channel->value], $requestId);
 
-                return $user;
+                // Load the database-assigned public ID; UUID relations stay intact.
+                return User::query()->where('tenant_id', $tenant->id)->whereKey($user->id)->firstOrFail();
             });
         } catch (QueryException $exception) {
+            if ($exception->getCode() === 'P2001') {
+                throw new DomainException('ACCOUNT_ID_CAPACITY_EXHAUSTED', 'Registration is temporarily unavailable.');
+            }
             if ($exception->getCode() === '23505') {
                 throw new DomainException('ACCOUNT_ALREADY_EXISTS', 'An account already exists for this contact.');
             }

@@ -24,6 +24,8 @@ final class CreateRegistrationChallengeRequest extends FormRequest
             'channel' => ['required', Rule::in(['EMAIL', 'PHONE'])],
             'destination' => ['required', 'string', 'max:255'],
             'region' => ['nullable', 'string', 'size:2'],
+            // Legacy values are accepted only when the tenant-scoped alias resolves.
+            'invitation_code' => ['required', 'string', 'regex:/^(?:[0-9]{6}|[a-fA-F0-9]{24})$/D'],
         ];
     }
 

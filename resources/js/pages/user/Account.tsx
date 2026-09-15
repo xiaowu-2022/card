@@ -1,76 +1,77 @@
-import { Head, router, usePage } from '@inertiajs/react';
-import { CircleHelp, Globe2, IdCard, LockKeyhole, LogOut, UserRound } from 'lucide-react';
-import { UserListRow } from '@/components/user/UserListRow';
-import { UserPageHeader } from '@/components/user/UserPageHeader';
-import { UserSection } from '@/components/user/UserSection';
+import { t, useClientTranslation } from '@/i18n';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { ChevronRight, Settings, ShieldCheck, Users, MessageSquare, UserRound } from 'lucide-react';
 import { UserLayout } from '@/layouts/UserLayout';
 import type { SharedProps } from '@/types/global';
+import { AccountIdCopy } from '@/components/user/AccountIdCopy';
+import { AccountVerificationLink } from '@/components/user/AccountVerificationLink';
 
-function maskedContact(email: string | null | undefined, phone: string | null | undefined) {
+function maskedContact(email?: string | null, phone?: string | null) {
     if (email) {
         const [local = '', domain = ''] = email.split('@');
         return `${local.slice(0, 1)}***@${domain}`;
     }
-    if (phone) return `${phone.slice(0, 3)}••••${phone.slice(-3)}`;
-    return 'No contact available';
+    return phone ? `${phone.slice(0, 3)}••••${phone.slice(-3)}` : '';
 }
 
-export default function Account() {
+export default function Account({ kycStatus }: { kycStatus: string }) {
+    useClientTranslation();
     const { auth } = usePage<SharedProps>().props;
-    const name = auth.user?.displayName?.trim() || 'Account holder';
-    const initial = name.slice(0, 1).toUpperCase();
+    const name = auth.user?.displayName?.trim() || t('Account user');
+    const items = [
+        { title: t('Account and security'), icon: ShieldCheck, href: '/account/security' },
+        { title: t('Promotion center'), icon: Users, href: '/promotion' },
+        { title: t('Customer support'), icon: MessageSquare, href: '/support' },
+    ];
     return (
         <UserLayout>
-            <Head title="Me" />
-            <div className="space-y-7">
-                <UserPageHeader title="Me" />
-                <section className="flex items-center gap-4 px-1">
-                    <div
-                        className="grid size-14 shrink-0 place-items-center rounded-full bg-[var(--user-primary-soft)] text-lg font-semibold text-primary"
-                        aria-hidden="true"
-                    >
-                        {initial}
+            <Head title={t('Me')} />
+            <h1 className="sr-only">{t('Me')}</h1>
+            <div className="user-account-page">
+                <section className="user-profile">
+                    <div className="user-account-identity">
+                        <span className="user-account-avatar" aria-hidden="true">
+                            <UserRound />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                            <h2 className="user-profile-name">{name}</h2>
+                            <p className="user-profile-contact">
+                                {maskedContact(auth.user?.email, auth.user?.phone)}
+                            </p>
+                        </div>
                     </div>
-                    <div className="min-w-0">
-                        <h2 className="truncate text-lg font-semibold">{name}</h2>
-                        <p className="mt-0.5 truncate text-sm text-muted-foreground">
-                            {maskedContact(auth.user?.email, auth.user?.phone)}
-                        </p>
+                    {auth.user?.accountId && (
+                        <AccountIdCopy key={auth.user.id} accountId={auth.user.accountId} />
+                    )}
+                    <AccountVerificationLink status={kycStatus} />
+                </section>
+                <section
+                    className="user-menu-group user-menu-groups"
+                    aria-label={t('Common features')}
+                >
+                    <h2 className="sr-only">{t('Common features')}</h2>
+                    <div className="user-menu-grid">
+                        {items.map(({ title, icon: Icon, href }) => (
+                            <Link key={href} href={href} className="user-menu-item">
+                                <span className="user-menu-icon">
+                                    <Icon aria-hidden="true" />
+                                </span>
+                                <span className="user-menu-label">{title}</span>
+                            </Link>
+                        ))}
                     </div>
                 </section>
-                <UserSection title="Account">
-                    <div className="divide-y overflow-hidden rounded-[var(--user-radius-md)] border bg-surface">
-                        <UserListRow
-                            icon={UserRound}
-                            title="Personal information"
-                            description="Your verified account details"
-                        />
-                        <UserListRow icon={IdCard} title="Identity verification" href="/kyc" />
-                        <UserListRow icon={LockKeyhole} title="Security" href="/account/security" />
-                    </div>
-                </UserSection>
-                <UserSection title="Preferences">
-                    <div className="overflow-hidden rounded-[var(--user-radius-md)] border bg-surface">
-                        <UserListRow icon={Globe2} title="Language" value="English" />
-                    </div>
-                </UserSection>
-                <UserSection title="Support">
-                    <div className="overflow-hidden rounded-[var(--user-radius-md)] border bg-surface">
-                        <UserListRow
-                            icon={CircleHelp}
-                            title="Help & support"
-                            description="Contact your service provider"
-                        />
-                    </div>
-                </UserSection>
-                <div className="overflow-hidden rounded-[var(--user-radius-md)] border bg-surface">
-                    <UserListRow
-                        icon={LogOut}
-                        title="Log out"
-                        destructive
-                        onClick={() => router.post('/logout')}
+                <Link href="/account/settings" className="user-settings-row">
+                    <Settings
+                        className="size-5 shrink-0 text-[var(--user-primary)]"
+                        aria-hidden="true"
                     />
-                </div>
+                    <span className="min-w-0 flex-1">{t('Settings')}</span>
+                    <ChevronRight
+                        className="size-4 shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                    />
+                </Link>
             </div>
         </UserLayout>
     );

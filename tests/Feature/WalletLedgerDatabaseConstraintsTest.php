@@ -12,6 +12,7 @@ use Illuminate\Support\Str;
 
 beforeEach(function (): void {
     $this->seed();
+    legacyUsdAccountingFixtures();
     $this->tenantA = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
     $this->tenantB = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
     $this->userA = User::query()->where('tenant_id', $this->tenantA->id)->firstOrFail();

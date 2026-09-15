@@ -16,6 +16,7 @@ final readonly class UpdateTenantBrandingAction
     /** @param array{brand_name:string,primary_color:string,support_email:?string,support_url:?string,copyright_text:?string} $data */
     public function execute(Tenant $tenant, array $data, ?UploadedFile $logo, ?UploadedFile $favicon, AdminUser $actor, ?string $requestId = null): void
     {
+        app(CompanyConfigurationAuthority::class)->assert($actor);
         $newLogo = $logo?->store('tenant-branding/'.$tenant->id, 'public');
         $newFavicon = $favicon?->store('tenant-branding/'.$tenant->id, 'public');
         $oldLogo = $tenant->branding?->logo_object_key;

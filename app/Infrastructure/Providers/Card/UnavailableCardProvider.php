@@ -10,10 +10,13 @@ use App\Domain\CardProvider\DTOs\ProviderCardDTO;
 use App\Domain\CardProvider\DTOs\ProviderCardholderDTO;
 use App\Domain\CardProvider\DTOs\ProviderOperationDTO;
 use App\Domain\CardProvider\DTOs\ProviderSensitiveCardDTO;
+use App\Domain\CardProvider\DTOs\ProviderTransactionPageDTO;
 use App\Domain\CardProvider\Exceptions\ProviderUnavailableException;
 
 final class UnavailableCardProvider implements CardProviderInterface
 {
+    use UnsupportedCardManagement;
+
     public function name(): string
     {
         return 'PHOTONPAY';
@@ -85,6 +88,11 @@ final class UnavailableCardProvider implements CardProviderInterface
     }
 
     public function getTransactions(string $providerCardId): array
+    {
+        throw $this->exception();
+    }
+
+    public function getTransactionPage(string $providerCardId, int $page, int $pageSize): ProviderTransactionPageDTO
     {
         throw $this->exception();
     }

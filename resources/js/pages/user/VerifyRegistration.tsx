@@ -1,3 +1,4 @@
+import { t, useClientTranslation, errorMessage, clientI18n } from '@/i18n';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,7 @@ import { PublicLayout } from '@/layouts/PublicLayout';
 type Props = { challenge: { id: string; channel: 'EMAIL' | 'PHONE'; status: string } };
 
 export default function VerifyRegistration({ challenge }: Props) {
+    useClientTranslation();
     const verify = useForm({ code: '' });
     const complete = useForm({
         display_name: '',
@@ -22,25 +24,29 @@ export default function VerifyRegistration({ challenge }: Props) {
     const completeFormError = (complete.errors as Record<string, string>).form;
     return (
         <PublicLayout compact>
-            <Head title={verified ? 'Finish registration' : 'Verify contact'} />
+            <Head title={verified ? t('Finish registration') : t('Verify contact')} />
             <div className="mx-auto max-w-md px-4 pt-6 pb-12 sm:pt-12 sm:pb-20">
                 <Card className="rounded-[var(--user-radius-lg)] shadow-[0_12px_40px_rgba(23,32,28,0.06)]">
                     <CardHeader>
                         <CardTitle className="text-2xl">
-                            {verified ? 'Create your password' : 'Enter verification code'}
+                            {verified ? t('Create your password') : t('Enter verification code')}
                         </CardTitle>
                         <p className="mt-1 text-sm text-muted-foreground">
                             {verified
-                                ? 'Your contact is verified. Finish creating your account.'
-                                : `Enter the six-digit code sent by ${challenge.channel === 'EMAIL' ? 'email' : 'SMS'}.`}
+                                ? t('Your contact is verified. Finish creating your account.')
+                                : t('Enter the six-digit code sent by {{value1}}.', {
+                                      value1: challenge.channel === 'EMAIL' ? t('Email') : t('SMS'),
+                                  })}
                         </p>
                     </CardHeader>
                     <CardContent>
                         {unavailable ? (
                             <Alert>
-                                <AlertTitle>Challenge unavailable</AlertTitle>
+                                <AlertTitle>{t('Challenge unavailable')}</AlertTitle>
                                 <AlertDescription>
-                                    Request a new code or sign in if you already have an account.
+                                    {t(
+                                        'Request a new code or sign in if you already have an account.',
+                                    )}
                                 </AlertDescription>
                             </Alert>
                         ) : verified ? (
@@ -48,20 +54,26 @@ export default function VerifyRegistration({ challenge }: Props) {
                                 className="space-y-5"
                                 onSubmit={(event) => {
                                     event.preventDefault();
+                                    complete.transform((data) => ({
+                                        ...data,
+                                        locale: clientI18n.language,
+                                    }));
                                     complete.post(`/register/challenges/${challenge.id}/complete`);
                                 }}
                             >
                                 {completeFormError && (
                                     <Alert className="border-red-200 bg-red-50 text-red-800">
-                                        <AlertTitle>Unable to create account</AlertTitle>
-                                        <AlertDescription>{completeFormError}</AlertDescription>
+                                        <AlertTitle>{t('Unable to create account')}</AlertTitle>
+                                        <AlertDescription>
+                                            {errorMessage(completeFormError)}
+                                        </AlertDescription>
                                     </Alert>
                                 )}
                                 <FormField
                                     id="display_name"
-                                    label="Display name"
-                                    description="Optional. This is not a legal identity field."
-                                    error={complete.errors.display_name}
+                                    label={t('Display name')}
+                                    description={t('Optional. This is not a legal identity field.')}
+                                    error={errorMessage(complete.errors.display_name)}
                                 >
                                     <Input
                                         id="display_name"
@@ -74,9 +86,11 @@ export default function VerifyRegistration({ challenge }: Props) {
                                 </FormField>
                                 <FormField
                                     id="password"
-                                    label="Password"
-                                    description="At least 12 characters with upper/lowercase letters and a number."
-                                    error={complete.errors.password}
+                                    label={t('Password')}
+                                    description={t(
+                                        'At least 12 characters with upper/lowercase letters and a number.',
+                                    )}
+                                    error={errorMessage(complete.errors.password)}
                                 >
                                     <Input
                                         id="password"
@@ -89,7 +103,7 @@ export default function VerifyRegistration({ challenge }: Props) {
                                         required
                                     />
                                 </FormField>
-                                <FormField id="password_confirmation" label="Confirm password">
+                                <FormField id="password_confirmation" label={t('Confirm password')}>
                                     <Input
                                         id="password_confirmation"
                                         type="password"
@@ -109,7 +123,7 @@ export default function VerifyRegistration({ challenge }: Props) {
                                     type="submit"
                                     disabled={complete.processing}
                                 >
-                                    Create account
+                                    {t('Create account')}
                                 </Button>
                             </form>
                         ) : (
@@ -122,14 +136,16 @@ export default function VerifyRegistration({ challenge }: Props) {
                             >
                                 {verifyFormError && (
                                     <Alert className="border-red-200 bg-red-50 text-red-800">
-                                        <AlertTitle>Verification failed</AlertTitle>
-                                        <AlertDescription>{verifyFormError}</AlertDescription>
+                                        <AlertTitle>{t('Verification failed')}</AlertTitle>
+                                        <AlertDescription>
+                                            {errorMessage(verifyFormError)}
+                                        </AlertDescription>
                                     </Alert>
                                 )}
                                 <FormField
                                     id="code"
-                                    label="Verification code"
-                                    error={verify.errors.code}
+                                    label={t('Verification code')}
+                                    error={errorMessage(verify.errors.code)}
                                 >
                                     <Input
                                         id="code"
@@ -154,7 +170,7 @@ export default function VerifyRegistration({ challenge }: Props) {
                                     type="submit"
                                     disabled={verify.processing}
                                 >
-                                    Verify code
+                                    {t('Verify code')}
                                 </Button>
                             </form>
                         )}
@@ -162,7 +178,7 @@ export default function VerifyRegistration({ challenge }: Props) {
                             className="mt-5 block text-center text-sm font-semibold text-primary"
                             href="/register"
                         >
-                            Request another code
+                            {t('Request another code')}
                         </Link>
                     </CardContent>
                 </Card>

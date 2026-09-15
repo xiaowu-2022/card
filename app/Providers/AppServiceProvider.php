@@ -5,8 +5,10 @@ namespace App\Providers;
 use App\Domain\CardProvider\Contracts\CardProviderInterface;
 use App\Domain\CardProvider\Enums\MockProviderMode;
 use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
+use App\Domain\Notification\Contracts\CompanyEmailTransport;
 use App\Domain\Notification\Contracts\EmailVerificationSender;
 use App\Domain\Notification\Contracts\SmsVerificationSender;
+use App\Domain\Notification\Contracts\TestEmailSender;
 use App\Domain\Payment\Contracts\PaymentProviderInterface;
 use App\Domain\Payment\Enums\MockPaymentMode;
 use App\Domain\Tenant\Contracts\DomainVerificationService;
@@ -15,21 +17,28 @@ use App\Domain\Tenant\TenantContext;
 use App\Domain\Withdrawal\Contracts\BlockchainGatewayInterface;
 use App\Infrastructure\Auth\TenantUserProvider;
 use App\Infrastructure\Mail\LaravelEmailVerificationSender;
+use App\Infrastructure\Mail\ProtonEmailVerificationSender;
+use App\Infrastructure\Mail\ProtonSmtpTransport;
 use App\Infrastructure\Providers\Blockchain\MockBlockchainGateway;
+use App\Infrastructure\Providers\Blockchain\TronGridBlockchainGateway;
 use App\Infrastructure\Providers\Blockchain\UnavailableBlockchainGateway;
+use App\Infrastructure\Providers\Card\LocalCardSimulation;
+use App\Infrastructure\Providers\Card\LocalMockCardProvider;
 use App\Infrastructure\Providers\Card\MockCardProvider;
 use App\Infrastructure\Providers\Card\PhotonPayCardProvider;
 use App\Infrastructure\Providers\Card\PhotonPayCardResponseNormalizer;
 use App\Infrastructure\Providers\Card\UnavailableCardProvider;
+use App\Infrastructure\Providers\Domain\DnsDomainVerificationService;
 use App\Infrastructure\Providers\Domain\LocalDomainVerificationService;
 use App\Infrastructure\Providers\Kyc\MockKycOcrProvider;
 use App\Infrastructure\Providers\Kyc\UnavailableKycOcrProvider;
 use App\Infrastructure\Providers\Payment\MockPaymentProvider;
 use App\Infrastructure\Providers\Payment\UnavailablePaymentProvider;
+use App\Infrastructure\Sms\AliyunSmsVerificationSender;
 use App\Infrastructure\Sms\FakeSmsVerificationSender;
-use App\Infrastructure\Sms\UnavailableSmsVerificationSender;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -41,11 +50,15 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(TenantContext::class);
-        $this->app->bind(DomainVerificationService::class, LocalDomainVerificationService::class);
-        $this->app->bind(EmailVerificationSender::class, LaravelEmailVerificationSender::class);
+        $this->app->bind(DomainVerificationService::class, fn () => app()->environment('local', 'testing')
+            ? new LocalDomainVerificationService : new DnsDomainVerificationService);
+        $this->app->bind(CompanyEmailTransport::class, ProtonSmtpTransport::class);
+        $this->app->bind(TestEmailSender::class, ProtonEmailVerificationSender::class);
+        $this->app->bind(EmailVerificationSender::class, fn () => app()->environment('testing')
+            ? app(LaravelEmailVerificationSender::class) : app(ProtonEmailVerificationSender::class));
         $this->app->singleton(SmsVerificationSender::class, fn () => app()->environment('testing')
             ? new FakeSmsVerificationSender
-            : new UnavailableSmsVerificationSender);
+            : app(AliyunSmsVerificationSender::class));
         $this->app->singleton(PaymentProviderInterface::class, function (): PaymentProviderInterface {
             if (config('payment.driver') === 'mock' && app()->environment(['local', 'testing'])) {
                 return new MockPaymentProvider(
@@ -57,6 +70,9 @@ class AppServiceProvider extends ServiceProvider
             return new UnavailablePaymentProvider;
         });
         $this->app->singleton(BlockchainGatewayInterface::class, function (): BlockchainGatewayInterface {
+            if (config('withdrawal.blockchain_driver') === 'trongrid') {
+                return new TronGridBlockchainGateway;
+            }
             if (config('withdrawal.blockchain_driver') === 'mock' && app()->environment(['local', 'testing'])) {
                 return new MockBlockchainGateway((string) config('withdrawal.mock_verification_mode'));
             }
@@ -67,13 +83,19 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(CardProviderInterface::class, function (): CardProviderInterface {
             $driver = config('card-provider.driver');
 
-            if ($driver === 'mock' && app()->environment(['local', 'testing'])) {
+            if ($driver !== 'directory' && LocalCardSimulation::enabled()) {
+                return new LocalMockCardProvider;
+            }
+            if ($driver !== 'directory' && DB::connection()->getDatabaseName() === 'card_mock') {
+                return new UnavailableCardProvider;
+            }
+            if ($driver === 'mock' && app()->environment('testing')) {
                 return new MockCardProvider(
                     MockProviderMode::from((string) config('card-provider.mock_mode')),
                     (string) config('card-provider.mock_cardholder_mode'),
                 );
             }
-            if ($driver === 'photonpay') {
+            if (in_array($driver, ['photonpay', 'directory'], true)) {
                 $config = config('card-provider.photonpay');
 
                 return new PhotonPayCardProvider(

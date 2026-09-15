@@ -28,6 +28,7 @@ use Illuminate\Support\Str;
 
 beforeEach(function (): void {
     $this->seed();
+    legacyUsdAccountingFixtures();
     Storage::fake('private');
     Queue::fake();
     $this->tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
@@ -42,7 +43,7 @@ function phaseSixWallet($test, string $required = '50.00000000', string $availab
         'required_security_deposit_asset' => 'USD',
         'allow_wallet_topup' => true,
         'allow_withdrawal' => false,
-    ], $test->owner);
+    ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
     $application = app(SubmitKycApplicationAction::class)->execute(
         $test->tenant, $test->user, 'MY', 'DEPOSIT-'.$test->user->id,
         kycTestImage('deposit-front.png'), kycTestImage('deposit-back.png'),
@@ -90,11 +91,11 @@ it('funds only a later requirement increase and never refunds a decrease', funct
     phaseSixFund($this);
     app(UpdateTenantBusinessSettingsAction::class)->execute($this->tenant, [
         'required_security_deposit_amount' => '75', 'required_security_deposit_asset' => 'USD', 'allow_wallet_topup' => true, 'allow_withdrawal' => false,
-    ], $this->owner);
+    ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
     phaseSixFund($this, '25');
     app(UpdateTenantBusinessSettingsAction::class)->execute($this->tenant, [
         'required_security_deposit_amount' => '20', 'required_security_deposit_asset' => 'USD', 'allow_wallet_topup' => true, 'allow_withdrawal' => false,
-    ], $this->owner);
+    ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
 
     expect(LedgerAccount::query()->where('wallet_id', $wallet->id)->where('account_type', LedgerAccountType::UserSecurityDeposit->value)->value('balance'))->toBe('75.00000000')
         ->and(LedgerEntry::query()->where('event_type', 'SECURITY_DEPOSIT_FUND')->count())->toBe(2)
@@ -133,7 +134,7 @@ it('enforces every lifecycle and KYC eligibility rule', function (string $case):
     if ($case === 'kyc') {
         app(UpdateTenantBusinessSettingsAction::class)->execute($this->tenant, [
             'required_security_deposit_amount' => '50', 'required_security_deposit_asset' => 'USD', 'allow_wallet_topup' => true, 'allow_withdrawal' => false,
-        ], $this->owner);
+        ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
         Wallet::query()->create(['tenant_id' => $this->tenant->id, 'user_id' => $this->user->id, 'asset_code' => 'USD', 'status' => 'ACTIVE']);
     } else {
         $wallet = phaseSixWallet($this);
@@ -150,7 +151,7 @@ it('enforces every lifecycle and KYC eligibility rule', function (string $case):
 it('fails closed when the wallet and required security deposit assets differ', function (): void {
     app(UpdateTenantBusinessSettingsAction::class)->execute($this->tenant, [
         'required_security_deposit_amount' => '50', 'required_security_deposit_asset' => 'USD', 'allow_wallet_topup' => true, 'allow_withdrawal' => false,
-    ], $this->owner);
+    ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
     $application = app(SubmitKycApplicationAction::class)->execute(
         $this->tenant, $this->user, 'MY', 'DEPOSIT-ASSET-'.$this->user->id,
         kycTestImage('asset-front.png'), kycTestImage('asset-back.png'),
@@ -168,8 +169,9 @@ it('keeps tenant boundaries and admin deposit views read only', function (): voi
     expect(fn () => app(FundSecurityDepositAction::class)->execute($tenantB->id, $this->user->id, (string) Str::uuid(), '50'))->toThrow(ModelNotFoundException::class);
     $this->actingAs($this->owner, 'tenant_admin')->get("http://a.localhost/admin/users/{$this->user->id}/wallet")
         ->assertOk()->assertInertia(fn ($page) => $page->where('wallet.securityDepositRequired.amount', '50.00000000')->where('wallet.securityDepositSatisfied', false));
-    expect(collect(Route::getRoutes())->pluck('uri')->filter(fn (string $uri): bool => preg_match('/security-deposit.*(adjust|refund|release)/', $uri) === 1)->all())->toBe([])
+    expect(collect(Route::getRoutes())->pluck('uri')->filter(fn (string $uri): bool => preg_match('/security-deposit.*(adjust|refund|release)/', $uri) === 1)->values()->all())->toBe(['security-deposit/refund'])
         ->and($wallet->fresh()->tenant_id)->toBe($this->tenant->id);
+    $this->post('http://a.localhost/admin/security-deposit/refund')->assertNotFound();
 });
 
 it('renders one business activity row and server-backed dashboard action', function (): void {
@@ -180,4 +182,8 @@ it('renders one business activity row and server-backed dashboard action', funct
         ->and($activity->firstWhere('eventType', 'SECURITY_DEPOSIT_FUND')['amount'])->toBe('-50.00000000');
     $this->actingAs($this->user, 'tenant_user')->get('http://a.localhost/wallet')->assertOk()->assertInertia(fn ($page) => $page
         ->where('eligibility.depositSatisfied', true));
+    $this->get('http://a.localhost/dashboard')->assertOk()->assertInertia(fn ($page) => $page
+        ->where('wallet.available.amount', '50.00000000')
+        ->where('wallet.withdrawalAvailable', false)
+        ->where('activity', fn ($items): bool => collect($items)->contains(fn ($item): bool => $item['eventType'] === 'SECURITY_DEPOSIT_FUND' && $item['amount'] === '-50.00000000')));
 });

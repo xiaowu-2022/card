@@ -5,3 +5,17 @@ vendor
 public/build
 storage/logs/*
 database/database.sqlite
+
+# Persistent data and secrets never belong in an image build context.
+.env.*
+!.env.example
+storage/app
+storage/framework
+bootstrap/cache/*.php
+public/storage
+public/hot
+*.dump
+*.sql
+*.pem
+*.key
+auth.json

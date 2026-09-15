@@ -15,7 +15,7 @@ const results = [];
 async function login(page, admin = false) {
     await page.goto(`http://a.localhost:8000/${admin ? 'admin/login' : 'login'}`);
     await page.getByLabel(admin ? 'Work email' : 'Email or phone').fill(admin ? 'owner@a.localhost' : 'user@a.localhost');
-    await page.getByLabel('Password').fill('local-password');
+    await page.getByLabel('Password').fill('123456');
     await Promise.all([
         page.waitForURL(admin ? /\/admin\/(?:demo|onboarding)$/ : '**/dashboard'),
         page.getByRole('button', { name: 'Sign in' }).click(),

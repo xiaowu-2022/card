@@ -1,3 +1,4 @@
+import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -23,38 +24,42 @@ export default function TenantCreate({
     assets: string[];
     timezones: string[];
 }) {
+    useAdminTranslation();
     const form = useForm({
         name: '',
         slug: '',
         owner_email: '',
         default_locale: locales[0] ?? 'en',
         timezone: 'UTC',
-        default_asset: assets[0] ?? 'USD',
+        default_asset: assets[0] ?? 'USDT',
     });
     return (
         <PlatformLayout>
-            <Head title="Create tenant" />
+            <Head title={t('Create tenant')} />
             <div className="space-y-6">
                 <PageHeader
-                    eyebrow="Tenant onboarding"
-                    title="Create tenant foundation"
-                    description="Creates a draft tenant, its immutable system domain, baseline configuration, and a Tenant Owner invitation."
+                    eyebrow={t('Tenant onboarding')}
+                    title={t('Create tenant foundation')}
+                    description={t(
+                        'Creates a draft tenant, its immutable system domain, baseline configuration, and a Tenant Owner invitation.',
+                    )}
                     actions={
                         <Button asChild variant="secondary">
-                            <Link href="/platform/tenants">Cancel</Link>
+                            <Link href="/platform/tenants">{t('Cancel')}</Link>
                         </Button>
                     }
                 />
                 <Alert>
-                    <AlertTitle>No business activation</AlertTitle>
+                    <AlertTitle>{t('No business activation')}</AlertTitle>
                     <AlertDescription>
-                        This step creates administrative foundation only. Wallet, card, funding and
-                        provider workflows remain unavailable.
+                        {t(
+                            'This step creates administrative foundation only. Wallet, card, funding and provider workflows remain unavailable.',
+                        )}
                     </AlertDescription>
                 </Alert>
                 <Card className="max-w-3xl">
                     <CardHeader>
-                        <CardTitle>Tenant and owner</CardTitle>
+                        <CardTitle>{t('Tenant and owner')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <form
@@ -66,8 +71,8 @@ export default function TenantCreate({
                         >
                             <FormField
                                 id="name"
-                                label="Legal or operating name"
-                                error={form.errors.name}
+                                label={t('Legal or operating name')}
+                                error={errorMessage(form.errors.name)}
                             >
                                 <Input
                                     id="name"
@@ -78,9 +83,9 @@ export default function TenantCreate({
                             </FormField>
                             <FormField
                                 id="slug"
-                                label="System subdomain"
-                                description="Lowercase letters, numbers and hyphens."
-                                error={form.errors.slug}
+                                label={t('System subdomain')}
+                                description={t('Lowercase letters, numbers and hyphens.')}
+                                error={errorMessage(form.errors.slug)}
                             >
                                 <Input
                                     id="slug"
@@ -93,8 +98,8 @@ export default function TenantCreate({
                             </FormField>
                             <FormField
                                 id="owner-email"
-                                label="Owner email"
-                                error={form.errors.owner_email}
+                                label={t('Owner email')}
+                                error={errorMessage(form.errors.owner_email)}
                             >
                                 <Input
                                     id="owner-email"
@@ -107,8 +112,8 @@ export default function TenantCreate({
                             </FormField>
                             <FormField
                                 id="locale"
-                                label="Default locale"
-                                error={form.errors.default_locale}
+                                label={t('Default locale')}
+                                error={errorMessage(form.errors.default_locale)}
                             >
                                 <Select
                                     value={form.data.default_locale}
@@ -120,13 +125,17 @@ export default function TenantCreate({
                                     <SelectContent>
                                         {locales.map((locale) => (
                                             <SelectItem key={locale} value={locale}>
-                                                {locale}
+                                                {t(locale)}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </FormField>
-                            <FormField id="timezone" label="Timezone" error={form.errors.timezone}>
+                            <FormField
+                                id="timezone"
+                                label={t('Timezone')}
+                                error={errorMessage(form.errors.timezone)}
+                            >
                                 <Select
                                     value={form.data.timezone}
                                     onValueChange={(value) => form.setData('timezone', value)}
@@ -145,25 +154,11 @@ export default function TenantCreate({
                             </FormField>
                             <FormField
                                 id="asset"
-                                label="Default asset"
-                                description="Configuration only; no account is created."
-                                error={form.errors.default_asset}
+                                label={t('Default asset')}
+                                description={t('Configuration only; no account is created.')}
+                                error={errorMessage(form.errors.default_asset)}
                             >
-                                <Select
-                                    value={form.data.default_asset}
-                                    onValueChange={(value) => form.setData('default_asset', value)}
-                                >
-                                    <SelectTrigger id="asset">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {assets.map((asset) => (
-                                            <SelectItem key={asset} value={asset}>
-                                                {asset}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Input id="asset" value={form.data.default_asset} readOnly />
                             </FormField>
                             <div className="flex items-end sm:justify-end">
                                 <Button
@@ -171,7 +166,7 @@ export default function TenantCreate({
                                     type="submit"
                                     disabled={form.processing}
                                 >
-                                    Create and invite owner
+                                    {t('Create and invite owner')}
                                 </Button>
                             </div>
                         </form>

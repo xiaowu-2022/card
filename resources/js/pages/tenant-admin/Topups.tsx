@@ -1,3 +1,4 @@
+import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, Link } from '@inertiajs/react';
 import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -38,26 +39,27 @@ const tone = (status: string): StatusTone =>
             ? 'INFO'
             : 'WARNING';
 export default function Topups({ orders }: { orders: { data: Order[] } }) {
+    useAdminTranslation();
     return (
         <TenantAdminLayout>
-            <Head title="Top-ups" />
+            <Head title={t('Top-ups')} />
             <PageHeader
-                title="Top-ups"
-                description="Read-only wallet funding orders and settlement state."
+                title={t('Top-ups')}
+                description={t('Read-only wallet funding orders and settlement state.')}
             />
             <div className="mt-6 overflow-x-auto rounded-xl border bg-surface">
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Order</TableHead>
-                            <TableHead>User</TableHead>
-                            <TableHead>Requested</TableHead>
-                            <TableHead>Exact amount</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Provider</TableHead>
-                            <TableHead>Created</TableHead>
-                            <TableHead>Paid</TableHead>
-                            <TableHead>Credited</TableHead>
+                            <TableHead>{t('Order')}</TableHead>
+                            <TableHead>{t('User')}</TableHead>
+                            <TableHead>{t('Requested')}</TableHead>
+                            <TableHead>{t('Exact amount')}</TableHead>
+                            <TableHead>{t('Status')}</TableHead>
+                            <TableHead>{t('Provider')}</TableHead>
+                            <TableHead>{t('Created')}</TableHead>
+                            <TableHead>{t('Paid')}</TableHead>
+                            <TableHead>{t('Credited')}</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -94,17 +96,16 @@ export default function Topups({ orders }: { orders: { data: Order[] } }) {
                                     ) : null}
                                 </TableCell>
                                 <TableCell>
-                                    <StatusBadge status={tone(order.status)} label={order.status} />
+                                    <StatusBadge
+                                        status={tone(order.status)}
+                                        label={t(order.status)}
+                                    />
                                 </TableCell>
                                 <TableCell>{order.provider}</TableCell>
-                                <TableCell>{new Date(order.createdAt).toLocaleString()}</TableCell>
+                                <TableCell>{dateTime(order.createdAt)}</TableCell>
+                                <TableCell>{order.paidAt ? dateTime(order.paidAt) : '—'}</TableCell>
                                 <TableCell>
-                                    {order.paidAt ? new Date(order.paidAt).toLocaleString() : '—'}
-                                </TableCell>
-                                <TableCell>
-                                    {order.creditedAt
-                                        ? new Date(order.creditedAt).toLocaleString()
-                                        : '—'}
+                                    {order.creditedAt ? dateTime(order.creditedAt) : '—'}
                                 </TableCell>
                             </TableRow>
                         ))}

@@ -1,3 +1,4 @@
+import { t, useClientTranslation } from '@/i18n';
 import { Link } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -13,17 +14,18 @@ export function UserPageHeader({
     backHref?: string;
     action?: ReactNode;
 }) {
+    useClientTranslation();
     return (
-        <div className="flex min-w-0 items-start justify-between gap-4">
+        <div className="user-page-header flex min-w-0 items-start justify-between gap-4">
             <div className="min-w-0">
                 {backHref ? (
                     <Link
                         href={backHref}
                         className="mb-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
-                        aria-label={`Back from ${title}`}
+                        aria-label={t('Back from {{value1}}', { value1: title })}
                     >
                         <ArrowLeft className="size-4" />
-                        Back
+                        {t('Back')}
                     </Link>
                 ) : null}
                 <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl">

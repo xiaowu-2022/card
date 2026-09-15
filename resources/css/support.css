@@ -1,0 +1,222 @@
+.support-thread {
+    margin-top: 20px;
+    min-width: 0;
+}
+.support-privacy {
+    color: #737e77;
+    font-size: 12px;
+    line-height: 1.6;
+    margin-bottom: 10px;
+}
+.support-history-actions {
+    display: flex;
+    gap: 8px;
+}
+.support-messages {
+    height: clamp(180px, calc(100dvh - 480px), 480px);
+    min-height: 180px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 14px 4px;
+}
+.support-empty {
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 20px;
+    color: #77847c;
+    gap: 10px;
+}
+.support-empty > svg {
+    width: 36px;
+    height: 36px;
+    color: #39ad8d;
+}
+.support-empty > h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1b2922;
+}
+.support-empty > p {
+    max-width: 300px;
+    font-size: 13px;
+}
+.support-message {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 20px;
+}
+.support-message-own {
+    align-items: flex-end;
+}
+.support-sender,
+.support-message time {
+    font-size: 11px;
+    color: #748078;
+    margin: 4px 2px;
+}
+.support-bubble {
+    max-width: 85%;
+    padding: 12px 14px;
+    border-radius: 16px 16px 16px 4px;
+    background: white;
+    border: 1px solid #e5e8e3;
+    color: #20332a;
+}
+.support-message-own .support-bubble {
+    border-radius: 16px 16px 4px 16px;
+    background: #e0f2e9;
+    border-color: #d4e9dd;
+}
+.support-bubble > p {
+    font-size: 14px;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.support-image-button {
+    display: block;
+    min-width: 44px;
+    min-height: 44px;
+}
+.support-image-button img {
+    max-height: 220px;
+    max-width: min(220px, 100%);
+    border-radius: 8px;
+    object-fit: contain;
+}
+.support-image-button + p {
+    margin-top: 8px;
+}
+.support-composer {
+    border-top: 1px solid #dee5df;
+    padding-top: 12px;
+}
+.support-composer textarea {
+    min-height: 84px;
+    max-height: 160px;
+    resize: vertical;
+    font-size: 16px;
+    border-radius: 16px;
+    background: white;
+}
+.support-composer-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+}
+.support-composer-actions > button:last-child {
+    margin-left: auto;
+}
+.support-limit {
+    color: #77847c;
+    font-size: 11px;
+}
+.support-preview {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding-bottom: 10px;
+}
+.support-preview > img {
+    max-width: 100px;
+    height: 80px;
+    border-radius: 10px;
+    object-fit: contain;
+}
+.support-error {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #9d3f20;
+    margin: 8px 0;
+}
+.support-upload-progress {
+    font-size: 12px;
+    color: #748078;
+    margin-top: 8px;
+}
+.user-theme .user-main .support-thread button {
+    min-height: 44px;
+    font-size: 13px;
+    padding: 8px 12px;
+    border-radius: 12px;
+}
+.user-theme .user-main .support-thread .support-image-button {
+    padding: 0;
+}
+.support-thread-admin {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+}
+.support-thread-admin .support-messages {
+    background: #f8fafc;
+    padding: 16px;
+    border-radius: 8px;
+}
+.support-thread-admin .support-message-own .support-bubble {
+    background: #eff6ff;
+    border-color: #dbeafe;
+}
+@media (max-width: 400px) {
+    .support-limit {
+        display: none;
+    }
+    .support-thread-admin {
+        padding: 12px;
+    }
+}
+
+/* The consumer chat fills the space above navigation; only messages scroll. */
+.user-theme .user-shell-support {
+    height: 100dvh;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+.user-shell-support > .user-header {
+    flex-shrink: 0;
+}
+.user-shell-support > .user-main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+    padding-bottom: calc(clamp(64px, 14.133cqw, 106px) + env(safe-area-inset-bottom) + 12px);
+}
+.user-shell-support .user-page-header,
+.user-shell-support .support-privacy,
+.user-shell-support .support-history-actions,
+.user-shell-support .support-composer {
+    flex-shrink: 0;
+}
+.user-shell-support .support-thread {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+    margin-top: 12px;
+}
+.user-shell-support .support-messages {
+    flex: 1;
+    height: auto;
+    min-height: 0;
+}
+.user-theme .user-shell-support .support-composer textarea {
+    display: block;
+    height: 56px;
+    min-height: 44px;
+    max-height: 120px;
+}
+.user-theme .user-shell-support .support-composer .support-composer-actions > button {
+    min-height: 44px;
+    height: 44px;
+    font-size: 14px;
+    padding: 8px 12px;
+}

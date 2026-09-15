@@ -37,7 +37,7 @@ for (const viewport of viewports) {
     });
     await page.goto(`${baseUrl}/login`);
     await page.getByLabel('Email or phone').fill('user@a.localhost');
-    await page.getByLabel('Password').fill('local-password');
+    await page.getByLabel('Password').fill('123456');
     await Promise.all([page.waitForURL('**/dashboard'), page.getByRole('button', { name: 'Sign in' }).click()]);
 
     for (const [name, path] of paths) {

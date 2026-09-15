@@ -21,7 +21,7 @@ async function login(page, platform = null) {
     const path = platform === true ? 'platform/login' : platform === false ? 'admin/login' : 'login';
     await page.goto(`http://${host}.localhost:8000/${path}`);
     await page.getByLabel(platform === null ? 'Email or phone' : 'Work email').fill(platform === true ? 'owner@platform.local' : platform === false ? 'owner@a.localhost' : 'user@a.localhost');
-    await page.getByLabel('Password').fill('local-password');
+    await page.getByLabel('Password').fill('123456');
     await Promise.all([
         page.waitForURL(platform === true ? '**/platform/tenants' : platform === false ? /\/admin\/(?:demo|onboarding)$/ : '**/dashboard'),
         page.getByRole('button', { name: 'Sign in' }).click(),
@@ -48,9 +48,9 @@ async function inspect(page, viewport, name) {
 
 for (const viewport of viewports) {
     for (const [state, heading, name] of [
-        ['setup', 'Card setup', 'card-setup'],
-        ['pending', 'Card setup submitted', 'cardholder-pending'],
-        ['insufficient', 'Available cards', 'insufficient-balance'],
+        ['setup', 'Apply for a card', 'card-setup'],
+        ['pending', 'Confirming cardholder addition', 'cardholder-pending'],
+        ['insufficient', 'Confirm card opening', 'insufficient-balance'],
         ['processing', 'Creating your card', 'issue-processing'],
         ['success', 'Your cards', 'issue-success'],
     ]) {
@@ -62,7 +62,8 @@ for (const viewport of viewports) {
         page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
         await login(page);
         await page.goto('http://a.localhost:8000/cards');
-        await page.getByRole('heading', { name: heading, exact: true }).waitFor();
+        if (['insufficient', 'setup', 'pending'].includes(state)) await page.getByRole('button', { name: 'Apply for a card', exact: true }).click();
+        await page.getByRole('heading', { name: heading, exact: true }).first().waitFor();
         await inspect(page, viewport, name);
         if (errors.length) throw new Error(`${viewport.width}px ${name} console errors: ${errors.join(' | ')}`);
         await context.close();
@@ -76,7 +77,8 @@ for (const viewport of viewports) {
     readyPage.on('console', (message) => { if (message.type() === 'error') readyErrors.push(message.text()); });
     await login(readyPage);
     await readyPage.goto('http://a.localhost:8000/cards');
-    await readyPage.getByRole('heading', { name: 'Available cards', exact: true }).waitFor();
+    await readyPage.getByRole('button', { name: 'Apply for a card', exact: true }).click();
+    await readyPage.getByRole('heading', { name: 'Confirm card opening', exact: true }).waitFor();
     await inspect(readyPage, viewport, 'cardholder-ready');
     await readyPage.getByRole('button', { name: 'Open card', exact: true }).click();
     await readyPage.getByRole('heading', { name: 'Confirm card opening', exact: true }).waitFor();

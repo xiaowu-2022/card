@@ -40,7 +40,7 @@ final readonly class VerifyWithdrawalTransactionAction
         }
 
         /** @var array{order:WithdrawalOrder,attempt:WithdrawalTransactionAttempt,address:string} $prepared */
-        $prepared = DB::transaction(function () use ($tenantId, $orderId, $txHash): array {
+        $prepared = DB::transaction(function () use ($tenantId, $orderId, $txHash, $actor, $requestId): array {
             $order = WithdrawalOrder::query()->where('tenant_id', $tenantId)->whereKey($orderId)->with('destination')->lockForUpdate()->firstOrFail();
             if ($order->status === WithdrawalStatus::Succeeded) {
                 if ($order->submitted_tx_hash !== $txHash) {
@@ -72,6 +72,7 @@ final readonly class VerifyWithdrawalTransactionAction
                 throw new DomainException('WITHDRAWAL_TX_HASH_ALREADY_USED', 'This transaction hash is already assigned to another withdrawal.', 409);
             }
             $order->update(['status' => WithdrawalStatus::Verifying, 'submitted_tx_hash' => $txHash]);
+            $this->audit->record($tenantId, 'ADMIN', $actor->id, 'WITHDRAWAL_VERIFICATION_REQUESTED', 'withdrawal_order', $order->id, null, ['attempt_id' => $attempt->id], $requestId);
 
             return ['order' => $order, 'attempt' => $attempt, 'address' => $this->addresses->decrypt($order->destination->address_ciphertext)];
         }, 3);
@@ -79,7 +80,12 @@ final readonly class VerifyWithdrawalTransactionAction
         if ($prepared['order']->status === WithdrawalStatus::Succeeded) {
             return $prepared['order'];
         }
-        $verification = $this->gateway->verifyUsdtTrc20Transfer($txHash, $prepared['address'], Money::of($prepared['order']->amount, 'USDT')->amount());
+        try {
+            $verification = $this->gateway->verifyUsdtTrc20Transfer($txHash, $prepared['address'], Money::of($prepared['order']->receive_amount, 'USDT')->amount());
+        } catch (\Throwable $exception) {
+            $this->audit->record($tenantId, 'ADMIN', $actor->id, 'WITHDRAWAL_VERIFICATION_UNAVAILABLE', 'withdrawal_order', $orderId, null, ['attempt_id' => $prepared['attempt']->id], $requestId);
+            throw $exception;
+        }
 
         return DB::transaction(function () use ($tenantId, $orderId, $txHash, $verification, $actor, $requestId): WithdrawalOrder {
             $order = WithdrawalOrder::query()->where('tenant_id', $tenantId)->whereKey($orderId)->lockForUpdate()->firstOrFail();
@@ -97,6 +103,8 @@ final readonly class VerifyWithdrawalTransactionAction
                 $attempt->verification_status = 'PENDING';
                 $attempt->save();
 
+                $this->audit->record($tenantId, 'ADMIN', $actor->id, 'WITHDRAWAL_VERIFICATION_PENDING', 'withdrawal_order', $orderId, null, ['attempt_id' => $attempt->id], $requestId);
+
                 return $order;
             }
             if ($verification->outcome !== BlockchainVerificationOutcome::Confirmed) {
@@ -104,23 +112,33 @@ final readonly class VerifyWithdrawalTransactionAction
                 $attempt->safe_failure_code = $verification->outcome->value;
                 $attempt->save();
                 $order->update(['status' => WithdrawalStatus::Approved, 'submitted_tx_hash' => null]);
+                $this->audit->record($tenantId, 'ADMIN', $actor->id, 'WITHDRAWAL_VERIFICATION_REJECTED', 'withdrawal_order', $orderId, null, ['attempt_id' => $attempt->id, 'result' => $attempt->verification_status], $requestId);
 
                 return $order;
             }
 
             $accounts = LedgerAccount::query()->where('tenant_id', $tenantId)->where(function ($query) use ($order): void {
                 $query->where(fn ($user) => $user->where('wallet_id', $order->wallet_id)->where('account_type', LedgerAccountType::UserWithdrawalHold->value))
-                    ->orWhere(fn ($tenant) => $tenant->whereNull('wallet_id')->where('asset_code', 'USDT')->where('account_type', LedgerAccountType::TenantWithdrawalClearing->value));
+                    ->orWhere(fn ($tenant) => $tenant->whereNull('wallet_id')->where('asset_code', 'USDT')->whereIn('account_type', [LedgerAccountType::TenantWithdrawalClearing->value, LedgerAccountType::TenantFeeRevenue->value]));
             })->get()->keyBy(fn ($account) => $account->account_type->value);
             $hold = $accounts->get(LedgerAccountType::UserWithdrawalHold->value);
             $clearing = $accounts->get(LedgerAccountType::TenantWithdrawalClearing->value);
-            if (! $hold || ! $clearing) {
+            $revenue = $accounts->get(LedgerAccountType::TenantFeeRevenue->value);
+            $fee = Money::of($order->fee_amount, 'USDT');
+            if (! $hold || ! $clearing || ($fee->isPositive() && ! $revenue)) {
                 throw new DomainException('WITHDRAWAL_SETTLEMENT_ACCOUNTS_MISSING', 'Withdrawal settlement accounts are unavailable.', 409);
             }
             $money = Money::of($order->amount, 'USDT');
+            $postings = [
+                new LedgerPostingInstruction($hold->id, Money::of('-'.$money->amount(), 'USDT')),
+                new LedgerPostingInstruction($clearing->id, Money::of($order->receive_amount, 'USDT')),
+            ];
+            if ($fee->isPositive()) {
+                $postings[] = new LedgerPostingInstruction($revenue->id, $fee);
+            }
             $entry = $this->ledger->post(new LedgerPostingPlan(
                 $tenantId, 'USDT', "withdrawal:{$order->id}:settle", 'WITHDRAWAL_SETTLE', 'WITHDRAWAL_ORDER', $order->id, null,
-                [new LedgerPostingInstruction($hold->id, Money::of('-'.$money->amount(), 'USDT')), new LedgerPostingInstruction($clearing->id, $money)],
+                $postings,
             ));
             $attempt->verification_status = 'CONFIRMED';
             $attempt->safe_failure_code = null;
@@ -131,6 +149,7 @@ final readonly class VerifyWithdrawalTransactionAction
             ]);
             $this->audit->record($tenantId, 'ADMIN', $actor->id, 'WITHDRAWAL_SUCCEEDED', 'withdrawal_order', $order->id, null, [
                 'amount' => $order->amount, 'asset' => 'USDT', 'network' => 'TRON', 'tx_hash' => $txHash, 'ledger_entry_id' => $entry->id,
+                'fee_amount' => $order->fee_amount, 'receive_amount' => $order->receive_amount,
             ], $requestId);
 
             return $order;

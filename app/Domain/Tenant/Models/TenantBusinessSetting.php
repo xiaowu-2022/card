@@ -18,6 +18,8 @@ final class TenantBusinessSetting extends Model
     {
         return [
             'required_security_deposit_amount' => 'decimal:8',
+            'security_deposit_refund_wait_days' => 'integer',
+            'withdrawal_fixed_fee' => 'decimal:8',
             'allow_wallet_topup' => 'boolean',
             'allow_withdrawal' => 'boolean',
         ];

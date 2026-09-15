@@ -32,6 +32,8 @@ final readonly class CreateTenantAction
     /** @param array{name:string,slug:string,default_locale:string,timezone:string,default_asset:string,owner_email:string} $data */
     public function execute(array $data, AdminUser $actor, ?string $requestId = null): CreatedTenant
     {
+        validator($data, ['default_asset' => ['required', 'in:USDT']])->validate();
+
         $created = DB::transaction(function () use ($data, $actor, $requestId): CreatedTenant {
             $tenant = Tenant::query()->create([
                 'name' => trim($data['name']),
@@ -67,8 +69,8 @@ final readonly class CreateTenantAction
                 'tenant_id' => $tenant->id,
                 'required_security_deposit_amount' => '0.00000000',
                 'required_security_deposit_asset' => $data['default_asset'],
-                'allow_wallet_topup' => false,
-                'allow_withdrawal' => false,
+                'allow_wallet_topup' => true,
+                'allow_withdrawal' => true,
             ]);
             TenantKycSetting::query()->create([
                 'tenant_id' => $tenant->id,

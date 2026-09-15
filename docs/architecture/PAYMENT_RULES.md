@@ -1,5 +1,14 @@
 # Payment Rules
 
+2026-09-13 later approval: [SaaS manual receipt confirmation](PLATFORM_MANUAL_TOPUP_CONFIRMATION.md)
+supersedes the no-manual-confirmation exclusion only for the narrowly scoped existing
+TRC20 Order workflow. Manual provenance is distinct from verified chain/provider receipt.
+
+2026-09-13 approved extension: [Live incoming verification](TRC20_LIVE_VERIFICATION.md)
+adds read-only TronGrid incoming USDT and SaaS-triggered chain rechecks. It supersedes
+the absence of a real chain adapter below, never exact matching or the ban on manual
+mark-paid/mark-credited/force-success. Company Admin is still read-only.
+
 Payment Provider and Card Provider are separate domains and contracts. The former accepts external wallet funding; the latter will manage virtual cards. Neither adapter may mutate Wallet or Ledger.
 
 ## Truth and state
@@ -11,6 +20,17 @@ Orders permit the core transitions `PENDING -> PROCESSING|PAID|FAILED|CANCELLED|
 TRC20 Orders may additionally remain `UNKNOWN` or `REQUIRES_REVIEW` while their outcome is unresolved. These states retain the exact expected-amount reservation until trusted resolution reaches a definitive closed state.
 
 ## Idempotency and isolation
+
+### Direct payment dialog (approved 2026-09-13)
+
+The wallet top-up amount form submits directly to the existing scoped, idempotent
+creation action, without a second review screen. Creation redirects to the saved
+Order's payment instructions with its dialog initially open. The dialog shows the
+server-assigned exact amount, address, local QR code and full-credit/decimal warning
+before any external payment. Input and submit are disabled during creation; retries
+keep the same request UUID. This UI change never pays, credits, changes suffix
+allocation or relaxes chain verification. Explicit user payment still happens
+outside the app. No live payment is required to test this navigation.
 
 Creation requires a client UUID, unique as `(tenant_id, request_id)`, with a canonical request hash over operation, Tenant, User, Wallet, amount, and asset. The same request and payload returns the existing Order; changed content is `IDEMPOTENCY_CONFLICT`. The stable Order UUID is the Provider request id. UNKNOWN reconciliation never generates a new semantic request.
 

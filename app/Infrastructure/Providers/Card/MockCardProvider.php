@@ -10,6 +10,7 @@ use App\Domain\CardProvider\DTOs\ProviderCardDTO;
 use App\Domain\CardProvider\DTOs\ProviderCardholderDTO;
 use App\Domain\CardProvider\DTOs\ProviderOperationDTO;
 use App\Domain\CardProvider\DTOs\ProviderSensitiveCardDTO;
+use App\Domain\CardProvider\DTOs\ProviderTransactionPageDTO;
 use App\Domain\CardProvider\Enums\MockProviderMode;
 use App\Domain\CardProvider\Enums\ProviderCardholderReviewStatus;
 use App\Domain\CardProvider\Enums\ProviderOperationStatus;
@@ -22,6 +23,8 @@ use Illuminate\Support\Str;
 
 final class MockCardProvider implements CardProviderInterface
 {
+    use UnsupportedCardManagement;
+
     public function __construct(
         private MockProviderMode $mode = MockProviderMode::Success,
         private string $cardholderMode = 'READY',
@@ -46,7 +49,8 @@ final class MockCardProvider implements CardProviderInterface
             throw new ProviderRejectedException('MOCK Cardholder was rejected.');
         }
 
-        return $this->cardholder('MOCK-HOLDER-'.strtoupper(substr(hash('sha256', $request->email ?? $request->mobile ?? $request->firstName), 0, 12)));
+        // A distinct TEST identity per accepted call, even if two cardholders share a contact.
+        return $this->cardholder('MOCK-HOLDER-'.Str::uuid());
     }
 
     public function updateCardholder(CardholderRequestDTO $request): ProviderCardholderDTO
@@ -153,6 +157,13 @@ final class MockCardProvider implements CardProviderInterface
         $this->assertReadable();
 
         return [];
+    }
+
+    public function getTransactionPage(string $providerCardId, int $page, int $pageSize): ProviderTransactionPageDTO
+    {
+        $this->assertReadable();
+
+        return new ProviderTransactionPageDTO([], $page, false);
     }
 
     public function queryOperation(string $providerOperationId): ProviderOperationDTO

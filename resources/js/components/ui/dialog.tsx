@@ -9,8 +9,13 @@ export const DialogClose = DialogPrimitive.Close;
 export function DialogContent({
     className,
     children,
+    closeLabel = 'Close',
+    closeDisabled = false,
     ...props
-}: ComponentProps<typeof DialogPrimitive.Content>) {
+}: ComponentProps<typeof DialogPrimitive.Content> & {
+    closeLabel?: string;
+    closeDisabled?: boolean;
+}) {
     return (
         <DialogPrimitive.Portal>
             <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-slate-950/40" />
@@ -23,8 +28,9 @@ export function DialogContent({
             >
                 {children}
                 <DialogPrimitive.Close
-                    className="absolute right-4 top-4 rounded-md p-1 text-muted-foreground hover:bg-muted"
-                    aria-label="Close"
+                    className="absolute right-3 top-3 grid size-11 place-items-center rounded-md text-muted-foreground hover:bg-muted disabled:opacity-50"
+                    aria-label={closeLabel}
+                    disabled={closeDisabled}
                 >
                     <X className="size-4" />
                 </DialogPrimitive.Close>

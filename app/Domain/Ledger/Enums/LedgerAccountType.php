@@ -9,10 +9,12 @@ enum LedgerAccountType: string
     case UserWithdrawalHold = 'USER_WITHDRAWAL_HOLD';
     case UserCardIssueHold = 'USER_CARD_ISSUE_HOLD';
     case UserCardFundingHold = 'USER_CARD_FUNDING_HOLD';
+    case UserCommission = 'USER_COMMISSION';
     case TenantTopupClearing = 'TENANT_TOPUP_CLEARING';
     case TenantWithdrawalClearing = 'TENANT_WITHDRAWAL_CLEARING';
     case TenantCardFundingClearing = 'TENANT_CARD_FUNDING_CLEARING';
     case TenantFeeRevenue = 'TENANT_FEE_REVENUE';
+    case TenantCommissionClearing = 'TENANT_COMMISSION_CLEARING';
 
     /** @return list<self> */
     public static function userTypes(): array
@@ -28,6 +30,6 @@ enum LedgerAccountType: string
 
     public function permitsNegativeBalance(): bool
     {
-        return in_array($this, [self::TenantTopupClearing, self::TenantWithdrawalClearing, self::TenantCardFundingClearing], true);
+        return in_array($this, [self::TenantTopupClearing, self::TenantWithdrawalClearing, self::TenantCardFundingClearing, self::TenantCommissionClearing], true);
     }
 }

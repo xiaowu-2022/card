@@ -18,6 +18,8 @@ final class RegistrationChallenge extends Model
     protected function casts(): array
     {
         return [
+            'sms_delivery_uncertain' => 'boolean',
+            'email_delivery_uncertain' => 'boolean',
             'channel' => RegistrationChannel::class,
             'status' => RegistrationChallengeStatus::class,
             'expires_at' => 'immutable_datetime',

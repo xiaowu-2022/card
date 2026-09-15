@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="632" viewBox="0 0 1000 632" fill="none">
+  <defs>
+    <linearGradient id="edge" x1="0" y1="0" x2="1000" y2="550" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8F2D1"/><stop offset=".12" stop-color="#B9AB75"/><stop offset=".28" stop-color="#F6EDC6"/><stop offset=".49" stop-color="#847443"/><stop offset=".7" stop-color="#D0A64D"/><stop offset=".88" stop-color="#FFE8A1"/><stop offset="1" stop-color="#A1782E"/>
+    </linearGradient>
+    <linearGradient id="surface" x1="20" y1="0" x2="800" y2="632" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#252A1F"/><stop offset=".35" stop-color="#0C100C"/><stop offset=".72" stop-color="#050807"/><stop offset="1" stop-color="#0E1510"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx="0" cy="0" r="1" gradientTransform="translate(151 27) rotate(28) scale(529 260)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E7E7B4" stop-opacity=".32"/><stop offset=".44" stop-color="#AFBB80" stop-opacity=".11"/><stop offset="1" stop-color="#65764D" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="chip" x1="0" y1="0" x2="106" y2="84" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCF6D5"/><stop offset=".3" stop-color="#CEBD83"/><stop offset=".52" stop-color="#F8EBC3"/><stop offset=".8" stop-color="#B09A5B"/><stop offset="1" stop-color="#E9D8A0"/>
+    </linearGradient>
+    <linearGradient id="lettering" x1="64" y1="327" x2="64" y2="384" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/><stop offset=".55" stop-color="#F4F4E8"/><stop offset="1" stop-color="#C2C6BC"/>
+    </linearGradient>
+    <clipPath id="face"><rect x="14" y="6" width="972" height="620" rx="43"/></clipPath>
+    <clipPath id="overlap"><circle cx="852" cy="500" r="83"/></clipPath>
+  </defs>
+  <rect x="1" y="1" width="998" height="630" rx="52" fill="url(#edge)"/>
+  <rect x="14" y="6" width="972" height="620" rx="43" fill="url(#surface)"/>
+  <g clip-path="url(#face)">
+    <rect x="14" y="6" width="972" height="620" fill="url(#sheen)"/>
+    <path d="M40 165C190 206 372 180 493 14" stroke="#DCE6B3" stroke-opacity=".08" stroke-width="1.2"/>
+    <path d="M38 176C194 218 385 183 510 13" stroke="#DCE6B3" stroke-opacity=".04"/>
+    <path d="M440 650C610 546 741 625 1000 403M465 665C622 561 763 633 1010 421M490 680C647 576 785 641 1020 439" stroke="#90A87B" stroke-opacity=".055"/>
+  </g>
+  <rect x="19" y="11" width="962" height="610" rx="40" stroke="#EDE5BE" stroke-opacity=".16"/>
+  <!-- Original reference brand composition, redrawn as paths and live vector lettering. -->
+  <g transform="translate(62 46)">
+    <path d="M0 26 24 10 49 26 25 44Z" fill="#F2F0D8"/>
+    <path d="M0 32 24 49 49 31V44L24 62 0 45Z" fill="#D6BD79"/>
+    <path d="M24 0 48 16 25 33 12 24 24 16 36 16Z" fill="#FFFFEF"/>
+    <path d="m25 34 13-9v12l-13 9Z" fill="#87763C"/>
+  </g>
+  <text x="125" y="94" fill="#F4EAC0" font-family="Arial, Helvetica, sans-serif" font-size="47" font-weight="700" font-style="italic" letter-spacing="-1.6">Spec pay</text>
+  <g transform="translate(67 186)">
+    <rect x="0" y="0" width="106" height="84" rx="15" fill="url(#chip)" stroke="#F7EBC1" stroke-width="1.5"/>
+    <g stroke="#776A42" stroke-width="1.6">
+      <rect x="34" y="21" width="39" height="42" rx="9"/>
+      <path d="M0 27h34M0 56h34M73 27h33M73 56h33M36 0v16l8 7M70 0v16l-8 7M36 84V68l8-7M70 84V68l-8-7"/>
+    </g>
+    <rect x="3" y="3" width="100" height="78" rx="12" stroke="#FFF9DD" stroke-opacity=".45"/>
+  </g>
+  <text x="64" y="377" fill="url(#lettering)" font-family="'Courier New', monospace" font-size="65" font-weight="700" textLength="868" lengthAdjust="spacing">8888 8888 8888 8888</text>
+  <text x="69" y="529" fill="#E5DCA9" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="600" letter-spacing=".8">08/28</text>
+  <text x="374" y="530" fill="#E5DCA9" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="28" font-weight="600" letter-spacing="1">万事达 U卡</text>
+  <circle cx="757" cy="500" r="83" fill="#E91B24"/>
+  <circle cx="852" cy="500" r="83" fill="#F5A820"/>
+  <g clip-path="url(#overlap)" stroke="#E91B24" stroke-width="5">
+    <path d="M716 438h124M716 450h130M716 462h135M716 474h138M716 486h141M716 498h142M716 510h140M716 522h137M716 534h133M716 546h127M716 558h118"/>
+  </g>
+  <text x="804" y="515" text-anchor="middle" fill="#FFFDF5" stroke="#4A3A1C" stroke-width="1.4" paint-order="stroke" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="700" font-style="italic" letter-spacing="-2.2">MasterCard</text>
+</svg>

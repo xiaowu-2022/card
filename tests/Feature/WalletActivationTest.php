@@ -62,7 +62,7 @@ it('serves real wallet balances and deposit qualification as decimal strings', f
 
     $this->actingAs($this->user, 'tenant_user')->get('http://a.localhost/wallet')->assertOk()->assertInertia(fn ($page) => $page
         ->where('eligibility.available.amount', '0.00000000')
-        ->where('eligibility.available.asset', 'USD')
+        ->where('eligibility.available.asset', 'USDT')
         ->where('eligibility.depositCurrent.amount', '0.00000000')
         ->where('eligibility.depositRequired.amount', '100.00000000')
         ->where('eligibility.depositRemaining.amount', '100.00000000')

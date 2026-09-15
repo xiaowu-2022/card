@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 
 export function Table({ className, ...props }: TableHTMLAttributes<HTMLTableElement>) {
     return (
-        <div className="block min-w-0 max-w-full overflow-x-auto">
+        <div className="relative block min-w-0 max-w-full overflow-x-auto">
             <table className={cn('w-full border-collapse text-sm', className)} {...props} />
         </div>
     );

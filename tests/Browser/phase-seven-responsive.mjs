@@ -15,7 +15,7 @@ const results = [];
 async function loginUser(page) {
     await page.goto('http://a.localhost:8000/login');
     await page.getByLabel('Email or phone').fill('user@a.localhost');
-    await page.getByLabel('Password').fill('local-password');
+    await page.getByLabel('Password').fill('123456');
     await Promise.all([
         page.waitForURL('**/dashboard'),
         page.getByRole('button', { name: 'Sign in' }).click(),
@@ -25,7 +25,7 @@ async function loginUser(page) {
 async function loginAdmin(page) {
     await page.goto('http://a.localhost:8000/admin/login');
     await page.getByLabel('Work email').fill('owner@a.localhost');
-    await page.getByLabel('Password').fill('local-password');
+    await page.getByLabel('Password').fill('123456');
     await Promise.all([
         page.waitForURL(/\/admin\/(?:demo|onboarding)$/),
         page.getByRole('button', { name: 'Sign in' }).click(),
@@ -94,7 +94,7 @@ for (const viewport of viewports) {
     await page.goto(`http://a.localhost:8000/admin/withdrawals/${fixture.pendingOrderId}`);
     await page.getByRole('heading', { name: /40(?:\.0+)? USDT/ }).waitFor();
     await inspect(page, viewport, 'admin-review');
-    await page.getByLabel('Password').fill('local-password');
+    await page.getByLabel('Password').fill('123456');
     await page.getByRole('button', { name: 'Confirm identity' }).click();
     await page.getByRole('button', { name: 'Reveal withdrawal address' }).waitFor();
     await page.getByRole('button', { name: 'Reveal withdrawal address' }).click();

@@ -1,3 +1,4 @@
+import { useAdminTranslation, t } from '@/i18n/admin';
 import { Search } from 'lucide-react';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -53,28 +54,29 @@ export function AdminTableDemo({
 }: {
     state?: 'ready' | 'loading' | 'empty' | 'error';
 }) {
+    useAdminTranslation();
     return (
         <div className="min-w-0 max-w-full overflow-hidden rounded-xl border bg-surface">
             <div className="flex flex-col gap-3 border-b p-4 md:flex-row">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-3 size-4 text-muted-foreground" />
                     <Input
-                        aria-label="Search demo users"
+                        aria-label={t('Search demo users')}
                         className="pl-9"
-                        placeholder="Search name, email or ID"
+                        placeholder={t('Search name, email or ID')}
                     />
                 </div>
                 <Select defaultValue="all">
-                    <SelectTrigger className="md:w-44" aria-label="Filter by status">
+                    <SelectTrigger className="md:w-44" aria-label={t('Filter by status')}>
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="all">All statuses</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="suspended">Suspended</SelectItem>
+                        <SelectItem value="all">{t('All statuses')}</SelectItem>
+                        <SelectItem value="active">{t('Active')}</SelectItem>
+                        <SelectItem value="suspended">{t('Suspended')}</SelectItem>
                     </SelectContent>
                 </Select>
-                <Input type="date" aria-label="Filter by join date" className="md:w-44" />
+                <Input type="date" aria-label={t('Filter by join date')} className="md:w-44" />
             </div>
             {state === 'loading' && (
                 <div className="space-y-3 p-4">
@@ -86,17 +88,17 @@ export function AdminTableDemo({
             {state === 'empty' && (
                 <div className="p-5">
                     <EmptyState
-                        title="No users match these filters"
-                        description="Try changing the search or status filter."
-                        primaryAction={<Button variant="secondary">Clear filters</Button>}
+                        title={t('No users match these filters')}
+                        description={t('Try changing the search or status filter.')}
+                        primaryAction={<Button variant="secondary">{t('Clear filters')}</Button>}
                     />
                 </div>
             )}
             {state === 'error' && (
                 <div className="p-5">
-                    <p className="font-semibold text-danger">Users could not be loaded.</p>
+                    <p className="font-semibold text-danger">{t('Users could not be loaded.')}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        Try again. Reference: DEMO-REQUEST-ID
+                        {t('Try again. Reference: DEMO-REQUEST-ID')}
                     </p>
                 </div>
             )}
@@ -105,12 +107,12 @@ export function AdminTableDemo({
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>User</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>KYC</TableHead>
-                                <TableHead>Joined</TableHead>
+                                <TableHead>{t('User')}</TableHead>
+                                <TableHead>{t('Status')}</TableHead>
+                                <TableHead>{t('KYC')}</TableHead>
+                                <TableHead>{t('Joined')}</TableHead>
                                 <TableHead>
-                                    <span className="sr-only">Actions</span>
+                                    <span className="sr-only">{t('Actions')}</span>
                                 </TableHead>
                             </TableRow>
                         </TableHeader>
@@ -126,16 +128,16 @@ export function AdminTableDemo({
                                     <TableCell>
                                         <StatusBadge
                                             status={user.status === 'Active' ? 'SUCCESS' : 'DANGER'}
-                                            label={user.status}
+                                            label={t(user.status)}
                                         />
                                     </TableCell>
-                                    <TableCell>{user.kyc}</TableCell>
+                                    <TableCell>{t(user.kyc)}</TableCell>
                                     <TableCell className="text-muted-foreground">
                                         {user.joined}
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <Button variant="ghost" size="sm">
-                                            View
+                                            {t('View')}
                                         </Button>
                                     </TableCell>
                                 </TableRow>

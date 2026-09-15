@@ -10,6 +10,7 @@ use App\Application\Tenant\UpdateTenantBusinessSettingsAction;
 use App\Application\Wallet\ActivateUserWalletAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Card\Models\ProviderCardholder;
+use App\Domain\Card\Services\CardholderMaterials;
 use App\Domain\CardProduct\Models\CardProduct;
 use App\Domain\CardProvider\Contracts\CardProviderInterface;
 use App\Domain\CardProvider\Enums\MockProviderMode;
@@ -35,6 +36,10 @@ if (! app()->environment(['local', 'testing'])) {
     fwrite(STDERR, "Phase 10 browser fixtures are forbidden outside local/testing.\n");
     exit(2);
 }
+if (! app()->environment('testing') && ! in_array(config('database.connections.pgsql.database'), ['card_ui_test', 'card_browser_test'], true)) {
+    fwrite(STDERR, "Browser fixtures require a dedicated test database.\n");
+    exit(2);
+}
 $state = $argv[1] ?? 'setup';
 if (! in_array($state, ['setup', 'pending', 'ready', 'insufficient', 'processing', 'success'], true)) {
     fwrite(STDERR, "Unknown Phase 10 browser fixture.\n");
@@ -46,13 +51,13 @@ $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
 $user = User::query()->where('tenant_id', $tenant->id)->firstOrFail();
 $owner = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
 $product = CardProduct::query()->where('provider', 'PHOTONPAY')->firstOrFail();
-DB::transaction(function () use ($tenant, $owner): void {
+DB::transaction(function () use ($tenant): void {
     DB::table('tenants')->where('id', $tenant->id)->update(['default_asset' => 'USDT']);
     $tenant->refresh();
     app(UpdateTenantBusinessSettingsAction::class)->execute($tenant, [
         'required_security_deposit_amount' => '10', 'required_security_deposit_asset' => 'USDT',
         'allow_wallet_topup' => true, 'allow_withdrawal' => true,
-    ], $owner);
+    ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
 });
 $tenant->refresh();
 $imagePath = tempnam(sys_get_temp_dir(), 'phase-ten-browser-');
@@ -84,12 +89,14 @@ if ($state !== 'setup') {
         'provider_status' => $state === 'pending' ? 'pending' : 'normal',
         'provider_review_status' => $state === 'pending' ? 'pending' : 'approved',
         'submitted_at' => now(), 'synced_at' => now(),
+        'request_id' => (string) Str::uuid(), 'request_hash' => str_repeat('b', 64), 'submission_version' => 1,
+        'card_product_id' => $product->id, 'materials_encrypted' => app(CardholderMaterials::class)->encrypt('TEST-BROWSER-MATERIALS'),
     ])->save();
 }
 $order = null;
 if (in_array($state, ['processing', 'success'], true)) {
     app()->instance(CardProviderInterface::class, new MockCardProvider($state === 'processing' ? MockProviderMode::Unknown : MockProviderMode::Success, 'READY'));
-    $order = app(CreateCardIssueAction::class)->execute($tenant->id, $user->id, (string) Str::uuid(), $product->id, '20.00');
+    $order = app(CreateCardIssueAction::class)->execute($tenant->id, $user->id, (string) Str::uuid(), $product->id, '20.00', $holder->id);
 }
 
 echo json_encode(['state' => $state, 'orderId' => $order?->id], JSON_THROW_ON_ERROR).PHP_EOL;

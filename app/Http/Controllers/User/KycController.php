@@ -5,19 +5,21 @@ namespace App\Http\Controllers\User;
 use App\Application\Kyc\SubmitKycApplicationAction;
 use App\Application\Kyc\UserKycQuery;
 use App\Domain\Tenant\Enums\TenantStatus;
+use App\Domain\Tenant\Models\PlatformKycSetting;
 use App\Domain\Tenant\TenantContext;
 use App\Domain\User\Enums\UserStatus;
 use App\Domain\User\Models\User;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SubmitKycApplicationRequest;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 
 final class KycController extends Controller
 {
-    public function show(TenantContext $context, UserKycQuery $query): Response
+    public function show(Request $request, TenantContext $context, UserKycQuery $query): Response
     {
         /** @var User $user */
         $user = Auth::guard('tenant_user')->user();
@@ -26,7 +28,8 @@ final class KycController extends Controller
 
         return Inertia::render('user/Kyc', [
             'kyc' => $kyc,
-            'canSubmit' => $tenant->status === TenantStatus::Active && $user->status === UserStatus::Active && (bool) $tenant->kycSettings?->enabled && in_array($kyc['status'], ['NOT_SUBMITTED', 'RESUBMISSION_REQUIRED'], true),
+            'backHref' => $request->query('from') === 'account-security' ? '/account/security' : '/account',
+            'canSubmit' => $tenant->status === TenantStatus::Active && $user->status === UserStatus::Active && (bool) PlatformKycSetting::current()->enabled && in_array($kyc['status'], ['NOT_SUBMITTED', 'RESUBMISSION_REQUIRED'], true),
             'maxDocumentMb' => (int) config('kyc.document_max_mb'),
         ]);
     }
@@ -36,8 +39,8 @@ final class KycController extends Controller
         /** @var User $user */
         $user = Auth::guard('tenant_user')->user();
         $validated = $request->validated();
-        $action->execute($context->tenant(), $user, $validated['document_country'], $validated['identity_number'], $validated['front'], $validated['back'], $request->attributes->get('request_id'));
+        $application = $action->execute($context->tenant(), $user, $validated['document_country'], $validated['identity_number'], $validated['front'], $validated['back'], $request->attributes->get('request_id'));
 
-        return redirect('/kyc')->with('success', 'Your identity documents were submitted for review.');
+        return redirect($request->query('from') === 'account-security' ? '/kyc?from=account-security' : '/kyc')->with('success', $application->automatically_approved ? 'Your identity verification is complete.' : 'Your identity documents were submitted for review.');
     }
 }

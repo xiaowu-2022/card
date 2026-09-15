@@ -22,6 +22,7 @@ use Illuminate\Support\Str;
 
 beforeEach(function (): void {
     $this->seed();
+    legacyUsdAccountingFixtures();
     $this->tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
     $this->user = User::query()->where('tenant_id', $this->tenant->id)->firstOrFail();
     $this->wallet = DB::transaction(fn () => app(WalletProvisioner::class)->provision($this->tenant, $this->user, 'USD'));
@@ -283,6 +284,7 @@ it('exposes no generic financial mutation route or permission', function (): voi
 
     expect(Permission::query()->whereIn('name', $forbidden)->exists())->toBeFalse()
         ->and($routes->pluck('uri')->values()->all())->toBe([
+            'wallet/transfers', // Approved same-company transfer, not a generic adjustment.
             'wallet/activate',
             'wallet/top-ups',
             'wallet/withdrawal-destinations',

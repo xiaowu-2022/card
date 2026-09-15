@@ -2,6 +2,7 @@
 
 namespace App\Application\SecurityDeposit;
 
+use App\Application\Promotion\EarnDepositCommissionAction;
 use App\Application\SecurityDeposit\DTOs\SecurityDepositFundingReceipt;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Kyc\Enums\KycUserStatus;
@@ -30,6 +31,7 @@ final readonly class FundSecurityDepositAction
         private KycStatusService $kycStatus,
         private LedgerWriter $ledger,
         private AuditLogger $audit,
+        private EarnDepositCommissionAction $commissions,
     ) {}
 
     public function execute(string $tenantId, string $userId, string $requestId, mixed $expectedRemaining, ?string $auditRequestId = null): SecurityDepositFundingReceipt
@@ -56,6 +58,7 @@ final readonly class FundSecurityDepositAction
             if ($existing) {
                 return $this->receiptForExisting($existing, $tenantId, $wallet->id);
             }
+            RefundSecurityDepositAction::assertNoPending($tenantId, $userId);
 
             if ($tenant->status !== TenantStatus::Active) {
                 throw new DomainException('TENANT_NOT_ACTIVE', 'Security deposit funding requires an active tenant.', 403);
@@ -120,6 +123,7 @@ final readonly class FundSecurityDepositAction
                     new LedgerPostingInstruction($depositAccount->id, $remaining),
                 ],
             ));
+            $this->commissions->execute($tenantId, $userId, $entry);
             $this->audit->record($tenantId, 'USER', $userId, 'SECURITY_DEPOSIT_FUNDED', 'wallet', $wallet->id, null, [
                 'tenant_id' => $tenantId,
                 'user_id' => $userId,

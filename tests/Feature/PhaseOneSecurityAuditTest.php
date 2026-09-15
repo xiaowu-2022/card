@@ -56,7 +56,7 @@ it('preserves exact roles and password when an existing tenant owner accepts sup
         $tenantB,
         $existing->email,
         Role::query()->where('name', 'SUPPORT')->firstOrFail(),
-        AdminUser::query()->where('email', 'owner@b.localhost')->firstOrFail(),
+        AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail(),
     );
 
     app(AcceptAdminInvitationAction::class)->execute($issued->rawToken, $tenantB->id, 'Ignored Name', 'local-password');
@@ -70,7 +70,7 @@ it('preserves exact roles and password when an existing tenant owner accepts sup
 
 it('rejects platform roles at the tenant invitation contract boundary', function (): void {
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
-    $actor = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
+    $actor = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
 
     expect(fn () => app(IssueAdminInvitationAction::class)->execute(
         $tenant,
@@ -82,7 +82,7 @@ it('rejects platform roles at the tenant invitation contract boundary', function
 
 it('allows only one consumption of an invitation token', function (): void {
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
-    $issued = app(IssueAdminInvitationAction::class)->execute($tenant, 'atomic@example.test', Role::query()->where('name', 'SUPPORT')->firstOrFail(), AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail());
+    $issued = app(IssueAdminInvitationAction::class)->execute($tenant, 'atomic@example.test', Role::query()->where('name', 'SUPPORT')->firstOrFail(), AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
 
     app(AcceptAdminInvitationAction::class)->execute($issued->rawToken, $tenant->id, 'Atomic Admin', 'StrongPass1234');
     expect(fn () => app(AcceptAdminInvitationAction::class)->execute($issued->rawToken, $tenant->id, 'Atomic Admin', 'StrongPass1234'))->toThrow(DomainException::class);
@@ -96,7 +96,7 @@ it('allows only one consumption of an invitation token', function (): void {
 it('rejects the old token after resend and accepts only its replacement', function (): void {
     Mail::fake();
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
-    $actor = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
+    $actor = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
     $old = app(IssueAdminInvitationAction::class)->execute($tenant, 'replacement@example.test', Role::query()->where('name', 'SUPPORT')->firstOrFail(), $actor);
     $replacement = app(ResendAdminInvitationAction::class)->execute($tenant, $old->invitation->id, $actor);
 
@@ -115,14 +115,14 @@ it('accepts an invitation on any active domain resolving to the invited tenant',
         'is_primary' => false,
         'verified_at' => now(),
     ]);
-    $issued = app(IssueAdminInvitationAction::class)->execute($tenant, 'alternate@example.test', Role::query()->where('name', 'SUPPORT')->firstOrFail(), AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail());
+    $issued = app(IssueAdminInvitationAction::class)->execute($tenant, 'alternate@example.test', Role::query()->where('name', 'SUPPORT')->firstOrFail(), AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
 
     $this->get("http://alternate.example.test/admin/invitations/{$issued->rawToken}")->assertOk();
 });
 
 it('rate limits existing identity confirmation without persisting or logging raw tokens', function (): void {
     $tenant = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
-    $issued = app(CreateAdminInvitationAction::class)->execute($tenant, 'owner@a.localhost', Role::query()->where('name', 'SUPPORT')->firstOrFail(), AdminUser::query()->where('email', 'owner@b.localhost')->firstOrFail());
+    $issued = app(CreateAdminInvitationAction::class)->execute($tenant, 'owner@a.localhost', Role::query()->where('name', 'SUPPORT')->firstOrFail(), AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
 
     foreach (range(1, 5) as $_) {
         $this->post("http://b.localhost/admin/invitations/{$issued->rawToken}", [
@@ -159,7 +159,7 @@ it('commits a valid tenant foundation before attempting external mail delivery',
     $actor = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
     $data = [
         'name' => 'Mail Failure Tenant', 'slug' => 'mail-failure', 'owner_email' => 'mail-failure@example.test',
-        'default_locale' => 'en', 'timezone' => 'UTC', 'default_asset' => 'USD',
+        'default_locale' => 'en', 'timezone' => 'UTC', 'default_asset' => 'USDT',
     ];
 
     expect(fn () => app(CreateTenantAction::class)->execute($data, $actor))->toThrow(RuntimeException::class);
@@ -212,7 +212,7 @@ it('ignores mass-assignment fields outside request allowlists', function (): voi
     $platformOwner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
     $this->actingAs($platformOwner, 'platform_admin')->post('http://admin.localhost/platform/tenants', [
         'name' => 'Allowlisted Tenant', 'slug' => 'allowlisted', 'owner_email' => 'allowlisted@example.test',
-        'default_locale' => 'en', 'timezone' => 'UTC', 'default_asset' => 'USD',
+        'default_locale' => 'en', 'timezone' => 'UTC', 'default_asset' => 'USDT',
         'status' => 'ACTIVE', 'tenant_id' => Tenant::query()->where('slug', 'tenant-b')->value('id'),
     ])->assertRedirect();
 

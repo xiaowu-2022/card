@@ -15,7 +15,7 @@ const results = [];
 async function login(page, host, email) {
     await page.goto(`http://${host}:8000/login`);
     await page.getByLabel('Email or phone').fill(email);
-    await page.getByLabel('Password').fill('local-password');
+    await page.getByLabel('Password').fill('123456');
     await Promise.all([page.waitForURL('**/dashboard'), page.getByRole('button', { name: 'Sign in' }).click()]);
 }
 

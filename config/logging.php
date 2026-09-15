@@ -53,6 +53,16 @@ return [
 
     'channels' => [
 
+        'photonpay' => [
+            'driver' => 'daily',
+            'tap' => [RedactSensitiveLogContext::class],
+            'path' => storage_path('logs/photonpay.log'),
+            'level' => 'info',
+            'max_files' => 14,
+            'permission' => 0600,
+            'locking' => true,
+        ],
+
         'stack' => [
             'driver' => 'stack',
             'channels' => explode(',', (string) env('LOG_STACK', 'single')),

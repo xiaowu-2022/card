@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Webhooks\PaymentWebhookController;
+use App\Http\Controllers\Webhooks\PhotonPayWebhookController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/payments/{provider}', PaymentWebhookController::class)
@@ -8,6 +9,4 @@ Route::post('/payments/{provider}', PaymentWebhookController::class)
     ->middleware('throttle:120,1')
     ->name('webhooks.payments');
 
-Route::post('/card-provider', fn () => response()->json([
-    'message' => 'Phase 0 placeholder. Tenant resolution must use trusted provider mappings.',
-], 501));
+Route::post('/card-provider', PhotonPayWebhookController::class)->middleware('throttle:300,1')->name('webhooks.photonpay');

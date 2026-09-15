@@ -1,3 +1,4 @@
+import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, Link } from '@inertiajs/react';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
@@ -23,17 +24,18 @@ type Wallet = {
 };
 
 export default function UserWallet({ userId, wallet }: { userId: string; wallet: Wallet | null }) {
+    useAdminTranslation();
     return (
         <TenantAdminLayout>
-            <Head title="User wallet" />
+            <Head title={t('User wallet')} />
             <div className="space-y-6">
                 <PageHeader
-                    eyebrow="User account"
-                    title="Wallet"
-                    description="Read-only ledger-backed account balances."
+                    eyebrow={t('User account')}
+                    title={t('Wallet')}
+                    description={t('Read-only ledger-backed account balances.')}
                     actions={
                         <Button asChild variant="secondary">
-                            <Link href={`/admin/users/${userId}/ledger`}>View ledger</Link>
+                            <Link href={`/admin/users/${userId}/ledger`}>{t('View ledger')}</Link>
                         </Button>
                     }
                 />
@@ -42,10 +44,12 @@ export default function UserWallet({ userId, wallet }: { userId: string; wallet:
                         <Card>
                             <CardHeader>
                                 <div className="flex items-center justify-between">
-                                    <CardTitle>{wallet.asset} wallet</CardTitle>
+                                    <CardTitle>
+                                        {t('{{value1}} wallet', { value1: wallet.asset })}
+                                    </CardTitle>
                                     <StatusBadge
                                         status={wallet.status === 'ACTIVE' ? 'SUCCESS' : 'WARNING'}
-                                        label={wallet.status}
+                                        label={t(wallet.status)}
                                     />
                                 </div>
                             </CardHeader>
@@ -59,7 +63,7 @@ export default function UserWallet({ userId, wallet }: { userId: string; wallet:
                                 ].map(([label, value]) => (
                                     <div key={label as string} className="rounded-lg border p-4">
                                         <p className="text-sm text-muted-foreground">
-                                            {label as string}
+                                            {t(label as string)}
                                         </p>
                                         <p className="mt-2 text-xl font-semibold">
                                             <MoneyDisplay {...(value as Money)} />
@@ -67,7 +71,9 @@ export default function UserWallet({ userId, wallet }: { userId: string; wallet:
                                     </div>
                                 ))}
                                 <div className="rounded-lg border p-4">
-                                    <p className="text-sm text-muted-foreground">Deposit status</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        {t('Deposit status')}
+                                    </p>
                                     <div className="mt-2">
                                         <StatusBadge
                                             status={
@@ -77,8 +83,8 @@ export default function UserWallet({ userId, wallet }: { userId: string; wallet:
                                             }
                                             label={
                                                 wallet.securityDepositSatisfied
-                                                    ? 'Satisfied'
-                                                    : 'Required'
+                                                    ? t('Satisfied')
+                                                    : t('Required')
                                             }
                                         />
                                     </div>
@@ -86,13 +92,15 @@ export default function UserWallet({ userId, wallet }: { userId: string; wallet:
                             </CardContent>
                         </Card>
                         <p className="text-sm text-muted-foreground">
-                            Activated {new Date(wallet.createdAt).toLocaleString()}
+                            {t('Activated {{value1}}', { value1: dateTime(wallet.createdAt) })}
                         </p>
                     </>
                 ) : (
                     <EmptyState
-                        title="Wallet not activated"
-                        description="This user has not activated a wallet. Administrators cannot activate it or change balances."
+                        title={t('Wallet not activated')}
+                        description={t(
+                            'This user has not activated a wallet. Administrators cannot activate it or change balances.',
+                        )}
                     />
                 )}
             </div>

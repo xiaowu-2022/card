@@ -1,17 +1,26 @@
 <?php
 
+use App\Application\Card\CardProductProviderRouter;
+use App\Application\CardProduct\ArchiveCardProductsAction;
 use App\Application\CardProduct\CardProductCatalogQuery;
+use App\Application\CardProduct\ConfigureTenantCardProductAction;
+use App\Application\CardProduct\UpdateCardProductAction;
+use App\Application\CardProviderDirectory\SaveCardProviderReferenceAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\CardProduct\Enums\CardProductStatus;
 use App\Domain\CardProduct\Enums\TenantCardProductStatus;
 use App\Domain\CardProduct\Models\CardProduct;
 use App\Domain\CardProduct\Models\TenantCardProductConfig;
 use App\Domain\Tenant\Models\Tenant;
+use App\Support\Errors\DomainException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 beforeEach(function (): void {
     $this->seed();
@@ -23,13 +32,44 @@ beforeEach(function (): void {
     $this->product = CardProduct::query()->where('provider', 'PHOTONPAY')->firstOrFail();
 });
 
-it('lets platform create and edit only the locked regular PhotonPay product shape', function (): void {
+it('archives the explicit catalog without removing historical data or moving money', function (): void {
+    Http::fake();
+    $ids = CardProduct::query()->pluck('id')->all();
+    $tables = ['user_cards', 'provider_cardholders', 'card_issue_orders', 'tenant_card_product_configs', 'ledger_entries', 'ledger_postings', 'ledger_accounts'];
+    $before = collect($tables)->mapWithKeys(fn ($table) => [$table => DB::table($table)->orderBy('id')->get()->toJson()])->all();
+    $action = app(ArchiveCardProductsAction::class);
+    expect($action->execute($ids, $this->platformOwner))->toBe(count($ids))
+        ->and($action->execute($ids, $this->platformOwner))->toBe(0)
+        ->and(CardProduct::query()->count())->toBe(count($ids))
+        ->and(CardProduct::query()->whereNull('archived_at')->count())->toBe(0)
+        ->and(CardProduct::query()->where('status', 'ACTIVE')->count())->toBe(0);
+    $catalog = app(CardProductCatalogQuery::class);
+    expect($catalog->platform()['products'])->toBe([])
+        ->and($catalog->tenant($this->tenantA->id)['products'])->toBe([])
+        ->and($catalog->user($this->tenantA->id, null)['products'])->toBe([]);
+    foreach ($tables as $table) {
+        expect(DB::table($table)->orderBy('id')->get()->toJson())->toBe($before[$table]);
+    }
+    expect(fn () => app(UpdateCardProductAction::class)->execute($this->product->id, [
+        'name' => 'Cannot restore', 'opening_fee' => '5', 'minimum_initial_load' => '20',
+        'minimum_reload' => '20', 'status' => 'ACTIVE', 'provider_product_ref' => $this->product->provider_product_ref,
+    ], $this->platformOwner))->toThrow(DomainException::class, 'This card product has been archived.');
+    Http::assertNothingSent();
+});
+
+it('rejects company administrators archiving platform products', function (): void {
+    expect(fn () => app(ArchiveCardProductsAction::class)->execute([$this->product->id], $this->tenantAOwner))
+        ->toThrow(HttpException::class);
+    expect($this->product->fresh()->archived_at)->toBeNull();
+});
+
+it('lets platform create and edit unconfigured products with fixed USD regular shape', function (): void {
     $beforeEntries = DB::table('ledger_entries')->count();
     $this->actingAs($this->platformOwner, 'platform_admin')->post('http://admin.localhost/platform/card-products', [
         'name' => 'Mille Card Plus',
         'provider_product_ref' => 'DEMO-MILLE-PLUS-0001',
         'minimum_initial_load' => '20.00000000',
-        'minimum_reload' => '25.50000000',
+        'opening_fee' => '5.00000000', 'minimum_reload' => '25.50000000',
         'status' => 'ACTIVE',
         'provider' => 'OTHER',
         'card_currency' => 'EUR',
@@ -37,7 +77,7 @@ it('lets platform create and edit only the locked regular PhotonPay product shap
     ])->assertRedirect();
 
     $created = CardProduct::query()->where('provider_product_ref', 'DEMO-MILLE-PLUS-0001')->firstOrFail();
-    expect($created->provider)->toBe('PHOTONPAY')
+    expect($created->provider)->toBe('UNCONFIGURED')
         ->and($created->card_currency)->toBe('USD')
         ->and($created->card_type)->toBe('REGULAR')
         ->and($created->minimum_initial_load)->toBe('20.00000000')
@@ -48,7 +88,7 @@ it('lets platform create and edit only the locked regular PhotonPay product shap
         'name' => 'Mille Card Plus Updated',
         'provider_product_ref' => 'DEMO-MILLE-PLUS-0002',
         'minimum_initial_load' => '30',
-        'minimum_reload' => '20',
+        'opening_fee' => '5.00000000', 'minimum_reload' => '20',
         'status' => 'INACTIVE',
     ])->assertRedirect();
     expect($created->fresh()->name)->toBe('Mille Card Plus Updated')
@@ -56,29 +96,54 @@ it('lets platform create and edit only the locked regular PhotonPay product shap
         ->and($created->fresh()->status)->toBe(CardProductStatus::Inactive);
 });
 
+it('binds directory merchants with optional BIN and never enables a provider fallback', function (): void {
+    $this->withoutVite();
+    config(['inertia.ssr.enabled' => false]);
+    Http::preventStrayRequests();
+    $merchant = app(SaveCardProviderReferenceAction::class)->execute(null, [
+        'request_id' => (string) Str::uuid(), 'name' => 'Merchant A', 'reference_balance' => '1000.01',
+    ], $this->platformOwner);
+    $base = ['name' => 'Unintegrated', 'minimum_initial_load' => '20', 'opening_fee' => '5.00000000', 'minimum_reload' => '20', 'status' => 'ACTIVE'];
+    $before = DB::table('ledger_entries')->count();
+    $this->actingAs($this->platformOwner, 'platform_admin');
+    $this->post('http://admin.localhost/platform/card-products', $base + ['card_provider_reference_id' => $merchant->id])->assertSessionHasNoErrors()->assertRedirect();
+    $created = CardProduct::query()->where('name', 'Unintegrated')->sole();
+    expect($created->card_provider_reference_id)->toBe($merchant->id)->and($created->provider_product_ref)->toBe('')
+        ->and($created->provider)->toBe('UNCONFIGURED')
+        ->and(app(CardProductProviderRouter::class)->forProduct($created)->available())->toBeFalse();
+    $this->put('http://admin.localhost/platform/card-products/'.$created->id, $base + ['provider_product_ref' => '123456'])->assertSessionHasNoErrors();
+    expect($created->fresh()->card_provider_reference_id)->toBe($merchant->id);
+    $this->postJson('http://admin.localhost/platform/card-products', $base + ['card_provider_reference_id' => $merchant->id, 'provider_product_ref' => '123456'])->assertUnprocessable();
+    $this->post('http://admin.localhost/platform/card-products', $base + ['provider_product_ref' => '123456'])->assertSessionHasNoErrors();
+    $this->postJson('http://admin.localhost/platform/card-products', $base + ['card_provider_reference_id' => (string) Str::uuid()])->assertUnprocessable();
+    $this->get('http://admin.localhost/platform/card-products')->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('cardProviders.0.name', 'Merchant A')->missing('cardProviders.0.reference_balance'));
+    expect(DB::table('ledger_entries')->count())->toBe($before);
+    Http::assertNothingSent();
+});
+
 it('rejects imprecise non-string or below-provider-minimum amounts', function (array $payload, string $field): void {
     $base = [
         'name' => 'Rejected Product', 'provider_product_ref' => 'DEMO-REJECTED-0001',
-        'minimum_initial_load' => '20', 'minimum_reload' => '20', 'status' => 'ACTIVE',
+        'minimum_initial_load' => '20', 'opening_fee' => '5.00000000', 'minimum_reload' => '20', 'status' => 'ACTIVE',
     ];
     $this->actingAs($this->platformOwner, 'platform_admin')
         ->post('http://admin.localhost/platform/card-products', [...$base, ...$payload])
         ->assertSessionHasErrors($field);
 })->with([
     'float' => [['minimum_initial_load' => 20.0], 'minimum_initial_load'],
-    'overprecision' => [['minimum_reload' => '20.000000001'], 'minimum_reload'],
+    'overprecision' => [['opening_fee' => '5.00000000', 'minimum_reload' => '20.000000001'], 'minimum_reload'],
     'below minimum' => [['minimum_initial_load' => '19.99999999'], 'minimum_initial_load'],
 ]);
 
-it('lets a tenant configure exact future pricing without changing platform product facts or money', function (): void {
+it('lets SaaS configure company presentation without changing platform pricing or money', function (): void {
     $config = TenantCardProductConfig::query()->where('tenant_id', $this->tenantA->id)
         ->where('card_product_id', $this->product->id)->firstOrFail();
     $ledgerCounts = [DB::table('ledger_entries')->count(), DB::table('ledger_postings')->count()];
     $identity = $this->product->only(['provider', 'provider_product_ref', 'card_currency', 'card_type', 'minimum_initial_load', 'minimum_reload']);
 
-    $this->actingAs($this->tenantAOwner, 'tenant_admin')->put("http://a.localhost/admin/card-products/{$this->product->id}", [
+    $this->actingAs($this->platformOwner, 'platform_admin')->put("http://admin.localhost/platform/tenants/{$this->tenantA->id}/configuration/card-products/{$this->product->id}", [
         'display_name' => 'Tenant A Mille',
-        'opening_fee' => '5.12345678',
         'max_cards_per_user' => 3,
         'status' => 'ACTIVE',
         'sort_order' => 4,
@@ -89,7 +154,7 @@ it('lets a tenant configure exact future pricing without changing platform produ
     ])->assertRedirect();
 
     expect($config->fresh()->display_name)->toBe('Tenant A Mille')
-        ->and($config->fresh()->opening_fee)->toBe('5.12345678')
+        ->and($config->fresh()->opening_fee)->toBe('5.00000000')
         ->and($config->fresh()->max_cards_per_user)->toBe(3)
         ->and($config->fresh()->sort_order)->toBe(4)
         ->and($this->product->fresh()->only(array_keys($identity)))->toBe($identity)
@@ -101,8 +166,8 @@ it('keeps tenant product configuration isolated across hosts and queries', funct
         ->where('card_product_id', $this->product->id)->firstOrFail();
     $beforeB = $configB->only(['display_name', 'opening_fee', 'status', 'sort_order']);
 
-    $this->actingAs($this->tenantAOwner, 'tenant_admin')->put("http://a.localhost/admin/card-products/{$this->product->id}", [
-        'display_name' => 'Only Tenant A', 'opening_fee' => '6', 'max_cards_per_user' => 2,
+    $this->actingAs($this->platformOwner, 'platform_admin')->put("http://admin.localhost/platform/tenants/{$this->tenantA->id}/configuration/card-products/{$this->product->id}", [
+        'display_name' => 'Only Tenant A', 'max_cards_per_user' => 2,
         'status' => 'ACTIVE', 'sort_order' => 1, 'tenant_id' => $this->tenantB->id,
     ])->assertRedirect();
     expect($configB->fresh()->only(array_keys($beforeB)))->toBe($beforeB);
@@ -110,8 +175,8 @@ it('keeps tenant product configuration isolated across hosts and queries', funct
     $this->actingAs($this->tenantAOwner, 'tenant_admin')->get('http://b.localhost/admin/card-products')->assertForbidden();
     $tenantAData = app(CardProductCatalogQuery::class)->tenant($this->tenantA->id);
     $tenantBData = app(CardProductCatalogQuery::class)->tenant($this->tenantB->id);
-    expect($tenantAData['products'][0]['config']['openingFee'])->toBe('6.00000000')
-        ->and($tenantBData['products'][0]['config']['openingFee'])->toBe('8.00000000');
+    expect($tenantAData['products'][0]['config']['openingFee'])->toBe('5.00000000')
+        ->and($tenantBData['products'][0]['config']['openingFee'])->toBe('5.00000000');
 });
 
 it('shows only active platform and tenant offerings without exposing provider identity to users', function (): void {
@@ -151,7 +216,17 @@ it('enforces the small schema and rejects unsupported provider product shapes', 
     expect(fn () => DB::table('card_products')->insert([
         'id' => (string) Str::uuid(), 'provider' => 'OTHER', 'provider_product_ref' => 'INVALID-0001',
         'name' => 'Invalid', 'card_currency' => 'EUR', 'card_type' => 'SHARED',
-        'minimum_initial_load' => '1', 'minimum_reload' => '1', 'status' => 'ACTIVE',
+        'minimum_initial_load' => '1', 'opening_fee' => '5.00000000', 'minimum_reload' => '1', 'status' => 'ACTIVE',
         'created_at' => now(), 'updated_at' => now(),
     ]))->toThrow(QueryException::class);
+});
+
+it('rejects company fee overrides and exposes only the platform price', function (): void {
+    $data = ['display_name' => 'Name', 'opening_fee' => '1', 'max_cards_per_user' => 3, 'status' => 'ACTIVE', 'sort_order' => 1];
+    $this->actingAs($this->tenantAOwner, 'tenant_admin')->putJson("http://a.localhost/admin/card-products/{$this->product->id}", $data)->assertForbidden();
+    expect(fn () => app(ConfigureTenantCardProductAction::class)->execute($this->tenantA->id, $this->product->id, $data, $this->platformOwner))->toThrow(ValidationException::class);
+    $this->product->forceFill(['opening_fee' => '7.12345678'])->save();
+    expect(app(CardProductCatalogQuery::class)->user($this->tenantA->id, null)['products'][0]['openingFee'])->toBe('7.12345678');
+    $this->product->forceFill(['opening_fee' => null])->save();
+    expect(app(CardProductCatalogQuery::class)->user($this->tenantA->id, null)['products'])->toBe([]);
 });

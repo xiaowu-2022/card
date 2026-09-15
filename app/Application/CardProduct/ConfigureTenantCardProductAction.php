@@ -2,14 +2,15 @@
 
 namespace App\Application\CardProduct;
 
+use App\Application\Tenant\CompanyConfigurationAuthority;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\CardProduct\Enums\CardProductStatus;
 use App\Domain\CardProduct\Models\CardProduct;
 use App\Domain\CardProduct\Models\TenantCardProductConfig;
-use App\Domain\Ledger\ValueObjects\Money;
 use App\Support\Errors\DomainException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 final readonly class ConfigureTenantCardProductAction
 {
@@ -18,12 +19,10 @@ final readonly class ConfigureTenantCardProductAction
     /** @param array{display_name:?string,opening_fee:string,max_cards_per_user:int,status:string,sort_order:int} $data */
     public function execute(string $tenantId, string $productId, array $data, AdminUser $actor, ?string $requestId = null): TenantCardProductConfig
     {
-        $openingFee = Money::of($data['opening_fee'], 'USDT');
-        if ($openingFee->isNegative()) {
-            throw new DomainException('CARD_PRODUCT_OPENING_FEE_INVALID', 'Opening fee cannot be negative.');
-        }
+        app(CompanyConfigurationAuthority::class)->assert($actor);
+        Validator::make($data, ['opening_fee' => ['prohibited']])->validate();
 
-        return DB::transaction(function () use ($tenantId, $productId, $data, $openingFee, $actor, $requestId): TenantCardProductConfig {
+        return DB::transaction(function () use ($tenantId, $productId, $data, $actor, $requestId): TenantCardProductConfig {
             $product = CardProduct::query()->whereKey($productId)->lockForUpdate()->firstOrFail();
             if ($data['status'] === 'ACTIVE' && $product->status !== CardProductStatus::Active) {
                 throw new DomainException('CARD_PRODUCT_NOT_ACTIVE', 'Only an active platform product can be offered.', 409);
@@ -36,7 +35,7 @@ final readonly class ConfigureTenantCardProductAction
                 'tenant_id' => $tenantId,
                 'card_product_id' => $productId,
                 'display_name' => filled($data['display_name']) ? trim((string) $data['display_name']) : null,
-                'opening_fee' => $openingFee->amount(),
+                'opening_fee' => $config->exists ? $config->opening_fee : ($product->opening_fee ?? '0.00000000'),
                 'max_cards_per_user' => $data['max_cards_per_user'],
                 'status' => $data['status'],
                 'sort_order' => $data['sort_order'],

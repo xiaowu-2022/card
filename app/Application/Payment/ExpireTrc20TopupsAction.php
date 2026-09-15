@@ -10,15 +10,18 @@ use Illuminate\Support\Facades\DB;
 
 final class ExpireTrc20TopupsAction
 {
-    public function execute(): int
+    public function execute(?\DateTimeImmutable $through = null, ?\DateTimeImmutable $notBefore = null, ?string $destination = null): int
     {
         $ids = WalletTopupOrder::query()->where('payment_rail', 'TRC20_SHARED')
             ->where('status', WalletTopupStatus::Pending->value)->whereNull('matched_tx_hash')
-            ->where('expires_at', '<', now())->orderBy('expires_at')->limit(500)->pluck('id');
+            ->where('expires_at', '<', $through ?? now())
+            ->when($notBefore, fn ($query) => $query->where('created_at', '>=', $notBefore))
+            ->when($destination, fn ($query) => $query->where('deposit_address', $destination))
+            ->orderBy('expires_at')->limit(500)->get(['id', 'tenant_id']);
         $expired = 0;
-        foreach ($ids as $id) {
-            $expired += DB::transaction(function () use ($id): int {
-                $order = WalletTopupOrder::query()->whereKey($id)->lockForUpdate()->first();
+        foreach ($ids as $snapshot) {
+            $expired += DB::transaction(function () use ($snapshot): int {
+                $order = WalletTopupOrder::query()->where('tenant_id', $snapshot->tenant_id)->whereKey($snapshot->id)->lockForUpdate()->first();
                 if (! $order || $order->status !== WalletTopupStatus::Pending || $order->matched_tx_hash !== null || ! $order->expires_at?->isPast()) {
                     return 0;
                 }

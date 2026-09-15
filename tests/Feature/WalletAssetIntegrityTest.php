@@ -20,6 +20,7 @@ use Illuminate\Support\Str;
 
 beforeEach(function (): void {
     $this->seed();
+    legacyUsdAccountingFixtures();
     $this->tenant = Tenant::query()->where('slug', 'tenant-a')->with('businessSettings')->firstOrFail();
     $this->user = User::query()->where('tenant_id', $this->tenant->id)->firstOrFail();
     $this->actor = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
@@ -33,7 +34,7 @@ function updateDepositRequirement($test, string $amount, string $asset = 'USD'):
         'required_security_deposit_asset' => $asset,
         'allow_wallet_topup' => false,
         'allow_withdrawal' => false,
-    ], $test->actor);
+    ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
     $test->tenant->unsetRelation('businessSettings');
 }
 

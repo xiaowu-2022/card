@@ -1,3 +1,4 @@
+import { useAdminTranslation, t, errorMessage, dateTime, countryName } from '@/i18n/admin';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { Eye, LockKeyhole } from 'lucide-react';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -44,6 +45,7 @@ type Application = {
     reviewReasonCode: string | null;
     reviewMessage: string | null;
     reviewerName: string | null;
+    automaticallyApproved?: boolean;
     submittedAt: string;
     reviewedAt: string | null;
 };
@@ -63,6 +65,7 @@ export default function KycDetail({
     application: Application;
     recentlyAuthenticated: boolean;
 }) {
+    useAdminTranslation();
     const permissions = usePage<SharedProps>().props.auth.admin?.permissions ?? [];
     const review = useForm<{ reason_code: string; review_message: string; form?: string }>({
         reason_code: 'DOCUMENT_UNREADABLE',
@@ -78,17 +81,17 @@ export default function KycDetail({
         review.post(`/admin/kyc/${application.id}/${action}`);
     return (
         <TenantAdminLayout>
-            <Head title="KYC application" />
+            <Head title={t('KYC application')} />
             <div className="space-y-6">
                 <PageHeader
-                    eyebrow="KYC application"
-                    title={application.user.displayName ?? 'Unnamed user'}
+                    eyebrow={t('KYC application')}
+                    title={application.user.displayName ?? t('Unnamed user')}
                     description={application.user.contact ?? application.user.id}
                 />
                 {(review.errors.form || recent.errors.form) && (
                     <Alert className="border-red-200 bg-red-50">
                         <AlertDescription>
-                            {review.errors.form ?? recent.errors.form}
+                            {errorMessage(review.errors.form) ?? errorMessage(recent.errors.form)}
                         </AlertDescription>
                     </Alert>
                 )}
@@ -96,45 +99,48 @@ export default function KycDetail({
                     <div className="space-y-6">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Submission</CardTitle>
+                                <CardTitle>{t('Submission')}</CardTitle>
                             </CardHeader>
                             <CardContent className="grid gap-5 sm:grid-cols-2">
                                 <Info
-                                    label="Document type"
-                                    value={application.documentType.replaceAll('_', ' ')}
+                                    label={t('Document type')}
+                                    value={t(application.documentType)}
                                 />
-                                <Info label="Country" value={application.documentCountry} />
                                 <Info
-                                    label="Identity number"
+                                    label={t('Country')}
+                                    value={countryName(application.documentCountry)}
+                                />
+                                <Info
+                                    label={t('Identity number')}
                                     value={application.maskedIdentityNumber}
                                 />
                                 <Info
-                                    label="Submitted"
-                                    value={new Date(application.submittedAt).toLocaleString()}
+                                    label={t('Submitted')}
+                                    value={dateTime(application.submittedAt)}
                                 />
                             </CardContent>
                         </Card>
                         <Card>
                             <CardHeader>
-                                <CardTitle>OCR summary</CardTitle>
+                                <CardTitle>{t('OCR summary')}</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <StatusBadge
                                     status={tone(application.ocrStatus)}
-                                    label={application.ocrStatus}
+                                    label={t(application.ocrStatus)}
                                 />
                                 {application.ocrSummary && (
                                     <div className="grid gap-4 sm:grid-cols-3">
                                         <Info
-                                            label="Identity comparison"
-                                            value={application.ocrSummary.identityMatch}
+                                            label={t('Identity comparison')}
+                                            value={t(application.ocrSummary.identityMatch)}
                                         />
                                         <Info
-                                            label="Candidate name"
+                                            label={t('Candidate name')}
                                             value={application.ocrSummary.candidateName ?? '—'}
                                         />
                                         <Info
-                                            label="Confidence"
+                                            label={t('Confidence')}
                                             value={
                                                 application.ocrSummary.confidence
                                                     ? `${application.ocrSummary.confidence} / 1`
@@ -144,15 +150,16 @@ export default function KycDetail({
                                     </div>
                                 )}
                                 <p className="text-sm text-muted-foreground">
-                                    OCR is an untrusted review hint and never approves an
-                                    application automatically.
+                                    {t(
+                                        'OCR is an untrusted review hint and never approves an application automatically.',
+                                    )}
                                 </p>
                             </CardContent>
                         </Card>
                         {permissions.includes('kyc.document.view') && (
                             <Card>
                                 <CardHeader>
-                                    <CardTitle>Private documents</CardTitle>
+                                    <CardTitle>{t('Private documents')}</CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                     {!recentlyAuthenticated ? (
@@ -168,14 +175,15 @@ export default function KycDetail({
                                             <Alert>
                                                 <LockKeyhole className="size-4" />
                                                 <AlertDescription>
-                                                    Confirm your current administrator password to
-                                                    unlock document access for 15 minutes.
+                                                    {t(
+                                                        'Confirm your current administrator password to unlock document access for 15 minutes.',
+                                                    )}
                                                 </AlertDescription>
                                             </Alert>
                                             <FormField
                                                 id="recent-password"
-                                                label="Password"
-                                                error={recent.errors.password}
+                                                label={t('Password')}
+                                                error={errorMessage(recent.errors.password)}
                                             >
                                                 <Input
                                                     id="recent-password"
@@ -191,7 +199,7 @@ export default function KycDetail({
                                                 />
                                             </FormField>
                                             <Button disabled={recent.processing}>
-                                                Confirm identity
+                                                {t('Confirm identity')}
                                             </Button>
                                         </form>
                                     ) : (
@@ -210,7 +218,11 @@ export default function KycDetail({
                                                     />
                                                     <Button>
                                                         <Eye className="mr-2 size-4" />
-                                                        View ID {side}
+                                                        {t(
+                                                            side === 'front'
+                                                                ? 'View ID front'
+                                                                : 'View ID back',
+                                                        )}
                                                     </Button>
                                                 </form>
                                             ))}
@@ -223,20 +235,22 @@ export default function KycDetail({
                     <div className="space-y-6">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Manual review</CardTitle>
+                                <CardTitle>{t('Manual review')}</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-5">
                                 <StatusBadge
                                     status={tone(application.reviewStatus)}
-                                    label={application.reviewStatus.replaceAll('_', ' ')}
+                                    label={t(application.reviewStatus)}
                                 />
                                 {application.reviewStatus === 'PENDING' &&
                                 permissions.includes('kyc.review') ? (
                                     <>
                                         <ReviewDecisionDialog
-                                            label="Approve identity"
-                                            title="Approve this identity?"
-                                            description="This creates the user's current verified Identity Record. The application cannot be reviewed again."
+                                            label={t('Approve identity')}
+                                            title={t('Approve this identity?')}
+                                            description={t(
+                                                "This creates the user's current verified Identity Record. The application cannot be reviewed again.",
+                                            )}
                                             onConfirm={() =>
                                                 router.post(`/admin/kyc/${application.id}/approve`)
                                             }
@@ -245,8 +259,8 @@ export default function KycDetail({
                                             <div className="space-y-4">
                                                 <FormField
                                                     id="reason-code"
-                                                    label="Reason"
-                                                    error={review.errors.reason_code}
+                                                    label={t('Reason')}
+                                                    error={errorMessage(review.errors.reason_code)}
                                                 >
                                                     <Select
                                                         value={review.data.reason_code}
@@ -269,7 +283,7 @@ export default function KycDetail({
                                                                     key={reason}
                                                                     value={reason}
                                                                 >
-                                                                    {reason.replaceAll('_', ' ')}
+                                                                    {t(reason)}
                                                                 </SelectItem>
                                                             ))}
                                                         </SelectContent>
@@ -277,8 +291,10 @@ export default function KycDetail({
                                                 </FormField>
                                                 <FormField
                                                     id="review-message"
-                                                    label="User-facing message"
-                                                    error={review.errors.review_message}
+                                                    label={t('User-facing message')}
+                                                    error={errorMessage(
+                                                        review.errors.review_message,
+                                                    )}
                                                 >
                                                     <Textarea
                                                         id="review-message"
@@ -294,9 +310,11 @@ export default function KycDetail({
                                                 </FormField>
                                                 <div className="grid gap-2 sm:grid-cols-2">
                                                     <ReviewDecisionDialog
-                                                        label="Reject"
-                                                        title="Reject this application?"
-                                                        description="Rejection is terminal. The user cannot self-resubmit in V1."
+                                                        label={t('Reject')}
+                                                        title={t('Reject this application?')}
+                                                        description={t(
+                                                            'Rejection is terminal. The user cannot self-resubmit in V1.',
+                                                        )}
                                                         variant="destructive"
                                                         disabled={
                                                             review.processing ||
@@ -306,9 +324,11 @@ export default function KycDetail({
                                                         onConfirm={() => submitReview('reject')}
                                                     />
                                                     <ReviewDecisionDialog
-                                                        label="Request resubmission"
-                                                        title="Request new documents?"
-                                                        description="This application becomes final and the user may submit a linked replacement."
+                                                        label={t('Request resubmission')}
+                                                        title={t('Request new documents?')}
+                                                        description={t(
+                                                            'This application becomes final and the user may submit a linked replacement.',
+                                                        )}
                                                         variant="secondary"
                                                         disabled={
                                                             review.processing ||
@@ -326,26 +346,25 @@ export default function KycDetail({
                                 ) : (
                                     <div className="space-y-2 text-sm">
                                         <Info
-                                            label="Reviewer"
-                                            value={application.reviewerName ?? '—'}
+                                            label={t('Reviewer')}
+                                            value={
+                                                application.automaticallyApproved
+                                                    ? t('System automatic approval')
+                                                    : (application.reviewerName ?? '—')
+                                            }
                                         />
                                         <Info
-                                            label="Reviewed"
+                                            label={t('Reviewed')}
                                             value={
                                                 application.reviewedAt
-                                                    ? new Date(
-                                                          application.reviewedAt,
-                                                      ).toLocaleString()
+                                                    ? dateTime(application.reviewedAt)
                                                     : '—'
                                             }
                                         />
                                         {application.reviewReasonCode && (
                                             <Info
-                                                label="Reason"
-                                                value={application.reviewReasonCode.replaceAll(
-                                                    '_',
-                                                    ' ',
-                                                )}
+                                                label={t('Reason')}
+                                                value={t(application.reviewReasonCode)}
                                             />
                                         )}
                                         {application.reviewMessage && (
@@ -367,10 +386,11 @@ export default function KycDetail({
 }
 
 function Info({ label, value }: { label: string; value: string }) {
+    useAdminTranslation();
     return (
         <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {label}
+                {t(label)}
             </p>
             <p className="mt-1 break-words text-sm font-medium">{value}</p>
         </div>
@@ -392,11 +412,12 @@ function ReviewDecisionDialog({
     variant?: 'default' | 'secondary' | 'destructive';
     disabled?: boolean;
 }) {
+    useAdminTranslation();
     return (
         <AlertDialog>
             <AlertDialogTrigger asChild>
                 <Button className="w-full" variant={variant} disabled={disabled}>
-                    {label}
+                    {t(label)}
                 </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -406,11 +427,11 @@ function ReviewDecisionDialog({
                 </div>
                 <div className="mt-6 flex justify-end gap-2">
                     <AlertDialogCancel asChild>
-                        <Button variant="secondary">Cancel</Button>
+                        <Button variant="secondary">{t('Cancel')}</Button>
                     </AlertDialogCancel>
                     <AlertDialogAction asChild>
                         <Button variant={variant} onClick={onConfirm}>
-                            Confirm
+                            {t('Confirm')}
                         </Button>
                     </AlertDialogAction>
                 </div>

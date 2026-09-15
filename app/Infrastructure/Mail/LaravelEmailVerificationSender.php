@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Mail;
 
 final class LaravelEmailVerificationSender implements EmailVerificationSender
 {
-    public function isAvailable(): bool
+    public function isAvailable(Tenant $tenant): bool
     {
         return true;
     }

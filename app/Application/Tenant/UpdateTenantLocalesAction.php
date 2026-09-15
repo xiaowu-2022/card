@@ -16,6 +16,7 @@ final readonly class UpdateTenantLocalesAction
     /** @param list<string> $enabledLocales */
     public function execute(Tenant $tenant, array $enabledLocales, string $defaultLocale, AdminUser $actor, ?string $requestId = null): void
     {
+        app(CompanyConfigurationAuthority::class)->assert($actor);
         $enabledLocales = array_values(array_unique($enabledLocales));
         if ($enabledLocales === []) {
             throw new DomainException('LOCALE_REQUIRED', 'At least one locale must remain enabled.');

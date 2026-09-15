@@ -1,5 +1,37 @@
 # KYC Rules
 
+## Global KYC policy update (2026-09-14)
+
+Identity verification settings now use one SaaS global policy for all existing and
+future companies, selected AUTOMATIC by the user. Per-company policy statements below
+are historical. Tenant-scoped identities and limits, explicit automatic confirmation
+and no retrospective approval remain unchanged. See PLATFORM_KYC_SETTINGS.md.
+
+
+## Approved automatic company policy (2026-09-11)
+
+The user explicitly superseded the manual-only restriction below. Companies may
+select MANUAL or AUTOMATIC; enabling/saving AUTOMATIC requires an explicit warning
+acknowledgement. Other companies retain their settings and new companies default
+to MANUAL. PROVIDER_AUTOMATIC remains reserved and cannot be configured or submitted.
+This policy is local acceptance of submitted materials, not an authenticity check,
+OCR approval or PhotonPay approval. It does not waive account KYC submission.
+
+Only new validated submissions (including permitted resubmissions) in AUTOMATIC mode
+are approved synchronously in the submission transaction. Approval reuses the same
+application/settings/advisory identity locks and duplicate-account limit as manual
+approval. On a limit violation the transaction rolls back and newly uploaded objects
+are cleaned up; existing approved records remain untouched. No OCR job is needed.
+Existing PENDING applications are not retrospectively processed by changing settings.
+Manual mode and existing pending work keep their review/OCR flow.
+
+The additive 001000 migration adds `automatically_approved` (default false for existing
+history). Automatic APPROVED records have reviewed_at, no administrator and a SYSTEM
+approval audit with review_mode AUTOMATIC. Manual terminal reviews still require an
+administrator. Database checks and a terminal-review trigger protect provenance;
+reviewed history is never rewritten. KYC still does not create or change Wallet,
+Ledger, Deposit, Commission or Card state. Admin detail shows system provenance.
+
 ## Ownership and records
 
 KYC is an independent Tenant-scoped Domain. `kyc_applications` is immutable submission/review history; `identity_records` is the current manually verified identity. Approval never deletes the source application. Phase 3 permits one current identity per `(tenant_id, user_id)`, provides no ordinary update/delete path, and does not implement identity renewal or erasure.

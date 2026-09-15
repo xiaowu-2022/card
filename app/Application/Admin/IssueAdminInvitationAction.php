@@ -3,6 +3,7 @@
 namespace App\Application\Admin;
 
 use App\Application\Admin\DTOs\IssuedAdminInvitation;
+use App\Application\Tenant\CompanyConfigurationAuthority;
 use App\Domain\Admin\Enums\InvitationStatus;
 use App\Domain\Admin\Enums\MembershipStatus;
 use App\Domain\Admin\Enums\ScopeType;
@@ -19,6 +20,7 @@ final readonly class IssueAdminInvitationAction
 
     public function execute(Tenant $tenant, string $email, Role $role, AdminUser $inviter): IssuedAdminInvitation
     {
+        app(CompanyConfigurationAuthority::class)->assert($inviter);
         if ($role->scope_type !== ScopeType::Tenant) {
             throw new DomainException('INVALID_INVITATION_ROLE', 'Only Tenant roles may be used for Tenant invitations.');
         }

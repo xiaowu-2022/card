@@ -1,244 +1,201 @@
-import { Head, useForm } from '@inertiajs/react';
+import { displayMoney, withdrawalRemainder, withdrawalReceiveAmount } from '@/lib/exact-amount';
+import { WithdrawalAmounts } from '@/components/user/WithdrawalAmounts';
+import { t, useClientTranslation, errorMessage } from '@/i18n';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { History } from 'lucide-react';
 import { useState } from 'react';
 import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
 import { UserPageHeader } from '@/components/user/UserPageHeader';
-import { UserSection } from '@/components/user/UserSection';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { UserLayout } from '@/layouts/UserLayout';
 import type { MoneyAmount } from '@/types/global';
-
-type Destination = { id: string; maskedAddress: string; label: string | null };
-
-function subtractDecimal(left: string, right: string): string {
-    if (!/^\d+(?:\.\d{1,8})?$/.test(left) || !/^\d+(?:\.\d{1,8})?$/.test(right)) return '—';
-
-    const scaled = (value: string) => {
-        const [whole, fraction = ''] = value.split('.');
-        return BigInt(`${whole}${fraction.padEnd(8, '0')}`);
-    };
-    const result = scaled(left) - scaled(right);
-    if (result < 0n) return '0.00000000';
-    const digits = result.toString().padStart(9, '0');
-    return `${digits.slice(0, -8)}.${digits.slice(-8)}`;
-}
 
 export default function Withdraw({
     available,
     network,
-    destinations,
+    fixedFee,
 }: {
     available: { amount: MoneyAmount; asset: string };
     network: string;
-    destinations: Destination[];
+    fixedFee: string;
 }) {
+    useClientTranslation();
     const [reviewing, setReviewing] = useState(false);
-    const address = useForm({ address: '', label: '' });
+    const [reviewedFee, setReviewedFee] = useState(fixedFee);
+    // Unkeyed form: never remember the raw address in history or persistent storage.
     const withdrawal = useForm<{
         request_id: string;
-        destination_id: string;
+        address: string;
         amount: string;
+        confirmed: boolean;
         form?: string;
     }>({
         request_id: crypto.randomUUID(),
-        destination_id: destinations[0]?.id ?? '',
+        address: '',
         amount: '',
-        form: undefined,
+        confirmed: false,
     });
-    const selected = destinations.find(
-        (destination) => destination.id === withdrawal.data.destination_id,
-    );
-    const availableAfter = reviewing
-        ? subtractDecimal(available.amount, withdrawal.data.amount)
-        : available.amount;
+    const normalizedAddress = withdrawal.data.address.trim();
+    const validAddress = /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(normalizedAddress);
+    const availableAfter = withdrawalRemainder(withdrawal.data.amount, available.amount);
+    const fee = reviewing ? reviewedFee : fixedFee;
+    const receiveAmount = withdrawalReceiveAmount(withdrawal.data.amount, fee);
+    const canReview = validAddress && availableAfter !== null && receiveAmount !== null;
+    const addressError =
+        withdrawal.data.address && !validAddress ? t('Enter a valid TRON address.') : undefined;
+    const amountError =
+        withdrawal.data.amount && availableAfter === null
+            ? withdrawalRemainder(withdrawal.data.amount, '999999999999.99999999') === null
+                ? t('Enter a positive amount with at most 2 decimal places.')
+                : t('Your available balance is not enough for this withdrawal.')
+            : withdrawal.data.amount && receiveAmount === null
+              ? t('Withdrawal amount must be greater than the fixed fee.')
+              : undefined;
 
     return (
         <UserLayout>
-            <Head title="Withdraw USDT" />
+            <Head title={t('Withdraw USDT')} />
             <div className="space-y-6 sm:space-y-8">
-                <UserPageHeader
-                    title="Withdraw"
-                    backHref="/wallet"
-                    description="USDT withdrawals use the TRON network."
-                />
+                <div className="relative">
+                    <UserPageHeader title={t('Withdraw')} backHref="/dashboard" />
+                    <Link
+                        href="/wallet/withdrawals"
+                        className="absolute right-0 top-0 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground"
+                    >
+                        <History className="size-4" aria-hidden="true" />
+                        {t('Withdrawal history')}
+                    </Link>
+                </div>
                 {!reviewing ? (
                     <>
                         <div>
-                            <p className="text-sm text-muted-foreground">Available</p>
+                            <p className="text-sm text-muted-foreground">{t('Available')}</p>
                             <p className="mt-1 text-3xl font-semibold">
                                 <MoneyDisplay {...available} compact />
                             </p>
                         </div>
-                        {destinations.length === 0 ? (
-                            <UserSection title="Add withdrawal address">
-                                <form
-                                    className="space-y-4"
-                                    onSubmit={(event) => {
-                                        event.preventDefault();
-                                        address.post('/wallet/withdrawal-destinations');
-                                    }}
-                                >
-                                    <FormField
-                                        id="tron-address"
-                                        label="TRON address"
-                                        error={address.errors.address}
-                                    >
-                                        <Input
-                                            id="tron-address"
-                                            value={address.data.address}
-                                            onChange={(event) =>
-                                                address.setData('address', event.target.value)
-                                            }
-                                            placeholder="T..."
-                                            autoComplete="off"
-                                        />
-                                    </FormField>
-                                    <FormField
-                                        id="address-label"
-                                        label="Label (optional)"
-                                        error={address.errors.label}
-                                    >
-                                        <Input
-                                            id="address-label"
-                                            value={address.data.label}
-                                            onChange={(event) =>
-                                                address.setData('label', event.target.value)
-                                            }
-                                            placeholder="My wallet"
-                                        />
-                                    </FormField>
-                                    <div className="rounded-lg bg-muted px-4 py-3 text-sm">
-                                        <span className="text-muted-foreground">Network</span>
-                                        <span className="float-right font-medium">
-                                            USDT ({network})
-                                        </span>
-                                    </div>
-                                    <Button
-                                        className="w-full sm:w-auto"
-                                        disabled={address.processing}
-                                    >
-                                        Add address
-                                    </Button>
-                                </form>
-                            </UserSection>
-                        ) : (
-                            <form
-                                className="space-y-5"
-                                onSubmit={(event) => {
-                                    event.preventDefault();
+                        <form
+                            className="space-y-5"
+                            onSubmit={(event) => {
+                                event.preventDefault();
+                                if (canReview) {
+                                    setReviewedFee(fixedFee);
                                     setReviewing(true);
-                                }}
+                                }
+                            }}
+                        >
+                            <FormField
+                                id="withdrawal-address"
+                                label={t('Withdrawal address')}
+                                error={errorMessage(withdrawal.errors.address) || addressError}
                             >
-                                <FormField
-                                    id="withdrawal-amount"
-                                    label="Amount"
-                                    error={withdrawal.errors.amount}
-                                >
-                                    <Input
-                                        id="withdrawal-amount"
-                                        inputMode="decimal"
-                                        value={withdrawal.data.amount}
-                                        onChange={(event) =>
-                                            withdrawal.setData('amount', event.target.value)
-                                        }
-                                        placeholder="100.00"
-                                    />
-                                </FormField>
-                                <FormField
+                                <Input
                                     id="withdrawal-address"
-                                    label="Withdrawal address"
-                                    error={withdrawal.errors.destination_id}
-                                >
-                                    <Select
-                                        value={withdrawal.data.destination_id}
-                                        onValueChange={(value) =>
-                                            withdrawal.setData('destination_id', value)
-                                        }
-                                    >
-                                        <SelectTrigger id="withdrawal-address">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {destinations.map((destination) => (
-                                                <SelectItem
-                                                    key={destination.id}
-                                                    value={destination.id}
-                                                >
-                                                    {destination.label
-                                                        ? `${destination.label} — `
-                                                        : ''}
-                                                    {destination.maskedAddress}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </FormField>
-                                <div className="rounded-lg bg-muted px-4 py-3 text-sm">
-                                    <span className="text-muted-foreground">Network</span>
-                                    <span className="float-right font-medium">
-                                        USDT ({network})
-                                    </span>
-                                </div>
-                                {withdrawal.errors.form ? (
-                                    <p className="text-sm text-destructive">
-                                        {withdrawal.errors.form}
-                                    </p>
-                                ) : null}
-                                <Button
-                                    className="w-full sm:w-auto"
-                                    disabled={
-                                        !withdrawal.data.amount || !withdrawal.data.destination_id
+                                    value={withdrawal.data.address}
+                                    onChange={(event) =>
+                                        withdrawal.setData('address', event.target.value)
                                     }
-                                >
-                                    Continue
+                                    placeholder={t('T...')}
+                                    autoComplete="off"
+                                    autoCapitalize="none"
+                                    spellCheck={false}
+                                    maxLength={100}
+                                    required
+                                />
+                            </FormField>
+                            <FormField
+                                id="withdrawal-amount"
+                                label={t('Amount')}
+                                error={errorMessage(withdrawal.errors.amount) || amountError}
+                            >
+                                <Input
+                                    id="withdrawal-amount"
+                                    inputMode="decimal"
+                                    value={withdrawal.data.amount}
+                                    onChange={(event) =>
+                                        withdrawal.setData('amount', event.target.value)
+                                    }
+                                    placeholder="0.00"
+                                    maxLength={15}
+                                    required
+                                />
+                            </FormField>
+                            <div className="flex justify-between gap-4 rounded-lg bg-muted px-4 py-3 text-sm">
+                                <span className="text-muted-foreground">{t('Network')}</span>
+                                <span className="font-medium">USDT ({network})</span>
+                            </div>
+                            <WithdrawalAmounts fee={fee} receive={receiveAmount} />
+                            {withdrawal.errors.form && (
+                                <p role="alert" className="text-sm text-destructive">
+                                    {errorMessage(withdrawal.errors.form)}
+                                </p>
+                            )}
+                            <div className="flex justify-center">
+                                <Button disabled={!canReview || withdrawal.processing}>
+                                    {t('Withdraw')}
                                 </Button>
-                            </form>
-                        )}
+                            </div>
+                        </form>
                     </>
                 ) : (
                     <section className="rounded-[var(--user-radius-lg)] border bg-surface p-5 sm:p-7">
-                        <p className="text-sm text-muted-foreground">You are withdrawing</p>
-                        <p className="mt-2 text-3xl font-semibold">{withdrawal.data.amount} USDT</p>
+                        <p className="text-sm text-muted-foreground">{t('You are withdrawing')}</p>
+                        <p className="mt-2 text-3xl font-semibold">
+                            {displayMoney(withdrawal.data.amount)} USDT
+                        </p>
                         <dl className="mt-6 divide-y border-y text-sm">
                             <div className="flex justify-between gap-4 py-4">
-                                <dt className="text-muted-foreground">Network</dt>
-                                <dd className="font-medium">TRC20</dd>
+                                <dt className="text-muted-foreground">{t('Network')}</dt>
+                                <dd className="font-medium">{network}</dd>
+                            </div>
+                            <div className="flex flex-col gap-2 py-4">
+                                <dt className="text-muted-foreground">{t('Address')}</dt>
+                                <dd className="break-all font-medium">{normalizedAddress}</dd>
                             </div>
                             <div className="flex justify-between gap-4 py-4">
-                                <dt className="text-muted-foreground">Address</dt>
-                                <dd className="font-medium">{selected?.maskedAddress}</dd>
-                            </div>
-                            <div className="flex justify-between gap-4 py-4">
-                                <dt className="text-muted-foreground">Available after</dt>
-                                <dd className="font-medium">{availableAfter} USDT</dd>
+                                <dt className="text-muted-foreground">{t('Available after')}</dt>
+                                <dd className="font-medium">
+                                    {availableAfter === null ? '—' : displayMoney(availableAfter)}{' '}
+                                    USDT
+                                </dd>
                             </div>
                         </dl>
-                        {withdrawal.errors.form ? (
-                            <p className="mt-4 text-sm text-destructive">
-                                {withdrawal.errors.form}
-                            </p>
-                        ) : null}
-                        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row">
+                        <div className="mt-4">
+                            <WithdrawalAmounts fee={fee} receive={receiveAmount} />
+                        </div>
+                        <p className="mt-4 text-sm leading-6 text-muted-foreground">
+                            {t(
+                                'Check the address and amount carefully. Transfers sent to an incorrect address cannot be recovered. Your request will be reviewed before payment.',
+                            )}
+                        </p>
+                        <div className="mt-6 flex flex-wrap justify-center gap-3">
                             <Button
                                 type="button"
                                 variant="secondary"
+                                disabled={withdrawal.processing}
                                 onClick={() => setReviewing(false)}
                             >
-                                Back
+                                {t('Back')}
                             </Button>
                             <Button
-                                disabled={withdrawal.processing}
-                                onClick={() => withdrawal.post('/wallet/withdrawals')}
+                                disabled={!canReview || withdrawal.processing}
+                                onClick={() => {
+                                    withdrawal.transform((data) => ({
+                                        ...data,
+                                        address: normalizedAddress,
+                                        confirmed: true,
+                                        expected_fee: reviewedFee,
+                                    }));
+                                    withdrawal.post('/wallet/withdrawals', {
+                                        onError: () => setReviewing(false),
+                                        onSuccess: () =>
+                                            withdrawal.reset('address', 'amount', 'confirmed'),
+                                    });
+                                }}
                             >
-                                {withdrawal.processing ? 'Submitting…' : 'Confirm withdrawal'}
+                                {withdrawal.processing ? t('Submitting…') : t('Confirm withdrawal')}
                             </Button>
                         </div>
                     </section>

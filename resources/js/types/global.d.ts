@@ -10,6 +10,12 @@ export interface TenantSharedProps {
 }
 
 export interface SharedProps extends InertiaPageProps {
+    i18n: {
+        locale: string;
+        enabledLocales: string[];
+        timezone: string;
+        surface?: 'user' | 'tenant-admin' | 'platform';
+    };
     requestId: string;
     tenant: TenantSharedProps | null;
     auth: {
@@ -22,6 +28,7 @@ export interface SharedProps extends InertiaPageProps {
         };
         user: null | {
             id: string;
+            accountId: string;
             displayName: string | null;
             email: string | null;
             phone: string | null;

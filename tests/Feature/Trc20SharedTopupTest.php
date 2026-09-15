@@ -2,16 +2,24 @@
 
 use App\Application\Kyc\ApproveKycAction;
 use App\Application\Kyc\SubmitKycApplicationAction;
+use App\Application\Payment\ConfirmPlatformTopupAction;
 use App\Application\Payment\CreateTrc20WalletTopupAction;
 use App\Application\Payment\ExpireTrc20TopupsAction;
+use App\Application\Payment\PaymentLedgerReconciliationService;
 use App\Application\Payment\ProcessIncomingTrc20TransferAction;
+use App\Application\Payment\ScanTrc20TopupsAction;
+use App\Application\Payment\VerifyPlatformTopupAction;
+use App\Application\SecurityDeposit\AllocateInitialDepositAction;
+use App\Application\SecurityDeposit\RefundSecurityDepositAction;
 use App\Application\Wallet\ActivateUserWalletAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Ledger\Enums\LedgerAccountType;
 use App\Domain\Ledger\Models\LedgerAccount;
 use App\Domain\Ledger\Models\LedgerEntry;
+use App\Domain\Payment\Contracts\Trc20ChainReader;
 use App\Domain\Payment\Enums\WalletTopupStatus;
 use App\Domain\Payment\Models\WalletTopupOrder;
+use App\Domain\SecurityDeposit\Models\InitialDepositIntent;
 use App\Domain\Tenant\Enums\TenantStatus;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Enums\UserStatus;
@@ -20,16 +28,25 @@ use App\Domain\Wallet\Models\Wallet;
 use App\Domain\Withdrawal\Contracts\BlockchainGatewayInterface;
 use App\Domain\Withdrawal\DTOs\IncomingBlockchainTransfer;
 use App\Infrastructure\Providers\Blockchain\MockBlockchainGateway;
+use App\Infrastructure\Providers\Blockchain\TronGridBlockchainGateway;
 use App\Infrastructure\Providers\Blockchain\UnavailableBlockchainGateway;
+use App\Jobs\AllocateInitialDeposit;
 use App\Support\Errors\DomainException;
+use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 
 beforeEach(function (): void {
     $this->seed();
+    // Exercise top-up settlement independently; the durable allocation job is tested explicitly below.
+    Queue::fake([AllocateInitialDeposit::class]);
     config([
         'payment.trc20_deposit_address' => 'T111111111111111111111111111111111',
         'payment.trc20_token_contract' => 'T222222222222222222222222222222222',
@@ -86,6 +103,370 @@ function trc20Transfer(WalletTopupOrder $order, int $confirmations = 20, ?string
     );
 }
 
+it('groups daily inflows by credited UTC+8 day with exact boundaries company selections and zero filling', function (): void {
+    $this->withoutVite();
+    config(['inertia.ssr.enabled' => false]);
+    Http::preventStrayRequests();
+    $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $other = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
+    $otherUser = User::query()->where('tenant_id', $other->id)->firstOrFail();
+    [$otherUser] = prepareTrc20User($other, $otherUser, 'DAILY-B');
+    $this->travelTo(CarbonImmutable::parse('2026-09-12T15:59:40Z'));
+    $before = createTrc20Topup($this, '100.23');
+    $first = createTrc20Topup($this, '200.45');
+    $this->travelTo(CarbonImmutable::parse('2026-09-12T15:59:59Z'));
+    expect(app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($before)))->toBe('CREDITED');
+    $this->travelTo(CarbonImmutable::parse('2026-09-12T16:00:00Z'));
+    expect(app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($first)))->toBe('CREDITED');
+    $this->travelTo(CarbonImmutable::parse('2026-09-13T15:59:50Z'));
+    $second = app(CreateTrc20WalletTopupAction::class)->execute($other->id, $otherUser->id, '300.56', (string) Str::uuid())->order;
+    $after = createTrc20Topup($this, '400.67');
+    createTrc20Topup($this, '900');
+    $this->travelTo(CarbonImmutable::parse('2026-09-13T15:59:59Z'));
+    expect(app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($second)))->toBe('CREDITED');
+    $this->travelTo(CarbonImmutable::parse('2026-09-13T16:00:00Z'));
+    expect(app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($after)))->toBe('CREDITED');
+    $sum = (string) BigDecimal::of($first->amount)->plus($second->amount)->toScale(8);
+    $all = (string) BigDecimal::of($sum)->plus($after->amount)->toScale(8);
+    $balances = LedgerAccount::query()->orderBy('id')->pluck('balance', 'id')->all();
+    $entries = LedgerEntry::query()->count();
+    $this->actingAs($owner, 'platform_admin');
+    $url = 'http://admin.localhost/platform/demo?start=2026-09-13&end=2026-09-13';
+    $this->get($url)->assertOk()->assertInertia(fn ($p) => $p
+        ->has('days', 1)->where('days.0.inflow', $sum)->where('days.0.net', $sum)->where('totals.inflow', $sum));
+    $this->get($url.'&'.http_build_query(['scope' => 'selected', 'companies' => [$this->tenant->id]]))->assertOk()->assertInertia(fn ($p) => $p
+        ->where('days.0.inflow', $first->amount)->where('totals.inflow', $first->amount));
+    $this->get($url.'&'.http_build_query(['scope' => 'selected', 'companies' => [$this->tenant->id, $other->id]]))->assertOk()->assertInertia(fn ($p) => $p
+        ->where('totals.inflow', $sum));
+    $this->get('http://admin.localhost/platform/demo?start=2026-09-13&end=2026-09-15')->assertOk()->assertInertia(fn ($p) => $p
+        ->has('days', 3)->where('days.0.inflow', $sum)->where('days.1.date', '2026-09-14')->where('days.1.inflow', $after->amount)
+        ->where('days.2.inflow', '0.00000000')->where('days.2.net', '0.00000000')->where('totals.inflow', $all));
+    expect(LedgerAccount::query()->orderBy('id')->pluck('balance', 'id')->all())->toBe($balances)
+        ->and(LedgerEntry::query()->count())->toBe($entries);
+    Http::assertNothingSent();
+});
+
+it('summarizes credited company inflows across all filtered pages without counting pending topups', function (): void {
+    $this->withoutVite();
+    config(['inertia.ssr.enabled' => false]);
+    Http::preventStrayRequests();
+    $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $other = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
+    $otherUser = User::query()->where('tenant_id', $other->id)->firstOrFail();
+    [$otherUser] = prepareTrc20User($other, $otherUser, 'B');
+    $first = createTrc20Topup($this, '100.23');
+    $second = createTrc20Topup($this, '200.45');
+    $third = app(CreateTrc20WalletTopupAction::class)->execute($other->id, $otherUser->id, '400.56', (string) Str::uuid())->order;
+    foreach ([$first, $second, $third] as $order) {
+        expect(app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($order)))->toBe('CREDITED');
+    }
+    createTrc20Topup($this, '900');
+    $aTotal = (string) BigDecimal::of($first->amount)->plus($second->amount)->toScale(8);
+    $total = (string) BigDecimal::of($aTotal)->plus($third->amount)->toScale(8);
+    for ($i = 0; $i < 15; $i++) {
+        Tenant::query()->create(['name' => 'Empty '.$i, 'slug' => 'empty-'.$i, 'status' => 'DRAFT', 'default_asset' => 'USDT', 'created_at' => now()->addMinute()]);
+    }
+    $balances = LedgerAccount::query()->orderBy('id')->pluck('balance', 'id')->all();
+    $entryCount = LedgerEntry::query()->count();
+    $this->actingAs($owner, 'platform_admin');
+    $url = 'http://admin.localhost/platform/tenants';
+    $this->get($url)->assertOk()->assertInertia(fn ($p) => $p
+        ->where('tenants.total', 17)->has('tenants.data', 15)->where('tenants.data.0.inflow', '0.00000000')
+        ->where('totals.inflow', $total)->where('totals.outflow', '0.00000000'));
+    $this->get($url.'?page=2')->assertOk()->assertInertia(fn ($p) => $p
+        ->has('tenants.data', 2)->where('totals.inflow', $total));
+    $this->get($url.'?search=a.localhost')->assertOk()->assertInertia(fn ($p) => $p
+        ->has('tenants.data', 1)->where('tenants.data.0.id', $this->tenant->id)
+        ->where('tenants.data.0.inflow', $aTotal)->where('totals.inflow', $aTotal));
+    $this->get($url.'?search=tenant-b')->assertOk()->assertInertia(fn ($p) => $p
+        ->has('tenants.data', 1)->where('tenants.data.0.inflow', $third->amount)->where('totals.inflow', $third->amount));
+    $this->get($url.'?status=DRAFT')->assertOk()->assertInertia(fn ($p) => $p
+        ->where('tenants.total', 15)->where('totals.inflow', '0.00000000'));
+    $this->get($url.'?search=nonexistent')->assertOk()->assertInertia(fn ($p) => $p
+        ->has('tenants.data', 0)->where('totals.inflow', '0.00000000')->where('totals.outflow', '0.00000000'));
+    $ids = DB::table('permissions')->whereIn('name', ['wallet_topups.read', 'withdrawals.read'])->pluck('id');
+    DB::table('role_permissions')->whereIn('permission_id', $ids)->delete();
+    $this->get($url.'?inflow=1&outflow=1')->assertOk()->assertInertia(fn ($p) => $p
+        ->where('financialAccess', ['inflow' => false, 'outflow' => false])
+        ->missing('totals.inflow')->missing('totals.outflow')->missing('tenants.data.0.inflow')->missing('tenants.data.0.outflow'));
+    expect(LedgerAccount::query()->orderBy('id')->pluck('balance', 'id')->all())->toBe($balances)
+        ->and(LedgerEntry::query()->count())->toBe($entryCount);
+    Http::assertNothingSent();
+});
+
+it('lists all company topups with exact company filtering and stable pagination', function (): void {
+    $this->withoutVite();
+    config(['inertia.ssr.enabled' => false]);
+    $other = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
+    $otherUser = User::query()->where('tenant_id', $other->id)->firstOrFail();
+    [$otherUser] = prepareTrc20User($other, $otherUser, 'B');
+    $otherOrder = app(CreateTrc20WalletTopupAction::class)->execute($other->id, $otherUser->id, '100', (string) Str::uuid())->order;
+    for ($i = 0; $i < 26; $i++) {
+        createTrc20Topup($this);
+    }
+    $this->actingAs(AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail(), 'platform_admin');
+    $this->get('http://admin.localhost/platform/topups')->assertOk()->assertInertia(fn ($page) => $page
+        ->where('orders.total', 27)->has('orders.data', 25));
+    $this->get('http://admin.localhost/platform/topups?company='.$other->id)->assertOk()->assertInertia(fn ($page) => $page
+        ->where('orders.total', 1)->where('orders.data.0.id', $otherOrder->id)
+        ->where('orders.data.0.companyId', $other->id)->where('orders.data.0.companyName', $other->name)
+        ->where('orders.data.0.amount', $otherOrder->amount));
+    $this->get('http://admin.localhost/platform/topups?company='.$this->tenant->id.'&status=PENDING')->assertOk()->assertInertia(fn ($page) => $page
+        ->where('orders.total', 26)->where('orders.next_page_url', fn ($url) => str_contains($url, 'company='.$this->tenant->id) && str_contains($url, 'status=PENDING')));
+    $this->get('http://admin.localhost/platform/topups?company='.$this->tenant->id.'&status=PENDING&page=2')->assertOk()->assertInertia(fn ($page) => $page
+        ->has('orders.data', 1)->where('orders.data.0.companyId', $this->tenant->id));
+    expect(LedgerEntry::query()->where('event_type', 'WALLET_TOPUP_CREDITED')->count())->toBe(0);
+});
+
+it('manually confirms the exact full amount without any online call and credits only once', function (): void {
+    $this->withoutVite();
+    Http::fake();
+    $order = createTrc20Topup($this);
+    $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $url = "http://admin.localhost/platform/tenants/{$this->tenant->id}/topups/{$order->id}/confirm";
+    $data = ['request_id' => (string) Str::uuid(), 'confirmed' => true];
+    $this->actingAs($owner, 'platform_admin')->postJson($url, $data)->assertRedirect();
+    $this->postJson($url, $data)->assertRedirect();
+    $this->postJson($url, ['request_id' => (string) Str::uuid(), 'confirmed' => true])->assertRedirect();
+    Http::assertNothingSent();
+    $saved = $order->fresh();
+    expect($saved->status)->toBe(WalletTopupStatus::Credited)
+        ->and($saved->manual_confirmed_by)->toBe($owner->id)->and($saved->manual_confirmation_request_id)->toBe($data['request_id'])
+        ->and($saved->matched_tx_hash)->toBeNull()->and($saved->blockchain_confirmed_at)->toBeNull()
+        ->and($saved->providerTransaction->status->value)->toBe('PENDING')
+        ->and(LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('wallet_id', $this->wallet->id)->where('account_type', 'USER_AVAILABLE')->value('balance'))->toBe('100.01000000')
+        ->and(LedgerEntry::query()->where('event_key', "wallet_topup:{$order->id}:credit")->count())->toBe(1)
+        ->and(DB::table('audit_logs')->where('action', 'PLATFORM_TOPUP_MANUALLY_CONFIRMED')->where('resource_id', $order->id)->count())->toBe(1)
+        ->and(app(PaymentLedgerReconciliationService::class)->mismatches($this->tenant->id))->toBe([]);
+    $this->get("http://admin.localhost/platform/tenants/{$this->tenant->id}/topups")->assertOk()
+        ->assertInertia(fn ($page) => $page->where('orders.data.0.manuallyConfirmed', true)
+            ->where('orders.data.0.manualConfirmedBy', ['id' => $owner->id, 'name' => $owner->name])
+            ->where('orders.data.0.manualConfirmedAt', $saved->manual_confirmed_at->toIso8601String()));
+    $this->get('http://admin.localhost/platform/financial-operations?company='.$this->tenant->id.'&search='.$order->id)->assertOk()
+        ->assertInertia(fn ($page) => $page->has('operations.data', 1)->where('operations.data.0.operatorId', $owner->id)
+            ->where('operations.data.0.action', 'PLATFORM_TOPUP_MANUALLY_CONFIRMED')->missing('operations.data.0.after_data'));
+});
+
+it('requires explicit acknowledgement and separate SaaS permission for manual confirmation', function (): void {
+    $order = createTrc20Topup($this);
+    $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $company = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
+    $url = "http://admin.localhost/platform/tenants/{$this->tenant->id}/topups/{$order->id}/confirm";
+    $data = ['request_id' => (string) Str::uuid(), 'confirmed' => true];
+    $this->actingAs($company, 'platform_admin')->postJson($url, $data)->assertForbidden();
+    $this->actingAs($company, 'tenant_admin')->postJson("http://a.localhost/admin/topups/{$order->id}/confirm", $data)->assertNotFound();
+    expect(fn () => app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $order->id, $data['request_id'], $company, true))->toThrow(DomainException::class);
+    $this->actingAs($owner, 'platform_admin')->postJson($url, ['request_id' => $data['request_id']])->assertUnprocessable();
+    $this->postJson($url, [...$data, 'confirmed' => false])->assertUnprocessable();
+    $this->postJson($url, [...$data, 'amount' => '999', 'tenant_id' => $this->tenant->id])->assertUnprocessable();
+    $permission = DB::table('permissions')->where('name', 'wallet_topups.confirm')->value('id');
+    DB::table('role_permissions')->where('permission_id', $permission)->delete();
+    expect(fn () => app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $order->id, $data['request_id'], $owner, true))->toThrow(DomainException::class)
+        ->and($order->fresh()->status)->toBe(WalletTopupStatus::Pending)->and(LedgerEntry::query()->count())->toBe(0);
+});
+
+it('binds manual request identity and company ownership and rolls back atomically', function (): void {
+    $first = createTrc20Topup($this);
+    $second = createTrc20Topup($this, '200');
+    $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $action = app(ConfirmPlatformTopupAction::class);
+    $request = (string) Str::uuid();
+    $foreign = Tenant::query()->where('slug', 'tenant-b')->value('id');
+    expect(fn () => $action->execute($foreign, $first->id, $request, $owner, true))->toThrow(ModelNotFoundException::class);
+    expect(fn () => DB::transaction(function () use ($action, $first, $request, $owner): void {
+        $action->execute($this->tenant->id, $first->id, $request, $owner, true);
+        throw new RuntimeException('Rollback test');
+    }))->toThrow(RuntimeException::class);
+    expect($first->fresh()->status)->toBe(WalletTopupStatus::Pending)->and($first->fresh()->manual_confirmed_at)->toBeNull()
+        ->and(LedgerEntry::query()->count())->toBe(0)
+        ->and(DB::table('audit_logs')->where('action', 'PLATFORM_TOPUP_MANUALLY_CONFIRMED')->count())->toBe(0);
+    $action->execute($this->tenant->id, $first->id, $request, $owner, true);
+    expect(fn () => $action->execute($this->tenant->id, $second->id, $request, $owner, true))->toThrow(DomainException::class)
+        ->and($second->fresh()->status)->toBe(WalletTopupStatus::Pending);
+    expect(fn () => DB::transaction(fn () => DB::table('wallet_topup_orders')->where('id', $first->id)->update(['manual_confirmed_at' => now()->addSecond()])))->toThrow(QueryException::class)
+        ->and(fn () => $first->fresh()->forceFill(['manual_confirmed_by' => null])->save())->toThrow(LogicException::class);
+});
+
+it('does not revive expired failed cancelled or review topups by manual confirmation', function (string $status): void {
+    $order = createTrc20Topup($this);
+    DB::table('wallet_topup_orders')->where('id', $order->id)->update(['status' => $status]);
+    $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    expect(fn () => app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $order->id, (string) Str::uuid(), $owner, true))->toThrow(DomainException::class)
+        ->and(LedgerEntry::query()->count())->toBe(0);
+})->with(['EXPIRED', 'FAILED', 'CANCELLED', 'REQUIRES_REVIEW']);
+
+it('keeps manually confirmed amounts reserved and ignores later matching receipts without double credit', function (): void {
+    $order = createTrc20Topup($this);
+    $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $order->id, (string) Str::uuid(), $owner, true);
+    expect(app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($order)))->toBe('UNMATCHED');
+    $next = createTrc20Topup($this);
+    expect($next->expected_amount)->toBe('100.02000000')
+        ->and(LedgerEntry::query()->where('event_type', 'WALLET_TOPUP_CREDIT')->count())->toBe(1);
+    // Make all other slots busy: the manually credited slot must not become reusable.
+    for ($i = 0; $i < 97; $i++) {
+        createTrc20Topup($this);
+    }
+    expect(fn () => createTrc20Topup($this))->toThrow(DomainException::class);
+});
+
+it('serializes manual confirmation with detected or already credited chain receipts', function (): void {
+    $order = createTrc20Topup($this);
+    $transfer = trc20Transfer($order, 1);
+    expect(app(ProcessIncomingTrc20TransferAction::class)->execute($transfer))->toBe('CONFIRMING');
+    $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $order->id, (string) Str::uuid(), $owner, true);
+    expect(app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($order)))->toBe('CREDITED')
+        ->and($order->fresh()->matched_tx_hash)->toBe($transfer->txHash)
+        ->and($order->fresh()->blockchain_confirmed_at)->toBeNull();
+    $automatic = createTrc20Topup($this, '200');
+    app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($automatic));
+    app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $automatic->id, (string) Str::uuid(), $owner, true);
+    expect($automatic->fresh()->manual_confirmed_at)->toBeNull()
+        ->and(LedgerEntry::query()->where('event_type', 'WALLET_TOPUP_CREDIT')->count())->toBe(2);
+});
+
+it('lets only SaaS verify one exact order and never lets company admins confirm funding', function (): void {
+    $this->withoutVite();
+    $order = createTrc20Topup($this);
+    $hash = str_repeat('d', 64);
+    config(['payment.trc20_mock_incoming_transfers' => [[
+        'tx_hash' => $hash, 'amount' => $order->expected_amount, 'token_contract' => $order->token_contract,
+        'destination' => $order->deposit_address, 'confirmations' => 20,
+    ]]]);
+    $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $company = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
+    $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/topups';
+    $data = ['request_id' => (string) Str::uuid(), 'tx_hash' => $hash, 'confirmed' => true];
+    $this->actingAs($company, 'platform_admin')->postJson($url.'/'.$order->id.'/verify', $data)->assertForbidden();
+    $this->actingAs($company, 'tenant_admin')->postJson('http://a.localhost/admin/topups/'.$order->id.'/verify', $data)->assertNotFound();
+    $this->actingAs($owner, 'platform_admin')->get($url)->assertOk();
+    $this->postJson($url.'/'.$order->id.'/verify', [...$data, 'confirmed' => false])->assertUnprocessable();
+    $this->postJson($url.'/'.$order->id.'/verify', $data)->assertRedirect();
+    $this->postJson($url.'/'.$order->id.'/verify', $data)->assertRedirect();
+    expect($order->fresh()->status)->toBe(WalletTopupStatus::Credited)
+        ->and(LedgerEntry::query()->where('event_type', 'WALLET_TOPUP_CREDIT')->count())->toBe(1)
+        ->and(DB::table('audit_logs')->where('action', 'PLATFORM_TOPUP_VERIFICATION_COMPLETED')->where('resource_id', $order->id)->exists())->toBeTrue();
+});
+
+it('does not let a SaaS order check settle a different order or accept insufficient confirmations', function (): void {
+    $first = createTrc20Topup($this, '100');
+    $other = createTrc20Topup($this, '200');
+    $hash = str_repeat('e', 64);
+    config(['payment.trc20_mock_incoming_transfers' => [[
+        'tx_hash' => $hash, 'amount' => $other->expected_amount, 'token_contract' => $other->token_contract,
+        'destination' => $other->deposit_address, 'confirmations' => 19,
+    ]]]);
+    $action = app(VerifyPlatformTopupAction::class);
+    $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    expect($action->execute($this->tenant->id, $first->id, $hash, (string) Str::uuid(), $owner))->toBe('UNMATCHED');
+    expect($first->fresh()->status)->toBe(WalletTopupStatus::Pending)->and($other->fresh()->status)->toBe(WalletTopupStatus::Pending);
+    expect($action->execute($this->tenant->id, $other->id, $hash, (string) Str::uuid(), $owner))->toBe('CONFIRMING');
+    expect($other->fresh()->status)->toBe(WalletTopupStatus::Processing)->and(LedgerEntry::query()->count())->toBe(0);
+    $foreignTenant = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
+    expect(fn () => $action->execute($foreignTenant->id, $first->id, $hash, (string) Str::uuid(), $owner))
+        ->toThrow(ModelNotFoundException::class);
+});
+
+it('requires an active SaaS membership even when a verification action is invoked directly', function (): void {
+    $order = createTrc20Topup($this);
+    $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $owner->memberships()->update(['status' => 'SUSPENDED']);
+    expect(fn () => app(VerifyPlatformTopupAction::class)->execute(
+        $this->tenant->id, $order->id, str_repeat('e', 64), (string) Str::uuid(), $owner,
+    ))->toThrow(DomainException::class);
+    expect($order->fresh()->status)->toBe(WalletTopupStatus::Pending);
+});
+
+it('binds a SaaS verification request to one immutable company order and transaction hash', function (): void {
+    $order = createTrc20Topup($this);
+    $other = createTrc20Topup($this, '200');
+    $actor = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $action = app(VerifyPlatformTopupAction::class);
+    $id = (string) Str::uuid();
+    expect($action->execute($this->tenant->id, $order->id, str_repeat('a', 64), $id, $actor))->toBe('UNMATCHED');
+    expect(fn () => $action->execute($this->tenant->id, $order->id, str_repeat('b', 64), $id, $actor))->toThrow(DomainException::class);
+    expect(fn () => $action->execute($this->tenant->id, $other->id, str_repeat('a', 64), $id, $actor))->toThrow(DomainException::class);
+    expect(DB::table('audit_logs')->where('action', 'PLATFORM_TOPUP_VERIFICATION_REQUESTED')->where('request_id', $id)->count())->toBe(1);
+    expect(LedgerEntry::query()->count())->toBe(0);
+});
+
+it('checkpoints only a fully verified live scan window and leaves pre-start orders untouched', function (): void {
+    $order = createTrc20Topup($this);
+    $start = CarbonImmutable::now()->addSecond()->startOfSecond();
+    $end = $start->addMinutes(2);
+    config(['payment.trc20_scan_enabled' => true, 'payment.trc20_scan_start_at' => $start->utc()->format('Y-m-d\TH:i:s\Z')]);
+    $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
+    $gateway->shouldReceive('available')->andReturn(true);
+    $gateway->shouldReceive('confirmedThrough')->andReturn($end);
+    $gateway->shouldReceive('between')->once()->andReturn([trc20Transfer($order, 20, overrides: ['occurred_at' => $start->addSecond()])]);
+    $this->app->instance(BlockchainGatewayInterface::class, $gateway);
+    $counts = app(ScanTrc20TopupsAction::class)->execute();
+    expect($counts['UNMATCHED'])->toBe(1)->and($order->fresh()->status)->toBe(WalletTopupStatus::Pending)
+        ->and(new DateTimeImmutable(DB::table('trc20_scan_cursors')->value('scanned_through')))->toEqual($end);
+});
+
+it('does not advance the live scan cursor on upstream uncertainty or enable scanning implicitly', function (): void {
+    $start = CarbonImmutable::now()->subMinute()->startOfSecond();
+    config(['payment.trc20_scan_enabled' => false, 'payment.trc20_scan_start_at' => $start->utc()->format('Y-m-d\TH:i:s\Z')]);
+    $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
+    $gateway->shouldReceive('available')->andReturn(true);
+    $gateway->shouldReceive('confirmedThrough')->once()->andReturn($start->addMinute());
+    $gateway->shouldReceive('between')->once()->andThrow(new DomainException('UNAVAILABLE', 'Unavailable', 503));
+    $this->app->instance(BlockchainGatewayInterface::class, $gateway);
+    $scan = app(ScanTrc20TopupsAction::class);
+    expect(fn () => $scan->execute())->toThrow(DomainException::class);
+    expect(DB::table('trc20_scan_cursors')->count())->toBe(0);
+    config(['payment.trc20_scan_enabled' => true]);
+    expect(fn () => $scan->execute())->toThrow(DomainException::class);
+    expect(new DateTimeImmutable(DB::table('trc20_scan_cursors')->value('scanned_through')))->toEqual($start);
+});
+
+it('retries an insufficiently confirmed scan window and credits a new order exactly once', function (): void {
+    $start = CarbonImmutable::now()->subMinute()->startOfSecond();
+    $end = CarbonImmutable::now()->addMinute();
+    config(['payment.trc20_scan_enabled' => true, 'payment.trc20_scan_start_at' => $start->utc()->format('Y-m-d\TH:i:s\Z')]);
+    $order = createTrc20Topup($this);
+    $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
+    $gateway->shouldReceive('available')->andReturn(true);
+    $gateway->shouldReceive('confirmedThrough')->andReturn($end);
+    $gateway->shouldReceive('between')->twice()->andReturn([trc20Transfer($order, 19)], [trc20Transfer($order, 20)]);
+    $this->app->instance(BlockchainGatewayInterface::class, $gateway);
+    $scan = app(ScanTrc20TopupsAction::class);
+    expect($scan->execute()['CONFIRMING'])->toBe(1)
+        ->and(new DateTimeImmutable(DB::table('trc20_scan_cursors')->value('scanned_through')))->toEqual($start);
+    expect($scan->execute()['CREDITED'])->toBe(1)->and($scan->execute()['CREDITED'])->toBe(0);
+    expect($order->fresh()->status)->toBe(WalletTopupStatus::Credited)
+        ->and(LedgerEntry::query()->where('event_type', 'WALLET_TOPUP_CREDIT')->count())->toBe(1);
+});
+
+it('routes real-adapter receipt evidence through SaaS verification and the existing ledger credit', function (): void {
+    $token = TronGridBlockchainGateway::TOKEN;
+    config(['payment.trc20_deposit_address' => $token, 'payment.trc20_token_contract' => $token,
+        'payment.trongrid_api_key_encrypted' => Crypt::encryptString('test-only-key')]);
+    $order = createTrc20Topup($this);
+    $hash = str_repeat('f', 64);
+    $units = BigDecimal::of($order->expected_amount)->multipliedBy('1000000')->toBigInteger()->toBase(16);
+    Http::preventStrayRequests();
+    Http::fake([
+        'api.trongrid.io/walletsolidity/getnowblock' => Http::response(['block_header' => ['raw_data' => ['number' => 125]]]),
+        'api.trongrid.io/walletsolidity/gettransactioninfobyid' => Http::response([
+            'id' => $hash, 'blockNumber' => 100, 'blockTimeStamp' => (int) now()->format('Uv'), 'receipt' => ['result' => 'SUCCESS'],
+            'log' => [['address' => 'a614f803b6fd780986a42c78ec9c7f77e6ded13c', 'topics' => [
+                'ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef', str_repeat('0', 64),
+                str_repeat('0', 24).'a614f803b6fd780986a42c78ec9c7f77e6ded13c',
+            ], 'data' => str_pad($units, 64, '0', STR_PAD_LEFT)]],
+        ]),
+    ]);
+    $this->app->instance(BlockchainGatewayInterface::class, new TronGridBlockchainGateway);
+    $actor = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $action = app(VerifyPlatformTopupAction::class);
+    $id = (string) Str::uuid();
+    expect($action->execute($this->tenant->id, $order->id, $hash, $id, $actor))->toBe('CREDITED');
+    expect($action->execute($this->tenant->id, $order->id, $hash, $id, $actor))->toBe('CREDITED');
+    expect(LedgerEntry::query()->where('event_type', 'WALLET_TOPUP_CREDIT')->count())->toBe(1);
+});
+
 it('allocates a 0.01 through 0.99 identifier and stores one financial truth', function (): void {
     $order = createTrc20Topup($this, '100.50');
 
@@ -96,6 +477,26 @@ it('allocates a 0.01 through 0.99 identifier and stores one financial truth', fu
         ->and($order->asset_code)->toBe('USDT')
         ->and($order->network_code)->toBe('TRON')
         ->and($order->created_at->diffInMinutes($order->expires_at))->toBe(30.0);
+});
+
+it('credits the wallet before initial automatic guarantee allocation and never automatically re-funds after refund', function (): void {
+    $this->tenant->businessSettings()->update(['required_security_deposit_amount' => '50']);
+    $order = createTrc20Topup($this, '100');
+    app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($order));
+    $intent = InitialDepositIntent::query()->where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->firstOrFail();
+    expect($order->fresh()->status)->toBe(WalletTopupStatus::Credited);
+    expect(LedgerAccount::query()->where('wallet_id', $this->wallet->id)->where('account_type', 'USER_SECURITY_DEPOSIT')->value('balance'))->toBe('0.00000000');
+    $auto = app(AllocateInitialDepositAction::class);
+    $auto->execute($this->tenant->id, $intent->id);
+    $auto->execute($this->tenant->id, $intent->id);
+    expect(LedgerAccount::query()->where('wallet_id', $this->wallet->id)->where('account_type', 'USER_SECURITY_DEPOSIT')->value('balance'))->toBe('50.00000000');
+    expect(LedgerEntry::query()->where('tenant_id', $this->tenant->id)->where('event_type', 'SECURITY_DEPOSIT_FUND')->count())->toBe(1);
+    $refunds = app(RefundSecurityDepositAction::class);
+    $this->tenant->businessSettings()->update(['security_deposit_refund_wait_days' => 0]);
+    $refund = $refunds->request($this->tenant->id, $this->user->id, (string) Str::uuid());
+    $refunds->settle($this->tenant->id, $this->user->id, $refund->id);
+    $auto->execute($this->tenant->id, $intent->id);
+    expect(LedgerAccount::query()->where('wallet_id', $this->wallet->id)->where('account_type', 'USER_SECURITY_DEPOSIT')->value('balance'))->toBe('0.00000000');
 });
 
 it('keeps allocation idempotent and rejects changed requested amount', function (): void {
@@ -361,6 +762,21 @@ it('normalizes configurable inbound observations through the existing mock block
         ->and($transfers[0]->transferIndex)->toBe(3)
         ->and($transfers[0]->amount)->toBe('50.37')
         ->and($transfers[0]->confirmations)->toBe(4);
+});
+
+it('opens persisted payment instructions directly after amount submission without crediting funds', function (): void {
+    $this->withoutVite();
+    $before = LedgerEntry::query()->count();
+    $payload = ['request_id' => (string) Str::uuid(), 'requested_amount' => '200'];
+    $response = $this->actingAs($this->user, 'tenant_user')->post('http://a.localhost/wallet/top-ups', $payload);
+    $order = WalletTopupOrder::query()->where('tenant_id', $this->tenant->id)->sole();
+    $response->assertRedirect("http://a.localhost/wallet/top-ups/{$order->id}/return");
+    $this->get("http://a.localhost/wallet/top-ups/{$order->id}/return")->assertOk()->assertInertia(fn ($page) => $page
+        ->component('user/TopupStatus')->where('order.expectedAmount', '200.01000000')
+        ->where('order.depositAddress', config('payment.trc20_deposit_address'))->where('order.status', 'WAITING'));
+    $this->post('http://a.localhost/wallet/top-ups', $payload)->assertRedirect("http://a.localhost/wallet/top-ups/{$order->id}/return");
+    expect(WalletTopupOrder::query()->count())->toBe(1)
+        ->and(LedgerEntry::query()->count())->toBe($before);
 });
 
 it('ignores client authority fields and tenant scopes user and admin reads', function (): void {

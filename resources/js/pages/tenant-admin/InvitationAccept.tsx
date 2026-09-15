@@ -1,3 +1,4 @@
+import { useAdminTranslation, t, errorMessage, dateTime } from '@/i18n/admin';
 import { Head, useForm } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -5,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
-import { PublicLayout } from '@/layouts/PublicLayout';
+import { AdminAuthLayout } from '@/layouts/AdminAuthLayout';
 
 interface Props {
     token: string;
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export default function InvitationAccept({ token, invitation, existingAdmin }: Props) {
+    useAdminTranslation();
     const form = useForm({ name: '', password: '', password_confirmation: '' });
     const formError = (form.errors as Record<string, string>).form;
     const submit = (event: FormEvent) => {
@@ -24,14 +26,14 @@ export default function InvitationAccept({ token, invitation, existingAdmin }: P
     };
 
     return (
-        <PublicLayout>
-            <Head title="Accept admin invitation" />
+        <AdminAuthLayout>
+            <Head title={t('Accept admin invitation')} />
             <div className="mx-auto max-w-lg px-4 py-14">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Accept administrator invitation</CardTitle>
+                        <CardTitle>{t('Accept administrator invitation')}</CardTitle>
                         <p className="text-sm text-muted-foreground">
-                            {invitation.email} · {invitation.role}
+                            {invitation.email} · {t(invitation.role)}
                         </p>
                     </CardHeader>
                     <CardContent>
@@ -39,21 +41,29 @@ export default function InvitationAccept({ token, invitation, existingAdmin }: P
                             <Alert>
                                 <AlertTitle>
                                     {existingAdmin
-                                        ? 'Existing admin identity'
-                                        : 'Create your admin identity'}
+                                        ? t('Existing admin identity')
+                                        : t('Create your admin identity')}
                                 </AlertTitle>
                                 <AlertDescription>
                                     {existingAdmin
-                                        ? 'Confirm your current password. Your identity and permissions from other Tenants are not copied.'
-                                        : 'Choose a strong password with at least 12 characters, mixed case, and numbers.'}
+                                        ? t(
+                                              'Confirm your current password. Your identity and permissions from other Tenants are not copied.',
+                                          )
+                                        : t(
+                                              'Choose a strong password with at least 12 characters, mixed case, and numbers.',
+                                          )}
                                 </AlertDescription>
                             </Alert>
                             {formError && (
                                 <Alert className="border-red-200 bg-red-50 text-danger">
-                                    <AlertDescription>{formError}</AlertDescription>
+                                    <AlertDescription>{errorMessage(formError)}</AlertDescription>
                                 </Alert>
                             )}
-                            <FormField id="invite-name" label="Your name" error={form.errors.name}>
+                            <FormField
+                                id="invite-name"
+                                label={t('Your name')}
+                                error={errorMessage(form.errors.name)}
+                            >
                                 <Input
                                     id="invite-name"
                                     value={form.data.name}
@@ -63,8 +73,8 @@ export default function InvitationAccept({ token, invitation, existingAdmin }: P
                             </FormField>
                             <FormField
                                 id="invite-password"
-                                label={existingAdmin ? 'Current password' : 'Create password'}
-                                error={form.errors.password}
+                                label={existingAdmin ? t('Current password') : t('Create password')}
+                                error={errorMessage(form.errors.password)}
                             >
                                 <Input
                                     id="invite-password"
@@ -80,8 +90,8 @@ export default function InvitationAccept({ token, invitation, existingAdmin }: P
                             </FormField>
                             <FormField
                                 id="invite-password-confirmation"
-                                label="Confirm password"
-                                error={form.errors.password_confirmation}
+                                label={t('Confirm password')}
+                                error={errorMessage(form.errors.password_confirmation)}
                             >
                                 <Input
                                     id="invite-password-confirmation"
@@ -94,15 +104,17 @@ export default function InvitationAccept({ token, invitation, existingAdmin }: P
                                 />
                             </FormField>
                             <Button className="w-full" disabled={form.processing}>
-                                Accept invitation
+                                {t('Accept invitation')}
                             </Button>
                             <p className="text-xs text-muted-foreground">
-                                Expires {new Date(invitation.expiresAt).toLocaleString()}
+                                {t('Expires {{value1}}', {
+                                    value1: dateTime(invitation.expiresAt),
+                                })}
                             </p>
                         </form>
                     </CardContent>
                 </Card>
             </div>
-        </PublicLayout>
+        </AdminAuthLayout>
     );
 }

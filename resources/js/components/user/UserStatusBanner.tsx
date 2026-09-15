@@ -1,3 +1,4 @@
+import { useClientTranslation } from '@/i18n';
 import { Link } from '@inertiajs/react';
 import { AlertTriangle, CheckCircle2, Clock3, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ export function UserStatusBanner({
     tone?: keyof typeof tones;
     action?: { label: string; href: string };
 }) {
+    useClientTranslation();
     const state = tones[tone];
     const Icon = state.icon;
     return (

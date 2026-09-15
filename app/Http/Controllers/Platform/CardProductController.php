@@ -26,7 +26,7 @@ final class CardProductController extends Controller
         $actor = $request->user('platform_admin');
         $create->execute($request->validated(), $actor, $request->attributes->get('request_id'));
 
-        return back()->with('success', 'Card product created. No provider or financial operation was performed.');
+        return back()->with('success', 'Card product created. No financial operation was performed.');
     }
 
     public function update(string $cardProduct, UpdateCardProductRequest $request, UpdateCardProductAction $update): RedirectResponse

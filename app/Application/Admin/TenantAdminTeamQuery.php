@@ -25,6 +25,7 @@ final class TenantAdminTeamQuery
                     'email' => $membership->adminUser->email,
                     'role' => $membership->role->name,
                     'status' => $membership->status->value,
+                    'accountStatus' => $membership->adminUser->status->value,
                 ]),
             'invitations' => AdminInvitation::query()
                 ->with('role')

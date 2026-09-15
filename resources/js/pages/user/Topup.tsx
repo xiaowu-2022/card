@@ -1,3 +1,4 @@
+import { t, useClientTranslation, dateTime } from '@/i18n';
 import { Head, router } from '@inertiajs/react';
 import { useRef, useState } from 'react';
 import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
@@ -50,15 +51,9 @@ const statusLabel = (status: OrderStatus) =>
         EXPIRED: 'Top-up expired',
     })[status];
 
-const compactAmount = (amount: MoneyAmount) => {
-    const [integer, fraction = ''] = amount.split('.');
-    const trimmed = fraction.replace(/0+$/, '');
-    return trimmed ? `${integer}.${trimmed}` : integer;
-};
-
 export default function Topup({ available, wallet, topupAvailable, orders }: Props) {
+    useClientTranslation();
     const [amount, setAmount] = useState('');
-    const [reviewing, setReviewing] = useState(false);
     const [processing, setProcessing] = useState(false);
     const requestId = useRef(crypto.randomUUID());
     const canContinue =
@@ -76,52 +71,33 @@ export default function Topup({ available, wallet, topupAvailable, orders }: Pro
 
     return (
         <UserLayout>
-            <Head title="Top up" />
+            <Head title={t('Top up')} />
             <div className="space-y-6 sm:space-y-8">
-                <UserPageHeader title="Top up" backHref="/wallet" />
+                <UserPageHeader title={t('Top up')} backHref="/dashboard" />
                 {available ? (
-                    <UserBalanceHero amount={available.amount} asset={available.asset} />
+                    <UserBalanceHero
+                        amount={available.amount}
+                        asset={available.asset}
+                        assetLabel="USDT"
+                    />
                 ) : null}
                 {!topupAvailable || !wallet ? (
                     <UserStatusBanner
                         tone="warning"
-                        title="Top-up unavailable"
-                        description="An active verified USDT wallet is required for TRC20 top-ups."
+                        title={t('Top-up unavailable')}
+                        description={t(
+                            'An active verified USDT wallet is required for TRC20 top-ups.',
+                        )}
                     />
-                ) : reviewing ? (
-                    <section className="rounded-[var(--user-radius-lg)] border bg-surface p-5 sm:p-7">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                            Review
-                        </p>
-                        <h2 className="mt-2 text-lg font-semibold">Create payment instructions</h2>
-                        <dl className="mt-5 divide-y border-y">
-                            <div className="flex justify-between gap-4 py-4 text-sm">
-                                <dt className="text-muted-foreground">Requested</dt>
-                                <dd className="font-semibold">
-                                    <MoneyDisplay amount={amount} asset="USDT" compact />
-                                </dd>
-                            </div>
-                            <div className="flex justify-between gap-4 py-4 text-sm">
-                                <dt className="text-muted-foreground">Network</dt>
-                                <dd className="font-semibold">TRC20</dd>
-                            </div>
-                        </dl>
-                        <p className="mt-4 text-sm leading-6 text-muted-foreground">
-                            A 0.01–0.99 identification amount will be added. Your wallet receives
-                            the full exact amount sent; it is not a fee.
-                        </p>
-                        <div className="mt-5 grid gap-3 sm:flex sm:justify-end">
-                            <Button variant="secondary" onClick={() => setReviewing(false)}>
-                                Back
-                            </Button>
-                            <Button disabled={processing} onClick={submit}>
-                                {processing ? 'Creating instructions…' : 'Continue'}
-                            </Button>
-                        </div>
-                    </section>
                 ) : (
-                    <section className="rounded-[var(--user-radius-lg)] border bg-surface p-5 sm:p-7">
-                        <FormField label="Amount" id="topup-amount">
+                    <form
+                        className="rounded-[var(--user-radius-lg)] border bg-surface p-5 sm:p-7"
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            submit();
+                        }}
+                    >
+                        <FormField label={t('Amount')} id="topup-amount">
                             <div className="flex items-center gap-3">
                                 <Input
                                     id="topup-amount"
@@ -129,28 +105,25 @@ export default function Topup({ available, wallet, topupAvailable, orders }: Pro
                                     autoComplete="off"
                                     placeholder="100.00"
                                     value={amount}
+                                    disabled={processing}
                                     onChange={(event) => setAmount(event.target.value)}
                                 />
                                 <span className="text-sm font-semibold">USDT</span>
                             </div>
                         </FormField>
                         <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                            TRON network (TRC20) · No top-up fee
+                            {t('TRON network (TRC20) · No top-up fee')}
                         </p>
-                        <Button
-                            className="mt-5 w-full"
-                            disabled={!canContinue}
-                            onClick={() => setReviewing(true)}
-                        >
-                            Continue
+                        <Button className="mt-5 w-full" disabled={!canContinue || processing}>
+                            {processing ? t('Creating instructions…') : t('Continue')}
                         </Button>
-                    </section>
+                    </form>
                 )}
-                <UserSection title="Top-up history">
+                <UserSection title={t('Top-up history')}>
                     {orders.length === 0 ? (
                         <UserEmptyState
-                            title="No top-ups yet"
-                            description="Your top-up history will appear here."
+                            title={t('No top-ups yet')}
+                            description={t('Your top-up history will appear here.')}
                         />
                     ) : (
                         <div className="divide-y">
@@ -158,8 +131,8 @@ export default function Topup({ available, wallet, topupAvailable, orders }: Pro
                                 <UserListRow
                                     key={order.id}
                                     href={`/wallet/top-ups/${order.id}/return`}
-                                    title="USDT top up"
-                                    description={`Requested ${compactAmount(order.requestedAmount)} · ${new Date(order.createdAt).toLocaleString()}`}
+                                    title={t('USDT top up')}
+                                    description={dateTime(order.createdAt)}
                                     value={
                                         <span className="text-right">
                                             <span className="block font-semibold">
@@ -170,7 +143,7 @@ export default function Topup({ available, wallet, topupAvailable, orders }: Pro
                                                 />
                                             </span>
                                             <span className="text-xs text-muted-foreground">
-                                                {statusLabel(order.status)}
+                                                {t(statusLabel(order.status))}
                                             </span>
                                         </span>
                                     }

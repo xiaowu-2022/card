@@ -1,3 +1,4 @@
+import { useClientTranslation } from '@/i18n';
 import type { ReactNode } from 'react';
 
 export function UserSection({
@@ -11,6 +12,7 @@ export function UserSection({
     action?: ReactNode;
     children: ReactNode;
 }) {
+    useClientTranslation();
     return (
         <section
             className="min-w-0"
@@ -20,7 +22,7 @@ export function UserSection({
                 <div>
                     <h2
                         id={`user-section-${title.replaceAll(' ', '-').toLowerCase()}`}
-                        className="text-base font-semibold"
+                        className="user-section-heading"
                     >
                         {title}
                     </h2>

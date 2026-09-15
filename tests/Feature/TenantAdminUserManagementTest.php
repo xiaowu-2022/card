@@ -1,5 +1,6 @@
 <?php
 
+use App\Application\Promotion\PromotionMembershipAction;
 use App\Application\User\ReactivateUserAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Audit\Models\AuditLog;
@@ -44,6 +45,7 @@ it('ignores client-controlled tenant and status fields during registration', fun
     $tenantB = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
     $challenge = RegistrationChallenge::query()->create([
         'tenant_id' => $tenantA->id, 'channel' => 'EMAIL', 'destination' => 'allowlist@example.test', 'code_hash' => str_repeat('a', 64), 'status' => 'VERIFIED', 'expires_at' => now()->addMinutes(10), 'verified_at' => now(),
+        'promotion_company_invitation_id' => app(PromotionMembershipAction::class)->companyInvitation($tenantA->id)->id,
     ]);
     $this->withSession(['registration.challenge_ids' => [$challenge->id]])->post("http://a.localhost/register/challenges/{$challenge->id}/complete", [
         'password' => 'StrongPass1234',

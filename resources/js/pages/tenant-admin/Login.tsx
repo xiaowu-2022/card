@@ -1,3 +1,4 @@
+import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import type { CSSProperties, FormEvent } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -5,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
-import { PublicLayout } from '@/layouts/PublicLayout';
+import { AdminAuthLayout } from '@/layouts/AdminAuthLayout';
 import type { SharedProps } from '@/types/global';
 
 export default function Login() {
+    useAdminTranslation();
     const { tenant } = usePage<SharedProps>().props;
     const form = useForm({ email: '', password: '' });
     const style = {
@@ -21,8 +23,8 @@ export default function Login() {
 
     return (
         <div style={style}>
-            <PublicLayout>
-                <Head title="Tenant admin sign in" />
+            <AdminAuthLayout>
+                <Head title={t('Tenant admin sign in')} />
                 <div className="mx-auto max-w-md px-4 py-16">
                     <Card>
                         <CardHeader>
@@ -34,23 +36,27 @@ export default function Login() {
                                 />
                             )}
                             <CardTitle>
-                                {tenant?.branding.brandName ?? 'Tenant'} administration
+                                {t('{{value1}} administration', {
+                                    value1: tenant?.branding.brandName ?? t('Tenant'),
+                                })}
                             </CardTitle>
                             <p className="mt-1 text-sm text-muted-foreground">
-                                Admin identity is separate from end-user accounts.
+                                {t('Admin identity is separate from end-user accounts.')}
                             </p>
                         </CardHeader>
                         <CardContent>
                             <form className="space-y-5" onSubmit={submit}>
                                 {form.errors.email && (
                                     <Alert className="border-red-200 bg-red-50 text-danger">
-                                        <AlertDescription>{form.errors.email}</AlertDescription>
+                                        <AlertDescription>
+                                            {errorMessage(form.errors.email)}
+                                        </AlertDescription>
                                     </Alert>
                                 )}
                                 <FormField
                                     id="admin-email"
-                                    label="Work email"
-                                    error={form.errors.email}
+                                    label={t('Work email')}
+                                    error={errorMessage(form.errors.email)}
                                 >
                                     <Input
                                         id="admin-email"
@@ -65,8 +71,8 @@ export default function Login() {
                                 </FormField>
                                 <FormField
                                     id="admin-password"
-                                    label="Password"
-                                    error={form.errors.password}
+                                    label={t('Password')}
+                                    error={errorMessage(form.errors.password)}
                                 >
                                     <Input
                                         id="admin-password"
@@ -79,13 +85,13 @@ export default function Login() {
                                     />
                                 </FormField>
                                 <Button className="w-full" disabled={form.processing}>
-                                    Sign in
+                                    {t('Sign in')}
                                 </Button>
                             </form>
                         </CardContent>
                     </Card>
                 </div>
-            </PublicLayout>
+            </AdminAuthLayout>
         </div>
     );
 }

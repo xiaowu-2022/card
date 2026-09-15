@@ -1,5 +1,40 @@
 # User Authentication Rules
 
+Forgotten-password recovery uses a dedicated browser-bound proof under
+[USER_PASSWORD_RECOVERY.md](USER_PASSWORD_RECOVERY.md), never a registration proof or
+support/admin password override. Successful recovery invalidates all prior User sessions.
+
+Account profile editing and purpose-scoped contact replacement are specified in
+[User account information](USER_ACCOUNT_INFORMATION.md); registration proofs are never reused for rebinding.
+
+User-approved hardening adds a server-owned `users.session_version` (default 0).
+Login/registration bind the exact current version into the host session. Existing
+unversioned sessions count as 0, not as the latest version. Every stored User session
+is compared with the scoped User version before serving User or company routes.
+Password changes atomically increment the version and audit under Tenant -> User
+locks; explicit current-password/confirmation other-device revocation does the same
+without changing the password. Only the initiating session receives that action's
+exact returned version (never a later concurrent version). Stale sessions lose only
+the User guard and its contact-change binding on their next request; independent
+Admin authentication and locale are preserved, with no session-table deletion or flush.
+The current device remains logged in; a failed/lost response may require it to log
+in again. No active-device count/list is fabricated. Suspended users retain these
+account-security actions; disabled users and closed/draft companies do not.
+
+The authorized [Promotion stage](PROMOTION_REQUIREMENTS.md) requires a valid
+Tenant-scoped invitation on public email/SMS registration. Link codes are bound
+to the browser and persisted immutably on the verified challenge; completion
+atomically creates the User and referral member. It never weakens OTP ownership,
+expiry or consumption checks and does not create a wallet or move funds.
+
+Company-owned Proton SMTP extends email availability with an explicit Tenant and a
+durable uncertain-send flag. See [TENANT_EMAIL.md](TENANT_EMAIL.md). No shared/log
+registration email fallback is allowed at runtime; verification gates remain unchanged.
+
+Company-owned Aliyun SMS configuration extends the SMS availability contract with
+an explicit trusted Tenant, and persists uncertain delivery for registration recovery.
+See [TENANT_SMS.md](TENANT_SMS.md). All existing OTP ownership and verification gates remain.
+
 - End User identity (`users`, `tenant_user`) and Admin identity (`admin_users`, Admin guards) are separate even when email values match.
 - Every User belongs to exactly one Tenant. Credential lookup begins with resolved `tenant_id`; contacts are unique only inside that Tenant.
 - Email normalization is trim + lowercase only. Phone normalization uses libphonenumber and stores E.164.

@@ -1,3 +1,6 @@
+import { useAdminTranslation, t } from '@/i18n/admin';
+import { useLocaleSync } from '@/i18n/useLocaleSync';
+import { AdminLanguageSwitcher } from '@/components/admin/AdminLanguageSwitcher';
 import { Link, router, usePage } from '@inertiajs/react';
 import {
     Activity,
@@ -6,6 +9,7 @@ import {
     CreditCard,
     FileCheck2,
     Menu,
+    ReceiptText,
     ServerCog,
     ShieldCheck,
     Users,
@@ -35,39 +39,107 @@ const groups = [
     {
         label: 'Operations',
         items: [
-            { label: 'Users', href: '#', icon: Users },
-            { label: 'KYC', href: '#', icon: FileCheck2 },
-            { label: 'Wallet', href: '#', icon: WalletCards },
+            { label: 'Users', href: '/platform/users', icon: Users, permission: 'users.read' },
+            { label: 'KYC', href: '/platform/kyc', icon: FileCheck2, permission: 'kyc.read' },
+            {
+                label: 'Wallet',
+                href: '/platform/wallets',
+                icon: WalletCards,
+                permission: 'wallet.read',
+            },
             { label: 'Cards', href: '/platform/cards', icon: CreditCard },
+            {
+                label: 'Payment orders',
+                href: '/platform/topups',
+                icon: ReceiptText,
+                permission: 'wallet_topups.read',
+            },
             { label: 'Products', href: '/platform/card-products', icon: Boxes },
-            { label: 'Providers', href: '#', icon: ServerCog },
+            {
+                label: 'Card providers',
+                href: '/platform/card-providers',
+                icon: ServerCog,
+                permission: 'provider_operation.read',
+            },
         ],
     },
-    { label: 'Control', items: [{ label: 'Audit & system', href: '#', icon: ShieldCheck }] },
+    {
+        label: 'Control',
+        items: [
+            {
+                label: 'Domain configurations',
+                href: '/platform/settings/domains',
+                icon: ServerCog,
+                permission: 'tenant.manage',
+            },
+            {
+                label: 'SMS configurations',
+                href: '/platform/settings/sms',
+                icon: ServerCog,
+                permission: 'tenant.manage',
+            },
+            {
+                label: 'Email configurations',
+                href: '/platform/settings/email',
+                icon: ServerCog,
+                permission: 'tenant.manage',
+            },
+            {
+                label: 'Identity verification settings',
+                href: '/platform/settings/kyc',
+                icon: FileCheck2,
+                permission: 'tenant.manage',
+            },
+            {
+                label: 'SaaS administrators',
+                href: '/platform/administrators',
+                icon: Users,
+                permission: 'admin_team.read',
+            },
+            {
+                label: 'Financial operation records',
+                href: '/platform/financial-operations',
+                icon: ShieldCheck,
+                permission: 'audit.read',
+            },
+        ],
+    },
 ];
-const PlatformNav = () => (
-    <nav className="mt-7 space-y-6">
-        {groups.map((group) => (
-            <div key={group.label}>
-                <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    {group.label}
-                </p>
-                {group.items.map((item) => (
-                    <Link
-                        key={item.label}
-                        href={item.href}
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-                    >
-                        <item.icon className="size-4" />
-                        {item.label}
-                    </Link>
-                ))}
-            </div>
-        ))}
-    </nav>
-);
+const PlatformNav = () => {
+    const permissions = usePage<SharedProps>().props.auth.admin?.permissions ?? [];
+    return (
+        <nav className="mt-7 space-y-6">
+            {groups.map((group) => (
+                <div key={group.label}>
+                    <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        {t(group.label)}
+                    </p>
+                    {group.items
+                        .filter(
+                            (item) =>
+                                !('permission' in item) ||
+                                !item.permission ||
+                                permissions.includes(item.permission),
+                        )
+                        .map((item) => (
+                            <Link
+                                key={item.label}
+                                href={item.href}
+                                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                            >
+                                <item.icon className="size-4" />
+                                {t(item.label)}
+                            </Link>
+                        ))}
+                </div>
+            ))}
+        </nav>
+    );
+};
 
 export function PlatformLayout({ children }: { children: ReactNode }) {
+    useLocaleSync();
+    useAdminTranslation();
     const { auth, flash } = usePage<SharedProps>().props;
     const initials = auth.admin?.name
         .split(' ')
@@ -88,7 +160,7 @@ export function PlatformLayout({ children }: { children: ReactNode }) {
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                aria-label="Open platform navigation"
+                                aria-label={t('Open platform navigation')}
                             >
                                 <Menu className="size-5" />
                             </Button>
@@ -98,16 +170,19 @@ export function PlatformLayout({ children }: { children: ReactNode }) {
                                 <AppMark name="Aperture Platform" />
                             </SheetTitle>
                             <SheetDescription className="sr-only">
-                                Platform administration navigation
+                                {t('Platform administration navigation')}
                             </SheetDescription>
                             <PlatformNav />
                         </SheetContent>
                     </Sheet>
                 </div>
-                <p className="hidden text-sm font-medium sm:block">Platform control center</p>
-                <div className="flex items-center gap-3">
-                    <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-info">
-                        Sandbox
+                <p className="hidden text-sm font-medium sm:block">
+                    {t('Platform control center')}
+                </p>
+                <div className="flex shrink-0 items-center gap-2 whitespace-nowrap sm:gap-3">
+                    <AdminLanguageSwitcher />
+                    <span className="hidden rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-info sm:inline">
+                        {t('Sandbox')}
                     </span>
                     <span className="grid size-8 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white">
                         {initials ?? 'PA'}
@@ -117,14 +192,14 @@ export function PlatformLayout({ children }: { children: ReactNode }) {
                         size="sm"
                         onClick={() => router.post('/platform/logout')}
                     >
-                        Sign out
+                        {t('Sign out')}
                     </Button>
                 </div>
             </header>
             <main className="min-w-0 p-4 sm:p-6 lg:ml-64 lg:p-8 xl:p-10">
                 {flash.success && (
                     <Alert className="mb-6 border-emerald-200 bg-emerald-50">
-                        <AlertDescription>{flash.success}</AlertDescription>
+                        <AlertDescription>{t(flash.success)}</AlertDescription>
                     </Alert>
                 )}
                 {children}

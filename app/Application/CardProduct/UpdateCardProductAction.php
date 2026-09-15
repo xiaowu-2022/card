@@ -8,23 +8,56 @@ use App\Domain\CardProduct\Models\CardProduct;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Support\Errors\DomainException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 final readonly class UpdateCardProductAction
 {
-    public function __construct(private AuditLogger $audit) {}
+    public function __construct(private AuditLogger $audit, private CardProductBinPolicy $bins) {}
 
     /** @param array{name:string,provider_product_ref:string,minimum_initial_load:string,minimum_reload:string,status:string} $data */
     public function execute(string $productId, array $data, AdminUser $actor, ?string $requestId = null): CardProduct
     {
+        $fee = Validator::make($data, ['opening_fee' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,8})?$/']])->validate()['opening_fee'];
+        $openingFee = Money::of($fee, 'USDT')->amount();
         $initial = $this->minimum($data['minimum_initial_load'], 'minimum initial load');
         $reload = $this->minimum($data['minimum_reload'], 'minimum reload');
 
-        return DB::transaction(function () use ($productId, $data, $initial, $reload, $actor, $requestId): CardProduct {
+        $snapshot = CardProduct::query()->findOrFail($productId);
+        if ($snapshot->archived_at !== null) {
+            throw new DomainException('CARD_PRODUCT_ARCHIVED', 'This card product has been archived.', 409);
+        }
+        $requestedBinding = array_key_exists('card_provider_reference_id', $data) ? $data['card_provider_reference_id'] : $snapshot->card_provider_reference_id;
+        $requestedBin = trim($data['provider_product_ref'] ?? '');
+        $changed = $requestedBinding !== $snapshot->card_provider_reference_id || $requestedBin !== $snapshot->provider_product_ref;
+        $connection = $changed ? $this->bins->prepare($requestedBinding, $requestedBin) : null;
+
+        return DB::transaction(function () use ($productId, $data, $openingFee, $initial, $reload, $actor, $requestId, $snapshot, $changed, $connection): CardProduct {
             $product = CardProduct::query()->whereKey($productId)->lockForUpdate()->firstOrFail();
-            $before = $product->only(['provider_product_ref', 'name', 'minimum_initial_load', 'minimum_reload', 'status']);
+            if ($product->archived_at !== null) {
+                throw new DomainException('CARD_PRODUCT_ARCHIVED', 'This card product has been archived.', 409);
+            }
+            if ($product->card_provider_reference_id !== $snapshot->card_provider_reference_id || $product->provider_product_ref !== $snapshot->provider_product_ref) {
+                throw new DomainException('CARD_PRODUCT_ROUTING_LOCKED', 'Product routing changed. Refresh before editing.', 409);
+            }
+            $binding = array_key_exists('card_provider_reference_id', $data) ? $data['card_provider_reference_id'] : $product->card_provider_reference_id;
+            $reference = trim($data['provider_product_ref'] ?? '');
+            if (($binding !== $product->card_provider_reference_id || $reference !== $product->provider_product_ref) && (
+                DB::table('provider_cardholders')->where('card_product_id', $productId)->exists()
+                || DB::table('card_issue_orders')->where('card_product_id', $productId)->exists()
+                || DB::table('user_cards')->where('card_product_id', $productId)->exists()
+            )) {
+                throw new DomainException('CARD_PRODUCT_ROUTING_LOCKED', 'This product has card history. Create a new product to change its card provider or BIN.', 409);
+            }
+            if ($changed) {
+                $this->bins->lockAndValidate($binding, $reference, $connection, $productId);
+            }
+            $before = $product->only(['provider', 'card_provider_reference_id', 'provider_product_ref', 'name', 'opening_fee', 'minimum_initial_load', 'minimum_reload', 'status']);
             $product->forceFill([
-                'provider_product_ref' => trim($data['provider_product_ref']),
+                'provider' => $binding !== $product->card_provider_reference_id ? 'UNCONFIGURED' : $product->provider,
+                'card_provider_reference_id' => $binding,
+                'provider_product_ref' => $reference,
                 'name' => trim($data['name']),
+                'opening_fee' => $openingFee,
                 'minimum_initial_load' => $initial->amount(),
                 'minimum_reload' => $reload->amount(),
                 'status' => $data['status'],

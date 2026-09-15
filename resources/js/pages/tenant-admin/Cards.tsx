@@ -1,3 +1,5 @@
+import { displayMoney } from '@/lib/exact-amount';
+import { useAdminTranslation, t, dateTime, errorMessage } from '@/i18n/admin';
 import { Head } from '@inertiajs/react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatusBadge, type StatusTone } from '@/components/shared/StatusBadge';
@@ -57,36 +59,39 @@ export default function Cards({
     orders: Order[];
     cards: UserCard[];
 }) {
+    useAdminTranslation();
     return (
         <TenantAdminLayout>
-            <Head title="Card operations" />
+            <Head title={t('Card operations')} />
             <div className="space-y-6">
                 <PageHeader
-                    eyebrow="Operations"
-                    title="Cards"
-                    description="Read-only PhotonPay Cardholder, issue-order, and safe card visibility. Financial overrides are not available."
+                    eyebrow={t('Operations')}
+                    title={t('Cards')}
+                    description={t(
+                        'Read-only PhotonPay Cardholder, issue-order, and safe card visibility. Financial overrides are not available.',
+                    )}
                 />
                 <Tabs defaultValue="orders">
                     <TabsList>
-                        <TabsTrigger value="orders">Issue orders</TabsTrigger>
-                        <TabsTrigger value="cards">Cards</TabsTrigger>
-                        <TabsTrigger value="cardholders">Cardholders</TabsTrigger>
+                        <TabsTrigger value="orders">{t('Issue orders')}</TabsTrigger>
+                        <TabsTrigger value="cards">{t('Cards')}</TabsTrigger>
+                        <TabsTrigger value="cardholders">{t('Cardholders')}</TabsTrigger>
                     </TabsList>
                     <TabsContent value="orders">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Issue orders</CardTitle>
+                                <CardTitle>{t('Issue orders')}</CardTitle>
                             </CardHeader>
                             <CardContent className="p-0">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>User</TableHead>
-                                            <TableHead>Product</TableHead>
-                                            <TableHead>Opening fee</TableHead>
-                                            <TableHead>Initial load</TableHead>
-                                            <TableHead>Status</TableHead>
-                                            <TableHead>Requested</TableHead>
+                                            <TableHead>{t('User')}</TableHead>
+                                            <TableHead>{t('Product')}</TableHead>
+                                            <TableHead>{t('Opening fee')}</TableHead>
+                                            <TableHead>{t('Initial load')}</TableHead>
+                                            <TableHead>{t('Status')}</TableHead>
+                                            <TableHead>{t('Requested')}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -94,19 +99,19 @@ export default function Cards({
                                             <TableRow key={order.id}>
                                                 <TableCell>{order.userEmail}</TableCell>
                                                 <TableCell>{order.productName}</TableCell>
-                                                <TableCell>{order.openingFee} USDT</TableCell>
                                                 <TableCell>
-                                                    {order.initialLoadAmount} USDT
+                                                    {displayMoney(order.openingFee)} USDT
+                                                </TableCell>
+                                                <TableCell>
+                                                    {displayMoney(order.initialLoadAmount)} USDT
                                                 </TableCell>
                                                 <TableCell>
                                                     <StatusBadge
                                                         status={tone(order.status)}
-                                                        label={order.status}
+                                                        label={t(order.status)}
                                                     />
                                                 </TableCell>
-                                                <TableCell>
-                                                    {new Date(order.requestedAt).toLocaleString()}
-                                                </TableCell>
+                                                <TableCell>{dateTime(order.requestedAt)}</TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
@@ -117,17 +122,17 @@ export default function Cards({
                     <TabsContent value="cards">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Safe card details</CardTitle>
+                                <CardTitle>{t('Safe card details')}</CardTitle>
                             </CardHeader>
                             <CardContent className="p-0">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>User</TableHead>
-                                            <TableHead>Product</TableHead>
-                                            <TableHead>Card</TableHead>
-                                            <TableHead>Provider balance</TableHead>
-                                            <TableHead>Status</TableHead>
+                                            <TableHead>{t('User')}</TableHead>
+                                            <TableHead>{t('Product')}</TableHead>
+                                            <TableHead>{t('Card')}</TableHead>
+                                            <TableHead>{t('Provider balance')}</TableHead>
+                                            <TableHead>{t('Status')}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -140,13 +145,16 @@ export default function Cards({
                                                 </TableCell>
                                                 <TableCell>
                                                     {card.balance === null
-                                                        ? 'Not synced'
-                                                        : `${card.balance} ${card.currency}`}
+                                                        ? t('Not synced')
+                                                        : t('{{value1}} {{value2}}', {
+                                                              value1: displayMoney(card.balance),
+                                                              value2: card.currency,
+                                                          })}
                                                 </TableCell>
                                                 <TableCell>
                                                     <StatusBadge
                                                         status={tone(card.providerStatus)}
-                                                        label={card.providerStatus}
+                                                        label={t(card.providerStatus)}
                                                     />
                                                 </TableCell>
                                             </TableRow>
@@ -159,16 +167,16 @@ export default function Cards({
                     <TabsContent value="cardholders">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Provider Cardholders</CardTitle>
+                                <CardTitle>{t('Provider Cardholders')}</CardTitle>
                             </CardHeader>
                             <CardContent className="p-0">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>User</TableHead>
-                                            <TableHead>Status</TableHead>
-                                            <TableHead>Safe reason</TableHead>
-                                            <TableHead>Updated</TableHead>
+                                            <TableHead>{t('User')}</TableHead>
+                                            <TableHead>{t('Status')}</TableHead>
+                                            <TableHead>{t('Safe reason')}</TableHead>
+                                            <TableHead>{t('Updated')}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -178,13 +186,14 @@ export default function Cards({
                                                 <TableCell>
                                                     <StatusBadge
                                                         status={tone(holder.status)}
-                                                        label={holder.status}
+                                                        label={t(holder.status)}
                                                     />
                                                 </TableCell>
-                                                <TableCell>{holder.safeReason ?? '—'}</TableCell>
                                                 <TableCell>
-                                                    {new Date(holder.updatedAt).toLocaleString()}
+                                                    {errorMessage(holder.safeReason ?? undefined) ??
+                                                        '—'}
                                                 </TableCell>
+                                                <TableCell>{dateTime(holder.updatedAt)}</TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>

@@ -16,9 +16,11 @@ final class UpdateTenantKycSettingsRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'tenant_id' => ['prohibited'],
             'enabled' => ['required', 'boolean'],
             'max_accounts_per_identity' => ['required', 'integer', 'min:1', 'max:100'],
-            'review_mode' => ['required', Rule::in(['MANUAL'])],
+            'review_mode' => ['required', Rule::in(['MANUAL', 'AUTOMATIC'])],
+            'automatic_approval_confirmed' => ['exclude_unless:review_mode,AUTOMATIC', 'accepted'],
         ];
     }
 }

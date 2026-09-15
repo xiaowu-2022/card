@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 
 const defaultPrimary = '#39AD8D';
-const userBackground = '#F5F7F5';
+const userBackground = '#F7F6F0';
 const darkForeground = '#10231C';
 
 function rgb(hex: string): [number, number, number] {

@@ -1,0 +1,3 @@
+# Compatibility include only. The unified local runtime is defined in compose.yaml.
+# No second application or port is created. Use: docker compose up -d app deposit-refunds
+services: {}

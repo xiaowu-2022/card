@@ -3,6 +3,8 @@
 namespace App\Application\Payment;
 
 use App\Application\Payment\DTOs\CreatedWalletTopup;
+use App\Application\SecurityDeposit\SecurityDepositFundingQuery;
+use App\Application\Wallet\ActivateUserWalletAction;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Kyc\Enums\KycUserStatus;
 use App\Domain\Kyc\Services\KycStatusService;
@@ -18,6 +20,7 @@ use App\Domain\Wallet\Enums\WalletStatus;
 use App\Domain\Wallet\Models\Wallet;
 use App\Domain\Withdrawal\Contracts\BlockchainGatewayInterface;
 use App\Support\Errors\DomainException;
+use Brick\Math\BigDecimal;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -35,9 +38,11 @@ final readonly class CreateTrc20WalletTopupAction
         private BlockchainGatewayInterface $gateway,
         private KycStatusService $kycStatus,
         private AuditLogger $audit,
+        private SecurityDepositFundingQuery $depositPreview,
+        private ActivateUserWalletAction $activateWallet,
     ) {}
 
-    public function execute(string $tenantId, string $userId, mixed $requestedAmount, string $requestId, ?string $auditRequestId = null): CreatedWalletTopup
+    public function execute(string $tenantId, string $userId, mixed $requestedAmount, string $requestId, ?string $auditRequestId = null, bool $forDeposit = false): CreatedWalletTopup
     {
         if (! is_string($requestedAmount) || preg_match('/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/', $requestedAmount) !== 1) {
             throw new DomainException('TOPUP_AMOUNT_INVALID', 'Enter a valid amount with at most 2 decimal places.');
@@ -74,7 +79,7 @@ final readonly class CreateTrc20WalletTopupAction
         $created = false;
 
         /** @var WalletTopupOrder $order */
-        $order = DB::transaction(function () use ($tenantId, $userId, $requested, $requestId, $requestHash, $depositAddress, $tokenContract, $auditRequestId, &$created): WalletTopupOrder {
+        $order = DB::transaction(function () use ($tenantId, $userId, $requested, $requestId, $requestHash, $depositAddress, $tokenContract, $auditRequestId, $forDeposit, &$created): WalletTopupOrder {
             DB::statement('SELECT pg_advisory_xact_lock(?)', [$this->allocationLockKey($depositAddress)]);
             $existing = WalletTopupOrder::query()->where('tenant_id', $tenantId)->where('request_id', $requestId)->first();
             if ($existing) {
@@ -97,6 +102,18 @@ final readonly class CreateTrc20WalletTopupAction
             }
             if ($this->kycStatus->forUser($tenantId, $userId) !== KycUserStatus::Approved) {
                 throw new DomainException('KYC_NOT_APPROVED', 'Identity verification must be approved before topping up.', 403);
+            }
+            if ($forDeposit) {
+                $preview = $this->depositPreview->preview($tenantId, $userId);
+                if (! $preview['topupAvailable']) {
+                    throw new DomainException('DEPOSIT_TOPUP_UNAVAILABLE', 'Deposit top-up is currently unavailable.', 409);
+                }
+                if (BigDecimal::of($requested->amount())->isLessThan($preview['minimumTopup']['amount'])) {
+                    throw new DomainException('DEPOSIT_TOPUP_BELOW_MINIMUM', 'Enter at least the current minimum deposit top-up amount.');
+                }
+                // Provision only on explicit payment-instruction creation, under this transaction's
+                // existing Tenant -> User locks. Failure rolls back both wallet and order.
+                $wallet ??= $this->activateWallet->execute($tenantId, $userId, $auditRequestId)->wallet;
             }
             if (! $wallet || $wallet->status !== WalletStatus::Active) {
                 throw new DomainException('WALLET_NOT_ACTIVE', 'An active wallet is required.', 403);
@@ -147,7 +164,7 @@ final readonly class CreateTrc20WalletTopupAction
     private function allocate(string $depositAddress, Money $requested): ?array
     {
         $reserved = DB::table('wallet_topup_orders')->where('payment_rail', self::RAIL)
-            ->where('deposit_address', $depositAddress)->whereIn('status', self::RESERVED_STATUSES)
+            ->where('deposit_address', $depositAddress)->where(fn ($query) => $query->whereIn('status', self::RESERVED_STATUSES)->orWhereNotNull('manual_confirmed_at'))
             ->pluck('expected_amount')->mapWithKeys(fn (string $amount): array => [$amount => true]);
         $history = DB::table('wallet_topup_orders')->where('payment_rail', self::RAIL)
             ->where('deposit_address', $depositAddress)->where('requested_amount', $requested->amount())

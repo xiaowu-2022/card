@@ -2,6 +2,7 @@
 
 namespace App\Application\Admin;
 
+use App\Application\Tenant\CompanyConfigurationAuthority;
 use App\Domain\Admin\Enums\InvitationStatus;
 use App\Domain\Admin\Models\AdminInvitation;
 use App\Domain\Admin\Models\AdminUser;
@@ -16,6 +17,7 @@ final readonly class CancelAdminInvitationAction
 
     public function execute(Tenant $tenant, string $invitationId, AdminUser $actor, ?string $requestId = null): void
     {
+        app(CompanyConfigurationAuthority::class)->assert($actor);
         DB::transaction(function () use ($tenant, $invitationId, $actor, $requestId): void {
             $invitation = AdminInvitation::query()->where('tenant_id', $tenant->id)->whereKey($invitationId)->lockForUpdate()->firstOrFail();
             if ($invitation->status !== InvitationStatus::Pending) {

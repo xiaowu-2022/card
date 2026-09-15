@@ -1,3 +1,4 @@
+import { useAdminTranslation, t } from '@/i18n/admin';
 import { Head, Link } from '@inertiajs/react';
 import { FileCheck2, Settings, Users, WalletCards } from 'lucide-react';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -33,14 +34,17 @@ const areas = [
 ];
 
 export default function Dashboard() {
+    useAdminTranslation();
     return (
         <TenantAdminLayout>
-            <Head title="Tenant admin" />
+            <Head title={t('Tenant admin')} />
             <div className="space-y-6">
                 <PageHeader
-                    eyebrow="Tenant administration"
-                    title="Overview"
-                    description="Operate this tenant within explicit permission and financial safety boundaries."
+                    eyebrow={t('Tenant administration')}
+                    title={t('Overview')}
+                    description={t(
+                        'Operate this tenant within explicit permission and financial safety boundaries.',
+                    )}
                 />
                 <div className="grid gap-4 sm:grid-cols-2">
                     {areas.map((area) => (
@@ -50,13 +54,15 @@ export default function Dashboard() {
                                     <div className="grid size-10 place-items-center rounded-lg bg-muted">
                                         <area.icon className="size-5" />
                                     </div>
-                                    <CardTitle>{area.label}</CardTitle>
+                                    <CardTitle>{t(area.label)}</CardTitle>
                                 </div>
                             </CardHeader>
                             <CardContent>
-                                <p className="text-sm text-muted-foreground">{area.description}</p>
+                                <p className="text-sm text-muted-foreground">
+                                    {t(area.description)}
+                                </p>
                                 <Button asChild variant="secondary" size="sm" className="mt-4">
-                                    <Link href={area.href}>Open</Link>
+                                    <Link href={area.href}>{t('Open')}</Link>
                                 </Button>
                             </CardContent>
                         </Card>
@@ -64,12 +70,12 @@ export default function Dashboard() {
                 </div>
                 <Card>
                     <CardHeader>
-                        <CardTitle>Financial controls</CardTitle>
+                        <CardTitle>{t('Financial controls')}</CardTitle>
                     </CardHeader>
                     <CardContent className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
-                        <p>Wallet and Ledger access is read-only.</p>
-                        <p>No administrator can alter balances.</p>
-                        <p>Ledger history is immutable and reconciled from Postings.</p>
+                        <p>{t('Wallet and Ledger access is read-only.')}</p>
+                        <p>{t('No administrator can alter balances.')}</p>
+                        <p>{t('Ledger history is immutable and reconciled from Postings.')}</p>
                     </CardContent>
                 </Card>
             </div>

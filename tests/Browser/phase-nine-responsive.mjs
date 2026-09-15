@@ -27,14 +27,14 @@ const results = [];
 async function loginUser(page) {
     await page.goto('http://a.localhost:8000/login');
     await page.getByLabel('Email or phone').fill('user@a.localhost');
-    await page.getByLabel('Password').fill('local-password');
+    await page.getByLabel('Password').fill('123456');
     await Promise.all([page.waitForURL('**/dashboard'), page.getByRole('button', { name: 'Sign in' }).click()]);
 }
 
 async function loginAdmin(page, platform = false) {
     await page.goto(`http://${platform ? 'admin' : 'a'}.localhost:8000/${platform ? 'platform' : 'admin'}/login`);
     await page.getByLabel('Work email').fill(platform ? 'owner@platform.local' : 'owner@a.localhost');
-    await page.getByLabel('Password').fill('local-password');
+    await page.getByLabel('Password').fill('123456');
     await Promise.all([
         page.waitForURL(platform ? '**/platform/tenants' : /\/admin\/(?:demo|onboarding)$/),
         page.getByRole('button', { name: 'Sign in' }).click(),

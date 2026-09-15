@@ -9,6 +9,7 @@ use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Kyc\Services\IdentityNumberProtector;
 use App\Domain\Kyc\Services\KycStatusService;
 use App\Domain\Tenant\Enums\TenantStatus;
+use App\Domain\Tenant\Models\PlatformKycSetting;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Enums\UserStatus;
 use App\Domain\User\Models\User;
@@ -92,7 +93,7 @@ it('blocks submission for suspended users suspended tenants and disabled KYC', f
     } elseif ($restriction === 'tenant') {
         $this->tenant->update(['status' => TenantStatus::Suspended]);
     } else {
-        $this->tenant->kycSettings()->update(['enabled' => false]);
+        PlatformKycSetting::current()->update(['enabled' => false]);
     }
 
     $response = $this->actingAs($this->user, 'tenant_user')->post('http://a.localhost/kyc/applications', [
@@ -171,3 +172,14 @@ it('encrypts identity numbers uses tenant-scoped HMAC and exposes only allowlist
     $this->actingAs($this->user, 'tenant_user')->get('http://a.localhost/kyc')->assertOk()
         ->assertDontSee($plain)->assertDontSee($application->identity_hash)->assertDontSee($application->front_object_key);
 });
+
+it('preserves only the allowed verification return source after submission', function (string $source, string $expected): void {
+    $this->actingAs($this->user, 'tenant_user')->post('http://a.localhost/kyc/applications?'.http_build_query(['from' => $source]), [
+        'document_country' => 'MY', 'identity_number' => 'MY1234',
+        'front' => kycTestImage('front.png'), 'back' => kycTestImage('back.png'),
+    ])->assertSessionHasNoErrors()->assertRedirect($expected);
+    expect(KycApplication::query()->where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->count())->toBe(1);
+})->with([
+    ['account-security', '/kyc?from=account-security'],
+    ['https://example.com/return', '/kyc'],
+]);

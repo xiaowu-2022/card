@@ -8,6 +8,7 @@ use App\Domain\Tenant\TenantContext;
 use App\Domain\User\Models\User;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CreateWalletTopupRequest;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -35,11 +36,27 @@ final class WalletTopupController extends Controller
         return redirect()->route('user.topups.return', ['topup' => $result->order->id]);
     }
 
-    public function returned(string $topup, TenantContext $context, UserWalletTopupQuery $query): Response
+    public function returned(string $topup, Request $request, TenantContext $context, UserWalletTopupQuery $query): Response
     {
         /** @var User $user */
         $user = Auth::guard('tenant_user')->user();
 
-        return Inertia::render('user/TopupStatus', ['order' => $query->order($context->id(), $user->id, $topup)]);
+        return Inertia::render('user/TopupStatus', [
+            'order' => $query->order($context->id(), $user->id, $topup),
+            // Navigation only; never authority for funding, eligibility or payment settlement.
+            'depositFlow' => $request->boolean('deposit'),
+        ]);
+    }
+
+    public function deposit(CreateWalletTopupRequest $request, TenantContext $context, CreateTrc20WalletTopupAction $action): HttpResponse
+    {
+        /** @var User $user */
+        $user = Auth::guard('tenant_user')->user();
+        $result = $action->execute(
+            $context->id(), $user->id, $request->input('requested_amount'), $request->string('request_id')->toString(),
+            $request->attributes->get('request_id'), forDeposit: true,
+        );
+
+        return redirect()->route('user.topups.return', ['topup' => $result->order->id, 'deposit' => 1]);
     }
 }

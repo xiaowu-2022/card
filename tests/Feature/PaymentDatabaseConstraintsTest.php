@@ -14,7 +14,7 @@ it('retains Phase 5 settlement and Phase 7 Withdrawal beside the Phase 8 shared-
         ->and(Schema::hasTable('withdrawal_orders'))->toBeTrue()
         ->and(Schema::hasTable('topup_suffix_slots'))->toBeFalse()
         ->and(Schema::hasTable('topup_amount_reservations'))->toBeFalse()
-        ->and(Schema::hasTable('security_deposit_refund_requests'))->toBeFalse()
+        ->and(Schema::hasTable('security_deposit_refund_requests'))->toBeTrue()
         ->and(Schema::hasTable('user_cards'))->toBeTrue();
     $constraints = DB::table('pg_constraint')->whereIn('conname', [
         'topup_status_check', 'topup_asset_check', 'topup_amount_check', 'topup_wallet_owner_fk',

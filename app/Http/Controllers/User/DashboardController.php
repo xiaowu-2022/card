@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\User;
 
+use App\Application\Card\UserCardOverviewQuery;
 use App\Application\Wallet\UserWalletQuery;
 use App\Domain\Kyc\Services\KycStatusService;
 use App\Domain\Tenant\TenantContext;
@@ -13,7 +14,7 @@ use Inertia\Response;
 
 final class DashboardController extends Controller
 {
-    public function __invoke(TenantContext $context, KycStatusService $kycStatuses, UserWalletQuery $wallets): Response
+    public function __invoke(TenantContext $context, KycStatusService $kycStatuses, UserCardOverviewQuery $cards, UserWalletQuery $wallets): Response
     {
         /** @var User|null $user */
         $user = Auth::guard('tenant_user')->user();
@@ -35,7 +36,11 @@ final class DashboardController extends Controller
                 'depositRemaining' => $walletData['depositRemaining'],
                 'depositHasEnoughAvailable' => $walletResult['depositHasEnoughAvailable'],
                 'topupAvailable' => $walletResult['topupAvailable'],
+                'withdrawalAvailable' => $walletResult['withdrawalAvailable'],
+                'transferAvailable' => $walletResult['transferAvailable'],
             ] : null,
+            'cardOverview' => $user ? $cards->get($context->id(), $user->id) : ['count' => 0, 'items' => [], 'pending' => 0],
+            'activity' => array_slice($walletResult['activity'] ?? [], 0, 5),
         ]);
     }
 }

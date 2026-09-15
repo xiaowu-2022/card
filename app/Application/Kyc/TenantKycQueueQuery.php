@@ -61,6 +61,7 @@ final readonly class TenantKycQueueQuery
                 'reviewReasonCode' => $application->review_reason_code,
                 'reviewMessage' => $application->review_message,
                 'reviewerName' => $application->reviewer?->name,
+                'automaticallyApproved' => $application->automatically_approved,
                 'submittedAt' => $application->submitted_at->toIso8601String(),
                 'reviewedAt' => $application->reviewed_at?->toIso8601String(),
             ],

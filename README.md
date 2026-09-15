@@ -1,97 +1,72 @@
 # Aperture Cards — Virtual Card SaaS
 
-Phase 4 Wallet and immutable double-entry Ledger foundation for a tenant-aware Laravel modular monolith. Tenant-scoped End User authentication, hardened KYC, explicit Wallet activation, Ledger Accounts, idempotent atomic Postings, reconciliation, and read-only financial views are real. Top-up, payment, withdrawal, deposit payment/refund, cards, products, and real providers remain intentionally absent or explicit local demo UI.
+A tenant-aware Laravel application with a React/Inertia client, SaaS Platform, company operations console, and immutable PostgreSQL Ledger. Current capabilities and approved boundaries are indexed in [CURRENT_CAPABILITIES.md](docs/architecture/CURRENT_CAPABILITIES.md).
 
-## Requirements
+## Unified local environment
 
-- Docker Desktop with Docker Compose (recommended)
-- Or PHP 8.4+, Composer 2, Node 22+, PostgreSQL 18, and Redis
+Docker Compose runs one application on **port 8000**, using the existing `card_mock` local acceptance database. SaaS, company administration and the client share this runtime; company boundaries still resolve from the host. The former port 8001 service is retired. Its accounts, promotion members, cards and Ledger history remain in the same database, with no database merge or historical replay.
 
-## Install and run with Docker
+- Client: `http://a.localhost:8000/`
+- Company console: `http://a.localhost:8000/admin/login`
+- SaaS Platform: `http://admin.localhost:8000/platform/login`
+- Company B: replace `a.localhost` with `b.localhost`.
 
-```bash
+Local default accounts use `123456`: SaaS `owner@platform.local`, company owners `owner@a.localhost` and `owner@b.localhost`, and clients `user@a.localhost` and `user@b.localhost`. Automated PHP fixtures retain `local-password`. These accounts are never seeded in production. Generated promotion fixtures retain their own inaccessible credentials.
+
+## Install and run
+
+Requires Docker Desktop with Compose. For an existing checkout with data, preserve `.env` and its encryption keys; do not regenerate keys or reset databases.
+
+For a fresh checkout only:
+
+```sh
 cp .env.example .env
-docker compose build app
-docker compose run --rm app composer install
-docker compose run --rm node npm install
-docker compose run --rm app php artisan key:generate
+docker compose build app deposit-refunds
+docker compose run --rm --no-deps app composer install
+docker compose run --rm --no-deps node npm install
+docker compose run --rm --no-deps app php artisan key:generate
+```
+
+Configure stable KYC and other private-data encryption/HMAC keys following the architecture docs before uploading test materials. Then initialize a fresh local database:
+
+```sh
 docker compose up -d postgres redis mailpit
 docker compose run --rm app php artisan migrate --seed
-docker compose up app node
 ```
 
-PostgreSQL is authoritative. Redis backs cache, queue, and local sessions. Start a queue worker with `docker compose run --rm app php artisan queue:work`.
+Normal startup (also for existing data):
 
-## Local hosts and URLs
-
-Modern browsers resolve `*.localhost` to loopback without hosts-file changes.
-
-- Tenant A public/user: `http://a.localhost:8000/`, register `/register`, login `/login`, Dashboard `/dashboard`, KYC `/kyc`
-- Tenant A Admin: `http://a.localhost:8000/admin/login`, setup `/admin/onboarding`, KYC review `/admin/kyc`
-- Tenant B: replace `a.localhost` with `b.localhost`
-- Platform Admin: `http://admin.localhost:8000/platform/login`, tenants `/platform/tenants`
-
-Local/test-only Admin credentials: `owner@platform.local`, `owner@a.localhost`, and `owner@b.localhost`, each with `local-password`. Seeded End Users are `user@a.localhost` and `user@b.localhost`, also with `local-password`, but each exists only in its respective Tenant. Production seeding never creates these accounts or any fixed password. Invitation and email verification mail is captured by Mailpit at `http://localhost:8025`; raw invitation tokens and OTPs are never stored in the database.
-
-## Phase 2 End User workflow
-
-1. Open a Tenant's `/register`, choose Email or Phone, and request a verification code.
-2. Email codes arrive in Mailpit. Phone verification is behind `SmsVerificationSender`; automated tests use a safe in-memory fake, while local browser phone delivery remains unavailable until an approved SMS adapter is configured. OTPs are never printed to application logs.
-3. Verify the six-digit code, create a strong password, and enter `/dashboard`. Account/contact and derived KYC status are shown; no mock balance appears.
-4. Sign in through `/login`. A suspended User or a User under a suspended Tenant reaches `/account/restricted` but retains password-change and logout access.
-5. Tenant Admins with `users.read` use `/admin/users`; `users.suspend` controls suspend/reactivate actions. These status actions never modify money or cards.
-
-Forgot-password and contact-change workflows are intentionally absent because each requires its own verified recovery challenge design.
-
-## Phase 3 local KYC workflow
-
-Set independent, stable `KYC_DATA_ENCRYPTION_KEY` (exactly 32 bytes, optionally `base64:` encoded) and `KYC_IDENTITY_HASH_KEY` (at least 32 characters). They protect persistent data, never fall back to `APP_KEY`, and must not be casually rotated without a dedicated migration. Local documents use the non-public `private` disk under `storage/app/private`; production should point `KYC_DOCUMENT_DISK` to a private S3-compatible disk. Never place KYC files under `public/storage`.
-
-1. Sign in as the seeded Tenant User and open `/kyc`. Submit NATIONAL_ID front/back test images (JPEG, PNG, or WEBP only; do not use real identity data).
-2. Start a queue worker with `docker compose run --rm app php artisan queue:work`. `KYC_OCR_DRIVER=mock` produces a bounded encrypted OCR hint; set `KYC_MOCK_OCR_MODE=FAILED` to exercise manual review after OCR failure.
-3. Sign in as Tenant Owner or a KYC Reviewer and open `/admin/kyc`. Search/filter the queue and open a submission.
-4. Approve, reject, or request resubmission. Approval only creates an Identity Record; it never creates a Wallet or Card.
-5. Raw document viewing requires `kyc.document.view` plus current-password confirmation. Access uses an audited, short-lived signed private stream. SUPPORT can read basic KYC metadata but cannot review or view documents; FINANCE_VIEWER has no KYC permissions.
-
-## Phase 4 Wallet and Ledger workflow
-
-1. KYC approval does not create a Wallet. The approved active User opens `/wallet` and explicitly activates the Tenant default-asset Wallet.
-2. Activation creates one Wallet, five User Ledger Accounts, and ensures four Tenant system Accounts, all at `0.00000000`; it creates no synthetic Ledger Entry.
-3. `/wallet` shows real available/security-deposit account values and backend-calculated qualification. No top-up, withdrawal, or deposit-payment action exists.
-4. Tenant Admins use `/admin/users/{user}/wallet` with `wallet.read` and `/admin/users/{user}/ledger` with `ledger.read`. Both are strictly read-only.
-5. Run `php artisan ledger:reconcile` to compare cached balances with Posting truth. A mismatch returns a non-zero status and is never automatically repaired.
-
-## Phase 1 admin workflow
-
-1. Sign in at `http://admin.localhost:8000/platform/login` and create a Tenant from the Tenant directory.
-2. Open Mailpit at `http://localhost:8025`. The Owner invitation link targets the new Tenant's `{slug}.localhost` host, expires after 72 hours, and is single-use.
-3. Accept the invitation, choose a strong password, and sign in through that Tenant's `/admin/login`. An existing Admin email confirms its current password and receives only the new Tenant membership.
-4. Complete branding, locales, manual KYC policy, decimal-string security-deposit configuration, and domain settings under `/admin/onboarding`.
-5. Activate the computed foundation when every required item passes. This enables the Tenant web foundation only; User Wallet activation still requires approved KYC, while Card Product, Provider, and payment readiness remain false and unavailable.
-
-Custom domains begin in `PENDING_VERIFICATION`. For the local adapter, `cards.example.test` is configured as verifiable; add it, check verification, activate it, then optionally make it primary. Add any browser-resolvable local hostname mapping you need outside the application. Production must replace the local verifier and provision SSL before serving a custom host.
-
-## Validation commands
-
-```bash
-docker compose run --rm app php artisan migrate:fresh --seed
-docker compose run --rm app php artisan test
-docker compose run --rm app vendor/bin/pint --test
-docker compose run --rm app php artisan ledger:reconcile
-docker compose run --rm node npm run typecheck
-docker compose run --rm node npm run lint
-docker compose run --rm node npm run format:check
-docker compose run --rm node npm run build
+```sh
+docker compose up -d app deposit-refunds node
 ```
 
-Without Docker, set `DB_HOST`, `REDIS_HOST`, and `MAIL_HOST` to `127.0.0.1`, then use `composer install`, `npm install`, `php artisan migrate --seed`, `php artisan serve`, and `npm run dev`.
+The application and deposit-refund worker use the same explicit environment, database, session cookie and provider driver. `serve --no-reload` preserves these overrides. The app is bound to loopback; the Vite development server uses port 5173. `compose.card-mock.yaml` remains an empty compatibility include and creates no additional runtime.
 
-## Environment
+Mailpit captures local email at `http://localhost:8025`. Never log raw OTPs, credentials or private documents. Card simulation is explicitly local-only and uses the complete business flow; it does not bypass KYC, deposit requirements, request idempotency or Ledger rules. Real PhotonPay credentials are blanked in this local Compose runtime. The archived `card_platform` database is not served, copied into the simulator or replayed.
 
-Copy `.env.example`; do not commit secrets. `SESSION_DOMAIN` must stay empty so authentication cookies are host-only and do not leak between tenant subdomains. `PLATFORM_ADMIN_HOST` is never resolved as a tenant. `CARD_PROVIDER_DRIVER=mock` selects the contract-compatible test provider through dependency injection.
+## Final validation
 
-Private KYC files use `KYC_DOCUMENT_DISK`; the local default is `private`. Identity values and minimized OCR output use the dedicated KYC cipher. Duplicate matching uses a canonical Tenant+document-type+country+number HMAC. Mock OCR is prohibited outside local/testing. Provider credentials must use encrypted secret storage or a secret manager, never ordinary plaintext fields.
+Create the disposable `card_ui_test` database once if absent, owned by the local PostgreSQL role. Never substitute a business database. PHPUnit forces `APP_ENV=testing` and `DB_DATABASE=card_ui_test`; database-refresh tests reject any other environment/database.
 
-## Architecture
+```sh
+docker compose exec app php artisan test
+docker compose exec node npm run test:i18n
+docker compose exec node npm run typecheck
+docker compose exec node npm run build
+docker compose exec app php artisan ledger:reconcile
+```
 
-Start with [Architecture](docs/architecture/ARCHITECTURE.md), [Tenant Rules](docs/architecture/TENANT_RULES.md), [User Authentication Rules](docs/architecture/USER_AUTH_RULES.md), [KYC Rules](docs/architecture/KYC_RULES.md), [Money Rules](docs/architecture/MONEY_RULES.md), [Ledger Rules](docs/architecture/LEDGER_RULES.md), [Card Provider Rules](docs/architecture/CARD_PROVIDER_RULES.md), and mandatory [Agent Rules](AGENTS.md).
+Tests rebuild only the isolated test database. Ledger reconciliation on the current local runtime is read-only. Browser test fixtures use the unified port and local default password. Do not run historical scripts that mutate business data as an implicit part of regression testing.
+
+## Deployment and architecture
+
+Use the single [Deployment runbook](docs/deployment/PRODUCTION_DEPLOYMENT.md) for the
+user-approved single site/database preserving all existing data. The deployed card
+driver is `directory`: original merchant bindings and identities remain unchanged.
+The current compose file remains the workstation development launcher, not another
+required server deployment. Production uses its actual Host/TLS configuration.
+
+Preserve APP_KEY, KYC/withdrawal encryption and HMAC keys, OTP secret and private
+storage with the database. Do not seed, reset, recreate historical orders or rewrite
+balances. See [Unified site deployment](docs/architecture/UNIFIED_SITE_DEPLOYMENT.md)
+and [Agent rules](AGENTS.md) for the effective scope.

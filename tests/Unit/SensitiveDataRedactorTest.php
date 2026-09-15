@@ -6,6 +6,19 @@ use Illuminate\Log\Logger;
 use Monolog\Handler\TestHandler;
 use Monolog\Logger as MonologLogger;
 
+it('redacts SMTP tokens test recipients and transport transcripts', function (): void {
+    expect((new SensitiveDataRedactor)->redact(['smtp_token' => 'test-token', 'test_email' => 'test@example.test', 'recipient_hash' => 'test-hash',
+        'smtp_transcript' => 'AUTH and DATA', 'smtpDebug' => 'AUTH and DATA']))->each->toBe('[REDACTED]');
+});
+
+it('redacts Aliyun credentials OTP parameters and sensitive request query strings', function (): void {
+    $redactor = new SensitiveDataRedactor;
+    expect($redactor->redact(['AccessKeyId' => 'test-key', 'AccessKeySecret' => 'test-secret', 'PhoneNumbers' => '8613800138000', 'TemplateParam' => '{"code":"123456"}']))->each->toBe('[REDACTED]');
+    expect($redactor->redactString('https://dysmsapi.aliyuncs.com/?PhoneNumbers=8613800138000&TemplateParam=%7Bcode%7D&TemplateCode=SMS_123'))
+        ->toBe('https://dysmsapi.aliyuncs.com/?PhoneNumbers=[REDACTED]&TemplateParam=[REDACTED]&TemplateCode=SMS_123');
+    expect($redactor->redactString('ACS3-HMAC-SHA256 Credential=test-key,SignedHeaders=host,Signature=test-signature'))->toBe('ACS3-HMAC-SHA256 [REDACTED]');
+});
+
 it('redacts sensitive values recursively', function (): void {
     $result = (new SensitiveDataRedactor)->redact([
         'email' => 'safe@example.test',
@@ -36,7 +49,7 @@ it('redacts sensitive values recursively', function (): void {
     ]);
 
     expect($result)->toBe([
-        'email' => 'safe@example.test',
+        'email' => '[REDACTED]',
         'password' => '[REDACTED]',
         'password_confirmation' => '[REDACTED]',
         'code' => '[REDACTED]',
@@ -102,6 +115,12 @@ it('redacts withdrawal destination secrets while preserving safe masks', functio
         'address_hash' => '[REDACTED]',
         'masked_address' => 'TAAAAA…AAAAA',
     ]);
+});
+
+it('redacts per-card holder material envelopes fingerprints contacts and document payloads', function (): void {
+    $input = array_fill_keys(['materials_encrypted', 'request_hash', 'front', 'back', 'certId', 'firstName', 'lastName',
+        'legal_first_name', 'legal_last_name', 'dateOfBirth', 'email', 'mobile', 'phone', 'residentialAddress'], 'private-material');
+    expect((new SensitiveDataRedactor)->redact($input))->each->toBe('[REDACTED]');
 });
 
 it('redacts context and bearer credentials at the logging processor boundary', function (): void {

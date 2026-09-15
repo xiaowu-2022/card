@@ -41,6 +41,12 @@ final class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'requestId' => $request->attributes->get('request_id'),
+            'i18n' => [
+                'surface' => $request->attributes->get('locale_surface', 'user'),
+                'locale' => $request->attributes->get('client_locale', 'en'),
+                'enabledLocales' => $request->attributes->get('client_locales', ['en']),
+                'timezone' => $request->attributes->get('client_timezone', 'UTC'),
+            ],
             'tenant' => $tenant ? [
                 'id' => $tenant->id,
                 'name' => $tenant->name,
@@ -61,6 +67,7 @@ final class HandleInertiaRequests extends Middleware
                 ] : null,
                 'user' => $user instanceof User && $user->tenant_id === $tenant?->id ? [
                     'id' => $user->id,
+                    'accountId' => $user->account_id,
                     'displayName' => $user->profile?->display_name,
                     'email' => $user->email,
                     'phone' => $user->phone,

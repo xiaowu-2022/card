@@ -2,8 +2,6 @@
 
 namespace App\Application\Wallet;
 
-use App\Domain\Ledger\Enums\LedgerAccountType;
-use App\Domain\Ledger\Models\LedgerEntry;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
@@ -19,23 +17,13 @@ final readonly class UserWalletQuery
         $tenant = Tenant::query()->whereKey($tenantId)->with('businessSettings')->firstOrFail();
         $user = User::query()->where('tenant_id', $tenantId)->whereKey($userId)->firstOrFail();
         $eligibility = $this->eligibility->forUser($tenant, $user);
-        $activity = $eligibility['wallet'] === null ? [] : LedgerEntry::query()
-            ->where('ledger_entries.tenant_id', $tenantId)
-            ->whereNotNull('ledger_entries.sealed_at')
-            ->whereHas('postings.account', fn ($query) => $query->where('ledger_accounts.user_id', $userId))
-            ->with(['postings.account'])->latest('posted_at')->limit(20)->get()->map(function (LedgerEntry $entry) use ($userId): array {
-                $posting = $entry->postings->first(fn ($item) => $item->account?->user_id === $userId && $item->account?->account_type === LedgerAccountType::UserAvailable);
-
-                return [
-                    'id' => $entry->id,
-                    'eventType' => $entry->event_type,
-                    'asset' => $entry->asset_code,
-                    'amount' => $posting?->delta,
-                    'postedAt' => $entry->posted_at->toIso8601String(),
-                ];
-            })->all();
+        $activity = $eligibility['wallet'] === null ? [] : app(WalletActivityQuery::class)->get($tenantId, $userId);
 
         return [
+            'transferAvailable' => $eligibility['wallet'] !== null
+                && $eligibility['tenantStatus'] === 'ACTIVE' && $eligibility['userStatus'] === 'ACTIVE'
+                && $eligibility['kycStatus'] === 'APPROVED' && $eligibility['walletStatus'] === 'ACTIVE'
+                && $eligibility['wallet']['asset'] === $tenant->default_asset,
             'eligibility' => $eligibility,
             'activity' => $activity,
             'topupAvailable' => $eligibility['wallet'] !== null

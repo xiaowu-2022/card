@@ -35,7 +35,7 @@ final class KycApplication extends Model
                 throw new LogicException('Submitted KYC identity data and documents are immutable.');
             }
 
-            $reviewFields = ['review_status', 'review_reason_code', 'review_message', 'reviewed_by_admin_user_id', 'reviewed_at'];
+            $reviewFields = ['review_status', 'review_reason_code', 'review_message', 'reviewed_by_admin_user_id', 'reviewed_at', 'automatically_approved'];
             if ($application->isDirty($reviewFields) && $application->getRawOriginal('review_status') !== KycReviewStatus::Pending->value) {
                 throw new LogicException('Reviewed KYC applications are immutable.');
             }
@@ -48,6 +48,7 @@ final class KycApplication extends Model
             'document_type' => KycDocumentType::class,
             'ocr_status' => KycOcrStatus::class,
             'review_status' => KycReviewStatus::class,
+            'automatically_approved' => 'boolean',
             'submitted_at' => 'immutable_datetime',
             'reviewed_at' => 'immutable_datetime',
         ];

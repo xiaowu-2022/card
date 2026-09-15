@@ -8,7 +8,7 @@ use App\Support\Errors\DomainException;
 
 final class UnavailableSmsVerificationSender implements SmsVerificationSender
 {
-    public function isAvailable(): bool
+    public function isAvailable(Tenant $tenant): bool
     {
         return false;
     }

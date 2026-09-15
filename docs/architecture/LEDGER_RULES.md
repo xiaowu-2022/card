@@ -1,5 +1,17 @@
 # Ledger Rules
 
+## Authorized promotion extension
+
+[Promotion contracts](PROMOTION_REQUIREMENTS.md) add USER_COMMISSION (nonnegative,
+Tenant/User/USDT-scoped, no Wallet id) and TENANT_COMMISSION_CLEARING (company
+expense/payable, negative permitted). Wallet activation still provisions only its
+original five accounts; commission accounts are provisioned lazily at zero without
+synthetic history. Committed Deposit funding and fixed differential awards share
+one outer business transaction. A manual transfer posts commission minus and
+the same user's Wallet available plus. Refunds do not freeze commission.
+Refund evidence uses null-safe exact event/reference checks, hardened through
+additive migration `2026_09_11_000900`; no old migration or history is rewritten.
+
 ## Wallet and accounts
 
 A Wallet is one User+Tenant+Asset lifecycle container and never stores balance. Activation is a separate Application use case after KYC approval; KYC never creates it. Activation provisions five zero-balance User Accounts and ensures four Tenant System Accounts for the default asset. It creates no Ledger Entry.

@@ -1,5 +1,6 @@
 <?php
 
+use App\Application\Promotion\PromotionMembershipAction;
 use App\Application\User\CreateRegistrationChallengeAction;
 use App\Application\User\RegisterUserAction;
 use App\Application\User\VerifyRegistrationChallengeAction;
@@ -127,7 +128,7 @@ it('normalizes existing contacts and sends a non-enumerating account notice inst
 it('rate limits repeated registration attempts for an existing destination', function (): void {
     Mail::fake();
     config(['user-auth.resend_cooldown_seconds' => 0, 'user-auth.send_limit_per_hour' => 1]);
-    $payload = ['channel' => 'EMAIL', 'destination' => ' USER@A.LOCALHOST '];
+    $payload = ['channel' => 'EMAIL', 'destination' => ' USER@A.LOCALHOST ', 'invitation_code' => registrationTestInvitation()];
 
     $this->post('http://a.localhost/register/challenges', $payload)->assertRedirect();
     $this->post('http://a.localhost/register/challenges', $payload)
@@ -140,17 +141,17 @@ it('rate limits repeated registration attempts for an existing destination', fun
 it('rate limits verification sends per tenant destination and keeps tenants isolated', function (): void {
     Mail::fake();
     config(['user-auth.resend_cooldown_seconds' => 0, 'user-auth.send_limit_per_hour' => 2]);
-    $payload = ['channel' => 'EMAIL', 'destination' => 'limits@example.test'];
+    $payload = ['channel' => 'EMAIL', 'destination' => 'limits@example.test', 'invitation_code' => registrationTestInvitation()];
     $this->post('http://a.localhost/register/challenges', $payload)->assertRedirect();
     $this->post('http://a.localhost/register/challenges', $payload)->assertRedirect();
     $this->post('http://a.localhost/register/challenges', $payload)->assertSessionHasErrors('destination');
-    $this->post('http://b.localhost/register/challenges', $payload)->assertRedirect();
+    $this->post('http://b.localhost/register/challenges', [...$payload, 'invitation_code' => registrationTestInvitation('tenant-b')])->assertRedirect();
 });
 
 it('uses normalized phone destinations in send rate-limit keys', function (): void {
     config(['user-auth.resend_cooldown_seconds' => 0, 'user-auth.send_limit_per_hour' => 1]);
-    $this->post('http://a.localhost/register/challenges', ['channel' => 'PHONE', 'destination' => '+60 12-345 6789'])->assertRedirect();
-    $this->post('http://a.localhost/register/challenges', ['channel' => 'PHONE', 'destination' => '0123456789', 'region' => 'MY'])->assertSessionHasErrors('destination');
+    $this->post('http://a.localhost/register/challenges', ['channel' => 'PHONE', 'destination' => '+60 12-345 6789', 'invitation_code' => registrationTestInvitation()])->assertRedirect();
+    $this->post('http://a.localhost/register/challenges', ['channel' => 'PHONE', 'destination' => '0123456789', 'region' => 'MY', 'invitation_code' => registrationTestInvitation()])->assertSessionHasErrors('destination');
 });
 
 it('rate limits otp verification independently of persistent challenge locking', function (): void {
@@ -209,7 +210,8 @@ it('reuses a valid verified registration state instead of sending another otp', 
 it('requires the initiating browser session before a verified challenge can complete registration', function (): void {
     Mail::fake();
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
-    $created = app(CreateRegistrationChallengeAction::class)->execute($tenant, RegistrationChannel::Email, 'session-bound@example.test');
+    $company = app(PromotionMembershipAction::class)->companyInvitation($tenant->id);
+    $created = app(CreateRegistrationChallengeAction::class)->execute($tenant, RegistrationChannel::Email, 'session-bound@example.test', companyInvitationId: $company->id);
     app(VerifyRegistrationChallengeAction::class)->execute($tenant->id, $created->challenge->id, (string) $created->rawCode);
     $payload = ['password' => 'StrongPass1234', 'password_confirmation' => 'StrongPass1234'];
 
@@ -310,27 +312,27 @@ it('does not expose unavailable phone registration as an active channel', functi
     $this->get('http://a.localhost/register')->assertOk()->assertInertia(fn ($page) => $page
         ->where('registration.emailAvailable', true)
         ->where('registration.phoneAvailable', false));
-    $this->post('http://a.localhost/register/challenges', ['channel' => 'PHONE', 'destination' => '+60123456789'])
+    $this->post('http://a.localhost/register/challenges', ['channel' => 'PHONE', 'destination' => '+60123456789', 'invitation_code' => registrationTestInvitation()])
         ->assertSessionHasErrors('form', 'Phone verification is not available in this environment.');
     expect(RegistrationChallenge::query()->where('channel', RegistrationChannel::Phone)->exists())->toBeFalse();
 });
 
-it('commits challenge state before email delivery and remains safely replaceable after delivery failure', function (): void {
+it('commits challenge state before email delivery and permits replacement after definitive rejection', function (): void {
     $this->app->instance(EmailVerificationSender::class, new class implements EmailVerificationSender
     {
-        public function isAvailable(): bool
+        public function isAvailable(Tenant $tenant): bool
         {
             return true;
         }
 
         public function sendVerificationCode(Tenant $tenant, string $destination, string $code): void
         {
-            throw new RuntimeException('Simulated transport failure.');
+            throw new DomainException('EMAIL_SEND_REJECTED', 'Simulated definitive rejection.');
         }
 
         public function sendExistingAccountNotice(Tenant $tenant, string $destination): void
         {
-            throw new RuntimeException('Simulated transport failure.');
+            throw new DomainException('EMAIL_SEND_REJECTED', 'Simulated definitive rejection.');
         }
     });
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
@@ -369,7 +371,7 @@ it('hashes pii in registration rate-limit keys and never includes otp values', f
     Mail::fake();
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
     $destination = 'rate-key@example.test';
-    $this->post('http://a.localhost/register/challenges', ['channel' => 'EMAIL', 'destination' => $destination])->assertRedirect();
+    $this->post('http://a.localhost/register/challenges', ['channel' => 'EMAIL', 'destination' => $destination, 'invitation_code' => registrationTestInvitation()])->assertRedirect();
     $created = RegistrationChallenge::query()->where('tenant_id', $tenant->id)->where('destination', $destination)->firstOrFail();
     $rawCode = Mail::sent(UserVerificationCodeMail::class)->first()->code;
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\TenantAdmin;
 
 use App\Application\Admin\CancelAdminInvitationAction;
 use App\Application\Admin\CreateAdminInvitationAction;
+use App\Application\Admin\CreateTenantAdminAction;
 use App\Application\Admin\ResendAdminInvitationAction;
 use App\Application\Admin\TenantAdminTeamQuery;
 use App\Domain\Admin\Enums\ScopeType;
@@ -11,6 +12,7 @@ use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Admin\Models\Role;
 use App\Domain\Tenant\TenantContext;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CreateTenantAdminRequest;
 use App\Http\Requests\InviteTenantAdminRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,6 +24,14 @@ final class TeamController extends Controller
     public function index(TenantContext $context, TenantAdminTeamQuery $query): Response
     {
         return Inertia::render('tenant-admin/Team', ['team' => $query->execute($context->tenant())]);
+    }
+
+    public function store(CreateTenantAdminRequest $request, TenantContext $context, CreateTenantAdminAction $create): RedirectResponse
+    {
+        $data = $request->validated();
+        $create->execute($context->tenant(), $this->admin($request), $data['name'], $data['email'], $data['password'], $data['role'], $data['current_password'], $request->attributes->get('request_id'));
+
+        return back()->with('success', 'Administrator created. They can sign in to this company with the configured account and password.');
     }
 
     public function invite(InviteTenantAdminRequest $request, TenantContext $context, CreateAdminInvitationAction $invite): RedirectResponse

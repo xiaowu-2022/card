@@ -8,23 +8,31 @@ use App\Domain\CardProduct\Models\CardProduct;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Support\Errors\DomainException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 final readonly class CreateCardProductAction
 {
-    public function __construct(private AuditLogger $audit) {}
+    public function __construct(private AuditLogger $audit, private CardProductBinPolicy $bins) {}
 
     /** @param array{name:string,provider_product_ref:string,minimum_initial_load:string,minimum_reload:string,status:string} $data */
     public function execute(array $data, AdminUser $actor, ?string $requestId = null): CardProduct
     {
+        $fee = Validator::make($data, ['opening_fee' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,8})?$/']])->validate()['opening_fee'];
+        $openingFee = Money::of($fee, 'USDT')->amount();
         $initial = $this->minimum($data['minimum_initial_load'], 'minimum initial load');
         $reload = $this->minimum($data['minimum_reload'], 'minimum reload');
 
-        return DB::transaction(function () use ($data, $initial, $reload, $actor, $requestId): CardProduct {
+        $connection = $this->bins->prepare($data['card_provider_reference_id'] ?? null, trim($data['provider_product_ref'] ?? ''));
+
+        return DB::transaction(function () use ($data, $openingFee, $initial, $reload, $actor, $requestId, $connection): CardProduct {
+            $this->bins->lockAndValidate($data['card_provider_reference_id'] ?? null, trim($data['provider_product_ref'] ?? ''), $connection);
             $product = new CardProduct;
             $product->forceFill([
-                'provider' => 'PHOTONPAY',
-                'provider_product_ref' => trim($data['provider_product_ref']),
+                'provider' => 'UNCONFIGURED',
+                'card_provider_reference_id' => $data['card_provider_reference_id'] ?? null,
+                'provider_product_ref' => trim($data['provider_product_ref'] ?? ''),
                 'name' => trim($data['name']),
+                'opening_fee' => $openingFee,
                 'card_currency' => 'USD',
                 'card_type' => 'REGULAR',
                 'minimum_initial_load' => $initial->amount(),
@@ -33,8 +41,10 @@ final readonly class CreateCardProductAction
             ])->save();
             $this->audit->record(null, 'ADMIN', $actor->id, 'CARD_PRODUCT_CREATED', 'card_product', $product->id, null, [
                 'provider' => $product->provider,
+                'card_provider_reference_id' => $product->card_provider_reference_id,
                 'provider_product_ref' => $product->provider_product_ref,
                 'name' => $product->name,
+                'opening_fee' => $product->opening_fee,
                 'card_currency' => $product->card_currency,
                 'card_type' => $product->card_type,
                 'minimum_initial_load' => $product->minimum_initial_load,

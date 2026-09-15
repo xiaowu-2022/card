@@ -23,7 +23,7 @@ final class CardIssueOrder extends Model
         self::updating(function (self $order): void {
             if ($order->isDirty([
                 'tenant_id', 'user_id', 'wallet_id', 'card_product_id', 'tenant_card_product_config_id',
-                'provider_cardholder_id', 'request_id', 'request_hash', 'opening_fee', 'minimum_initial_load',
+                'provider_cardholder_id', 'cardholder_request_id', 'request_id', 'request_hash', 'opening_fee', 'minimum_initial_load',
                 'initial_load_amount', 'wallet_asset', 'card_currency', 'provider', 'provider_product_ref', 'provider_request_id',
             ])) {
                 throw new LogicException('Card issue financial identity is immutable.');

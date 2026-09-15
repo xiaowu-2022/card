@@ -34,6 +34,7 @@ final class UserAuthController extends Controller
         }
         $request->clearRateLimiter($context->id());
         Auth::guard('tenant_user')->login($user);
+        $request->session()->put('tenant_user_session_version', $user->session_version);
         $request->session()->regenerate();
 
         $restricted = $user->status === UserStatus::Suspended || $context->tenant()->status === TenantStatus::Suspended;
@@ -48,6 +49,7 @@ final class UserAuthController extends Controller
             $audit->record($context->id(), 'USER', $user->id, 'USER_LOGOUT', 'user_authentication', null, null, null, $request->attributes->get('request_id'), $request->ip(), $request->userAgent());
         }
         Auth::guard('tenant_user')->logout();
+        $request->session()->forget(['tenant_user_session_version', 'contact_change_binding', 'contact_change_request']);
         $request->session()->regenerate(true);
         $request->session()->regenerateToken();
 

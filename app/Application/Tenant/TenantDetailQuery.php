@@ -3,6 +3,7 @@
 namespace App\Application\Tenant;
 
 use App\Domain\Admin\Models\AdminInvitation;
+use App\Domain\Tenant\Models\PlatformKycSetting;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\Tenant\Services\TenantOnboardingStatusService;
 
@@ -14,7 +15,7 @@ final readonly class TenantDetailQuery
     public function execute(string $tenantId): array
     {
         $tenant = Tenant::query()->with([
-            'branding', 'locales', 'businessSettings', 'kycSettings', 'domains',
+            'branding', 'locales', 'businessSettings', 'domains',
             'adminMemberships.adminUser', 'adminMemberships.role',
         ])->findOrFail($tenantId);
         $invitations = AdminInvitation::query()
@@ -30,6 +31,8 @@ final readonly class TenantDetailQuery
                 'expiresAt' => $invitation->expires_at->toIso8601String(),
             ]);
 
+        $kyc = PlatformKycSetting::current();
+
         return [
             'id' => $tenant->id,
             'name' => $tenant->name,
@@ -44,8 +47,9 @@ final readonly class TenantDetailQuery
                 'primaryColor' => $tenant->branding->primary_color,
                 'securityDepositAmount' => $tenant->businessSettings->required_security_deposit_amount,
                 'securityDepositAsset' => $tenant->businessSettings->required_security_deposit_asset,
-                'kycEnabled' => $tenant->kycSettings->enabled,
-                'kycReviewMode' => $tenant->kycSettings->review_mode->value,
+                'securityDepositRefundWaitDays' => $tenant->businessSettings->security_deposit_refund_wait_days,
+                'kycEnabled' => $kyc->enabled,
+                'kycReviewMode' => $kyc->review_mode->value,
             ],
             'domains' => $tenant->domains->map(fn ($domain) => [
                 'id' => $domain->id,

@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers\User;
 
+use App\Application\Promotion\CompleteInvitedRegistrationAction;
+use App\Application\Promotion\PromotionMembershipAction;
 use App\Application\User\CreateRegistrationChallengeAction;
-use App\Application\User\RegisterUserAction;
 use App\Application\User\VerifyRegistrationChallengeAction;
 use App\Domain\Notification\Contracts\EmailVerificationSender;
 use App\Domain\Notification\Contracts\SmsVerificationSender;
@@ -24,19 +25,58 @@ use Inertia\Response;
 
 final class RegistrationController extends Controller
 {
-    public function create(EmailVerificationSender $emailSender, SmsVerificationSender $smsSender): Response
+    public function create(Request $request, EmailVerificationSender $emailSender, SmsVerificationSender $smsSender, TenantContext $context, PromotionMembershipAction $members): Response
     {
+        $key = 'promotion.invitation.'.$context->id();
+        $invitationInvalid = false;
+        if (is_string($request->session()->get($key))) {
+            try {
+                $locked = $members->enrollment($context->id(), $request->session()->get($key));
+                $request->session()->put($key, $locked['code']);
+            } catch (DomainException $error) {
+                if ($error->errorCode !== 'INVITATION_INVALID') {
+                    throw $error;
+                }
+                // Only an invalid, unconsumed browser selection is released.
+                // Persisted challenge inviters and member relationships are never rewritten.
+                $request->session()->forget($key);
+                $invitationInvalid = true;
+            }
+        }
+        if (! $request->session()->has($key) && is_string($request->query('invite')) && $request->query('invite') !== '') {
+            try {
+                $inviter = $members->enrollment($context->id(), $request->query('invite'));
+                $request->session()->put($key, $inviter['code']);
+                $invitationInvalid = false;
+            } catch (DomainException $error) {
+                if ($error->errorCode !== 'INVITATION_INVALID') {
+                    throw $error;
+                }
+                $invitationInvalid = true;
+            }
+        }
+
         return Inertia::render('user/Register', [
             'registration' => [
-                'emailAvailable' => $emailSender->isAvailable(),
-                'phoneAvailable' => $smsSender->isAvailable(),
+                'emailAvailable' => $emailSender->isAvailable($context->tenant()),
+                'phoneAvailable' => $smsSender->isAvailable($context->tenant()),
+                'invitationCode' => $request->session()->get($key, ''),
+                'invitationLocked' => $request->session()->has($key),
+                'invitationInvalid' => $invitationInvalid,
             ],
         ]);
     }
 
-    public function storeChallenge(CreateRegistrationChallengeRequest $request, TenantContext $context, CreateRegistrationChallengeAction $action): RedirectResponse
+    public function storeChallenge(CreateRegistrationChallengeRequest $request, TenantContext $context, CreateRegistrationChallengeAction $action, PromotionMembershipAction $members): RedirectResponse
     {
+        $inviter = $members->enrollment($context->id(), $request->validated('invitation_code'));
+        $code = $inviter['code'];
+        $locked = $request->session()->get('promotion.invitation.'.$context->id());
+        if (is_string($locked) && ! hash_equals($members->enrollment($context->id(), $locked)['code'], $code)) {
+            throw new DomainException('INVITATION_IMMUTABLE', 'The invitation relationship cannot be changed.');
+        }
         $request->ensureIsNotRateLimited($context->id());
+        $request->hitRateLimiters($context->id());
         $ownedChallengeIds = $this->ownedChallengeIds($request);
         $created = $action->execute(
             $context->tenant(),
@@ -45,15 +85,18 @@ final class RegistrationController extends Controller
             $request->string('region')->toString() ?: null,
             $request->attributes->get('request_id'),
             $ownedChallengeIds,
+            $inviter['memberId'],
+            $inviter['companyId'],
         );
-        $request->hitRateLimiters($context->id());
         $request->session()->put('registration.challenge_ids', array_slice(array_values(array_unique([
             ...$ownedChallengeIds,
             $created->challenge->id,
         ])), -10));
 
         return redirect("/register/challenges/{$created->challenge->id}")
-            ->with('success', 'If this contact can be used for registration, verification instructions have been sent.');
+            ->with('success', $created->deliveryUncertain
+                ? 'Delivery is not confirmed. If a code arrives, enter it here. Wait for this request to expire before requesting a new code.'
+                : 'If this contact can be used for registration, verification instructions have been sent.');
     }
 
     public function showChallenge(Request $request, string $challenge, TenantContext $context): Response
@@ -79,7 +122,7 @@ final class RegistrationController extends Controller
         return redirect("/register/challenges/{$challenge}")->with('success', 'Contact verified. Create your password to finish.');
     }
 
-    public function complete(CompleteRegistrationRequest $request, string $challenge, TenantContext $context, RegisterUserAction $action): RedirectResponse
+    public function complete(CompleteRegistrationRequest $request, string $challenge, TenantContext $context, CompleteInvitedRegistrationAction $action): RedirectResponse
     {
         $this->assertSessionOwnsChallenge($request, $challenge);
         $user = $action->execute(
@@ -91,8 +134,10 @@ final class RegistrationController extends Controller
             $request->attributes->get('request_id'),
         );
         Auth::guard('tenant_user')->login($user);
+        $request->session()->put('tenant_user_session_version', $user->fresh()->session_version);
         $request->session()->regenerate();
         $request->session()->forget('registration.challenge_ids');
+        $request->session()->forget('promotion.invitation.'.$context->id());
 
         return redirect('/dashboard')->with('success', 'Your account is ready.');
     }

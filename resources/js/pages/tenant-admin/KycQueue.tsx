@@ -1,3 +1,4 @@
+import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, Link, router } from '@inertiajs/react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatusBadge, type StatusTone } from '@/components/shared/StatusBadge';
@@ -49,22 +50,25 @@ const tone = (status: string): StatusTone =>
             : 'NEUTRAL';
 
 export default function KycQueue({ applications, filters }: Props) {
+    useAdminTranslation();
     const apply = (values: Record<string, string>) =>
         router.get('/admin/kyc', { ...filters, ...values }, { preserveState: true, replace: true });
     return (
         <TenantAdminLayout>
-            <Head title="KYC review" />
+            <Head title={t('KYC review')} />
             <div className="space-y-6">
                 <PageHeader
-                    eyebrow="Identity operations"
-                    title="KYC review queue"
-                    description="Tenant-scoped applications awaiting or completing manual review."
+                    eyebrow={t('Identity operations')}
+                    title={t('KYC review queue')}
+                    description={t(
+                        'Tenant-scoped applications awaiting or completing manual review.',
+                    )}
                 />
                 <Card>
                     <CardContent className="grid gap-3 p-4 sm:grid-cols-3">
                         <Input
-                            aria-label="Search users"
-                            placeholder="Search email, phone or user ID"
+                            aria-label={t('Search users')}
+                            placeholder={t('Search email, phone or user ID')}
                             defaultValue={filters.search ?? ''}
                             onKeyDown={(event) => {
                                 if (event.key === 'Enter')
@@ -78,7 +82,7 @@ export default function KycQueue({ applications, filters }: Props) {
                             }
                         >
                             <SelectTrigger>
-                                <SelectValue placeholder="All statuses" />
+                                <SelectValue placeholder={t('All statuses')} />
                             </SelectTrigger>
                             <SelectContent>
                                 {[
@@ -89,13 +93,13 @@ export default function KycQueue({ applications, filters }: Props) {
                                     'RESUBMISSION_REQUIRED',
                                 ].map((status) => (
                                     <SelectItem key={status} value={status}>
-                                        {status.replaceAll('_', ' ')}
+                                        {t(status)}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                         <Input
-                            aria-label="Submission date"
+                            aria-label={t('Submission date')}
                             type="date"
                             defaultValue={filters.date ?? ''}
                             onChange={(event) => apply({ date: event.target.value })}
@@ -107,11 +111,11 @@ export default function KycQueue({ applications, filters }: Props) {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>User</TableHead>
-                                    <TableHead>Submitted</TableHead>
-                                    <TableHead>Country</TableHead>
-                                    <TableHead>OCR</TableHead>
-                                    <TableHead>Review</TableHead>
+                                    <TableHead>{t('User')}</TableHead>
+                                    <TableHead>{t('Submitted')}</TableHead>
+                                    <TableHead>{t('Country')}</TableHead>
+                                    <TableHead>{t('OCR')}</TableHead>
+                                    <TableHead>{t('Review')}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -122,29 +126,24 @@ export default function KycQueue({ applications, filters }: Props) {
                                                 className="font-semibold text-primary"
                                                 href={`/admin/kyc/${application.id}`}
                                             >
-                                                {application.user.displayName ?? 'Unnamed user'}
+                                                {application.user.displayName ?? t('Unnamed user')}
                                             </Link>
                                             <p className="text-xs text-muted-foreground">
                                                 {application.user.contact}
                                             </p>
                                         </TableCell>
-                                        <TableCell>
-                                            {new Date(application.submittedAt).toLocaleString()}
-                                        </TableCell>
+                                        <TableCell>{dateTime(application.submittedAt)}</TableCell>
                                         <TableCell>{application.documentCountry}</TableCell>
                                         <TableCell>
                                             <StatusBadge
                                                 status={tone(application.ocrStatus)}
-                                                label={application.ocrStatus}
+                                                label={t(application.ocrStatus)}
                                             />
                                         </TableCell>
                                         <TableCell>
                                             <StatusBadge
                                                 status={tone(application.reviewStatus)}
-                                                label={application.reviewStatus.replaceAll(
-                                                    '_',
-                                                    ' ',
-                                                )}
+                                                label={t(application.reviewStatus)}
                                             />
                                         </TableCell>
                                     </TableRow>
@@ -153,7 +152,7 @@ export default function KycQueue({ applications, filters }: Props) {
                         </Table>
                         {!applications.data.length && (
                             <p className="p-10 text-center text-sm text-muted-foreground">
-                                No KYC applications match these filters.
+                                {t('No KYC applications match these filters.')}
                             </p>
                         )}
                     </CardContent>
@@ -166,10 +165,13 @@ export default function KycQueue({ applications, filters }: Props) {
                             applications.prev_page_url && router.get(applications.prev_page_url)
                         }
                     >
-                        Previous
+                        {t('Previous')}
                     </Button>
                     <span className="text-sm text-muted-foreground">
-                        Page {applications.current_page} of {applications.last_page}
+                        {t('Page {{value1}} of {{value2}}', {
+                            value1: applications.current_page,
+                            value2: applications.last_page,
+                        })}
                     </span>
                     <Button
                         variant="secondary"
@@ -178,7 +180,7 @@ export default function KycQueue({ applications, filters }: Props) {
                             applications.next_page_url && router.get(applications.next_page_url)
                         }
                     >
-                        Next
+                        {t('Next')}
                     </Button>
                 </div>
             </div>

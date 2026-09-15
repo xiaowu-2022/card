@@ -235,3 +235,10 @@ it('changes only the current tenant user password when contacts match across ten
     expect(Hash::check('ChangedPass1234', $userA->fresh()->password_hash))->toBeTrue()
         ->and(Hash::check('PasswordB1234', $userB->fresh()->password_hash))->toBeTrue();
 });
+
+it('logs in with a selected calling-code region and a national phone number', function (): void {
+    $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
+    $user = User::query()->create(['tenant_id' => $tenant->id, 'email' => null, 'phone' => '+60123456789', 'password_hash' => Hash::make('PhonePass1234'), 'status' => UserStatus::Active, 'phone_verified_at' => now()]);
+    $this->post('http://a.localhost/login', ['identifier' => '0123456789', 'region' => 'MY', 'password' => 'PhonePass1234'])->assertRedirect('/dashboard');
+    $this->assertAuthenticatedAs($user, 'tenant_user');
+});

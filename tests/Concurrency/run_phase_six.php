@@ -40,7 +40,7 @@ $user = User::query()->where('tenant_id', $tenant->id)->firstOrFail();
 $owner = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
 app(UpdateTenantBusinessSettingsAction::class)->execute($tenant, [
     'required_security_deposit_amount' => '50', 'required_security_deposit_asset' => 'USD', 'allow_wallet_topup' => true, 'allow_withdrawal' => false,
-], $owner);
+], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
 $imagePath = tempnam(sys_get_temp_dir(), 'deposit-concurrency-image-');
 file_put_contents($imagePath, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true));
 $application = app(SubmitKycApplicationAction::class)->execute(
@@ -102,7 +102,7 @@ $differentRequests = $parallel([
 
 app(UpdateTenantBusinessSettingsAction::class)->execute($tenant, [
     'required_security_deposit_amount' => '75', 'required_security_deposit_asset' => 'USD', 'allow_wallet_topup' => true, 'allow_withdrawal' => false,
-], $owner);
+], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
 $competingBalance = $parallel([
     fn () => app(FundSecurityDepositAction::class)->execute($tenant->id, $user->id, (string) Str::uuid(), '25'),
     fn () => app(LedgerWriter::class)->post(new LedgerPostingPlan(

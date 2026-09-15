@@ -3,7 +3,9 @@
 namespace App\Domain\Card\Models;
 
 use App\Domain\CardProduct\Models\CardProduct;
+use App\Domain\CardProvider\ProviderReference;
 use App\Domain\User\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -31,6 +33,8 @@ final class UserCard extends Model
     protected function casts(): array
     {
         return [
+            'archived_at' => 'immutable_datetime',
+            'refresh_generation' => 'integer',
             'provider_balance' => 'decimal:8',
             'provider_balance_synced_at' => 'immutable_datetime',
         ];
@@ -39,6 +43,11 @@ final class UserCard extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function scopeWithoutTestReferences(Builder $query): void
+    {
+        $query->whereRaw('BTRIM(provider_card_id) !~* ?', [ProviderReference::TEST_PATTERN]);
     }
 
     public function product(): BelongsTo

@@ -19,6 +19,7 @@ final readonly class ActivateTenantAction
 
     public function execute(Tenant $tenant, AdminUser $actor, ?string $requestId = null): void
     {
+        app(CompanyConfigurationAuthority::class)->assert($actor);
         if ($tenant->status !== TenantStatus::Draft) {
             throw new DomainException('TENANT_NOT_DRAFT', 'Only a DRAFT Tenant can be activated.');
         }

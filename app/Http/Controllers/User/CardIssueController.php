@@ -24,6 +24,7 @@ final class CardIssueController extends Controller
             $request->string('request_id')->toString(),
             $request->string('card_product_id')->toString(),
             $request->input('initial_load_amount'),
+            $request->string('cardholder_application_id')->toString(),
             $request->attributes->get('request_id'),
         );
 

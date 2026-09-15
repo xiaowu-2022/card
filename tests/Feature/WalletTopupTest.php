@@ -49,6 +49,7 @@ use Illuminate\Support\Str;
 beforeEach(function (): void {
     config(['payment.mock_mode' => 'PENDING']);
     $this->seed();
+    legacyUsdAccountingFixtures();
     Storage::fake('private');
     Queue::fake();
     $this->tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();

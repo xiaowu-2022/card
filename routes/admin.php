@@ -1,24 +1,37 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminLocaleController;
 use App\Http\Controllers\TenantAdmin\AdminRecentAuthenticationController;
 use App\Http\Controllers\TenantAdmin\CardOperationsController;
 use App\Http\Controllers\TenantAdmin\CardProductController;
 use App\Http\Controllers\TenantAdmin\DashboardController;
-use App\Http\Controllers\TenantAdmin\DomainManagementController;
 use App\Http\Controllers\TenantAdmin\InvitationAcceptanceController;
 use App\Http\Controllers\TenantAdmin\KycController;
 use App\Http\Controllers\TenantAdmin\KycDocumentController;
 use App\Http\Controllers\TenantAdmin\OnboardingController;
+use App\Http\Controllers\TenantAdmin\PromotionController;
+use App\Http\Controllers\TenantAdmin\SupportController;
 use App\Http\Controllers\TenantAdmin\TeamController;
 use App\Http\Controllers\TenantAdmin\TenantAdminAuthController;
+use App\Http\Controllers\TenantAdmin\TenantArticleController;
+use App\Http\Controllers\TenantAdmin\TenantEmailSettingsController;
 use App\Http\Controllers\TenantAdmin\TenantSettingsController;
+use App\Http\Controllers\TenantAdmin\TenantSmsSettingsController;
 use App\Http\Controllers\TenantAdmin\TopupController;
 use App\Http\Controllers\TenantAdmin\UsersController;
 use App\Http\Controllers\TenantAdmin\UserWalletController;
 use App\Http\Controllers\TenantAdmin\WithdrawalController;
+use App\Http\Middleware\CompanyConfigurationReadOnly;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware('tenant.surface:tenant-admin')->prefix('admin')->name('tenant-admin.')->group(function (): void {
+Route::middleware(['tenant.surface:tenant-admin', CompanyConfigurationReadOnly::class])->prefix('admin')->name('tenant-admin.')->group(function (): void {
+    Route::middleware('admin.scope:tenant,support.manage')->group(function (): void {
+        Route::get('/support/images/{message}', [SupportController::class, 'image'])->whereUuid('message')->name('support.image');
+        Route::get('/support', [SupportController::class, 'index'])->middleware('throttle:60,1')->name('support');
+        Route::get('/support/{conversation}', [SupportController::class, 'show'])->whereUuid('conversation')->middleware('throttle:60,1')->name('support.show');
+        Route::post('/support/{conversation}/messages', [SupportController::class, 'store'])->whereUuid('conversation')->middleware('throttle:20,1')->name('support.send');
+    });
+    Route::post('/locale', AdminLocaleController::class)->middleware('throttle:30,1')->name('locale.update');
     Route::get('/login', [TenantAdminAuthController::class, 'create'])->name('login');
     Route::post('/login', [TenantAdminAuthController::class, 'store'])->name('login.store');
     Route::get('/invitations/{token}', [InvitationAcceptanceController::class, 'show'])->where('token', '[a-f0-9]{64}')->name('invitations.show');
@@ -73,25 +86,28 @@ Route::middleware('tenant.surface:tenant-admin')->prefix('admin')->name('tenant-
     });
 
     Route::middleware('admin.scope:tenant,tenant_settings.manage')->group(function (): void {
+        Route::get('/promotion', [PromotionController::class, 'show'])->name('promotion');
+        Route::post('/promotion', [PromotionController::class, 'update'])->middleware('throttle:20,1')->name('promotion.update');
+        Route::get('/company-funds', [PromotionController::class, 'funds'])->name('company-funds');
         Route::get('/', [OnboardingController::class, 'show'])->name('home');
         Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
-        Route::get('/settings/{section?}', [TenantSettingsController::class, 'show'])->where('section', 'branding|locales|business|kyc')->name('settings');
+        Route::get('/settings/{section?}', [TenantSettingsController::class, 'show'])->where('section', 'branding|locales|business|kyc|articles|sms|email')->name('settings');
+        Route::post('/settings/email', [TenantEmailSettingsController::class, 'update'])->middleware('throttle:5,1')->name('settings.email');
+        Route::post('/settings/email/test', [TenantEmailSettingsController::class, 'test'])->middleware('throttle:5,1')->name('settings.email.test');
+        Route::post('/settings/sms', [TenantSmsSettingsController::class, 'update'])->middleware('throttle:5,1')->name('settings.sms');
+        Route::post('/settings/articles/{article}/{locale}', [TenantArticleController::class, 'update'])
+            ->whereIn('article', ['terms', 'privacy', 'account-closure'])->whereIn('locale', ['zh-CN', 'en', 'ms', 'es'])->name('settings.articles.update');
         Route::post('/settings/branding', [TenantSettingsController::class, 'branding'])->name('settings.branding');
         Route::post('/settings/locales', [TenantSettingsController::class, 'locales'])->name('settings.locales');
         Route::post('/settings/business', [TenantSettingsController::class, 'business'])->name('settings.business');
         Route::post('/settings/kyc', [TenantSettingsController::class, 'kyc'])->name('settings.kyc');
-        Route::get('/domains', [DomainManagementController::class, 'index'])->name('domains');
-        Route::post('/domains', [DomainManagementController::class, 'store'])->name('domains.store');
-        Route::post('/domains/{domain}/verify', [DomainManagementController::class, 'verify'])->whereUuid('domain')->name('domains.verify');
-        Route::post('/domains/{domain}/activate', [DomainManagementController::class, 'activate'])->whereUuid('domain')->name('domains.activate');
-        Route::post('/domains/{domain}/primary', [DomainManagementController::class, 'primary'])->whereUuid('domain')->name('domains.primary');
-        Route::delete('/domains/{domain}', [DomainManagementController::class, 'destroy'])->whereUuid('domain')->name('domains.destroy');
     });
 
     Route::middleware('admin.scope:tenant,tenant.activate')->post('/onboarding/activate', [OnboardingController::class, 'activate'])->name('activate');
 
     Route::middleware('admin.scope:tenant,admin_team.read')->get('/team', [TeamController::class, 'index'])->name('team');
     Route::middleware('admin.scope:tenant,admin_team.manage')->group(function (): void {
+        Route::post('/team/administrators', [TeamController::class, 'store'])->middleware('throttle:5,1')->name('team.create');
         Route::post('/team/invitations', [TeamController::class, 'invite'])->name('team.invite');
         Route::post('/team/invitations/{invitation}/resend', [TeamController::class, 'resend'])->whereUuid('invitation')->name('team.resend');
         Route::post('/team/invitations/{invitation}/cancel', [TeamController::class, 'cancel'])->whereUuid('invitation')->name('team.cancel');

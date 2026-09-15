@@ -2,6 +2,7 @@
 
 namespace App\Application\Payment;
 
+use App\Application\Admin\FinancialOperationQuery;
 use App\Domain\Payment\Models\WalletTopupOrder;
 
 final class TenantAdminTopupQuery
@@ -29,6 +30,8 @@ final class TenantAdminTopupQuery
             'id' => $order->id, 'reference' => strtoupper(substr(str_replace('-', '', $order->id), 0, 12)),
             'userId' => $order->user_id, 'amount' => $order->amount, 'asset' => $order->asset_code,
             'status' => $order->status->value, 'provider' => $order->payment_provider,
+            'manuallyConfirmed' => $order->manual_confirmed_at !== null,
+            'manualConfirmedAt' => $order->manual_confirmed_at?->toIso8601String(),
             'requestedAmount' => $order->requested_amount, 'expectedAmount' => $order->expected_amount,
             'identificationIncrement' => $order->identification_increment, 'network' => $order->network_code,
             'createdAt' => $order->created_at->toIso8601String(), 'paidAt' => $order->paid_at?->toIso8601String(),
@@ -36,6 +39,7 @@ final class TenantAdminTopupQuery
         ];
         if ($detail) {
             $data += [
+                'manualOperations' => app(FinancialOperationQuery::class)->forOrder($order->tenant_id, 'wallet_topup_order', $order->id),
                 'providerStatus' => $order->providerTransaction?->status->value,
                 'providerReference' => $order->provider_transaction_id,
                 'ledgerEntryId' => $order->ledger_entry_id,

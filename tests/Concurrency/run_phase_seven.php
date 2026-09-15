@@ -49,12 +49,12 @@ Artisan::call('migrate:fresh', ['--seed' => true, '--force' => true]);
 $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
 $user = User::query()->where('tenant_id', $tenant->id)->firstOrFail();
 $owner = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
-DB::transaction(function () use ($tenant, $owner): void {
+DB::transaction(function () use ($tenant): void {
     $tenant->update(['default_asset' => 'USDT']);
     app(UpdateTenantBusinessSettingsAction::class)->execute($tenant, [
         'required_security_deposit_amount' => '0', 'required_security_deposit_asset' => 'USDT',
         'allow_wallet_topup' => true, 'allow_withdrawal' => true,
-    ], $owner);
+    ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
 });
 $image = tempnam(sys_get_temp_dir(), 'phase-seven-concurrency-');
 file_put_contents($image, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true));

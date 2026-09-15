@@ -1,0 +1,534 @@
+/* Scoped consumer promotion layout; financial controls retain their contracts. */
+.user-theme .user-shell.user-shell-promotion {
+    background: var(--surface);
+}
+.promotion-page {
+    display: grid;
+    gap: 20px;
+    min-width: 0;
+    padding-bottom: 16px;
+    font-size: 14px;
+}
+.promotion-page .user-page-header {
+    margin: 0;
+}
+.promotion-page .user-page-header > div:first-child {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+.promotion-page .user-page-header a {
+    flex-shrink: 0;
+    margin: 0;
+}
+.user-theme .user-main .promotion-page .user-page-header h1 {
+    font-size: 22px;
+    line-height: 1.35;
+    text-align: left;
+}
+.promotion-page h2 {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+.promotion-commission {
+    background: #193b31;
+    color: white;
+    border-radius: 18px;
+    padding: 20px;
+}
+.promotion-commission-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.promotion-commission-top h2 {
+    font-size: 13px;
+    color: #d0e3d8;
+    font-weight: 400;
+}
+.promotion-level {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    border: 1px solid #638879;
+    padding: 4px 8px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+.promotion-level svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+.promotion-commission-amount {
+    margin: 16px 0 20px;
+    font-size: clamp(32px, 5.4cqw, 40px);
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.035em;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+.promotion-commission-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    border-top: 1px solid #436456;
+    padding-top: 16px;
+}
+.promotion-earned {
+    min-width: 0;
+    flex: 1 1 120px;
+}
+.promotion-earned p:first-child {
+    font-size: 13px;
+    color: #d0e3d8;
+}
+.promotion-earned p:last-child {
+    margin-top: 4px;
+    font-size: 18px;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+    font-variant-numeric: tabular-nums;
+}
+.promotion-commission-action {
+    max-width: 100%;
+}
+.user-theme .user-main .promotion-page .promotion-commission-action > button {
+    min-height: 44px;
+    height: auto;
+    padding: 10px 14px;
+    font-size: 14px;
+    line-height: 1.4;
+    font-weight: 500;
+    border-radius: 10px;
+    white-space: normal;
+    background: #dbebcf;
+    color: #193b31;
+}
+.user-theme .user-main .promotion-page .promotion-commission-action > button:disabled {
+    background: #a4b9a7;
+    color: #243f32;
+    opacity: 1;
+}
+.promotion-commission-note {
+    margin-top: 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #d0e3d8;
+}
+.promotion-invitation {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 0 0 20px;
+    border-bottom: 1px solid var(--user-border);
+}
+.promotion-invitation-code h2 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--user-text-secondary);
+    font-size: 13px;
+    font-weight: 400;
+}
+.promotion-invitation-code h2 svg {
+    width: 16px;
+    height: 16px;
+    color: var(--user-primary-readable);
+}
+.promotion-invitation-code > p {
+    margin-top: 4px;
+    font:
+        600 22px/1.4 ui-monospace,
+        monospace;
+    letter-spacing: 0.1em;
+}
+.user-theme .user-main .promotion-invitation > button {
+    min-height: 44px;
+    height: auto;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 10px;
+    background: #edf5f0;
+    color: #245844;
+    font-size: 13px;
+    white-space: normal;
+}
+.promotion-invitation > button svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+.promotion-copy-error {
+    width: 100%;
+    color: var(--danger);
+    font-size: 13px;
+}
+.promotion-section {
+    min-width: 0;
+}
+.promotion-section-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+.promotion-team-summary {
+    scroll-margin-top: 16px;
+}
+.promotion-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 16px;
+}
+.promotion-stats > div {
+    min-width: 0;
+}
+.promotion-stats dt {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--user-text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+}
+.promotion-stats dt svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: var(--user-primary-readable);
+}
+.promotion-stats dd {
+    margin-top: 4px;
+    font-size: clamp(21px, 3.2cqw, 24px);
+    font-weight: 600;
+    line-height: 1.35;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+.promotion-stats-daily {
+    padding: 16px;
+    border-radius: 14px;
+    background: #f3f6f3;
+    margin-block: 8px 16px;
+}
+.promotion-explanation {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--user-text-secondary);
+}
+.promotion-explanation summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    min-height: 44px;
+    width: fit-content;
+    list-style: none;
+}
+.promotion-explanation summary::-webkit-details-marker {
+    display: none;
+}
+.promotion-explanation summary svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+.promotion-explanation[open] summary svg {
+    transform: rotate(180deg);
+}
+.promotion-explanation p {
+    margin-bottom: 8px;
+}
+.promotion-destinations {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    border-top: 1px solid var(--user-border);
+    padding-top: 16px;
+}
+.promotion-destinations > a {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 4px;
+    min-width: 0;
+    min-height: 88px;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 14px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+.promotion-destinations > a > svg {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    color: var(--user-primary-readable);
+}
+.promotion-date-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+}
+.promotion-date-row label {
+    font-size: 14px;
+    min-width: 0;
+    flex: 1;
+}
+.promotion-date-row label span {
+    display: block;
+    font-size: 13px;
+    color: var(--user-text-secondary);
+}
+.user-theme .user-main .promotion-page .promotion-date-row input[type='date'] {
+    min-height: 44px;
+    height: 44px;
+    width: 160px;
+    max-width: 100%;
+    flex-shrink: 0;
+    border-radius: 10px;
+    font-size: 14px;
+    padding: 8px 10px;
+}
+.user-theme .user-main .promotion-page .promotion-date-row button {
+    min-height: 44px;
+    height: auto;
+    padding: 8px;
+    font-size: 13px;
+    white-space: normal;
+}
+.promotion-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 24px 16px;
+    text-align: center;
+    color: var(--user-text-secondary);
+    font-size: 13px;
+    line-height: 1.6;
+}
+.promotion-empty > svg {
+    width: 24px;
+    height: 24px;
+    color: #638c7c;
+    stroke-width: 1.5;
+}
+.promotion-results {
+    scroll-margin-top: 16px;
+    min-width: 0;
+}
+.promotion-activity li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--user-border);
+    font-size: 14px;
+    line-height: 1.5;
+}
+.promotion-activity-icon {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    color: #3b765f;
+}
+.promotion-activity-icon svg {
+    width: 18px;
+    height: 18px;
+}
+.promotion-activity-description {
+    min-width: 0;
+    flex: 1;
+    overflow-wrap: anywhere;
+}
+.promotion-activity-description > p:not(:first-child) {
+    font-size: 13px;
+    color: var(--user-text-secondary);
+    margin-top: 4px;
+}
+.promotion-activity-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+}
+.promotion-activity-heading > p {
+    min-width: 0;
+    flex: 1;
+}
+.promotion-activity-amount {
+    max-width: 48%;
+    text-align: right;
+    font-size: 16px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+.promotion-pagination {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 16px;
+}
+.user-theme .user-main .promotion-page .promotion-pagination button {
+    min-height: 44px;
+    font-size: 14px;
+}
+.promotion-section-note {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--user-text-secondary);
+}
+.promotion-member-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.promotion-member-filters > [role='combobox'] {
+    grid-column: 1 / -1;
+}
+.user-theme
+    .user-main
+    .promotion-page
+    .promotion-member-filters
+    :is(input:not([type='file']):not([type='checkbox']), button) {
+    min-height: 44px;
+    height: 44px;
+    font-size: 14px;
+    border-radius: 10px;
+    padding: 8px 12px;
+}
+.promotion-member {
+    display: grid;
+    gap: 12px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--user-border);
+    min-width: 0;
+}
+.promotion-member-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+.promotion-member-identity {
+    min-width: 0;
+}
+.promotion-member-identity span {
+    display: block;
+    font-size: 13px;
+    color: var(--user-text-secondary);
+}
+.promotion-member-identity strong {
+    display: block;
+    font-size: 14px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+.promotion-member-level {
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 4px 8px;
+    background: #f0f5f1;
+    color: #245844;
+    border-radius: 6px;
+    max-width: 48%;
+    overflow-wrap: anywhere;
+}
+.promotion-member-money {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+.promotion-member-money dt {
+    font-size: 13px;
+    color: var(--user-text-secondary);
+}
+.promotion-member-money dd {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.5;
+    margin-top: 3px;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+.promotion-member-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.promotion-member-footer > span {
+    font-size: 13px;
+    color: var(--user-text-secondary);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.user-theme .user-main .promotion-member-footer button {
+    flex-shrink: 0;
+    max-width: 42%;
+    min-height: 44px;
+    height: auto;
+    white-space: normal;
+    padding: 8px;
+    font-size: 13px;
+    color: var(--user-primary-readable);
+}
+.promotion-member-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+}
+.promotion-member-controls > [role='combobox'] {
+    width: 100%;
+}
+.user-theme .user-main .promotion-member-controls button {
+    min-height: 44px;
+    height: auto;
+    font-size: 14px;
+    padding: 8px 12px;
+    border-radius: 10px;
+}
+.promotion-member-errors {
+    font-size: 13px;
+    color: var(--danger);
+}
+.promotion-commissions-header {
+    display: grid;
+    gap: 12px;
+}
+.promotion-commissions-page {
+    gap: 12px;
+}
+.promotion-destinations > a:focus-visible,
+.promotion-explanation summary:focus-visible {
+    outline: 2px solid var(--user-primary);
+    outline-offset: 2px;
+}
+@media (hover: hover) {
+    .promotion-destinations > a:hover {
+        background: #f3f6f3;
+    }
+}

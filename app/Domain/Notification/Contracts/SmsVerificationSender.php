@@ -6,7 +6,7 @@ use App\Domain\Tenant\Models\Tenant;
 
 interface SmsVerificationSender
 {
-    public function isAvailable(): bool;
+    public function isAvailable(Tenant $tenant): bool;
 
     public function sendVerificationCode(Tenant $tenant, string $destination, string $code): void;
 

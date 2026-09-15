@@ -3,6 +3,7 @@
 namespace App\Application\Admin;
 
 use App\Application\Admin\DTOs\IssuedAdminInvitation;
+use App\Application\Tenant\CompanyConfigurationAuthority;
 use App\Domain\Admin\Enums\InvitationStatus;
 use App\Domain\Admin\Models\AdminInvitation;
 use App\Domain\Admin\Models\AdminUser;
@@ -22,6 +23,7 @@ final readonly class ResendAdminInvitationAction
 
     public function execute(Tenant $tenant, string $invitationId, AdminUser $actor, ?string $requestId = null): IssuedAdminInvitation
     {
+        app(CompanyConfigurationAuthority::class)->assert($actor);
         $issued = DB::transaction(function () use ($tenant, $invitationId, $actor, $requestId): IssuedAdminInvitation {
             $old = AdminInvitation::query()->where('tenant_id', $tenant->id)->whereKey($invitationId)->lockForUpdate()->firstOrFail();
             if ($old->status !== InvitationStatus::Pending) {

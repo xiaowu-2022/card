@@ -9,8 +9,9 @@ export const SheetClose = DialogPrimitive.Close;
 export function SheetContent({
     className,
     children,
+    closeLabel = 'Close menu',
     ...props
-}: ComponentProps<typeof DialogPrimitive.Content>) {
+}: ComponentProps<typeof DialogPrimitive.Content> & { closeLabel?: string }) {
     return (
         <DialogPrimitive.Portal>
             <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-slate-950/40" />
@@ -24,7 +25,7 @@ export function SheetContent({
                 {children}
                 <DialogPrimitive.Close
                     className="absolute right-4 top-4 rounded-md p-1"
-                    aria-label="Close menu"
+                    aria-label={closeLabel}
                 >
                     <X className="size-5" />
                 </DialogPrimitive.Close>

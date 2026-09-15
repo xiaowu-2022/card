@@ -4,8 +4,33 @@ services:
     working_dir: /var/www/html
     volumes:
       - .:/var/www/html
+      - ./docker/php/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini:ro
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
+    environment: &local-app-environment
+      APP_ENV: local
+      APP_DEBUG: "false"
+      APP_URL: http://a.localhost:8000
+      DB_CONNECTION: pgsql
+      DB_URL: ""
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: card_mock
+      DB_USERNAME: card_platform
+      DB_PASSWORD: local-development-only
+      SESSION_DRIVER: file
+      SESSION_COOKIE: card_mock_session
+      CACHE_STORE: array
+      QUEUE_CONNECTION: sync
+      CARD_PROVIDER_DRIVER: mock
+      MOCK_CARD_PROVIDER_MODE: ${MOCK_CARD_PROVIDER_MODE:-SUCCESS}
+      MOCK_CARDHOLDER_MODE: ${MOCK_CARDHOLDER_MODE:-READY}
+      PHOTONPAY_APP_ID: ""
+      PHOTONPAY_APP_SECRET: ""
+      PHOTONPAY_PRIVATE_KEY: ""
+      PHOTONPAY_WEBHOOK_PUBLIC_KEY: ""
+      PHOTONPAY_USD_ACCOUNT_ID: ""
+    command: php artisan serve --no-reload --host=0.0.0.0 --port=8000
     depends_on:
       postgres:
         condition: service_healthy
@@ -13,6 +38,19 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_started
+
+  deposit-refunds:
+    build: .
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+      - ./docker/php/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini:ro
+    environment: *local-app-environment
+    command: php artisan deposits:process-refunds --watch
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
   node:
     image: node:22-alpine
@@ -26,7 +64,7 @@ services:
   postgres:
     image: postgres:18-alpine
     environment:
-      POSTGRES_DB: card_platform
+      POSTGRES_DB: card_mock
       POSTGRES_USER: card_platform
       POSTGRES_PASSWORD: local-development-only
     ports:

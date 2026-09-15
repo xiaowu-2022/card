@@ -1,12 +1,14 @@
-import { Head, Link, router } from '@inertiajs/react';
-import { ArrowUpRight, CheckCircle2, Plus, ShieldCheck } from 'lucide-react';
-import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
+import { t, useClientTranslation } from '@/i18n';
+import { Head, Link } from '@inertiajs/react';
+import { CheckCircle2, ChevronRight, ShieldCheck } from 'lucide-react';
+import { MoneyDisplay } from '@/components/user/UserMoney';
 import { UserActivityList } from '@/components/user/UserActivityList';
+import { walletActivityItems } from '@/lib/wallet-activity';
 import { UserBalanceHero } from '@/components/user/UserBalanceHero';
 import { UserPageHeader } from '@/components/user/UserPageHeader';
 import { UserSection } from '@/components/user/UserSection';
 import { UserStatusBanner } from '@/components/user/UserStatusBanner';
-import { UserQuickActions } from '@/components/user/UserQuickActions';
+import { UserWalletActions } from '@/components/user/UserWalletActions';
 import { Button } from '@/components/ui/button';
 import { UserLayout } from '@/layouts/UserLayout';
 import type { MoneyAmount } from '@/types/global';
@@ -39,24 +41,23 @@ type Props = {
     depositFundingAvailable?: boolean;
     depositHasEnoughAvailable?: boolean;
     withdrawalAvailable?: boolean;
+    transferAvailable?: boolean;
 };
 
 function InactiveWallet({ eligibility }: { eligibility: Eligibility }) {
+    useClientTranslation();
     if (eligibility.kycStatus === 'APPROVED' && eligibility.canActivate) {
         return (
             <section className="rounded-[var(--user-radius-lg)] border bg-surface p-5 sm:p-7">
                 <span className="grid size-11 place-items-center rounded-full bg-emerald-50 text-success">
                     <CheckCircle2 className="size-5" />
                 </span>
-                <h2 className="mt-5 text-xl font-semibold">Your identity is verified</h2>
+                <h2 className="mt-5 text-xl font-semibold">{t('Your identity is verified')}</h2>
                 <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
-                    Activate your wallet to continue. Activation does not move funds.
+                    {t('Set up your wallet and review the security deposit requirement.')}
                 </p>
-                <Button
-                    className="mt-5 w-full sm:w-auto"
-                    onClick={() => router.post('/wallet/activate')}
-                >
-                    Activate wallet
+                <Button className="mt-5 w-full sm:w-auto" asChild>
+                    <Link href="/security-deposit">{t('Activate wallet')}</Link>
                 </Button>
             </section>
         );
@@ -76,13 +77,13 @@ function InactiveWallet({ eligibility }: { eligibility: Eligibility }) {
             <span className="grid size-11 place-items-center rounded-full bg-muted text-muted-foreground">
                 <ShieldCheck className="size-5" />
             </span>
-            <h2 className="mt-5 text-xl font-semibold">Wallet is not activated</h2>
+            <h2 className="mt-5 text-xl font-semibold">{t('Wallet is not activated')}</h2>
             <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
-                {copy[eligibility.kycStatus] ?? 'Wallet activation is currently unavailable.'}
+                {t(copy[eligibility.kycStatus] ?? 'Wallet activation is currently unavailable.')}
             </p>
             {canVisitKyc ? (
                 <Button asChild variant="secondary" className="mt-5 w-full sm:w-auto">
-                    <Link href="/kyc">Identity verification</Link>
+                    <Link href="/kyc">{t('Identity verification')}</Link>
                 </Button>
             ) : null}
         </section>
@@ -94,112 +95,123 @@ export default function Wallet({
     activity,
     topupAvailable = false,
     depositFundingAvailable = false,
-    depositHasEnoughAvailable = false,
     withdrawalAvailable = false,
+    transferAvailable = false,
 }: Props) {
+    useClientTranslation();
     const activated = eligibility.wallet !== null && eligibility.available !== null;
-    const activityItems = activity.map((entry) => ({
-        id: entry.id,
-        title:
-            entry.eventType === 'WALLET_TOPUP_CREDIT'
-                ? 'Wallet top up'
-                : entry.eventType === 'SECURITY_DEPOSIT_FUND'
-                  ? 'Security deposit'
-                  : 'Wallet activity',
-        postedAt: entry.postedAt,
-        asset: entry.asset,
-        amount: entry.amount,
-        direction:
-            entry.eventType === 'WALLET_TOPUP_CREDIT'
-                ? ('CREDIT' as const)
-                : entry.eventType === 'SECURITY_DEPOSIT_FUND'
-                  ? ('DEBIT' as const)
-                  : ('NEUTRAL' as const),
-    }));
+    const operational =
+        eligibility.userStatus === 'ACTIVE' && eligibility.tenantStatus === 'ACTIVE';
+    const depositAvailable =
+        operational &&
+        eligibility.kycStatus === 'APPROVED' &&
+        eligibility.walletStatus === 'ACTIVE';
+    const activityItems = walletActivityItems(activity);
 
     return (
         <UserLayout>
-            <Head title="Wallet" />
+            <Head title={t('Asset activity')} />
             <div className="space-y-6 sm:space-y-8">
-                <UserPageHeader title="Wallet" backHref="/dashboard" />
                 {!activated ? (
-                    <InactiveWallet eligibility={eligibility} />
+                    <>
+                        <UserPageHeader title={t('Asset activity')} />
+                        <InactiveWallet eligibility={eligibility} />
+                    </>
                 ) : (
                     <>
-                        {eligibility.userStatus !== 'ACTIVE' ||
-                        eligibility.tenantStatus !== 'ACTIVE' ? (
+                        <div className="user-overview">
+                            <h1 className="sr-only">{t('Asset activity')}</h1>
+                            <UserBalanceHero
+                                amount={eligibility.available!.amount}
+                                asset={eligibility.available!.asset}
+                            />
+                            <UserWalletActions
+                                unavailableHref={
+                                    ['NOT_SUBMITTED', 'PENDING', 'RESUBMISSION_REQUIRED'].includes(
+                                        eligibility.kycStatus,
+                                    )
+                                        ? '/kyc'
+                                        : !eligibility.wallet &&
+                                            eligibility.kycStatus === 'APPROVED'
+                                          ? '/security-deposit'
+                                          : '/support'
+                                }
+                                topupAvailable={topupAvailable}
+                                withdrawalAvailable={withdrawalAvailable}
+                                transferAvailable={transferAvailable}
+                                depositAvailable={depositAvailable}
+                            />
+                        </div>
+                        {!operational ? (
                             <UserStatusBanner
                                 tone="warning"
-                                title="Wallet access is restricted"
-                                description="You can review your balance, but financial actions are unavailable."
+                                title={t('Wallet access is restricted')}
+                                description={t(
+                                    'You can review your balance, but financial actions are unavailable.',
+                                )}
                             />
                         ) : null}
-                        <UserBalanceHero
-                            amount={eligibility.available!.amount}
-                            asset={eligibility.available!.asset}
-                        />
-                        {topupAvailable || withdrawalAvailable ? (
-                            <UserQuickActions
-                                actions={[
-                                    ...(topupAvailable
-                                        ? [{ label: 'Top up', href: '/wallet/top-up', icon: Plus }]
-                                        : []),
-                                    ...(withdrawalAvailable
-                                        ? [
-                                              {
-                                                  label: 'Withdraw',
-                                                  href: '/wallet/withdraw',
-                                                  icon: ArrowUpRight,
-                                              },
-                                          ]
-                                        : []),
-                                ]}
-                            />
-                        ) : null}
-                        <UserSection title="Security deposit">
-                            <div className="rounded-[var(--user-radius-md)] border bg-surface px-5 py-5">
-                                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                                    <span className="text-2xl font-semibold">
-                                        <MoneyDisplay {...eligibility.depositCurrent} compact />
-                                    </span>
-                                    <span className="text-sm text-muted-foreground">
-                                        of <MoneyDisplay {...eligibility.depositRequired} compact />{' '}
-                                        required
-                                    </span>
+                        <section
+                            className="rounded-[var(--user-radius-lg)] bg-surface p-5 sm:p-7"
+                            aria-label={t('Security deposit')}
+                        >
+                            <div className="flex items-center gap-3">
+                                <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[var(--user-primary-soft)] text-primary">
+                                    <ShieldCheck className="size-5" aria-hidden="true" />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                    <h2 className="font-semibold">{t('Security deposit')}</h2>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        {eligibility.depositSatisfied
+                                            ? t('Requirement met')
+                                            : t('Complete your requirement to access cards')}
+                                    </p>
                                 </div>
-                                <p className="mt-3 text-sm font-medium text-muted-foreground">
-                                    {eligibility.depositSatisfied ? (
-                                        'Requirement met'
-                                    ) : (
-                                        <>
-                                            <MoneyDisplay
-                                                {...eligibility.depositRemaining}
-                                                compact
-                                            />{' '}
-                                            remaining
-                                        </>
-                                    )}
-                                </p>
-                                {depositFundingAvailable ? (
-                                    <Button asChild className="mt-5 w-full sm:w-auto">
-                                        <Link
-                                            href={
-                                                depositHasEnoughAvailable
-                                                    ? '/security-deposit'
-                                                    : '/wallet/top-up'
-                                            }
-                                        >
-                                            {depositHasEnoughAvailable
-                                                ? 'Pay security deposit'
-                                                : 'Top up wallet'}
-                                        </Link>
-                                    </Button>
+                                {depositAvailable ? (
+                                    <Link
+                                        href="/security-deposit"
+                                        aria-label={t('View security deposit')}
+                                        className="grid size-11 shrink-0 place-items-center rounded-full hover:bg-muted"
+                                    >
+                                        <ChevronRight className="size-5" />
+                                    </Link>
                                 ) : null}
                             </div>
-                        </UserSection>
-                        <UserSection title="Recent activity">
-                            <UserActivityList items={activityItems} />
-                        </UserSection>
+                            <div className="mt-5 grid grid-cols-2 gap-4 border-t pt-4 text-sm">
+                                <div>
+                                    <p className="text-xs text-muted-foreground">
+                                        {t('Already deposited')}
+                                    </p>
+                                    <p className="mt-1 break-all font-semibold">
+                                        <MoneyDisplay {...eligibility.depositCurrent} compact />
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-muted-foreground">{t('Required')}</p>
+                                    <p className="mt-1 break-all font-semibold">
+                                        <MoneyDisplay {...eligibility.depositRequired} compact />
+                                    </p>
+                                </div>
+                            </div>
+                            {!eligibility.depositSatisfied ? (
+                                <p className="mt-3 text-xs text-muted-foreground">
+                                    <span className="mr-2">{t('Remaining requirement')}</span>
+                                    <MoneyDisplay {...eligibility.depositRemaining} compact />
+                                </p>
+                            ) : null}
+                            {depositFundingAvailable ? (
+                                <Button asChild className="mt-5 w-full sm:w-auto">
+                                    <Link href="/security-deposit">
+                                        {t('Pay security deposit')}
+                                    </Link>
+                                </Button>
+                            ) : null}
+                        </section>
+                        <div className="rounded-[var(--user-radius-lg)] bg-surface px-5 pt-5 pb-2 sm:px-7">
+                            <UserSection title={t('Recent activity')}>
+                                <UserActivityList items={activityItems} />
+                            </UserSection>
+                        </div>
                     </>
                 )}
             </div>

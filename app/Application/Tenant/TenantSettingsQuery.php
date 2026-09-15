@@ -2,14 +2,16 @@
 
 namespace App\Application\Tenant;
 
+use App\Domain\Tenant\Models\PlatformKycSetting;
 use App\Domain\Tenant\Models\Tenant;
+use App\Domain\Tenant\Models\TenantArticle;
 
 final class TenantSettingsQuery
 {
     /** @return array<string, mixed> */
-    public function execute(Tenant $tenant): array
+    public function execute(Tenant $tenant, bool $includeArticles = false): array
     {
-        $tenant->loadMissing(['branding', 'locales', 'businessSettings', 'kycSettings', 'domains']);
+        $tenant->loadMissing(['branding', 'locales', 'businessSettings', 'domains']);
 
         return [
             'branding' => [
@@ -25,16 +27,15 @@ final class TenantSettingsQuery
             'business' => [
                 'depositAmount' => $tenant->businessSettings->required_security_deposit_amount,
                 'depositAsset' => $tenant->businessSettings->required_security_deposit_asset,
-                'allowWalletTopup' => $tenant->businessSettings->allow_wallet_topup,
-                'allowWithdrawal' => $tenant->businessSettings->allow_withdrawal,
+                'depositRefundWaitDays' => $tenant->businessSettings->security_deposit_refund_wait_days,
+                'withdrawalFixedFee' => $tenant->businessSettings->withdrawal_fixed_fee,
             ],
-            'kyc' => [
-                'enabled' => $tenant->kycSettings->enabled,
-                'maxAccountsPerIdentity' => $tenant->kycSettings->max_accounts_per_identity,
-                'reviewMode' => $tenant->kycSettings->review_mode->value,
-            ],
+            'kyc' => PlatformKycSetting::current()->policy(),
             'supportedLocales' => config('tenancy.supported_locales'),
             'supportedAssets' => config('tenancy.supported_assets'),
+            ...($includeArticles ? ['articles' => TenantArticle::query()->where('tenant_id', $tenant->id)
+                ->orderBy('article_key')->orderBy('locale')->get(['article_key', 'locale', 'body'])
+                ->map(fn (TenantArticle $article): array => ['key' => $article->article_key, 'locale' => $article->locale, 'body' => $article->body])->all()] : []),
         ];
     }
 }

@@ -28,6 +28,7 @@ final class WalletTopupOrder extends Model
             'blockchain_confirmed_at' => 'immutable_datetime',
             'paid_at' => 'immutable_datetime',
             'credited_at' => 'immutable_datetime',
+            'manual_confirmed_at' => 'immutable_datetime',
             'failed_at' => 'immutable_datetime',
             'cancelled_at' => 'immutable_datetime',
         ];
@@ -36,6 +37,9 @@ final class WalletTopupOrder extends Model
     protected static function booted(): void
     {
         self::updating(function (self $order): void {
+            if ($order->getOriginal('manual_confirmed_at') !== null && $order->isDirty(['manual_confirmed_at', 'manual_confirmed_by', 'manual_confirmation_request_id'])) {
+                throw new LogicException('Manual top-up confirmation is immutable.');
+            }
             if ($order->isDirty(['tenant_id', 'user_id', 'wallet_id', 'request_id', 'request_hash', 'asset_code', 'amount', 'payment_provider', 'payment_rail', 'requested_amount', 'expected_amount', 'identification_increment', 'network_code', 'deposit_address', 'token_contract', 'expires_at'])) {
                 throw new LogicException('Top-up order financial identity is immutable.');
             }

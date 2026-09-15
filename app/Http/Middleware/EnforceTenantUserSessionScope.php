@@ -19,10 +19,15 @@ final readonly class EnforceTenantUserSessionScope
         $guard = Auth::guard('tenant_user');
         $hasStoredIdentity = $request->hasSession() && $request->session()->has($guard->getName());
         $user = $guard->user();
+        // Pre-upgrade sessions are version zero, never silently promoted after revocation.
+        $storedVersion = $request->hasSession() ? $request->session()->get('tenant_user_session_version', 0) : 0;
+        $stale = $hasStoredIdentity && $user instanceof User
+            && (! is_int($storedVersion) || $storedVersion !== $user->session_version);
 
-        if (($hasStoredIdentity && ! $user instanceof User)
+        if ($stale || ($hasStoredIdentity && ! $user instanceof User)
             || ($user instanceof User && ($user->tenant_id !== $this->tenantContext->id() || $user->status === UserStatus::Disabled))) {
             $guard->logout();
+            $request->session()->forget(['tenant_user_session_version', 'contact_change_binding', 'contact_change_request']);
             $request->session()->regenerateToken();
         }
 

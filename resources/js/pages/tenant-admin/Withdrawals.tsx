@@ -1,3 +1,5 @@
+import { displayMoney, exactAmount } from '@/lib/exact-amount';
+import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, Link } from '@inertiajs/react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -16,6 +18,8 @@ type Order = {
     id: string;
     userId: string;
     amount: string;
+    feeAmount: string;
+    receiveAmount: string;
     asset: string;
     network: string;
     maskedAddress: string;
@@ -30,24 +34,27 @@ const tone = (status: string) =>
           : 'WARNING';
 
 export default function Withdrawals({ orders }: { orders: { data: Order[] } }) {
+    useAdminTranslation();
     return (
         <TenantAdminLayout>
-            <Head title="Withdrawals" />
+            <Head title={t('Withdrawals')} />
             <div className="space-y-6">
                 <PageHeader
-                    eyebrow="Wallet operations"
-                    title="Withdrawals"
-                    description="Review manual USDT transfers and verify them on-chain."
+                    eyebrow={t('Wallet operations')}
+                    title={t('Withdrawals')}
+                    description={t('Review manual USDT transfers and verify them on-chain.')}
                 />
                 <div className="overflow-x-auto rounded-xl border bg-surface">
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>User</TableHead>
-                                <TableHead>Amount</TableHead>
-                                <TableHead>TRC20 address</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Requested</TableHead>
+                                <TableHead>{t('User')}</TableHead>
+                                <TableHead>{t('Amount')}</TableHead>
+                                <TableHead>{t('Withdrawal fee')}</TableHead>
+                                <TableHead>{t('Amount to send')}</TableHead>
+                                <TableHead>{t('TRC20 address')}</TableHead>
+                                <TableHead>{t('Status')}</TableHead>
+                                <TableHead>{t('Requested')}</TableHead>
                                 <TableHead />
                             </TableRow>
                         </TableHeader>
@@ -58,22 +65,26 @@ export default function Withdrawals({ orders }: { orders: { data: Order[] } }) {
                                         {order.userId.slice(0, 8)}…
                                     </TableCell>
                                     <TableCell className="font-medium">
-                                        {order.amount} {order.asset}
+                                        {displayMoney(order.amount)} {order.asset}
+                                    </TableCell>
+                                    <TableCell>
+                                        {displayMoney(order.feeAmount)} {order.asset}
+                                    </TableCell>
+                                    <TableCell>
+                                        {exactAmount(order.receiveAmount)} {order.asset}
                                     </TableCell>
                                     <TableCell>{order.maskedAddress}</TableCell>
                                     <TableCell>
                                         <StatusBadge
                                             status={tone(order.status)}
-                                            label={order.status}
+                                            label={t(order.status)}
                                         />
                                     </TableCell>
-                                    <TableCell>
-                                        {new Date(order.requestedAt).toLocaleString()}
-                                    </TableCell>
+                                    <TableCell>{dateTime(order.requestedAt)}</TableCell>
                                     <TableCell>
                                         <Button asChild variant="ghost" size="sm">
                                             <Link href={`/admin/withdrawals/${order.id}`}>
-                                                Review
+                                                {t('Review')}
                                             </Link>
                                         </Button>
                                     </TableCell>

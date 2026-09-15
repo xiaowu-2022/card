@@ -1,3 +1,4 @@
+import { t, useClientTranslation, errorMessage } from '@/i18n';
 import { Head, useForm } from '@inertiajs/react';
 import { UserPageHeader } from '@/components/user/UserPageHeader';
 import { UserStatusBanner } from '@/components/user/UserStatusBanner';
@@ -6,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
+import { SearchSelect } from '@/components/ui/search-select';
+import { countryOptions, useCardGeography, type Country } from '@/hooks/useCardGeography';
 import { UserLayout } from '@/layouts/UserLayout';
 
 type KycStatus = 'NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESUBMISSION_REQUIRED';
@@ -20,6 +23,7 @@ type Props = {
     };
     canSubmit: boolean;
     maxDocumentMb: number;
+    backHref: '/account' | '/account/security';
 };
 
 const content = {
@@ -53,7 +57,10 @@ const content = {
     { title: string; description: string; tone: 'neutral' | 'pending' | 'success' | 'warning' }
 >;
 
-export default function Kyc({ kyc, canSubmit, maxDocumentMb }: Props) {
+export default function Kyc({ kyc, canSubmit, maxDocumentMb, backHref }: Props) {
+    const { i18n } = useClientTranslation();
+    const countries = useCardGeography<Country[]>('countries');
+    const countryItems = countryOptions(countries.data ?? [], i18n.language);
     const form = useForm<{
         document_country: string;
         identity_number: string;
@@ -64,15 +71,15 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb }: Props) {
     const state = content[kyc.status];
     return (
         <UserLayout>
-            <Head title="Identity verification" />
+            <Head title={t('Identity verification')} />
             <div className="mx-auto max-w-3xl space-y-6 sm:space-y-8">
-                <UserPageHeader title="Identity verification" backHref="/account" />
+                <UserPageHeader title={t('Identity verification')} backHref={backHref} />
                 <UserStatusBanner
-                    title={state.title}
+                    title={t(state.title)}
                     description={
                         kyc.reviewMessage && kyc.status === 'RESUBMISSION_REQUIRED'
                             ? kyc.reviewMessage
-                            : state.description
+                            : t(state.description)
                     }
                     tone={state.tone}
                 />
@@ -81,47 +88,70 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb }: Props) {
                         <CardHeader>
                             <CardTitle>
                                 {kyc.status === 'RESUBMISSION_REQUIRED'
-                                    ? 'Resubmit documents'
-                                    : 'Submit identity documents'}
+                                    ? t('Resubmit documents')
+                                    : t('Submit identity documents')}
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             {form.errors.form && (
                                 <Alert className="mb-5 border-red-200 bg-red-50">
-                                    <AlertDescription>{form.errors.form}</AlertDescription>
+                                    <AlertDescription>
+                                        {errorMessage(form.errors.form)}
+                                    </AlertDescription>
                                 </Alert>
                             )}
                             <form
                                 className="space-y-5"
                                 onSubmit={(event) => {
                                     event.preventDefault();
-                                    form.post('/kyc/applications', { forceFormData: true });
+                                    form.post(
+                                        backHref === '/account/security'
+                                            ? '/kyc/applications?from=account-security'
+                                            : '/kyc/applications',
+                                        { forceFormData: true },
+                                    );
                                 }}
                             >
                                 <FormField
                                     id="document-country"
-                                    label="Document country"
-                                    error={form.errors.document_country}
+                                    label={t('Document country')}
+                                    error={errorMessage(form.errors.document_country)}
                                 >
-                                    <Input
+                                    <SearchSelect
                                         id="document-country"
+                                        label={t('Document country')}
                                         value={form.data.document_country}
-                                        onChange={(event) =>
-                                            form.setData(
-                                                'document_country',
-                                                event.target.value.toUpperCase(),
-                                            )
-                                        }
-                                        maxLength={2}
-                                        autoComplete="country"
-                                        placeholder="MY"
+                                        options={countryItems}
+                                        placeholder={t('Please select')}
+                                        searchLabel={t('Search options')}
+                                        emptyLabel={t('No matching options')}
+                                        disabled={form.processing || !countryItems.length}
+                                        invalid={!!form.errors.document_country}
+                                        onValueChange={(value) => {
+                                            form.setData('document_country', value);
+                                            form.clearErrors('document_country');
+                                        }}
                                     />
+                                    {countries.failed && (
+                                        <div role="alert" className="text-sm text-destructive">
+                                            {t('Location options could not be loaded.')}{' '}
+                                            <button
+                                                type="button"
+                                                className="underline"
+                                                onClick={countries.retry}
+                                            >
+                                                {t('Try again')}
+                                            </button>
+                                        </div>
+                                    )}
                                 </FormField>
                                 <FormField
                                     id="identity-number"
-                                    label="Identity number"
-                                    description="Enter the number exactly as shown on your national identity document."
-                                    error={form.errors.identity_number}
+                                    label={t('Identity number')}
+                                    description={t(
+                                        'Enter the number exactly as shown on your national identity document.',
+                                    )}
+                                    error={errorMessage(form.errors.identity_number)}
                                 >
                                     <Input
                                         id="identity-number"
@@ -135,9 +165,11 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb }: Props) {
                                 <div className="grid gap-5 sm:grid-cols-2">
                                     <FormField
                                         id="id-front"
-                                        label="ID front"
-                                        description={`JPEG, PNG or WEBP · max ${maxDocumentMb} MB`}
-                                        error={form.errors.front}
+                                        label={t('ID front')}
+                                        description={t('JPEG, PNG or WEBP · max {{value1}} MB', {
+                                            value1: maxDocumentMb,
+                                        })}
+                                        error={errorMessage(form.errors.front)}
                                     >
                                         <Input
                                             id="id-front"
@@ -153,9 +185,11 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb }: Props) {
                                     </FormField>
                                     <FormField
                                         id="id-back"
-                                        label="ID back"
-                                        description={`JPEG, PNG or WEBP · max ${maxDocumentMb} MB`}
-                                        error={form.errors.back}
+                                        label={t('ID back')}
+                                        description={t('JPEG, PNG or WEBP · max {{value1}} MB', {
+                                            value1: maxDocumentMb,
+                                        })}
+                                        error={errorMessage(form.errors.back)}
                                     >
                                         <Input
                                             id="id-back"
@@ -170,8 +204,11 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb }: Props) {
                                         />
                                     </FormField>
                                 </div>
-                                <Button className="w-full sm:w-auto" disabled={form.processing}>
-                                    {form.processing ? 'Submitting…' : 'Submit for review'}
+                                <Button
+                                    className="w-full sm:w-auto"
+                                    disabled={form.processing || !countryItems.length}
+                                >
+                                    {form.processing ? t('Submitting…') : t('Submit for review')}
                                 </Button>
                             </form>
                         </CardContent>
@@ -181,8 +218,9 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb }: Props) {
                     (kyc.status === 'NOT_SUBMITTED' || kyc.status === 'RESUBMISSION_REQUIRED') && (
                         <Alert>
                             <AlertDescription>
-                                New submissions are currently unavailable. Your account or Tenant
-                                may be restricted, or KYC may be disabled.
+                                {t(
+                                    'New submissions are currently unavailable. Your account or Tenant may be restricted, or KYC may be disabled.',
+                                )}
                             </AlertDescription>
                         </Alert>
                     )}

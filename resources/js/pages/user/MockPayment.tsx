@@ -1,3 +1,4 @@
+import { t, useClientTranslation } from '@/i18n';
 import { Head, router } from '@inertiajs/react';
 import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
 import { UserPageHeader } from '@/components/user/UserPageHeader';
@@ -10,14 +11,17 @@ export default function MockPayment({
 }: {
     payment: { providerRequestId: string; amount: MoneyAmount; asset: string };
 }) {
+    useClientTranslation();
     return (
         <UserLayout>
-            <Head title="Mock payment" />
+            <Head title={t('Mock payment')} />
             <div className="space-y-6">
-                <UserPageHeader title="TEST / MOCK payment" backHref="/wallet/top-up" />
+                <UserPageHeader title={t('TEST / MOCK payment')} backHref="/wallet/top-up" />
                 <section className="rounded-[var(--user-radius-lg)] border border-warning/40 bg-surface p-6">
                     <p className="text-sm text-muted-foreground">
-                        Local development simulation only. No real payment details are collected.
+                        {t(
+                            'Local development simulation only. No real payment details are collected.',
+                        )}
                     </p>
                     <p className="mt-5 text-2xl font-semibold">
                         <MoneyDisplay amount={payment.amount} asset={payment.asset} compact />
@@ -28,7 +32,7 @@ export default function MockPayment({
                             router.post(`/__mock/payments/${payment.providerRequestId}/complete`)
                         }
                     >
-                        Simulate successful payment
+                        {t('Simulate successful payment')}
                     </Button>
                 </section>
             </div>

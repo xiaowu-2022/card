@@ -10,6 +10,7 @@ use App\Domain\CardProvider\DTOs\ProviderCardDTO;
 use App\Domain\CardProvider\DTOs\ProviderCardholderDTO;
 use App\Domain\CardProvider\DTOs\ProviderOperationDTO;
 use App\Domain\CardProvider\DTOs\ProviderSensitiveCardDTO;
+use App\Domain\CardProvider\DTOs\ProviderTransactionPageDTO;
 use App\Domain\CardProvider\Enums\ProviderCardholderReviewStatus;
 use App\Domain\CardProvider\Enums\ProviderOperationStatus;
 use App\Domain\CardProvider\Exceptions\ProviderAuthenticationException;
@@ -17,13 +18,24 @@ use App\Domain\CardProvider\Exceptions\ProviderRateLimitException;
 use App\Domain\CardProvider\Exceptions\ProviderRejectedException;
 use App\Domain\CardProvider\Exceptions\ProviderUnavailableException;
 use App\Domain\CardProvider\Exceptions\ProviderUnknownResultException;
+use App\Domain\CardProvider\ProviderReference;
+use App\Support\Logging\PhotonPayLog;
+use Brick\Math\BigDecimal;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use JsonException;
 
 final class PhotonPayCardProvider implements CardProviderInterface
 {
+    use PhotonPayCardManagement;
+
+    private ?string $accessToken = null;
+
+    private ?string $selectedScheme = null;
+
     public function __construct(
         private readonly string $baseUrl,
         private readonly string $appId,
@@ -34,6 +46,7 @@ final class PhotonPayCardProvider implements CardProviderInterface
         private readonly ?string $matrixAccount,
         private readonly int $timeoutSeconds,
         private readonly PhotonPayCardResponseNormalizer $cards,
+        private readonly bool $tokenAuthentication = false,
     ) {}
 
     public function name(): string
@@ -57,13 +70,13 @@ final class PhotonPayCardProvider implements CardProviderInterface
             'back',
         );
         $data = $this->post('/vcc/openApi/v4/addCardholder', $this->cardholderPayload($request, $front, $back));
-        $id = $this->requiredString($data['cardholderId'] ?? null);
 
-        return new ProviderCardholderDTO($id, ProviderCardholderReviewStatus::Pending, 'pending', 'pending');
+        return $this->addedCardholder($data);
     }
 
     public function updateCardholder(CardholderRequestDTO $request): ProviderCardholderDTO
     {
+        $this->assertLiveReference($request->providerCardholderId);
         if ($request->providerCardholderId === null) {
             throw new ProviderRejectedException('Provider Cardholder identity is missing.');
         }
@@ -76,16 +89,33 @@ final class PhotonPayCardProvider implements CardProviderInterface
         $payload = ['cardholderId' => $request->providerCardholderId] + $this->cardholderPayload($request, $front, $back);
         $data = $this->post('/vcc/openApi/v4/editCardholder', $payload);
 
-        return new ProviderCardholderDTO(
-            $this->requiredString($data['cardholderId'] ?? $request->providerCardholderId),
-            ProviderCardholderReviewStatus::Pending,
-            'pending',
-            'pending',
-        );
+        return $this->addedCardholder($data, $request->providerCardholderId);
+    }
+
+    /** @param array<string,mixed> $data */
+    private function addedCardholder(array $data, ?string $expectedId = null): ProviderCardholderDTO
+    {
+        $id = $this->requiredString($data['cardholderId'] ?? $expectedId);
+        if (ProviderReference::isTest($id)) {
+            throw new ProviderUnknownResultException('Provider returned an unusable Cardholder identity.');
+        }
+        if ($expectedId !== null && ! hash_equals($expectedId, $id)) {
+            throw new ProviderUnknownResultException('Provider Cardholder identity did not match.');
+        }
+        $status = strtolower(is_string($data['status'] ?? null) ? $data['status'] : '');
+        $review = strtolower(is_string($data['cardholderReviewStatus'] ?? null) ? $data['cardholderReviewStatus'] : '');
+        if (array_intersect([$status, $review], ['disabled', 'rejected', 'failed', 'modify'])) {
+            throw new ProviderRejectedException('Provider could not add this Cardholder.');
+        }
+
+        // READY means the add/edit operation succeeded with a usable identity, not a separate review approval.
+        // In particular, reviewStatus=pending in a successful add response does not create a local review step.
+        return new ProviderCardholderDTO($id, ProviderCardholderReviewStatus::Ready);
     }
 
     public function getCardholder(string $providerCardholderId): ProviderCardholderDTO
     {
+        $this->assertLiveReference($providerCardholderId);
         $data = $this->get('/vcc/openApi/v4/pagingVccCardholder', array_filter([
             'pageIndex' => 1,
             'pageSize' => 20,
@@ -103,10 +133,9 @@ final class PhotonPayCardProvider implements CardProviderInterface
         $reviewStatus = strtolower((string) ($row['cardholderReviewStatus'] ?? ''));
         $status = match (true) {
             $providerStatus === 'disabled' => ProviderCardholderReviewStatus::Disabled,
-            $reviewStatus === 'approved' && $providerStatus === 'normal' => ProviderCardholderReviewStatus::Ready,
             $reviewStatus === 'modify' || $providerStatus === 'modify' => ProviderCardholderReviewStatus::ActionRequired,
-            $reviewStatus === 'rejected' || $providerStatus === 'rejected' => ProviderCardholderReviewStatus::Rejected,
-            $reviewStatus === 'pending' || $providerStatus === 'pending' => ProviderCardholderReviewStatus::Pending,
+            in_array($reviewStatus, ['rejected', 'failed'], true) || in_array($providerStatus, ['rejected', 'failed'], true) => ProviderCardholderReviewStatus::Rejected,
+            in_array($providerStatus, ['normal', 'pending'], true) => ProviderCardholderReviewStatus::Ready,
             default => ProviderCardholderReviewStatus::Unknown,
         };
 
@@ -121,6 +150,8 @@ final class PhotonPayCardProvider implements CardProviderInterface
 
     public function productAvailable(string $providerProductReference, string $cardCurrency): bool
     {
+        $this->selectedScheme = null;
+        $this->assertLiveReference($providerProductReference);
         $data = $this->get('/vcc/openApi/v4/getCardBin', [
             'cardType' => 'recharge',
             'cardFormFactor' => 'virtual_card',
@@ -128,19 +159,31 @@ final class PhotonPayCardProvider implements CardProviderInterface
         ]);
 
         return collect(is_array($data) ? $data : [])->contains(function (mixed $row) use ($providerProductReference, $cardCurrency): bool {
-            if (! is_array($row) || ! hash_equals($providerProductReference, (string) ($row['cardBin'] ?? ''))
-                || strtoupper((string) ($row['cardCurrency'] ?? '')) !== strtoupper($cardCurrency)) {
+            if (! is_array($row) || ! hash_equals($providerProductReference, (string) ($row['cardBin'] ?? ''))) {
                 return false;
             }
+            foreach (['cardCurrency', 'cardType', 'cardFormFactor'] as $field) {
+                if (! is_string($row[$field] ?? null)) {
+                    return false;
+                }
+            }
+            $currencies = array_map('trim', explode(',', strtoupper($row['cardCurrency'])));
             $types = array_map('trim', explode(',', strtolower((string) ($row['cardType'] ?? ''))));
-            $factor = strtolower((string) ($row['cardFormFactor'] ?? 'virtual_card'));
+            $factors = array_map('trim', explode(',', strtolower($row['cardFormFactor'])));
 
-            return in_array('recharge', $types, true) && $factor === 'virtual_card';
+            $eligible = in_array(strtoupper($cardCurrency), $currencies, true)
+                && in_array('recharge', $types, true) && in_array('virtual_card', $factors, true);
+            if ($eligible && in_array($row['cardScheme'] ?? null, ['Discover', 'MasterCard'], true)) {
+                $this->selectedScheme = $row['cardScheme'];
+            }
+
+            return $eligible;
         });
     }
 
     public function issueCard(IssueCardRequestDTO $request): ProviderOperationDTO
     {
+        $this->assertLiveReference($request->holderReference);
         if (! $this->productAvailable($request->providerProductReference, $request->cardCurrency)) {
             throw new ProviderRejectedException('The configured card product is not available from the provider.');
         }
@@ -149,12 +192,13 @@ final class PhotonPayCardProvider implements CardProviderInterface
             'matrixAccount' => $this->matrixAccount,
             'accountId' => $this->accountId,
             'cardBin' => $request->providerProductReference,
+            'cardScheme' => $this->selectedScheme,
             'cardCurrency' => $request->cardCurrency,
             'cardType' => 'recharge',
             'cardFormFactor' => 'virtual_card',
             'cardholderId' => $request->holderReference,
             'requestId' => $request->idempotencyKey,
-            'arrivalAmount' => $request->initialLoadAmount,
+            'arrivalAmount' => (string) BigDecimal::of($request->initialLoadAmount)->toScale(2),
         ], fn (mixed $value): bool => $value !== null && $value !== ''));
         $returnedRequestId = is_string($data['requestId'] ?? null) ? trim($data['requestId']) : '';
         if ($returnedRequestId === '' || ! hash_equals($request->idempotencyKey, $returnedRequestId)) {
@@ -182,6 +226,7 @@ final class PhotonPayCardProvider implements CardProviderInterface
 
     public function queryOperation(string $providerOperationId): ProviderOperationDTO
     {
+        $this->assertLiveReference($providerOperationId);
         try {
             $data = $this->get('/vcc/openApi/v4/getRequestResult', array_filter([
                 'memberId' => $this->memberId,
@@ -209,8 +254,10 @@ final class PhotonPayCardProvider implements CardProviderInterface
 
     public function getCard(string $providerCardId): ProviderCardDTO
     {
-        $card = $this->cards->normalize($this->get('/vcc/openApi/v4/getCardDetail', ['cardId' => $providerCardId]));
-        if (! $card) {
+        $this->assertLiveReference($providerCardId);
+        $data = $this->get('/vcc/openApi/v4/getCardDetail', ['cardId' => $providerCardId]);
+        $card = $this->cards->normalize($data);
+        if (! $card || ! hash_equals($providerCardId, $card->providerCardId) || ! is_string($data['cardStatus'] ?? null) || $data['cardStatus'] === '') {
             throw new ProviderUnknownResultException('Provider Card details are not safely available.');
         }
 
@@ -219,27 +266,43 @@ final class PhotonPayCardProvider implements CardProviderInterface
 
     public function revealCard(string $providerCardId): ProviderSensitiveCardDTO
     {
-        throw new ProviderUnavailableException('Sensitive Card reveal is not available in this phase.');
+        $this->assertLiveReference($providerCardId);
+        $data = $this->managementCall('GET', '/vcc/openApi/v4/getCvv', ['cardId' => $providerCardId]);
+        $this->managementRequire(($data['cardId'] ?? null) === $providerCardId
+            && is_string($data['cardNo'] ?? null) && preg_match('/^[0-9]{12,19}$/', $data['cardNo']) === 1
+            && is_string($data['cvv'] ?? null) && preg_match('/^[0-9]{3,4}$/', $data['cvv']) === 1
+            && is_string($data['expirationDate'] ?? null) && preg_match('/^(0[1-9]|1[0-2])\/[0-9]{2}$/', $data['expirationDate']) === 1);
+
+        return new ProviderSensitiveCardDTO($data['cardNo'], $data['cvv'], false, $data['expirationDate']);
     }
 
     public function loadCard(string $providerCardId, string $amount, string $assetCode, string $idempotencyKey): ProviderOperationDTO
     {
-        throw new ProviderUnavailableException('Existing Card reload is not available in this phase.');
+        throw new ProviderUnavailableException('Reload requires a confirmed provider quotation.');
     }
 
     public function freezeCard(string $providerCardId, string $idempotencyKey): ProviderOperationDTO
     {
-        throw new ProviderUnavailableException('Card freeze is not available in this phase.');
+        $this->assertLiveReference($providerCardId);
+        $this->managementCall('POST', '/vcc/openApi/v4/freezeCard', ['cardId' => $providerCardId, 'requestId' => $idempotencyKey, 'status' => 'freeze'], allowEmpty: true);
+
+        return new ProviderOperationDTO($idempotencyKey, ProviderOperationStatus::Processing, $providerCardId);
     }
 
     public function unfreezeCard(string $providerCardId, string $idempotencyKey): ProviderOperationDTO
     {
-        throw new ProviderUnavailableException('Card unfreeze is not available in this phase.');
+        $this->assertLiveReference($providerCardId);
+        $this->managementCall('POST', '/vcc/openApi/v4/freezeCard', ['cardId' => $providerCardId, 'requestId' => $idempotencyKey, 'status' => 'unfreeze'], allowEmpty: true);
+
+        return new ProviderOperationDTO($idempotencyKey, ProviderOperationStatus::Processing, $providerCardId);
     }
 
     public function cancelCard(string $providerCardId, string $idempotencyKey): ProviderOperationDTO
     {
-        throw new ProviderUnavailableException('Card cancellation is not available in this phase.');
+        $this->assertLiveReference($providerCardId);
+        $this->managementCall('POST', '/vcc/openApi/v4/cancelCard', ['cardId' => $providerCardId], allowEmpty: true);
+
+        return new ProviderOperationDTO($idempotencyKey, ProviderOperationStatus::Processing, $providerCardId);
     }
 
     public function getBalance(string $providerCardId): ProviderBalanceDTO
@@ -254,7 +317,40 @@ final class PhotonPayCardProvider implements CardProviderInterface
 
     public function getTransactions(string $providerCardId): array
     {
-        throw new ProviderUnavailableException('Card transactions are not available in this phase.');
+        throw new ProviderUnavailableException('Use the paginated card transaction query.');
+    }
+
+    public function getTransactionPage(string $providerCardId, int $page, int $pageSize): ProviderTransactionPageDTO
+    {
+        return PhotonPayLog::run('request', ['method' => 'GET', 'endpoint' => '/vcc/openApi/v4/pagingVccTradeOrder', 'page' => $page, 'page_size' => $pageSize, 'connection_ref' => PhotonPayLog::reference($this->baseUrl."\0".$this->appId)], function (PhotonPayLog $trace) use ($providerCardId, $page, $pageSize): ProviderTransactionPageDTO {
+            $this->assertAvailable();
+            $this->assertLiveReference($providerCardId);
+            if (trim($providerCardId) === '' || $page < 1 || $page > 100000 || $pageSize < 1 || $pageSize > 100) {
+                throw new ProviderRejectedException('Invalid transaction query.');
+            }
+            try {
+                $response = Http::timeout($this->timeoutSeconds)->withHeaders($this->authorizationHeaders())
+                    ->get($this->url('/vcc/openApi/v4/pagingVccTradeOrder'), array_filter([
+                        'memberId' => $this->memberId, 'matrixAccount' => $this->matrixAccount,
+                        'cardId' => $providerCardId, 'cardType' => 'recharge', 'cardFormFactor' => 'virtual_card',
+                        'pageIndex' => $page, 'pageSize' => $pageSize,
+                    ], fn (mixed $value): bool => $value !== null && $value !== ''));
+                $trace->response($response);
+                $normalizer = new PhotonPayTransactionNormalizer;
+                $decoded = $normalizer->decode($response->body());
+                $this->validated($response, decoded: $decoded);
+
+                $verifiedCurrency = null;
+                if (collect($decoded['data'] ?? [])->contains(fn ($row) => is_array($row) && ! isset($row['cardCurrency']))) {
+                    $verifiedCurrency = $this->getCard($providerCardId)->assetCode;
+                }
+
+                return $normalizer->page($decoded, $providerCardId, $page, $pageSize, $verifiedCurrency);
+            } catch (ConnectionException|JsonException $failure) {
+                $trace->failedBecause($failure);
+                throw new ProviderUnknownResultException('Provider transactions could not be confirmed.');
+            }
+        });
     }
 
     /** @return array<string,mixed> */
@@ -279,56 +375,71 @@ final class PhotonPayCardProvider implements CardProviderInterface
             'residentialPostalCode' => $request->residentialPostalCode,
             'residentialState' => $request->residentialState,
             'certCountryCode' => $request->identityDocument->countryCode,
+            // Omitted when not supplied; never send a placeholder or derive an account identity number.
             'certId' => $request->identityDocument->identityNumber,
         ], fn (mixed $value): bool => $value !== null && $value !== '');
     }
 
     private function uploadDocument(string $contents, string $mimeType, string $side): string
     {
-        $this->assertAvailable();
-        try {
-            $response = Http::timeout($this->timeoutSeconds)
-                ->withHeaders($this->authorizationHeaders())
-                ->attach('file', $contents, "identity-{$side}.".($mimeType === 'image/png' ? 'png' : 'jpg'))
-                ->post($this->url('/file/apiUpload/issuing_cardholder_identity_certificate'));
-        } catch (ConnectionException) {
-            throw new ProviderUnknownResultException('Provider document upload outcome is unknown.');
-        }
-        $data = $this->validated($response, false);
+        return PhotonPayLog::run('request', ['method' => 'POST', 'endpoint' => '/file/apiUpload/issuing_cardholder_identity_certificate', 'connection_ref' => PhotonPayLog::reference($this->baseUrl."\0".$this->appId)], function (PhotonPayLog $trace) use ($contents, $mimeType, $side): string {
+            $this->assertAvailable();
+            try {
+                $response = Http::timeout($this->timeoutSeconds)
+                    ->withHeaders($this->authorizationHeaders())
+                    ->attach('file', $contents, "identity-{$side}.".($mimeType === 'image/png' ? 'png' : 'jpg'))
+                    ->post($this->url('/file/apiUpload/issuing_cardholder_identity_certificate'));
+            } catch (ConnectionException $failure) {
+                $trace->failedBecause($failure);
+                throw new ProviderUnknownResultException('Provider document upload outcome is unknown.');
+            }
+            $trace->response($response);
+            $data = $this->validated($response, false);
 
-        return $this->requiredString($data);
+            return $this->requiredString($data);
+        });
     }
 
     /** @param array<string,mixed> $payload @return array<string,mixed> */
     private function post(string $path, array $payload): array
     {
-        $this->assertAvailable();
-        try {
-            $json = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
-            $response = Http::timeout($this->timeoutSeconds)
-                ->withHeaders($this->authorizationHeaders($json))
-                ->withBody($json, 'application/json')
-                ->post($this->url($path));
-        } catch (ConnectionException|JsonException) {
-            throw new ProviderUnknownResultException('Provider request outcome is unknown.');
-        }
+        return PhotonPayLog::run('request', ['method' => 'POST', 'endpoint' => $path, 'provider_request_ref' => PhotonPayLog::reference(isset($payload['requestId']) && is_string($payload['requestId']) ? $payload['requestId'] : null), 'connection_ref' => PhotonPayLog::reference($this->baseUrl."\0".$this->appId)], function (PhotonPayLog $trace) use ($path, $payload): array {
+            $this->assertAvailable();
+            try {
+                $json = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+                $response = Http::timeout($this->timeoutSeconds)
+                    ->withHeaders($this->authorizationHeaders($json))
+                    ->withBody($json, 'application/json')
+                    ->post($this->url($path));
+            } catch (ConnectionException|JsonException $failure) {
+                $trace->failedBecause($failure);
+                throw new ProviderUnknownResultException('Provider request outcome is unknown.');
+            }
 
-        return $this->validated($response);
+            $trace->response($response);
+
+            return $this->validated($response);
+        });
     }
 
     /** @param array<string,mixed> $query @return array<string,mixed> */
     private function get(string $path, array $query): array
     {
-        $this->assertAvailable();
-        try {
-            $response = Http::timeout($this->timeoutSeconds)
-                ->withHeaders($this->authorizationHeaders())
-                ->get($this->url($path), $query);
-        } catch (ConnectionException) {
-            throw new ProviderUnknownResultException('Provider query outcome is unknown.');
-        }
+        return PhotonPayLog::run('request', ['method' => 'GET', 'endpoint' => $path, 'provider_request_ref' => PhotonPayLog::reference(isset($query['requestId']) && is_string($query['requestId']) ? $query['requestId'] : null), 'connection_ref' => PhotonPayLog::reference($this->baseUrl."\0".$this->appId)], function (PhotonPayLog $trace) use ($path, $query): array {
+            $this->assertAvailable();
+            try {
+                $response = Http::timeout($this->timeoutSeconds)
+                    ->withHeaders($this->authorizationHeaders())
+                    ->get($this->url($path), $query);
+            } catch (ConnectionException $failure) {
+                $trace->failedBecause($failure);
+                throw new ProviderUnknownResultException('Provider query outcome is unknown.');
+            }
 
-        return $this->validated($response);
+            $trace->response($response);
+
+            return $this->validated($response);
+        });
     }
 
     /** @return array<string,string> */
@@ -338,6 +449,43 @@ final class PhotonPayCardProvider implements CardProviderInterface
             'Accept' => 'application/json',
             'X-PD-AUTHORIZATION' => 'basic '.base64_encode($this->appId.'/'.$this->appSecret),
         ];
+        if ($this->tokenAuthentication) {
+            if ($this->accessToken === null) {
+                $this->accessToken = PhotonPayLog::run('token', ['method' => 'POST', 'endpoint' => '/oauth2/token/accessToken', 'connection_ref' => PhotonPayLog::reference($this->baseUrl."\0".$this->appId)], function (PhotonPayLog $trace): string {
+                    $cache = Cache::store(app()->environment('testing') ? 'array' : 'file');
+                    $key = 'photonpay-issuing-token:'.hash('sha256', $this->baseUrl."\0".$this->appId."\0".$this->appSecret);
+                    $encrypted = $cache->lock($key.':lock', 30)->block(5, function () use ($cache, $key, $trace): string {
+                        $saved = $cache->get($key);
+                        if (is_string($saved)) {
+                            $trace->cacheHit();
+
+                            return $saved;
+                        }
+                        $response = Http::connectTimeout(5)->timeout($this->timeoutSeconds)->withoutRedirecting()
+                            ->withHeaders(['Authorization' => 'basic '.base64_encode($this->appId.'/'.$this->appSecret)])
+                            ->withBody('', 'application/json')->post($this->url('/oauth2/token/accessToken'));
+                        $trace->response($response);
+                        $auth = $this->validated($response);
+                        $expiry = $auth['expiresIn'] ?? null;
+                        if (! is_string($expiry) || ! ctype_digit($expiry) || strlen($expiry) > 13) {
+                            throw new ProviderAuthenticationException('Token expiry unavailable.');
+                        }
+                        $ttl = min(600, intdiv((int) $expiry, 1000) - time() - 30);
+                        if ($ttl <= 0) {
+                            throw new ProviderAuthenticationException('Token expired.');
+                        }
+                        $saved = Crypt::encryptString($this->requiredString($auth['token'] ?? null));
+                        $cache->put($key, $saved, $ttl);
+
+                        return $saved;
+                    });
+
+                    return Crypt::decryptString($encrypted);
+                });
+            }
+            unset($headers['X-PD-AUTHORIZATION']);
+            $headers['X-PD-TOKEN'] = $this->accessToken;
+        }
         if ($body !== null && $body !== '') {
             $signature = '';
             $signed = openssl_sign($body, $signature, $this->normalizedPrivateKey(), OPENSSL_ALGO_MD5);
@@ -351,7 +499,7 @@ final class PhotonPayCardProvider implements CardProviderInterface
     }
 
     /** @return array<string,mixed> */
-    private function validated(Response $response, bool $expectArray = true): array|string
+    private function validated(Response $response, bool $expectArray = true, ?array $decoded = null): array|string
     {
         if ($response->status() === 429) {
             throw new ProviderRateLimitException('Provider rate limit reached.');
@@ -362,12 +510,15 @@ final class PhotonPayCardProvider implements CardProviderInterface
         if ($response->serverError()) {
             throw new ProviderUnknownResultException('Provider response outcome is unknown.');
         }
-        $json = $response->json();
+        $json = $decoded ?? (new PhotonPayTransactionNormalizer)->decode($response->body());
         if (! is_array($json) || ! isset($json['code'])) {
             throw new ProviderUnknownResultException('Provider returned an unrecognized response.');
         }
         if ((string) $json['code'] !== '0000') {
             throw new ProviderRejectedException('Provider rejected the request.');
+        }
+        if (! $response->successful()) {
+            throw new ProviderUnknownResultException('Provider returned an inconsistent response.');
         }
         $data = $json['data'] ?? null;
         if ($expectArray && ! is_array($data)) {
@@ -387,6 +538,13 @@ final class PhotonPayCardProvider implements CardProviderInterface
         }
 
         return trim($value);
+    }
+
+    private function assertLiveReference(?string $reference): void
+    {
+        if (ProviderReference::isTest($reference)) {
+            throw new ProviderUnavailableException('Test references cannot be used with PhotonPay.');
+        }
     }
 
     private function assertAvailable(): void

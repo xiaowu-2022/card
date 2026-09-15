@@ -20,6 +20,8 @@ final class WithdrawalOrder extends Model
         return [
             'status' => WithdrawalStatus::class,
             'amount' => 'decimal:8',
+            'fee_amount' => 'decimal:8',
+            'receive_amount' => 'decimal:8',
             'requested_at' => 'immutable_datetime',
             'reviewed_at' => 'immutable_datetime',
             'blockchain_confirmed_at' => 'immutable_datetime',
@@ -29,7 +31,7 @@ final class WithdrawalOrder extends Model
     protected static function booted(): void
     {
         self::updating(function (self $order): void {
-            if ($order->isDirty(['tenant_id', 'user_id', 'wallet_id', 'withdrawal_destination_id', 'request_id', 'request_hash', 'asset_code', 'network_code', 'amount', 'requested_at'])) {
+            if ($order->isDirty(['tenant_id', 'user_id', 'wallet_id', 'withdrawal_destination_id', 'request_id', 'request_hash', 'asset_code', 'network_code', 'amount', 'fee_amount', 'receive_amount', 'requested_at'])) {
                 throw new LogicException('Withdrawal financial identity is immutable.');
             }
             if ($order->getOriginal('status') === WithdrawalStatus::Succeeded->value && $order->isDirty()) {

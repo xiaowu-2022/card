@@ -4,7 +4,7 @@ use App\Application\Kyc\ApproveKycAction;
 use App\Application\Kyc\RejectKycAction;
 use App\Application\Kyc\RequireKycResubmissionAction;
 use App\Application\Kyc\SubmitKycApplicationAction;
-use App\Application\Tenant\UpdateTenantKycSettingsAction;
+use App\Application\Tenant\UpdatePlatformKycSettingsAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Audit\Models\AuditLog;
 use App\Domain\Kyc\Enums\KycReviewReason;
@@ -14,7 +14,9 @@ use App\Domain\Kyc\Models\IdentityRecord;
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Kyc\Services\IdentityHashGenerator;
 use App\Domain\Kyc\Services\KycStatusService;
+use App\Domain\Tenant\Enums\KycReviewMode;
 use App\Domain\Tenant\Enums\TenantStatus;
+use App\Domain\Tenant\Models\PlatformKycSetting;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Enums\UserStatus;
 use App\Domain\User\Models\User;
@@ -188,16 +190,16 @@ it('locks the same KYC settings row in settings changes and approvals', function
     DB::listen(function ($query) use (&$queries): void {
         $queries[] = strtolower($query->sql);
     });
-    app(UpdateTenantKycSettingsAction::class)->execute($this->tenant, true, 2, $this->reviewer);
+    app(UpdatePlatformKycSettingsAction::class)->execute(true, 2, KycReviewMode::Manual, false, AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
     $application = submitReviewableKyc($this, $this->user, 'SETTINGS-LOCK-ID');
     app(ApproveKycAction::class)->execute($this->tenant->id, $application->id, $this->reviewer);
 
-    expect(collect($queries)->filter(fn (string $sql): bool => str_contains($sql, 'tenant_kyc_settings') && str_contains($sql, 'for update'))->count())->toBeGreaterThanOrEqual(2);
+    expect(collect($queries)->filter(fn (string $sql): bool => str_contains($sql, 'platform_kyc_settings') && str_contains($sql, 'for update'))->count())->toBeGreaterThanOrEqual(2);
 });
 
 it('allows pending cleanup review while KYC or tenant submissions are suspended', function (): void {
     $application = submitReviewableKyc($this, $this->user, 'PENDING-CLEANUP');
-    $this->tenant->kycSettings()->update(['enabled' => false]);
+    PlatformKycSetting::current()->update(['enabled' => false]);
     $this->tenant->update(['status' => TenantStatus::Suspended]);
 
     $this->actingAs($this->reviewer, 'tenant_admin')->post("http://a.localhost/admin/kyc/{$application->id}/approve")->assertRedirect();
@@ -225,13 +227,13 @@ it('rejects HTML in reviewer messages and renders messages as text only', functi
 });
 
 it('does not invalidate existing identities when the tenant lowers its limit', function (): void {
-    $this->tenant->kycSettings()->update(['max_accounts_per_identity' => 2]);
+    PlatformKycSetting::current()->update(['max_accounts_per_identity' => 2]);
     $other = makePhaseThreeUser($this->tenant, 'second@a.localhost');
     foreach ([[$this->user, 'LIMIT-ID'], [$other, 'LIMIT-ID']] as [$user, $identity]) {
         $application = submitReviewableKyc($this, $user, $identity);
         app(ApproveKycAction::class)->execute($this->tenant->id, $application->id, $this->reviewer);
     }
-    $this->tenant->kycSettings()->update(['max_accounts_per_identity' => 1]);
+    PlatformKycSetting::current()->update(['max_accounts_per_identity' => 1]);
     expect(IdentityRecord::query()->where('tenant_id', $this->tenant->id)->count())->toBe(2);
 });
 

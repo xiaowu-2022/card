@@ -1,5 +1,14 @@
 # Architecture
 
+The authorized [Promotion and guarantee lifecycle stage](PROMOTION_REQUIREMENTS.md)
+adds tenant-owned invitations/levels, company-funded integer differential rewards,
+manual commission-to-Wallet transfer, initial automatic guarantee allocation and
+checked user guarantee refunds. This supersedes the historical exclusions below
+only for these implemented contracts; no writable company balance or direct
+commission withdrawal is introduced.
+
+2026-09-11 authorized extension: [Card management](CARD_MANAGEMENT.md) supersedes historical Phase 10 exclusions only for the existing PhotonPay regular virtual USD product. It adds scoped management orders, a verified notification inbox, and safe transaction read models; all Ledger, tenant and sensitive-data safety rules remain in force.
+
 ## Shape
 
 The platform is one Laravel 13 application, one React 19/Inertia 3 frontend, one PostgreSQL 18 database, and one Redis service. It is a pragmatic modular monolith: `Application` orchestrates use cases, `Domain` owns rules/contracts, `Infrastructure` adapts storage and third parties, and `Http` translates requests and responses. Controllers remain thin.
@@ -36,8 +45,14 @@ Phase 5.1 hardens that boundary without adding a new capability. CREDITED is dat
 
 Phase 7 introduces a separate Withdrawal Domain for one fixed USDT-TRC20 rail. An idempotent Order creation transaction writes the Order and exact available-to-hold Ledger event. Approval is non-financial. Manual external sending is followed by `BlockchainGatewayInterface` verification outside database transactions; exact confirmed evidence alone settles hold to Tenant withdrawal clearing. Cancellation/rejection release the exact hold. Full destinations use dedicated encryption/HMAC keys and are masked unless an authorized recently authenticated Tenant Admin explicitly reveals one. The Mock verifier is local/testing only.
 
-Phase 10 adds the Cardholder-to-initial-issue saga. The approved KYC identity remains separate from Provider review and is reused only in memory/private backend upload. A READY Provider Cardholder permits one locked, idempotent Issue Order to reserve a Tenant opening fee and User-selected initial funding independently, commit, call PhotonPay, then settle or release in a new transaction. UNKNOWN retains holds and queries the same Provider request identity. Only a trusted success creates a safe masked `UserCard`; Provider balance remains Provider truth.
+Phase 10 adds the Cardholder-to-initial-issue saga. Account KYC remains an eligibility check separate from confirmed Provider Cardholder addition; no separate holder-review step is presented. The approved per-card revision (`PER_CARD_MATERIALS.md`) collects independent holder materials for every new card, permits different holders, and never reuses account identity documents. A READY Provider Cardholder permits one locked, idempotent Issue Order to reserve a Tenant opening fee and User-selected initial funding independently, commit, call PhotonPay, then settle or release in a new transaction. UNKNOWN retains holds and queries the same Provider request identity. Only a trusted success creates a safe masked `UserCard`; Provider balance remains Provider truth.
 
 ## Current phase boundary
 
-The project stops after PhotonPay Cardholder setup and initial issuance of the regular virtual USD product. Existing-card reload, reveal, freeze/unfreeze, cancellation, Card transactions, Security Deposit refund, Provider webhooks, agents, commission, and SaaS billing remain outside the current boundary.
+The effective scope is indexed in [CURRENT_CAPABILITIES.md](CURRENT_CAPABILITIES.md).
+Initial issuance is extended by the approved Card management, Promotion/guarantee,
+same-company transfer, support chat and account-information contracts. Their scoped
+financial operations and verified notifications are not prohibited by historical
+Phase 10 exclusions. Physical cards, local FX, cross-company transfers, automated
+custodial payout, generic financial overrides and SaaS billing are not enabled by
+these extensions. See [HARDENING_PLAN.md](HARDENING_PLAN.md) for pending acceptance work.

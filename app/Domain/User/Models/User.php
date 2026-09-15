@@ -15,11 +15,12 @@ final class User extends Authenticatable
 
     protected $guarded = [];
 
-    protected $hidden = ['password_hash'];
+    protected $hidden = ['password_hash', 'session_version'];
 
     protected function casts(): array
     {
         return [
+            'session_version' => 'integer',
             'password_hash' => 'hashed',
             'status' => UserStatus::class,
             'email_verified_at' => 'immutable_datetime',

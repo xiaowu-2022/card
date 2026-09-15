@@ -11,5 +11,6 @@ final readonly class CreatedRegistrationChallenge
         public ?string $rawCode,
         public bool $existingAccount = false,
         public bool $reusedVerified = false,
+        public bool $deliveryUncertain = false,
     ) {}
 }

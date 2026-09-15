@@ -1,3 +1,4 @@
+import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, Link } from '@inertiajs/react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -25,31 +26,32 @@ type UserSummary = {
 type Props = { users: { data: UserSummary[]; current_page: number; last_page: number } };
 
 export default function Users({ users }: Props) {
+    useAdminTranslation();
     return (
         <TenantAdminLayout>
-            <Head title="Users" />
+            <Head title={t('Users')} />
             <div className="space-y-6">
                 <PageHeader
-                    eyebrow="Directory"
-                    title="Users"
-                    description="Tenant-scoped end-user identities and account status."
+                    eyebrow={t('Directory')}
+                    title={t('Users')}
+                    description={t('Tenant-scoped end-user identities and account status.')}
                 />
                 <Card>
                     <CardContent className="p-0">
                         {users.data.length === 0 ? (
                             <p className="p-8 text-center text-sm text-muted-foreground">
-                                No registered users yet.
+                                {t('No registered users yet.')}
                             </p>
                         ) : (
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>User</TableHead>
-                                        <TableHead>Contact</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead>Verified</TableHead>
-                                        <TableHead>Created</TableHead>
-                                        <TableHead>Last login</TableHead>
+                                        <TableHead>{t('User')}</TableHead>
+                                        <TableHead>{t('Contact')}</TableHead>
+                                        <TableHead>{t('Status')}</TableHead>
+                                        <TableHead>{t('Verified')}</TableHead>
+                                        <TableHead>{t('Created')}</TableHead>
+                                        <TableHead>{t('Last login')}</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -60,7 +62,7 @@ export default function Users({ users }: Props) {
                                                     className="font-semibold text-primary"
                                                     href={`/admin/users/${user.id}`}
                                                 >
-                                                    {user.displayName ?? 'Unnamed user'}
+                                                    {user.displayName ?? t('Unnamed user')}
                                                 </Link>
                                             </TableCell>
                                             <TableCell>{user.email ?? user.phone}</TableCell>
@@ -73,17 +75,15 @@ export default function Users({ users }: Props) {
                                                               ? 'WARNING'
                                                               : 'DANGER'
                                                     }
-                                                    label={user.status}
+                                                    label={t(user.status)}
                                                 />
                                             </TableCell>
-                                            <TableCell>{user.verifiedChannel}</TableCell>
-                                            <TableCell>
-                                                {new Date(user.createdAt).toLocaleDateString()}
-                                            </TableCell>
+                                            <TableCell>{t(user.verifiedChannel)}</TableCell>
+                                            <TableCell>{dateTime(user.createdAt)}</TableCell>
                                             <TableCell>
                                                 {user.lastLoginAt
-                                                    ? new Date(user.lastLoginAt).toLocaleString()
-                                                    : 'Never'}
+                                                    ? dateTime(user.lastLoginAt)
+                                                    : t('Never')}
                                             </TableCell>
                                         </TableRow>
                                     ))}

@@ -1,3 +1,5 @@
+import { displayMoney, exactAmount } from '@/lib/exact-amount';
+import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
 import { Head, router, useForm } from '@inertiajs/react';
 import { Eye, LockKeyhole } from 'lucide-react';
 import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
@@ -9,11 +11,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { TenantAdminLayout } from '@/layouts/TenantAdminLayout';
+import {
+    ManualOperationHistory,
+    type ManualOperation,
+} from '@/components/admin/ManualOperationHistory';
 
 type Order = {
+    manualOperations: ManualOperation[];
     id: string;
     userId: string;
     amount: string;
+    feeAmount: string;
+    receiveAmount: string;
     asset: string;
     network: string;
     maskedAddress: string;
@@ -37,6 +46,7 @@ export default function WithdrawalDetail({
     revealedAddress: string | null;
     verificationAvailable: boolean;
 }) {
+    useAdminTranslation();
     const recent = useForm<{ password: string; form?: string }>({ password: '', form: undefined });
     const reject = useForm<{ reason: string; form?: string }>({ reason: '', form: undefined });
     const verify = useForm<{ tx_hash: string; form?: string }>({
@@ -46,17 +56,22 @@ export default function WithdrawalDetail({
     const canReject = ['PENDING', 'APPROVED'].includes(order.status) && !order.txHash;
     return (
         <TenantAdminLayout>
-            <Head title="Withdrawal review" />
+            <Head title={t('Withdrawal review')} />
             <div className="space-y-6">
                 <PageHeader
-                    eyebrow="Withdrawal"
-                    title={`${order.amount} ${order.asset}`}
-                    description={`USDT (${order.network}) manual transfer`}
+                    eyebrow={t('Withdrawal')}
+                    title={t('{{value1}} {{value2}}', {
+                        value1: displayMoney(order.amount),
+                        value2: order.asset,
+                    })}
+                    description={t('USDT ({{value1}}) manual transfer', { value1: order.network })}
                 />
                 {recent.errors.form || reject.errors.form || verify.errors.form ? (
                     <Alert className="border-red-200 bg-red-50">
                         <AlertDescription>
-                            {recent.errors.form ?? reject.errors.form ?? verify.errors.form}
+                            {errorMessage(recent.errors.form) ??
+                                errorMessage(reject.errors.form) ??
+                                errorMessage(verify.errors.form)}
                         </AlertDescription>
                     </Alert>
                 ) : null}
@@ -64,11 +79,11 @@ export default function WithdrawalDetail({
                     <div className="space-y-6">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Transfer details</CardTitle>
+                                <CardTitle>{t('Transfer details')}</CardTitle>
                             </CardHeader>
                             <CardContent className="grid gap-5 sm:grid-cols-2">
                                 <Info
-                                    label="Amount"
+                                    label={t('Amount')}
                                     value={
                                         <MoneyDisplay
                                             amount={order.amount}
@@ -77,13 +92,21 @@ export default function WithdrawalDetail({
                                         />
                                     }
                                 />
-                                <Info label="Network" value="TRC20" />
+                                <Info label={t('Network')} value="TRC20" />
                                 <Info
-                                    label="Destination"
+                                    label={t('Withdrawal fee')}
+                                    value={`${displayMoney(order.feeAmount)} USDT`}
+                                />
+                                <Info
+                                    label={t('Amount to send')}
+                                    value={`${exactAmount(order.receiveAmount)} USDT`}
+                                />
+                                <Info
+                                    label={t('Destination')}
                                     value={revealedAddress ?? order.maskedAddress}
                                 />
                                 <Info
-                                    label="Status"
+                                    label={t('Status')}
                                     value={
                                         <StatusBadge
                                             status={
@@ -95,7 +118,7 @@ export default function WithdrawalDetail({
                                                       ? 'DANGER'
                                                       : 'WARNING'
                                             }
-                                            label={order.status}
+                                            label={t(order.status)}
                                         />
                                     }
                                 />
@@ -103,7 +126,7 @@ export default function WithdrawalDetail({
                         </Card>
                         <Card>
                             <CardHeader>
-                                <CardTitle>Withdrawal address</CardTitle>
+                                <CardTitle>{t('Withdrawal address')}</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 {!recentlyAuthenticated ? (
@@ -119,14 +142,15 @@ export default function WithdrawalDetail({
                                         <Alert>
                                             <LockKeyhole className="size-4" />
                                             <AlertDescription>
-                                                Confirm your administrator password before revealing
-                                                the full transfer address.
+                                                {t(
+                                                    'Confirm your administrator password before revealing the full transfer address.',
+                                                )}
                                             </AlertDescription>
                                         </Alert>
                                         <FormField
                                             id="withdrawal-password"
-                                            label="Password"
-                                            error={recent.errors.password}
+                                            label={t('Password')}
+                                            error={errorMessage(recent.errors.password)}
                                         >
                                             <Input
                                                 id="withdrawal-password"
@@ -138,7 +162,7 @@ export default function WithdrawalDetail({
                                                 autoComplete="current-password"
                                             />
                                         </FormField>
-                                        <Button>Confirm identity</Button>
+                                        <Button>{t('Confirm identity')}</Button>
                                     </form>
                                 ) : revealedAddress ? (
                                     <p className="break-all rounded-lg bg-muted p-4 font-mono text-sm">
@@ -151,7 +175,7 @@ export default function WithdrawalDetail({
                                         }
                                     >
                                         <Eye className="mr-2 size-4" />
-                                        Reveal withdrawal address
+                                        {t('Reveal withdrawal address')}
                                     </Button>
                                 )}
                             </CardContent>
@@ -160,9 +184,19 @@ export default function WithdrawalDetail({
                     <div className="space-y-6">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Manual review</CardTitle>
+                                <CardTitle>{t('Manual review')}</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-5">
+                                {['PENDING', 'APPROVED', 'VERIFYING'].includes(order.status) && (
+                                    <Alert>
+                                        <AlertDescription>
+                                            {t(
+                                                'Send exactly {{amount}} USDT after approval. The fee is already deducted.',
+                                                { amount: exactAmount(order.receiveAmount) },
+                                            )}
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
                                 {order.status === 'PENDING' ? (
                                     <Button
                                         className="w-full"
@@ -170,7 +204,7 @@ export default function WithdrawalDetail({
                                             router.post(`/admin/withdrawals/${order.id}/approve`)
                                         }
                                     >
-                                        Approve withdrawal
+                                        {t('Approve withdrawal')}
                                     </Button>
                                 ) : null}
                                 {canReject ? (
@@ -183,8 +217,8 @@ export default function WithdrawalDetail({
                                     >
                                         <FormField
                                             id="reject-reason"
-                                            label="Rejection reason"
-                                            error={reject.errors.reason}
+                                            label={t('Rejection reason')}
+                                            error={errorMessage(reject.errors.reason)}
                                         >
                                             <Input
                                                 id="reject-reason"
@@ -195,7 +229,7 @@ export default function WithdrawalDetail({
                                             />
                                         </FormField>
                                         <Button className="w-full" variant="destructive">
-                                            Reject and return hold
+                                            {t('Reject and return hold')}
                                         </Button>
                                     </form>
                                 ) : null}
@@ -209,8 +243,8 @@ export default function WithdrawalDetail({
                                     >
                                         <FormField
                                             id="tx-hash"
-                                            label="TRON transaction hash"
-                                            error={verify.errors.tx_hash}
+                                            label={t('TRON transaction hash')}
+                                            error={errorMessage(verify.errors.tx_hash)}
                                         >
                                             <Input
                                                 id="tx-hash"
@@ -224,11 +258,14 @@ export default function WithdrawalDetail({
                                         {order.lastVerificationFailure ? (
                                             <Alert>
                                                 <AlertDescription>
-                                                    Verification did not match:{' '}
-                                                    {order.lastVerificationFailure
-                                                        .replaceAll('_', ' ')
-                                                        .toLowerCase()}
-                                                    .
+                                                    {t(
+                                                        'Verification did not match:  {{value1}} .',
+                                                        {
+                                                            value1: t(
+                                                                order.lastVerificationFailure,
+                                                            ),
+                                                        },
+                                                    )}
                                                 </AlertDescription>
                                             </Alert>
                                         ) : null}
@@ -237,13 +274,14 @@ export default function WithdrawalDetail({
                                             disabled={!verificationAvailable || verify.processing}
                                         >
                                             {order.status === 'VERIFYING'
-                                                ? 'Verify again'
-                                                : 'Submit and verify Tx Hash'}
+                                                ? t('Verify again')
+                                                : t('Submit and verify Tx Hash')}
                                         </Button>
                                         {!verificationAvailable ? (
                                             <p className="text-sm text-muted-foreground">
-                                                Blockchain verification is unavailable in this
-                                                environment.
+                                                {t(
+                                                    'Blockchain verification is unavailable in this environment.',
+                                                )}
                                             </p>
                                         ) : null}
                                     </form>
@@ -252,15 +290,17 @@ export default function WithdrawalDetail({
                         </Card>
                     </div>
                 </div>
+                <ManualOperationHistory operations={order.manualOperations} />
             </div>
         </TenantAdminLayout>
     );
 }
 
 function Info({ label, value }: { label: string; value: React.ReactNode }) {
+    useAdminTranslation();
     return (
         <div className="min-w-0">
-            <p className="text-sm text-muted-foreground">{label}</p>
+            <p className="text-sm text-muted-foreground">{t(label)}</p>
             <div className="mt-1 break-all font-medium">{value}</div>
         </div>
     );

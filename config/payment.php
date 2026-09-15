@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'trongrid_api_key_encrypted' => env('TRONGRID_API_KEY_ENCRYPTED'),
+    'trc20_scan_enabled' => (bool) env('TRON_TOPUP_SCAN_ENABLED', false),
+    'trc20_scan_start_at' => env('TRON_TOPUP_SCAN_START_AT'),
     'driver' => env('PAYMENT_PROVIDER_DRIVER', 'mock'),
     'mock_mode' => env('PAYMENT_PROVIDER_MOCK_MODE', 'PENDING'),
     'mock_webhook_secret' => env('PAYMENT_PROVIDER_MOCK_WEBHOOK_SECRET', 'local-mock-payment-secret'),

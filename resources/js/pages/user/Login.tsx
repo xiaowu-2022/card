@@ -1,39 +1,110 @@
-import { Head, Link, useForm } from '@inertiajs/react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FormField } from '@/components/ui/form-field';
+import { t, useClientTranslation, errorMessage } from '@/i18n';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { PublicLayout } from '@/layouts/PublicLayout';
+import { SearchSelect } from '@/components/ui/search-select';
+import { countryOptions } from '@/hooks/useCardGeography';
+import { dialCountries } from '@/lib/phone-input';
+import { userThemeStyle } from '@/lib/user-theme';
+import type { SharedProps } from '@/types/global';
+import { useLocaleSync } from '@/i18n/useLocaleSync';
+import { LanguageSwitcher } from '@/components/user/LanguageSwitcher';
+import { AuthBrand } from '@/components/user/AuthBrand';
 
 export default function Login() {
-    const form = useForm({ identifier: '', password: '', region: '' });
+    const { i18n } = useClientTranslation();
+    useLocaleSync();
+    const form = useForm({ identifier: '', password: '', region: 'CN' });
+    const { tenant, flash } = usePage<SharedProps>().props;
+    const [channel, setChannel] = useState<'email' | 'phone'>('email');
+    const [visible, setVisible] = useState(false);
     return (
-        <PublicLayout compact>
-            <Head title="Sign in" />
-            <div className="mx-auto max-w-md px-4 pt-6 pb-12 sm:pt-12 sm:pb-20">
-                <Card className="rounded-[var(--user-radius-lg)] shadow-[0_12px_40px_rgba(23,32,28,0.06)]">
-                    <CardHeader>
-                        <CardTitle className="text-2xl">Welcome back</CardTitle>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            Sign in with your verified email or international phone number.
-                        </p>
-                    </CardHeader>
-                    <CardContent>
-                        <form
-                            className="space-y-5"
-                            onSubmit={(event) => {
-                                event.preventDefault();
-                                form.post('/login');
-                            }}
+        <div
+            className="user-theme min-h-screen bg-background text-foreground"
+            style={userThemeStyle(tenant?.branding.primaryColor)}
+        >
+            <Head title={t('Sign in')} />
+            <main className="user-auth-shell">
+                <div className="user-auth-banner">
+                    <div className="flex w-full items-center justify-between">
+                        <Link
+                            href="/"
+                            aria-label={t('Back to home')}
+                            className="grid size-11 place-items-center"
                         >
-                            <FormField
-                                id="identifier"
-                                label="Email or phone"
-                                error={form.errors.identifier}
-                            >
+                            <ArrowLeft className="size-7" />
+                        </Link>
+                        <LanguageSwitcher />
+                    </div>
+                    <AuthBrand tenant={tenant} />
+                </div>
+                <div className="user-auth-content">
+                    {flash.success && (
+                        <p
+                            role="status"
+                            className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800"
+                        >
+                            {t(flash.success)}
+                        </p>
+                    )}
+                    <h1 className="sr-only">{t('Sign in')}</h1>
+                    <div className="user-auth-tabs" role="tablist" aria-label={t('Sign-in method')}>
+                        <button
+                            type="button"
+                            role="tab"
+                            aria-selected={channel === 'email'}
+                            onClick={() => setChannel('email')}
+                        >
+                            {t('Email sign in')}
+                        </button>
+                        <button
+                            type="button"
+                            role="tab"
+                            aria-selected={channel === 'phone'}
+                            onClick={() => setChannel('phone')}
+                        >
+                            {t('Phone sign in')}
+                        </button>
+                    </div>
+                    <form
+                        className="space-y-3"
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            form.transform((data) => ({
+                                ...data,
+                                region: channel === 'phone' ? data.region : '',
+                            }));
+                            form.post('/login');
+                        }}
+                    >
+                        <div className={channel === 'phone' ? 'user-auth-phone-row' : undefined}>
+                            {channel === 'phone' && (
+                                <SearchSelect
+                                    id="login-region"
+                                    label={t('Country code')}
+                                    value={form.data.region}
+                                    options={countryOptions(dialCountries, i18n.language, true)}
+                                    placeholder={t('Country code')}
+                                    searchLabel={t('Search options')}
+                                    emptyLabel={t('No matching options')}
+                                    compact
+                                    disabled={form.processing}
+                                    onValueChange={(region) => form.setData('region', region)}
+                                />
+                            )}
+                            <div className="user-auth-field">
+                                <label className="sr-only" htmlFor="identifier">
+                                    {t(channel === 'email' ? 'Email' : 'Phone number')}
+                                </label>
                                 <Input
                                     id="identifier"
+                                    type={channel === 'email' ? 'email' : 'tel'}
                                     autoComplete="username"
+                                    inputMode={channel === 'phone' ? 'tel' : 'email'}
+                                    placeholder={
+                                        channel === 'email' ? t('Email') : t('Phone number')
+                                    }
                                     value={form.data.identifier}
                                     onChange={(event) =>
                                         form.setData('identifier', event.target.value)
@@ -41,33 +112,67 @@ export default function Login() {
                                     aria-invalid={Boolean(form.errors.identifier)}
                                     required
                                 />
-                            </FormField>
-                            <FormField id="password" label="Password" error={form.errors.password}>
-                                <Input
-                                    id="password"
-                                    type="password"
-                                    autoComplete="current-password"
-                                    value={form.data.password}
-                                    onChange={(event) =>
-                                        form.setData('password', event.target.value)
-                                    }
-                                    aria-invalid={Boolean(form.errors.password)}
-                                    required
-                                />
-                            </FormField>
-                            <Button className="w-full" type="submit" disabled={form.processing}>
-                                Sign in
-                            </Button>
-                            <p className="text-center text-sm text-muted-foreground">
-                                New here?{' '}
-                                <Link className="font-semibold text-primary" href="/register">
-                                    Create an account
-                                </Link>
+                            </div>
+                        </div>
+                        {form.errors.identifier ? (
+                            <p className="px-5 text-sm text-danger" role="alert">
+                                {errorMessage(form.errors.identifier)}
                             </p>
-                        </form>
-                    </CardContent>
-                </Card>
-            </div>
-        </PublicLayout>
+                        ) : null}
+                        <div className="user-auth-field">
+                            <label className="sr-only" htmlFor="password">
+                                {t('Password')}
+                            </label>
+                            <Input
+                                id="password"
+                                className="pr-20!"
+                                type={visible ? 'text' : 'password'}
+                                autoComplete="current-password"
+                                placeholder={t('Password')}
+                                value={form.data.password}
+                                onChange={(event) => form.setData('password', event.target.value)}
+                                aria-invalid={Boolean(form.errors.password)}
+                                required
+                            />
+                            <button
+                                type="button"
+                                aria-label={visible ? t('Hide password') : t('Show password')}
+                                onClick={() => setVisible(!visible)}
+                            >
+                                {visible ? (
+                                    <Eye className="mx-auto size-6" />
+                                ) : (
+                                    <EyeOff className="mx-auto size-6" />
+                                )}
+                            </button>
+                        </div>
+                        {form.errors.password ? (
+                            <p className="px-5 text-sm text-danger" role="alert">
+                                {errorMessage(form.errors.password)}
+                            </p>
+                        ) : null}
+                        <button
+                            className="user-auth-submit"
+                            aria-label={t('Sign in')}
+                            type="submit"
+                            disabled={
+                                form.processing || !form.data.identifier || !form.data.password
+                            }
+                        >
+                            {form.processing ? t('Signing in…') : t('Sign in')}
+                        </button>
+                    </form>
+                    <Link
+                        className="mt-5 block text-center text-sm text-muted-foreground underline underline-offset-4"
+                        href="/forgot-password"
+                    >
+                        {t('Forgot password?')}
+                    </Link>
+                    <Link className="user-auth-register" href="/register">
+                        {t('Register')}
+                    </Link>
+                </div>
+            </main>
+        </div>
     );
 }

@@ -37,7 +37,7 @@ it('creates a complete draft foundation and sends the owner invitation', functio
         'owner_email' => 'owner@acme.test',
         'default_locale' => 'en',
         'timezone' => 'Asia/Kuala_Lumpur',
-        'default_asset' => 'USD',
+        'default_asset' => 'USDT',
     ])->assertRedirect();
 
     $tenant = Tenant::query()->where('slug', 'acme-cards')->firstOrFail();
@@ -52,14 +52,14 @@ it('creates a complete draft foundation and sends the owner invitation', functio
 
 it('rejects reserved or duplicate tenant slugs', function (): void {
     $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
-    $payload = ['name' => 'Invalid', 'owner_email' => 'owner@example.test', 'default_locale' => 'en', 'timezone' => 'UTC', 'default_asset' => 'USD'];
+    $payload = ['name' => 'Invalid', 'owner_email' => 'owner@example.test', 'default_locale' => 'en', 'timezone' => 'UTC', 'default_asset' => 'USDT'];
     $this->actingAs($owner, 'platform_admin')->post('http://admin.localhost/platform/tenants', [...$payload, 'slug' => 'admin'])->assertSessionHasErrors('slug');
     $this->actingAs($owner, 'platform_admin')->post('http://admin.localhost/platform/tenants', [...$payload, 'slug' => 'tenant-a'])->assertSessionHasErrors('slug');
 });
 
 it('computes foundation eligibility and prevents incomplete activation', function (): void {
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
-    $actor = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
+    $actor = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
     $tenant->update(['status' => TenantStatus::Draft, 'activated_at' => null]);
     $tenant->locales()->update(['enabled' => false, 'is_default' => false]);
 
@@ -70,7 +70,7 @@ it('computes foundation eligibility and prevents incomplete activation', functio
 
 it('activates an eligible foundation without claiming business readiness', function (): void {
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
-    $actor = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
+    $actor = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
     $tenant->update(['status' => TenantStatus::Draft, 'activated_at' => null]);
     $status = app(TenantOnboardingStatusService::class)->for($tenant);
 
@@ -89,7 +89,7 @@ it('suspends and reactivates an active tenant without deleting history', functio
         $tenant,
         'history@a.localhost',
         Role::query()->where('name', 'SUPPORT')->firstOrFail(),
-        $tenantOwner,
+        $actor,
     );
     $domainCount = $tenant->domains()->count();
     $membershipCount = AdminMembership::query()->where('scope_id', $tenant->id)->count();
@@ -114,14 +114,14 @@ it('suspends and reactivates an active tenant without deleting history', functio
 
 it('updates locale defaults atomically and persists decimal business configuration', function (): void {
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
-    $actor = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
+    $actor = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
     app(UpdateTenantLocalesAction::class)->execute($tenant, ['en', 'zh-CN'], 'zh-CN', $actor);
     app(UpdateTenantBusinessSettingsAction::class)->execute($tenant, [
         'required_security_deposit_amount' => '125.25000000',
-        'required_security_deposit_asset' => 'USD',
+        'required_security_deposit_asset' => 'USDT',
         'allow_wallet_topup' => false,
         'allow_withdrawal' => false,
-    ], $actor);
+    ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
 
     expect($tenant->fresh()->default_locale)->toBe('zh-CN')
         ->and($tenant->locales()->where('is_default', true)->count())->toBe(1)
@@ -130,12 +130,12 @@ it('updates locale defaults atomically and persists decimal business configurati
 
 it('rejects invalid locale configurations', function (): void {
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
-    $actor = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
+    $actor = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
 
     expect(fn () => app(UpdateTenantLocalesAction::class)->execute($tenant, [], 'en', $actor))->toThrow(DomainException::class)
         ->and(fn () => app(UpdateTenantLocalesAction::class)->execute($tenant, ['en'], 'zh-CN', $actor))->toThrow(DomainException::class);
 
-    $this->actingAs($actor, 'tenant_admin')->post('http://a.localhost/admin/settings/locales', [
+    $this->actingAs($actor, 'platform_admin')->post("http://admin.localhost/platform/tenants/{$tenant->id}/configuration/settings/locales", [
         'enabled_locales' => ['en'],
         'default_locale' => 'zh-CN',
     ])->assertSessionHasErrors('default_locale');
@@ -143,12 +143,12 @@ it('rejects invalid locale configurations', function (): void {
 
 it('rejects imprecise and negative deposit configuration without creating money tables', function (): void {
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
-    $actor = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
-    $base = ['required_security_deposit_asset' => 'USD', 'allow_wallet_topup' => false, 'allow_withdrawal' => false];
+    $actor = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $base = ['required_security_deposit_asset' => 'USDT', 'allow_wallet_topup' => false, 'allow_withdrawal' => false];
 
-    $this->actingAs($actor, 'tenant_admin')->post('http://a.localhost/admin/settings/business', [...$base, 'required_security_deposit_amount' => '1.123456789'])
+    $this->actingAs($actor, 'platform_admin')->post("http://admin.localhost/platform/tenants/{$tenant->id}/configuration/settings/business", [...$base, 'required_security_deposit_amount' => '1.123456789'])
         ->assertSessionHasErrors('required_security_deposit_amount');
-    expect(fn () => app(UpdateTenantBusinessSettingsAction::class)->execute($tenant, [...$base, 'required_security_deposit_amount' => '-1.00'], $actor))->toThrow(DomainException::class)
+    expect(fn () => app(UpdateTenantBusinessSettingsAction::class)->execute($tenant, [...$base, 'required_security_deposit_amount' => '-1.00'], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail()))->toThrow(DomainException::class)
         ->and(DB::table('wallets')->count())->toBe(0)
         ->and(DB::table('ledger_entries')->count())->toBe(0);
 });
@@ -156,7 +156,7 @@ it('rejects imprecise and negative deposit configuration without creating money 
 it('enforces the custom domain state machine and tenant ownership', function (): void {
     $tenantA = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
     $tenantB = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
-    $actor = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
+    $actor = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
     $domain = app(AddCustomDomainAction::class)->execute($tenantA, 'CARDS.EXAMPLE.TEST.', $actor);
 
     expect($domain->hostname)->toBe('cards.example.test')->and($domain->status)->toBe(TenantDomainStatus::PendingVerification);
@@ -175,7 +175,7 @@ it('enforces the custom domain state machine and tenant ownership', function ():
 it('rejects duplicate hostnames and protects the immutable system domain', function (): void {
     $tenantA = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
     $tenantB = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
-    $actor = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
+    $actor = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
 
     expect(fn () => app(AddCustomDomainAction::class)->execute($tenantA, 'b.localhost', $actor))->toThrow(DomainException::class);
     $systemDomain = $tenantA->domains()->where('is_primary', true)->firstOrFail();
@@ -188,10 +188,11 @@ it('rejects duplicate hostnames and protects the immutable system domain', funct
 
 it('never treats client tenant ids as the settings mutation scope', function (): void {
     $tenantB = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
-    $adminA = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
+    $tenantA = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
+    $adminA = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
     $beforeB = $tenantB->branding()->value('brand_name');
 
-    $this->actingAs($adminA, 'tenant_admin')->post('http://a.localhost/admin/settings/branding', [
+    $this->actingAs($adminA, 'platform_admin')->post("http://admin.localhost/platform/tenants/{$tenantA->id}/configuration/settings/branding", [
         'tenant_id' => $tenantB->id,
         'brand_name' => 'Tenant A Updated',
         'primary_color' => '#123456',

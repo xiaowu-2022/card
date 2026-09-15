@@ -2,6 +2,7 @@
 
 namespace App\Application\Card;
 
+use App\Application\SecurityDeposit\RefundSecurityDepositAction;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Card\Enums\CardIssueStatus;
 use App\Domain\Card\Enums\ProviderCardholderStatus;
@@ -44,11 +45,12 @@ final readonly class CreateCardIssueAction
         private LedgerWriter $ledger,
         private ApplyCardIssueResultAction $results,
         private AuditLogger $audit,
+        private CardProductProviderRouter $router,
     ) {}
 
-    public function execute(string $tenantId, string $userId, string $requestId, string $productId, mixed $initialAmount, ?string $auditRequestId = null): CardIssueOrder
+    public function execute(string $tenantId, string $userId, string $requestId, string $productId, mixed $initialAmount, string $cardholderApplicationId, ?string $auditRequestId = null): CardIssueOrder
     {
-        if (! Str::isUuid($requestId) || ! Str::isUuid($productId) || ! is_string($initialAmount)
+        if (! Str::isUuid($requestId) || ! Str::isUuid($productId) || ! Str::isUuid($cardholderApplicationId) || ! is_string($initialAmount)
             || preg_match('/^(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,2})?$/', $initialAmount) !== 1) {
             throw new DomainException('CARD_ISSUE_REQUEST_INVALID', 'Enter a valid Card request and initial balance.');
         }
@@ -60,17 +62,18 @@ final readonly class CreateCardIssueAction
         if (! $initial->isPositive()) {
             throw new DomainException('CARD_INITIAL_LOAD_INVALID', 'Initial Card balance must be positive.');
         }
-        $requestHash = hash('sha256', "card-issue-v1\0{$tenantId}\0{$userId}\0{$productId}\0{$initial->amount()}");
+        $requestHash = hash('sha256', "card-issue-v2\0{$tenantId}\0{$userId}\0{$productId}\0{$cardholderApplicationId}\0{$initial->amount()}");
         $existing = CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('request_id', $requestId)->first();
         if ($existing) {
             return $this->sameRequest($existing, $requestHash);
         }
-        if (! $this->provider->available() || $this->provider->name() !== 'PHOTONPAY') {
+        $provider = $this->router->forProduct(CardProduct::query()->findOrFail($productId));
+        if (! $provider->available() || $provider->name() !== 'PHOTONPAY') {
             throw new DomainException('CARD_PROVIDER_UNAVAILABLE', 'New Card setup is currently unavailable.', 503);
         }
 
         /** @var array{order:CardIssueOrder,created:bool,cardholderReference:string} $prepared */
-        $prepared = DB::transaction(function () use ($tenantId, $userId, $requestId, $productId, $initial, $requestHash, $auditRequestId): array {
+        $prepared = DB::transaction(function () use ($tenantId, $userId, $requestId, $productId, $initial, $requestHash, $cardholderApplicationId, $auditRequestId): array {
             DB::statement('SELECT pg_advisory_xact_lock(?)', [$this->lockKey($tenantId, $userId, $requestId)]);
             $existing = CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('request_id', $requestId)->lockForUpdate()->first();
             if ($existing) {
@@ -78,12 +81,17 @@ final readonly class CreateCardIssueAction
             }
             $tenant = Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
             $user = User::query()->where('tenant_id', $tenantId)->whereKey($userId)->lockForUpdate()->firstOrFail();
+            RefundSecurityDepositAction::assertNoPending($tenantId, $userId);
             $settings = $tenant->businessSettings()->lockForUpdate()->firstOrFail();
             $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->lockForUpdate()->first();
             $config = TenantCardProductConfig::query()->where('tenant_id', $tenantId)->where('card_product_id', $productId)->lockForUpdate()->first();
             $product = CardProduct::query()->whereKey($productId)->lockForUpdate()->first();
+            if ($product) {
+                $this->router->assertConfigured($product);
+            }
             $cardholder = ProviderCardholder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)
-                ->where('provider', 'PHOTONPAY')->lockForUpdate()->first();
+                ->whereKey($cardholderApplicationId)->where('card_product_id', $productId)
+                ->whereNotNull('request_id')->where('provider', 'PHOTONPAY')->lockForUpdate()->first();
             if ($tenant->status !== TenantStatus::Active || $user->status !== UserStatus::Active) {
                 throw new DomainException('CARD_ISSUE_UNAVAILABLE', 'Opening a Card requires an active account.', 403);
             }
@@ -95,15 +103,20 @@ final readonly class CreateCardIssueAction
                 throw new DomainException('CARD_WALLET_UNAVAILABLE', 'An active USDT Wallet is required.', 409);
             }
             if (! $product || ! $config || $product->status !== CardProductStatus::Active || $config->status !== TenantCardProductStatus::Active
-                || $product->provider !== 'PHOTONPAY' || $product->card_currency !== 'USD' || $product->card_type !== 'REGULAR') {
+                || ($product->provider !== 'PHOTONPAY' && ! $this->router->isLocalMock($product) && ! $this->router->isSandbox($product)) || $product->card_currency !== 'USD' || $product->card_type !== 'REGULAR') {
                 throw new DomainException('CARD_PRODUCT_UNAVAILABLE', 'This Card product is not available.', 409);
             }
             if (! $cardholder || $cardholder->status !== ProviderCardholderStatus::Ready || ! $cardholder->provider_cardholder_id) {
-                throw new DomainException('CARDHOLDER_NOT_READY', 'Card setup must be approved before opening a Card.', 409);
+                throw new DomainException('CARDHOLDER_NOT_READY', 'The cardholder must be added successfully before opening a card.', 409);
+            }
+            LiveCardReferenceGuard::forProduct($product, $this->router->productReference($product), $cardholder->provider_cardholder_id);
+            if (CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('provider_cardholder_id', $cardholder->id)->exists()) {
+                throw new DomainException('CARD_APPLICATION_USED', 'Submit new cardholder materials for each card.', 409);
             }
             $reservedCardCapacity = CardIssueOrder::query()
                 ->where('tenant_id', $tenantId)
                 ->where('user_id', $userId)
+                ->where('card_product_id', $productId)
                 ->where('status', '!=', CardIssueStatus::Failed->value)
                 ->count();
             if ($reservedCardCapacity >= $config->max_cards_per_user) {
@@ -129,7 +142,10 @@ final readonly class CreateCardIssueAction
             if (Money::of($accounts[LedgerAccountType::UserSecurityDeposit->value]->balance, 'USDT')->compare($requiredDeposit) < 0) {
                 throw new DomainException('SECURITY_DEPOSIT_INSUFFICIENT', 'Complete the Security Deposit before opening a Card.', 409);
             }
-            $opening = Money::of($config->opening_fee, 'USDT');
+            if ($product->opening_fee === null) {
+                throw new DomainException('CARD_PRODUCT_NOT_ACTIVE', 'Card setup is currently unavailable.', 409);
+            }
+            $opening = Money::of($product->opening_fee, 'USDT');
             $total = $opening->add($initial);
             if (Money::of($accounts[LedgerAccountType::UserAvailable->value]->balance, 'USDT')->compare($total) < 0) {
                 throw new DomainException('INSUFFICIENT_AVAILABLE_BALANCE', 'Your available Wallet balance is not enough to open this Card.');
@@ -144,6 +160,7 @@ final readonly class CreateCardIssueAction
                 'card_product_id' => $product->id,
                 'tenant_card_product_config_id' => $config->id,
                 'provider_cardholder_id' => $cardholder->id,
+                'cardholder_request_id' => $cardholder->request_id,
                 'request_id' => $requestId,
                 'request_hash' => $requestHash,
                 'opening_fee' => $opening->amount(),
@@ -152,7 +169,7 @@ final readonly class CreateCardIssueAction
                 'wallet_asset' => 'USDT',
                 'card_currency' => 'USD',
                 'provider' => 'PHOTONPAY',
-                'provider_product_ref' => $product->provider_product_ref,
+                'provider_product_ref' => $this->router->productReference($product),
                 'provider_request_id' => $orderId,
                 'status' => CardIssueStatus::Processing,
                 'requested_at' => now(),
@@ -205,7 +222,7 @@ final readonly class CreateCardIssueAction
         }
         $order = $prepared['order'];
         try {
-            $result = $this->provider->issueCard(new IssueCardRequestDTO(
+            $result = $provider->issueCard(new IssueCardRequestDTO(
                 $order->provider_product_ref,
                 $prepared['cardholderReference'],
                 'USD',

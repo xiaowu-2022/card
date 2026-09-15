@@ -15,7 +15,7 @@ final readonly class ProcessIncomingTrc20TransferAction
 {
     public function __construct(private CreditWalletTopupAction $credit) {}
 
-    public function execute(IncomingBlockchainTransfer $transfer): string
+    public function execute(IncomingBlockchainTransfer $transfer, ?string $tenantId = null, ?string $orderId = null, ?\DateTimeImmutable $notBefore = null): string
     {
         $normalized = $this->normalize($transfer);
         if ($normalized === null) {
@@ -24,20 +24,26 @@ final readonly class ProcessIncomingTrc20TransferAction
 
         [$txHash, $amount, $destination] = $normalized;
         $snapshot = $this->candidateSnapshot($transfer, $txHash, $amount, $destination);
-        if (! $snapshot) {
+        if (! $snapshot || (($tenantId === null) !== ($orderId === null))
+            || ($tenantId !== null && ($snapshot->tenant_id !== $tenantId || $snapshot->id !== $orderId))
+            || ($notBefore !== null && $snapshot->created_at < $notBefore)) {
             return 'UNMATCHED';
         }
 
         $order = DB::transaction(function () use ($transfer, $txHash, $amount, $destination, $snapshot): ?WalletTopupOrder {
-            $candidate = WalletTopupOrder::query()->whereKey($snapshot->id)->lockForUpdate()->first();
+            $candidate = WalletTopupOrder::query()->where('tenant_id', $snapshot->tenant_id)->whereKey($snapshot->id)->lockForUpdate()->first();
             if (! $candidate) {
+                return null;
+            }
+            if (! in_array($candidate->status->value, ['PENDING', 'PROCESSING', 'PAID', 'CREDITED', 'EXPIRED'], true)) {
                 return null;
             }
             DB::statement('SELECT pg_advisory_xact_lock(?)', [$this->transferLockKey($txHash, $transfer->transferIndex)]);
             $matched = WalletTopupOrder::query()->where('network_code', 'TRON')->where('matched_tx_hash', $txHash)
                 ->where('matched_transfer_index', $transfer->transferIndex)->lockForUpdate()->first();
             if ($matched) {
-                return $matched->expected_amount === $amount && $matched->deposit_address === $destination
+                return $matched->id === $snapshot->id && $matched->tenant_id === $snapshot->tenant_id
+                    && $matched->expected_amount === $amount && $matched->deposit_address === $destination
                     ? $matched
                     : null;
             }
@@ -80,6 +86,9 @@ final readonly class ProcessIncomingTrc20TransferAction
         $shouldCredit = DB::transaction(function () use ($order, $transfer, $txHash): ?WalletTopupOrder {
             $locked = WalletTopupOrder::query()->where('tenant_id', $order->tenant_id)->whereKey($order->id)->lockForUpdate()->firstOrFail();
             if ($locked->status === WalletTopupStatus::Credited) {
+                return null;
+            }
+            if (! in_array($locked->status, [WalletTopupStatus::Processing, WalletTopupStatus::Paid], true)) {
                 return null;
             }
             if ($locked->matched_tx_hash !== $txHash || $locked->matched_transfer_index !== $transfer->transferIndex) {

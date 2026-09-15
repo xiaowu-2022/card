@@ -95,6 +95,8 @@ return [
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
+            // Match Laravel date serialization when writing PostgreSQL timestamptz values.
+            'timezone' => env('APP_TIMEZONE', 'UTC'),
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],

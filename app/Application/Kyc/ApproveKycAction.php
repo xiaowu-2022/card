@@ -8,7 +8,9 @@ use App\Domain\Kyc\Enums\KycReviewStatus;
 use App\Domain\Kyc\Models\IdentityRecord;
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Kyc\Services\IdentityHashGenerator;
-use App\Domain\Tenant\Models\TenantKycSetting;
+use App\Domain\Tenant\Enums\KycReviewMode;
+use App\Domain\Tenant\Models\PlatformKycSetting;
+use App\Domain\Tenant\Models\Tenant;
 use App\Support\Errors\DomainException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -20,13 +22,28 @@ final readonly class ApproveKycAction
 
     public function execute(string $tenantId, string $applicationId, AdminUser $reviewer, ?string $requestId = null): IdentityRecord
     {
+        return $this->approve($tenantId, $applicationId, $reviewer, $requestId);
+    }
+
+    /** Called only by the new-submission workflow, never by OCR or a public review endpoint. */
+    public function executeAutomatic(string $tenantId, string $applicationId, ?string $requestId = null): IdentityRecord
+    {
+        return $this->approve($tenantId, $applicationId, null, $requestId);
+    }
+
+    private function approve(string $tenantId, string $applicationId, ?AdminUser $reviewer, ?string $requestId): IdentityRecord
+    {
         try {
             return DB::transaction(function () use ($tenantId, $applicationId, $reviewer, $requestId): IdentityRecord {
+                Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
                 $application = KycApplication::query()->where('tenant_id', $tenantId)->whereKey($applicationId)->lockForUpdate()->firstOrFail();
                 if ($application->review_status !== KycReviewStatus::Pending) {
                     throw new DomainException('KYC_ALREADY_REVIEWED', 'This application has already been reviewed.', 409);
                 }
-                $settings = TenantKycSetting::query()->where('tenant_id', $tenantId)->lockForUpdate()->firstOrFail();
+                $settings = PlatformKycSetting::current(true);
+                if ($reviewer === null && (! $settings->enabled || $settings->review_mode !== KycReviewMode::Automatic)) {
+                    throw new DomainException('KYC_SUBMISSION_UNAVAILABLE', 'Identity verification submission is not currently available.', 403);
+                }
                 DB::select('SELECT pg_advisory_xact_lock(?)', [$this->hashes->advisoryLockKey($application->identity_hash)]);
                 $count = IdentityRecord::query()->where('tenant_id', $tenantId)->where('identity_hash', $application->identity_hash)->count();
                 if ($count >= $settings->max_accounts_per_identity) {
@@ -41,10 +58,11 @@ final readonly class ApproveKycAction
                     'identity_hash' => $application->identity_hash, 'verified_at' => now(),
                 ])->save();
                 $application->forceFill([
-                    'review_status' => KycReviewStatus::Approved, 'reviewed_by_admin_user_id' => $reviewer->id,
+                    'review_status' => KycReviewStatus::Approved, 'reviewed_by_admin_user_id' => $reviewer?->id,
+                    'automatically_approved' => $reviewer === null,
                     'reviewed_at' => now(), 'review_reason_code' => null, 'review_message' => null,
                 ])->save();
-                $this->audit->record($tenantId, 'ADMIN', $reviewer->id, 'KYC_APPLICATION_APPROVED', 'kyc_application', $application->id, ['review_status' => KycReviewStatus::Pending->value], ['review_status' => KycReviewStatus::Approved->value], $requestId);
+                $this->audit->record($tenantId, $reviewer ? 'ADMIN' : 'SYSTEM', $reviewer?->id, 'KYC_APPLICATION_APPROVED', 'kyc_application', $application->id, ['review_status' => KycReviewStatus::Pending->value], ['review_status' => KycReviewStatus::Approved->value, 'review_mode' => $reviewer ? 'MANUAL' : 'AUTOMATIC'], $requestId);
 
                 return $identity;
             });

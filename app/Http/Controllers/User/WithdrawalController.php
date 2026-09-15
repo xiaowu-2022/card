@@ -19,11 +19,19 @@ use Inertia\Response;
 
 final class WithdrawalController extends Controller
 {
-    public function create(TenantContext $context, UserWithdrawalQuery $query): Response
+    public function create(Request $request, TenantContext $context, UserWithdrawalQuery $query): Response
     {
         /** @var User $user */ $user = Auth::guard('tenant_user')->user();
 
         return Inertia::render('user/Withdraw', $query->form($context->id(), $user->id));
+    }
+
+    public function index(Request $request, TenantContext $context, UserWithdrawalQuery $query): Response
+    {
+        /** @var User $user */ $user = Auth::guard('tenant_user')->user();
+        $request->validate(['page' => ['sometimes', 'integer', 'min:1', 'max:100000']]);
+
+        return Inertia::render('user/WithdrawalHistory', $query->history($context->id(), $user->id, $request->integer('page', 1)));
     }
 
     public function storeDestination(CreateWithdrawalDestinationRequest $request, TenantContext $context, CreateWithdrawalDestinationAction $action): RedirectResponse
@@ -37,7 +45,9 @@ final class WithdrawalController extends Controller
     public function store(CreateWithdrawalRequest $request, TenantContext $context, CreateWithdrawalAction $action): RedirectResponse
     {
         /** @var User $user */ $user = Auth::guard('tenant_user')->user();
-        $order = $action->execute($context->id(), $user->id, $request->string('request_id')->toString(), $request->string('destination_id')->toString(), $request->input('amount'), $request->attributes->get('request_id'));
+        $order = $request->filled('address')
+            ? $action->executeWithAddress($context->id(), $user->id, $request->string('request_id')->toString(), $request->string('address')->toString(), $request->input('amount'), $request->attributes->get('request_id'), $request->input('expected_fee'))
+            : $action->execute($context->id(), $user->id, $request->string('request_id')->toString(), $request->string('destination_id')->toString(), $request->input('amount'), $request->attributes->get('request_id'), $request->input('expected_fee'));
 
         return redirect()->route('user.withdrawals.show', ['withdrawal' => $order->id]);
     }

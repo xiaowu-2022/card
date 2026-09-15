@@ -23,11 +23,13 @@ final readonly class SyncCardIssueAction
         if (in_array($order->status, [CardIssueStatus::Succeeded, CardIssueStatus::Failed], true)) {
             return $order;
         }
-        if (! $this->provider->available() || $order->provider !== $this->provider->name()) {
+        LiveCardReferenceGuard::forProduct($order->product, $order->provider_product_ref, $order->provider_card_id, $order->cardholder?->provider_cardholder_id);
+        $provider = app(CardProductProviderRouter::class)->forProduct($order->product);
+        if (! $provider->available() || $order->provider !== $provider->name()) {
             throw new DomainException('CARD_PROVIDER_UNAVAILABLE', 'Card status cannot be refreshed right now.', 503);
         }
         try {
-            $result = $this->provider->queryOperation($order->provider_request_id);
+            $result = $provider->queryOperation($order->provider_request_id);
         } catch (Throwable) {
             return $this->results->markUnknown($tenantId, $orderId);
         }

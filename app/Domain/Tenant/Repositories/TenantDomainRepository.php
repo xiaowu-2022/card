@@ -12,11 +12,12 @@ final class TenantDomainRepository
         return TenantDomain::query()
             ->with(['tenant.branding', 'tenant.locales'])
             ->where('hostname', strtolower(rtrim($hostname, '.')))
+            ->whereNotNull('tenant_id')
             ->where('status', TenantDomainStatus::Active)
             ->first();
     }
 
-    public function findForTenant(string $tenantId, string $domainId): ?TenantDomain
+    public function findForTenant(?string $tenantId, string $domainId): ?TenantDomain
     {
         return TenantDomain::query()
             ->where('tenant_id', $tenantId)

@@ -11,6 +11,7 @@ use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Kyc\Services\IdentityNumberProtector;
 use App\Domain\Tenant\Enums\KycReviewMode;
 use App\Domain\Tenant\Enums\TenantStatus;
+use App\Domain\Tenant\Models\PlatformKycSetting;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Enums\UserStatus;
 use App\Domain\User\Models\User;
@@ -26,7 +27,7 @@ use Throwable;
 
 final readonly class SubmitKycApplicationAction
 {
-    public function __construct(private IdentityNumberProtector $identities, private AuditLogger $audit) {}
+    public function __construct(private IdentityNumberProtector $identities, private AuditLogger $audit, private ApproveKycAction $approve) {}
 
     public function execute(Tenant $tenant, User $user, string $country, string $identityNumber, UploadedFile $front, UploadedFile $back, ?string $requestId = null): KycApplication
     {
@@ -55,15 +56,15 @@ final readonly class SubmitKycApplicationAction
             $application = DB::transaction(function () use ($tenant, $user, $country, $applicationId, $frontKey, $backKey, $protected, $requestId): KycApplication {
                 $currentTenant = Tenant::query()->whereKey($tenant->id)->lockForUpdate()->firstOrFail();
                 $currentUser = User::query()->where('tenant_id', $tenant->id)->whereKey($user->id)->lockForUpdate()->firstOrFail();
-                $settings = $currentTenant->kycSettings()->lockForUpdate()->firstOrFail();
-                if ($currentTenant->status !== TenantStatus::Active || $currentUser->status !== UserStatus::Active || ! $settings->enabled || $settings->review_mode !== KycReviewMode::Manual) {
+                $latest = KycApplication::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->latest('submitted_at')->lockForUpdate()->first();
+                $settings = PlatformKycSetting::current(true);
+                if ($currentTenant->status !== TenantStatus::Active || $currentUser->status !== UserStatus::Active || ! $settings->enabled || ! in_array($settings->review_mode, [KycReviewMode::Manual, KycReviewMode::Automatic], true)) {
                     throw new DomainException('KYC_SUBMISSION_UNAVAILABLE', 'Identity verification submission is not currently available.', 403);
                 }
                 if (IdentityRecord::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->exists()) {
                     throw new DomainException('KYC_ALREADY_APPROVED', 'Your identity is already verified.');
                 }
 
-                $latest = KycApplication::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->latest('submitted_at')->lockForUpdate()->first();
                 if ($latest && $latest->review_status !== KycReviewStatus::ResubmissionRequired) {
                     throw new DomainException(
                         $latest->review_status === KycReviewStatus::Pending ? 'KYC_ALREADY_PENDING' : 'KYC_RESUBMISSION_NOT_ALLOWED',
@@ -88,7 +89,12 @@ final readonly class SubmitKycApplicationAction
                     'submitted_at' => now(),
                 ])->save();
                 $this->audit->record($tenant->id, 'USER', $user->id, 'KYC_APPLICATION_SUBMITTED', 'kyc_application', $applicationId, null, ['document_type' => KycDocumentType::NationalId->value, 'document_country' => $country], $requestId);
-                ProcessKycOcrJob::dispatch($tenant->id, $applicationId)->afterCommit();
+                if ($settings->review_mode === KycReviewMode::Automatic) {
+                    $this->approve->executeAutomatic($tenant->id, $applicationId, $requestId);
+                    $application->refresh();
+                } else {
+                    ProcessKycOcrJob::dispatch($tenant->id, $applicationId)->afterCommit();
+                }
 
                 return $application;
             });

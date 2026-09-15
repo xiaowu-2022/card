@@ -16,8 +16,10 @@ final class CreateCardProductRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'opening_fee' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,8})?$/'],
             'name' => ['required', 'string', 'max:120'],
-            'provider_product_ref' => ['required', 'string', 'regex:/^[A-Za-z0-9._-]{4,64}$/', Rule::unique('card_products')->where('provider', 'PHOTONPAY')],
+            'card_provider_reference_id' => ['nullable', 'uuid', 'exists:platform_card_provider_references,id'],
+            'provider_product_ref' => ['nullable', 'string', 'regex:/^[A-Za-z0-9._-]{4,64}$/', Rule::unique('card_products')->whereNull('archived_at')->where('provider', 'UNCONFIGURED')->where('card_provider_reference_id', $this->input('card_provider_reference_id'))],
             'minimum_initial_load' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,8})?$/', 'numeric', 'min:20'],
             'minimum_reload' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,8})?$/', 'numeric', 'min:20'],
             'status' => ['required', Rule::in(['DRAFT', 'ACTIVE', 'INACTIVE'])],

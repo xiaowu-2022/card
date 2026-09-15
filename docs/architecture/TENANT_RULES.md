@@ -1,5 +1,27 @@
 # Tenant Rules
 
+- Domain management is exclusively in SaaS Platform → Company detail → Domains,
+  as explicitly requested on 2026-09-11. All management routes require an ACTIVE
+  Platform membership and `tenant.manage` on the Platform host. Company Admin
+  has neither navigation nor GET/write routes for domain configuration. Platform
+  route selection identifies the persisted company; form `tenant_id` is ignored.
+  Each domain action remains scoped by that company and domain UUID; preserve
+  DNS verification, immutable system domains, primary lifecycle, and audit actor.
+  This authorization move does not alter existing domains or financial data.
+
+- Company administrator creation (user-requested 2026-09-11) supports direct name,
+  email login, strong password and role setup, protected by `admin_team.manage`,
+  current actor password confirmation, CSRF and throttling. It creates a new active
+  AdminUser and same-company active membership atomically with sanitized audit.
+  Existing global Admin identities are always rejected with a generic unavailable
+  message: no password overwrite, automatic attachment, other-company membership
+  or platform/owner-role grant. Passwords are hashed and never returned/logged;
+  direct creation does not claim email ownership verification. Existing invitation
+  history and secure token acceptance remain intact for historical invitations
+  and platform company-owner onboarding. No user-selected tenant/resource scope.
+
+- Company-owned About articles use fixed tenant/key/locale records, exact Host-derived scope and `tenant_settings.manage`. No cross-company or cross-language fallback. See [TENANT_ARTICLES.md](TENANT_ARTICLES.md).
+
 - Web tenant identity comes only from trusted Host -> ACTIVE `tenant_domains` record -> Tenant -> `TenantContext`. Resolver ownership lookup never filters on Tenant lifecycle status.
 - Query parameters, headers, form fields, and JSON `tenant_id` never select a tenant.
 - Platform Admin uses `PLATFORM_ADMIN_HOST` and must never resolve as a tenant domain.
@@ -33,5 +55,7 @@ Surface availability is separate from resolution:
 - CLOSED: normal End User unavailable and Tenant Admin unavailable in V1; retained records remain inspectable to authorized Platform scope.
 
 The database can enforce at most one default locale. The Application layer must also preserve at least one enabled locale because that cross-row cardinality rule is not represented by a simple ordinary constraint.
+
+Consumer locale resolution follows scoped User preference > encrypted host-only cookie > Accept-Language > enabled Tenant default. Every candidate is intersected with the Tenant's enabled application-supported locales. `POST /locale` cannot select a Tenant or another User; language is never an authorization input. See [I18N.md](I18N.md).
 
 Foundation activation is derived by `TenantOnboardingStatusService` from Tenant creation, an active Owner membership, valid branding, locale invariants, KYC/business settings, and an active system domain. The creation defaults—Tenant name as brand name and a valid default HEX primary color—intentionally satisfy the branding portion until an Owner customizes them. No client or Admin can submit an `onboarding_complete` override. `ACTIVE` means the Tenant web foundation is enabled; it never implies Card Provider/Product or money readiness.
