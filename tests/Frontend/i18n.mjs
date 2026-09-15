@@ -415,26 +415,12 @@ test('promotion redesign retains financial confirmation, exact amounts and indep
     assert.ok(css.includes('repeat(3, minmax(0, 1fr))'));
 });
 
-test('consumer company header appends a fixed localized U Card suffix without changing the company name', () => {
+test('consumer company header preserves the company identity without an extra product suffix', () => {
     const source = readFileSync('resources/js/layouts/UserLayout.tsx', 'utf8');
-    assert.ok(source.includes("const cardLabel = t('U Card')"));
-    assert.ok(source.includes('const brand = `${companyName} ${cardLabel}`'));
-    assert.ok(source.includes('shrink-0 whitespace-nowrap">{cardLabel}'));
-    assert.deepEqual(catalog['U Card'], ['U 卡', 'Kad U', 'Tarjeta U']);
-    const previous = i18n.clientI18n.language;
-    try {
-        for (const [locale, expected] of [
-            ['zh-CN', 'Spec U 卡'],
-            ['en', 'Spec U Card'],
-            ['ms', 'Spec Kad U'],
-            ['es', 'Spec Tarjeta U'],
-        ]) {
-            void i18n.clientI18n.changeLanguage(locale);
-            assert.equal(`Spec ${i18n.t('U Card')}`, expected);
-        }
-    } finally {
-        void i18n.clientI18n.changeLanguage(previous);
-    }
+    assert.ok(source.includes('src={tenant.branding.logoUrl}'));
+    assert.ok(source.includes('alt={companyName}'));
+    assert.ok(source.includes('value1: companyName'));
+    assert.ok(!source.includes('cardLabel'));
 });
 
 test('wallet transfers retain exact signed amounts and localized directions', () => {

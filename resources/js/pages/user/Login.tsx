@@ -25,8 +25,8 @@ export default function Login() {
             style={userThemeStyle(tenant?.branding.primaryColor)}
         >
             <Head title={t('Sign in')} />
-            <main className="user-auth-shell">
-                <div className="user-auth-banner">
+            <main className="user-auth-shell user-auth-designed">
+                <div className="user-auth-banner user-auth-banner-promotional">
                     <div className="flex w-full items-center justify-between">
                         <Link
                             href="/"
@@ -37,7 +37,7 @@ export default function Login() {
                         </Link>
                         <LanguageSwitcher />
                     </div>
-                    <AuthBrand tenant={tenant} />
+                    <AuthBrand tenant={tenant} promotional />
                 </div>
                 <div className="user-auth-content">
                     {flash.success && (

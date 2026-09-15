@@ -52,25 +52,14 @@ const services = [
         href: '/kyc',
     },
 ] as const;
-const steps = [
-    {
-        title: 'Create your account',
-        copy: 'Use an invitation code and verify your email or phone number.',
-    },
-    {
-        title: 'Complete your information',
-        copy: 'Complete identity verification and the requirements shown in your account.',
-    },
-    {
-        title: 'Apply for your card',
-        copy: 'Review the available product, fees and cardholder information before confirming.',
-    },
-] as const;
 const faqs = [
-    { question: 'What do I need to register?', answer: steps[0].copy },
+    {
+        question: 'What do I need to register?',
+        answer: 'Use an invitation code and verify your email or phone number.',
+    },
     {
         question: 'How do I apply for a Mastercard U Card?',
-        answer: steps[1].copy + ' ' + steps[2].copy,
+        answer: 'Complete identity verification and the requirements shown in your account. Review the available product, fees and cardholder information before confirming.',
     },
     {
         question: 'Where can I see fees and limits?',
@@ -154,7 +143,6 @@ export default function Landing() {
         { title: 'Home', href: '#home' },
         { title: 'Products', href: '#products' },
         { title: 'Card management', href: '#manage' },
-        { title: 'Getting started', href: '#start' },
         { title: 'FAQ', href: '#faq' },
     ];
     const brandMark = (
@@ -351,25 +339,6 @@ export default function Landing() {
                         </div>
                     </div>
                 </section>
-                <section id="start" className="marketing-section marketing-container">
-                    <SectionHeading first="Getting started" second="begins with you." />
-                    <div className="marketing-steps">
-                        {steps.map((step, index) => (
-                            <div key={step.title}>
-                                <span>0{index + 1}</span>
-                                <h3>{t(step.title)}</h3>
-                                <p>{t(step.copy)}</p>
-                            </div>
-                        ))}
-                    </div>
-                    <div className="marketing-start-action">
-                        <Button asChild className="marketing-cta">
-                            <Link href="/register">
-                                {t('Create your account')} <ArrowRight />
-                            </Link>
-                        </Button>
-                    </div>
-                </section>
                 <section id="faq" className="marketing-section marketing-muted">
                     <SectionHeading first="Frequently asked" second="questions." />
                     <div className="marketing-faq">
@@ -401,7 +370,6 @@ export default function Landing() {
                     <div>
                         <h3>{t('Help')}</h3>
                         <a href="#faq">{t('FAQ')}</a>
-                        <a href="#start">{t('Getting started')}</a>
                     </div>
                     <div>
                         <h3>{t('Your account')}</h3>

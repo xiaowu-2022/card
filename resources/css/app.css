@@ -153,17 +153,18 @@
     letter-spacing: -0.02em;
 }
 .user-brand-symbol {
-    width: min(5.867cqw, 44px);
-    height: min(5.867cqw, 44px);
-    min-width: 26px;
-    min-height: 26px;
+    width: clamp(36px, 8cqw, 52px);
+    height: clamp(36px, 8cqw, 52px);
+    min-width: 36px;
+    min-height: 36px;
     color: var(--user-primary);
     flex-shrink: 0;
 }
 .user-brand-logo {
-    max-width: min(48cqw, 360px);
-    max-height: min(6.667cqw, 50px);
+    max-width: min(48cqw, 100%);
+    height: clamp(40px, 8cqw, 60px);
     object-fit: contain;
+    object-position: left center;
 }
 .user-header-action {
     display: grid;
@@ -792,6 +793,65 @@ a.user-quick-action:hover .user-quick-action-circle {
     background: var(--user-background);
     padding: min(9.067cqw, 68px) min(5.333cqw, 40px) 40px;
 }
+/* Login and registration share this presentation; other auth flows retain their layout. */
+.user-auth-designed {
+    max-width: 520px;
+    background: #f7f6f0;
+    color: #25241f;
+}
+.user-auth-designed .user-auth-banner-promotional {
+    min-height: 0;
+    padding: 12px 24px 0;
+    background: radial-gradient(ellipse at 70% 45%, #e9ddbc70, transparent 70%);
+}
+.user-auth-designed .user-auth-banner > div:first-child {
+    gap: 16px;
+}
+.user-auth-designed .user-auth-banner > div:first-child button {
+    border-color: #d9d5c9;
+    background: #ffffff80;
+    color: #35332b;
+}
+.user-auth-promotion {
+    display: grid;
+    justify-items: center;
+    gap: 20px;
+    width: 100%;
+    padding: 22px 0 28px;
+}
+.user-auth-promotion-copy {
+    width: 100%;
+    min-width: 0;
+    text-align: center;
+}
+.user-auth-promotion-name {
+    font-size: 28px;
+    font-weight: 750;
+    line-height: 1.2;
+    letter-spacing: -0.7px;
+    overflow-wrap: anywhere;
+}
+.user-auth-promotion-title {
+    margin-top: 7px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #74664a;
+    overflow-wrap: anywhere;
+}
+.user-auth-promotion-card {
+    display: block;
+    width: min(100%, 300px);
+    height: auto;
+    border-radius: 16px;
+    box-shadow: 0 12px 24px -12px #49371050;
+}
+.user-auth-designed .user-auth-content {
+    margin-top: 0;
+    padding: 24px 24px 36px;
+    border-top: 1px solid #e7e2d6;
+    border-radius: 0;
+    background: transparent;
+}
 .user-auth-tabs {
     display: flex;
     justify-content: center;
@@ -915,6 +975,81 @@ a.user-quick-action:hover .user-quick-action-circle {
 .user-auth-flow [role='tab'][data-state='active'] {
     color: var(--user-primary-readable);
     border-bottom: 3px solid currentColor;
+}
+
+.user-auth-designed .user-auth-tabs,
+.user-auth-designed .user-auth-flow [role='tablist'] {
+    display: flex;
+    width: 100%;
+    height: auto;
+    gap: 4px;
+    padding: 4px;
+    margin-bottom: 22px;
+    border-radius: 14px;
+    background: #ebe8df;
+}
+.user-auth-designed .user-auth-tabs button,
+.user-auth-designed .user-auth-flow [role='tab'] {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 6px;
+    border: 0;
+    border-radius: 10px;
+    font-size: 16px;
+    line-height: 1.5;
+    font-weight: 600;
+    white-space: normal;
+    color: #696456;
+}
+.user-auth-designed .user-auth-tabs button[aria-selected='true'],
+.user-auth-designed .user-auth-flow [role='tab'][data-state='active'] {
+    background: #fffefa;
+    color: #29261d;
+    border: 0;
+    box-shadow: 0 2px 5px #3730200a;
+}
+.user-auth-designed .user-auth-field input,
+.user-auth-designed .user-auth-flow input {
+    min-height: 54px;
+    height: 54px;
+    border: 1px solid #e2ded4;
+    border-radius: 14px;
+    padding-inline: 18px;
+    font-size: 16px;
+}
+.user-auth-designed .user-auth-submit,
+.user-auth-designed .user-auth-flow button.bg-primary {
+    min-height: 54px;
+    height: auto;
+    padding: 13px 16px;
+    border-radius: 14px;
+    background: #25241f;
+    font-size: 17px;
+    line-height: 1.5;
+}
+.user-auth-designed .user-auth-submit:disabled {
+    background: #e4e0d5;
+    color: #787264;
+}
+.user-auth-designed .user-auth-register {
+    width: 100%;
+    min-height: 52px;
+    height: auto;
+    margin-top: 24px;
+    border-color: #d3cbbc;
+    border-radius: 14px;
+    font-size: 16px;
+}
+.user-auth-designed .user-auth-flow > div > div > div {
+    padding-inline: 0;
+}
+.user-auth-designed .user-auth-flow > div > div > div:first-child {
+    padding-top: 0;
+    padding-bottom: 20px;
+}
+.user-auth-designed :is(a, button, input):focus-visible {
+    outline: 2px solid #806531;
+    outline-offset: 3px;
 }
 
 * {

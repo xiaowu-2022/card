@@ -577,34 +577,6 @@
     width: 55%;
 }
 
-.marketing-steps {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 50px;
-}
-
-.marketing-steps p {
-    margin-top: 18px;
-    color: #737b75;
-    font-size: 17px;
-    line-height: 1.8;
-}
-.marketing-steps > div {
-    border-top: 1px solid #d9dedb;
-    padding-top: 25px;
-}
-.marketing-steps span {
-    font-size: 50px;
-    color: #84bba6;
-    font-weight: 650;
-}
-.marketing-steps h3 {
-    margin-top: 32px;
-}
-.marketing-start-action {
-    text-align: center;
-    margin-top: 60px;
-}
 .marketing-faq {
     max-width: 1020px;
     width: calc(100% - 64px);
@@ -871,24 +843,6 @@
         font-size: 14px;
     }
 
-    .marketing-steps {
-        grid-template-columns: 1fr;
-        gap: 38px;
-    }
-
-    .marketing-steps h3 {
-        font-size: 23px;
-    }
-
-    .marketing-steps p {
-        font-size: 15px;
-    }
-    .marketing-steps h3 {
-        margin-top: 15px;
-    }
-    .marketing-steps span {
-        font-size: 40px;
-    }
     .marketing-faq {
         width: calc(100% - 40px);
     }

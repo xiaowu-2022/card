@@ -14,8 +14,6 @@ export function UserLayout({ children }: { children: ReactNode }) {
     const page = usePage<SharedProps>();
     const { tenant, auth, flash } = page.props;
     const companyName = tenant?.branding.brandName ?? 'Aperture Cards';
-    const cardLabel = t('U Card');
-    const brand = `${companyName} ${cardLabel}`;
     const style = userThemeStyle(tenant?.branding.primaryColor);
     const promotionPath = page.url.split(/[?#]/)[0] ?? '';
     const promotionPage = promotionPath === '/promotion' || promotionPath.startsWith('/promotion/');
@@ -37,7 +35,7 @@ export function UserLayout({ children }: { children: ReactNode }) {
                     <div className="user-header-inner">
                         <Link
                             href={auth.user ? '/dashboard' : '/'}
-                            aria-label={t('{{value1}} home', { value1: brand })}
+                            aria-label={t('{{value1}} home', { value1: companyName })}
                             className="user-brand"
                         >
                             {tenant?.branding.logoUrl ? (
@@ -53,12 +51,9 @@ export function UserLayout({ children }: { children: ReactNode }) {
                                     aria-hidden="true"
                                 />
                             )}
-                            <span className="flex min-w-0 items-baseline gap-1.5">
-                                {!tenant?.branding.logoUrl && (
-                                    <span className="truncate">{companyName}</span>
-                                )}
-                                <span className="shrink-0 whitespace-nowrap">{cardLabel}</span>
-                            </span>
+                            {!tenant?.branding.logoUrl && (
+                                <span className="truncate">{companyName}</span>
+                            )}
                         </Link>
                         {!hideHeaderActions && (
                             <div className="flex shrink-0 items-center">

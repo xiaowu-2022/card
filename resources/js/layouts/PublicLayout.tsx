@@ -20,9 +20,11 @@ import { AuthBrand } from '@/components/user/AuthBrand';
 export function PublicLayout({
     children,
     compact = false,
+    authPromotion = false,
 }: {
     children: ReactNode;
     compact?: boolean;
+    authPromotion?: boolean;
 }) {
     useClientTranslation();
     useLocaleSync();
@@ -32,8 +34,10 @@ export function PublicLayout({
     if (compact) {
         return (
             <div className="user-theme min-h-screen bg-background text-foreground" style={style}>
-                <div className="user-auth-shell">
-                    <header className="user-auth-banner">
+                <div className={`user-auth-shell${authPromotion ? ' user-auth-designed' : ''}`}>
+                    <header
+                        className={`user-auth-banner${authPromotion ? ' user-auth-banner-promotional' : ''}`}
+                    >
                         <div className="flex w-full items-center justify-between">
                             <Link
                                 href="/login"
@@ -44,7 +48,7 @@ export function PublicLayout({
                             </Link>
                             <LanguageSwitcher />
                         </div>
-                        <AuthBrand tenant={tenant} />
+                        <AuthBrand tenant={tenant} promotional={authPromotion} />
                     </header>
                     <main className="user-auth-content user-auth-flow">{children}</main>
                 </div>

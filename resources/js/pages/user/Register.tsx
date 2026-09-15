@@ -43,7 +43,7 @@ export default function Register({ registration }: Props) {
         form.setData({ ...form.data, channel: selected, destination: '', region: 'CN' });
     };
     return (
-        <PublicLayout compact>
+        <PublicLayout compact authPromotion>
             <Head title={t('Create account')} />
             <div className="mx-auto max-w-md px-4 pt-6 pb-12 sm:pt-12 sm:pb-20">
                 <Card className="rounded-[var(--user-radius-lg)] shadow-[0_12px_40px_rgba(23,32,28,0.06)]">
