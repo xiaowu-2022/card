@@ -1,3 +1,4 @@
+import { PlatformCardTransactions } from '@/components/admin/PlatformCardTransactions';
 import { displayMoney } from '@/lib/exact-amount';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, router } from '@inertiajs/react';
@@ -53,6 +54,7 @@ export default function Cards({
 }) {
     useAdminTranslation();
     const [tab, setTab] = useState(filters.tab ?? 'orders');
+    const [selectedCard, setSelectedCard] = useState<UserCard | null>(null);
     const [refreshing, setRefreshing] = useState<string | null>(null);
     const [refreshError, setRefreshError] = useState('');
     return (
@@ -154,35 +156,44 @@ export default function Cards({
                                 {
                                     label: 'Actions',
                                     render: (row) => (
-                                        <Button
-                                            variant="secondary"
-                                            size="sm"
-                                            disabled={refreshing !== null}
-                                            onClick={() => {
-                                                setRefreshing(row.id);
-                                                setRefreshError('');
-                                                router.post(
-                                                    `/platform/tenants/${row.tenantId}/cards/${row.id}/refresh`,
-                                                    {},
-                                                    {
-                                                        preserveState: true,
-                                                        preserveScroll: true,
-                                                        onError: (errors) =>
-                                                            setRefreshError(
-                                                                errors.card_balance ??
-                                                                    'Card balance could not be refreshed. The last confirmed balance is shown.',
-                                                            ),
-                                                        onFinish: () => setRefreshing(null),
-                                                    },
-                                                );
-                                            }}
-                                        >
-                                            {t(
-                                                refreshing === row.id
-                                                    ? 'Refreshing'
-                                                    : 'Refresh balance',
-                                            )}
-                                        </Button>
+                                        <div className="flex flex-wrap gap-2">
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                onClick={() => setSelectedCard(row)}
+                                            >
+                                                {t('View transactions')}
+                                            </Button>
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                disabled={refreshing !== null}
+                                                onClick={() => {
+                                                    setRefreshing(row.id);
+                                                    setRefreshError('');
+                                                    router.post(
+                                                        `/platform/tenants/${row.tenantId}/cards/${row.id}/refresh`,
+                                                        {},
+                                                        {
+                                                            preserveState: true,
+                                                            preserveScroll: true,
+                                                            onError: (errors) =>
+                                                                setRefreshError(
+                                                                    errors.card_balance ??
+                                                                        'Card balance could not be refreshed. The last confirmed balance is shown.',
+                                                                ),
+                                                            onFinish: () => setRefreshing(null),
+                                                        },
+                                                    );
+                                                }}
+                                            >
+                                                {t(
+                                                    refreshing === row.id
+                                                        ? 'Refreshing'
+                                                        : 'Refresh balance',
+                                                )}
+                                            </Button>
+                                        </div>
                                     ),
                                 },
                             ]}
@@ -190,6 +201,13 @@ export default function Cards({
                     </TabsContent>
                 </Tabs>
             </div>
+            {selectedCard && (
+                <PlatformCardTransactions
+                    key={`${selectedCard.tenantId}:${selectedCard.id}`}
+                    card={selectedCard}
+                    onClose={() => setSelectedCard(null)}
+                />
+            )}
         </PlatformLayout>
     );
 }

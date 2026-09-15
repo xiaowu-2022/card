@@ -4,6 +4,7 @@ import type { ComponentProps, FormHTMLAttributes, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { CompanyLifecycleControls } from '@/components/admin/CompanyLifecycleControls';
+import { RenameCompany } from '@/components/admin/RenameCompany';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { TenantAdminLayout } from '@/layouts/TenantAdminLayout';
 import { t } from '@/i18n/admin';
@@ -11,7 +12,7 @@ import { t } from '@/i18n/admin';
 type ConfigurationProps = {
     configurationBase?: string;
     configurationReadOnly?: boolean;
-    configurationCompany?: { id: string; name: string; status?: string };
+    configurationCompany?: { id: string; name: string; slug: string; status?: string };
 };
 
 export function CompanyConfigurationHeader(props: ComponentProps<typeof PageHeader>) {
@@ -72,6 +73,10 @@ export function CompanyConfigurationLayout({ children }: { children: ReactNode }
                             {configurationCompany.name} · {t('Company configuration')}
                         </h1>
                         <div className="flex flex-wrap items-center gap-2">
+                            <RenameCompany
+                                key={configurationCompany.id}
+                                company={configurationCompany}
+                            />
                             <CompanyLifecycleControls company={configurationCompany} />
                             <Button asChild variant="ghost" size="sm">
                                 <Link href="/platform/tenants">

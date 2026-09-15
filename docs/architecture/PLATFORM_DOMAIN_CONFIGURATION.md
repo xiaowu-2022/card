@@ -1,5 +1,36 @@
 # SaaS domain configuration and company assignment
 
+## Effective revision: no DNS ownership verification (2026-09-15)
+
+The user explicitly removed DNS ownership verification. This revision supersedes
+verification prerequisites in the historical sections below and AGENTS.md.
+New custom domains are created ACTIVE, non-primary and unassigned by the SaaS
+catalog. No token or verified_at is generated; DOMAIN_ADDED records the actual
+ACTIVE state. Assignment still explicitly selects one persisted company and an
+unassigned ACTIVE hostname continues to resolve to no company.
+
+Global and company-scoped verify endpoints and CheckDomainVerificationAction are
+removed. No UI TXT instructions or verification buttons remain, and query DTOs no
+longer return verificationToken. Existing verification adapters are retained as
+unused infrastructure for historical tests; no domain lifecycle route invokes them.
+
+Existing PENDING_VERIFICATION and VERIFIED rows display as Not activated and can
+be explicitly activated by an authorized Platform administrator. Activation locks
+the company (when assigned), then the scoped domain, preserves historical tokens,
+verified_at and SSL state, and audits the actual before/after status. FAILED,
+DISABLED and system domains cannot use this legacy activation path. No automatic
+migration, bulk activation or reassignment occurs. Existing enum values and columns
+remain to preserve historical evidence; no schema migration is needed.
+
+Hostname format, reserved hosts, global uniqueness, active Platform tenant.manage,
+company ownership, primary protection and assignment concurrency checks remain.
+DNS routing and HTTPS must still be configured on the hosting infrastructure;
+ACTIVE is application routing eligibility, never evidence of a working certificate.
+
+Deploy via Git and rebuild the frontend. Existing pending domains require one
+explicit activation before assignment. No verification job or financial replay runs.
+
+
 Approved by the user on 2026-09-14: maintain custom domains in SaaS configuration;
 company configuration selects multiple configured domains. One complete hostname
 belongs to at most one company. This supersedes company-specific creation UI, not

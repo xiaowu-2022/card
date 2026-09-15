@@ -25,7 +25,6 @@ final class DomainConfigurationQuery
             'type' => $domain->domain_type->value,
             'status' => $domain->status->value,
             'primary' => $domain->is_primary,
-            'verificationToken' => $tenantId === null && $domain->domain_type->value === 'CUSTOM_DOMAIN' ? $domain->verification_token : null,
             'sslStatus' => $domain->ssl_status,
             'companyId' => $domain->tenant_id,
             'companyName' => $domain->tenant?->name,

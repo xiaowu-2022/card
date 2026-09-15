@@ -36,8 +36,7 @@ final readonly class AddCustomDomainAction
                 'tenant_id' => $tenant?->id,
                 'hostname' => $hostname,
                 'domain_type' => TenantDomainType::CustomDomain,
-                'status' => TenantDomainStatus::PendingVerification,
-                'verification_token' => 'vc-verify-'.bin2hex(random_bytes(16)),
+                'status' => TenantDomainStatus::Active,
                 'is_primary' => false,
                 'ssl_status' => 'PENDING',
             ]);

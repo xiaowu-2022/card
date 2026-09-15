@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Platform;
 
 use App\Application\Tenant\CreateTenantAction;
 use App\Application\Tenant\ListTenantsQuery;
+use App\Application\Tenant\RenameCompanyAction;
 use App\Application\Tenant\TenantDetailQuery;
 use App\Application\Tenant\UpdateCompanyDepositSettingsAction;
 use App\Domain\Admin\Enums\ScopeType;
@@ -12,6 +13,7 @@ use App\Domain\Admin\Services\AuthorizationService;
 use App\Domain\Tenant\Models\Tenant;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CreateTenantRequest;
+use App\Http\Requests\RenameCompanyRequest;
 use App\Http\Requests\UpdateCompanyDepositSettingsRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +22,13 @@ use Inertia\Response;
 
 final class TenantManagementController extends Controller
 {
+    public function rename(Tenant $tenant, RenameCompanyRequest $request, RenameCompanyAction $action): RedirectResponse
+    {
+        $action->execute($tenant->id, $request->validated('name'), $request->user('platform_admin'), $request->attributes->get('request_id'));
+
+        return back()->with('success', 'Company name updated.');
+    }
+
     public function index(Request $request, ListTenantsQuery $query, AuthorizationService $authorization): Response
     {
         $filters = $request->validate([

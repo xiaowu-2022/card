@@ -16,7 +16,7 @@ beforeEach(function (): void {
     $this->tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
     $this->other = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
     $this->owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
-    $this->mock(DomainVerificationService::class)->shouldReceive('verify')->andReturn(true);
+    $this->mock(DomainVerificationService::class)->shouldNotReceive('verify');
     $this->companyAdmin = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
     $this->url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/domains';
 });
@@ -44,16 +44,15 @@ it('allows the platform owner to manage only domains belonging to the selected c
     $global = 'http://admin.localhost/platform/settings/domains';
     $this->postJson($global, ['hostname' => 'platform-managed.example.test'])->assertRedirect();
     $domain = TenantDomain::query()->whereNull('tenant_id')->where('hostname', 'platform-managed.example.test')->firstOrFail();
-    expect($domain->status->value)->toBe('PENDING_VERIFICATION');
+    expect($domain->status->value)->toBe('ACTIVE')->and($domain->verification_token)->toBeNull()->and($domain->verified_at)->toBeNull();
     $this->postJson($this->url.'/'.$domain->id.'/activate')->assertNotFound();
     $wrong = 'http://admin.localhost/platform/tenants/'.$this->other->id.'/domains/'.$domain->id;
-    $this->postJson($wrong.'/verify')->assertUnprocessable();
+    $this->postJson($wrong.'/verify')->assertNotFound();
     $this->postJson($wrong.'/activate')->assertNotFound();
     $this->postJson($wrong.'/primary')->assertNotFound();
     $this->deleteJson($wrong)->assertNotFound();
     $this->postJson($global.'/'.$domain->id.'/activate')->assertUnprocessable();
-    $this->postJson($global.'/'.$domain->id.'/verify')->assertRedirect();
-    $this->postJson($global.'/'.$domain->id.'/activate')->assertRedirect();
+    $this->postJson($global.'/'.$domain->id.'/verify')->assertNotFound();
     $this->postJson($configurationUrl, ['domain_ids' => [$domain->id], 'original_ids' => [], 'confirmed' => true])->assertRedirect();
     $this->postJson($this->url.'/'.$domain->id.'/primary')->assertRedirect();
     expect($domain->fresh()->is_primary)->toBeTrue();
@@ -82,8 +81,7 @@ it('assigns multiple ready domains atomically and excludes unassigned hosts from
     foreach (['one.example.test', 'two.example.test'] as $hostname) {
         $this->postJson($global, ['hostname' => $hostname])->assertRedirect();
         $domain = TenantDomain::query()->where('hostname', $hostname)->firstOrFail();
-        $this->postJson($global.'/'.$domain->id.'/verify')->assertRedirect();
-        $this->postJson($global.'/'.$domain->id.'/activate')->assertRedirect();
+        $this->postJson($global.'/'.$domain->id.'/verify')->assertNotFound();
         expect(app(TenantDomainRepository::class)->resolveActiveHostname($hostname))->toBeNull();
         $this->get('http://'.$hostname)->assertNotFound();
         $ids[] = $domain->id;
@@ -112,18 +110,18 @@ it('assigns multiple ready domains atomically and excludes unassigned hosts from
     expect(DB::table('audit_logs')->where('action', 'COMPANY_DOMAINS_ASSIGNED')->where('actor_id', $this->owner->id)->whereNotNull('created_at')->count())->toBe(3);
 });
 
-it('protects primary and system assignments and rejects unverified selections without partial writes', function (): void {
+it('protects primary and system assignments and rejects inactive selections without partial writes', function (): void {
     $this->actingAs($this->owner, 'platform_admin');
     $global = 'http://admin.localhost/platform/settings/domains';
     $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/configuration/domains';
     $this->postJson($global, ['hostname' => 'pending.example.test'])->assertRedirect();
     $pending = TenantDomain::query()->where('hostname', 'pending.example.test')->firstOrFail();
+    $pending->update(['status' => 'PENDING_VERIFICATION']); // Historical row, explicitly activated below.
     $system = $this->tenant->domains()->firstOrFail();
     foreach ([$pending->id, $system->id] as $id) {
         $this->postJson($url, ['domain_ids' => [$id], 'original_ids' => [], 'confirmed' => true])->assertUnprocessable();
     }
     expect($pending->fresh()->tenant_id)->toBeNull()->and($system->fresh()->tenant_id)->toBe($this->tenant->id);
-    $this->postJson($global.'/'.$pending->id.'/verify')->assertRedirect();
     $this->postJson($global.'/'.$pending->id.'/activate')->assertRedirect();
     $this->postJson($url, ['domain_ids' => [$pending->id], 'original_ids' => [], 'confirmed' => true])->assertRedirect();
     $this->postJson($this->url.'/'.$pending->id.'/primary')->assertRedirect();
@@ -154,8 +152,7 @@ it('allocates domains from the global catalog using a persisted company route an
     foreach (['global-one.example.test', 'global-two.example.test'] as $hostname) {
         $this->postJson($global, ['hostname' => $hostname])->assertRedirect();
         $domain = TenantDomain::query()->where('hostname', $hostname)->firstOrFail();
-        $this->postJson($global.'/'.$domain->id.'/verify')->assertRedirect();
-        $this->postJson($global.'/'.$domain->id.'/activate')->assertRedirect();
+        $this->postJson($global.'/'.$domain->id.'/verify')->assertNotFound();
         $ids[] = $domain->id;
     }
     $companyView = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/configuration/domains';
@@ -171,4 +168,66 @@ it('allocates domains from the global catalog using a persisted company route an
     expect(TenantDomain::query()->findOrFail($ids[0])->tenant_id)->toBe($this->tenant->id)
         ->and(TenantDomain::query()->findOrFail($ids[1])->tenant_id)->toBeNull();
     $this->actingAs($this->companyAdmin, 'platform_admin')->postJson($assignmentUrl, $payload)->assertForbidden();
+});
+
+it('explicitly activates historical domains without DNS verification or fabricated verification evidence', function (string $status): void {
+    $this->actingAs($this->owner, 'platform_admin');
+    $domain = TenantDomain::query()->create([
+        'tenant_id' => null,
+        'hostname' => 'legacy.example.test',
+        'domain_type' => 'CUSTOM_DOMAIN',
+        'status' => $status,
+        'verification_token' => 'historical-token',
+        'verified_at' => $status === 'VERIFIED' ? now()->subDay() : null,
+        'is_primary' => false,
+        'ssl_status' => 'PENDING',
+    ]);
+    $verifiedAt = $domain->verified_at;
+    $global = 'http://admin.localhost/platform/settings/domains';
+    $this->get($global)->assertInertia(fn ($page) => $page->where('domains', fn ($rows) => collect($rows)->every(fn ($row) => ! array_key_exists('verificationToken', $row))));
+    expect($domain->fresh()->status->value)->toBe($status); // Reads never activate existing rows.
+    $this->postJson($global.'/'.$domain->id.'/activate')->assertRedirect();
+    $domain->refresh();
+    expect($domain->status->value)->toBe('ACTIVE')
+        ->and($domain->tenant_id)->toBeNull()
+        ->and($domain->verified_at?->toIso8601String())->toBe($verifiedAt?->toIso8601String())
+        ->and($domain->verification_token)->toBe('historical-token')
+        ->and($domain->ssl_status)->toBe('PENDING');
+    $audit = DB::table('audit_logs')->where('action', 'DOMAIN_ACTIVATED')->where('resource_id', $domain->id)->first();
+    expect($audit->actor_id)->toBe($this->owner->id)
+        ->and(json_decode($audit->before_data, true)['status'])->toBe($status)
+        ->and(json_decode($audit->after_data, true)['status'])->toBe('ACTIVE')
+        ->and(DB::table('audit_logs')->where('resource_id', $domain->id)->where('action', 'DOMAIN_VERIFICATION_CHECKED')->exists())->toBeFalse();
+})->with(['PENDING_VERIFICATION', 'VERIFIED']);
+
+it('does not activate system disabled or failed domains through legacy activation', function (string $type, string $status): void {
+    $this->actingAs($this->owner, 'platform_admin');
+    $domain = TenantDomain::query()->create([
+        'tenant_id' => $this->tenant->id, 'hostname' => 'protected.example.test',
+        'domain_type' => $type, 'status' => $status, 'is_primary' => false,
+    ]);
+    $before = $domain->fresh()->getAttributes();
+    $this->postJson('http://admin.localhost/platform/settings/domains/'.$domain->id.'/activate')->assertUnprocessable();
+    expect($domain->fresh()->getAttributes())->toBe($before);
+})->with([
+    ['SYSTEM_SUBDOMAIN', 'PENDING_VERIFICATION'],
+    ['CUSTOM_DOMAIN', 'DISABLED'],
+    ['CUSTOM_DOMAIN', 'FAILED'],
+]);
+
+it('keeps domain format uniqueness and activation authority checks when verification is removed', function (): void {
+    $global = 'http://admin.localhost/platform/settings/domains';
+    $this->actingAs($this->owner, 'platform_admin');
+    foreach (['https://cards.example.test', 'cards.example.test:443', 'cards.example.test/path', '测试.example.test', 'admin.localhost'] as $hostname) {
+        $this->postJson($global, ['hostname' => $hostname])->assertUnprocessable();
+    }
+    $this->postJson($global, ['hostname' => 'unique.example.test'])->assertRedirect();
+    $this->postJson($global, ['hostname' => 'UNIQUE.EXAMPLE.TEST.'])->assertUnprocessable();
+    $domain = TenantDomain::query()->where('hostname', 'unique.example.test')->firstOrFail();
+    $domain->update(['status' => 'PENDING_VERIFICATION']);
+    $this->actingAs($this->companyAdmin, 'platform_admin')->postJson($global.'/'.$domain->id.'/activate')->assertForbidden();
+    $this->actingAs($this->owner, 'platform_admin');
+    AdminMembership::query()->where('admin_user_id', $this->owner->id)->update(['status' => 'SUSPENDED']);
+    $this->postJson($global.'/'.$domain->id.'/activate')->assertForbidden();
+    expect($domain->fresh()->status->value)->toBe('PENDING_VERIFICATION');
 });

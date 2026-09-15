@@ -89,3 +89,26 @@ normalizer. This is not a default currency or client assertion. Existing row car
 recharge/virtual form, pagination and exact decimal checks remain, and a conflicting
 explicit row currency is rejected. The same evidence rule applies to management
 recovery and cancellation-return verification.
+
+## SaaS card transaction visibility (2026-09-15)
+
+The user authorized viewing card transactions from SaaS card operations. Each row
+on `/platform/cards` has View transactions, opening a paginated dialog without
+resetting company/search filters or the cards tab. It shows type, merchant, exact
+transaction amount/currency, state and completion/recorded time in the persisted
+company timezone. Cancelled and historical cards remain readable. Empty results
+mean no saved records, not proof that no external transactions exist.
+
+`GET /platform/tenants/{tenant}/cards/{card}/transactions?page=N` requires an active
+Platform administrator and membership with cards.read. Both route IDs are UUIDs;
+the query resolves the card with tenant_id + card ID, derives its user ID from that
+row and reuses UserCardTransactionsQuery. Client tenant/user/provider/page-size
+selectors are prohibited by CardTransactionsRequest. The response is the existing
+safe 20-row transaction page plus the company's `timezone`, private/no-store.
+The DTO retains hashed row identifiers and last four digits only; no provider
+references, PAN/CVV, identity materials or unrestricted models are exposed.
+
+The dialog uses GET only, cancels obsolete requests on close/card/page changes,
+validates returned card/page IDs and offers explicit error retry. No provider sync,
+background scan, balance refresh, financial operation, new permission or migration
+is introduced. Existing user sync and notification recording retain their contracts.

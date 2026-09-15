@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Platform;
 
 use App\Application\Card\PlatformCardQuery;
+use App\Application\Card\PlatformCardTransactionsQuery;
 use App\Application\Card\RefreshManagedCardAction;
 use App\Application\Tenant\PlatformListFilters;
 use App\Domain\Card\Models\UserCard;
 use App\Domain\Tenant\Models\Tenant;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CardTransactionsRequest;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -15,6 +18,12 @@ use Inertia\Response;
 
 final class CardOperationsController extends Controller
 {
+    public function transactions(CardTransactionsRequest $request, Tenant $tenant, string $card, PlatformCardTransactionsQuery $query): JsonResponse
+    {
+        return response()->json($query->get($tenant->id, $card, $request->integer('page', 1)))
+            ->header('Cache-Control', 'private, no-store');
+    }
+
     public function refresh(Tenant $tenant, string $card, RefreshManagedCardAction $refresh): RedirectResponse
     {
         $owned = UserCard::query()->where('tenant_id', $tenant->id)->whereKey($card)->firstOrFail();

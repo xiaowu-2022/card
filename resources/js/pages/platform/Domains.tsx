@@ -35,9 +35,8 @@ type Domain = {
     id: string;
     hostname: string;
     type: 'SYSTEM_SUBDOMAIN' | 'CUSTOM_DOMAIN';
-    status: 'PENDING_VERIFICATION' | 'VERIFIED' | 'ACTIVE';
+    status: 'PENDING_VERIFICATION' | 'VERIFIED' | 'ACTIVE' | 'FAILED' | 'DISABLED';
     primary: boolean;
-    verificationToken: string | null;
     sslStatus: string;
     companyId: string | null;
     companyName: string | null;
@@ -236,18 +235,6 @@ export default function Domains({
                                                 {t(domain.type)}
                                                 {domain.primary ? t(' · Primary') : ''}
                                             </p>
-                                            {domain.verificationToken &&
-                                                domain.status === 'PENDING_VERIFICATION' && (
-                                                    <code className="mt-2 block max-w-md break-all rounded bg-muted p-2 text-xs">
-                                                        {t(
-                                                            'TXT _vc-verification.{{value1}} =  {{value2}}',
-                                                            {
-                                                                value1: domain.hostname,
-                                                                value2: domain.verificationToken,
-                                                            },
-                                                        )}
-                                                    </code>
-                                                )}
                                         </TableCell>
                                         {!company && (
                                             <TableCell>
@@ -263,7 +250,13 @@ export default function Domains({
                                                           ? 'INFO'
                                                           : 'WARNING'
                                                 }
-                                                label={t(domain.status)}
+                                                label={t(
+                                                    ['PENDING_VERIFICATION', 'VERIFIED'].includes(
+                                                        domain.status,
+                                                    )
+                                                        ? 'Not activated'
+                                                        : domain.status,
+                                                )}
                                             />
                                         </TableCell>
                                         <TableCell>{t(domain.sslStatus)}</TableCell>
@@ -306,23 +299,10 @@ export default function Domains({
 
                                                     {!company &&
                                                         domain.type === 'CUSTOM_DOMAIN' &&
-                                                        domain.status ===
-                                                            'PENDING_VERIFICATION' && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="secondary"
-                                                                onClick={() =>
-                                                                    router.post(
-                                                                        `${base}/${domain.id}/verify`,
-                                                                    )
-                                                                }
-                                                            >
-                                                                {t('Check verification')}
-                                                            </Button>
-                                                        )}
-                                                    {!company &&
-                                                        domain.type === 'CUSTOM_DOMAIN' &&
-                                                        domain.status === 'VERIFIED' && (
+                                                        [
+                                                            'PENDING_VERIFICATION',
+                                                            'VERIFIED',
+                                                        ].includes(domain.status) && (
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() =>
@@ -485,9 +465,7 @@ export default function Domains({
                     </AlertDialogTitle>
                     <AlertDialogDescription>
                         {confirmation?.action === 'remove'
-                            ? t(
-                                  'Removing this domain stops access through this hostname. Its DNS verification must be repeated if added again.',
-                              )
+                            ? t('Removing this domain stops access through this hostname.')
                             : t(
                                   'This changes company access routing. Confirm that DNS and HTTPS are ready before continuing.',
                               )}

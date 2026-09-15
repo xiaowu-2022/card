@@ -5,7 +5,6 @@ use App\Application\Tenant\ActivateTenantAction;
 use App\Application\Tenant\ActivateTenantDomainAction;
 use App\Application\Tenant\AddCustomDomainAction;
 use App\Application\Tenant\ChangePrimaryDomainAction;
-use App\Application\Tenant\CheckDomainVerificationAction;
 use App\Application\Tenant\DeleteTenantDomainAction;
 use App\Application\Tenant\ReactivateTenantAction;
 use App\Application\Tenant\SuspendTenantAction;
@@ -23,6 +22,7 @@ use App\Domain\Tenant\Models\TenantDomain;
 use App\Domain\Tenant\Services\TenantOnboardingStatusService;
 use App\Mail\AdminInvitationMail;
 use App\Support\Errors\DomainException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Mail;
 
 beforeEach(fn () => $this->seed());
@@ -159,11 +159,9 @@ it('enforces the custom domain state machine and tenant ownership', function ():
     $actor = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
     $domain = app(AddCustomDomainAction::class)->execute($tenantA, 'CARDS.EXAMPLE.TEST.', $actor);
 
-    expect($domain->hostname)->toBe('cards.example.test')->and($domain->status)->toBe(TenantDomainStatus::PendingVerification);
+    expect($domain->hostname)->toBe('cards.example.test')->and($domain->status)->toBe(TenantDomainStatus::Active);
     expect(fn () => app(ActivateTenantDomainAction::class)->execute($tenantA->id, $domain->id, $actor))->toThrow(DomainException::class);
-    expect(fn () => app(CheckDomainVerificationAction::class)->execute($tenantB->id, $domain->id, $actor))->toThrow(DomainException::class);
-    expect(app(CheckDomainVerificationAction::class)->execute($tenantA->id, $domain->id, $actor))->toBeTrue();
-    app(ActivateTenantDomainAction::class)->execute($tenantA->id, $domain->id, $actor);
+    expect(fn () => app(ActivateTenantDomainAction::class)->execute($tenantB->id, $domain->id, $actor))->toThrow(ModelNotFoundException::class);
     app(ChangePrimaryDomainAction::class)->execute($tenantA->id, $domain->id, $actor);
 
     expect($domain->fresh()->status)->toBe(TenantDomainStatus::Active)
@@ -182,6 +180,7 @@ it('rejects duplicate hostnames and protects the immutable system domain', funct
     expect(fn () => app(DeleteTenantDomainAction::class)->execute($tenantA->id, $systemDomain->id, $actor))->toThrow(DomainException::class);
 
     $unverified = app(AddCustomDomainAction::class)->execute($tenantA, 'pending.example.test', $actor);
+    $unverified->update(['status' => TenantDomainStatus::PendingVerification]);
     expect(fn () => app(ChangePrimaryDomainAction::class)->execute($tenantA->id, $unverified->id, $actor))->toThrow(DomainException::class)
         ->and($tenantB->id)->not->toBe($tenantA->id);
 });

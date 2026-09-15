@@ -1,5 +1,15 @@
 # Virtual Card SaaS Agent Rules
 
+On 2026-09-15 the user explicitly removed custom-domain DNS ownership verification.
+New SaaS-managed custom domains are ACTIVE and unassigned; assignment remains
+explicit and Platform-only. Historical PENDING_VERIFICATION/VERIFIED domains may
+be explicitly activated without DNS checks, never bulk-activated by reads/deploys.
+Do not fabricate verified_at, verification events or SSL readiness. Preserve
+hostname validation/uniqueness, reserved hosts, active Platform tenant.manage,
+company scoping, system immutability and primary protection. This supersedes only
+the DNS verification/state-transition requirements below. See
+`docs/architecture/PLATFORM_DOMAIN_CONFIGURATION.md`.
+
 On 2026-09-15 the user approved compact Me navigation: profile with verification
 status, Account and security/Promotion/Support grid, and a Settings subpage for
 language/About/logout. Wallet and Deposit shortcuts remain on Assets instead.

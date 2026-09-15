@@ -43,6 +43,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
 
     Route::middleware('admin.scope:platform,card_product.read')->get('/card-products', [CardProductController::class, 'index'])->name('card-products.index');
     Route::middleware('admin.scope:platform,cards.read')->get('/cards', CardOperationsController::class)->name('cards.index');
+    Route::middleware(['admin.scope:platform,cards.read', 'throttle:120,1'])->get('/tenants/{tenant}/cards/{card}/transactions', [CardOperationsController::class, 'transactions'])->whereUuid(['tenant', 'card'])->name('cards.transactions');
     Route::middleware(['admin.scope:platform,cards.read', 'throttle:30,1'])->post('/tenants/{tenant}/cards/{card}/refresh', [CardOperationsController::class, 'refresh'])->whereUuid(['tenant', 'card'])->name('cards.refresh');
     Route::middleware('admin.scope:platform,users.read')->get('/users', UserOperationsController::class)->name('users.index');
     Route::middleware('admin.scope:platform,provider_operation.read')->get('/card-providers', CardProviderController::class)->name('card-providers.index');
@@ -68,10 +69,10 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     });
 
     Route::middleware('admin.scope:platform,tenant.manage')->group(function (): void {
+        Route::put('/tenants/{tenant}/name', [TenantManagementController::class, 'rename'])->whereUuid('tenant')->name('tenants.rename');
         Route::post('/settings/domains/assign/{tenant}', [DomainManagementController::class, 'assign'])->whereUuid('tenant')->name('settings.domains.assign');
         Route::get('/settings/domains', [PlatformDomainController::class, 'index'])->name('settings.domains');
         Route::post('/settings/domains', [PlatformDomainController::class, 'store'])->name('settings.domains.store');
-        Route::post('/settings/domains/{domain}/verify', [PlatformDomainController::class, 'verify'])->whereUuid('domain')->middleware('throttle:20,1')->name('settings.domains.verify');
         Route::post('/settings/domains/{domain}/activate', [PlatformDomainController::class, 'activate'])->whereUuid('domain')->name('settings.domains.activate');
         Route::delete('/settings/domains/{domain}', [PlatformDomainController::class, 'destroy'])->whereUuid('domain')->name('settings.domains.destroy');
         Route::get('/settings/sms', [NotificationProfilesController::class, 'sms'])->name('settings.sms');
@@ -84,7 +85,6 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::put('/tenants/{tenant}/deposit-settings', [TenantManagementController::class, 'updateDeposit'])->whereUuid('tenant')->name('tenants.deposit-settings.update');
         Route::get('/tenants/{tenant}/domains', [DomainManagementController::class, 'index'])->whereUuid('tenant')->name('domains');
         Route::post('/tenants/{tenant}/domains', [DomainManagementController::class, 'store'])->whereUuid('tenant')->name('domains.store');
-        Route::post('/tenants/{tenant}/domains/{domain}/verify', [DomainManagementController::class, 'verify'])->whereUuid(['tenant', 'domain'])->middleware('throttle:20,1')->name('domains.verify');
         Route::post('/tenants/{tenant}/domains/{domain}/activate', [DomainManagementController::class, 'activate'])->whereUuid(['tenant', 'domain'])->name('domains.activate');
         Route::post('/tenants/{tenant}/domains/{domain}/primary', [DomainManagementController::class, 'primary'])->whereUuid(['tenant', 'domain'])->name('domains.primary');
         Route::delete('/tenants/{tenant}/domains/{domain}', [DomainManagementController::class, 'destroy'])->whereUuid(['tenant', 'domain'])->name('domains.destroy');

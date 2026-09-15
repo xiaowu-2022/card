@@ -14,7 +14,7 @@ final class PlatformCompanyConfiguration
         $tenant = $request->route('tenant');
         $tenant = $tenant instanceof Tenant ? $tenant : Tenant::query()->findOrFail($tenant);
         Inertia::share(['configurationReadOnly' => false, 'configurationBase' => '/platform/tenants/'.$tenant->id.'/configuration',
-            'configurationCompany' => ['id' => $tenant->id, 'name' => $tenant->name, 'status' => $tenant->status->value]]);
+            'configurationCompany' => ['id' => $tenant->id, 'name' => $tenant->name, 'slug' => $tenant->slug, 'status' => $tenant->status->value]]);
 
         return $next($request);
     }

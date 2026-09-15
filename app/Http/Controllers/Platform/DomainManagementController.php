@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Platform;
 use App\Application\Tenant\ActivateTenantDomainAction;
 use App\Application\Tenant\AssignCompanyDomainsAction;
 use App\Application\Tenant\ChangePrimaryDomainAction;
-use App\Application\Tenant\CheckDomainVerificationAction;
 use App\Application\Tenant\DeleteTenantDomainAction;
 use App\Application\Tenant\DomainConfigurationQuery;
 use App\Domain\Admin\Models\AdminUser;
@@ -43,18 +42,11 @@ final class DomainManagementController extends Controller
         return back()->with('success', 'Domain assignments saved.');
     }
 
-    public function verify(Request $request, Tenant $tenant, string $domain, CheckDomainVerificationAction $check): RedirectResponse
-    {
-        $verified = $check->execute($tenant->id, $domain, $this->admin($request), $request->attributes->get('request_id'));
-
-        return back()->with('success', $verified ? 'Ownership verified. Activate the domain when ready.' : 'Verification record was not found yet.');
-    }
-
     public function activate(Request $request, Tenant $tenant, string $domain, ActivateTenantDomainAction $activate): RedirectResponse
     {
         $activate->execute($tenant->id, $domain, $this->admin($request), $request->attributes->get('request_id'));
 
-        return back()->with('success', 'Domain activated. SSL provisioning remains pending.');
+        return back()->with('success', 'Domain activated.');
     }
 
     public function primary(Request $request, Tenant $tenant, string $domain, ChangePrimaryDomainAction $change): RedirectResponse

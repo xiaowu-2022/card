@@ -1971,3 +1971,57 @@ it('keeps stored records readable after sync fails and blocks foreign sync selec
     $this->postJson("http://a.localhost/cards/{$card->id}/transactions/sync")->assertStatus(503);
     $this->getJson("http://a.localhost/cards/{$card->id}/transactions")->assertOk()->assertJsonCount(1, 'items')->assertJsonPath('items.0.amount', '0.01000000');
 });
+
+it('lets SaaS read scoped paginated stored card transactions without provider or financial writes', function (): void {
+    [$card, $provider] = transactionReadFixture($this);
+    $provider->shouldNotReceive('getTransactionPage');
+    $provider->shouldNotReceive('getTransactions');
+    $provider->shouldNotReceive('getCard');
+    $this->tenant->update(['timezone' => 'Asia/Shanghai']);
+    $rows = [];
+    for ($i = 0; $i < 21; $i++) {
+        $rows[] = new ProviderCardTransactionDTO('PLATFORM-PRIVATE-'.$i, '123456789012.12345678', 'USD', 'purchase', 'completed', '2020-01-01T00:00:00', 'Example shop');
+    }
+    app(RecordCardTransactionsAction::class)->execute($card, $rows, CarbonImmutable::now());
+    $card->forceFill(['provider_status' => 'cancelled'])->save();
+    $tables = ['user_cards', 'card_transactions', 'card_management_orders', 'wallets', 'ledger_accounts', 'ledger_entries', 'ledger_postings'];
+    $before = collect($tables)->mapWithKeys(fn ($table) => [$table => DB::table($table)->orderBy('id')->get()->toJson()]);
+    $platform = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $url = "http://admin.localhost/platform/tenants/{$this->tenant->id}/cards/{$card->id}/transactions";
+    $first = $this->actingAs($platform, 'platform_admin')->getJson($url)->assertOk()
+        ->assertHeader('Cache-Control', 'no-store, private')->assertJsonCount(20, 'items')
+        ->assertJsonPath('timezone', 'Asia/Shanghai')->assertJsonPath('page', 1)->assertJsonPath('hasMore', true)
+        ->assertJsonPath('items.0.amount', '123456789012.12345678')->assertJsonPath('items.0.timeKind', 'recorded');
+    expect($first->getContent())->not->toContain('PLATFORM-PRIVATE-', 'XR-TRANSACTION-FIXTURE', 'provider_card_id', 'provider_transaction_id', 'cvv', 'tenant_id', 'user_id');
+    $second = $this->getJson($url.'?page=2')->assertOk()->assertJsonCount(1, 'items')->assertJsonPath('hasMore', false);
+    expect(array_intersect(array_column($first->json('items'), 'id'), array_column($second->json('items'), 'id')))->toBe([]);
+    $this->getJson($url.'?page=3')->assertOk()->assertJsonCount(0, 'items');
+    foreach ($tables as $table) {
+        expect(DB::table($table)->orderBy('id')->get()->toJson())->toBe($before[$table]);
+    }
+});
+
+it('protects SaaS card transaction reads with company scoping and active cards read permission', function (): void {
+    [$card] = transactionReadFixture($this);
+    $platform = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $other = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
+    $url = "http://admin.localhost/platform/tenants/{$this->tenant->id}/cards/{$card->id}/transactions";
+    $this->getJson($url)->assertRedirect('/platform/login');
+    $this->actingAs($this->owner, 'platform_admin')->getJson($url)->assertForbidden();
+    $this->actingAs($platform, 'platform_admin');
+    $this->getJson("http://admin.localhost/platform/tenants/{$other->id}/cards/{$card->id}/transactions")->assertNotFound();
+    $this->getJson("http://admin.localhost/platform/tenants/{$this->tenant->id}/cards/".Str::uuid().'/transactions')->assertNotFound();
+    foreach (['page=0', 'page=100001', 'page=1.5', 'tenant_id='.$other->id, 'user_id='.$this->user->id, 'provider_card_id=other', 'page_size=1000'] as $invalid) {
+        $this->getJson($url.'?'.$invalid)->assertUnprocessable();
+    }
+    $this->getJson($url)->assertOk()->assertJsonCount(0, 'items');
+    $platform->update(['status' => 'SUSPENDED']);
+    $this->getJson($url)->assertForbidden();
+    $platform->update(['status' => 'ACTIVE']);
+    $this->actingAs($platform->fresh(), 'platform_admin');
+    DB::table('admin_memberships')->where('admin_user_id', $platform->id)->update(['status' => 'SUSPENDED']);
+    $this->getJson($url)->assertForbidden();
+    DB::table('admin_memberships')->where('admin_user_id', $platform->id)->update(['status' => 'ACTIVE']);
+    DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'cards.read')->value('id'))->delete();
+    $this->actingAs($platform->fresh(), 'platform_admin')->getJson($url)->assertForbidden();
+});

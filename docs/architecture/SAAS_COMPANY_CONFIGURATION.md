@@ -105,3 +105,15 @@ membership; direct action denial; no mail/provider calls in rejection paths.
 2026-09-14: custom domains are now configured in the global SaaS domain catalog.
 Company domain configuration selects multiple available domains, preserving unique
 hostname ownership and protected primary/system domains. See PLATFORM_DOMAIN_CONFIGURATION.md.
+
+## Company name editing (2026-09-15)
+
+The user approved renaming the administrative company while retaining its slug.
+The SaaS company configuration header exposes an edit-name dialog showing the
+read-only slug. PUT /platform/tenants/{tenant}/name requires active Platform
+membership with tenant.manage, with the same authority checked by RenameCompanyAction.
+Only a trimmed, nonempty name of up to 120 characters is written, under a company
+row lock. Each actual change atomically appends COMPANY_RENAMED with old/new names,
+operator and request provenance. An unchanged name does not append another event.
+The company ID, slug, domains, frontend branding, users, balances, card records and
+historical audit records are not rewritten. No migration or provider call is required.
