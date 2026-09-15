@@ -6,13 +6,10 @@ import {
     ArrowRight,
     ArrowUpRight,
     CreditCard,
-    FileCheck2,
     Fingerprint,
     List,
-    LockKeyhole,
     Menu,
     Plus,
-    ShieldCheck,
     Wallet,
 } from 'lucide-react';
 import { t, useClientTranslation } from '@/i18n';
@@ -352,32 +349,6 @@ export default function Landing() {
                                 </div>
                             )}
                         </div>
-                    </div>
-                </section>
-                <section className="marketing-section marketing-muted">
-                    <SectionHeading first="Know before" second="you confirm." />
-                    <div className="marketing-principles marketing-container">
-                        {[
-                            { icon: FileCheck2, title: 'Review the details', copy: faqs[2].answer },
-                            {
-                                icon: LockKeyhole,
-                                title: 'Protect your access',
-                                copy: 'Protect your account. Never share your password or verification code.',
-                            },
-                            {
-                                icon: ShieldCheck,
-                                title: 'Follow the actual status',
-                                copy: 'Service availability and processing results are shown in your account. An application is not a guarantee of approval.',
-                            },
-                        ].map(({ icon: Icon, title, copy }) => (
-                            <div key={title}>
-                                <div className="marketing-principle-icon">
-                                    <Icon />
-                                </div>
-                                <h3>{t(title)}</h3>
-                                <p>{t(copy)}</p>
-                            </div>
-                        ))}
                     </div>
                 </section>
                 <section id="start" className="marketing-section marketing-container">

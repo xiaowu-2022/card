@@ -576,33 +576,13 @@
 .marketing-ui-line.short {
     width: 55%;
 }
-.marketing-principles,
+
 .marketing-steps {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 50px;
 }
-.marketing-principles {
-    text-align: center;
-}
-.marketing-principle-icon {
-    margin: 0 auto 32px;
-    display: grid;
-    place-items: center;
-    width: 115px;
-    height: 115px;
-    border-radius: 34px;
-    background: linear-gradient(140deg, #fefefe, #dce5df);
-    border: 1px solid #e4e9e5;
-    box-shadow: 0 14px 30px #29352d09;
-    color: #0a936f;
-}
-.marketing-principle-icon svg {
-    width: 53px;
-    height: 53px;
-    stroke-width: 1.4;
-}
-.marketing-principles p,
+
 .marketing-steps p {
     margin-top: 18px;
     color: #737b75;
@@ -890,29 +870,16 @@
     .marketing-showcase-art .marketing-card-brand {
         font-size: 14px;
     }
-    .marketing-principles,
+
     .marketing-steps {
         grid-template-columns: 1fr;
         gap: 38px;
     }
-    .marketing-principles > div {
-        max-width: 440px;
-        margin: auto;
-    }
-    .marketing-principle-icon {
-        width: 85px;
-        height: 85px;
-        margin-bottom: 23px;
-    }
-    .marketing-principle-icon svg {
-        width: 42px;
-        height: 42px;
-    }
-    .marketing-principles h3,
+
     .marketing-steps h3 {
         font-size: 23px;
     }
-    .marketing-principles p,
+
     .marketing-steps p {
         font-size: 15px;
     }
