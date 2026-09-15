@@ -831,12 +831,13 @@ a.user-quick-action:hover .user-quick-action-circle {
     letter-spacing: -0.7px;
     overflow-wrap: anywhere;
 }
-.user-auth-promotion-title {
-    margin-top: 7px;
-    font-size: 14px;
-    line-height: 1.5;
-    color: #74664a;
-    overflow-wrap: anywhere;
+.user-auth-promotion-logo {
+    display: block;
+    height: 56px;
+    width: auto;
+    max-width: min(220px, 100%);
+    object-fit: contain;
+    margin-inline: auto;
 }
 .user-auth-promotion-card {
     display: block;

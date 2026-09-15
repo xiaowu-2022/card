@@ -1,4 +1,5 @@
 import { Aperture } from 'lucide-react';
+import { useState } from 'react';
 import { t } from '@/i18n';
 import type { TenantSharedProps } from '@/types/global';
 
@@ -10,6 +11,8 @@ export function AuthBrand({
     promotional?: boolean;
 }) {
     const name = tenant?.branding.brandName.trim() || tenant?.name;
+    const logoUrl = tenant?.branding.logoUrl;
+    const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
 
     if (!name) return null;
 
@@ -17,8 +20,16 @@ export function AuthBrand({
         return (
             <div className="user-auth-promotion">
                 <div className="user-auth-promotion-copy">
-                    <p className="user-auth-promotion-name">{name}</p>
-                    <p className="user-auth-promotion-title">{t('Mastercard U Card')}</p>
+                    {logoUrl && logoUrl !== failedLogoUrl ? (
+                        <img
+                            src={logoUrl}
+                            alt={name}
+                            className="user-auth-promotion-logo"
+                            onError={() => setFailedLogoUrl(logoUrl)}
+                        />
+                    ) : (
+                        <p className="user-auth-promotion-name">{name}</p>
+                    )}
                 </div>
                 <img
                     src="/images/marketing/spec-pay-gold-world.png"
