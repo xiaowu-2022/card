@@ -36,9 +36,9 @@
     position: sticky;
     top: 0;
     z-index: 30;
-    background: #100f0d;
-    color: #f4f1e7;
-    border-bottom: 1px solid #d6bd7926;
+    background: #d6bd79;
+    color: #252118;
+    border-bottom: 1px solid #25211826;
     min-height: 88px;
     display: flex;
     align-items: center;
@@ -69,7 +69,17 @@
     overflow-wrap: anywhere;
 }
 .marketing-header .marketing-brand {
-    max-width: 240px;
+    max-width: 360px;
+    font-size: 36px;
+}
+.marketing-header .marketing-brand img {
+    height: 72px;
+    max-height: 72px;
+    max-width: min(285px, 100%);
+}
+.marketing-header .marketing-brand > svg {
+    width: 66px;
+    height: 66px;
 }
 .marketing-desktop-nav {
     display: flex;
@@ -104,15 +114,15 @@
     display: none;
 }
 .marketing-header .marketing-brand > svg {
-    color: #d6bd79;
+    color: #252118;
 }
 .marketing-header .marketing-pill {
-    color: #d6bd79;
-    border-color: #d6bd7970;
+    color: #252118;
+    border-color: #25211880;
     min-height: 44px;
 }
 .marketing-header .marketing-pill:hover {
-    background: #d6bd7918;
+    background: #2521180d;
 }
 .marketing-header .marketing-login,
 .marketing-header .marketing-desktop-nav a {
@@ -125,7 +135,7 @@
     width: 44px;
     height: 44px;
     min-width: 44px;
-    color: #f4f1e7;
+    color: #252118;
 }
 .marketing-header .user-header-action svg {
     width: 24px;
@@ -133,13 +143,15 @@
 }
 .marketing-header .marketing-menu:hover,
 .marketing-header .user-header-action:hover {
-    background: #ffffff12;
+    background: #2521180d;
 }
 .marketing-header .marketing-desktop-nav a:hover,
 .marketing-header .marketing-login:hover {
-    color: #d6bd79;
+    color: #493815;
 }
-.marketing-header :focus-visible,
+.marketing-header :focus-visible {
+    outline-color: #252118;
+}
 .marketing-hero :focus-visible {
     outline-color: #d6bd79;
 }
@@ -680,7 +692,17 @@
         gap: 6px;
     }
     .marketing-header .marketing-brand {
-        max-width: 175px;
+        max-width: 202.5px;
+        font-size: 27px;
+    }
+    .marketing-header .marketing-brand img {
+        height: 52.5px;
+        max-height: 52.5px;
+        max-width: min(202.5px, 100%);
+    }
+    .marketing-header .marketing-brand > svg {
+        width: 45px;
+        height: 45px;
     }
     .marketing-brand > svg {
         width: 30px;
