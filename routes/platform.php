@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AdminLocaleController;
 use App\Http\Controllers\Platform\AccountOperationsController;
 use App\Http\Controllers\Platform\AdministratorController;
+use App\Http\Controllers\Platform\AssetsController;
 use App\Http\Controllers\Platform\CardOperationsController;
 use App\Http\Controllers\Platform\CardProductController;
 use App\Http\Controllers\Platform\CardProviderController;
@@ -24,11 +25,26 @@ use App\Http\Controllers\Platform\TenantInvitationController;
 use App\Http\Controllers\Platform\TenantLifecycleController;
 use App\Http\Controllers\Platform\TenantManagementController;
 use App\Http\Controllers\Platform\TopupVerificationController;
+use App\Http\Controllers\Platform\TronWithdrawalsController;
 use App\Http\Controllers\Platform\UserOperationsController;
 use App\Http\Middleware\PlatformCompanyConfiguration;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('platform')->name('platform.')->group(function (): void {
+    Route::middleware('admin.scope:platform,tenant.manage')->group(function (): void {
+        Route::get('/settings/assets', [AssetsController::class, 'settings'])->name('assets.settings');
+        Route::post('/settings/assets', [AssetsController::class, 'save'])->middleware('throttle:10,1')->name('assets.settings.save');
+        Route::post('/tenants/{tenant}/assets/settings', [AssetsController::class, 'save'])->whereUuid('tenant')->middleware('throttle:10,1')->name('assets.company.save');
+    });
+    Route::get('/asset-deposits', [AssetsController::class, 'deposits'])->middleware('admin.scope:platform,wallet_topups.read')->name('assets.deposits');
+    Route::get('/asset-withdrawals', [AssetsController::class, 'withdrawals'])->middleware('admin.scope:platform,withdrawals.read')->name('assets.withdrawals');
+    foreach (['confirm' => 'wallet_topups.confirm', 'recheck' => 'wallet_topups.verify', 'review' => 'withdrawals.review', 'verify' => 'withdrawals.review', 'reveal' => 'withdrawals.review'] as $action => $permission) {
+        Route::post('/tenants/{tenant}/asset-orders/{order}/'.$action, [AssetsController::class, $action])->whereUuid(['tenant', 'order'])->middleware(['admin.scope:platform,'.$permission, 'throttle:5,1'])->name('assets.'.$action);
+    }
+    Route::get('/asset-tron-withdrawals', [TronWithdrawalsController::class, 'index'])->middleware('admin.scope:platform,withdrawals.read')->name('assets.tron.withdrawals');
+    foreach (['review', 'verify', 'reveal'] as $action) {
+        Route::post('/tenants/{tenant}/asset-tron-withdrawals/{order}/'.$action, [TronWithdrawalsController::class, $action])->whereUuid(['tenant', 'order'])->middleware(['admin.scope:platform,withdrawals.review', 'throttle:5,1'])->name('assets.tron.'.$action);
+    }
     Route::post('/locale', AdminLocaleController::class)->middleware('throttle:30,1')->name('locale.update');
     Route::get('/login', [PlatformAuthController::class, 'create'])->name('login');
     Route::post('/login', [PlatformAuthController::class, 'store'])->name('login.store');

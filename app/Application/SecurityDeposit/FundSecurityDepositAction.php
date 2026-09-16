@@ -46,7 +46,10 @@ final readonly class FundSecurityDepositAction
         return DB::transaction(function () use ($tenantId, $userId, $requestId, $expectedRemaining, $auditRequestId): SecurityDepositFundingReceipt {
             $tenant = Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
             $user = User::query()->where('tenant_id', $tenantId)->whereKey($userId)->lockForUpdate()->firstOrFail();
-            $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->lockForUpdate()->first();
+            $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', $tenant->default_asset)->lockForUpdate()->first();
+            if (! $wallet && Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->exists()) {
+                throw new DomainException('SECURITY_DEPOSIT_ASSET_MISMATCH', 'The wallet and security deposit assets do not match.', 409);
+            }
             if (! $wallet) {
                 throw new DomainException('WALLET_NOT_ACTIVE', 'An active wallet is required.', 403);
             }

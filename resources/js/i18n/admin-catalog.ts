@@ -2,6 +2,56 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    ASSET_DEPOSIT_MANUALLY_CONFIRMED: '人工确认多币种充值到账',
+    ASSET_DEPOSIT_VERIFICATION_REQUESTED: '提交多币种充值核验',
+    ASSET_DEPOSIT_UNCONFIRMED: '多币种充值尚未核实',
+    ASSET_WITHDRAWAL_APPROVED: '批准多币种提现',
+    ASSET_WITHDRAWAL_REJECTED: '拒绝多币种提现',
+    ASSET_WITHDRAWAL_VERIFICATION_REQUESTED: '提交多币种提现核验',
+    ASSET_WITHDRAWAL_UNCONFIRMED: '多币种提现尚未核实',
+    ASSET_WITHDRAWAL_COMPLETED: '多币种提现核验完成',
+    ASSET_WITHDRAWAL_ADDRESS_REVEALED: '查看多币种提现地址',
+
+    'Review reason': '审核原因',
+    Approve: '批准',
+    'Asset configuration saved.': '资产配置已保存。',
+    'Multi-currency settings': '多币种配置',
+    'Multi-currency deposits': '多币种充值',
+    'Multi-currency withdrawals': '多币种提现',
+    'Global configuration': '平台配置',
+    'Market prices': '市场行情',
+    'Replace API key': '替换 API 密钥',
+    'HTTPS RPC endpoint': 'HTTPS 节点地址',
+    'RPC username (optional)': '节点用户名（可选）',
+    'Replace node credential': '替换节点凭据',
+    'Node credential': '节点凭据',
+    'Initial scan block': '扫描起始区块',
+    'Next scan block': '下次扫描区块',
+    'Bitcoin confirmations (minimum 6)': 'Bitcoin 确认次数（至少 6 次）',
+    'Receiving address': '收款地址',
+    'Deposit and withdrawal networks': '充值与提现网络',
+    'Deposits enabled': '启用充值',
+    'Withdrawals enabled': '启用提现',
+    'Minimum deposit': '最低充值金额',
+    'Withdrawal fee (original currency)': '提现手续费（原币）',
+    'Internal exchange': '平台内部兑换',
+    'Fee percentage': '手续费百分比',
+    'Single exchange limit (USDT)': '单笔兑换上限（USDT）',
+    'Daily user limit (USDT)': '用户每日兑换上限（USDT）',
+    'Transfers requiring review': '待核查转账',
+    'Recheck transfer': '重新核验',
+    'Manual receipt confirmation': '人工确认收款',
+    'Reveal destination': '查看完整收款地址',
+    'Verify payout': '核验提现交易',
+    'I confirm the order details.': '我确认以上订单信息。',
+    'No records': '暂无记录',
+    'Unable to complete this request.': '无法完成此请求。',
+    'Confirm receipt of this exact asset and amount. This action credits the account and cannot be undone.':
+        '请确认已收到该订单固定币种与精确金额。本操作将入账，不能撤销。',
+    'Review the order details before confirming. Unverified payouts remain on hold.':
+        '请核对订单后确认，未经核验的提现将继续占用余额。',
+    'New networks start disabled. Configure a scan boundary before enabling. Existing history is never replayed.':
+        '新网络默认关闭，启用前必须设置扫描起点。不会自动重放历史。',
     'Edit company name': '修改公司名称',
     'Company name': '公司名称',
     'Company identifier': '公司标识',
@@ -1133,6 +1183,16 @@ export const adminCatalog: Record<string, string> = {
 };
 
 export const adminEnglish: Record<string, string> = {
+    ASSET_DEPOSIT_MANUALLY_CONFIRMED: 'Multi-currency deposit manually confirmed',
+    ASSET_DEPOSIT_VERIFICATION_REQUESTED: 'Multi-currency deposit verification requested',
+    ASSET_DEPOSIT_UNCONFIRMED: 'Multi-currency deposit unconfirmed',
+    ASSET_WITHDRAWAL_APPROVED: 'Multi-currency withdrawal approved',
+    ASSET_WITHDRAWAL_REJECTED: 'Multi-currency withdrawal rejected',
+    ASSET_WITHDRAWAL_VERIFICATION_REQUESTED: 'Multi-currency payout verification requested',
+    ASSET_WITHDRAWAL_UNCONFIRMED: 'Multi-currency payout unconfirmed',
+    ASSET_WITHDRAWAL_COMPLETED: 'Multi-currency payout verified',
+    ASSET_WITHDRAWAL_ADDRESS_REVEALED: 'Multi-currency destination revealed',
+
     ...Object.fromEntries(
         Object.keys(adminCatalog)
             .filter((key) => /^[A-Z]+(?:_[A-Z]+)*$/.test(key))

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Public\LandingController;
 use App\Http\Controllers\User\AboutController;
 use App\Http\Controllers\User\AccountController;
+use App\Http\Controllers\User\AssetsController;
 use App\Http\Controllers\User\CardholderTestMaterialsController;
 use App\Http\Controllers\User\CardIssueController;
 use App\Http\Controllers\User\CardManagementController;
@@ -75,6 +76,11 @@ Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operat
     Route::get('/support', [SupportController::class, 'show'])->middleware('throttle:60,1')->name('user.support');
     Route::get('/support/images/{message}', [SupportController::class, 'image'])->whereUuid('message')->name('user.support.image');
     Route::post('/support/messages', [SupportController::class, 'store'])->middleware('throttle:20,1')->name('user.support.send');
+    Route::get('/assets/{asset}/activity', [AssetsController::class, 'history'])->whereIn('asset', ['USDT', 'USDC', 'ETH', 'BTC'])->name('user.assets.activity');
+    Route::get('/assets/operate', [AssetsController::class, 'show'])->name('user.assets.operate');
+    Route::post('/assets/orders', [AssetsController::class, 'store'])->middleware('throttle:10,1')->name('user.assets.store');
+    Route::post('/assets/exchanges/{order}/confirm', [AssetsController::class, 'confirm'])->whereUuid('order')->middleware('throttle:10,1')->name('user.assets.confirm');
+    Route::post('/assets/withdrawals/{order}/cancel', [AssetsController::class, 'cancel'])->whereUuid('order')->middleware('throttle:10,1')->name('user.assets.cancel');
     Route::get('/dashboard', DashboardController::class)->name('user.authenticated.dashboard');
     Route::get('/wallet/transfer', [WalletTransferController::class, 'show'])->name('user.transfers.create');
     Route::post('/wallet/transfers', [WalletTransferController::class, 'store'])->middleware('throttle:5,1')->name('user.transfers.store');

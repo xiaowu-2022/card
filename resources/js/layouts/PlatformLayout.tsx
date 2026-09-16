@@ -54,6 +54,18 @@ const groups = [
                 icon: ReceiptText,
                 permission: 'wallet_topups.read',
             },
+            {
+                label: 'Multi-currency deposits',
+                href: '/platform/asset-deposits',
+                icon: ReceiptText,
+                permission: 'wallet_topups.read',
+            },
+            {
+                label: 'Multi-currency withdrawals',
+                href: '/platform/asset-withdrawals',
+                icon: ReceiptText,
+                permission: 'withdrawals.read',
+            },
             { label: 'Products', href: '/platform/card-products', icon: Boxes },
             {
                 label: 'Card providers',
@@ -66,6 +78,12 @@ const groups = [
     {
         label: 'Control',
         items: [
+            {
+                label: 'Multi-currency settings',
+                href: '/platform/settings/assets',
+                icon: ServerCog,
+                permission: 'tenant.manage',
+            },
             {
                 label: 'Domain configurations',
                 href: '/platform/settings/domains',

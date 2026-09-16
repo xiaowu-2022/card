@@ -11,7 +11,7 @@ final class FinancialOperationQuery
     {
         return DB::table('audit_logs as a')->leftJoin('admin_users as actor', 'actor.id', '=', 'a.actor_id')
             ->leftJoin('tenants as company', 'company.id', '=', 'a.tenant_id')
-            ->where('a.actor_type', 'ADMIN')->whereIn('a.resource_type', ['wallet_topup_order', 'withdrawal_order'])
+            ->where('a.actor_type', 'ADMIN')->whereIn('a.resource_type', ['wallet_topup_order', 'withdrawal_order', 'asset_deposit_order', 'asset_withdrawal_order'])
             ->select('a.id', 'a.tenant_id', 'a.resource_id', 'a.resource_type', 'a.action', 'a.actor_id', 'a.created_at', 'actor.name as actor_name', 'company.name as company_name')
             ->orderByDesc('a.created_at')->orderByDesc('a.id');
     }

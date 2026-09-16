@@ -1,5 +1,17 @@
 # Current effective capabilities
 
+2026-09-16: [Multi-asset center and internal exchange](MULTI_ASSET_CENTER.md) extends
+USDT with independent USDC/ETH/BTC accounts and disabled-by-default mainnet rails.
+USDC/ETH/BTC -> USDT uses immutable CoinGecko cross-rate quotes and atomic paired
+LedgerWriter events; no trading, signing or historical conversion. General Ledger
+storage is NUMERIC(38,18), preserving existing numeric values and event hashes.
+SaaS configures rails, fees and limits and reviews/proves externally sent withdrawals.
+Deposit and commission remain USDT under existing restrictions. See
+[Git deployment and enablement](MULTI_ASSET_DEPLOYMENT.md). Local migration verified
+unchanged historical fingerprints and zero reconciliation mismatches. Backend full
+suite: 1,139 tests / 9,358 assertions; frontend i18n: 67 tests; 36 consumer and 18 admin
+responsive/locale browser checks. Live financial acceptance has not been performed.
+
 2026-09-15: [Unified site deployment](UNIFIED_SITE_DEPLOYMENT.md) now supersedes the earlier split-data deployment plan. The user explicitly retains all existing records in one site/database. Directory routing preserves original provider connections across deployment locations; migration 59 removes database-name restrictions only. Exact DNS TXT verification replaces the local whitelist in the deployed runtime. No real financial operation is part of deployment acceptance.
 
 2026-09-14: the user's own pending/successful deposit refund now blocks new

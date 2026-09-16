@@ -1,3 +1,4 @@
+import { AssetCenter, type AssetOverview } from '@/components/user/AssetCenter';
 import { systemMoney } from '@/lib/system-money';
 import { t, useClientTranslation } from '@/i18n';
 import { Head, Link } from '@inertiajs/react';
@@ -23,6 +24,7 @@ type WalletState = {
     transferAvailable: boolean;
 };
 type Props = {
+    assetOverview?: AssetOverview | null;
     cardOverview: {
         count: number;
         pending: number;
@@ -103,53 +105,70 @@ function NextStep({ kycStatus, wallet }: { kycStatus: KycStatus; wallet: WalletS
     return null;
 }
 
-export default function Dashboard({ kycStatus, wallet, activity = [], cardOverview }: Props) {
+export default function Dashboard({
+    kycStatus,
+    wallet,
+    activity = [],
+    cardOverview,
+    assetOverview,
+}: Props) {
     useClientTranslation();
     return (
         <UserLayout>
             <Head title={t('Home')} />
             <div className="space-y-6 sm:space-y-8">
-                <div className="user-overview">
-                    <h1 className="sr-only">{t('Home')}</h1>
-                    {wallet ? (
-                        <UserBalanceHero
-                            amount={wallet.available.amount}
-                            asset={wallet.available.asset}
-                            assetLabel="$"
+                {assetOverview ? (
+                    <AssetCenter overview={assetOverview} />
+                ) : (
+                    <div className="user-overview">
+                        <h1 className="sr-only">{t('Home')}</h1>
+                        {wallet ? (
+                            <UserBalanceHero
+                                amount={wallet.available.amount}
+                                asset={wallet.available.asset}
+                                assetLabel="$"
+                            />
+                        ) : (
+                            <div className="py-7 text-center">
+                                <p className="text-3xl font-semibold tracking-tight">
+                                    {t('Your everyday wallet')}
+                                </p>
+                                <p className="mt-3 text-sm text-muted-foreground">
+                                    {t('A single balance. Everything in one place.')}
+                                </p>
+                            </div>
+                        )}
+                        <UserWalletActions
+                            unavailableHref={
+                                ['NOT_SUBMITTED', 'PENDING', 'RESUBMISSION_REQUIRED'].includes(
+                                    kycStatus,
+                                )
+                                    ? '/kyc'
+                                    : kycStatus === 'REJECTED'
+                                      ? '/support'
+                                      : !wallet
+                                        ? '/security-deposit'
+                                        : '/support'
+                            }
+                            topupAvailable={wallet?.topupAvailable ?? false}
+                            withdrawalAvailable={wallet?.withdrawalAvailable ?? false}
+                            transferAvailable={wallet?.transferAvailable ?? false}
+                            depositAvailable={
+                                wallet?.status === 'ACTIVE' && kycStatus === 'APPROVED'
+                            }
                         />
-                    ) : (
-                        <div className="py-7 text-center">
-                            <p className="text-3xl font-semibold tracking-tight">
-                                {t('Your everyday wallet')}
-                            </p>
-                            <p className="mt-3 text-sm text-muted-foreground">
-                                {t('A single balance. Everything in one place.')}
-                            </p>
-                        </div>
-                    )}
-                    <UserWalletActions
-                        unavailableHref={
-                            ['NOT_SUBMITTED', 'PENDING', 'RESUBMISSION_REQUIRED'].includes(
-                                kycStatus,
-                            )
-                                ? '/kyc'
-                                : kycStatus === 'REJECTED'
-                                  ? '/support'
-                                  : !wallet
-                                    ? '/security-deposit'
-                                    : '/support'
-                        }
-                        topupAvailable={wallet?.topupAvailable ?? false}
-                        withdrawalAvailable={wallet?.withdrawalAvailable ?? false}
-                        transferAvailable={wallet?.transferAvailable ?? false}
-                        depositAvailable={wallet?.status === 'ACTIVE' && kycStatus === 'APPROVED'}
-                    />
-                </div>
+                    </div>
+                )}
                 <NextStep kycStatus={kycStatus} wallet={wallet} />
                 {cardOverview.count > 0 ? (
                     <section className="rounded-2xl bg-surface p-5">
                         <div className="flex items-center justify-between">
-                            <h2 className="font-semibold">{t('My cards')}</h2>
+                            <div>
+                                <h2 className="font-semibold">{t('My cards')}</h2>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    {t('Card USD balances are excluded from the estimate.')}
+                                </p>
+                            </div>
                             <Link href="/cards" className="py-2 text-sm underline">
                                 {t('View cards')}
                             </Link>
@@ -209,22 +228,26 @@ export default function Dashboard({ kycStatus, wallet, activity = [], cardOvervi
                     </Link>
                 )}
 
-                <div className="rounded-[var(--user-radius-lg)] bg-surface px-5 pt-5 pb-2 sm:px-7">
-                    <UserSection
-                        title={t('Latest activity')}
-                        action={
-                            <Link
-                                href="/wallet"
-                                className="inline-flex min-h-11 items-center gap-1 text-xs font-medium text-muted-foreground"
-                            >
-                                {t('More')}
-                                <ChevronRight className="size-4" aria-hidden="true" />
-                            </Link>
-                        }
-                    >
-                        <UserActivityList items={walletActivityItems(activity)} />
-                    </UserSection>
-                </div>
+                {!assetOverview && (
+                    <div className="rounded-[var(--user-radius-lg)] bg-surface px-5 pt-5 pb-2 sm:px-7">
+                        <UserSection
+                            title={t('Latest activity')}
+                            action={
+                                <Link
+                                    href="/wallet"
+                                    className="inline-flex min-h-11 items-center gap-1 text-xs font-medium text-muted-foreground"
+                                >
+                                    {t('More')}
+                                    <ChevronRight className="size-4" aria-hidden="true" />
+                                </Link>
+                            }
+                        >
+                            <UserActivityList
+                                items={walletActivityItems(assetOverview ? [] : activity)}
+                            />
+                        </UserSection>
+                    </div>
+                )}
             </div>
         </UserLayout>
     );

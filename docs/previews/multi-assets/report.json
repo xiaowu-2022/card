@@ -1,0 +1,188 @@
+{
+  "checks": 36,
+  "consoleErrors": [],
+  "financialWrites": [],
+  "fixtures": "browser-only",
+  "results": [
+    {
+      "width": 375,
+      "locale": "zh-CN",
+      "screen": "assets"
+    },
+    {
+      "width": 375,
+      "locale": "zh-CN",
+      "screen": "deposit"
+    },
+    {
+      "width": 375,
+      "locale": "zh-CN",
+      "screen": "exchange"
+    },
+    {
+      "width": 375,
+      "locale": "en",
+      "screen": "assets"
+    },
+    {
+      "width": 375,
+      "locale": "en",
+      "screen": "deposit"
+    },
+    {
+      "width": 375,
+      "locale": "en",
+      "screen": "exchange"
+    },
+    {
+      "width": 375,
+      "locale": "ms",
+      "screen": "assets"
+    },
+    {
+      "width": 375,
+      "locale": "ms",
+      "screen": "deposit"
+    },
+    {
+      "width": 375,
+      "locale": "ms",
+      "screen": "exchange"
+    },
+    {
+      "width": 375,
+      "locale": "es",
+      "screen": "assets"
+    },
+    {
+      "width": 375,
+      "locale": "es",
+      "screen": "deposit"
+    },
+    {
+      "width": 375,
+      "locale": "es",
+      "screen": "exchange"
+    },
+    {
+      "width": 768,
+      "locale": "zh-CN",
+      "screen": "assets"
+    },
+    {
+      "width": 768,
+      "locale": "zh-CN",
+      "screen": "deposit"
+    },
+    {
+      "width": 768,
+      "locale": "zh-CN",
+      "screen": "exchange"
+    },
+    {
+      "width": 768,
+      "locale": "en",
+      "screen": "assets"
+    },
+    {
+      "width": 768,
+      "locale": "en",
+      "screen": "deposit"
+    },
+    {
+      "width": 768,
+      "locale": "en",
+      "screen": "exchange"
+    },
+    {
+      "width": 768,
+      "locale": "ms",
+      "screen": "assets"
+    },
+    {
+      "width": 768,
+      "locale": "ms",
+      "screen": "deposit"
+    },
+    {
+      "width": 768,
+      "locale": "ms",
+      "screen": "exchange"
+    },
+    {
+      "width": 768,
+      "locale": "es",
+      "screen": "assets"
+    },
+    {
+      "width": 768,
+      "locale": "es",
+      "screen": "deposit"
+    },
+    {
+      "width": 768,
+      "locale": "es",
+      "screen": "exchange"
+    },
+    {
+      "width": 1440,
+      "locale": "zh-CN",
+      "screen": "assets"
+    },
+    {
+      "width": 1440,
+      "locale": "zh-CN",
+      "screen": "deposit"
+    },
+    {
+      "width": 1440,
+      "locale": "zh-CN",
+      "screen": "exchange"
+    },
+    {
+      "width": 1440,
+      "locale": "en",
+      "screen": "assets"
+    },
+    {
+      "width": 1440,
+      "locale": "en",
+      "screen": "deposit"
+    },
+    {
+      "width": 1440,
+      "locale": "en",
+      "screen": "exchange"
+    },
+    {
+      "width": 1440,
+      "locale": "ms",
+      "screen": "assets"
+    },
+    {
+      "width": 1440,
+      "locale": "ms",
+      "screen": "deposit"
+    },
+    {
+      "width": 1440,
+      "locale": "ms",
+      "screen": "exchange"
+    },
+    {
+      "width": 1440,
+      "locale": "es",
+      "screen": "assets"
+    },
+    {
+      "width": 1440,
+      "locale": "es",
+      "screen": "deposit"
+    },
+    {
+      "width": 1440,
+      "locale": "es",
+      "screen": "exchange"
+    }
+  ]
+}

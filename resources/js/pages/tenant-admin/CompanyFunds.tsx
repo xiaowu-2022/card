@@ -6,6 +6,9 @@ import { t, useAdminTranslation, dateTime } from '@/i18n/admin';
 import { displayMoney } from '@/lib/exact-amount';
 
 const types: Record<string, string> = {
+    ASSET_DEPOSIT: 'Company book: customer top-up',
+    ASSET_WITHDRAWAL_SETTLE: 'Company book: customer withdrawal',
+    ASSET_EXCHANGE_IN: 'Internal exchange',
     WALLET_TOPUP_CREDIT: 'Company book: customer top-up',
     WITHDRAWAL_SETTLE: 'Company book: customer withdrawal',
     WITHDRAWAL_FEE_INCOME: 'Withdrawal fee income',

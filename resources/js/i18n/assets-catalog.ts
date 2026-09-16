@@ -1,0 +1,102 @@
+export const assetsCatalog = {
+    'The quote has expired. Request a new quote.': [
+        '报价已过期，请重新获取报价。',
+        'Sebut harga telah tamat tempoh. Minta sebut harga baharu.',
+        'La cotización ha caducado. Solicite una nueva.',
+    ],
+    'Market prices are unavailable.': [
+        '行情暂不可用，请稍后再试。',
+        'Harga pasaran tidak tersedia. Cuba lagi kemudian.',
+        'Los precios no están disponibles. Inténtelo más tarde.',
+    ],
+    'The amount is outside the exchange limits.': [
+        '金额超出单笔或每日兑换限额。',
+        'Amaun melebihi had pertukaran tunggal atau harian.',
+        'El importe supera el límite por operación o diario.',
+    ],
+    'Enter an amount within the currency precision.': [
+        '请输入符合该币种精度的金额。',
+        'Masukkan amaun mengikut ketepatan mata wang.',
+        'Introduzca un importe con la precisión de la moneda.',
+    ],
+    'Exchange is not available for this asset.': [
+        '该币种暂未开放兑换。',
+        'Pertukaran belum tersedia untuk aset ini.',
+        'El cambio no está disponible para este activo.',
+    ],
+    'This deposit order has expired. Create a new order before sending funds.': [
+        '充值订单已过期，请创建新订单后再转账。',
+        'Pesanan deposit telah tamat tempoh. Cipta pesanan baharu sebelum menghantar dana.',
+        'La orden de depósito ha caducado. Cree otra antes de enviar fondos.',
+    ],
+
+    Commission: ['佣金', 'Komisen', 'Comisión'],
+    'Review withdrawal': ['核对提现', 'Semak pengeluaran', 'Revisar retirada'],
+    '{{seconds}} seconds': ['{{seconds}} 秒', '{{seconds}} saat', '{{seconds}} segundos'],
+    'Recent requests': ['最近申请', 'Permohonan terkini', 'Solicitudes recientes'],
+    'Estimated total assets': [
+        '总资产估值',
+        'Anggaran jumlah aset',
+        'Valor estimado de los activos',
+    ],
+    'Prices updated: {{time}}': [
+        '行情更新时间：{{time}}',
+        'Harga dikemas kini: {{time}}',
+        'Precios actualizados: {{time}}',
+    ],
+    'Valuation unavailable. Original balances are unchanged.': [
+        '估值暂不可用，原币余额不受影响。',
+        'Penilaian tidak tersedia. Baki asal tidak berubah.',
+        'Valoración no disponible. Los saldos originales no cambian.',
+    ],
+    'Currency accounts': ['币种账户', 'Akaun mata wang', 'Cuentas por moneda'],
+    'Processing amount': ['处理中金额', 'Amaun dalam proses', 'Importe en proceso'],
+    'Account activity': ['账户流水', 'Aktiviti akaun', 'Movimientos de la cuenta'],
+    'No activity yet': ['暂无流水', 'Belum ada aktiviti', 'Aún no hay movimientos'],
+    Exchange: ['兑换', 'Tukar', 'Cambiar'],
+    'Card USD balances are excluded from the estimate.': [
+        '卡内 USD 余额单独展示，不计入账户估值。',
+        'Baki kad USD dipaparkan berasingan dan tidak termasuk dalam anggaran.',
+        'Los saldos USD de las tarjetas se muestran aparte y no se incluyen en la estimación.',
+    ],
+    'Exchange to USDT': ['兑换为 USDT', 'Tukar kepada USDT', 'Cambiar a USDT'],
+    'Select currency': ['选择币种', 'Pilih mata wang', 'Seleccionar moneda'],
+    'Select network': ['选择网络', 'Pilih rangkaian', 'Seleccionar red'],
+    'Only enabled currency and network combinations are available.': [
+        '仅显示已启用的币种和网络组合。',
+        'Hanya gabungan mata wang dan rangkaian yang didayakan tersedia.',
+        'Solo están disponibles las combinaciones de moneda y red habilitadas.',
+    ],
+    'Send the exact amount using this network only.': [
+        '请仅通过所选网络转入指定的精确金额。',
+        'Hantar amaun tepat melalui rangkaian ini sahaja.',
+        'Envíe el importe exacto utilizando únicamente esta red.',
+    ],
+    'Exchange rate': ['兑换汇率', 'Kadar pertukaran', 'Tipo de cambio'],
+    'Platform fee': ['平台手续费', 'Yuran platform', 'Comisión de la plataforma'],
+    'You receive': ['实际到账', 'Anda terima', 'Recibirá'],
+    'Valid until {{time}}': ['有效期至 {{time}}', 'Sah sehingga {{time}}', 'Válido hasta {{time}}'],
+    'This exchanges your available balance internally. Confirm only after reviewing the final amounts.':
+        [
+            '本次兑换从可用余额扣款并在平台内结算，请核对最终金额后确认。',
+            'Pertukaran ini menggunakan baki tersedia dan diselesaikan secara dalaman. Semak amaun akhir sebelum mengesahkan.',
+            'Este cambio usa su saldo disponible y se liquida internamente. Revise los importes finales antes de confirmar.',
+        ],
+    'Confirm exchange': ['确认兑换', 'Sahkan pertukaran', 'Confirmar cambio'],
+    'Review exchange': ['核对兑换', 'Semak pertukaran', 'Revisar cambio'],
+    'Start a new request': ['发起新申请', 'Mulakan permohonan baharu', 'Iniciar nueva solicitud'],
+    'Minimum deposit': ['最低充值金额', 'Deposit minimum', 'Depósito mínimo'],
+    'I checked the network, address and final amount.': [
+        '我已核对网络、收款地址和实际到账金额。',
+        'Saya telah menyemak rangkaian, alamat dan amaun akhir.',
+        'He comprobado la red, la dirección y el importe final.',
+    ],
+    'The next step shows the final rate, fee and quote expiry.': [
+        '下一步将展示最终汇率、手续费和报价有效期。',
+        'Langkah seterusnya menunjukkan kadar akhir, yuran dan tamat tempoh sebut harga.',
+        'El siguiente paso muestra el tipo final, la comisión y la caducidad de la cotización.',
+    ],
+    'Get quote': ['获取报价', 'Dapatkan sebut harga', 'Obtener cotización'],
+    'Create deposit order': ['创建充值订单', 'Cipta pesanan deposit', 'Crear orden de depósito'],
+    'Destination address': ['收款地址', 'Alamat penerima', 'Dirección de destino'],
+} as const;

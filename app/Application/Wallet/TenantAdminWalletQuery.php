@@ -16,7 +16,7 @@ final class TenantAdminWalletQuery
     public function wallet(string $tenantId, string $userId): array
     {
         User::query()->where('tenant_id', $tenantId)->whereKey($userId)->firstOrFail();
-        $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->with('accounts')->first();
+        $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', Tenant::query()->whereKey($tenantId)->value('default_asset'))->with('accounts')->first();
         if (! $wallet) {
             return ['wallet' => null];
         }

@@ -2,6 +2,7 @@
 
 namespace App\Domain\Ledger\Models;
 
+use App\Domain\Ledger\ValueObjects\AssetAmountCast;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,7 +18,7 @@ final class LedgerPosting extends Model
 
     protected function casts(): array
     {
-        return ['delta' => 'decimal:8', 'created_at' => 'immutable_datetime'];
+        return ['delta' => AssetAmountCast::class, 'created_at' => 'immutable_datetime'];
     }
 
     protected static function booted(): void

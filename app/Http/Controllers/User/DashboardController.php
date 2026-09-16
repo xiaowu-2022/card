@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\User;
 
+use App\Application\Assets\AssetOverviewQuery;
 use App\Application\Card\UserCardOverviewQuery;
 use App\Application\Wallet\UserWalletQuery;
 use App\Domain\Kyc\Services\KycStatusService;
@@ -40,6 +41,7 @@ final class DashboardController extends Controller
                 'transferAvailable' => $walletResult['transferAvailable'],
             ] : null,
             'cardOverview' => $user ? $cards->get($context->id(), $user->id) : ['count' => 0, 'items' => [], 'pending' => 0],
+            'assetOverview' => $user ? app(AssetOverviewQuery::class)->get($context->id(), $user->id, $walletResult) : null,
             'activity' => array_slice($walletResult['activity'] ?? [], 0, 5),
         ]);
     }

@@ -5,6 +5,7 @@ namespace App\Application\Wallet;
 use App\Domain\Ledger\Enums\LedgerAccountType;
 use App\Domain\Ledger\Models\LedgerEntry;
 use App\Domain\Ledger\ValueObjects\Money;
+use App\Domain\Tenant\Models\Tenant;
 use Illuminate\Support\Facades\DB;
 
 /** A read-only projection of immutable events into customer business activities. */
@@ -14,7 +15,7 @@ final readonly class WalletActivityQuery
     {
         $types = ['CARD_MANAGEMENT_ORDER', 'CARD_ISSUE_ORDER', 'WITHDRAWAL_ORDER'];
         $keySql = "CASE WHEN reference_type IN ('CARD_MANAGEMENT_ORDER','CARD_ISSUE_ORDER','WITHDRAWAL_ORDER') AND reference_id IS NOT NULL THEN reference_type || ':' || reference_id::text ELSE ledger_entries.id::text END";
-        $base = LedgerEntry::query()->where('ledger_entries.tenant_id', $tenantId)->whereNotNull('sealed_at')
+        $base = LedgerEntry::query()->where('ledger_entries.asset_code', Tenant::query()->whereKey($tenantId)->value('default_asset'))->where('ledger_entries.tenant_id', $tenantId)->whereNotNull('sealed_at')
             ->where('event_type', '<>', 'COMMISSION_EARN')
             ->whereHas('postings.account', fn ($q) => $q->where('tenant_id', $tenantId)->where('user_id', $userId));
         $keys = (clone $base)->selectRaw("$keySql AS activity_key, MAX(posted_at) AS activity_time")

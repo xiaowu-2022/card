@@ -97,7 +97,7 @@ final readonly class CreateWithdrawalAction
 
             $tenant = Tenant::query()->whereKey($tenantId)->with('businessSettings')->lockForUpdate()->firstOrFail();
             $user = User::query()->where('tenant_id', $tenantId)->whereKey($userId)->lockForUpdate()->firstOrFail();
-            $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->lockForUpdate()->first();
+            $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', $tenant->default_asset)->lockForUpdate()->first();
             $destination = WithdrawalDestination::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->whereKey($destinationId)->first();
             if ($tenant->status !== TenantStatus::Active) {
                 throw new DomainException('TENANT_NOT_ACTIVE', 'Withdrawals require an active tenant.', 403);

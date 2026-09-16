@@ -13,7 +13,12 @@ use Stringable;
 
 final readonly class Money implements JsonSerializable, Stringable
 {
-    private const SCALE = 8;
+    public static function scale(string $asset): int
+    {
+        return match (strtoupper($asset)) {
+            'ETH' => 18, 'USDC' => 6, default => 8
+        };
+    }
 
     private const MAX_INTEGER_DIGITS = 12;
 
@@ -35,8 +40,8 @@ final readonly class Money implements JsonSerializable, Stringable
 
         $fraction = str_contains($amount, '.') ? substr(strrchr($amount, '.'), 1) : '';
 
-        if (strlen($fraction) > self::SCALE) {
-            throw new InvalidArgumentException('Amount must have at most 8 decimal places.');
+        if (strlen(rtrim($fraction, '0')) > self::scale($assetCode)) {
+            throw new InvalidArgumentException('Amount must have at most '.self::scale($assetCode).' decimal places.');
         }
 
         $integer = ltrim(strtok(ltrim($amount, '+-'), '.') ?: '0', '0');
@@ -45,7 +50,7 @@ final readonly class Money implements JsonSerializable, Stringable
         }
 
         $this->assetCode = $assetCode;
-        $this->decimal = BigDecimal::of($amount)->toScale(self::SCALE, RoundingMode::Unnecessary);
+        $this->decimal = BigDecimal::of($amount)->toScale(self::scale($assetCode), RoundingMode::Unnecessary);
     }
 
     public static function of(mixed $amount, string $assetCode): self

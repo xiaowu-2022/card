@@ -66,10 +66,10 @@ final class PaymentLedgerReconciliationService
             return 'top-up ledger entry does not contain exactly two postings';
         }
         $available = $postings->first(fn ($posting) => $posting->account_type === LedgerAccountType::UserAvailable->value
-            && $posting->wallet_id === $order->wallet_id && $posting->delta === $order->amount);
+            && $posting->wallet_id === $order->wallet_id && Money::of($posting->delta, $order->asset_code)->amount() === $order->amount);
         $negative = Money::of('-'.$order->amount, $order->asset_code)->amount();
         $clearing = $postings->first(fn ($posting) => $posting->account_type === LedgerAccountType::TenantTopupClearing->value
-            && $posting->wallet_id === null && $posting->delta === $negative);
+            && $posting->wallet_id === null && Money::of($posting->delta, $order->asset_code)->amount() === $negative);
 
         return $available && $clearing ? null : 'top-up ledger entry uses an incorrect account or amount';
     }

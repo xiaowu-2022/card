@@ -23,12 +23,12 @@ final readonly class WalletEligibilityService
     {
         $kycStatus = $this->kycStatus->forUser($tenant->id, $user->id);
         $tenantAsset = strtoupper((string) $tenant->default_asset);
-        $wallet = Wallet::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->first();
+        $wallet = Wallet::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->where('asset_code', $tenant->default_asset)->first();
         $requiredAsset = strtoupper((string) $tenant->businessSettings->required_security_deposit_asset);
         $required = Money::of($tenant->businessSettings->required_security_deposit_amount, $requiredAsset);
         $deposit = Money::of('0', $requiredAsset);
         $available = null;
-        $assetMismatch = $wallet !== null && ($wallet->asset_code !== $requiredAsset || $wallet->asset_code !== $tenantAsset);
+        $assetMismatch = $requiredAsset !== $tenantAsset || ($wallet !== null && ($wallet->asset_code !== $requiredAsset || $wallet->asset_code !== $tenantAsset));
         if ($wallet) {
             $accounts = LedgerAccount::query()->where('tenant_id', $tenant->id)->where('wallet_id', $wallet->id)->get()->keyBy(fn (LedgerAccount $account): string => $account->account_type->value);
             $availableAccount = $accounts->get(LedgerAccountType::UserAvailable->value);

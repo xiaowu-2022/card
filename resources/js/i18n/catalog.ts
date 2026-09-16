@@ -1,4 +1,5 @@
 import { clientPolishCatalog } from './client-polish-catalog';
+import { assetsCatalog } from './assets-catalog';
 // Each entry is [简体中文, Bahasa Melayu, Español]. The key is the English copy.
 // Keep whole sentences and named placeholders together; never translate business identifiers.
 import { promotionCatalog } from './promotion-catalog';
@@ -6,6 +7,7 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    ...assetsCatalog,
     ...clientPolishCatalog,
     'Save test materials': ['保存测试资料', 'Simpan bahan ujian', 'Guardar datos de prueba'],
     'Load saved test materials': [

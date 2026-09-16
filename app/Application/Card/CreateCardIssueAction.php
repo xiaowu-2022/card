@@ -83,7 +83,7 @@ final readonly class CreateCardIssueAction
             $user = User::query()->where('tenant_id', $tenantId)->whereKey($userId)->lockForUpdate()->firstOrFail();
             RefundSecurityDepositAction::assertNoPending($tenantId, $userId);
             $settings = $tenant->businessSettings()->lockForUpdate()->firstOrFail();
-            $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->lockForUpdate()->first();
+            $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', $tenant->default_asset)->lockForUpdate()->first();
             $config = TenantCardProductConfig::query()->where('tenant_id', $tenantId)->where('card_product_id', $productId)->lockForUpdate()->first();
             $product = CardProduct::query()->whereKey($productId)->lockForUpdate()->first();
             if ($product) {

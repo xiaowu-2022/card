@@ -4,6 +4,7 @@ namespace App\Domain\Ledger\Models;
 
 use App\Domain\Ledger\Enums\LedgerAccountStatus;
 use App\Domain\Ledger\Enums\LedgerAccountType;
+use App\Domain\Ledger\ValueObjects\AssetAmountCast;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use LogicException;
@@ -19,7 +20,7 @@ final class LedgerAccount extends Model
         return [
             'account_type' => LedgerAccountType::class,
             'status' => LedgerAccountStatus::class,
-            'balance' => 'decimal:8',
+            'balance' => AssetAmountCast::class,
         ];
     }
 

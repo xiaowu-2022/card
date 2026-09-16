@@ -49,7 +49,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->dontFlash([
-            'new_contact', 'phone', 'code', 'otp', 'address',
+            'new_contact', 'phone', 'code', 'otp', 'address', 'credential', 'api_key',
             'reset_contact',
             'support_message', 'support_image',
             'access_key_id', 'access_key_secret',

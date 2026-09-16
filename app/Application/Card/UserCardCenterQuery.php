@@ -35,7 +35,7 @@ final readonly class UserCardCenterQuery
             ->when(! app()->environment('testing') && ! LocalCardSimulation::active(), fn ($query) => $query->withoutTestReferences())
             ->whereNotIn('id', CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->select('provider_cardholder_id'))
             ->latest('created_at')->first();
-        $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->first();
+        $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', 'USDT')->first();
         $available = $wallet ? LedgerAccount::query()->where('tenant_id', $tenantId)->where('wallet_id', $wallet->id)
             ->where('account_type', LedgerAccountType::UserAvailable->value)->first() : null;
 

@@ -5,6 +5,7 @@ namespace App\Application\Promotion;
 use App\Domain\Kyc\Enums\KycUserStatus;
 use App\Domain\Kyc\Services\KycStatusService;
 use App\Domain\Ledger\Models\LedgerAccount;
+use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Promotion\Models\CommissionAward;
 use App\Domain\Promotion\Models\PromotionFundingEvent;
 use App\Domain\Promotion\Models\PromotionLevel;
@@ -55,7 +56,7 @@ final readonly class PromotionQuery
         $direct = $directQuery->orderBy('m.created_at', 'desc')->orderBy('m.id')->offset(($directPage - 1) * 20)->limit(21)
             ->get(['m.id', 'm.user_id', 'u.account_id', 'm.level_id', 'm.created_at']);
         $directBalances = DB::table('ledger_accounts')->where('tenant_id', $tenantId)->whereIn('user_id', $direct->pluck('user_id'))
-            ->where('account_type', 'USER_SECURITY_DEPOSIT')->pluck('balance', 'user_id');
+            ->where('account_type', 'USER_SECURITY_DEPOSIT')->where('asset_code', 'USDT')->pluck('balance', 'user_id')->map(fn ($amount) => Money::of($amount, 'USDT')->amount());
         $directContributions = DB::table('commission_awards as a')->join('promotion_funding_events as f', function ($join): void {
             $join->on('f.id', '=', 'a.funding_event_id')->on('f.tenant_id', '=', 'a.tenant_id');
         })->where('a.tenant_id', $tenantId)->where('a.user_id', $userId)->whereIn('f.user_id', $direct->pluck('user_id'))

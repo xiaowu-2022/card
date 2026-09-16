@@ -32,7 +32,7 @@ final readonly class CardManagementAccess
 
     public function wallet(string $tenantId, string $userId, bool $requireActive = true): Wallet
     {
-        $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->firstOrFail();
+        $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', 'USDT')->firstOrFail();
         if ($wallet->asset_code !== 'USDT' || ($requireActive && $wallet->status->value !== 'ACTIVE')) {
             throw new DomainException('CARD_MANAGEMENT_UNAVAILABLE', 'Card management is currently unavailable.', 409);
         }

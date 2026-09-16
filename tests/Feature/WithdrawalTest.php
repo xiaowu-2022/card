@@ -143,7 +143,7 @@ it('verifies the exact net payout and settles gross plus fee exactly once', func
         ->and(phaseSevenAccount($this->wallet, LedgerAccountType::UserAvailable)->balance)->toBe('149.99000000')
         ->and(phaseSevenAccount($this->wallet, LedgerAccountType::UserWithdrawalHold)->balance)->toBe('0.00000000');
     $postings = DB::table('ledger_postings as p')->join('ledger_accounts as a', 'a.id', '=', 'p.ledger_account_id')
-        ->where('p.tenant_id', $this->tenant->id)->where('p.ledger_entry_id', $settled->settlement_ledger_entry_id)->pluck('p.delta', 'a.account_type')->all();
+        ->where('p.tenant_id', $this->tenant->id)->where('p.ledger_entry_id', $settled->settlement_ledger_entry_id)->pluck('p.delta', 'a.account_type')->map(fn ($delta) => Money::of($delta, 'USDT')->amount())->all();
     expect($postings)->toEqual(['USER_WITHDRAWAL_HOLD' => '-100.01000000', 'TENANT_WITHDRAWAL_CLEARING' => '97.51000000', 'TENANT_FEE_REVENUE' => '2.50000000']);
     $book = app(CompanyFundBookQuery::class)->execute($this->tenant->id, null, 1);
     expect($book['lifetimeTotals']['withdrawals'])->toBe('97.51000000')->and($book['lifetimeTotals']['feeIncome'])->toBe('2.50000000')

@@ -1,5 +1,19 @@
 # Virtual Card SaaS Agent Rules
 
+On 2026-09-16 the user approved the multi-asset center and internal exchange plan.
+USDT/USDC/ETH/BTC have separate wallets; new rails default OFF. USDT/USDC use
+Ethereum tokens, USDT also retains TRON, ETH is native Ethereum, BTC is Bitcoin.
+SaaS manual deposit receipt confirmation extends only to fixed existing orders;
+shared-address amount reservations and late-transfer protection remain required.
+Withdrawals require external manual sending plus verified chain proof, never forced
+success. USDC/ETH/BTC may exchange internally into USDT only, through atomic paired
+single-asset LedgerWriter events with immutable quote/fee/rate provenance. No trading
+API, signing, private keys or historical conversion is authorized. Generic ledger
+storage expands to NUMERIC(38,18); ETH scale is 18, USDC 6, BTC/USDT 8. Preserve
+historical USDT/USD values and canonical hashes. Deposit/commission/card rules stay
+USDT/USD as before. This supersedes only the single-asset/8-decimal restrictions
+needed by this plan. See docs/architecture/MULTI_ASSET_CENTER.md.
+
 On 2026-09-15 the user explicitly removed custom-domain DNS ownership verification.
 New SaaS-managed custom domains are ACTIVE and unassigned; assignment remains
 explicit and Platform-only. Historical PENDING_VERIFICATION/VERIFIED domains may

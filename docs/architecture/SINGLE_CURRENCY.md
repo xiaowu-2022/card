@@ -1,5 +1,10 @@
 # Single currency: USDT / USD at 1:1
 
+2026-09-16 revision: [MULTI_ASSET_CENTER.md](MULTI_ASSET_CENTER.md) supersedes
+the single-wallet/currency-choice exclusion for USDC, ETH and BTC accounts and
+internal conversion to USDT. The card, guarantee and commission boundaries below
+remain unchanged. Historical wallets and ledger identities are never relabelled.
+
 Approved explicitly on 2026-09-13. The product has one financial unit for now.
 Wallet, top-up, withdrawal, deposit, commission and company accounting use `USDT`.
 PhotonPay card products and provider requests continue to use genuine `USD`.

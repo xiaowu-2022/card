@@ -1,3 +1,4 @@
+import { exactAmount } from '@/lib/exact-amount';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { useAdminTranslation, t } from '@/i18n/admin';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -91,15 +92,18 @@ export default function Wallets({
                         },
                         {
                             label: 'Available balance',
-                            render: (row) => `${displayMoney(row.available)} ${row.asset}`,
+                            render: (row) =>
+                                `${row.asset === 'USDT' ? displayMoney(row.available) : exactAmount(row.available)} ${row.asset}`,
                         },
                         {
                             label: 'Security deposit',
-                            render: (row) => `${displayMoney(row.securityDeposit)} ${row.asset}`,
+                            render: (row) =>
+                                `${row.asset === 'USDT' ? displayMoney(row.securityDeposit) : exactAmount(row.securityDeposit)} ${row.asset}`,
                         },
                         {
                             label: 'Held amount',
-                            render: (row) => `${displayMoney(row.held)} ${row.asset}`,
+                            render: (row) =>
+                                `${row.asset === 'USDT' ? displayMoney(row.held) : exactAmount(row.held)} ${row.asset}`,
                         },
                     ]}
                 />

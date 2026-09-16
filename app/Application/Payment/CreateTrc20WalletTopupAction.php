@@ -92,7 +92,7 @@ final readonly class CreateTrc20WalletTopupAction
 
             $tenant = Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
             $user = User::query()->where('tenant_id', $tenantId)->whereKey($userId)->lockForUpdate()->firstOrFail();
-            $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->first();
+            $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', Tenant::query()->whereKey($tenantId)->value('default_asset'))->first();
             $tenant->loadMissing('businessSettings');
             if ($tenant->status !== TenantStatus::Active) {
                 throw new DomainException('TENANT_NOT_ACTIVE', 'Top-up is unavailable while this tenant is not active.', 403);

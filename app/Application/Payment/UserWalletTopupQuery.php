@@ -20,7 +20,7 @@ final readonly class UserWalletTopupQuery
     {
         $tenant = Tenant::query()->whereKey($tenantId)->with('businessSettings')->firstOrFail();
         $user = User::query()->where('tenant_id', $tenantId)->whereKey($userId)->firstOrFail();
-        $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->first();
+        $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', Tenant::query()->whereKey($tenantId)->value('default_asset'))->first();
         $available = $wallet ? LedgerAccount::query()->where('tenant_id', $tenantId)->where('wallet_id', $wallet->id)
             ->where('account_type', LedgerAccountType::UserAvailable->value)->first() : null;
         $enabled = $tenant->status->value === 'ACTIVE' && $user->status->value === 'ACTIVE'
