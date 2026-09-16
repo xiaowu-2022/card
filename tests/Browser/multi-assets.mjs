@@ -20,7 +20,7 @@ try {
         errors.push(e.message);
         console.log('PAGE ERROR', e.message);
     });
-    await page.goto(base + '/login');
+    await page.goto(base + '/login', { waitUntil: 'domcontentloaded' });
     await page.locator('#identifier').fill('user@a.localhost');
     await page.locator('#password').fill(process.env.ASSET_TEST_PASSWORD ?? '123456');
     await page.locator('button[type=submit]').click();
@@ -179,6 +179,7 @@ try {
                         fullPage: true,
                     });
                 if (screen === 'assets') {
+                    assert.equal(await page.locator('main a[href="/cards"]').count(), 0);
                     const tabs = page.locator('.user-asset-account');
                     const shortcut = page.locator('main nav a').first();
                     const shortcutBounds = await shortcut.boundingBox();

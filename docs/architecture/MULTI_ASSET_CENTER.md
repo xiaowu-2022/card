@@ -52,6 +52,8 @@ compact white Accounts card. Account tiles scroll horizontally, with icon, amoun
 label stacked centrally. More opens the full account list; selecting an account opens
 a bottom sheet for its exact balance and existing actions instead of expanding the card.
 Only enabled actions appear; no scanner capability is implied.
+The Assets homepage omits the My cards summary and empty-card promotion; card
+balances and operations remain accessible through the bottom Cards navigation.
 
 The asset center shows original balances and indicative total in USDT, not a
 withdrawable total. Fiat and card USD balances are excluded. Missing quotes hide

@@ -2,7 +2,7 @@ import { AssetCenter, type AssetOverview } from '@/components/user/AssetCenter';
 import { systemMoney } from '@/lib/system-money';
 import { t, useClientTranslation } from '@/i18n';
 import { Head, Link } from '@inertiajs/react';
-import { ArrowUpRight, ChevronRight, CreditCard } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { UserBalanceHero } from '@/components/user/UserBalanceHero';
 import { UserActivityList } from '@/components/user/UserActivityList';
 import { walletActivityItems, type WalletActivity } from '@/lib/wallet-activity';
@@ -25,11 +25,6 @@ type WalletState = {
 };
 type Props = {
     assetOverview?: AssetOverview | null;
-    cardOverview: {
-        count: number;
-        pending: number;
-        items: { id: string; last4: string; balance: string | null; state: string }[];
-    };
     account: { displayName: string | null; status: string; verifiedChannel: string } | null;
     kycStatus: KycStatus;
     wallet: WalletState | null;
@@ -105,13 +100,7 @@ function NextStep({ kycStatus, wallet }: { kycStatus: KycStatus; wallet: WalletS
     return null;
 }
 
-export default function Dashboard({
-    kycStatus,
-    wallet,
-    activity = [],
-    cardOverview,
-    assetOverview,
-}: Props) {
+export default function Dashboard({ kycStatus, wallet, activity = [], assetOverview }: Props) {
     useClientTranslation();
     return (
         <UserLayout>
@@ -160,74 +149,6 @@ export default function Dashboard({
                     </div>
                 )}
                 <NextStep kycStatus={kycStatus} wallet={wallet} />
-                {cardOverview.count > 0 ? (
-                    <section className="rounded-2xl bg-surface p-5">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className="font-semibold">{t('My cards')}</h2>
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                    {t('Card USD balances are excluded from the estimate.')}
-                                </p>
-                            </div>
-                            <Link href="/cards" className="py-2 text-sm underline">
-                                {t('View cards')}
-                            </Link>
-                        </div>
-                        {cardOverview.pending > 0 && (
-                            <Link href="/cards" className="block rounded-lg bg-muted p-3 text-sm">
-                                {t('Pending card operations: {{count}}', {
-                                    count: cardOverview.pending,
-                                })}
-                            </Link>
-                        )}
-                        {cardOverview.items.map((card) => (
-                            <Link
-                                href="/cards"
-                                key={card.id}
-                                className="flex items-center justify-between gap-3 border-t py-3"
-                            >
-                                <div>
-                                    <p>{t('Card ending in {{last4}}', { last4: card.last4 })}</p>
-                                    <p className="text-xs text-muted-foreground">{t(card.state)}</p>
-                                </div>
-                                <span className="font-semibold">
-                                    {card.balance === null
-                                        ? t('Pending sync')
-                                        : systemMoney(card.balance)}
-                                </span>
-                            </Link>
-                        ))}
-                    </section>
-                ) : (
-                    <Link
-                        href="/cards"
-                        className="user-feature-panel group flex items-center gap-4 bg-surface"
-                    >
-                        <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold uppercase tracking-[.14em] text-muted-foreground">
-                                {t('Your everyday card')}
-                            </p>
-                            <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl">
-                                {t('Explore your next card')}
-                            </h2>
-                            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                                {t('Manage your cards and explore available card products.')}
-                            </p>
-                            <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold">
-                                {t('View cards')}
-                                <ArrowUpRight className="size-4" aria-hidden="true" />
-                            </span>
-                        </div>
-                        <span className="user-feature-card" aria-hidden="true">
-                            <CreditCard
-                                className="size-10 sm:size-20"
-                                strokeWidth={1.4}
-                                aria-hidden="true"
-                            />
-                        </span>
-                    </Link>
-                )}
-
                 {!assetOverview && (
                     <div className="rounded-[var(--user-radius-lg)] bg-surface px-5 pt-5 pb-2 sm:px-7">
                         <UserSection
