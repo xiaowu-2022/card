@@ -14,7 +14,6 @@ function Tariff({ level: l, base }: { level: PaidLevel; base: string }) {
         target: l.target,
         revision: l.revision,
         enabled: l.enabled,
-        current_password: '',
     });
     return (
         <form
@@ -24,7 +23,6 @@ function Tariff({ level: l, base }: { level: PaidLevel; base: string }) {
                 f.post(`${base}/levels/${l.id}`, {
                     preserveScroll: true,
                     onSuccess: () => {
-                        f.reset('current_password');
                         f.setData('revision', l.revision + 1);
                     },
                 });
@@ -66,16 +64,7 @@ function Tariff({ level: l, base }: { level: PaidLevel; base: string }) {
                 />
                 {t('Enabled')}
             </label>
-            <label className="block text-sm">
-                {t('Current password')}
-                <Input
-                    type="password"
-                    autoComplete="current-password"
-                    value={f.data.current_password}
-                    onChange={(e) => f.setData('current_password', e.target.value)}
-                    required
-                />
-            </label>
+
             {Object.values(f.errors).map((v, i) => (
                 <p role="alert" key={i} className="text-sm text-red-700">
                     {errorMessage(v)}
@@ -94,7 +83,7 @@ function Review({
     base: string;
     canReview: boolean;
 }) {
-    const f = useForm({ decision: 'approve', reason: '', current_password: '', confirmed: false });
+    const f = useForm({ decision: 'approve', reason: '', confirmed: false });
     const status = (
         {
             PENDING: 'Under review',
@@ -134,7 +123,7 @@ function Review({
                         e.preventDefault();
                         f.post(`${base}/rebates/${c.id}`, {
                             preserveScroll: true,
-                            onSuccess: () => f.reset('current_password', 'confirmed'),
+                            onSuccess: () => f.reset('confirmed'),
                         });
                     }}
                 >
@@ -157,16 +146,7 @@ function Review({
                             onChange={(e) => f.setData('reason', e.target.value)}
                         />
                     </label>
-                    <label className="block">
-                        {t('Current password')}
-                        <Input
-                            type="password"
-                            autoComplete="current-password"
-                            required
-                            value={f.data.current_password}
-                            onChange={(e) => f.setData('current_password', e.target.value)}
-                        />
-                    </label>
+
                     <label className="flex items-start gap-2">
                         <input
                             type="checkbox"

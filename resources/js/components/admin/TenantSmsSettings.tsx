@@ -43,7 +43,6 @@ export function TenantSmsSettings({
         existing_account_template_code: settings.existingAccountTemplateCode,
         resend_interval_seconds: String(settings.resendIntervalSeconds),
         code_ttl_seconds: String(settings.codeTtlSeconds),
-        current_password: '',
     });
     const formError = (form.errors as Record<string, string>).form;
     return (
@@ -67,7 +66,6 @@ export function TenantSmsSettings({
                                     ...data,
                                     access_key_id: '',
                                     access_key_secret: '',
-                                    current_password: '',
                                 }));
                             },
                         });
@@ -255,28 +253,7 @@ export function TenantSmsSettings({
                             'Use an Aliyun RAM key with SendSms permission. International sending requires the corresponding Aliyun service and approved templates.',
                         )}
                     </p>
-                    <FormField
-                        id="sms-password"
-                        label={t('Current admin password')}
-                        description={t(
-                            'Confirm your password to save or disable SMS. Stored keys are never displayed.',
-                        )}
-                        error={errorMessage(form.errors.current_password)}
-                    >
-                        <Input
-                            id="sms-password"
-                            className="max-w-md"
-                            type="password"
-                            autoComplete="current-password"
-                            required
-                            maxLength={255}
-                            value={form.data.current_password}
-                            disabled={form.processing}
-                            onChange={(event) =>
-                                form.setData('current_password', event.target.value)
-                            }
-                        />
-                    </FormField>
+
                     <Button type="submit" disabled={form.processing}>
                         {t('Save SMS settings')}
                     </Button>

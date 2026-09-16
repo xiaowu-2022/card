@@ -105,7 +105,6 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
         confirmed: false,
         approve: true,
         reason: '',
-        password: '',
     });
     const [action, setAction] = useState('');
     const [password, setPassword] = useState('');
@@ -118,7 +117,7 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
                 preserveScroll: true,
                 onSuccess: () => {
                     setAction('');
-                    form.reset('confirmed', 'password');
+                    form.reset('confirmed');
                 },
             },
         );
@@ -286,15 +285,7 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
                             onChange={(e) => form.setData('reason', e.target.value)}
                         />
                     )}
-                    {action === 'confirm' && (
-                        <Input
-                            type="password"
-                            autoComplete="current-password"
-                            value={form.data.password}
-                            placeholder={t('Current password')}
-                            onChange={(e) => form.setData('password', e.target.value)}
-                        />
-                    )}
+
                     <label className="flex min-h-11 items-center gap-3 text-sm">
                         <input
                             type="checkbox"

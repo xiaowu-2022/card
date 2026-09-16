@@ -29,7 +29,7 @@ final class TeamController extends Controller
     public function store(CreateTenantAdminRequest $request, TenantContext $context, CreateTenantAdminAction $create): RedirectResponse
     {
         $data = $request->validated();
-        $create->execute($context->tenant(), $this->admin($request), $data['name'], $data['email'], $data['password'], $data['role'], $data['current_password'], $request->attributes->get('request_id'));
+        $create->execute($context->tenant(), $this->admin($request), $data['name'], $data['email'], $data['password'], $data['role'], $request->attributes->get('request_id'));
 
         return back()->with('success', 'Administrator created. They can sign in to this company with the configured account and password.');
     }

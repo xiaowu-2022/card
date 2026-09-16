@@ -16,7 +16,7 @@ final class SendTenantTestEmailRequest extends FormRequest
         return [
             'request_id' => ['required', 'uuid'],
             'test_email' => ['required', 'string', 'email:rfc', 'max:254'],
-            'current_password' => ['required', 'string', 'max:255', 'current_password:'.($this->routeIs('platform.*') ? 'platform_admin' : 'tenant_admin')],
+            'current_password' => $this->routeIs('platform.*') ? ['exclude'] : ['required', 'string', 'max:255', 'current_password:tenant_admin'],
             'tenant_id' => ['prohibited'], 'id' => ['prohibited'], 'smtp_token' => ['prohibited'],
             'host' => ['prohibited'], 'port' => ['prohibited'], 'from_address' => ['prohibited'],
         ];

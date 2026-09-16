@@ -18,7 +18,7 @@ beforeEach(function (): void {
     $this->tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
     $this->owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
     $this->data = ['name' => 'Direct Admin', 'email' => 'direct-admin@example.test', 'password' => 'DirectStrong1234',
-        'password_confirmation' => 'DirectStrong1234', 'role' => 'TENANT_ADMIN', 'current_password' => 'local-password'];
+        'password_confirmation' => 'DirectStrong1234', 'role' => 'TENANT_ADMIN'];
 });
 
 it('creates a hashed active administrator and exact-company membership with no invitation or email', function (): void {
@@ -55,7 +55,7 @@ it('never overwrites or attaches existing identities in any scope', function (st
         ->and(AuditLog::query()->where('action', 'ADMIN_ACCOUNT_CREATED')->count())->toBe(0);
 })->with(['owner@a.localhost', 'owner@b.localhost', 'owner@platform.local']);
 
-it('rejects weak passwords mismatched confirmation incorrect actor passwords and owner/platform roles', function (array $changes, string $field): void {
+it('rejects weak passwords mismatched confirmation and owner/platform roles', function (array $changes, string $field): void {
     $this->actingAs($this->owner, 'platform_admin')->post("http://admin.localhost/platform/tenants/{$this->tenant->id}/configuration/team/administrators", [...$this->data, ...$changes])->assertSessionHasErrors($field);
     expect(AdminUser::query()->where('email', $this->data['email'])->exists())->toBeFalse();
     foreach (['password', 'password_confirmation', 'current_password'] as $key) {
@@ -64,7 +64,7 @@ it('rejects weak passwords mismatched confirmation incorrect actor passwords and
 })->with([
     [['password' => '123', 'password_confirmation' => '123'], 'password'],
     [['password_confirmation' => 'different'], 'password'],
-    [['current_password' => 'wrong'], 'current_password'],
+
     [['role' => 'TENANT_OWNER'], 'role'],
     [['role' => 'PLATFORM_ADMIN'], 'role'],
 ]);
@@ -73,7 +73,7 @@ it('rejects company administrators and read-only Platform memberships', function
     $companyOwner = AdminUser::query()->where('email', 'owner@a.localhost')->sole();
     $this->actingAs($companyOwner, 'tenant_admin')->post('http://b.localhost/admin/team/administrators', $this->data)->assertForbidden();
     $this->post('http://a.localhost/admin/team/administrators', $this->data)->assertForbidden();
-    expect(fn () => app(CreateTenantAdminAction::class)->execute($this->tenant, $companyOwner, 'Direct', $this->data['email'], $this->data['password'], 'TENANT_ADMIN', 'local-password'))->toThrow(HttpException::class);
+    expect(fn () => app(CreateTenantAdminAction::class)->execute($this->tenant, $companyOwner, 'Direct', $this->data['email'], $this->data['password'], 'TENANT_ADMIN'))->toThrow(HttpException::class);
     $membership = $this->owner->memberships()->where('scope_type', 'PLATFORM')->whereNull('scope_id')->sole();
     $membership->update(['role_id' => Role::query()->where('name', 'PLATFORM_AUDITOR')->sole()->id]);
     $this->actingAs($this->owner, 'platform_admin')->post("http://admin.localhost/platform/tenants/{$this->tenant->id}/configuration/team/administrators", $this->data)->assertForbidden();

@@ -59,7 +59,7 @@ beforeEach(function (): void {
 function emailSettingsPayload(array $overrides = []): array
 {
     return [...['name' => 'Default Email', 'enabled' => true, 'from_address' => 'sender@company-a.example', 'from_name' => 'Company A',
-        'smtp_token' => 'testing-only-token-A', 'daily_recipient_limit' => 10, 'current_password' => 'local-password'], ...$overrides];
+        'smtp_token' => 'testing-only-token-A', 'daily_recipient_limit' => 10], ...$overrides];
 }
 
 function configureCompanyEmail(Tenant $tenant, array $overrides = []): PlatformEmailProfile
@@ -126,7 +126,7 @@ it('validates settings without flashing tokens or passwords', function (array $o
         ->assertSessionHasErrors($field)->assertSessionMissing('_old_input.smtp_token')->assertSessionMissing('_old_input.current_password');
     expect(PlatformEmailProfile::query()->count())->toBe(0)->and($this->emailTransport->messages)->toBe([]);
 })->with([
-    [['current_password' => 'wrong'], 'current_password'],
+
     [['from_address' => '1111'], 'from_address'],
     [['from_name' => "unsafe\r\nname"], 'from_name'],
     [['daily_recipient_limit' => -1], 'daily_recipient_limit'],
@@ -227,12 +227,9 @@ it('does not allow a new UUID to bypass an unconfirmed test or test-request cool
     expect($this->emailTransport->messages)->toHaveCount(1);
 });
 
-it('requires admin password and saved enabled settings for test emails', function (): void {
+it('uses the platform session and requires saved enabled settings for test emails', function (): void {
     $this->actingAs($this->emailAdmin, 'platform_admin');
-    $data = ['request_id' => (string) Str::uuid(), 'test_email' => 'tester@example.test', 'current_password' => 'wrong'];
-    $this->post('http://admin.localhost/platform/tenants/'.$this->emailTenant->id.'/configuration/settings/email/test', $data)->assertSessionHasErrors('current_password')
-        ->assertSessionMissing('_old_input.current_password')->assertSessionMissing('_old_input.test_email');
-    $data['current_password'] = 'local-password';
+    $data = ['request_id' => (string) Str::uuid(), 'test_email' => 'tester@example.test'];
     $this->post('http://admin.localhost/platform/tenants/'.$this->emailTenant->id.'/configuration/settings/email/test', $data)->assertSessionHasErrors('form');
     configureCompanyEmail($this->emailTenant);
     $this->post('http://admin.localhost/platform/tenants/'.$this->emailTenant->id.'/configuration/settings/email/test', $data)->assertRedirect('/platform/tenants/'.$this->emailTenant->id.'/configuration/settings/email')->assertSessionHasNoErrors();

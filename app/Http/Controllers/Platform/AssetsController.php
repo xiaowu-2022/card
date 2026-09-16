@@ -22,7 +22,6 @@ use App\Domain\Tenant\Models\Tenant;
 use App\Domain\Withdrawal\Services\WithdrawalAddressProtector;
 use App\Http\Controllers\Controller;
 use App\Infrastructure\Assets\PublicChainNodes;
-use App\Support\Errors\DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
@@ -72,10 +71,7 @@ final class AssetsController extends Controller
 
     public function confirm(Request $r, Tenant $tenant, string $order, DepositAssetsAction $action)
     {
-        $d = $r->validate(['request_id' => 'required|uuid', 'confirmed' => 'required|accepted', 'password' => 'required|string']);
-        if (! Hash::check($d['password'], $r->user('platform_admin')->fresh()->password)) {
-            throw new DomainException('PASSWORD_INVALID', 'The password is incorrect.', 403);
-        }
+        $d = $r->validate(['request_id' => 'required|uuid', 'confirmed' => 'required|accepted']);
         $action->manual($tenant->id, $order, $r->user('platform_admin'), $d['request_id'], true);
 
         return back();

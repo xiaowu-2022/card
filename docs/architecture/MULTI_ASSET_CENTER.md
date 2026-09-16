@@ -1,5 +1,10 @@
 # Multi-asset center (approved 2026-09-16)
 
+Update (2026-09-16): Platform mutations no longer require repeated administrator
+password/code confirmation. The current scope and retained authorization checks are
+specified in [Platform update authentication](PLATFORM_UPDATE_AUTHENTICATION.md);
+this supersedes earlier Platform mutation password requirements in this document.
+
 ## Contract
 Four separately denominated wallets: USDT, USDC, ETH, BTC. USDT/TRON retains its
 existing endpoints, orders and reservations. Additional rails are USDT/Ethereum,

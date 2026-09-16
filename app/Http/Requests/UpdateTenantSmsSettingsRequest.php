@@ -22,7 +22,7 @@ class UpdateTenantSmsSettingsRequest extends FormRequest
             'existing_account_template_code' => ['nullable', 'string', 'max:100', 'regex:/^SMS_[0-9]+$/D', 'different:verification_template_code'],
             'resend_interval_seconds' => ['required', 'integer', 'between:60,3600'],
             'code_ttl_seconds' => ['required', 'integer', 'between:60,3600', 'gte:resend_interval_seconds'],
-            'current_password' => ['required', 'string', 'max:255', 'current_password:'.($this->routeIs('platform.*') ? 'platform_admin' : 'tenant_admin')],
+            'current_password' => $this->routeIs('platform.*') ? ['exclude'] : ['required', 'string', 'max:255', 'current_password:tenant_admin'],
             'tenant_id' => ['prohibited'],
             'id' => ['prohibited'],
             'endpoint' => ['prohibited'],

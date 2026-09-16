@@ -19,7 +19,6 @@ use App\Infrastructure\Assets\PublicChainNodes;
 use App\Support\Errors\DomainException;
 use Brick\Math\BigDecimal;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -30,9 +29,6 @@ final readonly class ConfigureAssetsAction
     public function execute(AdminUser $actor, array $input, ?Tenant $tenant = null): void
     {
         $this->access->platform($actor, 'tenant.manage');
-        if (! Hash::check($input['password'] ?? '', $actor->fresh()->password)) {
-            throw new DomainException('PASSWORD_INVALID', 'The password is incorrect.', 403);
-        }
         if (! $tenant && ($input['kind'] ?? '') === 'market-refresh') {
             $snapshot = app(MarketPrices::class)->refresh();
             $this->audit->record(null, 'ADMIN', $actor->id, 'ASSET_PRICES_REFRESHED', 'asset_market_snapshot', $snapshot->id);

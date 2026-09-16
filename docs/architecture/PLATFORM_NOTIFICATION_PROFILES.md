@@ -1,5 +1,10 @@
 # SaaS notification profiles
 
+Update (2026-09-16): Platform mutations no longer require repeated administrator
+password/code confirmation. The current scope and retained authorization checks are
+specified in [Platform update authentication](PLATFORM_UPDATE_AUTHENTICATION.md);
+this supersedes earlier Platform mutation password requirements in this document.
+
 Approved 2026-09-14: multiple named Aliyun SMS and Proton SMTP profiles are managed
 by SaaS; each company selects one saved profile per channel. The same profile may be
 assigned to multiple companies. This supersedes company-owned credential editing and

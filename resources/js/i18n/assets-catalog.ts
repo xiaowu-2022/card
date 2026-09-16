@@ -84,11 +84,6 @@ export const assetsCatalog = {
         'Anggaran jumlah aset',
         'Valor estimado de los activos',
     ],
-    'USDT balances valued at 1:1.': [
-        'USDT 资产按 1:1 计值。',
-        'Baki USDT dinilai pada kadar 1:1.',
-        'Los saldos USDT se valoran a 1:1.',
-    ],
     'Prices updated: {{time}}': [
         '行情更新时间：{{time}}',
         'Harga dikemas kini: {{time}}',

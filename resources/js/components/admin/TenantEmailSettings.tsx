@@ -38,7 +38,6 @@ export function TenantEmailSettings({
         from_name: settings.fromName,
         smtp_token: '',
         daily_recipient_limit: String(settings.dailyRecipientLimit),
-        current_password: '',
     });
     const problem = (form.errors as Record<string, string>).form;
     const busy = form.processing;
@@ -60,7 +59,6 @@ export function TenantEmailSettings({
                                 form.setDefaults({
                                     ...form.data,
                                     smtp_token: '',
-                                    current_password: '',
                                 });
                                 onSaved();
                             },
@@ -69,7 +67,6 @@ export function TenantEmailSettings({
                                 form.setData((data) => ({
                                     ...data,
                                     smtp_token: '',
-                                    current_password: '',
                                 }));
                             },
                         });
@@ -209,24 +206,6 @@ export function TenantEmailSettings({
                                 }
                             />
                         </FormField>
-                        <FormField
-                            id="email-password"
-                            label={t('Current admin password')}
-                            error={errorMessage(form.errors.current_password)}
-                        >
-                            <Input
-                                id="email-password"
-                                type="password"
-                                autoComplete="current-password"
-                                required
-                                maxLength={255}
-                                disabled={busy}
-                                value={form.data.current_password}
-                                onChange={(event) =>
-                                    form.setData('current_password', event.target.value)
-                                }
-                            />
-                        </FormField>
                     </div>
                     <p className="text-sm text-muted-foreground">
                         {t(
@@ -258,7 +237,7 @@ export function CompanyEmailTest({
     available: boolean;
 }) {
     useAdminTranslation();
-    const test = useForm({ request_id: crypto.randomUUID(), test_email: '', current_password: '' });
+    const test = useForm({ request_id: crypto.randomUUID(), test_email: '' });
     const busy = test.processing;
     const testProblem = (test.errors as Record<string, string>).form;
     return (
@@ -273,7 +252,6 @@ export function CompanyEmailTest({
                         test.post(actionUrl, {
                             preserveScroll: true,
                             onSuccess: () => test.setData('request_id', crypto.randomUUID()),
-                            onFinish: () => test.setData('current_password', ''),
                         });
                     }}
                 >
@@ -307,24 +285,6 @@ export function CompanyEmailTest({
                                         test_email: event.target.value,
                                         request_id: crypto.randomUUID(),
                                     })
-                                }
-                            />
-                        </FormField>
-                        <FormField
-                            id="email-test-password"
-                            label={t('Current admin password')}
-                            error={errorMessage(test.errors.current_password)}
-                        >
-                            <Input
-                                id="email-test-password"
-                                type="password"
-                                autoComplete="current-password"
-                                required
-                                maxLength={255}
-                                disabled={busy}
-                                value={test.data.current_password}
-                                onChange={(event) =>
-                                    test.setData('current_password', event.target.value)
                                 }
                             />
                         </FormField>

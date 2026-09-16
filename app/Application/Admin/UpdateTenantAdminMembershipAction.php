@@ -13,7 +13,6 @@ use App\Domain\Tenant\Enums\TenantStatus;
 use App\Domain\Tenant\Models\Tenant;
 use App\Support\Errors\DomainException;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -21,20 +20,19 @@ final readonly class UpdateTenantAdminMembershipAction
 {
     public function __construct(private AuthorizationService $authorization, private AuditLogger $audit) {}
 
-    public function execute(Tenant $tenant, string $membershipId, AdminUser $actor, string $roleName, string $status, string $currentPassword, ?string $requestId = null): void
+    public function execute(Tenant $tenant, string $membershipId, AdminUser $actor, string $roleName, string $status, ?string $requestId = null): void
     {
         Validator::make(['role' => $roleName, 'status' => $status], [
             'role' => ['required', Rule::in(['TENANT_ADMIN', 'KYC_REVIEWER', 'CARD_OPERATOR', 'FINANCE_VIEWER', 'SUPPORT'])],
             'status' => ['required', Rule::in(['ACTIVE', 'SUSPENDED'])],
         ])->validate();
 
-        DB::transaction(function () use ($tenant, $membershipId, $actor, $roleName, $status, $currentPassword, $requestId): void {
+        DB::transaction(function () use ($tenant, $membershipId, $actor, $roleName, $status, $requestId): void {
             $company = Tenant::query()->whereKey($tenant->id)->lockForUpdate()->firstOrFail();
             $currentActor = AdminUser::query()->whereKey($actor->id)->lockForUpdate()->firstOrFail();
             $currentActor->memberships()->where('scope_type', ScopeType::Platform)->whereNull('scope_id')->lockForUpdate()->get();
             if ($company->status === TenantStatus::Closed || $currentActor->status !== AdminUserStatus::Active
-                || ! $this->authorization->allows($currentActor, ScopeType::Platform, null, 'tenant.manage')
-                || ! Hash::check($currentPassword, $currentActor->password)) {
+                || ! $this->authorization->allows($currentActor, ScopeType::Platform, null, 'tenant.manage')) {
                 throw new DomainException('ADMIN_MEMBERSHIP_UPDATE_FORBIDDEN', 'Administrator access could not be confirmed.', 403);
             }
             $membership = AdminMembership::query()->where('scope_type', ScopeType::Tenant)

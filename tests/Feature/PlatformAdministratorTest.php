@@ -15,7 +15,7 @@ beforeEach(function (): void {
     config(['inertia.ssr.enabled' => false]);
     $this->owner = AdminUser::query()->where('email', 'owner@platform.local')->sole();
     $this->data = ['name' => 'SaaS operator', 'email' => 'new-saas@example.test', 'password' => 'NewPlatformPassword123',
-        'password_confirmation' => 'NewPlatformPassword123', 'current_password' => 'local-password', 'role' => 'PLATFORM_ADMIN'];
+        'password_confirmation' => 'NewPlatformPassword123', 'role' => 'PLATFORM_ADMIN'];
 });
 
 it('creates a platform-only login with safe audited provenance and rejects repeated creation', function (): void {
@@ -45,18 +45,18 @@ it('rejects invalid roles and passwords without retaining password input', funct
 })->with([
     [['role' => 'PLATFORM_OWNER'], 'role'], [['role' => 'TENANT_ADMIN'], 'role'],
     [['password' => 'weak', 'password_confirmation' => 'weak'], 'password'],
-    [['password_confirmation' => 'different'], 'password'], [['current_password' => 'wrong'], 'current_password'],
+    [['password_confirmation' => 'different'], 'password'],
 ]);
 
 it('refuses company actors suspended actors and read-only platform roles at the action boundary', function (): void {
     $company = AdminUser::query()->where('email', 'owner@a.localhost')->sole();
     $this->actingAs($company, 'platform_admin')->post('http://admin.localhost/platform/administrators', $this->data)->assertForbidden();
-    expect(fn () => app(CreatePlatformAdminAction::class)->execute($company, 'No', 'no@example.test', $this->data['password'], 'PLATFORM_ADMIN', 'local-password'))->toThrow(DomainException::class);
+    expect(fn () => app(CreatePlatformAdminAction::class)->execute($company, 'No', 'no@example.test', $this->data['password'], 'PLATFORM_ADMIN'))->toThrow(DomainException::class);
     $this->owner->memberships()->sole()->update(['role_id' => Role::query()->where('name', 'PLATFORM_AUDITOR')->sole()->id]);
     $this->actingAs($this->owner, 'platform_admin')->post('http://admin.localhost/platform/administrators', $this->data)->assertForbidden();
-    expect(fn () => app(CreatePlatformAdminAction::class)->execute($this->owner, 'No', 'no@example.test', $this->data['password'], 'PLATFORM_ADMIN', 'local-password'))->toThrow(DomainException::class);
+    expect(fn () => app(CreatePlatformAdminAction::class)->execute($this->owner, 'No', 'no@example.test', $this->data['password'], 'PLATFORM_ADMIN'))->toThrow(DomainException::class);
     $this->owner->update(['status' => 'SUSPENDED']);
-    expect(fn () => app(CreatePlatformAdminAction::class)->execute($this->owner, 'No', 'no@example.test', $this->data['password'], 'PLATFORM_ADMIN', 'local-password'))->toThrow(DomainException::class);
+    expect(fn () => app(CreatePlatformAdminAction::class)->execute($this->owner, 'No', 'no@example.test', $this->data['password'], 'PLATFORM_ADMIN'))->toThrow(DomainException::class);
 });
 
 it('never resets or attaches an existing company identity', function (): void {

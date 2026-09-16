@@ -6,7 +6,6 @@ import { CompanyEmailTest } from '@/components/admin/TenantEmailSettings';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/form-field';
-import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
@@ -30,7 +29,7 @@ export function CompanyNotificationProfile({
     useAdminTranslation();
     const configurationUrl = useCompanyConfigurationUrl();
     const { configurationBase } = usePage<{ configurationBase?: string }>().props;
-    const form = useForm({ profile_id: settings.profileId ?? '', current_password: '' });
+    const form = useForm({ profile_id: settings.profileId ?? '' });
     return (
         <div className="space-y-6">
             <Card className="max-w-3xl">
@@ -49,9 +48,7 @@ export function CompanyNotificationProfile({
                                 }));
                                 form.post(configurationUrl(`/admin/settings/${channel}`), {
                                     preserveScroll: true,
-                                    onSuccess: () =>
-                                        form.setDefaults({ ...form.data, current_password: '' }),
-                                    onFinish: () => form.setData('current_password', ''),
+                                    onSuccess: () => form.setDefaults({ ...form.data }),
                                 });
                             }}
                         >
@@ -85,24 +82,7 @@ export function CompanyNotificationProfile({
                                     </SelectContent>
                                 </Select>
                             </FormField>
-                            <FormField
-                                id="notification-password"
-                                label={t('Current admin password')}
-                                error={errorMessage(form.errors.current_password)}
-                            >
-                                <Input
-                                    id="notification-password"
-                                    type="password"
-                                    autoComplete="current-password"
-                                    required
-                                    maxLength={255}
-                                    value={form.data.current_password}
-                                    disabled={form.processing}
-                                    onChange={(event) =>
-                                        form.setData('current_password', event.target.value)
-                                    }
-                                />
-                            </FormField>
+
                             {(form.errors as Record<string, string>).form && (
                                 <p className="text-sm text-destructive">
                                     {errorMessage((form.errors as Record<string, string>).form)}

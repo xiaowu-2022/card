@@ -2,11 +2,13 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Creating this administrator grants immediate access with the selected role. Existing accounts and passwords will not be changed.':
+        '创建后，此管理员将立即获得所选角色的访问权限。现有账号和密码不会更改。',
+    'Changes take effect for this company immediately. Suspending membership blocks access to this company.':
+        '更改会立即在此公司生效。停用成员资格后，该管理员将无法访问此公司。',
     'The node returned incomplete or invalid data. Verification was not completed.':
         '节点返回的数据不完整或格式错误，尚未完成核验。',
     'Save all changes': '保存全部更改',
-    'Enter your password once for this page. It is cleared when you leave or switch companies.':
-        '本页只需输入一次密码，即可保存配置、更新汇率和测试连接；离开页面或切换公司后清除。',
     'Duplicate configuration section.': '同一配置不能重复提交。',
     'The price service denied access. Check the service credentials or network access.':
         '行情服务拒绝访问，请检查服务凭据或服务器网络。',

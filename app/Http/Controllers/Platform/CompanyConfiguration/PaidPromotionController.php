@@ -30,7 +30,7 @@ final class PaidPromotionController extends Controller
     {
         $v = $request->validate(['fee' => ['required', 'string', 'regex:/^[1-9][0-9]{0,11}(?:\.[0-9]{1,8})?$/D'],
             'percent' => ['required', 'integer', 'between:0,100'], 'reward' => ['required', 'integer', 'between:20,1000000'], 'target' => ['required', 'integer', 'between:1,100000000'],
-            'revision' => ['required', 'integer', 'min:1'], 'enabled' => ['required', 'boolean'], 'current_password' => ['required', 'current_password:platform_admin']]);
+            'revision' => ['required', 'integer', 'min:1'], 'enabled' => ['required', 'boolean']]);
         $configure->execute($tenant->id, $request->user('platform_admin'), $level, $v);
 
         return back()->with('success', 'Promotion update completed.');
@@ -39,7 +39,7 @@ final class PaidPromotionController extends Controller
     public function review(Tenant $tenant, Request $request, PaidPromotionRebate $rebates, string $rebate)
     {
         $v = $request->validate(['decision' => ['required', Rule::in(['approve', 'reject'])], 'reason' => ['nullable', 'string', 'max:300'],
-            'current_password' => ['required', 'current_password:platform_admin'], 'confirmed' => ['required', 'accepted']]);
+            'confirmed' => ['required', 'accepted']]);
         $rebates->review($tenant->id, $rebate, $request->user('platform_admin'), $v['decision'] === 'approve', $v['reason'] ?? null);
 
         return back()->with('success', 'Fee rebate review completed.');

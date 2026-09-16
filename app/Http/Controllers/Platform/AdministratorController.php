@@ -18,7 +18,7 @@ final class AdministratorController extends Controller
     public function store(CreatePlatformAdminRequest $request, CreatePlatformAdminAction $create)
     {
         $data = $request->validated();
-        $create->execute($request->user('platform_admin'), $data['name'], $data['email'], $data['password'], $data['role'], $data['current_password'], $request->attributes->get('request_id'));
+        $create->execute($request->user('platform_admin'), $data['name'], $data['email'], $data['password'], $data['role'], $request->attributes->get('request_id'));
 
         return back()->with('success', 'Platform administrator created.');
     }

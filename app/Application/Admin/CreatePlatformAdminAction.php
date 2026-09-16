@@ -22,7 +22,7 @@ final readonly class CreatePlatformAdminAction
 {
     public function __construct(private AuthorizationService $authorization, private AuditLogger $audit) {}
 
-    public function execute(AdminUser $actor, string $name, string $email, string $password, string $roleName, string $currentPassword, ?string $requestId = null): void
+    public function execute(AdminUser $actor, string $name, string $email, string $password, string $roleName, ?string $requestId = null): void
     {
         $current = $actor->fresh();
         if (! $current || $current->status !== AdminUserStatus::Active || ! $this->authorization->allows($current, ScopeType::Platform, null, 'admin_team.manage')) {
@@ -38,12 +38,11 @@ final readonly class CreatePlatformAdminAction
         // Hash outside locks; never return the password or include it in audit context.
         $passwordHash = Hash::make($password);
         try {
-            DB::transaction(function () use ($actor, $name, $email, $passwordHash, $roleName, $currentPassword, $requestId): void {
+            DB::transaction(function () use ($actor, $name, $email, $passwordHash, $roleName, $requestId): void {
                 $currentActor = AdminUser::query()->whereKey($actor->id)->lockForUpdate()->firstOrFail();
                 $currentActor->memberships()->where('scope_type', ScopeType::Platform)->whereNull('scope_id')->lockForUpdate()->get();
                 if ($currentActor->status !== AdminUserStatus::Active
-                    || ! $this->authorization->allows($currentActor, ScopeType::Platform, null, 'admin_team.manage')
-                    || ! Hash::check($currentPassword, $currentActor->password)) {
+                    || ! $this->authorization->allows($currentActor, ScopeType::Platform, null, 'admin_team.manage')) {
                     throw new DomainException('ADMIN_CREATION_FORBIDDEN', 'Administrator access could not be confirmed.', 403);
                 }
                 // Admin identities are shared across scopes. Never attach or reset an existing identity here.

@@ -25,7 +25,7 @@ final class CreateTenantAdminRequest extends FormRequest
             'email' => ['required', 'email', 'max:255'],
             'role' => ['required', Rule::in(['TENANT_ADMIN', 'KYC_REVIEWER', 'CARD_OPERATOR', 'FINANCE_VIEWER', 'SUPPORT'])],
             'password' => ['required', 'string', 'confirmed', 'max:72', Password::min(12)->letters()->mixedCase()->numbers()],
-            'current_password' => ['required', 'string', 'current_password:'.($this->routeIs('platform.*') ? 'platform_admin' : 'tenant_admin')],
+            'current_password' => $this->routeIs('platform.*') ? ['exclude'] : ['required', 'string', 'current_password:tenant_admin'],
         ];
     }
 }

@@ -25,7 +25,7 @@ final readonly class CreateTenantAdminAction
 {
     public function __construct(private AuthorizationService $authorization, private AuditLogger $audit) {}
 
-    public function execute(Tenant $tenant, AdminUser $actor, string $name, string $email, string $password, string $roleName, string $currentPassword, ?string $requestId = null): void
+    public function execute(Tenant $tenant, AdminUser $actor, string $name, string $email, string $password, string $roleName, ?string $requestId = null): void
     {
         app(CompanyConfigurationAuthority::class)->assert($actor);
         $email = strtolower(trim($email));
@@ -38,13 +38,12 @@ final readonly class CreateTenantAdminAction
         // Hash outside locks; never return the password or include it in audit context.
         $passwordHash = Hash::make($password);
         try {
-            DB::transaction(function () use ($tenant, $actor, $name, $email, $passwordHash, $roleName, $currentPassword, $requestId): void {
+            DB::transaction(function () use ($tenant, $actor, $name, $email, $passwordHash, $roleName, $requestId): void {
                 $currentTenant = Tenant::query()->whereKey($tenant->id)->lockForUpdate()->firstOrFail();
                 $currentActor = AdminUser::query()->whereKey($actor->id)->lockForUpdate()->firstOrFail();
                 $currentActor->memberships()->where('scope_type', ScopeType::Platform)->whereNull('scope_id')->lockForUpdate()->get();
                 if ($currentTenant->status === TenantStatus::Closed || $currentActor->status !== AdminUserStatus::Active
-                    || ! $this->authorization->allows($currentActor, ScopeType::Platform, null, 'tenant.manage')
-                    || ! Hash::check($currentPassword, $currentActor->password)) {
+                    || ! $this->authorization->allows($currentActor, ScopeType::Platform, null, 'tenant.manage')) {
                     throw new DomainException('ADMIN_CREATION_FORBIDDEN', 'Administrator access could not be confirmed.', 403);
                 }
                 // Admin identities are shared across scopes. Never attach or reset an existing identity here.

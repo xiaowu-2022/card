@@ -1,5 +1,17 @@
 # Virtual Card SaaS Agent Rules
 
+On 2026-09-16 the user explicitly removed repeat password/verification-code prompts
+from SaaS Platform configuration and update operations, including rate refreshes,
+connection tests, notification profile management/test sends, administrator management,
+promotion configuration/reviews and manual asset deposit confirmation. An active
+Platform session and the existing operation-specific permission remain mandatory,
+including locked rechecks where implemented. This supersedes earlier current-password
+requirements for these Platform mutations only; preserve CSRF, tenant/resource scope,
+explicit financial acknowledgements, idempotency and actor/time audit provenance.
+Login/new-account passwords, consumer authentication, Tenant-only authentication and
+sensitive read/reveal verification remain unchanged. See
+`docs/architecture/PLATFORM_UPDATE_AUTHENTICATION.md`.
+
 On 2026-09-16 the user required one asset-settings form and one password input per
 page. Changes in the selected global/company scope save atomically in one batch;
 the current password remains only in transient component memory for page actions,

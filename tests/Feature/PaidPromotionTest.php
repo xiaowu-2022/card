@@ -343,10 +343,10 @@ it('enforces HTTP ownership passwords platform scope and dedicated review permis
     $base = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/configuration/paid-promotion';
     $this->actingAs($this->platform, 'platform_admin')->get($base)->assertOk();
     $level = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->first();
-    $this->postJson($base.'/levels/'.$level->id, ['fee' => $level->fee, 'reward' => $level->reward, 'percent' => $level->percent, 'target' => $level->target, 'enabled' => true, 'revision' => $level->revision, 'current_password' => 'wrong'])->assertUnprocessable();
+    $this->postJson($base.'/levels/'.$level->id, ['fee' => $level->fee, 'reward' => $level->reward, 'percent' => $level->percent, 'target' => $level->target, 'enabled' => true, 'revision' => $level->revision])->assertRedirect()->assertSessionHasNoErrors();
     $permission = DB::table('permissions')->where('name', 'promotion_refunds.review')->value('id');
     DB::table('role_permissions')->where('permission_id', $permission)->delete();
-    $this->postJson($base.'/rebates/'.Str::uuid(), ['decision' => 'approve', 'current_password' => 'local-password', 'confirmed' => true])->assertForbidden();
+    $this->postJson($base.'/rebates/'.Str::uuid(), ['decision' => 'approve', 'confirmed' => true])->assertForbidden();
 });
 
 it('uses all eight exact upgrade tariffs and preserves mixed historical activation prices', function () {

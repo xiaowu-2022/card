@@ -298,13 +298,13 @@ it('rejects SSRF endpoints and fails closed before requesting arbitrary hosts', 
 
 it('permits platform-only configuration, encrypts keys and never returns them', function () {
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
-    $this->actingAs($actor, 'platform_admin')->post('http://admin.localhost/platform/settings/assets', ['kind' => 'market', 'enabled' => true, 'api_key' => 'isolated-price-key', 'password' => 'local-password'])->assertRedirect()->assertSessionHasNoErrors();
+    $this->actingAs($actor, 'platform_admin')->post('http://admin.localhost/platform/settings/assets', ['kind' => 'market', 'enabled' => true, 'api_key' => 'isolated-price-key'])->assertRedirect()->assertSessionHasNoErrors();
     expect(DB::table('asset_market_settings')->where('id', 1)->value('api_key'))->not->toContain('isolated-price-key');
     $this->get('http://admin.localhost/platform/settings/assets')->assertOk()->assertDontSee('isolated-price-key')->assertInertia(fn ($page) => $page->where('market.configured', true));
-    $this->post('http://admin.localhost/platform/tenants/'.$this->tenant->id.'/assets/settings', ['kind' => 'exchange', 'asset' => 'BTC', 'enabled' => true, 'fee' => '0', 'single' => '100', 'daily' => '200', 'password' => 'local-password'])->assertRedirect();
+    $this->post('http://admin.localhost/platform/tenants/'.$this->tenant->id.'/assets/settings', ['kind' => 'exchange', 'asset' => 'BTC', 'enabled' => true, 'fee' => '0', 'single' => '100', 'daily' => '200'])->assertRedirect();
     expect(ExchangePolicy::where('tenant_id', $this->tenant->id)->where('asset_code', 'BTC')->first()->fee_percent)->toBe('0.00000000');
     $company = AdminUser::where('email', 'owner@a.localhost')->firstOrFail();
-    expect(fn () => app(ConfigureAssetsAction::class)->execute($company, ['kind' => 'market', 'enabled' => true, 'api_key' => 'forbidden', 'password' => 'local-password']))->toThrow(HttpException::class);
+    expect(fn () => app(ConfigureAssetsAction::class)->execute($company, ['kind' => 'market', 'enabled' => true, 'api_key' => 'forbidden']))->toThrow(HttpException::class);
 });
 it('submits scoped deposit and exchange HTTP requests with stable identifiers', function () {
     $request = (string) Str::uuid();
@@ -364,7 +364,7 @@ it('exposes existing TRON withdrawals to SaaS with scoped review and no alternat
 it('rejects company network amounts outside the exact currency precision', function () {
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     foreach (['0', '0.0000001'] as $minimum) {
-        expect(fn () => app(ConfigureAssetsAction::class)->execute($actor, ['kind' => 'company-rail', 'code' => 'USDC_ETHEREUM', 'deposit_enabled' => true, 'withdrawal_enabled' => false, 'minimum' => $minimum, 'password' => 'local-password'], $this->tenant))->toThrow(DomainException::class);
+        expect(fn () => app(ConfigureAssetsAction::class)->execute($actor, ['kind' => 'company-rail', 'code' => 'USDC_ETHEREUM', 'deposit_enabled' => true, 'withdrawal_enabled' => false, 'minimum' => $minimum], $this->tenant))->toThrow(DomainException::class);
     }
 });
 
@@ -519,7 +519,7 @@ it('allows public market configuration without a key and explicitly removes an o
     $settings = MarketSettings::findOrFail(1);
     $settings->update(['api_key' => 'old-secret']);
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
-    app(ConfigureAssetsAction::class)->execute($actor, ['kind' => 'market', 'enabled' => true, 'use_public' => true, 'password' => 'local-password']);
+    app(ConfigureAssetsAction::class)->execute($actor, ['kind' => 'market', 'enabled' => true, 'use_public' => true]);
     expect($settings->fresh()->api_key)->toBeNull()->and($settings->fresh()->enabled)->toBeTrue();
     Http::assertNothingSent();
 });
@@ -604,7 +604,7 @@ it('tests a public network without writing configuration or money then starts on
         return Http::response(['result' => $result]);
     }]);
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
-    $input = ['kind' => 'network-test', 'network' => 'BITCOIN', 'enabled' => true, 'use_public' => true, 'start_from_current' => true, 'confirmations' => 6, 'password' => 'local-password'];
+    $input = ['kind' => 'network-test', 'network' => 'BITCOIN', 'enabled' => true, 'use_public' => true, 'start_from_current' => true, 'confirmations' => 6];
     app(ConfigureAssetsAction::class)->execute($actor, $input);
     expect($c->fresh()->getRawOriginal())->toBe($before)->and(LedgerEntry::count())->toBe($entries);
     $input['kind'] = 'network';
@@ -626,22 +626,19 @@ it('does not enable a public Ethereum node when complete traces are unavailable'
         };
     }]);
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
-    expect(fn () => app(ConfigureAssetsAction::class)->execute($actor, ['kind' => 'network', 'network' => 'ETHEREUM', 'enabled' => true, 'use_public' => true, 'confirmations' => 6, 'password' => 'local-password']))->toThrow(DomainException::class);
+    expect(fn () => app(ConfigureAssetsAction::class)->execute($actor, ['kind' => 'network', 'network' => 'ETHEREUM', 'enabled' => true, 'use_public' => true, 'confirmations' => 6]))->toThrow(DomainException::class);
     expect($c->fresh()->enabled)->toBeFalse()->and($c->fresh()->next_height)->toBe(100);
 });
 
-it('requires the platform password for manual receipt and credits once even with unavailable nodes', function () {
+it('requires explicit receipt confirmation without a second password and credits only once', function () {
     $o = app(DepositAssetsAction::class)->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', (string) Str::uuid());
     ChainConnection::query()->update(['enabled' => false]);
     Http::fake();
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/asset-orders/'.$o->id.'/confirm';
     $input = ['request_id' => (string) Str::uuid(), 'confirmed' => true];
-    $this->actingAs($actor, 'platform_admin')->post($url, $input)->assertSessionHasErrors('password');
+    $this->actingAs($actor, 'platform_admin')->post($url, [...$input, 'confirmed' => false])->assertSessionHasErrors('confirmed');
     expect($o->fresh()->status)->toBe('PENDING');
-    $this->post($url, $input + ['password' => 'incorrect'])->assertSessionHasErrors();
-    expect($o->fresh()->status)->toBe('PENDING');
-    $input['password'] = 'local-password';
     $this->post($url, $input)->assertRedirect()->assertSessionHasNoErrors();
     $count = LedgerEntry::count();
     $this->post($url, $input)->assertRedirect()->assertSessionHasNoErrors();
@@ -653,19 +650,19 @@ it('requires credentials or endpoint when explicitly selecting private services'
     Http::fake();
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $action = app(ConfigureAssetsAction::class);
-    expect(fn () => $action->execute($actor, ['kind' => 'market', 'enabled' => true, 'use_public' => false, 'password' => 'local-password']))->toThrow(DomainException::class);
-    expect(fn () => $action->execute($actor, ['kind' => 'network', 'network' => 'ETHEREUM', 'enabled' => false, 'use_public' => false, 'rpc_url' => '', 'confirmations' => 6, 'password' => 'local-password']))->toThrow(ValidationException::class);
+    expect(fn () => $action->execute($actor, ['kind' => 'market', 'enabled' => true, 'use_public' => false]))->toThrow(DomainException::class);
+    expect(fn () => $action->execute($actor, ['kind' => 'network', 'network' => 'ETHEREUM', 'enabled' => false, 'use_public' => false, 'rpc_url' => '', 'confirmations' => 6]))->toThrow(ValidationException::class);
     Http::assertNothingSent();
 });
 
-it('saves several asset settings with one password and one atomic transaction', function () {
+it('saves several asset settings using the platform session and one atomic transaction', function () {
     Http::fake();
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $sections = [
         ['kind' => 'market', 'enabled' => false, 'use_public' => true],
         ['kind' => 'network', 'network' => 'BITCOIN', 'enabled' => false, 'use_public' => true, 'confirmations' => 8],
     ];
-    $this->actingAs($actor, 'platform_admin')->post('http://admin.localhost/platform/settings/assets', ['kind' => 'batch', 'password' => 'local-password', 'sections' => $sections])->assertRedirect()->assertSessionHasNoErrors();
+    $this->actingAs($actor, 'platform_admin')->post('http://admin.localhost/platform/settings/assets', ['kind' => 'batch', 'sections' => $sections])->assertRedirect()->assertSessionHasNoErrors();
     expect(MarketSettings::findOrFail(1)->enabled)->toBeFalse()->and(ChainConnection::findOrFail('BITCOIN')->confirmations)->toBe(8);
     Http::assertNothingSent();
 });
@@ -673,7 +670,7 @@ it('saves several asset settings with one password and one atomic transaction', 
 it('rolls back the whole settings batch and never flashes nested credentials on validation errors', function () {
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $before = MarketSettings::findOrFail(1)->getRawOriginal();
-    $this->actingAs($actor, 'platform_admin')->post('http://admin.localhost/platform/settings/assets', ['kind' => 'batch', 'password' => 'local-password', 'sections' => [
+    $this->actingAs($actor, 'platform_admin')->post('http://admin.localhost/platform/settings/assets', ['kind' => 'batch', 'sections' => [
         ['kind' => 'market', 'enabled' => false, 'use_public' => false, 'api_key' => 'private-batch-secret'],
         ['kind' => 'rail', 'code' => 'ETH_ETHEREUM', 'enabled' => true, 'address' => 'invalid'],
     ]])->assertSessionHasErrors('sections.1.form')->assertSessionMissing('_old_input.sections')->assertSessionMissing('_old_input.password');
@@ -694,7 +691,7 @@ it('prepares node reads before saving a batch and saves a network before its rai
             'debug_traceBlockByNumber' => [],
         }]);
     }]);
-    app(ConfigureAssetsAction::class)->execute($actor, ['kind' => 'batch', 'password' => 'local-password', 'sections' => [
+    app(ConfigureAssetsAction::class)->execute($actor, ['kind' => 'batch', 'sections' => [
         ['kind' => 'rail', 'code' => 'ETH_ETHEREUM', 'enabled' => true, 'address' => '0x'.str_repeat('1', 40)],
         ['kind' => 'network', 'network' => 'ETHEREUM', 'enabled' => true, 'use_public' => true, 'confirmations' => 6],
     ]]);
@@ -705,8 +702,8 @@ it('rejects duplicate sections and global configuration in a company batch', fun
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $section = ['kind' => 'market', 'enabled' => false, 'use_public' => true];
     $action = app(ConfigureAssetsAction::class);
-    expect(fn () => $action->execute($actor, ['kind' => 'batch', 'password' => 'local-password', 'sections' => [$section, $section]]))->toThrow(ValidationException::class);
-    expect(fn () => $action->execute($actor, ['kind' => 'batch', 'password' => 'local-password', 'sections' => [$section]], $this->tenant))->toThrow(ValidationException::class);
+    expect(fn () => $action->execute($actor, ['kind' => 'batch', 'sections' => [$section, $section]]))->toThrow(ValidationException::class);
+    expect(fn () => $action->execute($actor, ['kind' => 'batch', 'sections' => [$section]], $this->tenant))->toThrow(ValidationException::class);
     expect(MarketSettings::findOrFail(1)->enabled)->toBeTrue();
 });
 

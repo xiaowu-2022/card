@@ -36,7 +36,7 @@ function smsSettingsPayload(array $overrides = []): array
     return [...[
         'name' => 'Default Sms', 'enabled' => true, 'access_key_id' => 'TestKeyA', 'access_key_secret' => 'test-secret-A',
         'sign_name' => '测试签名', 'verification_template_code' => 'SMS_123456', 'existing_account_template_code' => '',
-        'resend_interval_seconds' => 90, 'code_ttl_seconds' => 300, 'current_password' => 'local-password',
+        'resend_interval_seconds' => 90, 'code_ttl_seconds' => 300,
     ], ...$overrides];
 }
 
@@ -102,7 +102,7 @@ it('validates settings and never flashes submitted credentials', function (array
     expect(PlatformSmsProfile::query()->count())->toBe(0);
     Http::assertNothingSent();
 })->with([
-    [['current_password' => 'wrong-password'], 'current_password'],
+
     [['access_key_secret' => ''], 'access_key_secret'],
     [['access_key_id' => ''], 'access_key_id'],
     [['verification_template_code' => 'arbitrary'], 'verification_template_code'],

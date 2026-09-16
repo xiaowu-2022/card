@@ -174,13 +174,13 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
                     </span>
                     <span className="whitespace-nowrap text-base font-normal">USDT</span>
                 </p>
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                    {overview.estimate === null
-                        ? t('Valuation unavailable. Original balances are unchanged.')
-                        : overview.updatedAt
-                          ? t('Prices updated: {{time}}', { time: dateTime(overview.updatedAt) })
-                          : t('USDT balances valued at 1:1.')}
-                </p>
+                {(overview.estimate === null || overview.updatedAt) && (
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                        {overview.estimate === null
+                            ? t('Valuation unavailable. Original balances are unchanged.')
+                            : t('Prices updated: {{time}}', { time: dateTime(overview.updatedAt!) })}
+                    </p>
+                )}
             </section>
             {shortcuts.length > 0 && (
                 <nav

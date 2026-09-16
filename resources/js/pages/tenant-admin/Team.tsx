@@ -56,7 +56,7 @@ export default function Team({ team }: { team: TeamData }) {
         email: '',
         password: '',
         password_confirmation: '',
-        current_password: '',
+
         role: team.roles[0] ?? 'TENANT_ADMIN',
     });
     const configurationProps = usePage<
@@ -115,12 +115,7 @@ export default function Team({ team }: { team: TeamData }) {
                                         setCreateOpen(false);
                                     },
                                     preserveScroll: true,
-                                    onFinish: () =>
-                                        form.reset(
-                                            'password',
-                                            'password_confirmation',
-                                            'current_password',
-                                        ),
+                                    onFinish: () => form.reset('password', 'password_confirmation'),
                                 });
                             }}
                         >
@@ -220,25 +215,10 @@ export default function Team({ team }: { team: TeamData }) {
                                     </SelectContent>
                                 </Select>
                             </FormField>
-                            <FormField
-                                id="admin-current-password"
-                                label={t('Your current password')}
-                                error={errorMessage(form.errors.current_password)}
-                            >
-                                <Input
-                                    id="admin-current-password"
-                                    type="password"
-                                    autoComplete="current-password"
-                                    required
-                                    value={form.data.current_password}
-                                    onChange={(event) =>
-                                        form.setData('current_password', event.target.value)
-                                    }
-                                />
-                            </FormField>
+
                             <p className="text-sm text-muted-foreground sm:col-span-2">
                                 {t(
-                                    'Creating this administrator grants immediate access with the selected role. Confirm with your own password. Existing accounts and passwords will not be changed.',
+                                    'Creating this administrator grants immediate access with the selected role. Existing accounts and passwords will not be changed.',
                                 )}
                             </p>
                             <div className="flex justify-end gap-2 sm:col-span-2">
@@ -428,7 +408,7 @@ function EditMemberDialog({
     onClose: () => void;
 }) {
     const configurationUrl = useCompanyConfigurationUrl();
-    const form = useForm({ role: member.role, status: member.status, current_password: '' });
+    const form = useForm({ role: member.role, status: member.status });
     const close = () => {
         if (!form.processing) {
             form.reset();
@@ -461,7 +441,6 @@ function EditMemberDialog({
                         form.put(configurationUrl(`/admin/team/memberships/${member.id}`), {
                             preserveScroll: true,
                             onSuccess: onClose,
-                            onFinish: () => form.reset('current_password'),
                         });
                     }}
                 >
@@ -512,25 +491,10 @@ function EditMemberDialog({
                             </SelectContent>
                         </Select>
                     </FormField>
-                    <FormField
-                        id="edit-current-password"
-                        label={t('Your current password')}
-                        error={errorMessage(form.errors.current_password)}
-                    >
-                        <Input
-                            id="edit-current-password"
-                            type="password"
-                            autoComplete="current-password"
-                            required
-                            value={form.data.current_password}
-                            onChange={(event) =>
-                                form.setData('current_password', event.target.value)
-                            }
-                        />
-                    </FormField>
+
                     <p className="text-sm text-muted-foreground">
                         {t(
-                            'Changes take effect for this company immediately. Suspending membership blocks access to this company. Confirm with your current password.',
+                            'Changes take effect for this company immediately. Suspending membership blocks access to this company.',
                         )}
                     </p>
                     <div className="flex justify-end gap-2">

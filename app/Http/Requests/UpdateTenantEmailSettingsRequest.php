@@ -19,7 +19,7 @@ class UpdateTenantEmailSettingsRequest extends FormRequest
             'from_name' => ['nullable', 'required_if:enabled,true', 'string', 'max:100', 'not_regex:/[\x00-\x1f\x7f]/'],
             'smtp_token' => ['nullable', 'string', 'max:512', 'regex:/^[\x21-\x7E]+$/D'],
             'daily_recipient_limit' => ['required', 'integer', 'between:0,1000'],
-            'current_password' => ['required', 'string', 'max:255', 'current_password:'.($this->routeIs('platform.*') ? 'platform_admin' : 'tenant_admin')],
+            'current_password' => $this->routeIs('platform.*') ? ['exclude'] : ['required', 'string', 'max:255', 'current_password:tenant_admin'],
             'tenant_id' => ['prohibited'], 'id' => ['prohibited'], 'host' => ['prohibited'], 'port' => ['prohibited'],
             'encryption' => ['prohibited'], 'smtp_username' => ['prohibited'], 'provider' => ['prohibited'],
         ];

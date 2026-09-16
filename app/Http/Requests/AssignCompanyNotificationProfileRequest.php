@@ -15,7 +15,6 @@ final class AssignCompanyNotificationProfileRequest extends FormRequest
     {
         return [
             'profile_id' => ['present', 'nullable', 'uuid'],
-            'current_password' => ['required', 'string', 'max:255', 'current_password:platform_admin'],
             'tenant_id' => ['prohibited'], 'access_key_id' => ['prohibited'], 'access_key_secret' => ['prohibited'],
             'smtp_token' => ['prohibited'], 'enabled' => ['prohibited'], 'from_address' => ['prohibited'],
         ];

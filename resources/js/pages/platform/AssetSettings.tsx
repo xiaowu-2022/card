@@ -122,8 +122,7 @@ export default function AssetSettings(p: Props) {
 function AssetSettingsForm(p: Props) {
     useAdminTranslation();
     const initial = initialSections(p);
-    const form = useForm<{ password: string; sections: Section[] }>({
-        password: '',
+    const form = useForm<{ sections: Section[] }>({
         sections: initial,
     });
     const [requestSections, setRequestSections] = useState<Section[]>([]);
@@ -136,10 +135,8 @@ function AssetSettingsForm(p: Props) {
     const submit = (sections: Section[], action?: string) => {
         setRequestSections(sections);
         form.clearErrors();
-        form.transform((data) =>
-            action
-                ? { ...sections[0], kind: action, password: data.password }
-                : { kind: 'batch', sections, password: data.password },
+        form.transform(() =>
+            action ? { ...sections[0], kind: action } : { kind: 'batch', sections },
         );
         form.post(endpoint, {
             preserveScroll: true,
@@ -209,26 +206,9 @@ function AssetSettingsForm(p: Props) {
                         className="space-y-6"
                     >
                         <div className="space-y-3 rounded-xl border bg-surface p-5">
-                            <div className="flex flex-wrap items-end gap-4">
-                                <label className="block flex-1 space-y-2 text-sm">
-                                    <span>{t('Current password')}</span>
-                                    <Input
-                                        type="password"
-                                        autoComplete="current-password"
-                                        value={form.data.password}
-                                        onChange={(e) => form.setData('password', e.target.value)}
-                                        required
-                                    />
-                                </label>
-                                <Button disabled={form.processing || !dirty.length}>
-                                    {t('Save all changes')}
-                                </Button>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                                {t(
-                                    'Enter your password once for this page. It is cleared when you leave or switch companies.',
-                                )}
-                            </p>
+                            <Button disabled={form.processing || !dirty.length}>
+                                {t('Save all changes')}
+                            </Button>
                             {Object.entries(form.errors).map(([key, message]) => {
                                 const match = /^sections\.(\d+)\./.exec(key);
                                 const section = match ? requestSections[Number(match[1])] : null;

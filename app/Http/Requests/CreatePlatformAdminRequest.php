@@ -25,7 +25,6 @@ final class CreatePlatformAdminRequest extends FormRequest
             'email' => ['required', 'email', 'max:255'],
             'role' => ['required', Rule::in(['PLATFORM_ADMIN', 'PLATFORM_AUDITOR'])],
             'password' => ['required', 'string', 'confirmed', 'max:72', Password::min(12)->letters()->mixedCase()->numbers()],
-            'current_password' => ['required', 'string', 'current_password:platform_admin'],
         ];
     }
 }

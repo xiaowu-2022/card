@@ -45,7 +45,6 @@ export default function Administrators({ team }: { team: Team }) {
         email: '',
         password: '',
         password_confirmation: '',
-        current_password: '',
         role: 'PLATFORM_AUDITOR',
     });
     const fields = [
@@ -53,7 +52,6 @@ export default function Administrators({ team }: { team: Team }) {
         ['email', 'Login account (email)', 'email'],
         ['password', 'Administrator password', 'password'],
         ['password_confirmation', 'Confirm password', 'password'],
-        ['current_password', 'Your current password', 'password'],
     ] as const;
     return (
         <PlatformLayout>
@@ -73,11 +71,7 @@ export default function Administrators({ team }: { team: Team }) {
                                     form.post('/platform/administrators', {
                                         onSuccess: () => form.reset('name', 'email'),
                                         onFinish: () =>
-                                            form.reset(
-                                                'password',
-                                                'password_confirmation',
-                                                'current_password',
-                                            ),
+                                            form.reset('password', 'password_confirmation'),
                                     });
                                 }}
                             >
@@ -114,11 +108,7 @@ export default function Administrators({ team }: { team: Team }) {
                                                       : 255
                                             }
                                             autoComplete={
-                                                key === 'current_password'
-                                                    ? 'current-password'
-                                                    : type === 'password'
-                                                      ? 'new-password'
-                                                      : 'off'
+                                                type === 'password' ? 'new-password' : 'off'
                                             }
                                         />
                                     </FormField>

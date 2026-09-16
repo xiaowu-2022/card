@@ -31,7 +31,7 @@ final class TeamController extends Controller
     public function store(Tenant $tenant, CreateTenantAdminRequest $request, CreateTenantAdminAction $create): RedirectResponse
     {
         $data = $request->validated();
-        $create->execute($tenant, $this->admin($request), $data['name'], $data['email'], $data['password'], $data['role'], $data['current_password'], $request->attributes->get('request_id'));
+        $create->execute($tenant, $this->admin($request), $data['name'], $data['email'], $data['password'], $data['role'], $request->attributes->get('request_id'));
 
         return back()->with('success', 'Administrator created. They can sign in to this company with the configured account and password.');
     }
@@ -47,7 +47,7 @@ final class TeamController extends Controller
     public function update(Tenant $tenant, string $membership, UpdateTenantAdminMembershipRequest $request, UpdateTenantAdminMembershipAction $update): RedirectResponse
     {
         $data = $request->validated();
-        $update->execute($tenant, $membership, $this->admin($request), $data['role'], $data['status'], $data['current_password'], $request->attributes->get('request_id'));
+        $update->execute($tenant, $membership, $this->admin($request), $data['role'], $data['status'], $request->attributes->get('request_id'));
 
         return back()->with('success', 'Company administrator updated.');
     }

@@ -23,7 +23,7 @@ beforeEach(function (): void {
     $this->otherMembership = AdminMembership::query()->create(['admin_user_id' => $this->admin->id, 'scope_type' => ScopeType::Tenant, 'scope_id' => $this->otherCompany->id, 'role_id' => $role->id, 'status' => 'ACTIVE']);
     $this->base = 'http://admin.localhost/platform/tenants/'.$this->company->id.'/configuration/team';
     $this->url = $this->base.'/memberships/'.$this->membership->id;
-    $this->data = ['role' => 'SUPPORT', 'status' => 'SUSPENDED', 'current_password' => 'local-password'];
+    $this->data = ['role' => 'SUPPORT', 'status' => 'SUSPENDED'];
 });
 
 it('updates only the selected company membership and audits once with actor and timestamp', function (): void {
@@ -61,32 +61,31 @@ it('rejects a membership belonging to another company and protects owners and re
     expect(AuditLog::query()->where('action', 'ADMIN_MEMBERSHIP_UPDATED')->count())->toBe(0);
 });
 
-it('rejects credential changes invalid roles statuses and bad password confirmation', function (array $changes, string $field): void {
+it('rejects credential changes invalid roles statuses', function (array $changes, string $field): void {
     $this->actingAs($this->actor, 'platform_admin')->put($this->url, [...$this->data, ...$changes])->assertSessionHasErrors($field);
     expect($this->membership->fresh()->role->name)->toBe('TENANT_ADMIN')
         ->and($this->membership->fresh()->status->value)->toBe('ACTIVE')
         ->and(session()->get('_old_input.current_password'))->toBeNull();
 })->with([
     [['role' => 'TENANT_OWNER'], 'role'], [['role' => 'PLATFORM_ADMIN'], 'role'],
-    [['status' => 'REVOKED'], 'status'], [['current_password' => 'wrong'], 'current_password'],
+    [['status' => 'REVOKED'], 'status'],
     [['email' => 'changed@example.test'], 'email'], [['password' => 'changed'], 'password'],
     [['tenant_id' => 'spoofed'], 'tenant_id'],
 ]);
 
-it('requires active platform administration and rechecks password inside the action', function (): void {
+it('requires active platform administration and rechecks membership inside the action', function (): void {
     $companyOwner = AdminUser::query()->where('email', 'owner@a.localhost')->sole();
     $this->actingAs($companyOwner, 'platform_admin')->put($this->url, $this->data)->assertForbidden();
-    expect(fn () => app(UpdateTenantAdminMembershipAction::class)->execute($this->company, $this->membership->id, $companyOwner, 'SUPPORT', 'ACTIVE', 'local-password'))->toThrow(DomainException::class);
-    expect(fn () => app(UpdateTenantAdminMembershipAction::class)->execute($this->company, $this->membership->id, $this->actor, 'SUPPORT', 'ACTIVE', 'wrong'))->toThrow(DomainException::class);
+    expect(fn () => app(UpdateTenantAdminMembershipAction::class)->execute($this->company, $this->membership->id, $companyOwner, 'SUPPORT', 'ACTIVE'))->toThrow(DomainException::class);
     $this->actor->memberships()->where('scope_type', ScopeType::Platform)->update(['status' => 'SUSPENDED']);
     $this->actingAs($this->actor, 'platform_admin')->put($this->url, $this->data)->assertForbidden();
-    expect(fn () => app(UpdateTenantAdminMembershipAction::class)->execute($this->company, $this->membership->id, $this->actor, 'SUPPORT', 'ACTIVE', 'local-password'))->toThrow(DomainException::class);
+    expect(fn () => app(UpdateTenantAdminMembershipAction::class)->execute($this->company, $this->membership->id, $this->actor, 'SUPPORT', 'ACTIVE'))->toThrow(DomainException::class);
 });
 
 it('creates administrators from the platform dialog endpoint with password confirmation', function (): void {
     $this->actingAs($this->actor, 'platform_admin')->from($this->base)->post($this->base.'/administrators', [
         'name' => 'Dialog Admin', 'email' => 'dialog@example.test', 'role' => 'SUPPORT',
-        'password' => 'DialogPassword123', 'password_confirmation' => 'DialogPassword123', 'current_password' => 'local-password',
+        'password' => 'DialogPassword123', 'password_confirmation' => 'DialogPassword123',
     ])->assertRedirect($this->base)->assertSessionHasNoErrors();
     $created = AdminUser::query()->where('email', 'dialog@example.test')->sole();
     expect(Hash::check('DialogPassword123', $created->password))->toBeTrue()
