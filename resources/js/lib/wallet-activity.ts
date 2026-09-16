@@ -31,6 +31,8 @@ export function walletActivityItems(entries: WalletActivity[]): UserActivityItem
         CARD_LOAD_RELEASE: 'Card reload returned',
         CARD_RETURN_SETTLE: 'Card balance returned',
         CARD_CANCEL_RETURN_SETTLE: 'Card balance returned',
+        PROMOTION_ANNUAL_FEE: 'Promotion annual fee paid',
+        PROMOTION_FEE_REBATE: 'Annual fee returned',
         COMMISSION_TRANSFER: 'Balance transfer received',
         SECURITY_DEPOSIT_REFUND: 'Security deposit refunded',
     };

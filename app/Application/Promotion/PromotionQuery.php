@@ -11,6 +11,7 @@ use App\Domain\Promotion\Models\PromotionFundingEvent;
 use App\Domain\Promotion\Models\PromotionLevel;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\Wallet\Models\Wallet;
+use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -61,6 +62,18 @@ final readonly class PromotionQuery
             $join->on('f.id', '=', 'a.funding_event_id')->on('f.tenant_id', '=', 'a.tenant_id');
         })->where('a.tenant_id', $tenantId)->where('a.user_id', $userId)->whereIn('f.user_id', $direct->pluck('user_id'))
             ->selectRaw('f.user_id, SUM(a.amount)::text AS amount')->groupBy('f.user_id')->pluck('amount', 'f.user_id');
+        $directAnnual = DB::table('paid_promotion_shares as s')->join('paid_promotion_events as e', fn ($j) => $j->on('e.id', '=', 's.event_id')->on('e.tenant_id', '=', 's.tenant_id'))
+            ->where('s.tenant_id', $tenantId)->where('s.user_id', $userId)->where('e.kind', 'ANNUAL')->whereIn('e.user_id', $direct->pluck('user_id'))
+            ->selectRaw('e.user_id,SUM(s.amount)::text AS amount')->groupBy('e.user_id')->pluck('amount', 'e.user_id');
+        foreach ($directAnnual as $source => $amount) {
+            $directContributions[$source] = (string) BigDecimal::of($directContributions[$source] ?? '0')->plus($amount);
+        }
+        $directRanks = DB::table('paid_promotion_cycles')->where('tenant_id', $tenantId)->whereIn('user_id', $direct->pluck('user_id'))->where('starts_at', '<=', now())->where('ends_at', '>', now())->pluck('rank', 'user_id');
+        $annualAwards = DB::table('paid_promotion_shares as s')->join('paid_promotion_events as e', fn ($j) => $j->on('e.id', '=', 's.event_id')->on('e.tenant_id', '=', 's.tenant_id'))
+            ->where('s.tenant_id', $tenantId)->where('s.user_id', $userId)->where('e.kind', 'ANNUAL')->where('s.amount', '>', 0)->where('e.occurred_at', '>=', $start)->where('e.occurred_at', '<', $end);
+        $annualDaily = (string) (clone $annualAwards)->sum('s.amount');
+        $annualDetails = $annualAwards->join('users as u', fn ($j) => $j->on('u.id', '=', 's.user_id')->on('u.tenant_id', '=', 's.tenant_id'))
+            ->selectRaw("s.id,u.account_id,'Annual fee commission' AS kind,s.amount::text AS amount,e.occurred_at,e.user_id AS source_user_id,NULL::text AS deposit_amount");
         $details = DB::table('promotion_members as m')->join('users as u', 'u.id', '=', 'm.user_id')
             ->where('m.tenant_id', $tenantId)->where('u.tenant_id', $tenantId)->whereIn('m.user_id', $ids)
             ->where('m.created_at', '>=', $start)->where('m.created_at', '<', $end)
@@ -80,7 +93,7 @@ final readonly class PromotionQuery
         $activationDetails = DB::query()->fromSub((clone $funds)->selectRaw('user_id, MIN(funded_at) AS activated_at')->groupBy('user_id'), 'f')
             ->join('users as u', 'u.id', '=', 'f.user_id')->where('u.tenant_id', $tenantId)->where('f.activated_at', '>=', $start)->where('f.activated_at', '<', $end)
             ->selectRaw("u.id, u.account_id, 'Activation' AS kind, NULL::text AS amount, f.activated_at AS occurred_at, f.user_id AS source_user_id, NULL::text AS deposit_amount");
-        $rows = DB::query()->fromSub($details->unionAll($fundDetails)->unionAll($awardDetails)->unionAll($activationDetails), 'movements')
+        $rows = DB::query()->fromSub($details->unionAll($fundDetails)->unionAll($awardDetails)->unionAll($activationDetails)->unionAll($annualDetails), 'movements')
             ->orderByDesc('occurred_at')->orderBy('id')->orderBy('kind')->offset(($page - 1) * 30)->limit(31)->get();
 
         $relationships = DB::table('promotion_members as source_member')
@@ -95,23 +108,25 @@ final readonly class PromotionQuery
 
         $refundRestricted = CommissionTransferEligibility::refundRestricted($tenantId, $userId);
 
+        $paid = app(PaidPromotionQuery::class)->execute($tenantId, $userId);
+
         return [
+            'paid' => $paid,
             'date' => $day->format('Y-m-d'), 'timezone' => $tenant->timezone, 'invitationCode' => $member->invitation_code,
             'levelName' => $level?->name, 'supported' => $tenant->default_asset === 'USDT',
             'commissionRefundRestricted' => $refundRestricted,
             'canTransfer' => ! $refundRestricted && Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', 'USDT')->where('status', 'ACTIVE')->exists()
                 && $this->kyc->forUser($tenantId, $userId) === KycUserStatus::Approved,
             'availableCommission' => LedgerAccount::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('account_type', 'USER_COMMISSION')->value('balance') ?? '0.00000000',
-            'myCommission' => (string) CommissionAward::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->sum('amount'),
+            'myCommission' => (string) BigDecimal::of($paid['totals']['ANNUAL'])->plus($paid['totals']['ACTIVATION'])->plus($paid['legacy']),
             'totals' => ['invited' => count($ids), 'activated' => $firstFunding->count(), 'deposits' => (string) (clone $funds)->sum('amount'), 'commission' => (string) (clone $awards)->sum('amount')],
             'daily' => ['invited' => count(array_filter($team, fn ($row) => $inDay($row->created_at))), 'activated' => $firstFunding->filter(fn ($row) => $inDay($row->activated_at))->count(),
                 'deposits' => (string) (clone $funds)->where('funded_at', '>=', $start)->where('funded_at', '<', $end)->sum('amount'),
-                'commission' => (string) (clone $awards)->where('commission_awards.user_id', $userId)->where('earned_entry.posted_at', '>=', $start)->where('earned_entry.posted_at', '<', $end)->sum('commission_awards.amount')],
-            'direct' => $direct->take(20)->map(fn ($row) => ['id' => $row->id, 'accountId' => $row->account_id, 'levelId' => $row->level_id, 'joinedAt' => $row->created_at, 'depositAmount' => $directBalances[$row->user_id] ?? '0.00000000', 'myCommission' => $directContributions[$row->user_id] ?? '0.00000000'])->all(),
+                'commission' => (string) BigDecimal::of((string) (clone $awards)->where('commission_awards.user_id', $userId)->where('earned_entry.posted_at', '>=', $start)->where('earned_entry.posted_at', '<', $end)->sum('commission_awards.amount'))->plus($annualDaily)],
+            'direct' => $direct->take(20)->map(fn ($row) => ['id' => $row->id, 'accountId' => $row->account_id, 'levelId' => $row->level_id, 'rank' => $directRanks[$row->user_id] ?? 0, 'joinedAt' => $row->created_at, 'depositAmount' => $directBalances[$row->user_id] ?? '0.00000000', 'myCommission' => $directContributions[$row->user_id] ?? '0.00000000'])->all(),
             'directTotal' => $directTotal, 'filters' => ['accountId' => $accountId ?? '', 'funding' => $funding],
             'directPage' => $directPage, 'hasMoreDirect' => $direct->count() > 20,
-            'assignableLevels' => PromotionLevel::query()->where('tenant_id', $tenantId)->where('rank', '<', $level?->rank ?? 0)->orderBy('rank')->get()->map(fn ($row) => ['id' => $row->id, 'name' => $row->name])->all(),
-            'canAssign' => ($level?->rank ?? 0) > 0,
+            'assignableLevels' => [], 'canAssign' => false,
             'details' => $rows->take(30)->map(function ($row) use ($relationships, $userId): array {
                 $relationship = $relationships->get($row->source_user_id);
 

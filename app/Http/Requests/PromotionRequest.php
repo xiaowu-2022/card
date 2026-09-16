@@ -10,7 +10,7 @@ final class PromotionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'action' => ['required', Rule::in(['transfer', 'level'])],
+            'action' => ['required', Rule::in(['transfer'])],
             'request_id' => ['required_if:action,transfer', 'uuid'],
             'current_password' => $this->input('action') === 'transfer' ? ['required', 'current_password:tenant_user'] : ['exclude'],
             'confirmed' => $this->input('action') === 'transfer' ? ['required', 'accepted'] : ['exclude'],

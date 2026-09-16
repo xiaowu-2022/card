@@ -5,7 +5,9 @@ use App\Application\Kyc\SubmitKycApplicationAction;
 use App\Application\Promotion\CommissionHistoryQuery;
 use App\Application\Promotion\CommissionTransferEligibility;
 use App\Application\Promotion\CompanyFundBookQuery;
+use App\Application\Promotion\ConfigurePaidPromotion;
 use App\Application\Promotion\ConfigurePromotionAction;
+use App\Application\Promotion\PaidPromotionPurchase;
 use App\Application\Promotion\PromotionMembershipAction;
 use App\Application\Promotion\PromotionQuery;
 use App\Application\Promotion\TransferCommissionAction;
@@ -29,7 +31,6 @@ use App\Domain\User\Models\User;
 use App\Domain\Wallet\Models\Wallet;
 use App\Mail\UserVerificationCodeMail;
 use App\Support\Errors\DomainException;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -66,11 +67,25 @@ function promotionTestWallet($test, User $user): Wallet
     return $wallet;
 }
 
+function promotionPurchasedRank($test, User $user, int $rank): void
+{
+    $wallet = promotionTestWallet($test, $user);
+    $available = LedgerAccount::where('wallet_id', $wallet->id)->where('account_type', 'USER_AVAILABLE')->firstOrFail();
+    $company = LedgerAccount::where('tenant_id', $test->tenant->id)->where('asset_code', 'USDT')->where('account_type', 'TENANT_TOPUP_CLEARING')->firstOrFail();
+    app(LedgerWriter::class)->post(new LedgerPostingPlan($test->tenant->id, 'USDT', 'paid_fixture:'.Str::uuid(), 'TEST_TOPUP', null, null, null, [
+        new LedgerPostingInstruction($company->id, Money::of('-10000', 'USDT')), new LedgerPostingInstruction($available->id, Money::of('10000', 'USDT')),
+    ]));
+    $l = DB::table('paid_promotion_levels')->where('tenant_id', $test->tenant->id)->where('rank', $rank)->value('id');
+    $action = app(PaidPromotionPurchase::class);
+    $q = $action->quote($test->tenant->id, $user->id, $l, (string) Str::uuid());
+    $action->confirm($test->tenant->id, $user->id, $q->id);
+}
+
 it('earns company-funded commission only from real deposit funding and pays again after actual refund', function (): void {
     $members = app(PromotionMembershipAction::class);
     $configure = app(ConfigurePromotionAction::class);
     $level = $configure->level($this->tenant->id, $this->platform->id, 1, 'Agent', '5', null);
-    $parent = $configure->memberLevel($this->tenant->id, $this->platform->id, $this->user->id, $level->id);
+    $parent = app(PromotionMembershipAction::class)->ensure($this->tenant->id, $this->user->id);
     $child = $this->user->replicate(['account_id']);
     $child->forceFill(['email' => 'funding-child@example.test'])->save();
     $members->ensure($this->tenant->id, $child->id, $parent->id);
@@ -81,29 +96,29 @@ it('earns company-funded commission only from real deposit funding and pays agai
     $fund->execute($this->tenant->id, $child->id, $request, '50');
     expect(CommissionAward::query()->count())->toBe(1);
     $commission = LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->where('account_type', 'USER_COMMISSION')->firstOrFail();
-    expect($commission->balance)->toBe('5.00000000')->and($commission->wallet_id)->toBeNull();
+    expect($commission->balance)->toBe('20.00000000')->and($commission->wallet_id)->toBeNull();
     $refunds = app(RefundSecurityDepositAction::class);
     $cancelled = $refunds->request($this->tenant->id, $child->id, (string) Str::uuid());
     $refunds->cancel($this->tenant->id, $child->id, $cancelled->id);
     $refunds->settle($this->tenant->id, $child->id, $cancelled->id);
-    expect(CommissionAward::query()->count())->toBe(1)->and($commission->fresh()->balance)->toBe('5.00000000');
+    expect(CommissionAward::query()->count())->toBe(1)->and($commission->fresh()->balance)->toBe('20.00000000');
     $refund = $refunds->request($this->tenant->id, $child->id, (string) Str::uuid());
     expect($refunds->settle($this->tenant->id, $child->id, $refund->id)->status)->toBe('COMPLETED');
-    expect($commission->fresh()->balance)->toBe('5.00000000');
+    expect($commission->fresh()->balance)->toBe('20.00000000');
     $fund->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
-    expect($commission->fresh()->balance)->toBe('10.00000000');
-    expect(LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('account_type', 'TENANT_COMMISSION_CLEARING')->value('balance'))->toBe('-10.00000000');
+    expect($commission->fresh()->balance)->toBe('40.00000000');
+    expect(LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('account_type', 'TENANT_COMMISSION_CLEARING')->value('balance'))->toBe('-40.00000000');
     expect(LedgerAccount::query()->where('wallet_id', $wallet->id)->where('account_type', 'USER_SECURITY_DEPOSIT')->value('balance'))->toBe('50.00000000');
     promotionTestWallet($this, $this->user);
     $transferRequest = (string) Str::uuid();
     $transfer = app(TransferCommissionAction::class)->execute($this->tenant->id, $this->user->id, $transferRequest);
-    expect($transfer->amount)->toBe('10.00000000')->and($commission->fresh()->balance)->toBe('0.00000000');
+    expect($transfer->amount)->toBe('40.00000000')->and($commission->fresh()->balance)->toBe('0.00000000');
     expect(app(TransferCommissionAction::class)->execute($this->tenant->id, $this->user->id, $transferRequest)->id)->toBe($transfer->id);
     $historyQuery = app(CommissionHistoryQuery::class);
     $entryCount = DB::table('ledger_entries')->count();
     $history = $historyQuery->execute($this->tenant->id, $this->user->id);
     expect($history['items'])->toHaveCount(3)
-        ->and(array_column($history['items'], 'amount'))->toContain('5.00000000', '-10.00000000')
+        ->and(array_column($history['items'], 'amount'))->toContain('20.00000000', '-40.00000000')
         ->and(collect($history['items'])->where('kind', 'earned')->pluck('sourceAccountId')->unique()->values()->all())->toBe([$child->fresh()->account_id])
         ->and($historyQuery->execute($this->tenant->id, $child->id)['items'])->toBe([])
         ->and($historyQuery->execute($this->tenant->id, $this->user->id, now($this->tenant->timezone)->subDay()->format('Y-m-d'))['items'])->toBe([])
@@ -111,11 +126,11 @@ it('earns company-funded commission only from real deposit funding and pays agai
         ->and(DB::table('ledger_entries')->count())->toBe($entryCount);
     $report = app(PromotionQuery::class)->execute($this->tenant->id, $this->user->id, null);
     expect($report['totals']['invited'])->toBe(1)->and($report['totals']['activated'])->toBe(1)
-        ->and($report['totals']['deposits'])->toBe('100.00000000')->and($report['totals']['commission'])->toBe('10.00000000');
+        ->and($report['totals']['deposits'])->toBe('100.00000000')->and($report['totals']['commission'])->toBe('40.00000000');
     $yesterday = app(PromotionQuery::class)->execute($this->tenant->id, $this->user->id, now($this->tenant->timezone)->subDay()->format('Y-m-d'));
     expect($yesterday['daily']['invited'])->toBe(0)->and($yesterday['details'])->toBe([]);
     $book = app(CompanyFundBookQuery::class)->execute($this->tenant->id, null, 1);
-    expect($book['totals']['commissionCost'])->toBe('10.00000000');
+    expect($book['totals']['commissionCost'])->toBe('40.00000000');
     $activity = app(UserWalletQuery::class)->get($this->tenant->id, $this->user->id)['activity'];
     expect(array_column($activity, 'eventType'))->not->toContain('COMMISSION_EARN')->toContain('COMMISSION_TRANSFER');
     DB::statement('SET CONSTRAINTS promotion_funding_evidence, commission_award_evidence, commission_transfer_evidence, deposit_refund_evidence IMMEDIATE');
@@ -125,7 +140,7 @@ it('keeps earning commission but blocks new transfers during and after own depos
     $wallet = promotionTestWallet($this, $this->user);
     $configure = app(ConfigurePromotionAction::class);
     $level = $configure->level($this->tenant->id, $this->platform->id, 1, 'Agent', '5', null);
-    $parent = $configure->memberLevel($this->tenant->id, $this->platform->id, $this->user->id, $level->id);
+    $parent = app(PromotionMembershipAction::class)->ensure($this->tenant->id, $this->user->id);
     $fund = app(FundSecurityDepositAction::class);
     $fund->execute($this->tenant->id, $this->user->id, (string) Str::uuid(), '50');
     $earn = function (string $suffix) use ($parent, $fund): void {
@@ -161,7 +176,7 @@ it('keeps earning commission but blocks new transfers during and after own depos
             $this->tenant->id, $this->user->id, (string) Str::uuid(), 'T'.str_repeat('A', 33), '1', expectedFee: '0');
         expect($order->wallet_id)->toBe($wallet->id)->and($order->status->value)->toBe('PENDING');
     };
-    expect($commission->balance)->toBe('5.00000000');
+    expect($commission->balance)->toBe('20.00000000');
     $assertBlocked();
     $withdraw();
     $refunds->cancel($this->tenant->id, $this->user->id, $refund->id);
@@ -172,7 +187,7 @@ it('keeps earning commission but blocks new transfers during and after own depos
     $refunds->settle($this->tenant->id, $this->user->id, $refund->id);
     expect($refund->fresh()->status)->toBe('COMPLETED');
     $earn('completed');
-    expect($commission->fresh()->balance)->toBe('10.00000000');
+    expect($commission->fresh()->balance)->toBe('40.00000000');
     $assertBlocked();
     $withdraw();
     // Another user/company's refund cannot lock this subject through an unscoped lookup.
@@ -204,11 +219,12 @@ it('binds linked invitations to the browser and OTP challenge and rejects tamper
 it('allocates multi-level differences from the company once and preserves earned tariff snapshots', function (): void {
     $members = app(PromotionMembershipAction::class);
     $configure = app(ConfigurePromotionAction::class);
-    $levels = [];
-    foreach ([1 => '5', 2 => '10', 3 => '15'] as $rank => $reward) {
-        $levels[$rank] = $configure->level($this->tenant->id, $this->platform->id, $rank, 'Level '.$rank, $reward, null);
+    foreach ([1, 2, 3] as $rank) {
+        $l = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->where('rank', $rank)->first();
+        app(ConfigurePaidPromotion::class)->execute($this->tenant->id, $this->platform, $l->id, ['fee' => $l->fee, 'percent' => 0, 'reward' => $l->reward, 'target' => $l->target, 'revision' => $l->revision, 'enabled' => true]);
     }
-    $parent = $configure->memberLevel($this->tenant->id, $this->platform->id, $this->user->id, $levels[3]->id);
+    promotionPurchasedRank($this, $this->user, 3);
+    $parent = $members->ensure($this->tenant->id, $this->user->id);
     $chain = [];
     foreach ([2, 1, 0] as $rank) {
         $child = $this->user->replicate(['account_id']);
@@ -216,16 +232,17 @@ it('allocates multi-level differences from the company once and preserves earned
         $chain[$rank] = $child->refresh();
         $parent = $members->ensure($this->tenant->id, $child->id, $parent->id);
         if ($rank > 0) {
-            $configure->memberLevel($this->tenant->id, $this->platform->id, $child->id, $levels[$rank]->id);
+            promotionPurchasedRank($this, $child, $rank);
         }
     }
     promotionTestWallet($this, $child);
     app(FundSecurityDepositAction::class)->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
     $awards = CommissionAward::query()->where('tenant_id', $this->tenant->id)->get();
-    expect($awards)->toHaveCount(3)->and($awards->pluck('amount')->all())->toBe(['5.00000000', '5.00000000', '5.00000000']);
-    $configure->level($this->tenant->id, $this->platform->id, 3, 'Updated top', '20', 1);
+    expect($awards)->toHaveCount(3)->and($awards->pluck('amount')->all())->toBe(['50.00000000', '10.00000000', '10.00000000']);
+    $l = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->where('rank', 3)->first();
+    app(ConfigurePaidPromotion::class)->execute($this->tenant->id, $this->platform, $l->id, ['fee' => $l->fee, 'percent' => 0, 'reward' => 75, 'target' => $l->target, 'revision' => $l->revision, 'enabled' => true]);
     $report = app(PromotionQuery::class)->execute($this->tenant->id, $this->user->id, null);
-    expect($report['totals'])->toBe(['invited' => 3, 'activated' => 1, 'deposits' => '50.00000000', 'commission' => '15.00000000']);
+    expect($report['totals'])->toBe(['invited' => 3, 'activated' => 1, 'deposits' => '50.00000000', 'commission' => '70.00000000']);
     $details = collect($report['details']);
     $deposit = $details->firstWhere('kind', 'Deposit funded');
     expect($deposit['sourceAccountId'])->toBe($chain[0]->account_id)
@@ -234,12 +251,12 @@ it('allocates multi-level differences from the company once and preserves earned
         ->and($deposit['depositAmount'])->toBe('50.00000000');
     $commissions = $details->where('kind', 'Commission earned');
     expect($commissions)->toHaveCount(1)
-        ->and($report['daily']['commission'])->toBe('5.00000000');
+        ->and($report['daily']['commission'])->toBe('10.00000000');
     foreach ($commissions as $row) {
         expect($row['sourceAccountId'])->toBe($chain[0]->account_id)
             ->and($row['inviterAccountId'])->toBe($chain[1]->account_id)
             ->and($row['depositAmount'])->toBe('50.00000000')
-            ->and($row['amount'])->toBe('5.00000000')
+            ->and($row['amount'])->toBe('10.00000000')
             ->and($row['accountId'])->toBe($this->user->account_id);
     }
     $directInvitation = $details->where('kind', 'Invitation')->firstWhere('sourceAccountId', $chain[2]->account_id);
@@ -256,9 +273,9 @@ it('allocates multi-level differences from the company once and preserves earned
     $otherUser = User::query()->where('tenant_id', $otherTenant->id)->firstOrFail();
     expect(app(PromotionQuery::class)->execute($otherTenant->id, $otherUser->id, null)['details'])->toBe([]);
     $saved = CommissionAward::query()->where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->firstOrFail();
-    expect($saved->level_revision)->toBe(1)->and($saved->level_reward)->toBe('15.00000000');
+    expect($saved->level_revision)->toBe(2)->and($saved->level_reward)->toBe('70.00000000');
     $book = app(CompanyFundBookQuery::class)->execute($this->tenant->id, now($this->tenant->timezone)->subDay()->format('Y-m-d'), 1);
-    expect($book['lifetimeTotals']['commissionCost'])->toBe('15.00000000')->and($book['totals']['commissionCost'])->toBe('0');
+    expect($book['lifetimeTotals']['commissionCost'])->toBe('70.00000000')->and($book['totals']['commissionCost'])->toBe('0');
     expect(fn () => DB::transaction(fn () => $saved->update(['amount' => '999'])))->toThrow(QueryException::class);
     DB::statement('SET CONSTRAINTS promotion_funding_evidence, commission_award_evidence IMMEDIATE');
 });
@@ -287,7 +304,6 @@ it('migrates legacy company and personal codes without changing relationships or
     $company = $members->companyInvitation($this->tenant->id);
     $parent = $members->ensure($this->tenant->id, $this->user->id);
     $level = app(ConfigurePromotionAction::class)->level($this->tenant->id, $this->platform->id, 1, 'Promoter', '5', null);
-    $parent->update(['level_id' => $level->id]);
     $child = $this->user->replicate(['account_id']);
     $child->forceFill(['email' => 'migration-child@example.test'])->save();
     $members->ensure($this->tenant->id, $child->id, $parent->id);
@@ -366,28 +382,22 @@ it('version controls integer tenant tariffs without changing rank or funds', fun
     expect(fn () => DB::transaction(fn () => PromotionLevel::query()->where('tenant_id', $this->tenant->id)->whereKey($level->id)->update(['rank' => 9])))->toThrow(QueryException::class);
 });
 
-it('allows only lower level assignment to an own direct invitee', function (): void {
+it('forbids manual paid qualification while preserving immutable invitations', function (): void {
     $members = app(PromotionMembershipAction::class);
     $configure = app(ConfigurePromotionAction::class);
-    $low = $configure->level($this->tenant->id, $this->platform->id, 1, 'Low', '5', null);
-    $high = $configure->level($this->tenant->id, $this->platform->id, 2, 'High', '10', null);
-    $parent = $configure->memberLevel($this->tenant->id, $this->platform->id, $this->user->id, $high->id);
-    $child = $this->user->replicate(['account_id']);
-    $child->forceFill(['email' => 'promotion-child@example.test'])->save();
-    $childMember = $members->ensure($this->tenant->id, $child->id, $parent->id);
-    $members->assignDirectLevel($this->tenant->id, $this->user->id, $childMember->id, $low->id);
-    expect($childMember->fresh()->level_id)->toBe($low->id);
-    expect(fn () => $members->assignDirectLevel($this->tenant->id, $this->user->id, $childMember->id, $high->id))->toThrow(DomainException::class);
-    expect(fn () => $members->assignDirectLevel($this->tenant->id, $child->id, $parent->id, null))->toThrow(ModelNotFoundException::class);
-    expect(fn () => DB::transaction(fn () => $parent->update(['inviter_id' => $childMember->id])))->toThrow(QueryException::class);
-    expect(PromotionMember::query()->where('tenant_id', $this->tenant->id)->count())->toBe(2);
+    $level = $configure->level($this->tenant->id, $this->platform->id, 1, 'Historical', '5', null);
+    $parent = $members->ensure($this->tenant->id, $this->user->id);
+    expect(fn () => $configure->memberLevel($this->tenant->id, $this->platform->id, $this->user->id, $level->id))->toThrow(DomainException::class);
+    expect(fn () => $members->assignDirectLevel($this->tenant->id, $this->user->id, $parent->id, $level->id))->toThrow(DomainException::class);
+    expect(fn () => DB::transaction(fn () => $parent->update(['level_id' => $level->id])))->toThrow(QueryException::class);
+    expect($parent->fresh()->level_id)->toBeNull();
 });
 
 it('filters direct members by account and deposit with only the viewers earned contribution', function (): void {
     $members = app(PromotionMembershipAction::class);
     $configure = app(ConfigurePromotionAction::class);
     $level = $configure->level($this->tenant->id, $this->platform->id, 1, 'Agent', '5', null);
-    $parent = $configure->memberLevel($this->tenant->id, $this->platform->id, $this->user->id, $level->id);
+    $parent = app(PromotionMembershipAction::class)->ensure($this->tenant->id, $this->user->id);
     $children = [];
     foreach (['funded', 'unfunded'] as $kind) {
         $child = $this->user->replicate(['account_id']);
@@ -400,7 +410,7 @@ it('filters direct members by account and deposit with only the viewers earned c
     $query = app(PromotionQuery::class);
     $funded = $query->execute($this->tenant->id, $this->user->id, null, 1, 1, null, 'funded');
     expect($funded['directTotal'])->toBe(1)->and($funded['direct'][0]['accountId'])->toBe($children['funded']->account_id)
-        ->and($funded['direct'][0]['depositAmount'])->toBe('50.00000000')->and($funded['direct'][0]['myCommission'])->toBe('5.00000000');
+        ->and($funded['direct'][0]['depositAmount'])->toBe('50.00000000')->and($funded['direct'][0]['myCommission'])->toBe('20.00000000');
     $unfunded = $query->execute($this->tenant->id, $this->user->id, null, 1, 1, null, 'unfunded');
     expect($unfunded['directTotal'])->toBe(1)->and($unfunded['direct'][0]['accountId'])->toBe($children['unfunded']->account_id)
         ->and($unfunded['direct'][0]['myCommission'])->toBe('0.00000000');

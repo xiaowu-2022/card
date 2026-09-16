@@ -53,18 +53,6 @@ final readonly class ConfigurePromotionAction
 
     public function memberLevel(string $tenantId, string $actorId, string $userId, ?string $levelId): PromotionMember
     {
-        app(CompanyConfigurationAuthority::class)->assert(AdminUser::query()->findOrFail($actorId));
-
-        return DB::transaction(function () use ($tenantId, $actorId, $userId, $levelId): PromotionMember {
-            Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
-            $member = $this->members->ensure($tenantId, $userId);
-            $level = $levelId ? PromotionLevel::query()->where('tenant_id', $tenantId)->whereKey($levelId)->firstOrFail() : null;
-            $before = $member->level_id;
-            $member->update(['level_id' => $level?->id]);
-            $this->audit->record($tenantId, 'ADMIN', $actorId, 'PROMOTION_MEMBER_LEVEL_ASSIGNED', 'promotion_member', $member->id,
-                ['level_id' => $before], ['level_id' => $member->level_id]);
-
-            return $member;
-        });
+        throw new DomainException('PROMOTION_PAYMENT_REQUIRED', 'Paid promotion levels require a successful annual fee payment.', 403);
     }
 }

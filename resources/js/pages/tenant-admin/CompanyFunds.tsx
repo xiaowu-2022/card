@@ -6,6 +6,9 @@ import { t, useAdminTranslation, dateTime } from '@/i18n/admin';
 import { displayMoney } from '@/lib/exact-amount';
 
 const types: Record<string, string> = {
+    PROMOTION_ANNUAL_FEE: 'Annual fee income',
+    PROMOTION_FEE_REBATE: 'Annual fee rebates',
+    PROMOTION_ANNUAL_COMMISSION: 'Annual fee commission cost',
     ASSET_DEPOSIT: 'Company book: customer top-up',
     ASSET_WITHDRAWAL_SETTLE: 'Company book: customer withdrawal',
     ASSET_EXCHANGE_IN: 'Internal exchange',
@@ -25,8 +28,21 @@ const types: Record<string, string> = {
 type Book = {
     date: string;
     timezone: string;
-    totals: { topups: string; withdrawals: string; commissionCost: string; feeIncome: string };
+    totals: {
+        topups: string;
+        withdrawals: string;
+        commissionCost: string;
+        feeIncome: string;
+        activationCommissions: string;
+        annualFees: string;
+        annualRebates: string;
+        annualCommissions: string;
+    };
     lifetimeTotals: {
+        activationCommissions: string;
+        annualFees: string;
+        annualRebates: string;
+        annualCommissions: string;
         topups: string;
         withdrawals: string;
         commissionCost: string;
@@ -58,6 +74,10 @@ export default function CompanyFunds({ book: b }: { book: Book }) {
                             ['Customer withdrawals', b.lifetimeTotals.withdrawals],
                             ['Commission cost', b.lifetimeTotals.commissionCost],
                             ['Fee income', b.lifetimeTotals.feeIncome],
+                            ['Activation commission cost', b.lifetimeTotals.activationCommissions],
+                            ['Annual fee income', b.lifetimeTotals.annualFees],
+                            ['Annual fee rebates', b.lifetimeTotals.annualRebates],
+                            ['Annual fee commission cost', b.lifetimeTotals.annualCommissions],
                         ] as const
                     ).map(([label, amount]) => (
                         <section className="rounded-xl border bg-surface p-5" key={label}>
@@ -86,6 +106,10 @@ export default function CompanyFunds({ book: b }: { book: Book }) {
                             ['Customer withdrawals', b.totals.withdrawals],
                             ['Commission cost', b.totals.commissionCost],
                             ['Fee income', b.totals.feeIncome],
+                            ['Activation commission cost', b.totals.activationCommissions],
+                            ['Annual fee income', b.totals.annualFees],
+                            ['Annual fee rebates', b.totals.annualRebates],
+                            ['Annual fee commission cost', b.totals.annualCommissions],
                         ] as const
                     ).map(([label, amount]) => (
                         <section className="rounded-xl border bg-surface p-5" key={label}>

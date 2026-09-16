@@ -16,7 +16,7 @@ type History = {
     hasMore: boolean;
     items: {
         id: string;
-        kind: 'earned' | 'transferred';
+        kind: 'earned' | 'annual' | 'transferred';
         amount: string;
         asset: string;
         sourceAccountId: string | null;
@@ -81,14 +81,18 @@ export default function PromotionCommissions({ history }: { history: History }) 
                                 <div className="promotion-activity-description">
                                     <div className="promotion-activity-heading">
                                         <p className="font-medium">
-                                            {row.kind === 'earned'
-                                                ? t('Commission earned')
+                                            {row.kind !== 'transferred'
+                                                ? t(
+                                                      row.kind === 'annual'
+                                                          ? 'My annual fee commission'
+                                                          : 'Commission earned',
+                                                  )
                                                 : t('Commission transferred to balance')}
                                         </p>
                                         <span
-                                            className={`promotion-activity-amount ${row.kind === 'earned' ? 'text-emerald-700' : ''}`}
+                                            className={`promotion-activity-amount ${row.kind !== 'transferred' ? 'text-emerald-700' : ''}`}
                                         >
-                                            {row.kind === 'earned' ? '+' : ''}
+                                            {row.kind !== 'transferred' ? '+' : ''}
                                             {systemMoney(row.amount)}
                                         </span>
                                     </div>

@@ -1,5 +1,17 @@
 # Virtual Card SaaS Agent Rules
 
+On 2026-09-16 the user approved paid annual promotion levels, fee-percentage
+differentials, existing repeatable deposit activation rewards, and reviewed annual
+fee rebates. USDT Wallet payment alone creates paid qualification; no manual level
+assignment. Existing assigned levels become ordinary without rewriting money or
+invitation history. Ordinary members earn 20 USDT for direct activations only.
+Annual upgrades charge the tariff difference and preserve expiry; rebate claims
+count direct funding events twice and indirect events once against twice the target.
+Only explicit Platform approval with current-password confirmation may return paid,
+not-yet-returned annual fees. No commission clawback. All posting uses LedgerWriter.
+This supersedes the fixed-reward-only / no-fee and manual-level-assignment clauses
+below solely for this feature. See docs/architecture/PAID_PROMOTION.md.
+
 On 2026-09-16 the user approved the multi-asset center and internal exchange plan.
 USDT/USDC/ETH/BTC have separate wallets; new rails default OFF. USDT/USDC use
 Ethereum tokens, USDT also retains TRON, ETH is native Ethereum, BTC is Bitcoin.

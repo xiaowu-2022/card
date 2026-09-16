@@ -1,5 +1,13 @@
 # Promotion, company cost book and guarantee lifecycle
 
+2026-09-16 paid-promotion revision: see [PAID_PROMOTION.md](PAID_PROMOTION.md).
+Paid annual qualification replaces manual assignment. Ordinary members retain
+only a 20 USDT direct activation reward; annual percentage differentials and
+user-requested, Platform-reviewed fee rebates are separate business events.
+The old fixed-only/manual-assignment clauses below are historical where conflicting;
+Ledger, invitation, deposit refund and commission-transfer protections still apply.
+
+
 Status: the user explicitly authorized the separate Promotion / Commission /
 Security Deposit lifecycle stage on 2026-09-11 after the architecture conflict was
 reported. AGENTS.md contains the narrow authorized extension. The implemented

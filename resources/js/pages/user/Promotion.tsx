@@ -1,5 +1,10 @@
+import { promotionLevel } from '@/lib/paid-promotion';
+import {
+    PaidPromotionSummary,
+    type PaidPromotionData,
+} from '@/components/user/PaidPromotionSummary';
 import { systemMoney } from '@/lib/system-money';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useRef, useState } from 'react';
 import {
     ArrowUpRight,
@@ -38,11 +43,13 @@ type Member = {
     id: string;
     accountId: string;
     levelId: string | null;
+    rank: number;
     joinedAt: string;
     depositAmount: string;
     myCommission: string;
 };
 type Promotion = {
+    paid: PaidPromotionData;
     invitationCode: string;
     levelName: string | null;
     availableCommission: string;
@@ -78,6 +85,7 @@ type Promotion = {
 function activityDescription(row: Promotion['details'][number]): string {
     if (!row.sourceAccountId || !row.inviterAccountId) return row.accountId;
     const values = { account: row.sourceAccountId, inviter: row.inviterAccountId };
+    if (row.kind === 'Annual fee commission') return t('Annual fee paid by {{account}}', values);
     if (row.kind === 'Invitation') {
         return t(
             row.invitedByMe
@@ -133,56 +141,23 @@ function PromotionStats({ stats, compact = false }: { stats: Stats; compact?: bo
         </dl>
     );
 }
-function DirectMember({
-    member,
-    levels,
-    canAssign,
-}: {
-    member: Member;
-    levels: Level[];
-    canAssign: boolean;
-}) {
-    const [editing, setEditing] = useState(false);
-    const form = useForm({ action: 'level', member_id: member.id, level_id: member.levelId });
-    const currentAllowed =
-        member.levelId === null || levels.some((level) => level.id === member.levelId);
+function DirectMember({ member }: { member: Member }) {
     return (
-        <form
-            className="promotion-member"
-            onSubmit={(e) => {
-                e.preventDefault();
-                form.post('/promotion', {
-                    preserveScroll: true,
-                    onSuccess: () => setEditing(false),
-                });
-            }}
-        >
+        <article className="promotion-member">
             <div className="promotion-member-heading">
                 <div className="promotion-member-identity">
                     <span>{t('Account ID')}</span>
                     <strong className="font-mono">{member.accountId}</strong>
                 </div>
-                <span className="promotion-member-level">
-                    {t('Promotion level')}:{' '}
-                    {levels.find((level) => level.id === member.levelId)?.name ??
-                        t(member.levelId ? 'Current higher level' : 'Unranked')}
-                </span>
+                <span className="promotion-member-level">{promotionLevel(member.rank)}</span>
             </div>
             <dl className="promotion-member-money">
                 <div>
                     <dt>{t('Security deposit')}</dt>
-                    <dd
-                        className={
-                            /^0(?:\.0+)?$/.test(member.depositAmount) ? 'text-muted-foreground' : ''
-                        }
-                    >
-                        {/^0(?:\.0+)?$/.test(member.depositAmount) ? (
-                            t('Deposit not funded')
-                        ) : (
-                            <>
-                                {t('Deposit funded')} · {systemMoney(member.depositAmount)}
-                            </>
-                        )}
+                    <dd>
+                        {/^0(?:\.0+)?$/.test(member.depositAmount)
+                            ? t('Deposit not funded')
+                            : systemMoney(member.depositAmount)}
                     </dd>
                 </div>
                 <div>
@@ -194,68 +169,8 @@ function DirectMember({
                 <span>
                     {t('Joined at')}: {dateTime(member.joinedAt)}
                 </span>
-                {!editing && canAssign && (
-                    <Button type="button" variant="ghost" onClick={() => setEditing(true)}>
-                        {t('Edit level')}
-                    </Button>
-                )}
             </div>
-            {editing && (
-                <div className="promotion-member-controls">
-                    <Select
-                        disabled={!canAssign}
-                        value={form.data.level_id ?? 'none'}
-                        onValueChange={(value) =>
-                            form.setData('level_id', value === 'none' ? null : value)
-                        }
-                    >
-                        <SelectTrigger aria-label={t('Promotion level')}>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="none">{t('Unranked')}</SelectItem>
-                            {!currentAllowed && member.levelId && (
-                                <SelectItem value={member.levelId} disabled>
-                                    {t('Current higher level')}
-                                </SelectItem>
-                            )}
-                            {levels.map((level) => (
-                                <SelectItem key={level.id} value={level.id}>
-                                    {level.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                    <Button
-                        className="shrink-0 whitespace-nowrap"
-                        variant="secondary"
-                        type="submit"
-                        disabled={form.processing || !canAssign}
-                    >
-                        {t('Save')}
-                    </Button>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        disabled={form.processing}
-                        onClick={() => {
-                            form.reset();
-                            form.clearErrors();
-                            setEditing(false);
-                        }}
-                    >
-                        {t('Cancel')}
-                    </Button>
-                </div>
-            )}
-            {editing && Object.keys(form.errors).length > 0 && (
-                <div className="promotion-member-errors" role="alert">
-                    {Object.entries(form.errors).map(([field, message]) => (
-                        <p key={field}>{errorMessage(message)}</p>
-                    ))}
-                </div>
-            )}
-        </form>
+        </article>
     );
 }
 export default function PromotionPage({
@@ -323,11 +238,11 @@ export default function PromotionPage({
                                 <h2 id="commission-title">{t('Available commission')}</h2>
                                 <span
                                     className="promotion-level"
-                                    aria-label={`${t('Promotion level')}: ${p.levelName ?? t('Unranked')}`}
+                                    aria-label={`${t('Promotion level')}: ${promotionLevel(p.paid.rank)}`}
                                 >
                                     <ShieldCheck aria-hidden="true" />
                                     <span>
-                                        {t('Promotion level')}: {p.levelName ?? t('Unranked')}
+                                        {t('Promotion level')}: {promotionLevel(p.paid.rank)}
                                     </span>
                                 </span>
                             </div>
@@ -409,26 +324,7 @@ export default function PromotionPage({
                                 </p>
                             )}
                         </section>
-                        <section
-                            className="promotion-section promotion-team-summary"
-                            id="team-summary"
-                        >
-                            <div className="promotion-section-heading">
-                                <h2>{t('Team overview')}</h2>
-                            </div>
-                            <PromotionStats stats={p.totals} />
-                            <details className="promotion-explanation">
-                                <summary>
-                                    {t('How team totals are calculated')}
-                                    <ChevronDown aria-hidden="true" />
-                                </summary>
-                                <p>
-                                    {t(
-                                        'Activations count each member once. Deposit funding includes genuine repeat payments; team commission includes rewards earned by you and your team.',
-                                    )}
-                                </p>
-                            </details>
-                        </section>
+                        <PaidPromotionSummary paid={p.paid} />
                         <nav className="promotion-destinations" aria-label={t('Promotion details')}>
                             {[
                                 { href: '/promotion/daily', label: 'Daily data', icon: ListFilter },
@@ -577,11 +473,13 @@ export default function PromotionPage({
                                 <ChevronDown aria-hidden="true" />
                             </summary>
                             <p>
-                                {t('You can assign only levels below your own to direct invitees.')}
+                                {t(
+                                    'Rules apply to new payments only. Qualification requires payment; manual level assignment is unavailable.',
+                                )}
                             </p>
                             <p>
                                 {t(
-                                    'Member commission shows only what you earned from this member’s deposit funding.',
+                                    'Member commission includes your annual fee and activation rewards from this member.',
                                 )}
                             </p>
                             <p>{t('Dates and times follow the company timezone.')}</p>
@@ -603,8 +501,6 @@ export default function PromotionPage({
                                 <DirectMember
                                     key={`${member.id}:${member.levelId}`}
                                     member={member}
-                                    levels={p.assignableLevels}
-                                    canAssign={p.canAssign}
                                 />
                             ))}
                         </div>

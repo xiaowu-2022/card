@@ -14,6 +14,7 @@ enum LedgerAccountType: string
     case TenantTopupClearing = 'TENANT_TOPUP_CLEARING';
     case TenantWithdrawalClearing = 'TENANT_WITHDRAWAL_CLEARING';
     case TenantCardFundingClearing = 'TENANT_CARD_FUNDING_CLEARING';
+    case TenantPromotionFeeRevenue = 'TENANT_PROMOTION_FEE_REVENUE';
     case TenantFeeRevenue = 'TENANT_FEE_REVENUE';
     case TenantCommissionClearing = 'TENANT_COMMISSION_CLEARING';
 

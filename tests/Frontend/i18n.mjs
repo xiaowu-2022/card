@@ -116,6 +116,7 @@ function loadTs(path, overrides = {}) {
 }
 const promotionCatalog = loadTs('resources/js/i18n/promotion-catalog.ts');
 const { catalog } = loadTs('resources/js/i18n/catalog.ts', {
+    './paid-promotion-catalog': loadTs('resources/js/i18n/paid-promotion-catalog.ts'),
     './assets-catalog': loadTs('resources/js/i18n/assets-catalog.ts'),
     './promotion-catalog': promotionCatalog,
     './transfer-catalog': loadTs('resources/js/i18n/transfer-catalog.ts'),
@@ -324,7 +325,7 @@ test('promotion overview contains team totals and links to three real detail pag
     assert.ok(page.includes('`/promotion/${section}`'));
     const statement = readFileSync('resources/js/pages/user/PromotionCommissions.tsx', 'utf8');
     assert.ok(statement.includes('systemMoney(row.amount)'));
-    assert.ok(page.includes('id="team-summary"'));
+    assert.ok(readFileSync('resources/js/components/user/PaidPromotionSummary.tsx','utf8').includes('id="team-summary"'));
     assert.ok(!page.includes("href: '/promotion/team'"));
     assert.ok(!statement.includes('router.post'));
     for (const key of ['Team overview', 'Daily data', 'Direct invitees', 'Commission details'])
@@ -1732,9 +1733,13 @@ test('promotion views keep personal and team money distinct across four language
         '../../../css/promotion.css': {},
     };
     overrides['@/components/user/PromotionDateFilter'] = loadTs('resources/js/components/user/PromotionDateFilter.tsx', overrides);
+    overrides['@/lib/exact-amount'] = loadTs('resources/js/lib/exact-amount.ts');
+    overrides['@/lib/paid-promotion'] = loadTs('resources/js/lib/paid-promotion.ts', overrides);
+    overrides['@/components/user/PaidPromotionSummary'] = loadTs('resources/js/components/user/PaidPromotionSummary.tsx', overrides);
     const Promotion = loadTs('resources/js/pages/user/Promotion.tsx', overrides).default;
     const Commissions = loadTs('resources/js/pages/user/PromotionCommissions.tsx', overrides).default;
     const p = {
+        paid: {rank: 6, percent: 80, reward: '100', cycle: null, totals: {ANNUAL:'17000',ACTIVATION:'1000'}, legacy:'0', directPeople:9,indirectPeople:5,tables:{ANNUAL:[],ACTIVATION:[]}},
         invitationCode: '523613', levelName: 'Long level '.repeat(8), availableCommission: '16880.00000000', myCommission: '18000.00000000',
         supported: true, canTransfer: true, date: '2026-09-13', timezone: 'Asia/Kuala_Lumpur',
         totals: { invited: 500, activated: 300, deposits: '90000.00000000', commission: '36000.00000000' },
@@ -1751,7 +1756,7 @@ test('promotion views keep personal and team money distinct across four language
         for (const locale of locales) {
             void i18n.clientI18n.changeLanguage(locale);
             const home = renderToStaticMarkup(React.createElement(Promotion, { promotion: p }));
-            for (const amount of ['$16,880.00', '$18,000.00', '$36,000.00']) assert.ok(home.includes(amount));
+            for (const amount of ['$16,880.00', '$18,000.00']) assert.ok(home.includes(amount));
             assert.ok(home.includes('id="team-summary"'));
             assert.ok(!home.includes('href="/promotion/team"'));
             const daily = renderToStaticMarkup(React.createElement(Promotion, { promotion: p, section: 'daily' }));

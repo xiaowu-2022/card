@@ -1,5 +1,7 @@
 # Local promotion centre fixtures
 
+2026-09-16: This legacy assignment fixture runner is retired after the paid-promotion migration. Existing fixtures and their financial history remain intact. The runner now fails before writing; new payment scenarios use isolated PaidPromotionTest fixtures and browser-only preview data. See PAID_PROMOTION.md.
+
 On 2026-09-15 the user requested eight reward levels (50 through 120 in steps of
 10), 500 distinct descendants of local account 202609131303, a mixture of paid and
 unpaid guarantees and historical dates for checking Promotion. This explicitly

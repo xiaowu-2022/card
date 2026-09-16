@@ -23,9 +23,13 @@ final class CommissionHistoryQuery
                 $join->on('u.id', '=', 'f.user_id')->on('u.tenant_id', '=', 'f.tenant_id');
             })->where('a.tenant_id', $tenantId)->where('a.user_id', $userId)
             ->selectRaw("a.id, 'earned' AS kind, a.amount::text AS amount, a.asset_code, u.account_id AS source_account_id, e.posted_at AS occurred_at");
+        $annual = DB::table('paid_promotion_shares as s')->join('paid_promotion_events as e', fn ($j) => $j->on('e.id', '=', 's.event_id')->on('e.tenant_id', '=', 's.tenant_id'))
+            ->join('users as u', fn ($j) => $j->on('u.id', '=', 'e.user_id')->on('u.tenant_id', '=', 'e.tenant_id'))
+            ->where('s.tenant_id', $tenantId)->where('s.user_id', $userId)->where('e.kind', 'ANNUAL')->where('s.amount', '>', 0)
+            ->selectRaw("s.id, 'annual' AS kind, s.amount::text AS amount, 'USDT' AS asset_code, u.account_id AS source_account_id, e.occurred_at");
         $transferred = DB::table('commission_transfers')->where('tenant_id', $tenantId)->where('user_id', $userId)
             ->selectRaw("id, 'transferred' AS kind, (-amount)::text AS amount, asset_code, NULL::text AS source_account_id, created_at AS occurred_at");
-        $query = DB::query()->fromSub($earned->unionAll($transferred), 'history');
+        $query = DB::query()->fromSub($earned->unionAll($annual)->unionAll($transferred), 'history');
         if ($date) {
             $day = CarbonImmutable::createFromFormat('!Y-m-d', $date, $tenant->timezone);
             $query->where('occurred_at', '>=', $day->utc())->where('occurred_at', '<', $day->addDay()->utc());

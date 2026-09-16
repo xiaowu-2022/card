@@ -9,7 +9,6 @@ use App\Domain\Audit\Models\AuditLog;
 use App\Domain\CardProduct\Models\CardProduct;
 use App\Domain\CardProduct\Models\TenantCardProductConfig;
 use App\Domain\Ledger\Models\LedgerEntry;
-use App\Domain\Promotion\Models\PromotionLevel;
 use App\Domain\Tenant\Models\Tenant;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -82,9 +81,11 @@ it('saves SaaS policy and article settings using the selected tenant without alt
     $this->actingAs($this->owner, 'platform_admin');
     $this->post($this->base.'/settings/kyc', ['enabled' => true, 'max_accounts_per_identity' => 4, 'review_mode' => 'MANUAL'])->assertForbidden();
     $this->post($this->base.'/settings/articles/terms/en', ['body' => 'Platform managed company terms'])->assertRedirect()->assertSessionHasNoErrors();
-    $this->post($this->base.'/promotion', ['action' => 'level', 'rank' => 999, 'name' => 'SaaS level', 'reward' => '0'])->assertRedirect()->assertSessionHasNoErrors();
-    expect(PromotionLevel::query()->where('tenant_id', $this->company->id)->where('rank', 999)->exists())->toBeTrue()
-        ->and(PromotionLevel::query()->where('tenant_id', $this->otherCompany->id)->where('rank', 999)->exists())->toBeFalse();
+    $this->postJson($this->base.'/promotion', ['action' => 'level', 'rank' => 999, 'name' => 'Retired', 'reward' => '0'])->assertUnprocessable();
+    $level = DB::table('paid_promotion_levels')->where('tenant_id', $this->company->id)->where('rank', 1)->first();
+    $this->post($this->base.'/paid-promotion/levels/'.$level->id, ['fee' => '1100', 'percent' => 30, 'reward' => 50, 'target' => 100, 'revision' => $level->revision, 'enabled' => true, 'current_password' => 'local-password'])->assertRedirect()->assertSessionHasNoErrors();
+    expect(DB::table('paid_promotion_levels')->where('tenant_id', $this->company->id)->where('rank', 1)->value('fee'))->toBe('1100.00000000')
+        ->and(DB::table('paid_promotion_levels')->where('tenant_id', $this->otherCompany->id)->where('rank', 1)->value('fee'))->toBe('1000.00000000');
 });
 
 it('saves fees without operation toggles and prevents stale forms from disabling them', function (): void {

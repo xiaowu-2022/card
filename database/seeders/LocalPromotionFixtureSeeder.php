@@ -35,6 +35,7 @@ use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /** Explicit, local-only fixture runner. Never included in ordinary database seeding. */
@@ -44,6 +45,7 @@ final class LocalPromotionFixtureSeeder
     {
         abort_unless(app()->environment('local', 'testing') && in_array(DB::connection()->getDatabaseName(), ['card_mock', 'card_ui_test'], true), 403);
         abort_unless(config('payment.driver') === 'mock' && $count >= 10 && $count <= 500 && $count % 5 === 0, 403);
+        abort_if(Schema::hasTable('paid_promotion_cycles'), 409, 'Legacy promotion fixtures are retired after paid promotion activation.');
         $actor = AdminUser::query()->findOrFail($actorId);
         app(CompanyConfigurationAuthority::class)->assert($actor);
         $tenant = Tenant::query()->whereKey($tenantId)->where('status', 'ACTIVE')->firstOrFail();

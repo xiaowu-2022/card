@@ -8,6 +8,7 @@ use App\Http\Controllers\Platform\CardOperationsController;
 use App\Http\Controllers\Platform\CardProductController;
 use App\Http\Controllers\Platform\CardProviderController;
 use App\Http\Controllers\Platform\CompanyConfiguration\OnboardingController;
+use App\Http\Controllers\Platform\CompanyConfiguration\PaidPromotionController;
 use App\Http\Controllers\Platform\CompanyConfiguration\PromotionController;
 use App\Http\Controllers\Platform\CompanyConfiguration\TeamController;
 use App\Http\Controllers\Platform\CompanyConfiguration\TenantArticleController;
@@ -122,6 +123,9 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::post('/domains', [DomainManagementController::class, 'assign'])->name('domains.assign');
         Route::get('/card-products', [App\Http\Controllers\Platform\CompanyConfiguration\CardProductController::class, 'index'])->name('card-products.index');
         Route::put('/card-products/{cardProduct}', [App\Http\Controllers\Platform\CompanyConfiguration\CardProductController::class, 'update'])->whereUuid('cardProduct')->name('card-products.update');
+        Route::get('/paid-promotion', [PaidPromotionController::class, 'show']);
+        Route::post('/paid-promotion/levels/{level}', [PaidPromotionController::class, 'configure'])->whereUuid('level')->middleware('throttle:10,1');
+        Route::post('/paid-promotion/rebates/{rebate}', [PaidPromotionController::class, 'review'])->whereUuid('rebate')->middleware(['admin.scope:platform,promotion_refunds.review', 'throttle:10,1']);
         Route::get('/promotion', [PromotionController::class, 'show'])->name('promotion');
         Route::post('/promotion', [PromotionController::class, 'update'])->middleware('throttle:20,1')->name('promotion.update');
         Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');

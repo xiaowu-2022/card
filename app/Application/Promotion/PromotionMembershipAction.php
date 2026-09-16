@@ -4,7 +4,6 @@ namespace App\Application\Promotion;
 
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Promotion\Models\CompanyInvitation;
-use App\Domain\Promotion\Models\PromotionLevel;
 use App\Domain\Promotion\Models\PromotionMember;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Enums\UserStatus;
@@ -77,24 +76,7 @@ final readonly class PromotionMembershipAction
 
     public function assignDirectLevel(string $tenantId, string $actorUserId, string $memberId, ?string $levelId): void
     {
-        DB::transaction(function () use ($tenantId, $actorUserId, $memberId, $levelId): void {
-            $tenant = Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
-            $user = User::query()->where('tenant_id', $tenantId)->whereKey($actorUserId)->firstOrFail();
-            if ($tenant->status->value !== 'ACTIVE' || $user->status !== UserStatus::Active) {
-                throw new DomainException('USER_NOT_ACTIVE', 'An active account is required.', 403);
-            }
-            $actor = $this->ensure($tenantId, $actorUserId);
-            $member = PromotionMember::query()->where('tenant_id', $tenantId)->where('inviter_id', $actor->id)->whereKey($memberId)->lockForUpdate()->firstOrFail();
-            $rank = PromotionLevel::query()->where('tenant_id', $tenantId)->whereKey($actor->level_id)->value('rank') ?? 0;
-            $selected = $levelId ? PromotionLevel::query()->where('tenant_id', $tenantId)->whereKey($levelId)->firstOrFail() : null;
-            if (($selected?->rank ?? 0) >= $rank) {
-                throw new DomainException('PROMOTION_LEVEL_TOO_HIGH', 'The assigned level must be below your own level.');
-            }
-            $previous = $member->level_id;
-            $member->update(['level_id' => $selected?->id]);
-            $this->audit->record($tenantId, 'USER', $actorUserId, 'PROMOTION_DIRECT_LEVEL_ASSIGNED', 'promotion_member', $memberId,
-                ['level_id' => $previous], ['level_id' => $member->level_id]);
-        });
+        throw new DomainException('PROMOTION_PAYMENT_REQUIRED', 'Paid promotion levels require a successful annual fee payment.', 403);
     }
 
     private function canonicalCode(string $tenantId, string $code): string

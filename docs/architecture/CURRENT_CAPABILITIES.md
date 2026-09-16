@@ -1,5 +1,13 @@
 # Current effective capabilities
 
+2026-09-16 paid-promotion revision: see [PAID_PROMOTION.md](PAID_PROMOTION.md).
+Paid annual qualification replaces manual assignment. Ordinary members retain
+only a 20 USDT direct activation reward; annual percentage differentials and
+user-requested, Platform-reviewed fee rebates are separate business events.
+The old fixed-only/manual-assignment clauses below are historical where conflicting;
+Ledger, invitation, deposit refund and commission-transfer protections still apply.
+
+
 2026-09-16: [Multi-asset center and internal exchange](MULTI_ASSET_CENTER.md) extends
 USDT with independent USDC/ETH/BTC accounts and disabled-by-default mainnet rails.
 USDC/ETH/BTC -> USDT uses immutable CoinGecko cross-rate quotes and atomic paired

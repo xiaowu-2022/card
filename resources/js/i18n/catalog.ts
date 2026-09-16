@@ -1,3 +1,4 @@
+import { paidPromotionCatalog } from './paid-promotion-catalog';
 import { clientPolishCatalog } from './client-polish-catalog';
 import { assetsCatalog } from './assets-catalog';
 // Each entry is [简体中文, Bahasa Melayu, Español]. The key is the English copy.
@@ -8,6 +9,7 @@ import { accountCatalog } from './account-catalog';
 
 export const catalog = {
     ...assetsCatalog,
+    ...paidPromotionCatalog,
     ...clientPolishCatalog,
     'Save test materials': ['保存测试资料', 'Simpan bahan ujian', 'Guardar datos de prueba'],
     'Load saved test materials': [
