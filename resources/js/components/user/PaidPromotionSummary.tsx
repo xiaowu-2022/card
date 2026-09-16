@@ -112,7 +112,7 @@ export function PaidPromotionMembership({ paid: p }: { paid: PaidPromotionData }
 }
 
 export function PaidPromotionSummary({ paid: p }: { paid: PaidPromotionData }) {
-    const [showAll, setShowAll] = useState(false);
+    const [showAll, setShowAll] = useState(true);
     const [expanded, setExpanded] = useState<number | null>(null);
     const rows = p.tables.ACTIVATION.map((activation) => {
         const annual = p.tables.ANNUAL.find((row) => row.rank === activation.rank)!;
@@ -141,20 +141,19 @@ export function PaidPromotionSummary({ paid: p }: { paid: PaidPromotionData }) {
             className="min-w-0 rounded-2xl border border-border/60 bg-surface px-3 py-4 sm:p-5"
             id="team-summary"
         >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-base font-semibold">{t('Reward breakdown')}</h2>
+            <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="min-w-0 text-base font-semibold">{t('Reward breakdown')}</h2>
                 <button
-                    className="min-h-11 text-xs underline"
+                    className="ml-auto min-h-11 min-w-0 text-xs underline"
                     onClick={() => setShowAll(!showAll)}
                     aria-expanded={showAll}
                 >
                     {t(showAll ? 'Show populated levels' : 'Show all levels')}
                 </button>
+                <p className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground">
+                    {t('Amounts in USDT')}
+                </p>
             </div>
-
-            <p className="mb-3 text-right text-[11px] text-muted-foreground">
-                {t('Amounts in USDT')}
-            </p>
             <table className="w-full table-fixed text-right text-[11px] sm:text-sm">
                 <caption className="sr-only">{t('Team members and commissions by level')}</caption>
                 <colgroup>

@@ -122,7 +122,7 @@ export const promotionCatalog = {
         'Tiada perubahan pada tarikh ini.',
         'No hay movimientos en esta fecha.',
     ],
-    'Direct invitees': ['直属下级', 'Ahli jemputan langsung', 'Invitados directos'],
+    'Direct invitees': ['直属成员', 'Ahli jemputan langsung', 'Invitados directos'],
     'You can assign only levels below your own to direct invitees.': [
         '仅能修改直属下级，且设置的等级必须低于自己的等级。',
         'Anda hanya boleh menetapkan tahap lebih rendah kepada jemputan langsung.',

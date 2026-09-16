@@ -300,7 +300,7 @@ export default function PromotionHub({
                                             className={`promotion-level-card ${current ? 'is-current' : ''}`}
                                             aria-label={promotionLevel(rank)}
                                         >
-                                            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] items-start gap-2">
+                                            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
                                                 <div className="min-w-0">
                                                     <h2 className="break-words">
                                                         {promotionLevel(rank)}
@@ -311,13 +311,13 @@ export default function PromotionHub({
                                                         </span>
                                                     )}
                                                 </div>
-                                                <p className="promotion-level-price min-w-0 break-words text-right text-sm font-semibold leading-6 tabular-nums">
+                                                <p className="promotion-level-price whitespace-nowrap text-right text-sm font-semibold leading-6 tabular-nums">
                                                     {rank === 0 ? (
                                                         t('No annual fee')
                                                     ) : fee !== undefined ? (
                                                         <>
-                                                            {annualFeeLabel(fee)}
-                                                            <span className="block text-xs font-normal opacity-75">
+                                                            {annualFeeLabel(fee)}{' '}
+                                                            <span className="text-xs font-normal opacity-75">
                                                                 {t('per year')}
                                                             </span>
                                                         </>
@@ -454,7 +454,7 @@ export default function PromotionHub({
                             {[
                                 {
                                     href: '/promotion/invitations',
-                                    label: 'My invitations',
+                                    label: 'Invitation data',
                                     Icon: Users,
                                 },
                                 {

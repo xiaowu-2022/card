@@ -324,7 +324,7 @@ test('my invitations contains team totals and links to three real detail pages',
     }
     assert.ok(page.includes('`/promotion/${section}`'));
     const statement = readFileSync('resources/js/pages/user/PromotionCommissions.tsx', 'utf8');
-    assert.ok(statement.includes('systemMoney(row.amount)'));
+    assert.ok(statement.includes('reportMoney(row.amount)'));
     assert.ok(readFileSync('resources/js/components/user/PaidPromotionSummary.tsx','utf8').includes('id="team-summary"'));
     assert.ok(!page.includes("href: '/promotion/team'"));
     assert.ok(!statement.includes('router.post'));
@@ -1505,7 +1505,8 @@ test('local simulated transactions promote the card tail and type without hiding
         assert.match(markup, /font-medium">尾号 1234 · 卡片充值<\/p>/);
         assert.equal((markup.match(/尾号 1234/g) ?? []).length, 1);
         assert.match(markup, /\$35\.00/);
-        assert.match(markup, /记录时间/);
+        assert.doesNotMatch(markup, /记录时间|已完成/);
+        assert.match(markup, /<time dateTime="2026-09-13T14:54:32\+00:00"/);
         assert.doesNotMatch(markup, /发卡方|卡商|通道方/);
         history.items[0].merchant = 'A real shop';
         assert.match(render(), /font-medium">A real shop<\/p>/);
@@ -1716,7 +1717,7 @@ test('account verification navigation renders every state in all client language
     }
 });
 
-test('promotion views keep personal and team money distinct across four languages and signed history', () => {
+test('promotion reports keep income, transfers and member contributions distinct across four languages', () => {
     const React = require('react');
     const { renderToStaticMarkup } = require('react-dom/server');
     const money = loadTs('resources/js/lib/system-money.ts', { './exact-amount': loadTs('resources/js/lib/exact-amount.ts') });
@@ -1737,6 +1738,10 @@ test('promotion views keep personal and team money distinct across four language
     overrides['@/lib/paid-promotion'] = loadTs('resources/js/lib/paid-promotion.ts', overrides);
     overrides['@/components/user/PaidPromotionSummary'] = loadTs('resources/js/components/user/PaidPromotionSummary.tsx', overrides);
     const Promotion = loadTs('resources/js/pages/user/Promotion.tsx', overrides).default;
+    overrides['@/lib/promotion-report'] = loadTs('resources/js/lib/promotion-report.ts', overrides);
+    overrides['@/components/ui/dialog'] = { Dialog: ({children}) => children, DialogTrigger: ({children}) => children, DialogContent: () => null, DialogTitle: 'h2', DialogDescription: 'p' };
+    overrides['@/components/user/PromotionReportControls'] = loadTs('resources/js/components/user/PromotionReportControls.tsx', overrides);
+    const Report = loadTs('resources/js/pages/user/PromotionReport.tsx', overrides).default;
     const Commissions = loadTs('resources/js/pages/user/PromotionCommissions.tsx', overrides).default;
     const p = {
         paid: {rank: 6, percent: 80, reward: '100', cycle: null, totals: {ANNUAL:'17000',ACTIVATION:'1000'}, legacy:'0', directPeople:9,indirectPeople:5,tables:{ANNUAL:[],ACTIVATION:[]}},
@@ -1747,9 +1752,11 @@ test('promotion views keep personal and team money distinct across four language
         direct: [{ id: 'member', accountId: '202607303070', levelId: null, joinedAt: '2026-07-30T09:03:00Z', depositAmount: '0.00000000', myCommission: '0.00000000' }],
         assignableLevels: [], canAssign: false, directTotal: 1, filters: { accountId: '', funding: 'all' }, directPage: 1, page: 1, hasMore: false, hasMoreDirect: false, details: [],
     };
-    const history = { date: null, timezone: p.timezone, page: 1, hasMore: false, items: [
-        { id: 'earned', kind: 'earned', amount: '123456789012.12000000', asset: 'USDT', sourceAccountId: '202609134788', occurredAt: '2026-09-13T09:49:00Z' },
-        { id: 'transferred', kind: 'transferred', amount: '-20.00000000', asset: 'USDT', sourceAccountId: null, occurredAt: '2026-09-13T09:50:00Z' },
+    const period = { dateFrom: null, dateTo: null, today: '2026-09-16', timezone: p.timezone, presets: {1:'2026-09-16',7:'2026-09-10',30:'2026-08-18'} };
+    const totals = { total: '123456789012.12000001', annual: '123456789012.12000000', activation: '0.00000001', legacy: '0' };
+    const history = { ...period, filters: {}, tab: 'income', totals, page: 1, hasMore: false, items: [
+        { id: 'annual', kind: 'annual', amount: '123456789012.12000000', sourceAccountId: '202609134788', sourceRank: 1, beneficiaryRank: 6, relation: 'direct', sourceAmount: '154320986265.15', rate: '80', standard: 80, covered: 0, occurredAt: '2026-09-13T09:49:00Z' },
+        { id: 'legacy', kind: 'legacy', amount: '0.00000001', sourceAccountId: '202609134789', sourceRank: null, beneficiaryRank: null, relation: 'unknown', occurredAt: '2026-09-13T09:49:00Z' },
     ] };
     const previousLocale = i18n.clientI18n.language;
     try {
@@ -1759,20 +1766,33 @@ test('promotion views keep personal and team money distinct across four language
             for (const amount of ['16,880.00 USDT', '18,000.00']) assert.ok(home.includes(amount));
             assert.ok(home.includes('id="team-summary"'));
             assert.ok(!home.includes('href="/promotion/team"'));
-            const daily = renderToStaticMarkup(React.createElement(Promotion, { promotion: p, section: 'daily' }));
-            assert.ok(!daily.includes('36,000.00 USDT'));
-            assert.ok(!daily.includes('Asia/Kuala_Lumpur'));
-            assert.ok(daily.includes('value="2026-09-13"'));
-            const direct = renderToStaticMarkup(React.createElement(Promotion, { promotion: p, section: 'direct' }));
+            const daily = renderToStaticMarkup(React.createElement(Report, { section: 'daily', report: {
+                ...period, dateFrom: '2026-09-16', dateTo: '2026-09-16', filters: {}, totals, counts: { invited: 1, funded: 2, orders: 3 }, items: [], page: 1, hasMore: false,
+            } }));
+            assert.ok(daily.includes('2026-09-16'));
+            assert.ok(daily.includes(i18n.t('Annual fee orders')));
+            const direct = renderToStaticMarkup(React.createElement(Report, { section: 'direct', report: {
+                ...period, filters: {}, total: 1, page: 1, hasMore: false, items: [{ id: 'member', accountId: '202609134788', rank: 0, endsAt: null, depositAmount: '0', joinedAt: '2026-09-13T09:49:00Z', totals }],
+            } }));
             assert.ok(direct.includes(i18n.t('Deposit not funded')));
-            assert.ok(!direct.includes(i18n.t('Edit level')));
-            assert.equal((direct.match(/0\.00 USDT/g) ?? []).length, 1);
+            assert.ok(direct.includes('/promotion/commissions?account_id=202609134788'));
+            assert.ok(direct.includes(i18n.t('Annual fee commission')));
             const rows = renderToStaticMarkup(React.createElement(Commissions, { history }));
             assert.ok(rows.includes('+123,456,789,012.12 USDT'));
-            assert.ok(rows.includes('-20.00 USDT'));
-            assert.ok(!rows.includes('--') && !rows.includes('+-'));
-            assert.equal((rows.match(/202609134788/g) ?? []).length, 1);
+            assert.ok(rows.includes('&lt;0.01 USDT'));
+            assert.ok(rows.includes('0.00000001 USDT'));
+            assert.ok(rows.includes(i18n.t('Historical record · not recorded')));
+            assert.ok(rows.includes('80 %'));
+            assert.equal((rows.match(/202609134788/g) ?? []).length, 2);
             assert.ok(!rows.includes('Asia/Kuala_Lumpur'));
+            const transfers = renderToStaticMarkup(React.createElement(Commissions, { history: {
+                ...history, tab: 'transfers', totals: { total: '20' }, items: [{ id: 'transfer', kind: 'transferred', amount: '20', occurredAt: '2026-09-13T09:50:00Z' }],
+            } }));
+            assert.ok(transfers.includes('20.00 USDT'));
+            assert.ok(!transfers.includes('-20.00') && !transfers.includes('+20.00'));
+            assert.ok(!transfers.includes(i18n.t('Source account ID')));
+            assert.ok(!transfers.includes(i18n.t('Annual fee commission')));
+
         }
     } finally { void i18n.clientI18n.changeLanguage(previousLocale); }
 });
@@ -1797,4 +1817,14 @@ test('compact promotion table amounts do not hide small rewards or lose exact ex
     assert.equal(promotionTableAmount('1600.125'), '1,600.13');
     assert.equal(promotionTableAmount('999999999999.99'), '999,999,999,999.99');
     assert.equal(promotionMoney('0.00000001'), '0.00000001 USDT');
+});
+
+test('saved consumer language survives old navigation snapshots without crossing user or company scope', () => {
+    const { consumerLocaleScope, rememberConfirmedLocale, resolveConfirmedLocale } = loadTs('resources/js/i18n/confirmed-locale.ts');
+    const scope = consumerLocaleScope('tenant-a', 'user-a');
+    rememberConfirmedLocale(scope, 'zh-CN');
+    assert.equal(resolveConfirmedLocale(scope, 'en', ['en', 'zh-CN']), 'zh-CN');
+    assert.equal(resolveConfirmedLocale(consumerLocaleScope('tenant-b', 'user-a'), 'en', ['en', 'zh-CN']), 'en');
+    assert.equal(resolveConfirmedLocale(consumerLocaleScope('tenant-a', 'user-b'), 'en', ['en', 'zh-CN']), 'en');
+    assert.equal(resolveConfirmedLocale(scope, 'en', ['en']), 'en');
 });

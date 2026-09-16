@@ -1,4 +1,4 @@
-import { promotionLevel, promotionTableAmount, commissionSum } from '@/lib/paid-promotion';
+import { promotionLevel, promotionTableAmount } from '@/lib/paid-promotion';
 import {
     PaidPromotionSummary,
     type PaidPromotionData,
@@ -181,7 +181,7 @@ export default function PromotionPage({
     const [requestId, setRequestId] = useState(() => crypto.randomUUID());
     const errors = usePage<SharedProps>().props.errors as Record<string, string>;
     const title = {
-        invitations: 'My invitations',
+        invitations: 'Invitation data',
         daily: 'Daily data',
         direct: 'Direct invitees',
     }[section];
@@ -272,87 +272,6 @@ export default function PromotionPage({
                                 </p>
                             )}
                         </section>
-                        <section
-                            className="rounded-2xl border bg-surface p-5"
-                            aria-labelledby="team-title"
-                        >
-                            <div className="flex items-center justify-between gap-3">
-                                <h2 id="team-title">{t('Team members')}</h2>
-                                <span className="text-2xl font-semibold">
-                                    {p.paid.directPeople + p.paid.indirectPeople}
-                                </span>
-                            </div>
-                            <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-muted p-4">
-                                <div>
-                                    <p className="text-2xl font-semibold">{p.paid.directPeople}</p>
-                                    <p className="mt-1 text-xs text-muted-foreground">
-                                        {t('Direct team members')}
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="text-2xl font-semibold">
-                                        {p.paid.indirectPeople}
-                                    </p>
-                                    <p className="mt-1 text-xs text-muted-foreground">
-                                        {t('Indirect team members')}
-                                    </p>
-                                </div>
-                            </div>
-                            <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                                {t(
-                                    'Indirect members include all descendants beyond your direct invitees.',
-                                )}
-                            </p>
-                        </section>
-                        {(['ANNUAL', 'ACTIVATION'] as const).map((kind) => (
-                            <section key={kind} className="rounded-2xl border bg-surface p-5">
-                                <h2>
-                                    {t(
-                                        kind === 'ANNUAL'
-                                            ? 'Annual fee commission'
-                                            : 'Activation commission',
-                                    )}
-                                </h2>
-                                <p className="mt-2 break-all text-2xl font-semibold">
-                                    {systemMoney(p.paid.totals[kind])}
-                                </p>
-                                <dl className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-muted p-4">
-                                    {(['direct', 'indirect'] as const).map((relation) => (
-                                        <div key={relation} className="min-w-0">
-                                            <dt className="text-xs text-muted-foreground">
-                                                {t(
-                                                    relation === 'direct'
-                                                        ? 'Direct commission income'
-                                                        : 'Indirect commission income',
-                                                )}
-                                            </dt>
-                                            <dd className="mt-2 break-all text-sm font-medium">
-                                                {systemMoney(
-                                                    commissionSum(
-                                                        ...p.paid.tables[kind].map(
-                                                            (row) => row[relation].amount,
-                                                        ),
-                                                    ),
-                                                )}
-                                            </dd>
-                                        </div>
-                                    ))}
-                                </dl>
-                            </section>
-                        ))}
-                        <section className="border-y py-4">
-                            <h2>{t('Legacy commission')}</h2>
-                            <p className="mt-2 break-all text-lg font-semibold">
-                                {systemMoney(p.paid.legacy)}
-                            </p>
-                            <Link
-                                href="/promotion/commissions"
-                                className="mt-2 inline-flex min-h-11 items-center text-sm underline"
-                            >
-                                {t('View records')}
-                            </Link>
-                        </section>
-                        <PaidPromotionSummary paid={p.paid} />
                         <nav className="promotion-destinations" aria-label={t('Promotion details')}>
                             {[
                                 { href: '/promotion/daily', label: 'Daily data', icon: ListFilter },
@@ -373,6 +292,7 @@ export default function PromotionPage({
                                 </Link>
                             ))}
                         </nav>
+                        <PaidPromotionSummary paid={p.paid} />
                     </>
                 )}
                 {section === 'daily' && (

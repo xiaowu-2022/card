@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { configureClientLocale, t, useClientTranslation } from '@/i18n';
 import type { SharedProps } from '@/types/global';
+import { consumerLocaleScope, rememberConfirmedLocale } from '@/i18n/confirmed-locale';
 
 const names: Record<string, string> = {
     en: 'English',
@@ -24,7 +25,7 @@ export function LanguageSwitcher({
     variant?: 'pill' | 'menu' | 'icon' | 'row';
 }) {
     const { i18n } = useClientTranslation();
-    const { i18n: suppliedSettings } = usePage<SharedProps>().props;
+    const { i18n: suppliedSettings, tenant, auth } = usePage<SharedProps>().props;
     const settings = suppliedSettings ?? { enabledLocales: ['en'], timezone: 'UTC' };
     const [pending, setPending] = useState(false);
     const change = async (locale: string) => {
@@ -50,6 +51,7 @@ export function LanguageSwitcher({
                 body: JSON.stringify({ locale }),
             });
             if (!response.ok) throw new Error('Locale preference was not saved');
+            rememberConfirmedLocale(consumerLocaleScope(tenant?.id, auth?.user?.id), locale);
             // No navigation/remount: preserve form data and stable financial request IDs.
             configureClientLocale(locale, settings.timezone);
         } catch {

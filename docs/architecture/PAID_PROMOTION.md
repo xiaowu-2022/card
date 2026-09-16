@@ -117,8 +117,9 @@ balance without creating accounts. All consumer commission amounts show USDT.
 Replace the two full-width annual/activation tables with one grade list. Each grade
 shows annual, activation and combined totals; expanding reveals independent direct/
 indirect counts, actual amounts and historical price ranges. Paid-order counts and
-funding-event counts remain separate; neither is a team headcount. Hide empty grades
-by default with an explicit show-all option. Legacy rewards stay outside the new
+funding-event counts remain separate; neither is a team headcount. Per the 2026-09-16
+follow-up, show all nine grades by default and allow switching to populated grades
+(team members or reward records). Legacy rewards stay outside the new
 combined total, while all-time commission still includes them.
 
 Membership selection uses unselected radio rows with configured prices and benefits.
@@ -159,8 +160,11 @@ review redirect; only the existing password-confirmed action pays. Pending rebat
 wallet eligibility, expiry and price revisions continue to be validated server-side.
 
 `/promotion/invitations` owns commission balance/transfer eligibility, personal cumulative
-income, direct/indirect team totals, annual/activation income breakdowns and the existing
-expandable five-column level table. Legacy income stays separate. Counts retain current
+income and the existing expandable five-column level table. On 2026-09-16 the user
+removed the standalone team-count, annual-commission, activation-commission and legacy
+commission summary block. The level table and daily/direct/commission entry points
+remain; historical income is still available through commission records and is not
+reclassified. Counts retain current
 level attribution; money retains historical event attribution. Daily/direct/commission
 pages return here. The old `/promotion/team` redirects here. `/promotion/rules` explains
 actual promotion rules and company-configured rebate thresholds; saved cycle terms still
@@ -194,3 +198,34 @@ feedback/manual-copy fallback; dialogs retain their higher layer.
 Level card headers now pair the level name on the left with the whole-USDT annual
 price at the upper right, omitting the standalone annual-fee label and price row.
 The current-level badge sits beneath the level name.
+
+## Unified promotion reports (approved 2026-09-16)
+
+Keep separate daily, direct-member and commission routes with shared compact filters,
+USDT formatting and expandable rows. Daily defaults to the company-local current day;
+commission history defaults to all dates. Date ranges are inclusive local dates mapped
+to half-open UTC intervals. Legacy date URLs remain supported; explicit ranges win.
+Daily summaries use actual commission posting times, while team movements use business
+event times. One registration/funding/annual-order event produces one activity row;
+first funding is a badge, not a duplicate movement. Activity-kind filtering only narrows
+rows, never the period summary. Zero-commission source events remain visible.
+
+Member grades are current effective cycles; income grades and relationship depth come
+from immutable event/share snapshots. Paid activation shares must not be counted again
+through commission_awards. Unmatched older awards remain legacy with unknown grades and
+historical relationship, never reconstructed from present configuration. Members show
+personal income contributions separated by annual/activation/legacy. Commission income
+and transfers to balance occupy separate tabs with separate totals and filters. Fee
+rebates and other members' income are excluded. Query aggregates precede pagination,
+use exact decimal strings, carry tenant/user scope and batch current membership reads.
+No schema migration, money mutation or historical replay is authorized by this redesign.
+
+The user rejected the first report-like presentation during acceptance. Consumer views
+therefore lead with income, followed by a single date/filter toolbar and compact
+statement rows. Advanced filters open in an accessible bottom dialog on mobile and
+a centered dialog on larger screens, with explicit apply/reset and removable active
+filter chips. They do not occupy the first screen. A statement row expands as a whole;
+settlement calculations, full precision, and statistics notes stay behind disclosure.
+Member rows emphasize account/current grade and personal income contribution; its
+breakdown expands in place and the contribution links to the source-filtered statement.
+These presentation changes do not change query periods, aggregation, or money rules.

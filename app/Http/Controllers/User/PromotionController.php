@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\User;
 
-use App\Application\Promotion\CommissionHistoryQuery;
 use App\Application\Promotion\PromotionMembershipAction;
 use App\Application\Promotion\PromotionQuery;
+use App\Application\Promotion\PromotionReportQuery;
 use App\Application\Promotion\TransferCommissionAction;
 use App\Domain\Tenant\TenantContext;
 use App\Http\Controllers\Controller;
@@ -28,13 +28,21 @@ final class PromotionController extends Controller
             ]);
         }
 
+        if (in_array($section, ['daily', 'direct'], true)) {
+            $reports = app(PromotionReportQuery::class);
+
+            return Inertia::render('user/PromotionReport', ['section' => $section, 'report' => $section === 'daily'
+                ? $reports->daily($context->id(), $request->user('tenant_user')->id, $request->validated())
+                : $reports->members($context->id(), $request->user('tenant_user')->id, $request->validated())]);
+        }
+
         return Inertia::render('user/Promotion', ['promotion' => $query->execute($context->id(), $request->user('tenant_user')->id,
             $request->validated('date'), $request->integer('page', 1), $request->integer('direct_page', 1), $request->validated('account_id'), $request->validated('funding', 'all')), 'section' => $section]);
     }
 
-    public function commissions(PromotionDateRequest $request, TenantContext $context, CommissionHistoryQuery $query): Response
+    public function commissions(PromotionDateRequest $request, TenantContext $context, PromotionReportQuery $query): Response
     {
-        return Inertia::render('user/PromotionCommissions', ['history' => $query->execute($context->id(), $request->user('tenant_user')->id, $request->validated('date'), $request->integer('page', 1))]);
+        return Inertia::render('user/PromotionCommissions', ['history' => $query->commissions($context->id(), $request->user('tenant_user')->id, $request->validated())]);
     }
 
     public function update(PromotionRequest $request, TenantContext $context, PromotionMembershipAction $members, TransferCommissionAction $transfer): RedirectResponse

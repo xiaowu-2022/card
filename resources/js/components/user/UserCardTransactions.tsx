@@ -98,12 +98,14 @@ export function UserCardTransactions({
                                                             ? systemMoney(item.amount)
                                                             : `${transactionAmount(item.amount)} ${item.currency}`}
                                                     </p>
-                                                    <p className="mt-1 text-xs text-muted-foreground">
-                                                        {t(
-                                                            transactionStates[item.state] ??
-                                                                'Confirming',
-                                                        )}
-                                                    </p>
+                                                    {item.state !== 'completed' && (
+                                                        <p className="mt-1 text-xs text-muted-foreground">
+                                                            {t(
+                                                                transactionStates[item.state] ??
+                                                                    'Confirming',
+                                                            )}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
                                             <time

@@ -8,6 +8,8 @@ use App\Application\Promotion\PaidPromotionPurchase;
 use App\Application\Promotion\PaidPromotionQuery;
 use App\Application\Promotion\PaidPromotionRebate;
 use App\Application\Promotion\PromotionMembershipAction;
+use App\Application\Promotion\PromotionReportQuery;
+use App\Application\Promotion\TransferCommissionAction;
 use App\Application\SecurityDeposit\FundSecurityDepositAction;
 use App\Application\SecurityDeposit\RefundSecurityDepositAction;
 use App\Application\Wallet\ActivateUserWalletAction;
@@ -537,4 +539,158 @@ it('keeps current benefit snapshots distinct from changed offers and falls back 
     $expired = $query->benefits($this->tenant->id, $this->user->id);
     expect($expired['rank'])->toBe(0)->and($expired['reward'])->toBe('20')
         ->and($expired['membershipStatus'])->toBe('EXPIRED')->and($expired['previousCycle']['rank'])->toBe(1);
+});
+
+it('reports annual and activation income once and keeps daily source events unique', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-09-16 12:00:00 UTC'));
+    paidWallet($this, $this->user);
+    paidBuy($this, $this->user, 8);
+    $child = paidChild($this, $this->user);
+    paidBuy($this, $child, 1);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
+    $query = app(PromotionReportQuery::class);
+    $income = $query->commissions($this->tenant->id, $this->user->id, []);
+    expect($income['items'])->toHaveCount(2)->and($income['totals']['annual'])->toBe('1000.00000000')
+        ->and($income['totals']['activation'])->toBe('120.00000000')->and($income['totals']['legacy'])->toBe('0')
+        ->and($income['totals']['total'])->toBe('1120.00000000');
+    $daily = $query->daily($this->tenant->id, $this->user->id, []);
+    expect($daily['items'])->toHaveCount(3)->and($daily['counts'])->toBe(['invited' => 1, 'funded' => 1, 'orders' => 1]);
+    expect(collect($daily['items'])->firstWhere('kind', 'activation')['firstFunding'])->toBeTrue();
+    $filtered = $query->daily($this->tenant->id, $this->user->id, ['activity' => 'annual']);
+    expect($filtered['items'])->toHaveCount(1)->and($filtered['items'][0]['purchaseKind'])->toBe('purchase')
+        ->and($filtered['totals'])->toBe($daily['totals'])->and($filtered['counts'])->toBe($daily['counts']);
+    $members = $query->members($this->tenant->id, $this->user->id, ['rank' => '1', 'funding' => 'funded']);
+    expect($members['items'])->toHaveCount(1)->and($members['items'][0]['totals']['total'])->toBe('1120.00000000');
+    paidBuy($this, $child, 2);
+    expect($query->members($this->tenant->id, $this->user->id, [])['items'][0]['rank'])->toBe(2)
+        ->and($query->commissions($this->tenant->id, $this->user->id, ['rank' => '1'])['items'])->toHaveCount(2);
+    expect(array_column($query->daily($this->tenant->id, $this->user->id, ['activity' => 'annual'])['items'], 'purchaseKind'))->toContain('upgrade');
+    $this->travelTo(CarbonImmutable::parse('2027-09-17 12:00:00 UTC'));
+    expect($query->members($this->tenant->id, $this->user->id, ['rank' => '0'])['items'])->toHaveCount(1)
+        ->and($query->commissions($this->tenant->id, $this->user->id, ['rank' => '1'])['items'])->toHaveCount(2);
+    paidBuy($this, $child, 1);
+    expect($query->daily($this->tenant->id, $this->user->id, ['activity' => 'annual'])['items'][0]['purchaseKind'])->toBe('renewal');
+});
+
+it('keeps zero commission annual payments visible and separates transfers from earned income', function () {
+    paidWallet($this, $this->user);
+    $child = paidChild($this, $this->user);
+    paidBuy($this, $child, 1);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
+    $query = app(PromotionReportQuery::class);
+    $daily = $query->daily($this->tenant->id, $this->user->id, ['activity' => 'annual']);
+    expect($daily['items'])->toHaveCount(1)->and((string) $daily['items'][0]['amount'])->toBe('0');
+    app(TransferCommissionAction::class)->execute($this->tenant->id, $this->user->id, (string) Str::uuid());
+    $history = $query->commissions($this->tenant->id, $this->user->id, []);
+    expect($history['items'])->toHaveCount(1)->and($history['totals']['total'])->toBe('20.00000000');
+    $transfer = $query->commissions($this->tenant->id, $this->user->id, ['tab' => 'transfers', 'rank' => '8', 'kind' => 'annual']);
+    expect($transfer['items'])->toHaveCount(1)->and($transfer['totals']['total'])->toBe('20.00000000')->and($transfer['filters'])->not->toHaveKey('rank');
+    $foreign = Tenant::where('id', '<>', $this->tenant->id)->firstOrFail();
+    expect(fn () => $query->daily($foreign->id, $this->user->id, []))->toThrow(ModelNotFoundException::class);
+});
+
+it('validates report date pairs and keeps old single dates subordinate to explicit ranges', function () {
+    $this->actingAs($this->user, 'tenant_user');
+    foreach (['date_from=2026-09-01', 'date_to=2026-09-16', 'date_from=2026-09-16&date_to=2026-09-01', 'date_from=2026-02-30&date_to=2026-03-01'] as $query) {
+        $this->getJson('http://a.localhost/promotion/daily?'.$query)->assertUnprocessable();
+    }
+    $this->get('http://a.localhost/promotion/daily?date=2026-09-01')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+        ->component('user/PromotionReport')->where('section', 'daily')->where('report.dateFrom', '2026-09-01')->where('report.dateTo', '2026-09-01'));
+    $this->get('http://a.localhost/promotion/commissions?date=invalid&date_from=2026-09-01&date_to=2026-09-16&rank=unknown&relation=unknown&kind=legacy')
+        ->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->component('user/PromotionCommissions')
+        ->where('history.dateFrom', '2026-09-01')->where('history.dateTo', '2026-09-16')->where('history.filters.rank', 'unknown'));
+    $this->getJson('http://a.localhost/promotion/direct?rank=unknown')->assertUnprocessable();
+    $this->get('http://a.localhost/promotion/direct')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+        ->component('user/PromotionReport')->where('section', 'direct')->has('report.items', 0));
+});
+
+it('uses inclusive company days and counts repeat funding once per business event', function () {
+    $this->tenant->update(['timezone' => 'Asia/Kuala_Lumpur']);
+    $this->travelTo(CarbonImmutable::parse('2026-09-16 15:59:59 UTC'));
+    paidWallet($this, $this->user);
+    paidBuy($this, $this->user, 1);
+    $middle = paidChild($this, $this->user);
+    $leaf = paidChild($this, $middle);
+    $fund = app(FundSecurityDepositAction::class);
+    $fund->execute($this->tenant->id, $leaf->id, (string) Str::uuid(), '50');
+    $this->travelTo(CarbonImmutable::parse('2026-09-16 16:00:00 UTC'));
+    $this->tenant->businessSettings()->update(['required_security_deposit_amount' => '100']);
+    $fund->execute($this->tenant->id, $leaf->id, (string) Str::uuid(), '50');
+    $query = app(PromotionReportQuery::class);
+    $day = ['date_from' => '2026-09-16', 'date_to' => '2026-09-16'];
+    $first = $query->daily($this->tenant->id, $this->user->id, $day + ['activity' => 'activation']);
+    $second = $query->daily($this->tenant->id, $this->user->id, []);
+    expect($first['items'])->toHaveCount(1)->and($first['items'][0]['firstFunding'])->toBeTrue()
+        ->and($second['dateFrom'])->toBe('2026-09-17')->and($second['items'])->toHaveCount(1)
+        ->and($second['items'][0]['firstFunding'])->toBeFalse()->and($second['counts']['funded'])->toBe(1)
+        ->and($second['totals']['activation'])->toBe('30.00000000');
+    $combined = $query->commissions($this->tenant->id, $this->user->id, $day + [
+        'kind' => 'activation', 'rank' => '0', 'relation' => 'indirect', 'account_id' => $leaf->fresh()->account_id,
+    ]);
+    expect($combined['items'])->toHaveCount(1)->and($combined['items'][0]['beneficiaryRank'])->toBe(1)
+        ->and($combined['items'][0]['rate'])->toBe('30.00000000')->and($combined['totals']['total'])->toBe('30.00000000')
+        ->and($query->commissions($this->tenant->id, $this->user->id, ['relation' => 'direct'])['items'])->toBe([])
+        ->and($query->commissions($this->tenant->id, $this->user->id, ['rank' => 'unknown'])['items'])->toBe([]);
+    $foreign = Tenant::where('slug', 'tenant-b')->firstOrFail();
+    $foreignUser = User::where('tenant_id', $foreign->id)->firstOrFail();
+    foreach (['commissions', 'daily', 'members'] as $method) {
+        expect($query->$method($foreign->id, $foreignUser->id, [])['items'])->toBe([]);
+    }
+});
+
+it('aggregates all matching income before pagination and batches member reporting', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-09-16 10:00:00 UTC'));
+    $child = paidChild($this, $this->user);
+    $fund = app(FundSecurityDepositAction::class);
+    for ($n = 1; $n <= 31; $n++) {
+        $this->tenant->businessSettings()->update(['required_security_deposit_amount' => (string) ($n * 50)]);
+        $fund->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
+        $this->travel(1)->seconds();
+    }
+    $query = app(PromotionReportQuery::class);
+    $first = $query->commissions($this->tenant->id, $this->user->id, ['kind' => 'activation']);
+    $second = $query->commissions($this->tenant->id, $this->user->id, ['kind' => 'activation', 'page' => 2]);
+    expect($first['items'])->toHaveCount(30)->and($first['hasMore'])->toBeTrue()
+        ->and($second['items'])->toHaveCount(1)->and($second['hasMore'])->toBeFalse()
+        ->and($first['totals']['total'])->toBe('620.00000000')->and($second['totals'])->toBe($first['totals']);
+    $daily = $query->daily($this->tenant->id, $this->user->id, ['activity' => 'activation']);
+    expect($daily['items'])->toHaveCount(30)->and($daily['counts']['funded'])->toBe(31)
+        ->and($daily['totals']['total'])->toBe('620.00000000');
+    $parent = app(PromotionMembershipAction::class)->ensure($this->tenant->id, $this->user->id);
+    for ($n = 0; $n < 20; $n++) {
+        $member = $this->user->replicate(['account_id']);
+        $member->forceFill(['email' => Str::uuid().'@example.test'])->save();
+        app(PromotionMembershipAction::class)->ensure($this->tenant->id, $member->id, $parent->id);
+    }
+    DB::enableQueryLog();
+    DB::flushQueryLog();
+    $members = $query->members($this->tenant->id, $this->user->id, []);
+    $queries = count(DB::getQueryLog());
+    DB::disableQueryLog();
+    expect($members['items'])->toHaveCount(20)->and($members['total'])->toBe(21)->and($members['hasMore'])->toBeTrue()
+        ->and($queries)->toBeLessThanOrEqual(5)
+        ->and($query->members($this->tenant->id, $this->user->id, ['page' => 2])['items'])->toHaveCount(1)
+        ->and($query->members($this->tenant->id, $this->user->id, ['funding' => 'unfunded'])['total'])->toBe(20);
+});
+
+it('separates business dates from commission posting dates across midnight without rewriting history', function () {
+    $this->tenant->update(['timezone' => 'Asia/Kuala_Lumpur']);
+    $this->travelTo(CarbonImmutable::parse('2026-09-16 15:59:59 UTC'));
+    $child = paidChild($this, $this->user);
+    $advanced = false;
+    // Simulate midnight passing between the source event and its reward posting.
+    DB::listen(function ($query) use (&$advanced) {
+        if (! $advanced && str_starts_with($query->sql, 'insert into "paid_promotion_events"')) {
+            $advanced = true;
+            $this->travelTo(CarbonImmutable::parse('2026-09-16 16:00:01 UTC'));
+        }
+    });
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
+    $query = app(PromotionReportQuery::class);
+    $businessDay = $query->daily($this->tenant->id, $this->user->id, ['date' => '2026-09-16', 'activity' => 'activation']);
+    $postingDay = $query->daily($this->tenant->id, $this->user->id, ['date' => '2026-09-17']);
+    expect($advanced)->toBeTrue()->and($businessDay['items'])->toHaveCount(1)
+        ->and($businessDay['totals']['total'])->toBe('0')->and($businessDay['items'][0]['amount'])->toBe('20.00000000')
+        ->and($businessDay['items'][0]['postedAt'])->not->toBe($businessDay['items'][0]['occurredAt'])
+        ->and($postingDay['items'])->toBe([])->and($postingDay['totals']['activation'])->toBe('20.00000000');
 });
