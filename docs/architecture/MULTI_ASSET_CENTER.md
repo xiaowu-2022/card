@@ -47,6 +47,11 @@ Commission, USDT, USDC, ETH, BTC in that order. Deposit and commission are indep
 UI account entries denominated in USDT, linking to their existing management pages.
 They are not new currencies or spendable wallet balances. Remove the processing-amount
 row from the asset center only; settlement holds, estimates and financial rules remain.
+The reference layout keeps the estimate centered above round action shortcuts and a
+compact white Accounts card. Account tiles scroll horizontally, with icon, amount and
+label stacked centrally. More opens the full account list; selecting an account opens
+a bottom sheet for its exact balance and existing actions instead of expanding the card.
+Only enabled actions appear; no scanner capability is implied.
 
 The asset center shows original balances and indicative total in USDT, not a
 withdrawable total. Fiat and card USD balances are excluded. Missing quotes hide

@@ -5,14 +5,15 @@ import type { SharedProps } from '@/types/global';
 import {
     Eye,
     EyeOff,
-    ArrowDownLeft,
-    ArrowUpRight,
+    ArrowDown,
+    ArrowUp,
     ArrowLeftRight,
     ChevronRight,
     ShieldCheck,
     Coins,
 } from 'lucide-react';
 import { t, dateTime } from '@/i18n';
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 
 export type AssetAccount = {
     asset: string;
@@ -56,6 +57,7 @@ export function AssetIcon({ asset }: { asset: string }) {
 }
 export function AssetCenter({ overview }: { overview: AssetOverview }) {
     const [selected, setSelected] = useState('USDT');
+    const [panel, setPanel] = useState<'accounts' | 'detail' | null>(null);
     const { auth } = usePage<SharedProps>().props;
     const key = `balance-hidden:${auth.user?.id ?? 'guest'}`;
     const hidden = useSyncExternalStore(
@@ -116,10 +118,45 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
         })),
     ];
     const detailAmount = managed?.amount ?? current.available;
+    const depositAsset = overview.assets.find((a) => a.rails.some((r) => r.deposit));
+    const withdrawalAsset = overview.assets.find((a) => a.rails.some((r) => r.withdrawal));
+    const exchangeAsset = overview.assets.find((a) => a.exchange);
+    const shortcuts = [
+        ...(depositAsset
+            ? [
+                  {
+                      label: 'Top up',
+                      href: `/assets/operate?mode=deposit&asset=${depositAsset.asset}`,
+                      icon: ArrowDown,
+                  },
+              ]
+            : []),
+        ...(withdrawalAsset
+            ? [
+                  {
+                      label: 'Withdraw',
+                      href: `/assets/operate?mode=withdrawal&asset=${withdrawalAsset.asset}`,
+                      icon: ArrowUp,
+                  },
+              ]
+            : []),
+        ...(exchangeAsset
+            ? [
+                  {
+                      label: 'Exchange',
+                      href: `/assets/operate?mode=exchange&asset=${exchangeAsset.asset}`,
+                      icon: ArrowLeftRight,
+                  },
+              ]
+            : []),
+        ...(usdt?.transfer
+            ? [{ label: 'Transfer', href: '/wallet/transfer', icon: ArrowLeftRight }]
+            : []),
+    ];
     return (
-        <div className="space-y-5">
-            <section className="px-1 py-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="space-y-4">
+            <section className="px-2 py-1 text-center">
+                <div className="flex items-center justify-center text-xs text-muted-foreground">
                     <h1>{t('Estimated total assets')}</h1>
                     <button
                         className="flex size-11 items-center justify-center rounded-full focus-visible:outline-2"
@@ -129,7 +166,7 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
                         {hidden ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                 </div>
-                <p className="flex flex-wrap items-baseline gap-x-2 text-4xl font-semibold tracking-tight sm:text-5xl">
+                <p className="flex flex-wrap items-baseline justify-center gap-x-2 text-3xl font-semibold tracking-tight sm:text-4xl">
                     <span className="break-all">
                         {overview.estimate === null
                             ? '—'
@@ -137,27 +174,58 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
                     </span>
                     <span className="whitespace-nowrap text-base font-normal">USDT</span>
                 </p>
-                <p className="mt-3 text-xs text-muted-foreground">
+                <p className="mt-2 text-[11px] text-muted-foreground">
                     {overview.updatedAt
                         ? t('Prices updated: {{time}}', { time: dateTime(overview.updatedAt) })
                         : t('Valuation unavailable. Original balances are unchanged.')}
                 </p>
             </section>
-            <section className="rounded-2xl bg-surface p-4 sm:p-5">
-                <h2 className="mb-4 font-semibold">{t('Currency accounts')}</h2>
+            {shortcuts.length > 0 && (
+                <nav
+                    aria-label={t('Account actions')}
+                    className="flex justify-evenly gap-2 px-1 pb-1"
+                >
+                    {shortcuts.map((action) => (
+                        <Link
+                            key={action.label}
+                            href={action.href}
+                            className="flex min-w-0 flex-1 flex-col items-center gap-2 rounded-xl text-center text-xs text-muted-foreground focus-visible:outline-2"
+                        >
+                            <span className="flex size-12 items-center justify-center rounded-full bg-[#171915] text-white sm:size-14">
+                                <action.icon size={22} />
+                            </span>
+                            <span className="break-words">{t(action.label)}</span>
+                        </Link>
+                    ))}
+                </nav>
+            )}
+            <section className="rounded-2xl bg-surface px-4 pb-4 sm:px-5 sm:pb-5">
+                <div className="flex min-h-14 items-center justify-between gap-3">
+                    <h2 className="text-base font-medium">{t('Accounts')}</h2>
+                    <button
+                        onClick={() => setPanel('accounts')}
+                        className="flex min-h-11 items-center gap-1 rounded-lg text-xs text-muted-foreground"
+                        aria-haspopup="dialog"
+                    >
+                        {t('More')}
+                        <ChevronRight size={14} />
+                    </button>
+                </div>
                 <div
-                    role="tablist"
-                    aria-label={t('Currency accounts')}
-                    className="flex gap-2 overflow-x-auto pb-2"
+                    role="group"
+                    aria-label={t('Accounts')}
+                    className="flex gap-3 overflow-x-auto pb-1"
                 >
                     {tabs.map((a) => (
                         <button
                             key={a.id}
-                            role="tab"
-                            aria-selected={selected === a.id}
+                            aria-haspopup="dialog"
                             aria-label={t(a.label)}
-                            onClick={() => setSelected(a.id)}
-                            className={`user-asset-account flex w-[calc((100%-1rem)/3)] min-w-24 shrink-0 flex-col items-start sm:flex-1 rounded-xl border-2 p-3 text-left transition-colors focus-visible:outline-2 ${selected === a.id ? 'border-primary bg-primary/5' : 'border-transparent bg-muted/60'}`}
+                            onClick={() => {
+                                setSelected(a.id);
+                                setPanel('detail');
+                            }}
+                            className="user-asset-account flex w-[calc((100%_-_1.5rem)/3)] min-w-24 shrink-0 flex-col items-center rounded-xl bg-[#f7f6f1] px-2 py-3 text-center focus-visible:outline-2 sm:flex-1"
                         >
                             {a.icon ? (
                                 <span
@@ -169,78 +237,122 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
                             ) : (
                                 <AssetIcon asset={a.asset} />
                             )}
-                            <span className="mb-1 mt-2 block w-full break-words text-sm font-medium">
-                                {t(a.label)}
-                            </span>
                             <span
                                 title={show(a.amount)}
-                                className="mt-auto block w-full truncate text-xs text-muted-foreground"
+                                className="mt-2 block w-full truncate text-sm font-medium tabular-nums"
                             >
                                 {show(a.amount)}
+                            </span>
+                            <span className="mt-1 block w-full break-words text-xs text-muted-foreground">
+                                {t(a.label)}
                             </span>
                         </button>
                     ))}
                 </div>
-                <div role="tabpanel" className="mt-5 border-t pt-5">
-                    <p className="text-sm text-muted-foreground">
-                        {t(managed?.label ?? 'Available balance')} ·{' '}
-                        {managed ? 'USDT' : current.asset}
-                    </p>
-                    <p
-                        className={`mt-1 break-all font-semibold tabular-nums ${show(detailAmount).length > 18 ? 'text-xl sm:text-2xl' : 'text-3xl'}`}
-                    >
-                        {show(detailAmount)}
-                    </p>
-                    {managed ? (
-                        <Link
-                            href={managed.href}
-                            className="mt-5 flex min-h-12 items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground"
-                        >
-                            {t(managed.action)}
-                            <ChevronRight size={18} />
-                        </Link>
+            </section>
+            <Sheet
+                open={panel !== null}
+                onOpenChange={(open) => {
+                    if (!open) setPanel(null);
+                }}
+            >
+                <SheetContent
+                    closeLabel={t('Close')}
+                    className="user-theme inset-x-0 top-auto bottom-0 mx-auto max-h-[85dvh] w-full max-w-xl overflow-y-auto rounded-t-3xl border-0 p-6 pb-8"
+                >
+                    <SheetTitle>
+                        {t(panel === 'accounts' ? 'Accounts' : (managed?.label ?? current.asset))}
+                    </SheetTitle>
+                    <SheetDescription className="sr-only">
+                        {t('Account details and management')}
+                    </SheetDescription>
+                    {panel === 'accounts' ? (
+                        <div className="mt-4 divide-y">
+                            {tabs.map((a) => (
+                                <button
+                                    key={a.id}
+                                    onClick={() => {
+                                        setSelected(a.id);
+                                        setPanel('detail');
+                                    }}
+                                    className="flex min-h-16 w-full items-center gap-3 py-3 text-left"
+                                >
+                                    {a.icon ? (
+                                        <a.icon size={24} className="shrink-0 text-emerald-700" />
+                                    ) : (
+                                        <AssetIcon asset={a.asset} />
+                                    )}
+                                    <span className="flex-1 text-sm">{t(a.label)}</span>
+                                    <span className="max-w-[50%] break-all text-right text-sm">
+                                        {show(a.amount)} <small>{a.asset}</small>
+                                    </span>
+                                    <ChevronRight className="size-4 shrink-0" />
+                                </button>
+                            ))}
+                        </div>
                     ) : (
-                        <div className="mt-5 flex flex-wrap gap-2">
-                            {current.rails.some((r) => r.deposit) && (
+                        <div data-account-detail className="mt-5">
+                            <p className="text-sm text-muted-foreground">
+                                {t(managed?.label ?? 'Available balance')} ·{' '}
+                                {managed ? 'USDT' : current.asset}
+                            </p>
+                            <p
+                                className={`mt-1 break-all font-semibold tabular-nums ${show(detailAmount).length > 18 ? 'text-xl sm:text-2xl' : 'text-3xl'}`}
+                            >
+                                {show(detailAmount)}
+                            </p>
+                            {managed ? (
                                 <Link
-                                    href={`/assets/operate?mode=deposit&asset=${current.asset}`}
-                                    className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground"
+                                    href={managed.href}
+                                    className="mt-5 flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#171915] px-4 text-sm font-medium text-white hover:bg-[#2b3029]"
                                 >
-                                    <ArrowDownLeft size={18} />
-                                    {t('Top up')}
+                                    {t(managed.action)}
+                                    <ChevronRight size={18} />
                                 </Link>
-                            )}
-                            {current.rails.some((r) => r.withdrawal) && (
-                                <Link
-                                    href={`/assets/operate?mode=withdrawal&asset=${current.asset}`}
-                                    className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium"
-                                >
-                                    <ArrowUpRight size={18} />
-                                    {t('Withdraw')}
-                                </Link>
-                            )}
-                            {current.asset === 'USDT' && current.transfer && (
-                                <Link
-                                    href="/wallet/transfer"
-                                    className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium"
-                                >
-                                    <ArrowLeftRight size={18} />
-                                    {t('Transfer')}
-                                </Link>
-                            )}
-                            {current.exchange && (
-                                <Link
-                                    href={`/assets/operate?mode=exchange&asset=${current.asset}`}
-                                    className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium"
-                                >
-                                    <ArrowLeftRight size={18} />
-                                    {t('Exchange')}
-                                </Link>
+                            ) : (
+                                <div className="mt-5 flex flex-wrap gap-2">
+                                    {current.rails.some((r) => r.deposit) && (
+                                        <Link
+                                            href={`/assets/operate?mode=deposit&asset=${current.asset}`}
+                                            className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-[#171915] px-4 text-sm font-medium text-white hover:bg-[#2b3029]"
+                                        >
+                                            <ArrowDown size={18} />
+                                            {t('Top up')}
+                                        </Link>
+                                    )}
+                                    {current.rails.some((r) => r.withdrawal) && (
+                                        <Link
+                                            href={`/assets/operate?mode=withdrawal&asset=${current.asset}`}
+                                            className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium"
+                                        >
+                                            <ArrowUp size={18} />
+                                            {t('Withdraw')}
+                                        </Link>
+                                    )}
+                                    {current.asset === 'USDT' && current.transfer && (
+                                        <Link
+                                            href="/wallet/transfer"
+                                            className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium"
+                                        >
+                                            <ArrowLeftRight size={18} />
+                                            {t('Transfer')}
+                                        </Link>
+                                    )}
+                                    {current.exchange && (
+                                        <Link
+                                            href={`/assets/operate?mode=exchange&asset=${current.asset}`}
+                                            className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium"
+                                        >
+                                            <ArrowLeftRight size={18} />
+                                            {t('Exchange')}
+                                        </Link>
+                                    )}
+                                </div>
                             )}
                         </div>
                     )}
-                </div>
-            </section>
+                </SheetContent>
+            </Sheet>
             {!managed && !!current.orders?.length && (
                 <section>
                     <h2 className="mb-2 font-semibold">{t('Recent requests')}</h2>

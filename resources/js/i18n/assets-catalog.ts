@@ -1,4 +1,11 @@
 export const assetsCatalog = {
+    Accounts: ['账户', 'Akaun', 'Cuentas'],
+    'Account actions': ['账户操作', 'Tindakan akaun', 'Operaciones de cuenta'],
+    'Account details and management': [
+        '账户详情与管理',
+        'Butiran dan pengurusan akaun',
+        'Detalles y gestión de la cuenta',
+    ],
     'Manage security deposit': [
         '管理保证金',
         'Urus deposit jaminan',

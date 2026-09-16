@@ -179,7 +179,14 @@ try {
                         fullPage: true,
                     });
                 if (screen === 'assets') {
-                    const tabs = page.getByRole('tab');
+                    const tabs = page.locator('.user-asset-account');
+                    const shortcut = page.locator('main nav a').first();
+                    const shortcutBounds = await shortcut.boundingBox();
+                    const accountBounds = await tabs.first().boundingBox();
+                    assert.ok(shortcutBounds.y + shortcutBounds.height < accountBounds.y);
+                    const circle = await shortcut.locator('span').first().boundingBox();
+                    assert.equal(circle.width, circle.height);
+                    assert.equal(await page.locator('[data-account-detail]').count(), 0);
                     assert.equal(await tabs.count(), 6);
                     assert.deepEqual(
                         await tabs.evaluateAll((nodes) =>
@@ -187,13 +194,13 @@ try {
                         ),
                         ['USDT', 'USDC', 'ETH', 'BTC'],
                     );
-                    const panel = page.getByRole('tabpanel');
+                    const panel = page.locator('[data-account-detail]');
                     for (const [index, href, amount, name] of [
                         [0, '/security-deposit', '300', 'security-deposit'],
                         [1, '/promotion', '620', 'commission'],
                     ]) {
                         await tabs.nth(index).click();
-                        assert.equal(await tabs.nth(index).getAttribute('aria-selected'), 'true');
+                        await page.getByRole('dialog').waitFor();
                         assert.equal(await panel.locator('a').getAttribute('href'), href);
                         assert.ok((await panel.innerText()).includes(amount));
                         assert.equal(await page.locator('a[href$="/activity"]').count(), 0);
@@ -207,8 +214,27 @@ try {
                                 path: `${output}/${width}-${name}.png`,
                                 fullPage: true,
                             });
+                        await page.keyboard.press('Escape');
+                        await page.getByRole('dialog').waitFor({ state: 'hidden' });
                     }
                     await tabs.nth(2).click();
+                    assert.ok((await panel.innerText()).includes('8462.34657812'));
+                    await page.keyboard.press('Escape');
+                    await page.getByRole('dialog').waitFor({ state: 'hidden' });
+                    await tabs
+                        .first()
+                        .locator('..')
+                        .locator('..')
+                        .getByRole('button', { name: /更多|More|Lagi|Más/ })
+                        .click();
+                    assert.equal(await page.getByRole('dialog').locator('button').count(), 7);
+                    if (locale === 'zh-CN')
+                        await page.screenshot({
+                            path: `${output}/${width}-accounts.png`,
+                            fullPage: true,
+                        });
+                    await page.keyboard.press('Escape');
+                    await page.getByRole('dialog').waitFor({ state: 'hidden' });
                     assert.equal(await page.locator('a[href="/wallet/transfer"]').count(), 1);
                     assert.equal(
                         await page
