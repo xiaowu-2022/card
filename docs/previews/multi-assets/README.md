@@ -4,6 +4,7 @@ Browser-only example balances and enabled networks; not live account balances or
 Screenshots use the real application components. No financial/configuration request is submitted.
 
 - [Mobile assets](375-assets.png), [tablet assets](768-assets.png), [desktop assets](1440-assets.png)
+- [Security deposit account](375-security-deposit.png), [commission account](375-commission.png)
 - [Currency picker](375-currencies.png), [network picker](375-networks.png)
 - [Exchange confirmation](375-exchange.png), [withdrawal review](375-withdrawal.png)
 - [SaaS withdrawal review](1440-admin-orders.png)

@@ -9,6 +9,8 @@ import {
     ArrowUpRight,
     ArrowLeftRight,
     ChevronRight,
+    ShieldCheck,
+    Coins,
 } from 'lucide-react';
 import { t, dateTime } from '@/i18n';
 
@@ -81,6 +83,39 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
     const current = overview.assets.find((a) => a.asset === selected) ?? overview.assets[0];
     if (!current) return null;
     const show = (value: string) => (hidden ? '••••••' : exactAmount(value));
+    const usdt = overview.assets.find((a) => a.asset === 'USDT');
+    const managedAccounts = usdt
+        ? [
+              {
+                  id: 'deposit',
+                  label: 'Security deposit',
+                  amount: usdt.deposit,
+                  href: '/security-deposit',
+                  action: 'Manage security deposit',
+                  icon: ShieldCheck,
+              },
+              {
+                  id: 'commission',
+                  label: 'Commission',
+                  amount: usdt.commission,
+                  href: '/promotion',
+                  action: 'Manage commission',
+                  icon: Coins,
+              },
+          ]
+        : [];
+    const managed = managedAccounts.find((a) => a.id === selected);
+    const tabs = [
+        ...managedAccounts.map((a) => ({ ...a, asset: 'USDT' })),
+        ...overview.assets.map((a) => ({
+            id: a.asset,
+            label: a.asset,
+            amount: a.available,
+            asset: a.asset,
+            icon: null,
+        })),
+    ];
+    const detailAmount = managed?.amount ?? current.available;
     return (
         <div className="space-y-5">
             <section className="px-1 py-4">
@@ -115,98 +150,98 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
                     aria-label={t('Currency accounts')}
                     className="flex gap-2 overflow-x-auto pb-2"
                 >
-                    {overview.assets.map((a) => (
+                    {tabs.map((a) => (
                         <button
-                            key={a.asset}
+                            key={a.id}
                             role="tab"
-                            aria-selected={selected === a.asset}
-                            onClick={() => setSelected(a.asset)}
-                            className={`w-[120px] shrink-0 sm:flex-1 rounded-xl border-2 p-3 text-left transition-colors focus-visible:outline-2 ${selected === a.asset ? 'border-primary bg-primary/5' : 'border-transparent bg-muted/60'}`}
+                            aria-selected={selected === a.id}
+                            aria-label={t(a.label)}
+                            onClick={() => setSelected(a.id)}
+                            className={`user-asset-account flex w-[calc((100%-1rem)/3)] min-w-24 shrink-0 flex-col items-start sm:flex-1 rounded-xl border-2 p-3 text-left transition-colors focus-visible:outline-2 ${selected === a.id ? 'border-primary bg-primary/5' : 'border-transparent bg-muted/60'}`}
                         >
-                            <AssetIcon asset={a.asset} />
-                            <span className="mt-2 block text-sm font-medium">{a.asset}</span>
+                            {a.icon ? (
+                                <span
+                                    aria-hidden
+                                    className="flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800"
+                                >
+                                    <a.icon size={20} />
+                                </span>
+                            ) : (
+                                <AssetIcon asset={a.asset} />
+                            )}
+                            <span className="mb-1 mt-2 block w-full break-words text-sm font-medium">
+                                {t(a.label)}
+                            </span>
                             <span
-                                title={show(a.available)}
-                                className="mt-1 block truncate text-xs text-muted-foreground"
+                                title={show(a.amount)}
+                                className="mt-auto block w-full truncate text-xs text-muted-foreground"
                             >
-                                {show(a.available)}
+                                {show(a.amount)}
                             </span>
                         </button>
                     ))}
                 </div>
                 <div role="tabpanel" className="mt-5 border-t pt-5">
                     <p className="text-sm text-muted-foreground">
-                        {t('Available balance')} · {current.asset}
+                        {t(managed?.label ?? 'Available balance')} ·{' '}
+                        {managed ? 'USDT' : current.asset}
                     </p>
                     <p
-                        className={`mt-1 break-all font-semibold tabular-nums ${show(current.available).length > 18 ? 'text-xl sm:text-2xl' : 'text-3xl'}`}
+                        className={`mt-1 break-all font-semibold tabular-nums ${show(detailAmount).length > 18 ? 'text-xl sm:text-2xl' : 'text-3xl'}`}
                     >
-                        {show(current.available)}
+                        {show(detailAmount)}
                     </p>
-                    <p className="mt-2 break-all text-sm text-muted-foreground">
-                        {t('Processing amount')}: {show(current.held)} {current.asset}
-                    </p>
-                    <div className="mt-5 flex flex-wrap gap-2">
-                        {current.rails.some((r) => r.deposit) && (
-                            <Link
-                                href={`/assets/operate?mode=deposit&asset=${current.asset}`}
-                                className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground"
-                            >
-                                <ArrowDownLeft size={18} />
-                                {t('Top up')}
-                            </Link>
-                        )}
-                        {current.rails.some((r) => r.withdrawal) && (
-                            <Link
-                                href={`/assets/operate?mode=withdrawal&asset=${current.asset}`}
-                                className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium"
-                            >
-                                <ArrowUpRight size={18} />
-                                {t('Withdraw')}
-                            </Link>
-                        )}
-                        {current.asset === 'USDT' && current.transfer && (
-                            <Link
-                                href="/wallet/transfer"
-                                className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium"
-                            >
-                                <ArrowLeftRight size={18} />
-                                {t('Transfer')}
-                            </Link>
-                        )}
-                        {current.exchange && (
-                            <Link
-                                href={`/assets/operate?mode=exchange&asset=${current.asset}`}
-                                className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium"
-                            >
-                                <ArrowLeftRight size={18} />
-                                {t('Exchange')}
-                            </Link>
-                        )}
-                    </div>
-                    {current.asset === 'USDT' && (
-                        <div className="mt-5 grid grid-cols-2 gap-3 border-t pt-5">
-                            {(
-                                [
-                                    ['Security deposit', current.deposit, '/security-deposit'],
-                                    ['Commission', current.commission, '/promotion'],
-                                ] as const
-                            ).map(([label, amount, href]) => (
-                                <Link key={label} href={href} className="min-w-0 rounded-lg py-2">
-                                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                        {t(label)}
-                                        <ChevronRight size={14} />
-                                    </span>
-                                    <span className="mt-1 block break-all text-lg font-medium">
-                                        {show(amount)} <small className="text-xs">USDT</small>
-                                    </span>
+                    {managed ? (
+                        <Link
+                            href={managed.href}
+                            className="mt-5 flex min-h-12 items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground"
+                        >
+                            {t(managed.action)}
+                            <ChevronRight size={18} />
+                        </Link>
+                    ) : (
+                        <div className="mt-5 flex flex-wrap gap-2">
+                            {current.rails.some((r) => r.deposit) && (
+                                <Link
+                                    href={`/assets/operate?mode=deposit&asset=${current.asset}`}
+                                    className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground"
+                                >
+                                    <ArrowDownLeft size={18} />
+                                    {t('Top up')}
                                 </Link>
-                            ))}
+                            )}
+                            {current.rails.some((r) => r.withdrawal) && (
+                                <Link
+                                    href={`/assets/operate?mode=withdrawal&asset=${current.asset}`}
+                                    className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium"
+                                >
+                                    <ArrowUpRight size={18} />
+                                    {t('Withdraw')}
+                                </Link>
+                            )}
+                            {current.asset === 'USDT' && current.transfer && (
+                                <Link
+                                    href="/wallet/transfer"
+                                    className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium"
+                                >
+                                    <ArrowLeftRight size={18} />
+                                    {t('Transfer')}
+                                </Link>
+                            )}
+                            {current.exchange && (
+                                <Link
+                                    href={`/assets/operate?mode=exchange&asset=${current.asset}`}
+                                    className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium"
+                                >
+                                    <ArrowLeftRight size={18} />
+                                    {t('Exchange')}
+                                </Link>
+                            )}
                         </div>
                     )}
                 </div>
             </section>
-            {!!current.orders?.length && (
+            {!managed && !!current.orders?.length && (
                 <section>
                     <h2 className="mb-2 font-semibold">{t('Recent requests')}</h2>
                     {current.orders.map((order) => (
@@ -237,42 +272,44 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
                     ))}
                 </section>
             )}
-            <section>
-                <h2 className="mb-2 font-semibold">
-                    {t('Account activity')} · {current.asset}
-                    <Link
-                        className="float-right py-2 text-sm font-normal underline"
-                        href={`/assets/${current.asset}/activity`}
-                    >
-                        {t('More')}
-                    </Link>
-                </h2>
-                {current.activity.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-muted-foreground">
-                        {t('No activity yet')}
-                    </p>
-                ) : (
-                    current.activity.map((row) => (
-                        <div
-                            key={row.id}
-                            className="flex items-center justify-between gap-3 border-b py-4 text-sm"
+            {!managed && (
+                <section>
+                    <h2 className="mb-2 font-semibold">
+                        {t('Account activity')} · {current.asset}
+                        <Link
+                            className="float-right py-2 text-sm font-normal underline"
+                            href={`/assets/${current.asset}/activity`}
                         >
-                            <div>
-                                <p>{t(row.kind)}</p>
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                    {dateTime(row.time)}
+                            {t('More')}
+                        </Link>
+                    </h2>
+                    {current.activity.length === 0 ? (
+                        <p className="py-6 text-center text-sm text-muted-foreground">
+                            {t('No activity yet')}
+                        </p>
+                    ) : (
+                        current.activity.map((row) => (
+                            <div
+                                key={row.id}
+                                className="flex items-center justify-between gap-3 border-b py-4 text-sm"
+                            >
+                                <div>
+                                    <p>{t(row.kind)}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        {dateTime(row.time)}
+                                    </p>
+                                </div>
+                                <p className="max-w-[55%] break-all text-right font-medium tabular-nums">
+                                    {show(row.amount)}
+                                    <span className="ml-1 text-xs text-muted-foreground">
+                                        {current.asset}
+                                    </span>
                                 </p>
                             </div>
-                            <p className="max-w-[55%] break-all text-right font-medium tabular-nums">
-                                {show(row.amount)}
-                                <span className="ml-1 text-xs text-muted-foreground">
-                                    {current.asset}
-                                </span>
-                            </p>
-                        </div>
-                    ))
-                )}
-            </section>
+                        ))
+                    )}
+                </section>
+            )}
         </div>
     );
 }

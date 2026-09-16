@@ -1,4 +1,10 @@
 export const assetsCatalog = {
+    'Manage security deposit': [
+        '管理保证金',
+        'Urus deposit jaminan',
+        'Gestionar depósito de garantía',
+    ],
+    'Manage commission': ['管理佣金', 'Urus komisen', 'Gestionar comisión'],
     'The quote has expired. Request a new quote.': [
         '报价已过期，请重新获取报价。',
         'Sebut harga telah tamat tempoh. Minta sebut harga baharu.',

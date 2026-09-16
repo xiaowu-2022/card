@@ -178,6 +178,47 @@ try {
                         path: `${output}/${width}-${screen}.png`,
                         fullPage: true,
                     });
+                if (screen === 'assets') {
+                    const tabs = page.getByRole('tab');
+                    assert.equal(await tabs.count(), 6);
+                    assert.deepEqual(
+                        await tabs.evaluateAll((nodes) =>
+                            nodes.slice(2).map((node) => node.getAttribute('aria-label')),
+                        ),
+                        ['USDT', 'USDC', 'ETH', 'BTC'],
+                    );
+                    const panel = page.getByRole('tabpanel');
+                    for (const [index, href, amount, name] of [
+                        [0, '/security-deposit', '300', 'security-deposit'],
+                        [1, '/promotion', '620', 'commission'],
+                    ]) {
+                        await tabs.nth(index).click();
+                        assert.equal(await tabs.nth(index).getAttribute('aria-selected'), 'true');
+                        assert.equal(await panel.locator('a').getAttribute('href'), href);
+                        assert.ok((await panel.innerText()).includes(amount));
+                        assert.equal(await page.locator('a[href$="/activity"]').count(), 0);
+                        assert.ok(
+                            await page.evaluate(
+                                () => document.documentElement.scrollWidth <= innerWidth,
+                            ),
+                        );
+                        if (locale === 'zh-CN')
+                            await page.screenshot({
+                                path: `${output}/${width}-${name}.png`,
+                                fullPage: true,
+                            });
+                    }
+                    await tabs.nth(2).click();
+                    assert.equal(await page.locator('a[href="/wallet/transfer"]').count(), 1);
+                    assert.equal(
+                        await page
+                            .getByText(
+                                /处理中金额|Processing amount|Amaun dalam proses|Importe en proceso/,
+                            )
+                            .count(),
+                        0,
+                    );
+                }
                 checks.push({ width, locale, screen });
             }
     // Verify bottom-sheet selection and exact withdrawal preview without submitting funds.

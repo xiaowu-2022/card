@@ -909,6 +909,11 @@ a.user-quick-action:hover .user-quick-action-circle {
     font-size: clamp(20px, 4.267cqw, 32px);
 }
 
+.user-theme .user-asset-account[aria-selected='true'] {
+    border-color: var(--user-primary);
+    background: var(--user-primary-soft);
+}
+
 .user-theme button,
 .user-theme input,
 .user-theme select,

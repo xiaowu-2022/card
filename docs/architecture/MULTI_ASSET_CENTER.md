@@ -42,6 +42,12 @@ sending, and final chain proof are required; ambiguous outgoing transactions ret
 the hold. No manual force-success. Exchange cannot spend deposit, commission or holds.
 
 ## UI / deployment
+2026-09-16 UI revision: the horizontal account selector lists Security deposit,
+Commission, USDT, USDC, ETH, BTC in that order. Deposit and commission are independent
+UI account entries denominated in USDT, linking to their existing management pages.
+They are not new currencies or spendable wallet balances. Remove the processing-amount
+row from the asset center only; settlement holds, estimates and financial rules remain.
+
 The asset center shows original balances and indicative total in USDT, not a
 withdrawable total. Fiat and card USD balances are excluded. Missing quotes hide
 only estimation/exchange, never original balances. User dialogs preserve stable
