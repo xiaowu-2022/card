@@ -49,15 +49,28 @@ They are not new currencies or spendable wallet balances. Remove the processing-
 row from the asset center only; settlement holds, estimates and financial rules remain.
 The reference layout keeps the estimate centered above round action shortcuts and a
 compact white Accounts card. Account tiles scroll horizontally, with icon, amount and
-label stacked centrally. More opens the full account list; selecting an account opens
-a bottom sheet for its exact balance and existing actions instead of expanding the card.
-Only enabled actions appear; no scanner capability is implied.
+label stacked centrally. More expands the account list inline. Selecting a currency
+switches the activity and recent requests below without opening a dialog; deposit
+and commission tiles link directly to their existing management pages. Bottom sheets
+select currencies and networks within deposit/withdrawal flows, not homepage wallet
+details. The homepage exchange entry always opens the existing USDC/ETH/BTC -> USDT flow;
+the destination is fixed and card opening/top-ups use available USDT. Currency
+pickers allow inspecting all supported currencies (exchange excludes USDT).
+Unconfigured currencies show an explicit unavailable state, with no order/quote
+submission controls; network choices remain enabled-only. This supersedes hiding
+the exchange navigation entry, not transaction eligibility or SaaS configuration.
+No scanner capability is implied.
 The Assets homepage omits the My cards summary and empty-card promotion; card
 balances and operations remain accessible through the bottom Cards navigation.
 
 The asset center shows original balances and indicative total in USDT, not a
 withdrawable total. Fiat and card USD balances are excluded. Missing quotes hide
-only estimation/exchange, never original balances. User dialogs preserve stable
+only estimation/exchange, never original balances. USDT balances (including deposit,
+commission and existing holds) contribute at 1:1 without external prices. Zero
+non-USDT balances do not require quotes; an empty portfolio displays zero. Only a
+nonzero foreign-currency holding requires a fresh cross-rate for the total; if
+missing, do not label a partial USDT sum as total assets. Quote timestamps appear
+only when market prices actually contribute to the valuation. User dialogs preserve stable
 request IDs; all copy uses four-locale catalogs. No GET creates financial records.
 Deploy via Git in a maintenance window; verify historical balances before/after
 migration, configure/enable each rail and exchange policy explicitly. Live acceptance

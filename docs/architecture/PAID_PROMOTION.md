@@ -54,7 +54,7 @@ never contacts. Historical awards without source-rank snapshots remain legacy.
 Headline earnings are the viewer's own awards, never descendants' earnings. Annual
 rebates have separate progress/history and company revenue/return/expense reporting.
 Consumer text supports en/zh-CN/ms/es; Admin supports en/zh-CN. Existing responsive
-components and horizontal tables at 375/768/1440 px. No withdrawal-fee changes.
+components at 375/768/1440 px; the UI revision below supersedes the two-table layout. No withdrawal-fee changes.
 
 ## Deployment and acceptance
 Git release, maintenance-window additive migration, archive old assignments, then
@@ -107,3 +107,90 @@ Legacy local assignment fixtures now fail before any write after cutover.
 - Local Ledger reconciliation passed after migration; historical fingerprints
   were unchanged. Production migration and named-account live acceptance remain
   operational deployment steps; they were not implicitly executed.
+
+## Promotion UI revision (approved 2026-09-16)
+The center leads with membership status and an explicit apply/upgrade/renew/benefits
+entry. NONE/ACTIVE/EXPIRED is derived read-only from persisted cycles; an expired
+cycle never grants rights. The membership page reads the scoped USDT available
+balance without creating accounts. All consumer commission amounts show USDT.
+
+Replace the two full-width annual/activation tables with one grade list. Each grade
+shows annual, activation and combined totals; expanding reveals independent direct/
+indirect counts, actual amounts and historical price ranges. Paid-order counts and
+funding-event counts remain separate; neither is a team headcount. Hide empty grades
+by default with an explicit show-all option. Legacy rewards stay outside the new
+combined total, while all-time commission still includes them.
+
+Membership selection uses unselected radio rows with configured prices and benefits.
+An explicit next step obtains the existing immutable server quote, followed by the
+existing password confirmation. Expired quotes and insufficient funds disable payment;
+server eligibility, expiry and configuration revision checks remain authoritative.
+Rebates and review history remain separate. No schema, commission rule, payment
+permission, historical data or financial event changes are authorized by this UI work.
+Use existing components and four locales at 375/768/1440 px without horizontal tables.
+
+## Compact reference layout (approved 2026-09-16)
+The overview places the level and compact membership entry on one line, followed by
+one green team/personal-commission summary and a five-column grade table. Invitation
+and secondary links follow the table. The membership purchase page is unchanged.
+The table supersedes the prior stacked grade list: grade, direct people, indirect
+people, annual commission, activation commission. Expanded rows retain exact rewards,
+independent event counts and historical rates. Table amounts use two display decimals;
+a positive amount below 0.01 displays <0.01. No amount is truncated or used for payment.
+
+teamByLevel is a read-only nine-row aggregate (rank/direct/indirect). One recursive
+tenant-scoped query joins each descendant to its currently effective paid cycle at
+the same captured timestamp as the owner's level; missing/expired qualification is
+rank zero. Totals derive from those same grouped counts. Commission groups remain
+historical, never regrouped by current membership. Team counts and reward counts
+are distinct. Defaults show grades with either members or reward records; show-all
+includes all nine grades. No schema or financial mutations.
+
+## Benefits home and My invitations (2026-09-16)
+
+The user approved replacing the concentrated promotion overview with a benefits-first
+home. `/promotion` shows nine horizontally browsable levels (ordinary plus ranks 1–8),
+initially the effective current rank. Current paid benefits and tariff come from the
+saved cycle; other offers use current company settings. Expired qualifications select
+ordinary. Disabled offers are readable but cannot be bought. Monetary examples are
+illustrative and computed exactly, not income forecasts. Swiping never creates orders.
+Explicit apply/upgrade reuses the existing stable-request quote POST and its membership
+review redirect; only the existing password-confirmed action pays. Pending rebates,
+wallet eligibility, expiry and price revisions continue to be validated server-side.
+
+`/promotion/invitations` owns commission balance/transfer eligibility, personal cumulative
+income, direct/indirect team totals, annual/activation income breakdowns and the existing
+expandable five-column level table. Legacy income stays separate. Counts retain current
+level attribution; money retains historical event attribution. Daily/direct/commission
+pages return here. The old `/promotion/team` redirects here. `/promotion/rules` explains
+actual promotion rules and company-configured rebate thresholds; saved cycle terms still
+apply to existing memberships. Annual rebates/history remain on the membership page at
+`#annual-rebate` / `#rebate-history`, outside commission income.
+
+A benefits-only query for the home/rules reads no team, member detail or commission data.
+It exposes scoped offer/cycle DTOs, pending-rebate and claim-existence flags. The existing
+income queries, tenant/authentication gates and financial POST contracts remain intact.
+No schema migration, historical replay or financial-record change is involved.
+
+Home includes three truthful invitation steps, code, native sharing and clipboard
+fallback. Links remain on the current company origin. Cancelling native share is neutral;
+copy failure exposes the full selectable link. Four locales, keyboard controls and
+375/768/1440px layouts are required. Only the carousel scrolls horizontally, with equal
+header side space keeping the title centered. Browser acceptance never sends real payments.
+
+### Compact level cards (2026-09-16 follow-up)
+
+The user removed calculation examples/rules from the level cards. Detailed rules
+remain on the rules page. Cards use tighter spacing and whole-USDT annual fee
+labels without decimal points. Any non-integer configured fee is rounded only for
+the card label and marked approximate; the server quote/payment review retains
+exact precision. Prices, rewards and financial calculations are unchanged.
+
+The user corrected the share placement to a fixed bottom dock above the persistent
+bottom navigation. It matches the consumer shell width and navigation safe-area
+height. ResizeObserver reserves the actual dock height in page content, including
+feedback/manual-copy fallback; dialogs retain their higher layer.
+
+Level card headers now pair the level name on the left with the whole-USDT annual
+price at the upper right, omitting the standalone annual-fee label and price row.
+The current-level badge sits beneath the level name.

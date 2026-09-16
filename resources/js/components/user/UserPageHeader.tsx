@@ -21,14 +21,13 @@ export function UserPageHeader({
                 {backHref ? (
                     <Link
                         href={backHref}
-                        className="mb-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
+                        className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
                         aria-label={t('Back from {{value1}}', { value1: title })}
                     >
-                        <ArrowLeft className="size-4" />
-                        {t('Back')}
+                        <ArrowLeft className="size-5" aria-hidden="true" />
                     </Link>
                 ) : null}
-                <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl">
+                <h1 className="min-w-0 flex-1 break-words text-2xl font-semibold tracking-tight sm:text-3xl">
                     {title}
                 </h1>
                 {description ? (

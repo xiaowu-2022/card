@@ -19,7 +19,13 @@ final class PromotionController extends Controller
     public function show(PromotionDateRequest $request, TenantContext $context, PromotionQuery $query, string $section = 'overview'): Response|RedirectResponse
     {
         if ($section === 'team') {
-            return redirect('/promotion#team-summary');
+            return redirect('/promotion/invitations');
+        }
+        if (in_array($section, ['overview', 'rules'], true)) {
+            return Inertia::render('user/PromotionHub', [
+                'home' => $query->home($context->id(), $request->user('tenant_user')->id),
+                'section' => $section,
+            ]);
         }
 
         return Inertia::render('user/Promotion', ['promotion' => $query->execute($context->id(), $request->user('tenant_user')->id,

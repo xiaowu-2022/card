@@ -1,5 +1,37 @@
 export const assetsCatalog = {
     Accounts: ['账户', 'Akaun', 'Cuentas'],
+    'Receive currency': ['到账币种', 'Mata wang diterima', 'Moneda de destino'],
+    'Card opening and card top-ups use your available USDT balance.': [
+        '开卡和卡充值均使用 USDT 可用余额。',
+        'Pembukaan kad dan tambah nilai kad menggunakan baki USDT tersedia anda.',
+        'La apertura y las recargas de tarjetas utilizan su saldo disponible en USDT.',
+    ],
+    'Select another currency to exchange to USDT.': [
+        '请选择其他币种兑换为 USDT。',
+        'Pilih mata wang lain untuk ditukar kepada USDT.',
+        'Seleccione otra moneda para cambiarla a USDT.',
+    ],
+    'Exchange is unavailable for this account.': [
+        '当前账户暂不可兑换。',
+        'Pertukaran tidak tersedia untuk akaun ini.',
+        'El cambio no está disponible para esta cuenta.',
+    ],
+    'Exchange is not enabled for this currency.': [
+        '该币种暂未开通兑换。',
+        'Pertukaran belum diaktifkan untuk mata wang ini.',
+        'El cambio aún no está habilitado para esta moneda.',
+    ],
+    'No deposit network is available for this currency.': [
+        '该币种暂无可用充值网络。',
+        'Tiada rangkaian deposit tersedia untuk mata wang ini.',
+        'No hay redes de depósito disponibles para esta moneda.',
+    ],
+    'No withdrawal network is available for this currency.': [
+        '该币种暂无可用提现网络。',
+        'Tiada rangkaian pengeluaran tersedia untuk mata wang ini.',
+        'No hay redes de retirada disponibles para esta moneda.',
+    ],
+    'Show less': ['收起', 'Tunjukkan kurang', 'Mostrar menos'],
     'Account actions': ['账户操作', 'Tindakan akaun', 'Operaciones de cuenta'],
     'Account details and management': [
         '账户详情与管理',
@@ -51,6 +83,11 @@ export const assetsCatalog = {
         '总资产估值',
         'Anggaran jumlah aset',
         'Valor estimado de los activos',
+    ],
+    'USDT balances valued at 1:1.': [
+        'USDT 资产按 1:1 计值。',
+        'Baki USDT dinilai pada kadar 1:1.',
+        'Los saldos USDT se valoran a 1:1.',
     ],
     'Prices updated: {{time}}': [
         '行情更新时间：{{time}}',

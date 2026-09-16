@@ -10,7 +10,7 @@ export default function Restricted({ tenantRestricted }: { tenantRestricted: boo
         <UserLayout>
             <Head title={t('Account restricted')} />
             <div className="mx-auto max-w-2xl space-y-6">
-                <UserPageHeader title={t('Account')} />
+                <UserPageHeader title={t('Account')} backHref="/account/security" />
                 <UserStatusBanner
                     tone="warning"
                     title={t('Your account is currently restricted')}

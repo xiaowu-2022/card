@@ -2,6 +2,7 @@
 
 use App\Application\Admin\FinancialOperationQuery;
 use App\Application\Assets\AssetAccess;
+use App\Application\Assets\AssetOverviewQuery;
 use App\Application\Assets\ConfigureAssetsAction;
 use App\Application\Assets\DepositAssetsAction;
 use App\Application\Assets\ExchangeAssetsAction;
@@ -446,4 +447,52 @@ it('credits exactly once when manual receipt confirmation races automatic verifi
     expect($results)->toBe(['completed', 'completed']);
     expect(LedgerEntry::where('event_key', 'asset_deposit:'.$order->id.':credit')->count())->toBe(1);
     expect(LedgerAccount::where('user_id', $order->user_id)->where('asset_code', 'ETH')->where('account_type', 'USER_AVAILABLE')->first()->balance)->toBe('0.100000000000000000');
+});
+
+it('values USDT without external prices and ignores empty foreign accounts', function (string $marketState) {
+    if ($marketState === 'disabled') {
+        MarketSettings::whereKey(1)->update(['enabled' => false]);
+    } else {
+        $this->travel(121)->seconds();
+    }
+    $query = app(AssetOverviewQuery::class);
+    expect($query->get($this->tenant->id, $this->user->id, [])['estimate'])->toBe('0.00000000');
+    ($this->fund)('USDT', '1234.56789012');
+    $entries = LedgerEntry::count();
+    $overview = $query->get($this->tenant->id, $this->user->id, []);
+    expect($overview['estimate'])->toBe('1234.56789012')
+        ->and($overview['updatedAt'])->toBeNull()
+        ->and(LedgerEntry::count())->toBe($entries);
+})->with(['disabled', 'stale']);
+
+it('values nonzero foreign holdings at the USDT cross rate and hides incomplete totals', function () {
+    ($this->fund)('USDT', '100');
+    ($this->fund)('USDC', '1');
+    ($this->fund)('ETH', '0.001');
+    ($this->fund)('BTC', '0.00001');
+    $query = app(AssetOverviewQuery::class);
+    $overview = $query->get($this->tenant->id, $this->user->id, []);
+    expect($overview['estimate'])->toBe('103.60160160')
+        ->and($overview['updatedAt'])->not->toBeNull();
+    $this->travel(121)->seconds();
+    $stale = $query->get($this->tenant->id, $this->user->id, []);
+    expect($stale['estimate'])->toBeNull()
+        ->and($stale['updatedAt'])->toBeNull()
+        ->and($stale['assets'])->toBe($overview['assets']);
+});
+
+it('reports exchange readiness without enabling unconfigured currencies', function () {
+    $query = app(AssetOverviewQuery::class);
+    $read = fn () => collect($query->get($this->tenant->id, $this->user->id, ['transferAvailable' => true])['assets'])->keyBy('asset');
+    $assets = $read();
+    expect($assets['ETH']['exchange'])->toBeTrue()
+        ->and($assets['ETH']['exchangeUnavailableReason'])->toBeNull()
+        ->and($assets['USDC']['exchange'])->toBeFalse()
+        ->and($assets['USDC']['exchangeUnavailableReason'])->toBe('Exchange is not enabled for this currency.')
+        ->and($assets['USDT']['exchange'])->toBeFalse();
+    $this->travel(121)->seconds();
+    expect($read()['ETH']['exchangeUnavailableReason'])->toBe('Market prices are unavailable.');
+    $restricted = collect($query->get($this->tenant->id, $this->user->id, ['transferAvailable' => false])['assets'])->keyBy('asset');
+    expect($restricted['ETH']['exchange'])->toBeFalse()
+        ->and($restricted['ETH']['exchangeUnavailableReason'])->toBe('Exchange is unavailable for this account.');
 });

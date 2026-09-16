@@ -1,20 +1,17 @@
-import { promotionLevel } from '@/lib/paid-promotion';
+import { promotionLevel, promotionTableAmount, commissionSum } from '@/lib/paid-promotion';
 import {
     PaidPromotionSummary,
     type PaidPromotionData,
 } from '@/components/user/PaidPromotionSummary';
-import { systemMoney } from '@/lib/system-money';
+import { promotionMoney as systemMoney } from '@/lib/paid-promotion';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useRef, useState } from 'react';
 import {
     ArrowUpRight,
-    Check,
-    Copy,
     Users,
     UserCheck,
     ShieldCheck,
     Coins,
-    Ticket,
     ListFilter,
     ChevronDown,
     UserRoundPlus,
@@ -175,18 +172,16 @@ function DirectMember({ member }: { member: Member }) {
 }
 export default function PromotionPage({
     promotion: p,
-    section = 'overview',
+    section = 'invitations',
 }: {
     promotion: Promotion;
-    section?: 'overview' | 'daily' | 'direct';
+    section?: 'invitations' | 'daily' | 'direct';
 }) {
     useClientTranslation();
-    const [copied, setCopied] = useState(false);
-    const [copyFailed, setCopyFailed] = useState(false);
     const [requestId, setRequestId] = useState(() => crypto.randomUUID());
     const errors = usePage<SharedProps>().props.errors as Record<string, string>;
     const title = {
-        overview: 'Promotion center',
+        invitations: 'My invitations',
         daily: 'Daily data',
         direct: 'Direct invitees',
     }[section];
@@ -194,7 +189,7 @@ export default function PromotionPage({
     const [search, setSearch] = useState(p.filters.accountId);
     const visit = (values: Record<string, string | number>) =>
         router.get(
-            section === 'overview' ? '/promotion' : `/promotion/${section}`,
+            `/promotion/${section}`,
             {
                 date: p.date,
                 page: p.page,
@@ -218,7 +213,7 @@ export default function PromotionPage({
             <div className="promotion-page">
                 <UserPageHeader
                     title={t(title)}
-                    backHref={section === 'overview' ? '/account' : '/promotion'}
+                    backHref={section === 'invitations' ? '/promotion' : '/promotion/invitations'}
                 />
                 {errors?.form && section !== 'direct' && (
                     <p role="alert" className="text-red-700">
@@ -228,31 +223,27 @@ export default function PromotionPage({
                 {!p.supported && (
                     <p role="status">{t('Promotion currently supports USDT accounts only.')}</p>
                 )}
-                {section === 'overview' && (
+                {section === 'invitations' && (
                     <>
                         <section
-                            className="promotion-commission"
+                            className="promotion-commission border border-[#c7ac6b]"
                             aria-labelledby="commission-title"
                         >
-                            <div className="promotion-commission-top">
-                                <h2 id="commission-title">{t('Available commission')}</h2>
-                                <span
-                                    className="promotion-level"
-                                    aria-label={`${t('Promotion level')}: ${promotionLevel(p.paid.rank)}`}
-                                >
-                                    <ShieldCheck aria-hidden="true" />
-                                    <span>
-                                        {t('Promotion level')}: {promotionLevel(p.paid.rank)}
-                                    </span>
-                                </span>
+                            <div>
+                                <h2 id="commission-title" className="text-sm text-[#e2ecd8]">
+                                    {t('My total commission')}
+                                </h2>
+                                <p className="mt-2 break-all text-3xl font-semibold tabular-nums text-[#fff0bb]">
+                                    {promotionTableAmount(p.myCommission)}{' '}
+                                    <span className="text-sm font-normal">USDT</span>
+                                </p>
                             </div>
-                            <p className="promotion-commission-amount">
-                                {systemMoney(p.availableCommission)}
-                            </p>
                             <div className="promotion-commission-bottom">
                                 <div className="promotion-earned">
-                                    <p>{t('My total commission')}</p>
-                                    <p>{systemMoney(p.myCommission)}</p>
+                                    <p>{t('Commission balance')}</p>
+                                    <p className="break-all">
+                                        {systemMoney(p.availableCommission)}
+                                    </p>
                                 </div>
                                 <div className="promotion-commission-action">
                                     <FinancialConfirmation
@@ -282,47 +273,84 @@ export default function PromotionPage({
                             )}
                         </section>
                         <section
-                            className="promotion-invitation"
-                            aria-labelledby="invitation-title"
+                            className="rounded-2xl border bg-surface p-5"
+                            aria-labelledby="team-title"
                         >
-                            <div className="promotion-invitation-code">
-                                <h2 id="invitation-title">
-                                    <Ticket aria-hidden="true" />
-                                    {t('My invitation')}
-                                </h2>
-                                <p>{p.invitationCode}</p>
+                            <div className="flex items-center justify-between gap-3">
+                                <h2 id="team-title">{t('Team members')}</h2>
+                                <span className="text-2xl font-semibold">
+                                    {p.paid.directPeople + p.paid.indirectPeople}
+                                </span>
                             </div>
-                            <Button
-                                variant="secondary"
-                                onClick={() => {
-                                    setCopyFailed(false);
-                                    void navigator.clipboard
-                                        .writeText(
-                                            `${window.location.origin}/register?invite=${encodeURIComponent(p.invitationCode)}`,
-                                        )
-                                        .then(() => setCopied(true))
-                                        .catch(() => {
-                                            setCopied(false);
-                                            setCopyFailed(true);
-                                        });
-                                }}
-                            >
-                                {copied ? (
-                                    <Check aria-hidden="true" />
-                                ) : (
-                                    <Copy aria-hidden="true" />
+                            <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-muted p-4">
+                                <div>
+                                    <p className="text-2xl font-semibold">{p.paid.directPeople}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        {t('Direct team members')}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-semibold">
+                                        {p.paid.indirectPeople}
+                                    </p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        {t('Indirect team members')}
+                                    </p>
+                                </div>
+                            </div>
+                            <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                                {t(
+                                    'Indirect members include all descendants beyond your direct invitees.',
                                 )}
-                                <span>{copied ? t('Copied') : t('Copy invitation link')}</span>
-                            </Button>
-                            <span className="sr-only" role="status">
-                                {copied ? t('Copied') : copyFailed ? t('Could not copy.') : ''}
-                            </span>
-                            {copyFailed && (
-                                <p className="promotion-copy-error" role="alert">
-                                    {t('Could not copy.')}{' '}
-                                    <span className="select-all">{p.invitationCode}</span>
+                            </p>
+                        </section>
+                        {(['ANNUAL', 'ACTIVATION'] as const).map((kind) => (
+                            <section key={kind} className="rounded-2xl border bg-surface p-5">
+                                <h2>
+                                    {t(
+                                        kind === 'ANNUAL'
+                                            ? 'Annual fee commission'
+                                            : 'Activation commission',
+                                    )}
+                                </h2>
+                                <p className="mt-2 break-all text-2xl font-semibold">
+                                    {systemMoney(p.paid.totals[kind])}
                                 </p>
-                            )}
+                                <dl className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-muted p-4">
+                                    {(['direct', 'indirect'] as const).map((relation) => (
+                                        <div key={relation} className="min-w-0">
+                                            <dt className="text-xs text-muted-foreground">
+                                                {t(
+                                                    relation === 'direct'
+                                                        ? 'Direct commission income'
+                                                        : 'Indirect commission income',
+                                                )}
+                                            </dt>
+                                            <dd className="mt-2 break-all text-sm font-medium">
+                                                {systemMoney(
+                                                    commissionSum(
+                                                        ...p.paid.tables[kind].map(
+                                                            (row) => row[relation].amount,
+                                                        ),
+                                                    ),
+                                                )}
+                                            </dd>
+                                        </div>
+                                    ))}
+                                </dl>
+                            </section>
+                        ))}
+                        <section className="border-y py-4">
+                            <h2>{t('Legacy commission')}</h2>
+                            <p className="mt-2 break-all text-lg font-semibold">
+                                {systemMoney(p.paid.legacy)}
+                            </p>
+                            <Link
+                                href="/promotion/commissions"
+                                className="mt-2 inline-flex min-h-11 items-center text-sm underline"
+                            >
+                                {t('View records')}
+                            </Link>
                         </section>
                         <PaidPromotionSummary paid={p.paid} />
                         <nav className="promotion-destinations" aria-label={t('Promotion details')}>

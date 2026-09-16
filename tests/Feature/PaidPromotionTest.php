@@ -23,6 +23,7 @@ use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use App\Support\Errors\DomainException;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\RecordNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabaseState;
@@ -30,6 +31,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Inertia\Testing\AssertableInertia;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 beforeEach(function () {
@@ -431,4 +433,108 @@ it('excludes non-earning annual orders from commission tables for ordinary ances
     $report = app(PaidPromotionQuery::class)->execute($this->tenant->id, $this->user->id);
     expect($report['totals']['ANNUAL'])->toBe('0');
     expect(array_sum(array_column(array_column($report['tables']['ANNUAL'], 'direct'), 'count')))->toBe(0);
+});
+
+it('exposes read-only scoped membership states without reviving expired qualification', function () {
+    $query = app(PaidPromotionQuery::class);
+    $count = DB::table('ledger_accounts')->count();
+    $initial = $query->execute($this->tenant->id, $this->user->id);
+    expect($initial['membershipStatus'])->toBe('NONE')
+        ->and($initial['previousCycle'])->toBeNull()
+        ->and($initial['availableBalance'])->toBe('0.00000000')
+        ->and(DB::table('ledger_accounts')->count())->toBe($count);
+    paidWallet($this, $this->user);
+    $order = paidBuy($this, $this->user, 1);
+    $active = $query->execute($this->tenant->id, $this->user->id);
+    expect($active['membershipStatus'])->toBe('ACTIVE')
+        ->and($active['availableBalance'])->toBe('499000.00000000');
+    $this->travelTo(CarbonImmutable::parse(DB::table('paid_promotion_cycles')->where('id', $order->cycle_id)->value('ends_at')));
+    $expired = $query->execute($this->tenant->id, $this->user->id);
+    expect($expired['membershipStatus'])->toBe('EXPIRED')
+        ->and($expired['previousCycle']['rank'])->toBe(1)
+        ->and($expired['rank'])->toBe(0)
+        ->and($expired['cycle'])->toBeNull()
+        ->and($expired['percent'])->toBe(0)
+        ->and($expired['reward'])->toBe('20')
+        ->and($expired['availableBalance'])->toBe($active['availableBalance']);
+    $otherTenant = Tenant::where('slug', 'tenant-b')->firstOrFail();
+    $otherUser = User::where('tenant_id', $otherTenant->id)->firstOrFail();
+    expect($query->execute($otherTenant->id, $otherUser->id)['membershipStatus'])->toBe('NONE');
+});
+
+it('groups current team levels at one boundary without regrouping historical rewards', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-09-16 12:00:00', 'UTC'));
+    paidWallet($this, $this->user);
+    paidBuy($this, $this->user, 6);
+    $direct = paidChild($this, $this->user);
+    paidChild($this, $this->user);
+    paidBuy($this, $direct, 1);
+    $indirect = paidChild($this, $direct);
+    $lastOrder = paidBuy($this, $indirect, 2);
+    paidChild($this, $indirect);
+    $query = app(PaidPromotionQuery::class);
+    $before = $query->execute($this->tenant->id, $this->user->id);
+    expect($before['teamByLevel'])->toHaveCount(9)
+        ->and($before['directPeople'])->toBe(2)
+        ->and($before['indirectPeople'])->toBe(2)
+        ->and($before['teamByLevel'][0])->toBe(['rank' => 0, 'direct' => 1, 'indirect' => 1])
+        ->and($before['teamByLevel'][1]['direct'])->toBe(1)
+        ->and($before['teamByLevel'][2]['indirect'])->toBe(1)
+        ->and($before['teamByLevel'][6]['direct'])->toBe(0);
+    paidBuy($this, $direct, 3);
+    $upgraded = $query->execute($this->tenant->id, $this->user->id);
+    expect($upgraded['teamByLevel'][1]['direct'])->toBe(0)
+        ->and($upgraded['teamByLevel'][3]['direct'])->toBe(1)
+        ->and($upgraded['tables']['ANNUAL'][1])->toBe($before['tables']['ANNUAL'][1]);
+    $this->travelTo(CarbonImmutable::parse(DB::table('paid_promotion_cycles')->where('id', $lastOrder->cycle_id)->value('ends_at')));
+    $entries = DB::table('ledger_entries')->count();
+    $expired = $query->execute($this->tenant->id, $this->user->id);
+    expect($expired['teamByLevel'][0])->toBe(['rank' => 0, 'direct' => 2, 'indirect' => 2])
+        ->and(array_sum(array_column($expired['teamByLevel'], 'direct')))->toBe($expired['directPeople'])
+        ->and(array_sum(array_column($expired['teamByLevel'], 'indirect')))->toBe($expired['indirectPeople'])
+        ->and($expired['tables'])->toBe($upgraded['tables'])
+        ->and(DB::table('ledger_entries')->count())->toBe($entries);
+    paidBuy($this, $indirect, 4);
+    $renewed = $query->execute($this->tenant->id, $this->user->id);
+    expect($renewed['teamByLevel'][4]['indirect'])->toBe(1)
+        ->and($renewed['teamByLevel'][0]['indirect'])->toBe(1);
+    $foreign = Tenant::where('slug', 'tenant-b')->firstOrFail();
+    $foreignUser = User::where('tenant_id', $foreign->id)->firstOrFail();
+    $other = $query->execute($foreign->id, $foreignUser->id);
+    expect($other['directPeople'])->toBe(0)->and($other['indirectPeople'])->toBe(0);
+});
+
+it('serves a scoped benefits home without income detail or creating financial orders', function () {
+    $this->actingAs($this->user, 'tenant_user');
+    $before = DB::table('paid_promotion_orders')->count();
+    foreach (['/promotion' => 'overview', '/promotion/rules' => 'rules'] as $path => $section) {
+        $this->get('http://a.localhost'.$path)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('user/PromotionHub')->where('section', $section)
+            ->where('home.paid.rank', 0)->where('home.paid.membershipStatus', 'NONE')
+            ->has('home.paid.levels', 8)->missing('home.paid.tables')->missing('home.direct')->missing('home.paid.teamByLevel'));
+    }
+    $this->get('http://a.localhost/promotion/invitations')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+        ->component('user/Promotion')->where('section', 'invitations')->has('promotion.paid.teamByLevel', 9));
+    $this->get('http://a.localhost/promotion/team')->assertRedirect('/promotion/invitations');
+    expect(DB::table('paid_promotion_orders')->count())->toBe($before);
+    $otherTenant = Tenant::where('slug', 'tenant-b')->firstOrFail();
+    $this->get('http://b.localhost/promotion/invitations')->assertRedirect();
+    expect(fn () => app(PaidPromotionQuery::class)->benefits($otherTenant->id, $this->user->id))->toThrow(ModelNotFoundException::class);
+});
+
+it('keeps current benefit snapshots distinct from changed offers and falls back on expiry', function () {
+    paidWallet($this, $this->user);
+    $order = paidBuy($this, $this->user, 1);
+    $level = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->where('rank', 1)->first();
+    app(ConfigurePaidPromotion::class)->execute($this->tenant->id, $this->platform, $level->id,
+        ['fee' => '1500', 'reward' => 55, 'percent' => 35, 'target' => $level->target, 'revision' => $level->revision, 'enabled' => false]);
+    $query = app(PaidPromotionQuery::class);
+    $view = $query->benefits($this->tenant->id, $this->user->id);
+    expect($view['rank'])->toBe(1)->and($view['percent'])->toBe(30)->and($view['reward'])->toBe('50')
+        ->and($view['cycle']['tariff'])->toBe('1000.00000000')
+        ->and($view['levels'][0]['percent'])->toBe(35)->and($view['levels'][0]['enabled'])->toBeFalse();
+    $this->travelTo(CarbonImmutable::parse($view['cycle']['endsAt']));
+    $expired = $query->benefits($this->tenant->id, $this->user->id);
+    expect($expired['rank'])->toBe(0)->and($expired['reward'])->toBe('20')
+        ->and($expired['membershipStatus'])->toBe('EXPIRED')->and($expired['previousCycle']['rank'])->toBe(1);
 });

@@ -1,4 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
+import { UserPageHeader } from '@/components/user/UserPageHeader';
 import { UserLayout } from '@/layouts/UserLayout';
 import { t, dateTime, useClientTranslation } from '@/i18n';
 import { exactAmount } from '@/lib/exact-amount';
@@ -17,12 +18,12 @@ export default function AssetHistory({
     return (
         <UserLayout>
             <Head title={t('Account activity')} />
-            <Link href="/dashboard" className="inline-block py-3 text-sm underline">
-                {t('Back')}
-            </Link>
-            <h1 className="mb-6 text-2xl font-semibold">
-                {t('Account activity')} · {asset}
-            </h1>
+            <div className="mb-6">
+                <UserPageHeader
+                    title={`${t('Account activity')} · ${asset}`}
+                    backHref="/dashboard"
+                />
+            </div>
             {rows.data.length === 0 && (
                 <p className="py-8 text-center text-muted-foreground">{t('No activity yet')}</p>
             )}

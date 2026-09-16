@@ -1,4 +1,162 @@
 export const paidPromotionCatalog = {
+    'My level': ['我的等级', 'Tahap saya', 'Mi nivel'],
+    'Apply for level': ['申请等级', 'Mohon tahap', 'Solicitar nivel'],
+    'Upgrade level': ['升级等级', 'Naik taraf', 'Mejorar nivel'],
+    'Renew level': ['续费等级', 'Perbaharui', 'Renovar nivel'],
+    'View benefits': ['查看权益', 'Lihat manfaat', 'Ver beneficios'],
+    'Team members': ['团队人数', 'Ahli pasukan', 'Miembros del equipo'],
+    'Direct members': ['直推\n人数', 'Ahli langsung', 'Miembros directos'],
+    'Indirect members': ['间推\n人数', 'Ahli tidak langsung', 'Miembros indirectos'],
+    'Amounts in USDT': ['金额单位：USDT', 'Amaun dalam USDT', 'Importes en USDT'],
+    'Team members and commissions by level': [
+        '各等级人数及佣金',
+        'Ahli dan komisen mengikut tahap',
+        'Miembros y comisiones por nivel',
+    ],
+    'No team members or reward records yet.': [
+        '暂无团队成员或返佣记录。',
+        'Belum ada ahli pasukan atau rekod komisen.',
+        'Aún no hay miembros ni registros de comisiones.',
+    ],
+    'Show populated levels': [
+        '仅显示有数据等级',
+        'Tahap dengan data sahaja',
+        'Solo niveles con datos',
+    ],
+    'Members: current level. Commission: level at the time earned.': [
+        '人数按当前有效等级统计；佣金按产生时的等级归属。',
+        'Ahli: tahap sah semasa. Komisen: tahap ketika diperoleh.',
+        'Miembros: nivel vigente. Comisiones: nivel al generarse.',
+    ],
+    'Member counts use current valid levels; commission uses historical event levels. Do not multiply current member counts by current reward rates.':
+        [
+            '人数按当前有效等级统计，到期未续费归普通会员。佣金保留历史等级归属，不能用当前人数乘当前奖励标准倒算。',
+            'Bilangan ahli mengikut tahap sah semasa; keahlian tamat dikira sebagai ahli biasa. Komisen mengekalkan tahap ketika peristiwa berlaku. Jangan darab bilangan semasa dengan kadar semasa.',
+            'Los miembros se agrupan por su nivel vigente; los vencidos cuentan como ordinarios. Las comisiones conservan el nivel histórico. No multipliques miembros actuales por tarifas actuales.',
+        ],
+    Total: ['合计', 'Jumlah', 'Total'],
+    'Annual fee': ['年费', 'Yuran tahunan', 'Cuota anual'],
+    'Your available balance is not enough.': [
+        '可用余额不足，请先充值。',
+        'Baki tersedia tidak mencukupi. Sila tambah nilai dahulu.',
+        'El saldo disponible es insuficiente. Recarga primero.',
+    ],
+    'My promotion level': ['我的推广等级', 'Tahap promosi saya', 'Mi nivel de promoción'],
+    'Apply for promotion membership': [
+        '申请推广等级',
+        'Mohon keahlian promosi',
+        'Solicitar nivel de promoción',
+    ],
+    'Renew promotion membership': [
+        '续费推广等级',
+        'Perbaharui keahlian promosi',
+        'Renovar nivel de promoción',
+    ],
+    'View level benefits': ['查看等级权益', 'Lihat manfaat tahap', 'Ver beneficios del nivel'],
+    'Choose a level and pay to activate one year of membership. No automatic renewal.': [
+        '选择等级并支付年费后生效，有效一年，不自动续费。',
+        'Pilih tahap dan bayar untuk mengaktifkan keahlian setahun. Tiada pembaharuan automatik.',
+        'Elige un nivel y paga para activarlo durante un año. Sin renovación automática.',
+    ],
+    'Your previous level expired on {{time}}. Ordinary member rewards now apply.': [
+        '原等级已于 {{time}} 到期，当前按普通会员享受奖励。',
+        'Tahap terdahulu tamat pada {{time}}. Ganjaran ahli biasa kini terpakai.',
+        'Tu nivel anterior venció el {{time}}. Ahora se aplican las recompensas de miembro ordinario.',
+    ],
+    'Commission balance': ['佣金余额', 'Baki komisen', 'Saldo de comisiones'],
+    'Reward breakdown': ['返佣明细', 'Pecahan komisen', 'Desglose de comisiones'],
+    'Show recorded levels': [
+        '仅显示有记录等级',
+        'Tunjukkan tahap dengan rekod sahaja',
+        'Mostrar niveles con registros',
+    ],
+    'Show all levels': ['显示全部等级', 'Tunjukkan semua tahap', 'Mostrar todos los niveles'],
+    'Combined rewards': ['两类返佣合计', 'Jumlah kedua-dua komisen', 'Total de ambas comisiones'],
+    'View records': ['查看记录', 'Lihat rekod', 'Ver registros'],
+    'No annual fee or activation reward records yet.': [
+        '暂无年费或激活返佣记录。',
+        'Belum ada rekod komisen yuran tahunan atau pengaktifan.',
+        'Aún no hay registros de comisiones por cuota anual o activación.',
+    ],
+    'Activation commission': ['激活佣金', 'Komisen pengaktifan', 'Comisión de activación'],
+    'Ordinary members do not earn annual fee commission.': [
+        '普通会员不参与年费返佣。',
+        'Ahli biasa tidak menerima komisen yuran tahunan.',
+        'Los miembros ordinarios no reciben comisiones de cuota anual.',
+    ],
+    '{{count}} paid orders': [
+        '{{count}} 笔缴费订单',
+        '{{count}} pesanan berbayar',
+        '{{count}} órdenes pagadas',
+    ],
+    '{{count}} funding events': [
+        '{{count}} 次保证金缴纳',
+        '{{count}} kali pendanaan deposit',
+        '{{count}} aportaciones de garantía',
+    ],
+    'Levels reflect the paid order or deposit payer at the time of the event. Order counts and funding counts are separate, not team headcounts.':
+        [
+            '等级按订单购买等级或缴纳人当时等级统计；订单笔数与缴纳次数分别计算，不代表团队人数。',
+            'Tahap berdasarkan pesanan berbayar atau pembayar deposit ketika peristiwa berlaku. Bilangan pesanan dan pendanaan berasingan, bukan bilangan ahli pasukan.',
+            'Los niveles corresponden a la compra o al pagador en ese momento. Las órdenes y aportaciones se cuentan por separado; no son el número de miembros.',
+        ],
+    'Membership steps': ['等级申请步骤', 'Langkah keahlian', 'Pasos de solicitud'],
+    'You have the highest promotion level.': [
+        '您已达到最高推广等级。',
+        'Anda sudah mencapai tahap promosi tertinggi.',
+        'Ya tienes el nivel de promoción más alto.',
+    ],
+    'No promotion levels are currently available.': [
+        '当前暂无可购买的推广等级。',
+        'Tiada tahap promosi tersedia untuk pembelian sekarang.',
+        'No hay niveles de promoción disponibles para comprar.',
+    ],
+    'per year': ['／年', '/ tahun', '/ año'],
+    'Annual fee rebate conditions': [
+        '年费返还条件',
+        'Syarat pulangan yuran tahunan',
+        'Condiciones de devolución de cuota',
+    ],
+    'Rebate requires {{target}} weighted funding events. Direct counts as one; indirect counts as half.':
+        [
+            '达到 {{target}} 次折算缴纳可申请返年费：直属每次计 1，间推每次计 0.5。',
+            'Capai {{target}} pendanaan berwajaran untuk memohon pulangan: langsung dikira 1, tidak langsung 0.5.',
+            'Puedes solicitar la devolución al alcanzar {{target}} aportaciones ponderadas: directa cuenta 1 e indirecta 0,5.',
+        ],
+    'Next: review fees': [
+        '下一步：核对费用',
+        'Seterusnya: semak yuran',
+        'Siguiente: revisar costes',
+    ],
+    'Target level': ['目标等级', 'Tahap sasaran', 'Nivel elegido'],
+    'Purchased tariff': [
+        '本周期已购档位年费',
+        'Yuran tahap dibeli bagi kitaran ini',
+        'Tarifa adquirida en este período',
+    ],
+    'Upgrade payment': ['本次升级补差', 'Bayaran beza naik taraf', 'Diferencia de la mejora'],
+    'Amount due': ['本次应付', 'Amaun perlu dibayar', 'Importe a pagar'],
+    'Available USDT balance': ['USDT 可用余额', 'Baki USDT tersedia', 'Saldo disponible en USDT'],
+    'The payment quote has expired. Review fees again.': [
+        '费用报价已过期，请重新核对费用。',
+        'Sebut harga bayaran tamat tempoh. Semak yuran semula.',
+        'La cotización ha caducado. Revisa los costes de nuevo.',
+    ],
+    'Choose again and review fees': [
+        '重新选择并核对费用',
+        'Pilih dan semak yuran semula',
+        'Elegir de nuevo y revisar costes',
+    ],
+    'This year’s annual fee rebate': [
+        '本年度年费返还',
+        'Pulangan yuran tahunan kitaran ini',
+        'Devolución de cuota de este período',
+    ],
+    'Eligible rebate amount': [
+        '当前可申请金额',
+        'Amaun layak dimohon',
+        'Importe que puedes solicitar',
+    ],
     'Pay {{amount}} USDT to upgrade to {{level}}. The original expiry date stays unchanged.': [
         '支付 {{amount}} USDT，升级为{{level}}。原到期日不变。',
         'Bayar {{amount}} USDT untuk naik ke {{level}}. Tarikh tamat asal dikekalkan.',
@@ -54,7 +212,7 @@ export const paidPromotionCatalog = {
     'Promotion membership': ['推广等级与年费', 'Keahlian promosi', 'Membresía de promoción'],
     'Valid until {{time}}': ['有效期至 {{time}}', 'Sah sehingga {{time}}', 'Válido hasta {{time}}'],
     'Direct team members': ['直属人数', 'Ahli langsung', 'Miembros directos'],
-    'Indirect team members': ['间推人数', 'Ahli tidak langsung', 'Miembros indirectos'],
+    'Indirect team members': ['间推\n人数', 'Ahli tidak langsung', 'Miembros indirectos'],
     'My annual fee commission': [
         '我的年费佣金',
         'Komisen yuran tahunan saya',
@@ -116,11 +274,7 @@ export const paidPromotionCatalog = {
         'Yuran tahunan dan deposit keselamatan berasingan. Tiada pembaharuan automatik.',
         'Las cuotas anuales y las garantías son independientes. Sin renovación automática.',
     ],
-    'Review promotion payment': [
-        '核对推广等级付款',
-        'Semak bayaran keahlian',
-        'Revisar pago de membresía',
-    ],
+    'Review promotion payment': ['核对费用', 'Semak bayaran keahlian', 'Revisar pago de membresía'],
     'Promotion payment completed.': [
         '推广等级付款完成。',
         'Bayaran keahlian selesai.',
@@ -342,5 +496,191 @@ export const paidPromotionCatalog = {
         '该请求已用于其他等级，请重新获取报价。',
         'Permintaan telah digunakan untuk tahap lain.',
         'Esta solicitud ya se utilizó para otro nivel.',
+    ],
+    'My invitations': ['我的邀请', 'Jemputan saya', 'Mis invitaciones'],
+    'Invitation rules': ['邀请规则', 'Peraturan jemputan', 'Reglas de invitación'],
+    'Direct commission income': [
+        '直属佣金收入',
+        'Pendapatan komisen langsung',
+        'Ingresos directos',
+    ],
+    'Indirect commission income': [
+        '间推佣金收入',
+        'Pendapatan komisen tidak langsung',
+        'Ingresos indirectos',
+    ],
+    'Indirect members include all descendants beyond your direct invitees.': [
+        '间推人数包含所有非直属下级，不仅限于第二层。',
+        'Ahli tidak langsung merangkumi semua keturunan selain jemputan langsung anda.',
+        'Los miembros indirectos incluyen todos los descendientes que no invitaste directamente.',
+    ],
+    'Invitation to join': ['邀请加入', 'Jemputan untuk menyertai', 'Invitación para unirte'],
+    'Invitation relationship': ['邀请关系', 'Hubungan jemputan', 'Relación de invitación'],
+    'Friends who register through your link or invitation code join your team. Direct invitees and indirect descendants are counted separately.':
+        [
+            '好友通过你的链接或邀请码注册后加入团队。直属与间推分别统计，互不重复。',
+            'Rakan yang mendaftar melalui pautan atau kod anda menyertai pasukan anda. Jemputan langsung dan tidak langsung dikira berasingan.',
+            'Los amigos que se registran con tu enlace o código se unen a tu equipo. Los invitados directos y los descendientes indirectos se cuentan por separado.',
+        ],
+    'A successful security deposit payment triggers activation rewards. Registration and paying an annual fee are not deposit activation. A new payment after a refund can earn rewards again; cancelling a refund is not a new activation.':
+        [
+            '保证金成功缴纳后触发激活奖励。注册、支付推广年费不算保证金激活。退款后重新缴纳可再次返佣；取消退款不算新激活。',
+            'Bayaran deposit jaminan yang berjaya mencetuskan ganjaran pengaktifan. Pendaftaran dan yuran tahunan bukan pengaktifan. Bayaran baharu selepas bayaran balik boleh mendapat ganjaran lagi; pembatalan bayaran balik bukan pengaktifan baharu.',
+            'El pago correcto de la garantía genera recompensas de activación. Registrarse o pagar la cuota anual no activa la garantía. Un nuevo pago tras un reembolso puede generar otra recompensa; cancelar el reembolso no es una nueva activación.',
+        ],
+    'Reward differentials': ['奖励级差', 'Perbezaan ganjaran', 'Diferencias de recompensa'],
+    'The direct inviter earns their activation standard; higher ancestors earn only the positive uncovered difference. Ordinary members earn 20 USDT for direct activations only. The payer’s own level does not reduce their direct inviter’s reward.':
+        [
+            '直属推荐人按自己的激活奖励标准获奖，更高上级只获得尚未覆盖的正差额。普通会员仅获直属激活奖励20 USDT。缴纳人自己的等级不会扣减直属推荐人的奖励。',
+            'Penjemput langsung menerima ganjaran mengikut tahapnya; penjemput atasan hanya menerima beza positif yang belum diliputi. Ahli biasa hanya mendapat 20 USDT bagi pengaktifan langsung. Tahap pembayar tidak mengurangkan ganjaran penjemput langsung.',
+            'El invitador directo recibe la recompensa de su nivel; los superiores solo reciben la diferencia positiva no cubierta. Los miembros ordinarios reciben 20 USDT por activaciones directas. El nivel del pagador no reduce la recompensa del invitador directo.',
+        ],
+    'Annual fee commission is calculated on the amount actually paid for a purchase, renewal or upgrade. From the nearest inviter upwards, only the positive difference above the highest covered rate is paid. Ordinary members do not participate; equal or lower rates earn no extra share.':
+        [
+            '年费佣金按首购、续费或升级的本次实付金额计算。从最近推荐人向上，仅分配高于下方已覆盖最高比例的正差额。普通会员不参与；同级或更低比例不重复分成。',
+            'Komisen yuran tahunan dikira atas amaun sebenar pembelian, pembaharuan atau naik taraf. Bermula daripada penjemput terdekat, hanya beza positif melebihi kadar tertinggi yang telah diliputi dibayar. Ahli biasa tidak terlibat; kadar sama atau lebih rendah tidak mendapat bahagian tambahan.',
+            'La comisión anual se calcula sobre el importe pagado al comprar, renovar o mejorar. Desde el invitador más cercano hacia arriba, solo se paga la diferencia positiva sobre la tasa máxima ya cubierta. Los miembros ordinarios no participan; las tasas iguales o inferiores no reciben una parte adicional.',
+        ],
+    'Membership validity': ['等级有效期', 'Tempoh sah keahlian', 'Vigencia del nivel'],
+    'Membership lasts one year with manual renewal after expiry. An active membership can only be upgraded: pay the tariff difference and keep the original expiry. After expiry, ordinary member rewards apply; past commissions remain.':
+        [
+            '推广等级有效一年，到期后手动续费。有效期内仅支持补差升级，原到期日不变。到期未续费按普通会员结算，历史佣金保留。',
+            'Keahlian sah setahun dengan pembaharuan manual selepas tamat. Keahlian aktif hanya boleh dinaik taraf dengan membayar beza tarif tanpa mengubah tarikh tamat. Selepas tamat, ganjaran ahli biasa terpakai; komisen lama kekal.',
+            'El nivel dura un año y se renueva manualmente tras vencer. Durante su vigencia solo se permite mejorar pagando la diferencia, sin cambiar el vencimiento. Al vencer se aplican recompensas ordinarias; las comisiones pasadas se conservan.',
+        ],
+    'Each paid year counts direct deposit payments as one and indirect payments as half. On reaching your level’s threshold, apply before expiry for platform review. Returns are limited to that cycle’s paid, unreturned annual fees. Upgrades retain progress and apply the new threshold; returned fees do not reduce the upgrade tariff.':
+        [
+            '每个付费年度内，直属保证金缴纳计1次，间推计0.5次。达到等级门槛后需在到期前申请，由平台审核；最多返还本周期已付且尚未返还的年费。升级保留进度并采用新门槛；已返年费不减少补差基数。',
+            'Setiap tahun berbayar mengira bayaran deposit langsung sebagai satu dan tidak langsung sebagai separuh. Apabila mencapai ambang tahap, mohon sebelum tamat untuk semakan platform. Pulangan terhad kepada yuran kitaran yang dibayar dan belum dipulangkan. Naik taraf mengekalkan kemajuan dengan ambang baharu; yuran yang dipulangkan tidak mengurangkan asas tarif naik taraf.',
+            'En cada año pagado, las garantías directas cuentan como una y las indirectas como media. Al alcanzar el umbral, solicita la devolución antes del vencimiento para revisión. Solo se devuelve la cuota pagada y aún no devuelta del ciclo. Las mejoras conservan el progreso y usan el nuevo umbral; las devoluciones no reducen la base de la mejora.',
+        ],
+    'Annual fee rebate thresholds': [
+        '返年费门槛',
+        'Ambang pemulangan yuran tahunan',
+        'Umbrales de devolución anual',
+    ],
+    '{{count}} weighted events': [
+        '{{count}}次折算缴纳',
+        '{{count}} peristiwa berwajaran',
+        '{{count}} eventos ponderados',
+    ],
+    'Thresholds shown are current offer terms. Your paid year uses its saved terms.': [
+        '此处展示当前可购买等级的门槛；你的付费年度按已保存的条款执行。',
+        'Ambang ini ialah terma tawaran semasa. Tahun berbayar anda menggunakan terma tersimpan.',
+        'Estos umbrales son los de la oferta actual. Tu año pagado utiliza las condiciones guardadas.',
+    ],
+    'Manage annual fee rebate': [
+        '管理年费返还',
+        'Urus pemulangan yuran',
+        'Gestionar devolución anual',
+    ],
+    'Promotion level benefits': [
+        '推广等级权益',
+        'Manfaat tahap promosi',
+        'Beneficios de los niveles',
+    ],
+    'Swipe to compare levels': [
+        '左右滑动查看各等级',
+        'Leret untuk membandingkan tahap',
+        'Desliza para comparar niveles',
+    ],
+    'Current level': ['当前等级', 'Tahap semasa', 'Nivel actual'],
+    'Purchased annual tariff': [
+        '本周期已购年费档位',
+        'Tarif tahunan kitaran dibeli',
+        'Tarifa anual adquirida',
+    ],
+    'No annual fee': ['免年费', 'Tiada yuran tahunan', 'Sin cuota anual'],
+    'Direct activation standard': [
+        '直属激活奖励',
+        'Ganjaran pengaktifan langsung',
+        'Recompensa por activación directa',
+    ],
+    'USDT / event': ['USDT／次', 'USDT / peristiwa', 'USDT / evento'],
+    'Annual fee reward rate': [
+        '年费返佣比例',
+        'Kadar komisen yuran tahunan',
+        'Comisión por cuota anual',
+    ],
+    'View calculation example': [
+        '查看计算示例',
+        'Lihat contoh pengiraan',
+        'Ver ejemplo de cálculo',
+    ],
+    'Example only: a direct invitee pays 1,000 USDT in annual fees. At {{rate}}%, your commission is {{amount}} USDT.':
+        [
+            '计算示例：假设直属好友本次实付年费1,000 USDT，按{{rate}}%计算，你的佣金为{{amount}} USDT。',
+            'Contoh sahaja: jemputan langsung membayar yuran tahunan 1,000 USDT. Pada {{rate}}%, komisen anda ialah {{amount}} USDT.',
+            'Solo como ejemplo: un invitado directo paga 1,000 USDT de cuota anual. Al {{rate}}%, tu comisión es {{amount}} USDT.',
+        ],
+    'Indirect rewards cover only the positive remaining rate difference. Actual income follows settled records.':
+        [
+            '间推仅获得尚未覆盖的正比例差额。实际收入以结算记录为准。',
+            'Ganjaran tidak langsung hanya meliputi beza kadar positif yang berbaki. Pendapatan sebenar mengikut rekod penyelesaian.',
+            'Las recompensas indirectas solo cubren la diferencia positiva restante. Los ingresos reales dependen de los registros liquidados.',
+        ],
+    'Your current benefits': ['当前享有权益', 'Manfaat semasa anda', 'Tus beneficios actuales'],
+    'Downgrades are not available.': [
+        '不支持降级。',
+        'Penurunan tahap tidak tersedia.',
+        'No se permite bajar de nivel.',
+    ],
+    'Currently unavailable for purchase': [
+        '暂不可申请',
+        'Belum tersedia untuk pembelian',
+        'Solicitud no disponible',
+    ],
+    'Renew or reactivate': [
+        '续费／重新开通',
+        'Perbaharui / aktifkan semula',
+        'Renovar / reactivar',
+    ],
+    'Upgrade to this level': ['升级至此等级', 'Naik taraf ke tahap ini', 'Mejorar a este nivel'],
+    'Apply for this level': ['申请此等级', 'Mohon tahap ini', 'Solicitar este nivel'],
+    'Previous level': ['上一个等级', 'Tahap sebelumnya', 'Nivel anterior'],
+    'Next level': ['下一个等级', 'Tahap seterusnya', 'Siguiente nivel'],
+    'Invitation steps': ['邀请步骤', 'Langkah jemputan', 'Pasos para invitar'],
+    'Share your invitation link with a friend.': [
+        '分享邀请链接给好友。',
+        'Kongsi pautan jemputan dengan rakan.',
+        'Comparte tu enlace de invitación con un amigo.',
+    ],
+    'Your friend registers through the link and joins your team.': [
+        '好友通过链接注册，建立邀请关系。',
+        'Rakan mendaftar melalui pautan dan menyertai pasukan anda.',
+        'Tu amigo se registra con el enlace y se une a tu equipo.',
+    ],
+    'After a successful security deposit or promotion annual fee payment, rewards follow your valid level and the commission rules.':
+        [
+            '好友成功缴纳保证金或支付推广年费后，按你的有效等级及返佣规则结算。',
+            'Selepas bayaran deposit jaminan atau yuran promosi tahunan berjaya, ganjaran mengikut tahap sah dan peraturan komisen anda.',
+            'Tras el pago correcto de la garantía o la cuota anual de promoción, las recompensas se calculan según tu nivel vigente y las reglas de comisión.',
+        ],
+    'Registration alone earns no commission. Ordinary members earn direct activation rewards only.':
+        [
+            '注册本身不产生佣金；普通会员仅享直属激活奖励。',
+            'Pendaftaran sahaja tidak menghasilkan komisen. Ahli biasa hanya mendapat ganjaran pengaktifan langsung.',
+            'Registrarse no genera comisiones. Los miembros ordinarios solo reciben recompensas por activaciones directas.',
+        ],
+    'Share invitation link': [
+        '分享邀请链接',
+        'Kongsi pautan jemputan',
+        'Compartir enlace de invitación',
+    ],
+    'Invitation link shared.': [
+        '已分享邀请链接。',
+        'Pautan jemputan telah dikongsi.',
+        'Enlace de invitación compartido.',
+    ],
+    'Could not copy. Copy the link below manually.': [
+        '复制失败，请手动复制下方链接。',
+        'Gagal menyalin. Sila salin pautan di bawah secara manual.',
+        'No se pudo copiar. Copia manualmente el enlace de abajo.',
+    ],
+    'Invitation link': ['邀请链接', 'Pautan jemputan', 'Enlace de invitación'],
+    'An active verified USDT wallet is required to purchase a level.': [
+        '购买等级需要已激活且通过认证的USDT钱包。',
+        'Dompet USDT aktif dan disahkan diperlukan untuk membeli tahap.',
+        'Necesitas una billetera USDT activa y verificada para adquirir un nivel.',
     ],
 } as const;

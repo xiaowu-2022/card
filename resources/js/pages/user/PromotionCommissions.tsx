@@ -1,4 +1,4 @@
-import { systemMoney } from '@/lib/system-money';
+import { promotionMoney as systemMoney } from '@/lib/paid-promotion';
 import { Head, router } from '@inertiajs/react';
 import { ChevronDown, ReceiptText } from 'lucide-react';
 import { UserLayout } from '@/layouts/UserLayout';
@@ -45,7 +45,10 @@ export default function PromotionCommissions({ history }: { history: History }) 
             <Head title={t('Commission details')} />
             <div className="promotion-page promotion-commissions-page">
                 <div className="promotion-commissions-header">
-                    <UserPageHeader title={t('Commission details')} backHref="/promotion" />
+                    <UserPageHeader
+                        title={t('Commission details')}
+                        backHref="/promotion/invitations"
+                    />
                     <p className="promotion-section-note">
                         {t('Only your commission records are shown.')}
                     </p>

@@ -112,15 +112,14 @@ export default function Wallet({
         <UserLayout>
             <Head title={t('Asset activity')} />
             <div className="space-y-6 sm:space-y-8">
+                <UserPageHeader title={t('Asset activity')} backHref="/dashboard" />
                 {!activated ? (
                     <>
-                        <UserPageHeader title={t('Asset activity')} />
                         <InactiveWallet eligibility={eligibility} />
                     </>
                 ) : (
                     <>
                         <div className="user-overview">
-                            <h1 className="sr-only">{t('Asset activity')}</h1>
                             <UserBalanceHero
                                 amount={eligibility.available!.amount}
                                 asset={eligibility.available!.asset}

@@ -66,7 +66,7 @@ export function FinancialConfirmation({
                         className="space-y-4"
                         onSubmit={(event) => {
                             event.preventDefault();
-                            if (busy || !confirmed || password === '') return;
+                            if (disabled || busy || !confirmed || password === '') return;
                             setBusy(true);
                             setError(undefined);
                             router.post(
@@ -111,7 +111,10 @@ export function FinancialConfirmation({
                                 {error}
                             </p>
                         )}
-                        <Button type="submit" disabled={busy || !confirmed || password === ''}>
+                        <Button
+                            type="submit"
+                            disabled={disabled || busy || !confirmed || password === ''}
+                        >
                             {t('Confirm')}
                         </Button>
                     </form>

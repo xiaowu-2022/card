@@ -1,6 +1,6 @@
 import { t, useClientTranslation } from '@/i18n';
 import { Head } from '@inertiajs/react';
-import { PageHeader } from '@/components/shared/PageHeader';
+import { UserPageHeader } from '@/components/user/UserPageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { UserLayout } from '@/layouts/UserLayout';
 
@@ -10,8 +10,8 @@ export default function DemoWallet() {
         <UserLayout>
             <Head title={t('Demo wallet')} />
             <div className="space-y-6">
-                <PageHeader
-                    eyebrow="Local demo only"
+                <UserPageHeader
+                    backHref="/dashboard"
                     title={t('Mock wallet preview')}
                     description={t(
                         'This isolated page contains no production balance or transaction data.',

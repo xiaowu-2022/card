@@ -29,6 +29,8 @@ final readonly class AssetOverviewQuery
         $wallets = Wallet::where('tenant_id', $tenantId)->where('user_id', $userId)->get()->keyBy('asset_code');
         $snapshot = $this->prices->latest();
         $total = BigDecimal::of('0');
+        $valuationAvailable = true;
+        $usesMarketPrices = false;
         $assets = [];
         $rails = AssetRail::query()->where('enabled', true)->get();
         $connections = ChainConnection::query()->where('enabled', true)->whereNotNull('next_height')->get()->keyBy('network');
@@ -46,8 +48,16 @@ final readonly class AssetOverviewQuery
             $deposit = $asset === 'USDT' ? $balance('USER_SECURITY_DEPOSIT') : '0';
             $commission = $asset === 'USDT' ? $balance('USER_COMMISSION') : '0';
             $native = BigDecimal::of($available)->plus($held)->plus($deposit)->plus($commission);
-            if ($snapshot) {
-                $total = $total->plus($native->multipliedBy($asset === 'USDT' ? '1' : $this->prices->rate($snapshot, $asset)));
+            if ($asset === 'USDT') {
+                // USDT is the valuation unit; its own balance needs no market quote.
+                $total = $total->plus($native);
+            } elseif (! $native->isZero()) {
+                if ($snapshot === null) {
+                    $valuationAvailable = false;
+                } else {
+                    $total = $total->plus($native->multipliedBy($this->prices->rate($snapshot, $asset)));
+                    $usesMarketPrices = true;
+                }
             }
             $options = [];
             if ($asset === 'USDT' && (($legacy['topupAvailable'] ?? false) || ($legacy['withdrawalAvailable'] ?? false))) {
@@ -71,9 +81,16 @@ final readonly class AssetOverviewQuery
                     },
                 ]));
             }
-            $assets[] = ['asset' => $asset, 'available' => $available, 'held' => Money::of((string) $held, $asset)->amount(), 'deposit' => $deposit, 'commission' => $commission, 'rails' => $options, 'transfer' => $asset === 'USDT' && $eligible, 'exchange' => $assetEligible && $asset !== 'USDT' && $policy?->enabled && $policy->fee_percent !== null && $policy->single_limit !== null && $policy->daily_limit !== null && $snapshot !== null, 'activity' => $activity, 'orders' => $orders->sortByDesc('time')->take(10)->values()->all()];
+            $exchangeReason = match (true) {
+                $asset === 'USDT' => 'Select another currency to exchange to USDT.',
+                ! $assetEligible => 'Exchange is unavailable for this account.',
+                ! $policy?->enabled, $policy->fee_percent === null, $policy->single_limit === null, $policy->daily_limit === null => 'Exchange is not enabled for this currency.',
+                $snapshot === null => 'Market prices are unavailable.',
+                default => null,
+            };
+            $assets[] = ['asset' => $asset, 'available' => $available, 'held' => Money::of((string) $held, $asset)->amount(), 'deposit' => $deposit, 'commission' => $commission, 'rails' => $options, 'transfer' => $asset === 'USDT' && $eligible, 'exchange' => $exchangeReason === null, 'exchangeUnavailableReason' => $exchangeReason, 'activity' => $activity, 'orders' => $orders->sortByDesc('time')->take(10)->values()->all()];
         }
 
-        return ['assets' => $assets, 'estimate' => $snapshot ? (string) $total->toScale(8, RoundingMode::Down) : null, 'updatedAt' => $snapshot?->observed_at->toIso8601String()];
+        return ['assets' => $assets, 'estimate' => $valuationAvailable ? (string) $total->toScale(8, RoundingMode::Down) : null, 'updatedAt' => $valuationAvailable && $usesMarketPrices ? $snapshot?->observed_at->toIso8601String() : null];
     }
 }

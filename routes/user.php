@@ -110,7 +110,7 @@ Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operat
     Route::post('/promotion/rebates/{rebate}/withdraw', [PaidPromotionController::class, 'withdraw'])->whereUuid('rebate')->middleware('throttle:5,1');
     Route::get('/promotion', [PromotionController::class, 'show'])->name('user.promotion');
     Route::get('/promotion/commissions', [PromotionController::class, 'commissions'])->name('user.promotion.commissions');
-    Route::get('/promotion/{section}', [PromotionController::class, 'show'])->whereIn('section', ['team', 'daily', 'direct'])->name('user.promotion.section');
+    Route::get('/promotion/{section}', [PromotionController::class, 'show'])->whereIn('section', ['team', 'daily', 'direct', 'invitations', 'rules'])->name('user.promotion.section');
     Route::post('/promotion', [PromotionController::class, 'update'])->middleware('throttle:10,1')->name('user.promotion.update');
     Route::get('/about', [AboutController::class, 'index'])->name('user.about');
     Route::get('/about/{article}', [AboutController::class, 'show'])->whereIn('article', ['terms', 'privacy', 'account-closure'])->name('user.about.article');

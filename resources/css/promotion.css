@@ -13,12 +13,6 @@
 .promotion-page .user-page-header {
     margin: 0;
 }
-.promotion-page .user-page-header > div:first-child {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    min-width: 0;
-}
 .promotion-page .user-page-header a {
     flex-shrink: 0;
     margin: 0;
@@ -26,7 +20,7 @@
 .user-theme .user-main .promotion-page .user-page-header h1 {
     font-size: 22px;
     line-height: 1.35;
-    text-align: left;
+    text-align: center;
 }
 .promotion-page h2 {
     font-size: 16px;
@@ -532,4 +526,91 @@
     .promotion-destinations > a:hover {
         background: #f3f6f3;
     }
+}
+
+/* Benefits carousel: native scrolling; only this track may overflow horizontally. */
+.promotion-level-track {
+    position: relative;
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    padding: 2px 24px 6px;
+    scroll-padding-inline: 24px;
+    overscroll-behavior-x: contain;
+}
+.promotion-level-track::-webkit-scrollbar {
+    display: none;
+}
+.promotion-level-track:focus-visible {
+    outline: 2px solid var(--user-primary);
+    outline-offset: 2px;
+    border-radius: 18px;
+}
+.promotion-level-card {
+    flex: 0 0 100%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    scroll-snap-align: center;
+    padding: 16px;
+    border: 1px solid #e8dec5;
+    border-radius: 16px;
+    background: #faf5e7;
+    color: #193b31;
+}
+.promotion-level-card.is-current {
+    background: #193b31;
+    border-color: #c7ac6b;
+    color: #fff0bb;
+}
+.promotion-invite-steps {
+    margin-block: 20px;
+}
+.promotion-invite-steps li {
+    position: relative;
+    display: flex;
+    gap: 12px;
+    padding-bottom: 24px;
+    font-size: 13px;
+    line-height: 1.8;
+}
+.promotion-invite-steps li:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    top: 24px;
+    bottom: 0;
+    left: 11px;
+    border-left: 1px dashed #a9c7b9;
+}
+.promotion-invite-steps li > span {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #e3f0e9;
+    color: #193b31;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* Keep sharing above the persistent navigation, with matching shell/safe-area sizing. */
+.promotion-share-dock {
+    position: fixed;
+    inset-inline: 0;
+    bottom: calc(clamp(64px, 14.133cqw, 106px) + env(safe-area-inset-bottom));
+    z-index: 30;
+    max-width: 750px;
+    margin-inline: auto;
+    display: grid;
+    gap: 8px;
+    padding: 8px min(4.267cqw, 32px);
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+}
+.promotion-share-dock [role='status']:empty {
+    display: none;
 }

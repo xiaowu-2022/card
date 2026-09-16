@@ -250,11 +250,11 @@ it('rejects malformed or mismatched card numbers before revealing sensitive info
     ])->assertStatus(503)->assertJsonMissingPath('pan')->assertJsonMissingPath('cvv');
 })->with(['masked' => ['************1234'], 'too short' => ['1234'], 'wrong card' => ['4111111111119999']]);
 
-it('verifies notifications deduplicates them and synchronizes card truth without changing wallet', function (): void {
+it('verifies notifications deduplicates them and synchronizes card truth without changing wallet', function (int $keyBits): void {
     [$card,$provider] = managedCardFixture($this);
     $before = phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance;
     $provider->shouldReceive('getTransaction')->once()->with($card->provider_card_id, 'TX-CONSUMPTION')->andReturn(new ProviderCardTransactionDTO('TX-CONSUMPTION', '3.00000000', 'USD', 'purchase', 'completed', '2026-09-11T12:00:00', 'A shop'));
-    $key = openssl_pkey_new(['private_key_bits' => 2048]);
+    $key = openssl_pkey_new(['private_key_bits' => $keyBits]);
     config(['card-provider.photonpay.webhook_public_key' => openssl_pkey_get_details($key)['key']]);
     $body = json_encode(['cardId' => $card->provider_card_id, 'transactionId' => 'TX-CONSUMPTION', 'cardBalance' => '99999', 'tenant_id' => (string) Str::uuid()]);
     openssl_sign($body, $signature, $key, OPENSSL_ALGO_MD5);
@@ -273,7 +273,7 @@ it('verifies notifications deduplicates them and synchronizes card truth without
         ->and(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe($before)
         ->and(CardTransaction::query()->count())->toBe(1);
     app(ProcessCardNotificationAction::class)->execute($event->tenant_id, $event->id);
-});
+})->with([1024, 2048]);
 
 it('retries holder notifications when the provider lookup preserves stale ready state', function (): void {
     [$card, $provider] = managedCardFixture($this);

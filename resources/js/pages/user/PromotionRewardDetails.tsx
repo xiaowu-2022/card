@@ -34,7 +34,7 @@ export default function PromotionRewardDetails({
                         ? 'Annual fee commission details'
                         : 'Activation commission details',
                 )}
-                backHref="/promotion"
+                backHref="/promotion/invitations"
             />
             <p className="mb-4">{promotionLevel(d.rank)}</p>
             {d.items.map((r) => (

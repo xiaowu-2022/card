@@ -178,3 +178,25 @@ No live recharge is performed merely to test this UI change.
 PhotonPay interfaces, quote confirmation and notifications use the private daily
 logging channel described in [PHOTONPAY_LOGGING.md](PHOTONPAY_LOGGING.md). Logs
 contain bounded metadata only; transport, financial and retry contracts are unchanged.
+
+### Notification public-key compatibility (2026-09-16)
+
+An operator-supplied PhotonPay notification public key was a parseable RSA-1024
+SPKI PEM; the verifier's previous hard-coded 2048-bit floor rejected it with
+CARD_WEBHOOK_UNAVAILABLE before signature verification. Notification verification
+now accepts configured RSA public keys of at least 1024 bits, including RSA-2048.
+This compatibility change is confined to incoming PhotonPay notifications; it does
+not change merchant key generation or request signing. The documented MD5withRSA
+check over exact raw bytes is still mandatory, with no unsigned fallback. Missing,
+malformed, non-RSA and smaller keys fail with 503; invalid signatures fail with 401.
+Actual and literal-escaped newlines are supported. A literal backslash before the
+PEM END marker is malformed and must be corrected in configuration, not silently
+stripped. No key material is logged or committed as a deployment default.
+
+Contract rechecked against the sandbox documentation's signing/notification sections:
+https://api-doc.sandbox.photontech.cc/data/2026-08-06_zh.json . That document directs
+merchants to obtain the platform verification key from developer settings and does
+not prescribe the previous 2048-bit notification-key minimum. Local generated-key
+tests establish parsing/signature compatibility, not the authenticity of an operator's
+key or successful live callback delivery. Deploy the verifier change, correct the
+server PEM if needed, rebuild configuration cache and reload PHP-FPM before acceptance.

@@ -73,3 +73,18 @@ after success. There is no admin contact override or unverified direct update en
 The UI never persists password/OTP in local storage. Sensitive form fields are excluded
 from flashed input and ordinary logging. Page responses are private/no-store. Tests use
 isolated database/mail/SMS fakes; no real OTPs or user credential changes are used for UI QA.
+
+## Consumer subpage headers (2026-09-16)
+
+Only the three bottom-navigation home routes (`/dashboard`, `/cards`, `/account`)
+show the shared company header. Query strings and trailing slashes do not change
+this classification. Me continues to omit its header language/support shortcuts.
+All other consumer subpages use a centered title and left back control without the company,
+language or support header. Existing parent routes, bottom navigation, standalone
+article headers and authentication/availability gates remain unchanged. Restricted
+status returns to the existing permitted Account and security route. This supersedes
+the earlier shared-header visibility only; financial flows and Admin/auth layouts
+are unchanged.
+
+Subpage titles use equal reserved space on both sides so the back control does not
+shift the title off center. Long localized titles wrap within the center column.

@@ -13,7 +13,6 @@ import {
     Coins,
 } from 'lucide-react';
 import { t, dateTime } from '@/i18n';
-import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 
 export type AssetAccount = {
     asset: string;
@@ -22,6 +21,7 @@ export type AssetAccount = {
     deposit: string;
     commission: string;
     exchange: boolean;
+    exchangeUnavailableReason?: string | null;
     transfer?: boolean;
     rails: {
         code: string;
@@ -57,7 +57,7 @@ export function AssetIcon({ asset }: { asset: string }) {
 }
 export function AssetCenter({ overview }: { overview: AssetOverview }) {
     const [selected, setSelected] = useState('USDT');
-    const [panel, setPanel] = useState<'accounts' | 'detail' | null>(null);
+    const [expanded, setExpanded] = useState(false);
     const { auth } = usePage<SharedProps>().props;
     const key = `balance-hidden:${auth.user?.id ?? 'guest'}`;
     const hidden = useSyncExternalStore(
@@ -93,7 +93,6 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
                   label: 'Security deposit',
                   amount: usdt.deposit,
                   href: '/security-deposit',
-                  action: 'Manage security deposit',
                   icon: ShieldCheck,
               },
               {
@@ -101,12 +100,10 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
                   label: 'Commission',
                   amount: usdt.commission,
                   href: '/promotion',
-                  action: 'Manage commission',
                   icon: Coins,
               },
           ]
         : [];
-    const managed = managedAccounts.find((a) => a.id === selected);
     const tabs = [
         ...managedAccounts.map((a) => ({ ...a, asset: 'USDT' })),
         ...overview.assets.map((a) => ({
@@ -115,12 +112,15 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
             amount: a.available,
             asset: a.asset,
             icon: null,
+            href: null,
         })),
     ];
-    const detailAmount = managed?.amount ?? current.available;
     const depositAsset = overview.assets.find((a) => a.rails.some((r) => r.deposit));
     const withdrawalAsset = overview.assets.find((a) => a.rails.some((r) => r.withdrawal));
-    const exchangeAsset = overview.assets.find((a) => a.exchange);
+    const exchangeAsset =
+        overview.assets.find((a) => a.asset === current.asset && a.asset !== 'USDT') ??
+        overview.assets.find((a) => a.exchange) ??
+        overview.assets.find((a) => a.asset !== 'USDT');
     const shortcuts = [
         ...(depositAsset
             ? [
@@ -175,9 +175,11 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
                     <span className="whitespace-nowrap text-base font-normal">USDT</span>
                 </p>
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                    {overview.updatedAt
-                        ? t('Prices updated: {{time}}', { time: dateTime(overview.updatedAt) })
-                        : t('Valuation unavailable. Original balances are unchanged.')}
+                    {overview.estimate === null
+                        ? t('Valuation unavailable. Original balances are unchanged.')
+                        : overview.updatedAt
+                          ? t('Prices updated: {{time}}', { time: dateTime(overview.updatedAt) })
+                          : t('USDT balances valued at 1:1.')}
                 </p>
             </section>
             {shortcuts.length > 0 && (
@@ -203,157 +205,79 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
                 <div className="flex min-h-14 items-center justify-between gap-3">
                     <h2 className="text-base font-medium">{t('Accounts')}</h2>
                     <button
-                        onClick={() => setPanel('accounts')}
+                        onClick={() => setExpanded(!expanded)}
                         className="flex min-h-11 items-center gap-1 rounded-lg text-xs text-muted-foreground"
-                        aria-haspopup="dialog"
+                        aria-expanded={expanded}
+                        aria-controls="asset-accounts"
                     >
-                        {t('More')}
-                        <ChevronRight size={14} />
+                        {t(expanded ? 'Show less' : 'More')}
+                        <ChevronRight size={14} className={expanded ? '-rotate-90' : ''} />
                     </button>
                 </div>
                 <div
+                    id="asset-accounts"
                     role="group"
                     aria-label={t('Accounts')}
-                    className="flex gap-3 overflow-x-auto pb-1"
+                    className={
+                        expanded
+                            ? 'grid grid-cols-3 gap-3 pb-1 sm:grid-cols-6'
+                            : 'flex gap-3 overflow-x-auto pb-1'
+                    }
                 >
-                    {tabs.map((a) => (
-                        <button
-                            key={a.id}
-                            aria-haspopup="dialog"
-                            aria-label={t(a.label)}
-                            onClick={() => {
-                                setSelected(a.id);
-                                setPanel('detail');
-                            }}
-                            className="user-asset-account flex w-[calc((100%_-_1.5rem)/3)] min-w-24 shrink-0 flex-col items-center rounded-xl bg-[#f7f6f1] px-2 py-3 text-center focus-visible:outline-2 sm:flex-1"
-                        >
-                            {a.icon ? (
+                    {tabs.map((a) => {
+                        const className = `user-asset-account flex ${expanded ? 'min-w-0' : 'w-[calc((100%_-_1.5rem)/3)] min-w-24 shrink-0 sm:flex-1'} flex-col items-center rounded-xl bg-[#f7f6f1] px-2 py-3 text-center focus-visible:outline-2`;
+                        const content = (
+                            <>
+                                {a.icon ? (
+                                    <span
+                                        aria-hidden
+                                        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800"
+                                    >
+                                        <a.icon size={20} />
+                                    </span>
+                                ) : (
+                                    <AssetIcon asset={a.asset} />
+                                )}
                                 <span
-                                    aria-hidden
-                                    className="flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800"
+                                    title={a.icon ? `${show(a.amount)} USDT` : show(a.amount)}
+                                    className="mt-2 flex w-full min-w-0 items-baseline justify-center gap-1 text-sm font-medium tabular-nums"
                                 >
-                                    <a.icon size={20} />
+                                    <span className="truncate">{show(a.amount)}</span>
+                                    {a.icon && (
+                                        <span className="shrink-0 text-[10px] font-normal">
+                                            USDT
+                                        </span>
+                                    )}
                                 </span>
-                            ) : (
-                                <AssetIcon asset={a.asset} />
-                            )}
-                            <span
-                                title={show(a.amount)}
-                                className="mt-2 block w-full truncate text-sm font-medium tabular-nums"
+                                <span className="mt-1 block w-full break-words text-xs text-muted-foreground">
+                                    {t(a.label)}
+                                </span>
+                            </>
+                        );
+                        return a.href ? (
+                            <Link
+                                key={a.id}
+                                href={a.href}
+                                aria-label={t(a.label)}
+                                className={className}
                             >
-                                {show(a.amount)}
-                            </span>
-                            <span className="mt-1 block w-full break-words text-xs text-muted-foreground">
-                                {t(a.label)}
-                            </span>
-                        </button>
-                    ))}
+                                {content}
+                            </Link>
+                        ) : (
+                            <button
+                                key={a.id}
+                                aria-label={t(a.label)}
+                                aria-pressed={current.asset === a.asset}
+                                onClick={() => setSelected(a.asset)}
+                                className={className}
+                            >
+                                {content}
+                            </button>
+                        );
+                    })}
                 </div>
             </section>
-            <Sheet
-                open={panel !== null}
-                onOpenChange={(open) => {
-                    if (!open) setPanel(null);
-                }}
-            >
-                <SheetContent
-                    closeLabel={t('Close')}
-                    className="user-theme inset-x-0 top-auto bottom-0 mx-auto max-h-[85dvh] w-full max-w-xl overflow-y-auto rounded-t-3xl border-0 p-6 pb-8"
-                >
-                    <SheetTitle>
-                        {t(panel === 'accounts' ? 'Accounts' : (managed?.label ?? current.asset))}
-                    </SheetTitle>
-                    <SheetDescription className="sr-only">
-                        {t('Account details and management')}
-                    </SheetDescription>
-                    {panel === 'accounts' ? (
-                        <div className="mt-4 divide-y">
-                            {tabs.map((a) => (
-                                <button
-                                    key={a.id}
-                                    onClick={() => {
-                                        setSelected(a.id);
-                                        setPanel('detail');
-                                    }}
-                                    className="flex min-h-16 w-full items-center gap-3 py-3 text-left"
-                                >
-                                    {a.icon ? (
-                                        <a.icon size={24} className="shrink-0 text-emerald-700" />
-                                    ) : (
-                                        <AssetIcon asset={a.asset} />
-                                    )}
-                                    <span className="flex-1 text-sm">{t(a.label)}</span>
-                                    <span className="max-w-[50%] break-all text-right text-sm">
-                                        {show(a.amount)} <small>{a.asset}</small>
-                                    </span>
-                                    <ChevronRight className="size-4 shrink-0" />
-                                </button>
-                            ))}
-                        </div>
-                    ) : (
-                        <div data-account-detail className="mt-5">
-                            <p className="text-sm text-muted-foreground">
-                                {t(managed?.label ?? 'Available balance')} ·{' '}
-                                {managed ? 'USDT' : current.asset}
-                            </p>
-                            <p
-                                className={`mt-1 break-all font-semibold tabular-nums ${show(detailAmount).length > 18 ? 'text-xl sm:text-2xl' : 'text-3xl'}`}
-                            >
-                                {show(detailAmount)}
-                            </p>
-                            {managed ? (
-                                <Link
-                                    href={managed.href}
-                                    className="mt-5 flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#171915] px-4 text-sm font-medium text-white hover:bg-[#2b3029]"
-                                >
-                                    {t(managed.action)}
-                                    <ChevronRight size={18} />
-                                </Link>
-                            ) : (
-                                <div className="mt-5 flex flex-wrap gap-2">
-                                    {current.rails.some((r) => r.deposit) && (
-                                        <Link
-                                            href={`/assets/operate?mode=deposit&asset=${current.asset}`}
-                                            className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-[#171915] px-4 text-sm font-medium text-white hover:bg-[#2b3029]"
-                                        >
-                                            <ArrowDown size={18} />
-                                            {t('Top up')}
-                                        </Link>
-                                    )}
-                                    {current.rails.some((r) => r.withdrawal) && (
-                                        <Link
-                                            href={`/assets/operate?mode=withdrawal&asset=${current.asset}`}
-                                            className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium"
-                                        >
-                                            <ArrowUp size={18} />
-                                            {t('Withdraw')}
-                                        </Link>
-                                    )}
-                                    {current.asset === 'USDT' && current.transfer && (
-                                        <Link
-                                            href="/wallet/transfer"
-                                            className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium"
-                                        >
-                                            <ArrowLeftRight size={18} />
-                                            {t('Transfer')}
-                                        </Link>
-                                    )}
-                                    {current.exchange && (
-                                        <Link
-                                            href={`/assets/operate?mode=exchange&asset=${current.asset}`}
-                                            className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium"
-                                        >
-                                            <ArrowLeftRight size={18} />
-                                            {t('Exchange')}
-                                        </Link>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </SheetContent>
-            </Sheet>
-            {!managed && !!current.orders?.length && (
+            {!!current.orders?.length && (
                 <section>
                     <h2 className="mb-2 font-semibold">{t('Recent requests')}</h2>
                     {current.orders.map((order) => (
@@ -384,44 +308,42 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
                     ))}
                 </section>
             )}
-            {!managed && (
-                <section>
-                    <h2 className="mb-2 font-semibold">
-                        {t('Account activity')} · {current.asset}
-                        <Link
-                            className="float-right py-2 text-sm font-normal underline"
-                            href={`/assets/${current.asset}/activity`}
+            <section>
+                <h2 className="mb-2 font-semibold">
+                    {t('Account activity')} · {current.asset}
+                    <Link
+                        className="float-right py-2 text-sm font-normal underline"
+                        href={`/assets/${current.asset}/activity`}
+                    >
+                        {t('More')}
+                    </Link>
+                </h2>
+                {current.activity.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-muted-foreground">
+                        {t('No activity yet')}
+                    </p>
+                ) : (
+                    current.activity.map((row) => (
+                        <div
+                            key={row.id}
+                            className="flex items-center justify-between gap-3 border-b py-4 text-sm"
                         >
-                            {t('More')}
-                        </Link>
-                    </h2>
-                    {current.activity.length === 0 ? (
-                        <p className="py-6 text-center text-sm text-muted-foreground">
-                            {t('No activity yet')}
-                        </p>
-                    ) : (
-                        current.activity.map((row) => (
-                            <div
-                                key={row.id}
-                                className="flex items-center justify-between gap-3 border-b py-4 text-sm"
-                            >
-                                <div>
-                                    <p>{t(row.kind)}</p>
-                                    <p className="mt-1 text-xs text-muted-foreground">
-                                        {dateTime(row.time)}
-                                    </p>
-                                </div>
-                                <p className="max-w-[55%] break-all text-right font-medium tabular-nums">
-                                    {show(row.amount)}
-                                    <span className="ml-1 text-xs text-muted-foreground">
-                                        {current.asset}
-                                    </span>
+                            <div>
+                                <p>{t(row.kind)}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    {dateTime(row.time)}
                                 </p>
                             </div>
-                        ))
-                    )}
-                </section>
-            )}
+                            <p className="max-w-[55%] break-all text-right font-medium tabular-nums">
+                                {show(row.amount)}
+                                <span className="ml-1 text-xs text-muted-foreground">
+                                    {current.asset}
+                                </span>
+                            </p>
+                        </div>
+                    ))
+                )}
+            </section>
         </div>
     );
 }

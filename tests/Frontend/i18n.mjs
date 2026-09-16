@@ -310,7 +310,7 @@ test('account information contains real localized profile and contact forms with
     }
 });
 
-test('promotion overview contains team totals and links to three real detail pages', () => {
+test('my invitations contains team totals and links to three real detail pages', () => {
     const page = readFileSync('resources/js/pages/user/Promotion.tsx', 'utf8');
     for (const route of [
         '/promotion/daily',
@@ -319,7 +319,7 @@ test('promotion overview contains team totals and links to three real detail pag
     ]) {
         assert.ok(page.includes(route));
     }
-    for (const section of ['overview', 'daily', 'direct']) {
+    for (const section of ['invitations', 'daily', 'direct']) {
         assert.ok(page.includes(`section === '${section}' &&`));
     }
     assert.ok(page.includes('`/promotion/${section}`'));
@@ -1756,23 +1756,45 @@ test('promotion views keep personal and team money distinct across four language
         for (const locale of locales) {
             void i18n.clientI18n.changeLanguage(locale);
             const home = renderToStaticMarkup(React.createElement(Promotion, { promotion: p }));
-            for (const amount of ['$16,880.00', '$18,000.00']) assert.ok(home.includes(amount));
+            for (const amount of ['16,880.00 USDT', '18,000.00']) assert.ok(home.includes(amount));
             assert.ok(home.includes('id="team-summary"'));
             assert.ok(!home.includes('href="/promotion/team"'));
             const daily = renderToStaticMarkup(React.createElement(Promotion, { promotion: p, section: 'daily' }));
-            assert.ok(!daily.includes('$36,000.00'));
+            assert.ok(!daily.includes('36,000.00 USDT'));
             assert.ok(!daily.includes('Asia/Kuala_Lumpur'));
             assert.ok(daily.includes('value="2026-09-13"'));
             const direct = renderToStaticMarkup(React.createElement(Promotion, { promotion: p, section: 'direct' }));
             assert.ok(direct.includes(i18n.t('Deposit not funded')));
             assert.ok(!direct.includes(i18n.t('Edit level')));
-            assert.equal((direct.match(/\$0\.00/g) ?? []).length, 1);
+            assert.equal((direct.match(/0\.00 USDT/g) ?? []).length, 1);
             const rows = renderToStaticMarkup(React.createElement(Commissions, { history }));
-            assert.ok(rows.includes('+$123,456,789,012.12'));
-            assert.ok(rows.includes('-$20.00'));
+            assert.ok(rows.includes('+123,456,789,012.12 USDT'));
+            assert.ok(rows.includes('-20.00 USDT'));
             assert.ok(!rows.includes('--') && !rows.includes('+-'));
             assert.equal((rows.match(/202609134788/g) ?? []).length, 1);
             assert.ok(!rows.includes('Asia/Kuala_Lumpur'));
         }
     } finally { void i18n.clientI18n.changeLanguage(previousLocale); }
+});
+
+test('promotion display totals preserve eight-decimal rewards without floating point', () => {
+    const { commissionSum, promotionMoney, membershipAction } = loadTs('resources/js/lib/paid-promotion.ts', { '@/i18n': { t: key => key }, '@/lib/exact-amount': loadTs('resources/js/lib/exact-amount.ts') });
+    assert.equal(commissionSum('1600.00000001', '190'), '1790.00000001');
+    assert.equal(commissionSum('999999999999.99999999', '0.00000001'), '1000000000000.00000000');
+    assert.equal(promotionMoney('0.00000001'), '0.00000001 USDT');
+    assert.equal(promotionMoney('16880.00000000'), '16,880.00 USDT');
+    assert.equal(membershipAction({rank:0,membershipStatus:'NONE'}), 'Apply for promotion membership');
+    assert.equal(membershipAction({rank:0,membershipStatus:'EXPIRED'}), 'Renew promotion membership');
+    assert.equal(membershipAction({rank:6,membershipStatus:'ACTIVE'}), 'Upgrade promotion level');
+    assert.equal(membershipAction({rank:8,membershipStatus:'ACTIVE'}), 'View level benefits');
+});
+
+test('compact promotion table amounts do not hide small rewards or lose exact expanded values', () => {
+    const { promotionTableAmount, promotionMoney } = loadTs('resources/js/lib/paid-promotion.ts', { '@/i18n': { t: key => key }, '@/lib/exact-amount': loadTs('resources/js/lib/exact-amount.ts') });
+    assert.equal(promotionTableAmount('0'), '0.00');
+    assert.equal(promotionTableAmount('0.00000001'), '<0.01');
+    assert.equal(promotionTableAmount('0.00999999'), '<0.01');
+    assert.equal(promotionTableAmount('1600.125'), '1,600.13');
+    assert.equal(promotionTableAmount('999999999999.99'), '999,999,999,999.99');
+    assert.equal(promotionMoney('0.00000001'), '0.00000001 USDT');
 });

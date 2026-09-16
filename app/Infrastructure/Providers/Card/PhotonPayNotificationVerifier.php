@@ -11,7 +11,10 @@ final class PhotonPayNotificationVerifier
     {
         $key = str_replace('\\n', "\n", (string) config('card-provider.photonpay.webhook_public_key'));
         $public = @openssl_pkey_get_public($key);
-        if (! $public || (openssl_pkey_get_details($public)['bits'] ?? 0) < 2048) {
+        $details = $public ? openssl_pkey_get_details($public) : false;
+        // PhotonPay notification keys can be RSA-1024. This is separate from
+        // merchant request-signing keys; the exact-body signature remains mandatory.
+        if (! $details || ($details['type'] ?? null) !== OPENSSL_KEYTYPE_RSA || ($details['bits'] ?? 0) < 1024) {
             throw new DomainException('CARD_WEBHOOK_UNAVAILABLE', 'Notification verification is unavailable.', 503);
         }
         $decoded = strlen($signature) <= 2048 ? base64_decode($signature, true) : false;

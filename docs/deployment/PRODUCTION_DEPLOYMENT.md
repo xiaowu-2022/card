@@ -108,3 +108,16 @@ php artisan up
 - [迁移清单](MIGRATIONS.md)：原 58 项完整保留，新增 1 项部署兼容迁移。
 - `migrations.sha256.json`：当前源码校验。
 - [此前备份验证记录](PREPARATION_REPORT.md)：历史数量和恢复证据，以本手册的最新部署约定为准。
+
+## PhotonPay 通知返回 verification_unavailable
+
+该503表示验签公钥不可用，发生在通知入库之前。确认站点 `.env` 中的
+`PHOTONPAY_WEBHOOK_PUBLIC_KEY` 是对应环境的 PhotonPay 平台通知公钥；保留
+完整 `BEGIN PUBLIC KEY` / `END PUBLIC KEY` 标记，结束标记前不得有反斜杠。
+双引号内真实换行或字面量 `\n` 均受支持。通知验签现兼容 RSA-1024 和
+RSA-2048；旧代码的2048位最低限制会拒绝1024位平台公钥，单纯清缓存无法修复，
+必须先发布验签器修复。不要用自建公钥替换平台公钥或跳过签名校验。
+
+宝塔部署使用站点对应版本的 PHP，在项目根目录执行 `php artisan config:cache`，
+再重载对应 PHP-FPM；若更新了队列代码，执行 `php artisan queue:restart`。
+仅重新核验授权范围内的失败通知；测试通过或HTTP验签通过不代表资金已完成结算。

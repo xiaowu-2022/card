@@ -1,8 +1,9 @@
 import { exactAmount } from '@/lib/exact-amount';
 import { useEffect, useState } from 'react';
 import { Head, Link, useForm, usePage, router } from '@inertiajs/react';
-import { ArrowLeft, ChevronDown, Check } from 'lucide-react';
+import { ChevronDown, Check } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { UserPageHeader } from '@/components/user/UserPageHeader';
 import { UserLayout } from '@/layouts/UserLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,6 +62,13 @@ export default function AssetFlow({
     const account = overview.assets.find((a) => a.asset === form.data.asset)!;
     const rails = account.rails.filter((r) => (mode === 'deposit' ? r.deposit : r.withdrawal));
     const rail = rails.find((r) => r.code === form.data.rail);
+    const unavailable = mode === 'exchange' ? !account.exchange : rails.length === 0;
+    const unavailableMessage =
+        mode === 'exchange'
+            ? (account.exchangeUnavailableReason ?? 'Exchange is not available for this asset.')
+            : mode === 'deposit'
+              ? 'No deposit network is available for this currency.'
+              : 'No withdrawal network is available for this currency.';
     const title =
         mode === 'deposit' ? 'Top up' : mode === 'withdrawal' ? 'Withdraw' : 'Exchange to USDT';
     const update = (field: 'amount' | 'address', value: string) => {
@@ -88,6 +96,7 @@ export default function AssetFlow({
         setReview(false);
     };
     const submit = () => {
+        if (unavailable) return;
         if (rail?.code === 'USDT_TRON') {
             router.visit(mode === 'deposit' ? '/wallet/top-up' : '/wallet/withdraw');
             return;
@@ -106,16 +115,7 @@ export default function AssetFlow({
         <UserLayout>
             <Head title={t(title)} />
             <div className="mx-auto max-w-lg space-y-6">
-                <div className="flex items-center gap-3">
-                    <Link
-                        href="/dashboard"
-                        aria-label={t('Back')}
-                        className="flex size-11 items-center justify-center rounded-full bg-muted"
-                    >
-                        <ArrowLeft size={20} />
-                    </Link>
-                    <h1 className="text-xl font-semibold">{t(title)}</h1>
-                </div>
+                <UserPageHeader title={t(title)} backHref="/dashboard" />
                 {result ? (
                     <section className="space-y-5 rounded-2xl bg-surface p-5">
                         <div className="flex items-center gap-3">
@@ -239,7 +239,23 @@ export default function AssetFlow({
                             {t('Available balance')}: {exactAmount(account.available)}{' '}
                             {account.asset}
                         </p>
-                        {mode !== 'exchange' && (
+                        {mode === 'exchange' && (
+                            <div className="space-y-2 rounded-xl bg-muted p-4">
+                                <p className="text-xs text-muted-foreground">
+                                    {t('Receive currency')}
+                                </p>
+                                <div className="flex items-center gap-3 font-medium">
+                                    <AssetIcon asset="USDT" />
+                                    <span>USDT</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    {t(
+                                        'Card opening and card top-ups use your available USDT balance.',
+                                    )}
+                                </p>
+                            </div>
+                        )}
+                        {mode !== 'exchange' && !unavailable && (
                             <button
                                 onClick={() => setPicker('network')}
                                 className="flex min-h-12 w-full items-center justify-between rounded-xl border px-4 text-sm"
@@ -248,7 +264,14 @@ export default function AssetFlow({
                                 <ChevronDown size={18} />
                             </button>
                         )}
-                        {rail?.code === 'USDT_TRON' ? (
+                        {unavailable ? (
+                            <p
+                                role="status"
+                                className="rounded-xl bg-muted p-4 text-sm text-muted-foreground"
+                            >
+                                {t(unavailableMessage)}
+                            </p>
+                        ) : rail?.code === 'USDT_TRON' ? (
                             <Button className="min-h-12 w-full rounded-full" onClick={submit}>
                                 {t('Continue')}
                             </Button>
@@ -372,13 +395,7 @@ export default function AssetFlow({
                         </SheetDescription>
                         {picker === 'asset'
                             ? overview.assets
-                                  .filter((a) =>
-                                      mode === 'exchange'
-                                          ? a.exchange
-                                          : a.rails.some((r) =>
-                                                mode === 'deposit' ? r.deposit : r.withdrawal,
-                                            ),
-                                  )
+                                  .filter((a) => mode !== 'exchange' || a.asset !== 'USDT')
                                   .map((a) => (
                                       <button
                                           key={a.asset}

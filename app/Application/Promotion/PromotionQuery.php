@@ -19,6 +19,20 @@ final readonly class PromotionQuery
 {
     public function __construct(private PromotionMembershipAction $members, private KycStatusService $kyc) {}
 
+    public function home(string $tenantId, string $userId): array
+    {
+        $tenant = Tenant::query()->whereKey($tenantId)->firstOrFail();
+        $member = $this->members->ensure($tenantId, $userId);
+
+        return [
+            'paid' => app(PaidPromotionQuery::class)->benefits($tenantId, $userId),
+            'invitationCode' => $member->invitation_code,
+            'canPurchase' => $tenant->default_asset === 'USDT'
+                && Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', 'USDT')->where('status', 'ACTIVE')->exists()
+                && $this->kyc->forUser($tenantId, $userId) === KycUserStatus::Approved,
+        ];
+    }
+
     public function execute(string $tenantId, string $userId, ?string $date, int $page = 1, int $directPage = 1, ?string $accountId = null, string $funding = 'all'): array
     {
         $tenant = Tenant::query()->whereKey($tenantId)->firstOrFail();
