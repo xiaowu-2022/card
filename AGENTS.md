@@ -1,5 +1,24 @@
 # Virtual Card SaaS Agent Rules
 
+On 2026-09-16 the user chose unified application/migration ownership for the
+dedicated deployed card_platform database. The existing card_platform login may
+own the project's public-schema objects and create future migration objects.
+The one-time administrator script transfers only postgres-owned, non-extension
+project relations/routines in that database/schema. Do not grant SUPERUSER or
+postgres membership, use cluster-wide REASSIGN OWNED, disable guards or change
+business rows. This ownership model permits application-role DDL by design;
+Ledger and all application financial contracts remain unchanged. See
+docs/deployment/PRODUCTION_DEPLOYMENT.md.
+
+On 2026-09-16 the user replaced periodic PhotonPay card synchronization with one
+inline synchronization attempt after a verified notification is persisted, plus
+explicit existing scoped refresh actions. Do not enqueue notification processing
+or schedule card polling/recovery. Old notification jobs and cards:recover are
+inert compatibility stubs. Failed reads preserve confirmed balances and UNKNOWN
+holds; no forced settlement, callback balance deltas or historical replay. See
+docs/architecture/CARD_MANAGEMENT.md. This supersedes the earlier scheduled card
+recovery requirement only; unrelated business schedules retain their contracts.
+
 On 2026-09-16 the user approved paid annual promotion levels, fee-percentage
 differentials, existing repeatable deposit activation rewards, and reviewed annual
 fee rebates. USDT Wallet payment alone creates paid qualification; no manual level

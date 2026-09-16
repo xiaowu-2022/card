@@ -8,7 +8,6 @@ use App\Domain\Card\Models\ProviderCardholder;
 use App\Domain\Card\Models\UserCard;
 use App\Domain\Tenant\Models\Tenant;
 use App\Infrastructure\Providers\Card\PhotonPayNotificationVerifier;
-use App\Jobs\ProcessCardNotification;
 use App\Support\Errors\DomainException;
 use App\Support\Logging\PhotonPayLog;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +15,7 @@ use Illuminate\Support\Str;
 
 final readonly class ReceiveCardNotificationAction
 {
-    public function __construct(private PhotonPayNotificationVerifier $verifier) {}
+    public function __construct(private PhotonPayNotificationVerifier $verifier, private ProcessCardNotificationAction $process) {}
 
     public function execute(#[\SensitiveParameter] string $body, string $signature, string $category, string $type): void
     {
@@ -50,14 +49,17 @@ final readonly class ReceiveCardNotificationAction
 
             return $event;
         });
-        $logContext = ['tenant_id' => $event->tenant_id, 'event_id' => $event->id, 'resource_id' => $resource->id];
+        $logContext = ['tenant_id' => $event->tenant_id, 'event_id' => $event->id, 'resource_id' => $resource->id,
+            'event_status' => $event->status, 'has_transaction' => $event->transaction_id !== null];
         PhotonPayLog::write('notification.persisted', $logContext + ['duplicate' => ! $event->wasRecentlyCreated]);
         if ($event->status !== 'PROCESSED') {
             try {
-                ProcessCardNotification::dispatch($event->tenant_id, $event->id);
-                PhotonPayLog::write('notification.dispatched', $logContext);
-            } catch (\Throwable $failure) { // Durable inbox remains available for cards:recover.
-                PhotonPayLog::write('notification.dispatch_failed', $logContext + ['failure' => PhotonPayLog::failure($failure)], true);
+                // One inline synchronization attempt, after committing the verified inbox event.
+                // Never require a queue worker or schedule another attempt here.
+                PhotonPayLog::write('notification.inline_started', $logContext);
+                $this->process->execute($event->tenant_id, $event->id);
+            } catch (\Throwable $failure) { // Preserve the inbox and last confirmed state for explicit follow-up.
+                PhotonPayLog::write('notification.inline_failed', $logContext + ['failure' => PhotonPayLog::failure($failure)], true);
             }
         }
     }

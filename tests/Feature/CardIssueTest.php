@@ -77,6 +77,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -250,8 +251,12 @@ it('rejects malformed or mismatched card numbers before revealing sensitive info
     ])->assertStatus(503)->assertJsonMissingPath('pan')->assertJsonMissingPath('cvv');
 })->with(['masked' => ['************1234'], 'too short' => ['1234'], 'wrong card' => ['4111111111119999']]);
 
-it('verifies notifications deduplicates them and synchronizes card truth without changing wallet', function (int $keyBits): void {
+it('synchronizes verified notifications inline without a queue and deduplicates without changing wallet', function (int $keyBits): void {
     [$card,$provider] = managedCardFixture($this);
+    $handler = new Monolog\Handler\TestHandler;
+    Log::extend('notification_test', fn () => new Monolog\Logger('photonpay', [$handler]));
+    config(['logging.channels.photonpay' => ['driver' => 'notification_test']]);
+    Log::forgetChannel('photonpay');
     $before = phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance;
     $provider->shouldReceive('getTransaction')->once()->with($card->provider_card_id, 'TX-CONSUMPTION')->andReturn(new ProviderCardTransactionDTO('TX-CONSUMPTION', '3.00000000', 'USD', 'purchase', 'completed', '2026-09-11T12:00:00', 'A shop'));
     $key = openssl_pkey_new(['private_key_bits' => $keyBits]);
@@ -268,12 +273,97 @@ it('verifies notifications deduplicates them and synchronizes card truth without
     $receive->execute($body, base64_encode($signature), 'issuing', 'auth');
     $event = CardProviderEvent::query()->firstOrFail();
     expect(CardProviderEvent::query()->count())->toBe(1)->and($event->tenant_id)->toBe($this->tenant->id);
-    app(ProcessCardNotificationAction::class)->execute($event->tenant_id, $event->id);
+    expect($event->status)->toBe('PROCESSED')->and($event->attempts)->toBe(1);
+    Queue::assertNotPushed(App\Jobs\ProcessCardNotification::class);
+    $applied = collect($handler->getRecords())->first(fn ($record) => $record->message === 'photonpay.card_refresh.applied');
+    expect($applied)->not->toBeNull()
+        ->and($applied->context['event_id'])->toBe($event->id)
+        ->and($applied->context['resource_id'])->toBe($card->id)
+        ->and($applied->context['stored_balance'])->toBe('20.00000000')
+        ->and($applied->context['synced_epoch'])->toBeInt();
     expect($event->fresh()->status)->toBe('PROCESSED')->and($card->fresh()->provider_balance)->toBe('20.00000000')
         ->and(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe($before)
         ->and(CardTransaction::query()->count())->toBe(1);
     app(ProcessCardNotificationAction::class)->execute($event->tenant_id, $event->id);
 })->with([1024, 2048]);
+
+it('diagnoses queued and retried notifications without processing them or leaking identifiers', function (): void {
+    [$card, $provider] = managedCardFixture($this);
+    $event = new CardProviderEvent;
+    $event->forceFill(['tenant_id' => $this->tenant->id, 'user_id' => $this->user->id,
+        'card_id' => $card->id, 'event_digest' => hash('sha256', 'diagnostic-test'),
+        'category' => 'issuing', 'event_type' => 'auth', 'transaction_id' => 'PRIVATE-TX-ID', 'status' => 'PENDING'])->save();
+    $before = $card->fresh()->getAttributes();
+    $this->withoutMockingConsoleOutput();
+    expect(Illuminate\Support\Facades\Artisan::call('cards:notification-inspect', ['tenant' => $event->tenant_id, 'event' => $event->id]))->toBe(0);
+    expect(Illuminate\Support\Facades\Artisan::output())->toContain('"event_status": "PENDING"', '"attempts": 0')
+        ->not->toContain('PRIVATE-TX-ID', $card->provider_card_id);
+    expect($card->fresh()->getAttributes())->toBe($before)->and($event->fresh()->attempts)->toBe(0);
+    expect(Illuminate\Support\Facades\Artisan::call('cards:notification-inspect', ['tenant' => (string) Str::uuid(), 'event' => $event->id]))->toBe(1);
+    expect(Illuminate\Support\Facades\Artisan::output())->toContain('Notification not found in the selected company.');
+    $provider->shouldReceive('getTransaction')->once()->andThrow(new ProviderUnknownResultException('private-error'));
+    $handler = new Monolog\Handler\TestHandler;
+    Log::extend('notification_test', fn () => new Monolog\Logger('photonpay', [$handler]));
+    config(['logging.channels.photonpay' => ['driver' => 'notification_test']]);
+    Log::forgetChannel('photonpay');
+    app(ProcessCardNotificationAction::class)->execute($event->tenant_id, $event->id);
+    expect($event->fresh()->status)->toBe('RETRY')->and($event->fresh()->attempts)->toBe(1)
+        ->and($card->fresh()->provider_balance)->toBe($before['provider_balance']);
+    $records = collect($handler->getRecords());
+    expect($records->contains(fn ($r) => $r->message === 'photonpay.notification.processing'))->toBeTrue()
+        ->and($records->contains(fn ($r) => $r->message === 'photonpay.card_refresh.applied'))->toBeFalse();
+    $retry = $records->first(fn ($r) => $r->message === 'photonpay.notification.retry');
+    expect($retry->context['event_id'])->toBe($event->id)
+        ->and($retry->context['failure'])->toBe('unknown_result')
+        ->and($retry->context['stage'])->toBe('card_refresh');
+    $stage = $records->first(fn ($r) => $r->message === 'photonpay.card_refresh.stage');
+    expect($stage->context['stage'])->toBe('transaction_lookup')
+        ->and(json_encode($handler->getRecords()))->not->toContain('PRIVATE-TX-ID', 'private-error');
+});
+
+it('keeps failed inline notification reads for explicit follow-up without dispatching a retry', function (): void {
+    [$card] = managedCardFixture($this, fn () => throw new ProviderUnknownResultException('private-provider-error'));
+    $before = $card->fresh()->getAttributes();
+    $entries = LedgerEntry::query()->count();
+    $key = openssl_pkey_new(['private_key_bits' => 2048]);
+    config(['card-provider.photonpay.webhook_public_key' => openssl_pkey_get_details($key)['key']]);
+    $body = json_encode(['cardId' => $card->provider_card_id, 'cardBalance' => '99999']);
+    openssl_sign($body, $signature, $key, OPENSSL_ALGO_MD5);
+    $this->call('POST', 'http://callback.example/webhooks/card-provider', [], [], [], [
+        'CONTENT_TYPE' => 'application/json', 'HTTP_X_PD_SIGN' => base64_encode($signature),
+        'HTTP_X_PD_NOTIFICATION_CATAGORY' => 'issuing', 'HTTP_X_PD_NOTIFICATION_TYPE' => 'auth',
+    ], $body)->assertOk()->assertExactJson(['roger' => true]);
+    $event = CardProviderEvent::query()->where('card_id', $card->id)->sole();
+    expect($event->status)->toBe('RETRY')->and($event->attempts)->toBe(1)
+        ->and($card->fresh()->provider_balance)->toBe($before['provider_balance'])
+        ->and($card->fresh()->getRawOriginal('provider_balance_synced_at'))->toBe($before['provider_balance_synced_at'])
+        ->and(LedgerEntry::query()->count())->toBe($entries);
+    Queue::assertNotPushed(App\Jobs\ProcessCardNotification::class);
+
+    // A stale serialized job or old cron entry cannot perform another provider read.
+    (new App\Jobs\ProcessCardNotification($event->tenant_id, $event->id))->handle();
+    $this->artisan('cards:recover', ['--tenant' => $event->tenant_id])->assertFailed();
+    expect($event->fresh()->attempts)->toBe(1)->and($card->fresh()->refresh_generation)->toBe(1);
+    $schedule = app(Illuminate\Console\Scheduling\Schedule::class);
+    expect(collect($schedule->events())->contains(fn ($entry) => str_contains($entry->command ?? '', 'cards:recover')))->toBeFalse();
+});
+
+it('does not log an applied balance when an outer transaction rolls back', function (): void {
+    [$card] = managedCardFixture($this);
+    $handler = new Monolog\Handler\TestHandler;
+    Log::extend('notification_test', fn () => new Monolog\Logger('photonpay', [$handler]));
+    config(['logging.channels.photonpay' => ['driver' => 'notification_test']]);
+    Log::forgetChannel('photonpay');
+    $before = $card->fresh()->getAttributes();
+    DB::beginTransaction();
+    try {
+        app(RefreshManagedCardAction::class)->execute($this->tenant->id, $this->user->id, $card->id);
+    } finally {
+        DB::rollBack();
+    }
+    expect($card->fresh()->getAttributes())->toBe($before)
+        ->and(collect($handler->getRecords())->contains(fn ($r) => $r->message === 'photonpay.card_refresh.applied'))->toBeFalse();
+});
 
 it('retries holder notifications when the provider lookup preserves stale ready state', function (): void {
     [$card, $provider] = managedCardFixture($this);
@@ -285,8 +375,7 @@ it('retries holder notifications when the provider lookup preserves stale ready 
     openssl_sign($body, $signature, $key, OPENSSL_ALGO_MD5);
     app(ReceiveCardNotificationAction::class)->execute($body, base64_encode($signature), 'issuing', 'cardholder_status_update');
     $event = CardProviderEvent::query()->where('tenant_id', $this->tenant->id)->firstOrFail();
-    app(ProcessCardNotificationAction::class)->execute($event->tenant_id, $event->id);
-    expect($event->fresh()->status)->toBe('RETRY')->and($event->fresh()->processed_at)->toBeNull();
+    expect($event->fresh()->status)->toBe('RETRY')->and($event->fresh()->attempts)->toBe(1)->and($event->fresh()->processed_at)->toBeNull();
     $provider->shouldReceive('getCardholder')->once()->andReturn(new ProviderCardholderDTO($this->holder->provider_cardholder_id, ProviderCardholderReviewStatus::Ready, 'normal', 'passed'));
     app(ProcessCardNotificationAction::class)->execute($event->tenant_id, $event->id);
     expect($event->fresh()->status)->toBe('PROCESSED')->and($event->fresh()->attempts)->toBe(2);

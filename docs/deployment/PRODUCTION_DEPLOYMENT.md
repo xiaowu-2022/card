@@ -1,5 +1,27 @@
 # 一次部署：保留全部现有数据
 
+## 2026-09-16：统一项目对象所有权
+
+用户确认将专用线上card_platform数据库中项目对象的所有权统一到既有登录角色
+card_platform，以后使用原应用配置执行artisan migrate。该简化模式允许应用账号执行
+项目DDL；不再要求每次迁移临时切换postgres。它不授予SUPERUSER或postgres角色成员资格。
+
+已核实线上Laravel连接用户为card_platform，而public.ledger_accounts、ledger_postings、
+migrations归postgres所有。备份并暂停队列、调度及Web写入后，使用管理员执行：
+
+```bash
+psql -h 127.0.0.1 -p 5432 -U postgres -d card_platform -W -v ON_ERROR_STOP=1 -f scripts/deploy/transfer-project-ownership.sql
+```
+
+脚本检查数据库名与既有目标登录角色，仅转移本库public中postgres持有的非扩展表、
+序列、视图及函数/过程，同时授予public的USAGE/CREATE。索引、约束、余额、历史记录和
+触发器定义均保留。整个操作在事务中执行，锁等待超过10秒失败回滚；可重复执行。
+不使用REASSIGN OWNED，避免涉及postgres持有的共享数据库或表空间对象。
+
+完成后按普通应用账号运行migrate --force及ledger:reconcile，确认全部迁移Ran且对账
+无差异后恢复服务。新迁移由card_platform执行，新对象自然归它所有，无需逐次授权。
+该操作只需一次；下文原有迁移临时使用postgres的方案被本约定取代。
+
 以 2026-09-15 用户最新确认为准：**一个站点、一套 PostgreSQL 数据库、一份 `.env`；账号、卡片、余额、佣金、公司配置和历史记录全部保留在站点中。** SaaS、公司后台和客户端共用这套应用。
 
 不再要求将当前数据另建为一套在线环境。`card_mock.dump` 是原备份文件名，不代表需要再部署一个网站。历史 `card_platform.dump` 不参与本次导入，不与当前数据拼表合并。
@@ -121,3 +143,34 @@ RSA-2048；旧代码的2048位最低限制会拒绝1024位平台公钥，单纯�
 宝塔部署使用站点对应版本的 PHP，在项目根目录执行 `php artisan config:cache`，
 再重载对应 PHP-FPM；若更新了队列代码，执行 `php artisan queue:restart`。
 仅重新核验授权范围内的失败通知；测试通过或HTTP验签通过不代表资金已完成结算。
+
+## PhotonPay 通知与手动刷新（2026-09-16调整）
+
+用户取消PhotonPay卡片定时同步。通知验签并持久化后，在同一请求中执行一次渠道查询与同步，
+不再投递队列；已处理成功的重复通知直接确认。失败保持原余额、同步时间和待确认记录，
+不会自动轮询或安排重试。后来收到有效通知可再查询，后台“卡片”列表的刷新按钮可以手动
+更新所选卡片余额。刷新余额不等于处理所有历史通知或解除未确认订单的资金保留。
+
+此流程无需queue:work或schedule:run。其他业务的队列、到账扫描、行情与用户已申请的
+保证金到期退款仍按各自规则运行，不要为停用卡片轮询而停掉整个系统的业务调度。
+
+部署PHP代码后执行config:cache，按原部署方式更新路由缓存并重载PHP-FPM；如已有常驻
+worker，需重启加载新代码。删除宝塔中直接运行cards:recover的旧计划任务。代码中的
+cards:recover已成为拒绝执行的兼容入口，遗留通知job也只记录跳过，不查询渠道。无需
+迁移数据库、前端构建、清空队列或重放历史通知。旧版仍在运行的进程应在切换时停止。
+
+可在项目根目录用站点对应的CLI PHP执行只读诊断：
+
+```bash
+php artisan cards:notification-inspect <公司UUID> <通知事件UUID>
+```
+
+该命令不调用渠道、不重放事件。PENDING且attempts=0表示尚未完成任何处理，也可能正在
+处理；RETRY表示上一次未确认成功，需要查看失败阶段；PROCESSED需结合card_id及
+balance_synced_at核对。只有card_refresh.applied才表示卡片缓存事务已提交。
+
+新日志顺序为persisted → inline_started → notification.processing → card_refresh.stage
+→ card_refresh.applied → notification.processed → webhook.acknowledged。异常会记录
+notification.retry或inline_failed，仍保留入库通知；HTTP200本身只确认接收，不保证同步
+成功。用event_id串联渠道请求、错误码、耗时及同步前后余额。日志位于
+storage/logs/photonpay-日期.log；保持PHP运行用户可写，日志不公开，不记录PAN/CVV等敏感数据。

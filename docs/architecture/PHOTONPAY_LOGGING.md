@@ -37,8 +37,8 @@ failure category/status. Before verified mapping it records no company from the
 body or hostname. `photonpay.notification.*` records persisted event IDs and trusted
 company/resource IDs, duplicate detection, dispatch failure, processing, retry or
 already-processed outcomes. Acknowledgement means durable receipt, not settlement.
-The existing durable inbox/recovery path is unchanged; logging never dispatches or
-replays work by itself. Existing verifier requirements remain enforced.
+Logging never dispatches or replays work by itself. The 2026-09-16 execution change
+below replaces the former asynchronous/scheduled inbox recovery path. Existing verifier requirements remain enforced.
 
 ## Data boundary
 
@@ -85,7 +85,7 @@ The later internal management result may emit:
 Upload the logging patch's PHP files and run `php artisan config:cache`.
 No database migration or frontend build is required. Reload PHP-FPM when deployment
 uses persistent OPcache; restart existing queue workers through their supervisor to
-load new PHP code (do not create/replay historical jobs).
+load new PHP code and the inert legacy notification handler (do not replay historical jobs).
 
 Inspect with `tail -n 100 storage/logs/photonpay-$(date +%F).log`.
 The first relevant operation creates the daily file. Use the response request UUID
@@ -97,3 +97,42 @@ exact numeric/string response amounts, safe nested card summaries, list counts,
 sensitive endpoint exclusions, malformed/oversized response isolation, final-boundary
 filtering, logger failure isolation and existing card/notification/tenant/financial behavior.
 No live provider request or real financial operation is used for verification.
+
+## Notification processing diagnostics (2026-09-16)
+
+The user replaced background card polling with one inline synchronization attempt
+per verified callback after persistence. `notification.persisted` records trusted
+IDs, stored event status and transaction-presence metadata. `inline_started` means
+processing is starting in the webhook request. `notification.processed/retry`
+records the outcome; `inline_failed` catches unexpected execution failures while
+preserving the durable inbox. Already-processed duplicates do not query again.
+HTTP200 still acknowledges durable receipt, not guaranteed synchronization.
+
+Processing records include attempt number, event age, duration and a bounded stage:
+cancellation return, management synchronization, holder synchronization, issue
+synchronization, card refresh, or event persistence. Pending management/issue and
+stale holder responses have distinct reason codes. Event UUID context is inherited
+by nested provider/token logs and restored in finally. External transaction
+references remain keyed hashes.
+
+`card_refresh.stage` distinguishes transaction lookup, card lookup, response
+validation and cache persistence. A failed transaction lookup stops before card
+lookup under the existing contract. `card_refresh.applied` is emitted only after the
+outermost database transaction commits, with previous/provider/stored balance decimal
+strings, refresh generation and synchronization epoch. Provider balance is a USD
+card cache, not the USDT Wallet. `card_refresh.returned` alone is not commit evidence;
+superseded refreshes, rejected responses and rolled-back updates never emit applied.
+Refresh validation and supersession failures have separate bounded failure codes.
+
+No new notification job is dispatched and no cards:recover schedule remains. The
+legacy job is an inert compatibility handler logging `notification.legacy_job_skipped`;
+old cards:recover cron calls refuse execution. RETRY is retained for diagnosis and
+a future verified callback, not automatically consumed. Existing scoped Platform
+manual refresh queries the selected card only; unrelated business workflows retain
+their own contracts. Historical dispatch/job logs describe the former execution path.
+
+Operators may run `php artisan cards:notification-inspect <tenant-uuid> <event-uuid>`
+to read one company-scoped event and its related cached card. It reports timestamps,
+attempts and inline execution mode; it neither calls a provider nor dispatches/retries
+a job or changes money. No raw payload, provider identifier, digest, private materials
+or credentials are printed. No database migration or frontend build is required.

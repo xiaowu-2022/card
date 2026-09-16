@@ -51,8 +51,11 @@ bypasses. Card cancellation is irreversible and requires explicit warning/passwo
 `card_provider_events` stores only allowlisted routing fields and a digest, never
 raw bodies/PAN/CVV/holder materials. Verify X-PD-SIGN over untouched raw bytes first;
 resolve tenant from the persisted PHOTONPAY card/holder/order mapping, not body tenant
-or Host. Duplicate callbacks acknowledge without new financial actions. Jobs carry
-explicit trusted tenant and resource IDs. Persist before acknowledging `roger: true`.
+or Host. After the inbox transaction commits, execute one synchronization attempt
+inline using the trusted tenant/event IDs, then acknowledge `roger: true`. No queue
+job is dispatched. Already-processed duplicate callbacks do not query again. Failed
+reads preserve RETRY for inspection or a later verified delivery, without automatic
+retries; receipt acknowledgement is not a claim of successful balance synchronization.
 
 Received consumption/settlement/status notifications trigger provider re-query.
 `card_transactions` is an allowlisted tenant/card-scoped provider read model. Card
@@ -83,9 +86,15 @@ Configure PhotonPay's callback as `https://<public-host>/webhooks/card-provider`
 and set `PHOTONPAY_WEBHOOK_PUBLIC_KEY` to PhotonPay's notification verification
 public key (PEM, escaped newlines supported). This is not our outbound signing key.
 The route is host-independent because provider mappings resolve tenant scope.
-Run the queue worker and Laravel scheduler; `cards:recover --tenant=<tenant_uuid>`
-performs trusted re-queries, never resends money/state mutations. Without `--tenant`
-it deliberately iterates all tenants including suspended ones for paid settlement.
+As approved on 2026-09-16, PhotonPay notification synchronization needs neither a
+queue worker nor a scheduler. Remove any server cron entry for `cards:recover`; that
+command now refuses execution without querying providers. Pre-deployment serialized
+notification jobs are inert compatibility handlers. Restart any existing long-lived
+workers after deployment to load that handler; do not replay historical jobs. The
+Platform card list retains its scoped, permission-checked manual refresh button.
+No periodic card polling, balance scanning or automatic notification recovery is
+registered. Other business schedules, including user-authorized timed deposit
+refunds, retain their own contracts.
 Inspect RETRY inbox rows and UNKNOWN orders operationally; never force success or
 release a hold manually. Holder edit recovery compares only encrypted requested
 changes with provider read-back, never replays an unconfirmed edit. Original opening

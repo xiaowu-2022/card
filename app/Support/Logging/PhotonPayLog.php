@@ -22,6 +22,28 @@ final class PhotonPayLog
 {
     private array $context;
 
+    private static array $scope = [];
+
+    /** Bind diagnostics for this execution only, including nested provider calls. */
+    public static function withContext(array $context, Closure $callback): mixed
+    {
+        $previous = self::$scope;
+        self::$scope = $context + $previous;
+        try {
+            return $callback();
+        } finally {
+            self::$scope = $previous;
+        }
+    }
+
+    /** Capture only the diagnostic scope for a deferred after-commit callback. */
+    public static function contextCallback(Closure $callback): Closure
+    {
+        $context = self::$scope;
+
+        return static fn () => self::withContext($context, $callback);
+    }
+
     private function __construct(array $context)
     {
         $this->context = $context + ['span_id' => (string) Str::uuid()];
@@ -207,6 +229,8 @@ final class PhotonPayLog
                 'CARD_WEBHOOK_UNAVAILABLE' => 'verification_unavailable',
                 'CARD_WEBHOOK_UNSUPPORTED' => 'unsupported_notification',
                 'CARD_WEBHOOK_UNMAPPED' => 'unmapped_notification',
+                'CARD_REFRESH_UNCONFIRMED' => 'refresh_unconfirmed',
+                'CARD_REFRESH_SUPERSEDED' => 'refresh_superseded',
                 default => 'business_rule',
             },
             default => 'internal',
@@ -216,6 +240,7 @@ final class PhotonPayLog
     public static function write(string $event, array $context = [], bool $warning = false): void
     {
         try {
+            $context += self::$scope;
             $safe = [];
             foreach (['span_id', 'tenant_id', 'resource_id', 'event_id', 'order_id'] as $key) {
                 if (is_string($context[$key] ?? null) && Str::isUuid($context[$key])) {
@@ -228,27 +253,36 @@ final class PhotonPayLog
                     $safe['request_id'] = $requestId;
                 }
             }
-            foreach (['connection_ref', 'provider_request_ref', 'provider_code_ref', 'notification_type_ref'] as $key) {
+            foreach (['connection_ref', 'provider_request_ref', 'provider_code_ref', 'notification_type_ref', 'transaction_ref'] as $key) {
                 if (is_string($context[$key] ?? null) && preg_match('/^[a-f0-9]{64}$/D', $context[$key])) {
                     $safe[$key] = $context[$key];
                 }
             }
-            foreach (['duration_ms', 'http_status', 'page', 'page_size', 'server_epoch', 'deadline_epoch'] as $key) {
+            foreach (['duration_ms', 'http_status', 'page', 'page_size', 'server_epoch', 'deadline_epoch', 'attempt', 'event_age_seconds', 'refresh_generation', 'synced_epoch'] as $key) {
                 if (is_int($context[$key] ?? null) && $context[$key] >= 0) {
                     $safe[$key] = $context[$key];
                 }
             }
-            foreach (['cache_hit', 'duplicate'] as $key) {
+            foreach (['cache_hit', 'duplicate', 'has_transaction'] as $key) {
                 if (is_bool($context[$key] ?? null)) {
                     $safe[$key] = $context[$key];
                 }
             }
             foreach (['card_action' => ['quote', 'confirm', 'sync', 'history', 'holder_details', 'reveal', 'refresh', 'return', 'freeze', 'unfreeze', 'cancel', 'holder'],
                 'order_state' => ['quoted', 'completed', 'declined', 'expired', 'confirming'],
+                'event_status' => ['PENDING', 'RETRY', 'PROCESSED'],
+                'queue_driver' => ['sync', 'database', 'redis', 'sqs', 'beanstalkd', 'deferred', 'background', 'failover'],
+                'stage' => ['cancellation_return', 'management_sync', 'holder_sync', 'issue_sync', 'card_refresh', 'transaction_lookup', 'card_lookup', 'card_validation', 'cache_persist', 'event_persist'],
+                'reason' => ['management_pending', 'holder_stale', 'issue_pending'],
                 'method' => ['GET', 'POST'], 'category' => ['issuing', 'issuing_card', 'issuing_settlement'],
-                'failure' => ['connection', 'authentication', 'rate_limited', 'rejected', 'unavailable', 'unknown_result', 'decryption', 'cache_lock', 'invalid_json', 'invalid_notification', 'verification_unavailable', 'unsupported_notification', 'unmapped_notification', 'business_rule', 'internal'],
+                'failure' => ['connection', 'authentication', 'rate_limited', 'rejected', 'unavailable', 'unknown_result', 'decryption', 'cache_lock', 'invalid_json', 'invalid_notification', 'verification_unavailable', 'unsupported_notification', 'unmapped_notification', 'refresh_unconfirmed', 'refresh_superseded', 'business_rule', 'internal'],
             ] as $key => $allowed) {
                 if (in_array($context[$key] ?? null, $allowed, true)) {
+                    $safe[$key] = $context[$key];
+                }
+            }
+            foreach (['previous_balance', 'provider_balance', 'stored_balance'] as $key) {
+                if (is_string($context[$key] ?? null) && preg_match('/^-?[0-9]{1,12}(?:\.[0-9]{1,8})?$/D', $context[$key])) {
                     $safe[$key] = $context[$key];
                 }
             }

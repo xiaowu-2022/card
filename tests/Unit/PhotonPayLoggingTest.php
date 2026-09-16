@@ -5,6 +5,7 @@ use App\Domain\CardProvider\Exceptions\ProviderRateLimitException;
 use App\Domain\CardProvider\Exceptions\ProviderUnknownResultException;
 use App\Infrastructure\Providers\Card\PhotonPayCardProvider;
 use App\Infrastructure\Providers\Card\PhotonPayCardResponseNormalizer;
+use App\Support\Errors\DomainException;
 use App\Support\Logging\PhotonPayLog;
 use GuzzleHttp\Psr7\Response;
 use Illuminate\Support\Facades\Http;
@@ -14,6 +15,51 @@ use Monolog\Logger;
 use Tests\TestCase;
 
 uses(TestCase::class);
+
+it('correlates nested and deferred diagnostics and clears worker context after exceptions', function (): void {
+    $eventId = '01a0a9ee-6adc-7277-ab91-312fee636acb';
+    $otherId = '01a09996-8c36-7288-bf98-889103088ba6';
+    $deferred = null;
+    try {
+        PhotonPayLog::withContext(['event_id' => $eventId], function () use ($otherId, &$deferred): void {
+            PhotonPayLog::run('request', [], fn () => null);
+            $deferred = PhotonPayLog::contextCallback(fn () => PhotonPayLog::write('card_refresh.applied'));
+            PhotonPayLog::withContext(['event_id' => $otherId], fn () => PhotonPayLog::write('notification.processing'));
+            PhotonPayLog::write('notification.retry');
+            throw new RuntimeException('never-log-private-exception');
+        });
+    } catch (RuntimeException) {
+        // Long-lived worker continues with an unrelated task.
+    }
+    $deferred();
+    PhotonPayLog::write('notification.processing');
+    $records = $this->handler->getRecords();
+    expect($records[0]->context['event_id'])->toBe($eventId)
+        ->and($records[1]->context['event_id'])->toBe($eventId)
+        ->and($records[2]->context['event_id'])->toBe($otherId)
+        ->and($records[3]->context['event_id'])->toBe($eventId)
+        ->and($records[4]->context['event_id'])->toBe($eventId)
+        ->and($records[5]->context)->not->toHaveKey('event_id');
+});
+
+it('filters notification stages and exact balance diagnostics at the logging boundary', function (): void {
+    PhotonPayLog::write('notification.retry', ['stage' => 'transaction_lookup', 'attempt' => 2,
+        'event_status' => 'RETRY', 'queue_driver' => 'redis', 'has_transaction' => true,
+        'previous_balance' => '20.00000000', 'provider_balance' => '16.99999999',
+        'stored_balance' => 16.99999999, 'transaction_ref' => 'private-transaction',
+        'body' => 'private-body', 'reason' => 'private-provider-text']);
+    $records = $this->handler->getRecords();
+    expect($records[0]->context)->toBe([
+        'attempt' => 2, 'has_transaction' => true, 'event_status' => 'RETRY',
+        'queue_driver' => 'redis', 'stage' => 'transaction_lookup',
+        'previous_balance' => '20.00000000', 'provider_balance' => '16.99999999',
+    ]);
+    PhotonPayLog::write('card_refresh.failed', ['stage' => 'private-stage', 'event_status' => 'private-status',
+        'provider_balance' => '4111111111111111', 'stored_balance' => '1e4',
+        'failure' => PhotonPayLog::failure(new DomainException('CARD_REFRESH_SUPERSEDED', 'private-message', 409))]);
+    $records = $this->handler->getRecords();
+    expect(end($records)->context)->toBe(['failure' => 'refresh_superseded']);
+});
 
 beforeEach(function (): void {
     Http::preventStrayRequests();
