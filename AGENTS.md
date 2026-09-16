@@ -1,5 +1,16 @@
 # Virtual Card SaaS Agent Rules
 
+On 2026-09-16 the user explicitly requested complete PhotonPay callback diagnostics:
+sensitive data encrypted and other business parameters retained. A dedicated private,
+rotating webhook log may retain an AES-256-GCM encrypted envelope of exact callback
+bytes and the three verification headers, using a separate configured 32-byte key.
+Only validated, known non-sensitive fields may also appear in plaintext; unknown,
+free-text and sensitive values remain in ciphertext. No plaintext fallback, automatic
+decryption, browser exposure or financial replay is permitted. This narrowly extends
+the former no-body logging rule for this encrypted diagnostic channel only; ordinary
+logs and all other sensitive-data restrictions remain unchanged. See
+`docs/architecture/PHOTONPAY_LOGGING.md`.
+
 On 2026-09-16 the user chose unified application/migration ownership for the
 dedicated deployed card_platform database. The existing card_platform login may
 own the project's public-schema objects and create future migration objects.

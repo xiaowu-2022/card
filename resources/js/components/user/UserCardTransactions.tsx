@@ -110,12 +110,7 @@ export function UserCardTransactions({
                                                 dateTime={item.displayAt}
                                                 className="mt-2 block text-xs text-muted-foreground"
                                             >
-                                                {t(
-                                                    item.timeKind === 'completed'
-                                                        ? 'Completed time'
-                                                        : 'Recorded time',
-                                                )}
-                                                : {dateTime(item.displayAt)}
+                                                {dateTime(item.displayAt)}
                                             </time>
                                         </div>
                                     </div>

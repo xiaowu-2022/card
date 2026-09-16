@@ -253,17 +253,17 @@ final class PhotonPayLog
                     $safe['request_id'] = $requestId;
                 }
             }
-            foreach (['connection_ref', 'provider_request_ref', 'provider_code_ref', 'notification_type_ref', 'transaction_ref'] as $key) {
+            foreach (['connection_ref', 'provider_request_ref', 'provider_code_ref', 'notification_type_ref', 'transaction_ref', 'notification_ref'] as $key) {
                 if (is_string($context[$key] ?? null) && preg_match('/^[a-f0-9]{64}$/D', $context[$key])) {
                     $safe[$key] = $context[$key];
                 }
             }
-            foreach (['duration_ms', 'http_status', 'page', 'page_size', 'server_epoch', 'deadline_epoch', 'attempt', 'event_age_seconds', 'refresh_generation', 'synced_epoch'] as $key) {
+            foreach (['duration_ms', 'http_status', 'page', 'page_size', 'server_epoch', 'deadline_epoch', 'attempt', 'event_age_seconds', 'refresh_generation', 'synced_epoch', 'body_bytes'] as $key) {
                 if (is_int($context[$key] ?? null) && $context[$key] >= 0) {
                     $safe[$key] = $context[$key];
                 }
             }
-            foreach (['cache_hit', 'duplicate', 'has_transaction'] as $key) {
+            foreach (['cache_hit', 'duplicate', 'has_transaction', 'signature_verified'] as $key) {
                 if (is_bool($context[$key] ?? null)) {
                     $safe[$key] = $context[$key];
                 }
@@ -272,13 +272,27 @@ final class PhotonPayLog
                 'order_state' => ['quoted', 'completed', 'declined', 'expired', 'confirming'],
                 'event_status' => ['PENDING', 'RETRY', 'PROCESSED'],
                 'queue_driver' => ['sync', 'database', 'redis', 'sqs', 'beanstalkd', 'deferred', 'background', 'failover'],
-                'stage' => ['cancellation_return', 'management_sync', 'holder_sync', 'issue_sync', 'card_refresh', 'transaction_lookup', 'card_lookup', 'card_validation', 'cache_persist', 'event_persist'],
-                'reason' => ['management_pending', 'holder_stale', 'issue_pending'],
+                'stage' => ['signature_verification', 'notification_headers', 'notification_body', 'notification_identifiers', 'cancellation_return', 'management_sync', 'holder_sync', 'issue_sync', 'card_refresh', 'transaction_lookup', 'card_lookup', 'card_validation', 'cache_persist', 'event_persist'],
+                'reason' => ['payload_too_large', 'log_key_invalid', 'payload_log_failed', 'management_pending', 'holder_stale', 'issue_pending', 'verification_key_invalid', 'body_too_large', 'signature_invalid', 'unsupported_headers', 'invalid_json', 'object_required', 'identifier_invalid'],
+                'field' => ['cardId', 'cardholderId', 'transactionId', 'requestId'],
+                'field_state' => ['too_long', 'invalid_characters', 'wrong_type'],
                 'method' => ['GET', 'POST'], 'category' => ['issuing', 'issuing_card', 'issuing_settlement'],
                 'failure' => ['connection', 'authentication', 'rate_limited', 'rejected', 'unavailable', 'unknown_result', 'decryption', 'cache_lock', 'invalid_json', 'invalid_notification', 'verification_unavailable', 'unsupported_notification', 'unmapped_notification', 'refresh_unconfirmed', 'refresh_superseded', 'business_rule', 'internal'],
             ] as $key => $allowed) {
                 if (in_array($context[$key] ?? null, $allowed, true)) {
                     $safe[$key] = $context[$key];
+                }
+            }
+            if (is_array($context['notification_fields'] ?? null)) {
+                foreach (['cardId', 'cardholderId', 'transactionId', 'requestId'] as $field) {
+                    $metadata = $context['notification_fields'][$field] ?? null;
+                    if (! is_array($metadata) || ! in_array($metadata['state'] ?? null, ['missing', 'null', 'empty', 'valid', 'wrong_type', 'too_long', 'invalid_characters'], true)) {
+                        continue;
+                    }
+                    $safe['notification_fields'][$field] = ['state' => $metadata['state']];
+                    if ($metadata['state'] === 'valid' && is_string($metadata['ref'] ?? null) && preg_match('/^[a-f0-9]{64}$/D', $metadata['ref'])) {
+                        $safe['notification_fields'][$field]['ref'] = $metadata['ref'];
+                    }
                 }
             }
             foreach (['previous_balance', 'provider_balance', 'stored_balance'] as $key) {

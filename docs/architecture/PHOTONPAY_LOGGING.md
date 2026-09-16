@@ -136,3 +136,98 @@ to read one company-scoped event and its related cached card. It reports timesta
 attempts and inline execution mode; it neither calls a provider nor dispatches/retries
 a job or changes money. No raw payload, provider identifier, digest, private materials
 or credentials are printed. No database migration or frontend build is required.
+
+## Callback validation diagnostics (2026-09-16)
+
+A 422 `invalid_notification` from the verifier occurs after exact-body signature
+verification, during JSON/object or identifier validation. It precedes inbox
+persistence and provider balance lookup. Older logs cannot identify which field
+failed and must not be treated as proof of any particular malformed value.
+
+Rejections now include a bounded stage/reason, signature_verified, body_bytes,
+allowlisted category and keyed notification-type reference. Identifier errors add
+only a fixed field name and one of wrong_type/too_long/invalid_characters; they
+never include the value, body, signature or provider message. The final logger
+revalidates these fields. A missing/invalid key remains 503, a bad signature 401,
+unsupported headers 422 and an unmapped verified resource 404.
+
+The four extracted optional identifiers accept absent/null/empty-string as absent.
+Nonempty values retain strict length/character validation (including rejecting
+trailing newlines); whitespace, arrays and booleans are not normalized. A callback
+must be a JSON object. Resource resolution still requires an existing trusted
+provider card/holder/order mapping; empty identifiers cannot select a company.
+No callback amount or balance is used to calculate or write funds. This fixes the
+empty-optional-field compatibility case without claiming that old 422 logs prove
+it was the deployed incident's cause.
+
+Reference: PhotonPay official sandbox OpenAPI `2026-08-06_zh.json`, issuing transaction
+and settlement notification schemas (`vccTransactionNotify`,
+`vccTransactionSettledNotify`). Merchant requestId is not required by those schemas;
+settlement examples omit it. Existing key, signature, mapping, idempotency and
+inline authoritative-query contracts remain enforced. No migration or build is
+needed; deploy the PHP changes and reload PHP-FPM. Verify the next delivery's
+correlated logs, or use the existing explicitly scoped manual refresh. Do not
+replay old callbacks or create another purchase as part of deploying this fix.
+
+`webhook.validated` and post-signature rejection diagnostics also include
+`notification_ref` (keyed exact-body digest) and `notification_fields`: each of
+cardId/cardholderId/transactionId/requestId is classified as missing, null, empty,
+valid, wrong_type, too_long or invalid_characters. Valid values have keyed references
+for correlation; neither valid nor invalid raw values are recorded. This metadata
+is computed only after signature verification and object parsing. Unknown keys,
+raw values and malformed references are dropped again by the logger. The body
+reference correlates retries across request UUIDs without retaining the callback.
+
+## Complete encrypted callback evidence (user approved 2026-09-16)
+
+The user's explicit follow-up supersedes the former no-body logging rule **only for
+a separate encrypted webhook diagnostic channel**. Each callback is captured before
+verification so invalid signatures, unavailable keys and malformed JSON are also
+diagnosable. `photonpay-webhooks-YYYY-MM-DD.log` stores:
+
+- request UUID, keyed body reference, byte count, schema version, cipher and key reference;
+- `unverified_parameters`: validated known business values such as amounts, currencies,
+  status, type, times and safe identifiers, as exact strings (never PHP floats);
+- `encrypted_envelope`: authenticated AES-256-GCM encryption of the exact original
+  body and X-PD-SIGN / X-PD-NOTIFICATION-CATAGORY / X-PD-NOTIFICATION-TYPE values.
+  Bytes are base64-encoded **inside** the envelope to preserve invalid UTF-8 as well.
+
+All original fields, including unknown, nested, empty and malformed values, remain
+recoverable from that envelope. Sensitive fields (PAN/CVV, holder material, free text,
+secrets and potentially card-like digit sequences) never appear in plaintext.
+Unknown keys/values are encrypted rather than guessed safe. No request-wide header,
+Authorization, cookie or session dump is collected. The visible view is explicitly
+unverified diagnostic evidence, never proof of amount, ownership or settlement.
+
+The channel uses JSON lines, 0600 files, locking and daily rotation; default retention
+is seven files/days of activity and `PHOTONPAY_WEBHOOK_LOG_DAYS` is bounded to 1–14.
+Rotation cleanup occurs on log writes (no new scheduled task); if traffic stops,
+existing files remain until rotation or authorized filesystem retention cleanup.
+Keep storage outside the web root and exclude these files from ordinary log export
+and long-lived backups. Do not grant consumer/admin HTTP access to these logs.
+
+Configure a persistent **separate** 32-byte key:
+
+```sh
+/www/server/php/84/bin/php -r 'echo "base64:".base64_encode(random_bytes(32)), PHP_EOL;'
+```
+
+Save the result as `PHOTONPAY_WEBHOOK_LOG_ENCRYPTION_KEY` in the site's private `.env`
+(do not paste the key into support messages). Set `PHOTONPAY_WEBHOOK_LOG_DAYS=7`, run
+`php artisan config:cache` and reload the site's PHP-FPM. Do not change APP_KEY.
+No automatic APP_KEY fallback exists. Without a valid key, capture emits the bounded
+`webhook.payload_unavailable` / `log_key_invalid` diagnostic and writes no payload;
+normal notification verification and processing continue. Oversized requests beyond
+the existing 2 MiB body limit are not retained; header capture is also bounded.
+Encryption/storage failures log only a bounded reason and never change financial
+results or acknowledge an otherwise rejected callback.
+
+Authorized offline inspection can decrypt `encrypted_envelope` with Laravel
+`Encrypter($decodedDedicatedKey, 'aes-256-gcm')->decryptString(...)`; then decode the
+JSON and base64 body/header fields. Decryption is never automatic and must not write
+plaintext into ordinary logs, terminal transcripts or browser responses. Preserve
+old keys securely for retained evidence if explicitly rotating; key_ref identifies
+the needed key. No decryption endpoint, database migration, replay or new funds
+operation is introduced. Tests use synthetic secrets only and verify lossless byte
+recovery, precision, authentication/tamper rejection, plaintext exclusion, key failure,
+size limits, logging failure isolation and correlation with rejected HTTP callbacks.

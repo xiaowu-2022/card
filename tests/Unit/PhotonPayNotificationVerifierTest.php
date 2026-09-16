@@ -59,3 +59,40 @@ it('rejects unsigned callbacks and signatures made with a different RSA key', fu
         expect($error->errorCode)->toBe('CARD_WEBHOOK_INVALID')->and($error->httpStatus)->toBe(401);
     }
 })->with(['missing', 'other-key', 'invalid-base64']);
+
+it('accepts empty optional identifiers without retaining notification contents', function (string $category) {
+    $key = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_RSA, 'private_key_bits' => 1024]);
+    config(['card-provider.photonpay.webhook_public_key' => openssl_pkey_get_details($key)['key']]);
+    $body = '{"cardId":"XR-CARD","transactionId":"IT-TRANSACTION","requestId":"","cardholderId":"","transactionAmount":10.00000001,"private":"discard"}';
+    openssl_sign($body, $signature, $key, OPENSSL_ALGO_MD5);
+    $facts = (new PhotonPayNotificationVerifier)->verify($body, base64_encode($signature), $category, 'auth');
+    expect($facts['cardId'])->toBe('XR-CARD')->and($facts['transactionId'])->toBe('IT-TRANSACTION')
+        ->and($facts['requestId'])->toBeNull()->and($facts['cardholderId'])->toBeNull()
+        ->and($facts)->not->toHaveKeys(['transactionAmount', 'private']);
+})->with(['issuing', 'issuing_settlement']);
+
+it('reports bounded diagnostics for signed malformed bodies and identifiers', function (string $body, string $reason, ?string $field, ?string $state) {
+    $key = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_RSA, 'private_key_bits' => 1024]);
+    config(['card-provider.photonpay.webhook_public_key' => openssl_pkey_get_details($key)['key']]);
+    openssl_sign($body, $signature, $key, OPENSSL_ALGO_MD5);
+    try {
+        (new PhotonPayNotificationVerifier)->verify($body, base64_encode($signature), 'issuing', 'auth');
+        $this->fail('Malformed callback was accepted.');
+    } catch (DomainException $error) {
+        expect($error->httpStatus)->toBe(422)->and($error->details['reason'])->toBe($reason)
+            ->and($error->details['signature_verified'])->toBeTrue()
+            ->and($error->details['body_bytes'])->toBe(strlen($body))
+            ->and($error->details['field'] ?? null)->toBe($field)
+            ->and($error->details['field_state'] ?? null)->toBe($state)
+            ->and(json_encode($error->details))->not->toContain('private-marker');
+    }
+})->with([
+    ['{"cardId":', 'invalid_json', null, null],
+    ['[{"cardId":"private-marker"}]', 'object_required', null, null],
+    ['{"requestId":[]}', 'identifier_invalid', 'requestId', 'wrong_type'],
+    ['{"transactionId":false}', 'identifier_invalid', 'transactionId', 'wrong_type'],
+    ['{"cardholderId":" "}', 'identifier_invalid', 'cardholderId', 'invalid_characters'],
+    ['{"cardId":"private-marker/invalid"}', 'identifier_invalid', 'cardId', 'invalid_characters'],
+    ['{"cardId":"private-marker\\n"}', 'identifier_invalid', 'cardId', 'invalid_characters'],
+    [json_encode(['requestId' => str_repeat('x', 181)]), 'identifier_invalid', 'requestId', 'too_long'],
+]);

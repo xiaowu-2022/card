@@ -261,7 +261,7 @@ it('synchronizes verified notifications inline without a queue and deduplicates 
     $provider->shouldReceive('getTransaction')->once()->with($card->provider_card_id, 'TX-CONSUMPTION')->andReturn(new ProviderCardTransactionDTO('TX-CONSUMPTION', '3.00000000', 'USD', 'purchase', 'completed', '2026-09-11T12:00:00', 'A shop'));
     $key = openssl_pkey_new(['private_key_bits' => $keyBits]);
     config(['card-provider.photonpay.webhook_public_key' => openssl_pkey_get_details($key)['key']]);
-    $body = json_encode(['cardId' => $card->provider_card_id, 'transactionId' => 'TX-CONSUMPTION', 'cardBalance' => '99999', 'tenant_id' => (string) Str::uuid()]);
+    $body = json_encode(['cardId' => $card->provider_card_id, 'transactionId' => 'TX-CONSUMPTION', 'requestId' => '', 'cardholderId' => '', 'cardBalance' => '99999', 'tenant_id' => (string) Str::uuid()]);
     openssl_sign($body, $signature, $key, OPENSSL_ALGO_MD5);
     $receive = app(ReceiveCardNotificationAction::class);
     expect(fn () => $receive->execute($body, 'invalid', 'issuing', 'auth'))->toThrow(DomainException::class);
@@ -273,7 +273,7 @@ it('synchronizes verified notifications inline without a queue and deduplicates 
     $receive->execute($body, base64_encode($signature), 'issuing', 'auth');
     $event = CardProviderEvent::query()->firstOrFail();
     expect(CardProviderEvent::query()->count())->toBe(1)->and($event->tenant_id)->toBe($this->tenant->id);
-    expect($event->status)->toBe('PROCESSED')->and($event->attempts)->toBe(1);
+    expect($event->status)->toBe('PROCESSED')->and($event->attempts)->toBe(1)->and($event->request_id)->toBeNull();
     Queue::assertNotPushed(App\Jobs\ProcessCardNotification::class);
     $applied = collect($handler->getRecords())->first(fn ($record) => $record->message === 'photonpay.card_refresh.applied');
     expect($applied)->not->toBeNull()

@@ -40,7 +40,9 @@ that field: client DTOs expose only `displayAt` with an offset and `timeKind`.
 An exact tenant/user/card/transaction match to a SUCCEEDED management order with
 its sealed settlement entry uses that entry's posted_at (`completed`). Otherwise
 use card_transactions.created_at (`recorded`), not an inferred purchase time.
-The UI labels these Completion time / Recorded time and formats the company timezone.
+The consumer UI displays the date/time alone, without a Completion time / Recorded
+time prefix (user requested 2026-09-16), and formats the company timezone. The DTO
+retains timeKind; administrator time-source labels are unchanged.
 
 ## Ownership and user surface
 
@@ -71,7 +73,7 @@ source's page. Previously loaded records remain visible during failures, with a
 neutral update/retry message. Only loaded rows are merged and deduplicated by their
 card-scoped hashed identity. No full-history scan, timer polling or false claim of
 complete global history is introduced. Old transactions first collected now are
-labelled Recorded time now, never backdated. Consumer copy does not expose issuing
+assigned their immutable first-recorded time, never backdated. Consumer copy does not expose issuing
 or integration infrastructure; critical fee/cancellation/refund consequences remain.
 
 ## Side effects and non-goals

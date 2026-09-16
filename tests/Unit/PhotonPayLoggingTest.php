@@ -267,3 +267,41 @@ it('logs management history counts and refresh balances without private result f
     $records = $this->handler->getRecords();
     expect(end($records)->context['result_summary'])->toBe(['balance' => '20.12345678']);
 });
+
+it('identifies signed callback validation failures without exposing field values', function (): void {
+    $key = openssl_pkey_new(['private_key_bits' => 1024]);
+    config(['card-provider.photonpay.webhook_public_key' => openssl_pkey_get_details($key)['key']]);
+    $body = '{"cardId":"private-card-marker","requestId":{"secret":"private-field-marker"},"pan":"4111111111111111"}';
+    openssl_sign($body, $signature, $key, OPENSSL_ALGO_MD5);
+    $this->call('POST', 'http://callback.example/webhooks/card-provider', [], [], [], [
+        'CONTENT_TYPE' => 'application/json', 'HTTP_X_PD_SIGN' => base64_encode($signature),
+        'HTTP_X_PD_NOTIFICATION_CATAGORY' => 'issuing', 'HTTP_X_PD_NOTIFICATION_TYPE' => 'auth',
+    ], $body)->assertStatus(422)->assertExactJson(['roger' => false]);
+    $records = $this->handler->getRecords();
+    $last = end($records);
+    expect($last->context['stage'])->toBe('notification_identifiers')
+        ->and($last->context['reason'])->toBe('identifier_invalid')
+        ->and($last->context['field'])->toBe('requestId')
+        ->and($last->context['field_state'])->toBe('wrong_type')
+        ->and($last->context['signature_verified'])->toBeTrue()
+        ->and($last->context['notification_ref'])->toBe(PhotonPayLog::reference($body))
+        ->and($last->context['notification_fields']['cardId'])->toBe(['state' => 'valid', 'ref' => PhotonPayLog::reference('private-card-marker')])
+        ->and($last->context['notification_fields']['requestId'])->toBe(['state' => 'wrong_type'])
+        ->and($last->context['notification_fields']['transactionId'])->toBe(['state' => 'missing']);
+    foreach (['private-card-marker', 'private-field-marker', '4111111111111111', base64_encode($signature)] as $private) {
+        expect(json_encode($records))->not->toContain($private);
+    }
+    Http::assertNothingSent();
+});
+
+it('drops unknown diagnostic fields reasons and states at the final log boundary', function (): void {
+    PhotonPayLog::write('webhook.rejected', ['field' => 'private-marker', 'reason' => 'private-marker',
+        'field_state' => 'private-marker', 'stage' => 'private-marker', 'signature_verified' => 'private-marker',
+        'body_bytes' => 'private-marker', 'raw_body' => 'private-marker',
+        'notification_ref' => 'private-marker', 'notification_fields' => [
+            'pan' => ['state' => 'valid', 'ref' => 'private-marker'],
+            'cardId' => ['state' => 'valid', 'ref' => 'private-marker', 'raw' => 'private-marker'],
+            'requestId' => ['state' => 'private-marker'],
+        ]]);
+    expect(json_encode($this->handler->getRecords()))->not->toContain('private-marker');
+});

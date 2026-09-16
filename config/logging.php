@@ -1,6 +1,7 @@
 <?php
 
 use App\Support\Logging\RedactSensitiveLogContext;
+use Monolog\Formatter\JsonFormatter;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -52,6 +53,17 @@ return [
     */
 
     'channels' => [
+
+        'photonpay_webhooks' => [
+            'driver' => 'daily',
+            'tap' => [RedactSensitiveLogContext::class],
+            'path' => storage_path('logs/photonpay-webhooks.log'),
+            'level' => 'info',
+            'max_files' => max(1, min(14, (int) env('PHOTONPAY_WEBHOOK_LOG_DAYS', 7))),
+            'permission' => 0600,
+            'locking' => true,
+            'formatter' => JsonFormatter::class,
+        ],
 
         'photonpay' => [
             'driver' => 'daily',
