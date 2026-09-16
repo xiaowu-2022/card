@@ -28,7 +28,8 @@ contains no private-key custody, automatic external conversion or automated payo
    Restart workers, restore the scheduler, and `php artisan up` after checks pass.
 
 ## Enabling one rail at a time
-- Add exact node hostnames to `ASSET_RPC_ALLOWED_HOSTS`, rebuild config cache.
+- Built-in PublicNode endpoints need no key or environment allowlist. Only custom node
+  hostnames require `ASSET_RPC_ALLOWED_HOSTS` and a rebuilt config cache.
 - In SaaS -> Multi-currency settings configure HTTPS node endpoints. Credentials are
   write-only replacements protected by current-password confirmation. Restrict the node
   credentials/proxy to the read methods used by ChainReader. No wallet private keys.
@@ -37,12 +38,16 @@ contains no private-key custody, automatic external conversion or automated payo
   Bitcoin Core needs mainnet `getblockchaininfo`, `getblockhash`, `getblock`,
   `getblockheader`, `getrawtransaction`, `validateaddress`. Use txindex and retain the
   required block history (or a watch-only node/wallet setup providing equivalent reads).
-- Set an explicit current start height BEFORE enabling. No default start or replay of old
-  blocks is chosen. Cursor/checkpoint advancement is persisted independently per network.
+- On first enablement choose "Start from the current confirmed block" to save its height
+  plus one, or explicitly enter a start height. The connection is tested before enablement.
+  Existing boundaries/checkpoints are preserved; tests never scan or credit money.
 - Configure/check receiving address, enable global rail, then select a company and set
   its minimum deposit and explicit withdrawal fee in the original asset. Zero fee must
   be explicitly entered. ETH18, BTC8, USDC6, chain USDT6; internal USDT remains8.
-- Configure CoinGecko Pro API key and enable prices. Then configure source currency fee
+- Enable public prices without a key, or retain an optional CoinGecko Pro key in advanced
+  settings. Save first, then use Update platform rates (current password required).
+  Rates are refreshed once per minute centrally; consumers only read saved snapshots.
+  Configure source currency fee
   percentage, single gross-USDT limit and per-user daily gross-USDT limit per company.
   Enable exchange only after reading current reserve coverage operationally. The website
   does not obtain/guarantee reserves or perform external hedging.
@@ -50,7 +55,9 @@ contains no private-key custody, automatic external conversion or automated payo
 ## Scheduled work
 Keep ONE existing `* * * * * php /www/wwwroot/card/artisan schedule:run` entry.
 Do not add separate duplicate cron entries for each command. The scheduler now includes:
-- `assets:refresh-prices`: every minute, stale/invalid data blocks new quotes after120s.
+- `assets:refresh-prices`: every minute; shared cache lock and 60-second attempt
+  gate coalesce scheduled/manual work. Use the existing shared Redis cache store across platform workers/hosts.
+  Stale/invalid source data blocks new quotes after 120 seconds, without a per-user fetch.
 - `assets:scan ETHEREUM` and `assets:scan BITCOIN`: every minute, bounded batches,
   per-network cursor, no-overlap locks. Disabled/unconfigured networks do no scanning.
 Existing TRON/recovery/refund commands stay in the scheduler. Monitor failed command runs,
@@ -70,3 +77,8 @@ Full suite: 1,139 tests / 9,358 assertions. Final affected-suite check: 29 tests
 ESLint, 67 i18n checks and Vite build pass. Vite retains the existing bundle-size
 advisory; it is not a build failure. Browser checks: 36 consumer and 18 admin
 cases, with no financial/configuration submissions. See [previews](../previews/multi-assets/README.md).
+
+Public node reachability must be tested from the deployment host. The development
+network returned HTTP 403 for the public ETH/BTC read probes during this revision;
+this is not proof of production access. Do not bypass the capability check or finality
+rules to enable an unavailable endpoint. SaaS manual receipt remains order-scoped.

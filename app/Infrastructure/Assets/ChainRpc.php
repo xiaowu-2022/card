@@ -10,15 +10,14 @@ final class ChainRpc
 {
     public function call(ChainConnection $connection, string $method, array $params = []): mixed
     {
-        // Operators explicitly allow node hostnames in deployment configuration.
-        $url = $connection->rpc_url;
-        $host = is_string($url) ? parse_url($url, PHP_URL_HOST) : null;
-        if (! $connection->enabled || ! $host || parse_url($url, PHP_URL_SCHEME) !== 'https' || parse_url($url, PHP_URL_USER) !== null || ! in_array($host, config('assets.rpc_allowed_hosts', []), true)) {
+        $url = $connection->rpc_url ?: (PublicChainNodes::URLS[$connection->network] ?? '');
+        if (! $connection->enabled || ! PublicChainNodes::allowed($connection->network, $url)) {
             throw new DomainException('CHAIN_UNAVAILABLE', 'The network connection is unavailable.', 503);
         }
         try {
             $http = Http::connectTimeout(5)->timeout(30)->withoutRedirecting();
-            $credential = $connection->credential ?? [];
+            // Never forward custom credentials to a public endpoint.
+            $credential = $url === (PublicChainNodes::URLS[$connection->network] ?? null) ? [] : ($connection->credential ?? []);
             if (isset($credential['username'], $credential['password'])) {
                 $http = $http->withBasicAuth($credential['username'], $credential['password']);
             }

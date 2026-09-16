@@ -128,3 +128,41 @@ Offline tests and successful builds are not proof of live mainnet acceptance.
   18 admin checks, no financial or configuration writes. Preview amounts are examples.
 - Local card_mock migration verified all existing Ledger identity/value/hash fingerprints
   unchanged, zero reconciliation mismatches. No production funds were used.
+
+## Simplified configuration (2026-09-16)
+Internal exchange/valuation reads only persisted platform market snapshots, independently
+of ChainConnection or enabled external rails. This is not a generic balance setter or
+new cross-user transfer capability. The existing LedgerWriter settlement paths remain.
+The platform scheduler fetches all four USD prices in one request each minute. Shared
+cache locks serialize scheduler/manual refreshes across workers and a shared 60-second
+attempt gate also covers upstream failures. Consumer GET/quote/confirm never refreshes
+prices. Fresh snapshots are reused; 120-second source freshness and 30-second quotes
+remain. Manual refresh requires active Platform tenant.manage and current password,
+and records operator/snapshot audit provenance. Enable/save does not fetch prices.
+
+No key selects the CoinGecko public simple/price endpoint. Existing Pro keys retain
+the Pro endpoint until an explicit public-mode save removes the encrypted key.
+No key-bearing fallback is made. A failed fetch cannot replace a valid snapshot.
+Built-in fixed HTTPS PublicNode endpoints require no deployment allowlist or credentials;
+custom endpoints still require the exact deployment allowlist. Changing the endpoint
+clears existing credentials; public nodes never receive stored custom credentials.
+These are defaults, not an assertion of node uptime or complete method support.
+
+The connection test and enable operation read a finalized block including complete
+Ethereum call traces before accepting the connection. No observation, cursor or
+financial record is produced by a test. Explicit first enablement can snapshot the
+current finalized height plus one; this is an operator-selected prospective boundary,
+not a historical replay. Previously set boundaries/checkpoints never reset. Advanced
+configuration retains explicit start heights and Bitcoin confirmation counts.
+Manual deposit confirmation also requires current Platform password, alongside existing
+permission, exact order amount, acknowledgement, immutable actor/time, and the same
+idempotent credit key as automatic verification. Public node failure does not block
+manual receipt of an otherwise eligible existing order; neither path double-credits.
+No new migration, live configuration enablement, chain transfer or balance replay.
+
+Revision validation: 117 related backend tests / 719 assertions passed before the final
+explicit-private-provider validation, followed by its targeted regression. 70 i18n
+checks, TypeScript, affected-file ESLint and production build passed. Local SaaS browser
+checks covered public defaults, advanced controls and 375/768/1440 widths without
+configuration or financial submissions. Official defaults: [Ethereum PublicNode](https://ethereum.publicnode.com/),
+[Bitcoin PublicNode](https://bitcoin.publicnode.com/) and [CoinGecko public API](https://docs.coingecko.com/docs/keyless-public-api).

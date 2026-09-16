@@ -2,6 +2,33 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Internal balances and exchange use the platform ledger. Only external deposits and withdrawals query the blockchain.':
+        '平台内部余额与兑换使用系统账本，仅外部充值、提现需要查询区块链。',
+    'Platform exchange rates': '平台兑换汇率',
+    'The platform updates rates once per minute. All users read the same saved rates; user requests never fetch external prices.':
+        '平台每分钟统一更新汇率，所有用户读取已保存的报价，用户操作不请求外部行情。',
+    'Update platform rates': '更新平台汇率',
+    'No fresh platform rates. Enable rates and run a platform update.':
+        '暂无有效汇率，请启用后更新平台汇率。',
+    'Use public prices (no API key)': '使用公共行情（无需密钥）',
+    'External deposit verification': '外部充值到账查询',
+    'Public nodes need no key. Verify the connection before enabling. SaaS can also confirm receipt of a fixed deposit order.':
+        '公共节点无需密钥，启用前会验证连接。SaaS 也可对固定充值订单手动确认到账。',
+    'Ethereum network': 'Ethereum 网络',
+    'Bitcoin network': 'Bitcoin 网络',
+    'Test connection': '测试连接',
+    'Use public node (no credentials)': '使用公共节点（无需凭据）',
+    'Start from the current confirmed block (no historical scan)':
+        '从当前已确认区块之后开始（不扫描历史）',
+    'Existing scan progress is preserved.': '保留已有扫描进度。',
+    'Internal exchange does not require a blockchain connection or network fee.':
+        '内部兑换无需区块链连接，不产生链上手续费。',
+    'Updated at': '更新时间',
+    'Advanced settings': '高级设置',
+    'Network connection verified.': '节点连接与查询能力验证通过。',
+    'Platform rates updated.': '平台汇率已更新。',
+    ASSET_PRICES_REFRESHED: '更新平台汇率',
+
     ASSET_DEPOSIT_MANUALLY_CONFIRMED: '人工确认多币种充值到账',
     ASSET_DEPOSIT_VERIFICATION_REQUESTED: '提交多币种充值核验',
     ASSET_DEPOSIT_UNCONFIRMED: '多币种充值尚未核实',

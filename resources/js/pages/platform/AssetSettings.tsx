@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+import { dateTime } from '@/i18n';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -9,11 +11,16 @@ type Rail = { code: string; asset: string; network: string; address: string; ena
 type Props = {
     companies: { id: string; name: string }[];
     company: string | null;
-    market: { enabled: boolean; configured: boolean };
+    market: {
+        enabled: boolean;
+        configured: boolean;
+        snapshot: { observed_at: string; rates: Record<string, string> } | null;
+    };
     networks: {
         network: string;
         enabled: boolean;
         rpc_url: string;
+        use_public: boolean;
         start_height: number | null;
         next_height: number | null;
         confirmations: number;
@@ -41,6 +48,9 @@ type Field = {
     value: string | boolean;
     secret?: boolean;
     readOnly?: boolean;
+    advanced?: boolean;
+    hidden?: boolean;
+    when?: string;
 };
 export default function AssetSettings(p: Props) {
     useAdminTranslation();
@@ -51,7 +61,7 @@ export default function AssetSettings(p: Props) {
                 <PageHeader title={t('Multi-currency settings')} />
                 <p className="text-sm text-muted-foreground">
                     {t(
-                        'New networks start disabled. Configure a scan boundary before enabling. Existing history is never replayed.',
+                        'Internal balances and exchange use the platform ledger. Only external deposits and withdrawals query the blockchain.',
                     )}
                 </p>
                 <div className="flex flex-wrap gap-3">
@@ -85,38 +95,109 @@ export default function AssetSettings(p: Props) {
                 {!p.company ? (
                     <>
                         <ConfigForm
-                            title={t('Market prices')}
+                            title={t('Platform exchange rates')}
+                            extra={t(
+                                'The platform updates rates once per minute. All users read the same saved rates; user requests never fetch external prices.',
+                            )}
+                            secondary={
+                                p.market.enabled
+                                    ? { kind: 'market-refresh', label: 'Update platform rates' }
+                                    : undefined
+                            }
+                            after={
+                                p.market.snapshot ? (
+                                    <div className="space-y-2 border-t pt-3 text-sm">
+                                        <p className="text-muted-foreground">
+                                            {t('Updated at')}:{' '}
+                                            {dateTime(p.market.snapshot.observed_at)}
+                                        </p>
+                                        {Object.entries(p.market.snapshot.rates).map(
+                                            ([asset, rate]) => (
+                                                <p key={asset} className="break-words">
+                                                    {`1 ${asset} = ${trim(rate)} USDT`}
+                                                </p>
+                                            ),
+                                        )}
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground">
+                                        {t(
+                                            'No fresh platform rates. Enable rates and run a platform update.',
+                                        )}
+                                    </p>
+                                )
+                            }
                             kind="market"
                             fields={[
                                 { name: 'enabled', label: 'Enabled', value: p.market.enabled },
                                 {
+                                    name: 'use_public',
+                                    label: 'Use public prices (no API key)',
+                                    value: !p.market.configured,
+                                },
+                                {
                                     name: 'api_key',
+                                    advanced: true,
+                                    when: '!use_public',
                                     label: p.market.configured ? 'Replace API key' : 'API key',
                                     value: '',
                                     secret: true,
                                 },
                             ]}
                         />
+                        <div className="space-y-2">
+                            <h2 className="font-semibold">{t('External deposit verification')}</h2>
+                            <p className="text-sm text-muted-foreground">
+                                {t(
+                                    'Public nodes need no key. Verify the connection before enabling. SaaS can also confirm receipt of a fixed deposit order.',
+                                )}
+                            </p>
+                        </div>
                         {p.networks.map((n) => (
                             <ConfigForm
                                 key={n.network}
-                                title={n.network}
+                                title={
+                                    n.network === 'ETHEREUM'
+                                        ? 'Ethereum network'
+                                        : 'Bitcoin network'
+                                }
+                                secondary={{ kind: 'network-test', label: 'Test connection' }}
                                 kind="network"
                                 fixed={{ network: n.network }}
                                 fields={[
                                     { name: 'enabled', label: 'Enabled', value: n.enabled },
                                     {
+                                        name: 'use_public',
+                                        label: 'Use public node (no credentials)',
+                                        value: n.use_public,
+                                    },
+                                    ...(n.start_height === null
+                                        ? [
+                                              {
+                                                  name: 'start_from_current',
+                                                  label: 'Start from the current confirmed block (no historical scan)',
+                                                  value: true,
+                                              },
+                                          ]
+                                        : []),
+                                    {
                                         name: 'rpc_url',
+                                        advanced: true,
+                                        when: '!use_public',
                                         label: 'HTTPS RPC endpoint',
                                         value: n.rpc_url,
                                     },
                                     {
                                         name: 'username',
+                                        advanced: true,
+                                        when: '!use_public',
                                         label: 'RPC username (optional)',
                                         value: '',
                                     },
                                     {
                                         name: 'credential',
+                                        advanced: true,
+                                        when: '!use_public',
                                         label: n.configured
                                             ? 'Replace node credential'
                                             : 'Node credential',
@@ -125,17 +206,23 @@ export default function AssetSettings(p: Props) {
                                     },
                                     {
                                         name: 'start_height',
+                                        when:
+                                            n.start_height === null
+                                                ? '!start_from_current'
+                                                : undefined,
                                         label: 'Initial scan block',
                                         value: n.start_height?.toString() ?? '',
                                         readOnly: n.start_height !== null,
                                     },
                                     {
                                         name: 'confirmations',
+                                        hidden: n.network !== 'BITCOIN',
+                                        advanced: true,
                                         label: 'Bitcoin confirmations (minimum 6)',
                                         value: n.confirmations.toString(),
                                     },
                                 ]}
-                                extra={`${t('Next scan block')}: ${n.next_height ?? '—'}`}
+                                extra={`${t('Next scan block')}: ${n.next_height ?? '—'} · ${t('Existing scan progress is preserved.')}`}
                             />
                         ))}
                         {p.rails.map((r) => (
@@ -192,7 +279,14 @@ export default function AssetSettings(p: Props) {
                                 />
                             );
                         })}
-                        <h2 className="font-semibold">{t('Internal exchange')}</h2>
+                        <div className="space-y-2">
+                            <h2 className="font-semibold">{t('Internal exchange')}</h2>
+                            <p className="text-sm text-muted-foreground">
+                                {t(
+                                    'Internal exchange does not require a blockchain connection or network fee.',
+                                )}
+                            </p>
+                        </div>
                         {['USDC', 'ETH', 'BTC'].map((asset) => {
                             const c = p.policies.find((c) => c.asset_code === asset);
                             return (
@@ -243,6 +337,8 @@ function ConfigForm({
     fixed = {},
     company,
     extra,
+    secondary,
+    after,
 }: {
     title: string;
     kind: string;
@@ -250,6 +346,8 @@ function ConfigForm({
     fixed?: Record<string, string>;
     company?: string;
     extra?: string;
+    secondary?: { kind: string; label: string };
+    after?: ReactNode;
 }) {
     const form = useForm<Record<string, string | boolean>>({
         kind,
@@ -261,6 +359,8 @@ function ConfigForm({
         <form
             onSubmit={(e) => {
                 e.preventDefault();
+                const submitter = e.nativeEvent.submitter as HTMLButtonElement | null;
+                form.transform((data) => ({ ...data, kind: submitter?.value || kind }));
                 form.post(
                     company
                         ? `/platform/tenants/${company}/assets/settings`
@@ -279,27 +379,48 @@ function ConfigForm({
             <h2 className="font-semibold">{t(title)}</h2>
             {extra && <p className="text-xs text-muted-foreground">{extra}</p>}
             <div className="grid gap-4 md:grid-cols-2">
-                {fields.map((f) => (
-                    <label key={f.name} className="block space-y-2 text-sm">
-                        <span>{t(f.label)}</span>
-                        {typeof f.value === 'boolean' ? (
-                            <input
-                                type="checkbox"
-                                className="ml-3 size-5 align-middle"
-                                checked={Boolean(form.data[f.name])}
-                                onChange={(e) => form.setData(f.name, e.target.checked)}
-                            />
-                        ) : (
-                            <Input
-                                type={f.secret ? 'password' : 'text'}
-                                autoComplete={f.secret ? 'new-password' : 'off'}
-                                readOnly={f.readOnly}
-                                value={String(form.data[f.name])}
-                                onChange={(e) => form.setData(f.name, e.target.value)}
-                            />
-                        )}
-                    </label>
-                ))}
+                {[false, true].map((advanced) => {
+                    const visible = fields.filter(
+                        (f) =>
+                            !f.hidden &&
+                            Boolean(f.advanced) === advanced &&
+                            (!f.when ||
+                                (f.when.startsWith('!')
+                                    ? !form.data[f.when.slice(1)]
+                                    : Boolean(form.data[f.when]))),
+                    );
+                    const controls = visible.map((f) => (
+                        <label key={f.name} className="block space-y-2 text-sm">
+                            <span>{t(f.label)}</span>
+                            {typeof f.value === 'boolean' ? (
+                                <input
+                                    type="checkbox"
+                                    className="ml-3 size-5 align-middle"
+                                    checked={Boolean(form.data[f.name])}
+                                    onChange={(e) => form.setData(f.name, e.target.checked)}
+                                />
+                            ) : (
+                                <Input
+                                    type={f.secret ? 'password' : 'text'}
+                                    autoComplete={f.secret ? 'new-password' : 'off'}
+                                    readOnly={f.readOnly}
+                                    value={String(form.data[f.name])}
+                                    onChange={(e) => form.setData(f.name, e.target.value)}
+                                />
+                            )}
+                        </label>
+                    ));
+                    return advanced
+                        ? visible.length > 0 && (
+                              <details key="advanced" className="md:col-span-2">
+                                  <summary className="cursor-pointer text-sm text-muted-foreground">
+                                      {t('Advanced settings')}
+                                  </summary>
+                                  <div className="mt-4 grid gap-4 md:grid-cols-2">{controls}</div>
+                              </details>
+                          )
+                        : controls;
+                })}
                 <label className="space-y-2 text-sm">
                     <span>{t('Current password')}</span>
                     <Input
@@ -316,7 +437,17 @@ function ConfigForm({
                     {errorMessage(m)}
                 </p>
             ))}
-            <Button disabled={form.processing}>{t('Save')}</Button>
+            <div className="flex flex-wrap gap-3">
+                <Button value={kind} disabled={form.processing}>
+                    {t('Save')}
+                </Button>
+                {secondary && (
+                    <Button variant="secondary" value={secondary.kind} disabled={form.processing}>
+                        {t(secondary.label)}
+                    </Button>
+                )}
+            </div>
+            {after}
         </form>
     );
 }

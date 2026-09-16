@@ -9,23 +9,55 @@ use App\Support\Errors\DomainException;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 final class MarketPrices
 {
     public function refresh(): MarketSnapshot
     {
-        $settings = MarketSettings::query()->find(1);
-        if (! $settings?->enabled || ! $settings->api_key) {
-            throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'Market prices are unavailable.', 503);
-        }
-        $response = Http::connectTimeout(5)->timeout(15)->withoutRedirecting()->withHeaders(['x-cg-pro-api-key' => $settings->api_key])->get('https://pro-api.coingecko.com/api/v3/simple/price', [
-            'ids' => 'tether,usd-coin,ethereum,bitcoin', 'vs_currencies' => 'usd', 'include_last_updated_at' => 'true', 'precision' => 'full',
-        ]);
-        if (! $response->successful()) {
-            throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'Market prices are unavailable.', 503);
+        // Shared across web workers and scheduler hosts. User reads never call refresh().
+        $cache = Cache::store();
+        $lock = $cache->lock('assets:market-refresh', 60);
+        if (! $lock->get()) {
+            return $this->latest() ?? throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'Market prices are unavailable.', 503);
         }
         try {
+            $settings = MarketSettings::query()->find(1);
+            if (! $settings?->enabled) {
+                throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'Market prices are unavailable.', 503);
+            }
+            $latest = $this->latest();
+            if ($latest && $latest->created_at->greaterThan(now()->subSeconds(60))) {
+                return $latest;
+            }
+            // Includes failed attempts: repeated clicks cannot hammer the upstream service.
+            if (! $cache->add('assets:market-refresh-attempt', true, 60)) {
+                return $latest ?? throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'Market prices are unavailable.', 503);
+            }
+
+            return $this->fetch($settings);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function fetch(MarketSettings $settings): MarketSnapshot
+    {
+        try {
+            $http = Http::connectTimeout(5)->timeout(15)->withoutRedirecting();
+            $url = 'https://api.coingecko.com/api/v3/simple/price';
+            if ($settings->api_key) {
+                $http = $http->withHeaders(['x-cg-pro-api-key' => $settings->api_key]);
+                $url = 'https://pro-api.coingecko.com/api/v3/simple/price';
+            }
+            $response = $http->get($url, [
+                'ids' => 'tether,usd-coin,ethereum,bitcoin', 'vs_currencies' => 'usd',
+                'include_last_updated_at' => 'true', 'precision' => 'full',
+            ]);
+            if (! $response->successful()) {
+                throw new \UnexpectedValueException;
+            }
             $data = ExactJson::decode($response->body());
             $prices = [];
             $time = now()->timestamp;

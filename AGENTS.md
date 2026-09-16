@@ -1,5 +1,17 @@
 # Virtual Card SaaS Agent Rules
 
+On 2026-09-16 the user simplified multi-asset configuration: built-in public
+Ethereum/Bitcoin read endpoints and optional keyless public prices, with SaaS
+manual confirmation of fixed deposit orders. Internal balances/exchange remain
+Ledger-only and independent of blockchain connections. The platform refreshes
+one shared price snapshot per minute; user reads/quotes never fetch upstream data.
+Explicit first enablement may choose a start boundary immediately after the current
+finalized block; existing cursors/history never reset. Pro/custom credentials remain
+optional advanced settings, never forwarded to a different/public endpoint. Preserve
+trace completeness, finality, exact receipt matching, password-confirmed manual
+credit, immutable quote economics and fail-closed stale pricing. See
+`docs/architecture/MULTI_ASSET_CENTER.md`.
+
 On 2026-09-16 the user explicitly requested complete PhotonPay callback diagnostics:
 sensitive data encrypted and other business parameters retained. A dedicated private,
 rotating webhook log may retain an AES-256-GCM encrypted envelope of exact callback

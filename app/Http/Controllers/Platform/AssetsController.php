@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Platform;
 use App\Application\Admin\FinancialOperationQuery;
 use App\Application\Assets\ConfigureAssetsAction;
 use App\Application\Assets\DepositAssetsAction;
+use App\Application\Assets\MarketPrices;
 use App\Application\Assets\RecheckAssetDeposit;
 use App\Application\Assets\WithdrawAssetsAction;
 use App\Domain\Admin\Models\AdminUser;
@@ -20,6 +21,8 @@ use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\Withdrawal\Services\WithdrawalAddressProtector;
 use App\Http\Controllers\Controller;
+use App\Infrastructure\Assets\PublicChainNodes;
+use App\Support\Errors\DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
@@ -33,8 +36,8 @@ final class AssetsController extends Controller
 
         return Inertia::render('platform/AssetSettings', [
             'companies' => Tenant::orderBy('name')->get(['id', 'name'])->toArray(), 'company' => $tenant?->id,
-            'market' => ['enabled' => MarketSettings::findOrFail(1)->enabled, 'configured' => filled(MarketSettings::findOrFail(1)->api_key)],
-            'networks' => ChainConnection::all()->map(fn ($c) => ['network' => $c->network, 'enabled' => $c->enabled, 'rpc_url' => $c->rpc_url ?? '', 'start_height' => $c->start_height, 'next_height' => $c->next_height, 'confirmations' => $c->confirmations, 'configured' => filled($c->credential)])->all(),
+            'market' => ['enabled' => MarketSettings::findOrFail(1)->enabled, 'configured' => filled(MarketSettings::findOrFail(1)->api_key), 'snapshot' => ($snapshot = app(MarketPrices::class)->latest()) ? ['observed_at' => $snapshot->observed_at->toIso8601String(), 'rates' => collect(['USDC', 'ETH', 'BTC'])->mapWithKeys(fn ($asset) => [$asset => (string) app(MarketPrices::class)->rate($snapshot, $asset)])->all()] : null],
+            'networks' => ChainConnection::all()->map(fn ($c) => ['network' => $c->network, 'enabled' => $c->enabled, 'rpc_url' => $c->rpc_url ?: PublicChainNodes::URLS[$c->network], 'use_public' => ! $c->rpc_url || $c->rpc_url === PublicChainNodes::URLS[$c->network], 'start_height' => $c->start_height, 'next_height' => $c->next_height, 'confirmations' => $c->confirmations, 'configured' => filled($c->credential)])->all(),
             'rails' => AssetRail::all()->map(fn ($a) => ['code' => $a->code, 'asset' => $a->asset_code, 'network' => $a->network, 'address' => $a->deposit_address ?? '', 'enabled' => $a->enabled])->all(),
             'companyRails' => $tenant ? CompanyRail::where('tenant_id', $tenant->id)->get(['rail_code', 'deposit_enabled', 'withdrawal_enabled', 'minimum_deposit', 'withdrawal_fee'])->toArray() : [],
             'policies' => $tenant ? ExchangePolicy::where('tenant_id', $tenant->id)->get(['asset_code', 'enabled', 'fee_percent', 'single_limit', 'daily_limit'])->toArray() : [],
@@ -45,7 +48,11 @@ final class AssetsController extends Controller
     {
         $action->execute($r->user('platform_admin'), $r->all(), $tenant);
 
-        return back()->with('success', 'Asset configuration saved.');
+        return back()->with('success', match ($r->input('kind')) {
+            'network-test' => 'Network connection verified.',
+            'market-refresh' => 'Platform rates updated.',
+            default => 'Asset configuration saved.',
+        });
     }
 
     public function deposits(Request $r)
@@ -65,7 +72,10 @@ final class AssetsController extends Controller
 
     public function confirm(Request $r, Tenant $tenant, string $order, DepositAssetsAction $action)
     {
-        $d = $r->validate(['request_id' => 'required|uuid', 'confirmed' => 'required|accepted']);
+        $d = $r->validate(['request_id' => 'required|uuid', 'confirmed' => 'required|accepted', 'password' => 'required|string']);
+        if (! Hash::check($d['password'], $r->user('platform_admin')->fresh()->password)) {
+            throw new DomainException('PASSWORD_INVALID', 'The password is incorrect.', 403);
+        }
         $action->manual($tenant->id, $order, $r->user('platform_admin'), $d['request_id'], true);
 
         return back();

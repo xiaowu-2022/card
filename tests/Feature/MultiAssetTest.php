@@ -6,6 +6,7 @@ use App\Application\Assets\AssetOverviewQuery;
 use App\Application\Assets\ConfigureAssetsAction;
 use App\Application\Assets\DepositAssetsAction;
 use App\Application\Assets\ExchangeAssetsAction;
+use App\Application\Assets\MarketPrices;
 use App\Application\Assets\ScanAssetNetwork;
 use App\Application\Assets\WithdrawAssetsAction;
 use App\Application\Kyc\ApproveKycAction;
@@ -38,11 +39,13 @@ use App\Infrastructure\Assets\ExactJson;
 use App\Support\Errors\DomainException;
 use Brick\Math\BigDecimal;
 use Illuminate\Foundation\Testing\RefreshDatabaseState;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 beforeEach(function () {
@@ -495,4 +498,162 @@ it('reports exchange readiness without enabling unconfigured currencies', functi
     $restricted = collect($query->get($this->tenant->id, $this->user->id, ['transferAvailable' => false])['assets'])->keyBy('asset');
     expect($restricted['ETH']['exchange'])->toBeFalse()
         ->and($restricted['ETH']['exchangeUnavailableReason'])->toBe('Exchange is unavailable for this account.');
+});
+
+it('keeps internal exchange and user valuations independent of every blockchain connection', function () {
+    Http::preventStrayRequests();
+    ChainConnection::query()->update(['enabled' => false]);
+    ($this->fund)('ETH', '1');
+    for ($i = 0; $i < 5; $i++) {
+        $view = app(AssetOverviewQuery::class)->get($this->tenant->id, $this->user->id, ['transferAvailable' => true]);
+        expect(collect($view['assets'])->firstWhere('asset', 'ETH')['exchange'])->toBeTrue();
+    }
+    $action = app(ExchangeAssetsAction::class);
+    $quote = $action->quote($this->tenant->id, $this->user->id, 'ETH', '0.1', (string) Str::uuid());
+    expect($action->confirm($this->tenant->id, $this->user->id, $quote->id)->status)->toBe('COMPLETED');
+    Http::assertNothingSent();
+});
+
+it('allows public market configuration without a key and explicitly removes an old key', function () {
+    Http::fake();
+    $settings = MarketSettings::findOrFail(1);
+    $settings->update(['api_key' => 'old-secret']);
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    app(ConfigureAssetsAction::class)->execute($actor, ['kind' => 'market', 'enabled' => true, 'use_public' => true, 'password' => 'local-password']);
+    expect($settings->fresh()->api_key)->toBeNull()->and($settings->fresh()->enabled)->toBeTrue();
+    Http::assertNothingSent();
+});
+
+it('fetches one exact public snapshot for repeated platform updates', function () {
+    $this->travel(121)->seconds();
+    $stamp = now()->timestamp;
+    Http::fake(['api.coingecko.com/*' => Http::response('{"tether":{"usd":0.999,"last_updated_at":'.$stamp.'},"usd-coin":{"usd":0.998,"last_updated_at":'.$stamp.'},"ethereum":{"usd":2000.123456789123456789,"last_updated_at":'.$stamp.'},"bitcoin":{"usd":60000,"last_updated_at":'.$stamp.'}}')]);
+    $prices = app(MarketPrices::class);
+    $one = $prices->refresh();
+    $two = $prices->refresh();
+    expect($one->id)->toBe($two->id)->and($one->usd_prices['ETH'])->toBe('2000.123456789123456789');
+    Http::assertSentCount(1);
+    Http::assertSent(fn ($r) => ! $r->hasHeader('x-cg-pro-api-key'));
+});
+
+it('serializes platform refreshes with the shared cache lock', function () {
+    $prices = app(MarketPrices::class);
+    Http::fake();
+    $lock = Cache::store()->lock('assets:market-refresh', 60);
+    expect($lock->get())->toBeTrue();
+    try {
+        expect($prices->refresh()->id)->toBe($prices->latest()->id);
+        $this->travel(121)->seconds();
+        // Refresh lock lease so the stale-price request overlaps another updater.
+        $lock->release();
+        expect($lock->get())->toBeTrue();
+        expect(fn () => $prices->refresh())->toThrow(DomainException::class);
+        Http::assertNothingSent();
+    } finally {
+        $lock->release();
+    }
+});
+
+it('backs off failed price updates and never calls a public fallback with a pro secret', function () {
+    $this->travel(121)->seconds();
+    MarketSettings::findOrFail(1)->update(['api_key' => 'pro-secret']);
+    Http::fake(['pro-api.coingecko.com/*' => Http::response([], 503)]);
+    $prices = app(MarketPrices::class);
+    expect(fn () => $prices->refresh())->toThrow(DomainException::class);
+    expect(fn () => $prices->refresh())->toThrow(DomainException::class);
+    expect($prices->latest())->toBeNull();
+    Http::assertSentCount(1);
+    Http::assertSent(fn ($r) => str_starts_with($r->url(), 'https://pro-api.coingecko.com/') && $r->hasHeader('x-cg-pro-api-key', 'pro-secret'));
+});
+
+it('does not publish stale public market data', function () {
+    $this->travel(121)->seconds();
+    $stamp = now()->subMinutes(10)->timestamp;
+    $data = array_fill_keys(['tether', 'usd-coin', 'ethereum', 'bitcoin'], ['usd' => '1', 'last_updated_at' => (string) $stamp]);
+    Http::fake(['api.coingecko.com/*' => Http::response($data)]);
+    $count = MarketSnapshot::count();
+    expect(fn () => app(MarketPrices::class)->refresh())->toThrow(DomainException::class);
+    expect(MarketSnapshot::count())->toBe($count);
+});
+
+it('uses built in public endpoints without leaking stored custom credentials', function () {
+    config(['assets.rpc_allowed_hosts' => []]);
+    $c = ChainConnection::findOrFail('ETHEREUM');
+    $c->rpc_url = null;
+    $c->credential = ['api_key' => 'custom-secret'];
+    Http::fake(['ethereum-rpc.publicnode.com' => Http::response(['result' => '0x1'])]);
+    expect(app(ChainRpc::class)->call($c, 'eth_chainId'))->toBe('0x1');
+    Http::assertSent(fn ($r) => ! $r->hasHeader('X-API-Key') && ! $r->hasHeader('Authorization'));
+    $c->rpc_url = 'https://ethereum-rpc.publicnode.com.evil.test';
+    expect(fn () => app(ChainRpc::class)->call($c, 'eth_chainId'))->toThrow(DomainException::class);
+    Http::assertSentCount(1);
+});
+
+it('tests a public network without writing configuration or money then starts only after the current block', function () {
+    $c = ChainConnection::findOrFail('BITCOIN');
+    $before = $c->getRawOriginal();
+    $entries = LedgerEntry::count();
+    Http::fake(['bitcoin-rpc.publicnode.com' => function ($request) {
+        $result = match ($request['method']) {
+            'getblockchaininfo' => ['chain' => 'main', 'initialblockdownload' => false, 'blocks' => 200],
+            'getblockhash' => 'block195',
+            'getblock' => ['hash' => 'block195', 'height' => 195, 'tx' => []],
+            default => throw new RuntimeException('Unexpected RPC'),
+        };
+
+        return Http::response(['result' => $result]);
+    }]);
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $input = ['kind' => 'network-test', 'network' => 'BITCOIN', 'enabled' => true, 'use_public' => true, 'start_from_current' => true, 'confirmations' => 6, 'password' => 'local-password'];
+    app(ConfigureAssetsAction::class)->execute($actor, $input);
+    expect($c->fresh()->getRawOriginal())->toBe($before)->and(LedgerEntry::count())->toBe($entries);
+    $input['kind'] = 'network';
+    app(ConfigureAssetsAction::class)->execute($actor, $input);
+    expect($c->fresh()->start_height)->toBe(196)->and($c->fresh()->next_height)->toBe(196);
+    $c->refresh()->update(['next_height' => 198]);
+    app(ConfigureAssetsAction::class)->execute($actor, $input);
+    expect($c->fresh()->next_height)->toBe(198);
+});
+
+it('does not enable a public Ethereum node when complete traces are unavailable', function () {
+    $c = ChainConnection::findOrFail('ETHEREUM');
+    $c->update(['enabled' => false]);
+    Http::fake(['ethereum-rpc.publicnode.com' => function ($r) {
+        return match ($r['method']) {
+            'eth_chainId' => Http::response(['result' => '0x1']),
+            'eth_getBlockByNumber' => Http::response(['result' => ['number' => '0x64', 'timestamp' => '0x64', 'transactions' => [['hash' => 'tx']]]]),
+            default => Http::response(['error' => ['code' => -32601]]),
+        };
+    }]);
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    expect(fn () => app(ConfigureAssetsAction::class)->execute($actor, ['kind' => 'network', 'network' => 'ETHEREUM', 'enabled' => true, 'use_public' => true, 'confirmations' => 6, 'password' => 'local-password']))->toThrow(DomainException::class);
+    expect($c->fresh()->enabled)->toBeFalse()->and($c->fresh()->next_height)->toBe(100);
+});
+
+it('requires the platform password for manual receipt and credits once even with unavailable nodes', function () {
+    $o = app(DepositAssetsAction::class)->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', (string) Str::uuid());
+    ChainConnection::query()->update(['enabled' => false]);
+    Http::fake();
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/asset-orders/'.$o->id.'/confirm';
+    $input = ['request_id' => (string) Str::uuid(), 'confirmed' => true];
+    $this->actingAs($actor, 'platform_admin')->post($url, $input)->assertSessionHasErrors('password');
+    expect($o->fresh()->status)->toBe('PENDING');
+    $this->post($url, $input + ['password' => 'incorrect'])->assertSessionHasErrors();
+    expect($o->fresh()->status)->toBe('PENDING');
+    $input['password'] = 'local-password';
+    $this->post($url, $input)->assertRedirect()->assertSessionHasNoErrors();
+    $count = LedgerEntry::count();
+    $this->post($url, $input)->assertRedirect()->assertSessionHasNoErrors();
+    expect($o->fresh()->status)->toBe('CREDITED')->and(LedgerEntry::count())->toBe($count)->and($o->fresh()->manual_confirmed_by)->toBe($actor->id);
+    Http::assertNothingSent();
+});
+
+it('requires credentials or endpoint when explicitly selecting private services', function () {
+    Http::fake();
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $action = app(ConfigureAssetsAction::class);
+    expect(fn () => $action->execute($actor, ['kind' => 'market', 'enabled' => true, 'use_public' => false, 'password' => 'local-password']))->toThrow(DomainException::class);
+    expect(fn () => $action->execute($actor, ['kind' => 'network', 'network' => 'ETHEREUM', 'enabled' => false, 'use_public' => false, 'rpc_url' => '', 'confirmations' => 6, 'password' => 'local-password']))->toThrow(ValidationException::class);
+    Http::assertNothingSent();
 });

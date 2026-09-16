@@ -13,7 +13,9 @@ use App\Domain\Assets\ExchangePolicy;
 use App\Domain\Assets\MarketSettings;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Tenant\Models\Tenant;
+use App\Infrastructure\Assets\ChainReader;
 use App\Infrastructure\Assets\ChainRpc;
+use App\Infrastructure\Assets\PublicChainNodes;
 use App\Support\Errors\DomainException;
 use Brick\Math\BigDecimal;
 use Illuminate\Support\Facades\DB;
@@ -30,6 +32,19 @@ final readonly class ConfigureAssetsAction
         if (! Hash::check($input['password'] ?? '', $actor->fresh()->password)) {
             throw new DomainException('PASSWORD_INVALID', 'The password is incorrect.', 403);
         }
+        if (! $tenant && ($input['kind'] ?? '') === 'market-refresh') {
+            $snapshot = app(MarketPrices::class)->refresh();
+            $this->audit->record(null, 'ADMIN', $actor->id, 'ASSET_PRICES_REFRESHED', 'asset_market_snapshot', $snapshot->id);
+
+            return;
+        }
+        $network = null;
+        if (! $tenant && in_array($input['kind'] ?? '', ['network', 'network-test'], true)) {
+            $network = $this->network($input);
+            if ($input['kind'] === 'network-test') {
+                return;
+            }
+        }
         // Validate a Bitcoin receiving address before entering the configuration transaction.
         if (! $tenant && ($input['kind'] ?? '') === 'rail' && ($input['code'] ?? '') === 'BTC_BITCOIN' && filter_var($input['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
             $connection = ChainConnection::findOrFail('BITCOIN');
@@ -38,34 +53,33 @@ final readonly class ConfigureAssetsAction
                 throw new DomainException('ADDRESS_INVALID', 'Enter a valid destination address.');
             }
         }
-        DB::transaction(function () use ($actor, $input, $tenant): void {
+        DB::transaction(function () use ($actor, $input, $tenant, $network): void {
             AssetAccess::lock('asset-configuration');
             $kind = $input['kind'] ?? '';
             if ($kind === 'market' && ! $tenant) {
-                $data = Validator::make($input, ['enabled' => 'required|boolean', 'api_key' => 'nullable|string|max:512'])->validate();
+                $data = Validator::make($input, ['enabled' => 'required|boolean', 'api_key' => 'nullable|string|max:512', 'use_public' => 'sometimes|boolean'])->validate();
                 $settings = MarketSettings::query()->lockForUpdate()->findOrFail(1);
-                if (! empty($data['api_key'])) {
+                if ($data['use_public'] ?? false) {
+                    $settings->api_key = null;
+                } elseif (! empty($data['api_key'])) {
                     $settings->api_key = $data['api_key'];
                 }
-                if ($data['enabled'] && ! $settings->api_key) {
+                if (array_key_exists('use_public', $data) && ! $data['use_public'] && ! $settings->api_key) {
                     throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
                 }
                 $settings->enabled = $data['enabled'];
                 $settings->save();
             } elseif ($kind === 'network' && ! $tenant) {
-                $data = Validator::make($input, ['network' => 'required|in:ETHEREUM,BITCOIN', 'enabled' => 'required|boolean', 'rpc_url' => 'required|url:https|max:1024', 'username' => 'nullable|string|max:256', 'credential' => 'nullable|string|max:512', 'start_height' => 'required|integer|min:0', 'confirmations' => 'required|integer|min:6|max:10000'])->validate();
-                $c = ChainConnection::query()->whereKey($data['network'])->lockForUpdate()->firstOrFail();
-                $url = $data['rpc_url'];
-                if (! in_array(parse_url($url, PHP_URL_HOST), config('assets.rpc_allowed_hosts', []), true) || parse_url($url, PHP_URL_USER) !== null || parse_url($url, PHP_URL_QUERY) !== null) {
-                    throw new DomainException('RPC_HOST_NOT_ALLOWED', 'The node hostname must be explicitly allowed in deployment configuration.');
-                }
-                if ($c->start_height !== null && $c->start_height !== (int) $data['start_height']) {
+                $c = ChainConnection::query()->whereKey($network->network)->lockForUpdate()->firstOrFail();
+                if ($c->start_height !== null && $c->start_height !== $network->start_height) {
                     throw new DomainException('SCAN_BOUNDARY_IMMUTABLE', 'The initial scan boundary cannot be changed.');
                 }
-                $c->fill(['rpc_url' => $url, 'enabled' => $data['enabled'], 'confirmations' => $data['confirmations'], 'start_height' => $data['start_height'], 'next_height' => $c->next_height ?? $data['start_height']]);
-                if (! empty($data['credential'])) {
-                    $c->credential = empty($data['username']) ? ['api_key' => $data['credential']] : ['username' => $data['username'], 'password' => $data['credential']];
-                }
+                $c->fill([
+                    'rpc_url' => $network->rpc_url, 'enabled' => $network->enabled,
+                    'confirmations' => $network->confirmations, 'start_height' => $network->start_height,
+                    'next_height' => $c->next_height ?? $network->start_height,
+                    'credential' => $network->credential,
+                ]);
                 $c->save();
             } elseif ($kind === 'rail' && ! $tenant) {
                 $data = Validator::make($input, ['code' => 'required|exists:asset_rails,code', 'enabled' => 'required|boolean', 'address' => 'required|string|max:128'])->validate();
@@ -123,5 +137,60 @@ final readonly class ConfigureAssetsAction
             }
             $this->audit->record($tenant?->id, 'ADMIN', $actor->id, 'ASSET_CONFIGURATION_UPDATED', 'asset_configuration', $tenant?->id, null, ['section' => $kind]);
         }, 3);
+    }
+
+    /** Probe outside transactions; never scan, persist observations or credit an account. */
+    private function network(array $input): ChainConnection
+    {
+        $data = Validator::make($input, [
+            'network' => 'required|in:ETHEREUM,BITCOIN', 'enabled' => 'required|boolean',
+            'use_public' => 'sometimes|boolean', 'rpc_url' => 'required_if:use_public,false|nullable|url:https|max:1024',
+            'username' => 'nullable|string|max:256', 'credential' => 'nullable|string|max:512',
+            'start_height' => 'nullable|integer|min:0', 'start_from_current' => 'sometimes|boolean',
+            'confirmations' => 'required|integer|min:6|max:10000',
+        ])->validate();
+        $c = ChainConnection::findOrFail($data['network']);
+        $url = ($data['use_public'] ?? false) || empty($data['rpc_url'])
+            ? PublicChainNodes::URLS[$c->network] : $data['rpc_url'];
+        if (! PublicChainNodes::allowed($c->network, $url)) {
+            throw new DomainException('RPC_HOST_NOT_ALLOWED', 'The node hostname must be explicitly allowed in deployment configuration.');
+        }
+        // An endpoint change must never carry a previous provider's secret to a new host.
+        if ($url !== $c->rpc_url || $url === PublicChainNodes::URLS[$c->network]) {
+            $c->credential = null;
+        }
+        if ($url !== PublicChainNodes::URLS[$c->network] && ! empty($data['credential'])) {
+            $c->credential = empty($data['username']) ? ['api_key' => $data['credential']] : ['username' => $data['username'], 'password' => $data['credential']];
+        }
+        $c->rpc_url = $url;
+        $c->confirmations = (int) $data['confirmations'];
+        $start = $c->start_height;
+        if ($start !== null && isset($data['start_height']) && $start !== (int) $data['start_height']) {
+            throw new DomainException('SCAN_BOUNDARY_IMMUTABLE', 'The initial scan boundary cannot be changed.');
+        }
+        if ($data['enabled'] || $input['kind'] === 'network-test') {
+            $c->enabled = true;
+            $reader = app(ChainReader::class);
+            try {
+                $height = $reader->finalHeight($c);
+                // Require complete native-ETH traces, not just a reachable RPC URL.
+                $reader->block($c, $height);
+            } catch (DomainException $e) {
+                throw $e;
+            } catch (\Throwable) {
+                throw new DomainException('CHAIN_UNAVAILABLE', 'The network connection is unavailable.', 503);
+            }
+            if ($start === null && ($data['start_from_current'] ?? false)) {
+                $start = $height + 1;
+            }
+        }
+        $start ??= isset($data['start_height']) ? (int) $data['start_height'] : null;
+        if ($data['enabled'] && $start === null) {
+            throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
+        }
+        $c->start_height = $start;
+        $c->enabled = $data['enabled'];
+
+        return $c;
     }
 }
