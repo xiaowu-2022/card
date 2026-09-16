@@ -21,6 +21,7 @@ use Brick\Math\BigDecimal;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 
 final readonly class ConfigureAssetsAction
 {
@@ -38,105 +39,161 @@ final readonly class ConfigureAssetsAction
 
             return;
         }
-        $network = null;
-        if (! $tenant && in_array($input['kind'] ?? '', ['network', 'network-test'], true)) {
-            $network = $this->network($input);
-            if ($input['kind'] === 'network-test') {
-                return;
+        $batch = ($input['kind'] ?? '') === 'batch';
+        if ($batch) {
+            Validator::make($input, [
+                'sections' => 'required|array|list|min:1|max:10',
+                'sections.*' => 'required|array',
+                'sections.*.network' => 'sometimes|string',
+                'sections.*.code' => 'sometimes|string',
+                'sections.*.asset' => 'sometimes|string',
+                'sections.*.kind' => $tenant ? 'required|in:company-rail,exchange' : 'required|in:market,network,rail',
+            ])->validate();
+        }
+        $sections = $batch ? $input['sections'] : [$input];
+        $prepared = [];
+        $seen = [];
+        // Probe nodes before starting any database transaction. Preserve original error indexes.
+        foreach ($sections as $index => $section) {
+            $kind = $section['kind'] ?? '';
+            $key = $kind.':'.match ($kind) {
+                'network', 'network-test' => $section['network'] ?? '',
+                'rail', 'company-rail' => $section['code'] ?? '',
+                'exchange' => $section['asset'] ?? '',
+                default => '',
+            };
+            if (isset($seen[$key])) {
+                throw ValidationException::withMessages(['sections' => 'Duplicate configuration section.']);
+            }
+            $seen[$key] = true;
+            try {
+                $prepared[$index] = ! $tenant && in_array($kind, ['network', 'network-test'], true) ? $this->network($section) : null;
+            } catch (DomainException|ValidationException $e) {
+                $this->sectionError($e, $batch, $index);
             }
         }
-        // Validate a Bitcoin receiving address before entering the configuration transaction.
-        if (! $tenant && ($input['kind'] ?? '') === 'rail' && ($input['code'] ?? '') === 'BTC_BITCOIN' && filter_var($input['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
-            $connection = ChainConnection::findOrFail('BITCOIN');
-            $proof = app(ChainRpc::class)->call($connection, 'validateaddress', [trim((string) ($input['address'] ?? ''))]);
-            if (($proof['isvalid'] ?? false) !== true) {
-                throw new DomainException('ADDRESS_INVALID', 'Enter a valid destination address.');
-            }
+        if (! $batch && ($input['kind'] ?? '') === 'network-test') {
+            return;
         }
-        DB::transaction(function () use ($actor, $input, $tenant, $network): void {
-            AssetAccess::lock('asset-configuration');
-            $kind = $input['kind'] ?? '';
-            if ($kind === 'market' && ! $tenant) {
-                $data = Validator::make($input, ['enabled' => 'required|boolean', 'api_key' => 'nullable|string|max:512', 'use_public' => 'sometimes|boolean'])->validate();
-                $settings = MarketSettings::query()->lockForUpdate()->findOrFail(1);
-                if ($data['use_public'] ?? false) {
-                    $settings->api_key = null;
-                } elseif (! empty($data['api_key'])) {
-                    $settings->api_key = $data['api_key'];
-                }
-                if (array_key_exists('use_public', $data) && ! $data['use_public'] && ! $settings->api_key) {
-                    throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
-                }
-                $settings->enabled = $data['enabled'];
-                $settings->save();
-            } elseif ($kind === 'network' && ! $tenant) {
-                $c = ChainConnection::query()->whereKey($network->network)->lockForUpdate()->firstOrFail();
-                if ($c->start_height !== null && $c->start_height !== $network->start_height) {
-                    throw new DomainException('SCAN_BOUNDARY_IMMUTABLE', 'The initial scan boundary cannot be changed.');
-                }
-                $c->fill([
-                    'rpc_url' => $network->rpc_url, 'enabled' => $network->enabled,
-                    'confirmations' => $network->confirmations, 'start_height' => $network->start_height,
-                    'next_height' => $c->next_height ?? $network->start_height,
-                    'credential' => $network->credential,
-                ]);
-                $c->save();
-            } elseif ($kind === 'rail' && ! $tenant) {
-                $data = Validator::make($input, ['code' => 'required|exists:asset_rails,code', 'enabled' => 'required|boolean', 'address' => 'required|string|max:128'])->validate();
-                $rail = AssetRail::query()->whereKey($data['code'])->lockForUpdate()->firstOrFail();
-                $address = trim($data['address']);
-                if ($rail->network === 'ETHEREUM') {
-                    if (! preg_match('/^0x[0-9a-f]{40}$/i', $address) || preg_match('/^0x0{40}$/i', $address)) {
+        foreach ($sections as $index => $section) {
+            if (! $tenant && ($section['kind'] ?? '') === 'rail' && ($section['code'] ?? '') === 'BTC_BITCOIN' && filter_var($section['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                $connection = collect($prepared)->first(fn ($c) => $c?->network === 'BITCOIN') ?? ChainConnection::findOrFail('BITCOIN');
+                try {
+                    $proof = app(ChainRpc::class)->call($connection, 'validateaddress', [trim((string) ($section['address'] ?? ''))]);
+                    if (($proof['isvalid'] ?? false) !== true) {
                         throw new DomainException('ADDRESS_INVALID', 'Enter a valid destination address.');
                     }
-                    $address = strtolower($address);
-                } elseif (! preg_match('/^(bc1[ac-hj-np-z02-9]{11,87}|[13][1-9A-HJ-NP-Za-km-z]{25,34})$/', $address)) {
+                } catch (DomainException $e) {
+                    $this->sectionError($e, $batch, $index);
+                }
+            }
+        }
+        // Networks must be saved before dependent rails, regardless of client array order.
+        uksort($sections, fn ($a, $b) => (($sections[$a]['kind'] ?? '') === 'network' ? 0 : 1) <=> (($sections[$b]['kind'] ?? '') === 'network' ? 0 : 1));
+        DB::transaction(function () use ($actor, $sections, $prepared, $tenant, $batch): void {
+            AssetAccess::lock('asset-configuration');
+            foreach ($sections as $index => $section) {
+                try {
+                    $this->persist($actor, $section, $tenant, $prepared[$index]);
+                } catch (DomainException|ValidationException $e) {
+                    $this->sectionError($e, $batch, $index);
+                }
+            }
+        }, 3);
+    }
+
+    private function sectionError(DomainException|ValidationException $e, bool $batch, int $index): never
+    {
+        if (! $batch) {
+            throw $e;
+        }
+        $errors = $e instanceof ValidationException ? $e->errors() : ['form' => [$e->getMessage()]];
+        throw ValidationException::withMessages(collect($errors)->mapWithKeys(fn ($messages, $key) => ['sections.'.$index.'.'.$key => $messages])->all());
+    }
+
+    private function persist(AdminUser $actor, array $input, ?Tenant $tenant, ?ChainConnection $network): void
+    {
+        $kind = $input['kind'] ?? '';
+        if ($kind === 'market' && ! $tenant) {
+            $data = Validator::make($input, ['enabled' => 'required|boolean', 'api_key' => 'nullable|string|max:512', 'use_public' => 'sometimes|boolean'])->validate();
+            $settings = MarketSettings::query()->lockForUpdate()->findOrFail(1);
+            if ($data['use_public'] ?? false) {
+                $settings->api_key = null;
+            } elseif (! empty($data['api_key'])) {
+                $settings->api_key = $data['api_key'];
+            }
+            if (array_key_exists('use_public', $data) && ! $data['use_public'] && ! $settings->api_key) {
+                throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
+            }
+            $settings->enabled = $data['enabled'];
+            $settings->save();
+        } elseif ($kind === 'network' && ! $tenant) {
+            $c = ChainConnection::query()->whereKey($network->network)->lockForUpdate()->firstOrFail();
+            if ($c->start_height !== null && $c->start_height !== $network->start_height) {
+                throw new DomainException('SCAN_BOUNDARY_IMMUTABLE', 'The initial scan boundary cannot be changed.');
+            }
+            $c->fill([
+                'rpc_url' => $network->rpc_url, 'enabled' => $network->enabled,
+                'confirmations' => $network->confirmations, 'start_height' => $network->start_height,
+                'next_height' => $c->next_height ?? $network->start_height,
+                'credential' => $network->credential,
+            ]);
+            $c->save();
+        } elseif ($kind === 'rail' && ! $tenant) {
+            $data = Validator::make($input, ['code' => 'required|exists:asset_rails,code', 'enabled' => 'required|boolean', 'address' => 'required|string|max:128'])->validate();
+            $rail = AssetRail::query()->whereKey($data['code'])->lockForUpdate()->firstOrFail();
+            $address = trim($data['address']);
+            if ($rail->network === 'ETHEREUM') {
+                if (! preg_match('/^0x[0-9a-f]{40}$/i', $address) || preg_match('/^0x0{40}$/i', $address)) {
                     throw new DomainException('ADDRESS_INVALID', 'Enter a valid destination address.');
                 }
-                if ($rail->deposit_address && $rail->deposit_address !== $address && (AssetDepositOrder::where('rail_code', $rail->code)->exists() || AssetWithdrawalOrder::where('rail_code', $rail->code)->exists())) {
-                    throw new DomainException('RAIL_ADDRESS_IMMUTABLE', 'A network address with financial history cannot be changed.');
-                }
-                if ($data['enabled'] && ! ChainConnection::whereKey($rail->network)->where('enabled', true)->whereNotNull('next_height')->exists()) {
-                    throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
-                }
-                $rail->update(['enabled' => $data['enabled'], 'deposit_address' => $address]);
-            } elseif ($kind === 'company-rail' && $tenant) {
-                Tenant::whereKey($tenant->id)->lockForUpdate()->firstOrFail();
-                $data = Validator::make($input, ['code' => 'required|exists:asset_rails,code', 'deposit_enabled' => 'required|boolean', 'withdrawal_enabled' => 'required|boolean', 'minimum' => 'nullable|string|regex:/^\d{1,12}(?:\.\d{1,18})?$/', 'fee' => 'nullable|string|regex:/^\d{1,12}(?:\.\d{1,18})?$/'])->validate();
-                $rail = AssetRail::findOrFail($data['code']);
-                if ($data['deposit_enabled'] && ($data['minimum'] ?? null) === null || $data['withdrawal_enabled'] && ($data['fee'] ?? null) === null) {
-                    throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
-                }
-                foreach (['minimum', 'fee'] as $field) {
-                    if (isset($data[$field])) {
-                        try {
-                            $value = BigDecimal::of($data[$field])->toScale(AssetCatalog::chainScale($rail->asset_code));
-                            if ($field === 'minimum' && ! $value->isPositive()) {
-                                throw new \InvalidArgumentException;
-                            }
-                        } catch (\Throwable) {
-                            throw new DomainException('AMOUNT_INVALID', 'Enter an amount within the currency precision.');
-                        }
-                    }
-                }
-                CompanyRail::updateOrCreate(['tenant_id' => $tenant->id, 'rail_code' => $rail->code], ['deposit_enabled' => $data['deposit_enabled'], 'withdrawal_enabled' => $data['withdrawal_enabled'], 'minimum_deposit' => $data['minimum'] ?? null, 'withdrawal_fee' => $data['fee'] ?? null]);
-            } elseif ($kind === 'exchange' && $tenant) {
-                Tenant::whereKey($tenant->id)->lockForUpdate()->firstOrFail();
-                $data = Validator::make($input, ['asset' => 'required|in:USDC,ETH,BTC', 'enabled' => 'required|boolean', 'fee' => 'nullable|string|regex:/^\d{1,2}(?:\.\d{1,8})?$/', 'single' => 'nullable|string|regex:/^\d{1,12}(?:\.\d{1,8})?$/', 'daily' => 'nullable|string|regex:/^\d{1,12}(?:\.\d{1,8})?$/'])->validate();
-                if ($data['enabled'] && (! isset($data['fee'],$data['single'],$data['daily']) || ! BigDecimal::of($data['single'])->isPositive() || BigDecimal::of($data['daily'])->isLessThan($data['single']))) {
-                    throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
-                }
-                foreach (['single', 'daily'] as $field) {
-                    if (isset($data[$field]) && ! BigDecimal::of($data[$field])->isPositive()) {
-                        throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
-                    }
-                }
-                ExchangePolicy::updateOrCreate(['tenant_id' => $tenant->id, 'asset_code' => $data['asset']], ['enabled' => $data['enabled'], 'fee_percent' => $data['fee'] ?? null, 'single_limit' => $data['single'] ?? null, 'daily_limit' => $data['daily'] ?? null]);
-            } else {
-                abort(422);
+                $address = strtolower($address);
+            } elseif (! preg_match('/^(bc1[ac-hj-np-z02-9]{11,87}|[13][1-9A-HJ-NP-Za-km-z]{25,34})$/', $address)) {
+                throw new DomainException('ADDRESS_INVALID', 'Enter a valid destination address.');
             }
-            $this->audit->record($tenant?->id, 'ADMIN', $actor->id, 'ASSET_CONFIGURATION_UPDATED', 'asset_configuration', $tenant?->id, null, ['section' => $kind]);
-        }, 3);
+            if ($rail->deposit_address && $rail->deposit_address !== $address && (AssetDepositOrder::where('rail_code', $rail->code)->exists() || AssetWithdrawalOrder::where('rail_code', $rail->code)->exists())) {
+                throw new DomainException('RAIL_ADDRESS_IMMUTABLE', 'A network address with financial history cannot be changed.');
+            }
+            if ($data['enabled'] && ! ChainConnection::whereKey($rail->network)->where('enabled', true)->whereNotNull('next_height')->exists()) {
+                throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
+            }
+            $rail->update(['enabled' => $data['enabled'], 'deposit_address' => $address]);
+        } elseif ($kind === 'company-rail' && $tenant) {
+            Tenant::whereKey($tenant->id)->lockForUpdate()->firstOrFail();
+            $data = Validator::make($input, ['code' => 'required|exists:asset_rails,code', 'deposit_enabled' => 'required|boolean', 'withdrawal_enabled' => 'required|boolean', 'minimum' => 'nullable|string|regex:/^\d{1,12}(?:\.\d{1,18})?$/', 'fee' => 'nullable|string|regex:/^\d{1,12}(?:\.\d{1,18})?$/'])->validate();
+            $rail = AssetRail::findOrFail($data['code']);
+            if ($data['deposit_enabled'] && ($data['minimum'] ?? null) === null || $data['withdrawal_enabled'] && ($data['fee'] ?? null) === null) {
+                throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
+            }
+            foreach (['minimum', 'fee'] as $field) {
+                if (isset($data[$field])) {
+                    try {
+                        $value = BigDecimal::of($data[$field])->toScale(AssetCatalog::chainScale($rail->asset_code));
+                        if ($field === 'minimum' && ! $value->isPositive()) {
+                            throw new \InvalidArgumentException;
+                        }
+                    } catch (\Throwable) {
+                        throw new DomainException('AMOUNT_INVALID', 'Enter an amount within the currency precision.');
+                    }
+                }
+            }
+            CompanyRail::updateOrCreate(['tenant_id' => $tenant->id, 'rail_code' => $rail->code], ['deposit_enabled' => $data['deposit_enabled'], 'withdrawal_enabled' => $data['withdrawal_enabled'], 'minimum_deposit' => $data['minimum'] ?? null, 'withdrawal_fee' => $data['fee'] ?? null]);
+        } elseif ($kind === 'exchange' && $tenant) {
+            Tenant::whereKey($tenant->id)->lockForUpdate()->firstOrFail();
+            $data = Validator::make($input, ['asset' => 'required|in:USDC,ETH,BTC', 'enabled' => 'required|boolean', 'fee' => 'nullable|string|regex:/^\d{1,2}(?:\.\d{1,8})?$/', 'single' => 'nullable|string|regex:/^\d{1,12}(?:\.\d{1,8})?$/', 'daily' => 'nullable|string|regex:/^\d{1,12}(?:\.\d{1,8})?$/'])->validate();
+            if ($data['enabled'] && (! isset($data['fee'],$data['single'],$data['daily']) || ! BigDecimal::of($data['single'])->isPositive() || BigDecimal::of($data['daily'])->isLessThan($data['single']))) {
+                throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
+            }
+            foreach (['single', 'daily'] as $field) {
+                if (isset($data[$field]) && ! BigDecimal::of($data[$field])->isPositive()) {
+                    throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
+                }
+            }
+            ExchangePolicy::updateOrCreate(['tenant_id' => $tenant->id, 'asset_code' => $data['asset']], ['enabled' => $data['enabled'], 'fee_percent' => $data['fee'] ?? null, 'single_limit' => $data['single'] ?? null, 'daily_limit' => $data['daily'] ?? null]);
+        } else {
+            abort(422);
+        }
+        $this->audit->record($tenant?->id, 'ADMIN', $actor->id, 'ASSET_CONFIGURATION_UPDATED', 'asset_configuration', $tenant?->id, null, ['section' => $kind]);
     }
 
     /** Probe outside transactions; never scan, persist observations or credit an account. */

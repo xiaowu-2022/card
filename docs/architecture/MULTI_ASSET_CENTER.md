@@ -166,3 +166,49 @@ checks, TypeScript, affected-file ESLint and production build passed. Local SaaS
 checks covered public defaults, advanced controls and 375/768/1440 widths without
 configuration or financial submissions. Official defaults: [Ethereum PublicNode](https://ethereum.publicnode.com/),
 [Bitcoin PublicNode](https://bitcoin.publicnode.com/) and [CoinGecko public API](https://docs.coingecko.com/docs/keyless-public-api).
+
+## Unified settings and live query diagnostics (2026-09-16)
+The active global/company scope uses one form and one transient password input.
+Save all submits changed sections only, verifies the current password once, probes
+required endpoints outside database transactions, then saves all sections under the
+existing configuration lock and one database transaction. A validation failure rolls
+back every section, including audit events. Networks are saved before dependent rails.
+Original section indexes label errors. Duplicates, mixed scope, nested actions and
+non-list batches are rejected. Legacy single-section calls retain password checks.
+The password is reused only in mounted React memory for explicit page actions, never
+localStorage, sessionStorage, browser history or a server auth bypass. Scope changes
+and leaving the page clear it. Entire nested `sections` input is excluded from error
+flashing because it may contain replacement credentials.
+
+CoinGecko requests carry a descriptive application User-Agent; the keyless service
+returned 403 without it and 200 with it during local acceptance. Platform price updates
+still retain freshness, shared request gating, exact parsing and immutable snapshots.
+Node requests accept gzip to avoid unnecessarily transferring multi-megabyte decoded
+Bitcoin blocks. ExactJson validates original JSON and uses possessive string matching
+to avoid PCRE JIT stack exhaustion on large transaction hex fields, without converting
+money through floats or accepting malformed number tokens.
+Only fixed failure classifications are displayed/logged: service/network, trusted RPC
+method, HTTP status and numeric RPC error code. No raw provider body, URL credentials,
+API key, password or submitted parameters are logged. Complete trace/finality checks
+remain mandatory; connectivity alone is never described as verified deposit support.
+
+Live read-only local acceptance from the PHP runtime:
+- CoinGecko: saved genuine fresh USDT/USDC/ETH/BTC price snapshots successfully.
+- Bitcoin: full finalized-height block 967282, 9,388 transfer outputs, approximately
+  3.85 seconds after compression/parser fixes; no observations or orders persisted.
+- Ethereum: chain ID, finalized block and block receipts succeed; public
+  `debug_traceBlockByNumber` returns -32601 and `trace_block` is denied with 403/access
+  credential requirement. This public endpoint cannot enable complete native-ETH
+  verification. A compatible credentialed/custom endpoint is required. No fallback
+  drops internal transfers, weakens finality or claims success. Earlier host-only 403
+  observations did not establish PHP-runtime reachability and are superseded here.
+No live financial transaction, scanner run, cursor advance or historical replay was
+performed. Only local market snapshots and explicitly tested reversible settings were
+written. Production reachability and provider capabilities remain deployment-specific.
+
+Final validation: 108 related backend tests / 694 assertions, 70 i18n checks,
+TypeScript, affected-file ESLint and production build passed. The local SaaS UI
+reused its single password input for save, successful rate refresh and successful
+Bitcoin verification; Ethereum displayed the explicit unsupported-capability error.
+375/768/1440 widths had no horizontal overflow. Temporary market enablement and
+the local Vite hot-file override were restored after verification.

@@ -533,7 +533,7 @@ it('fetches one exact public snapshot for repeated platform updates', function (
     $two = $prices->refresh();
     expect($one->id)->toBe($two->id)->and($one->usd_prices['ETH'])->toBe('2000.123456789123456789');
     Http::assertSentCount(1);
-    Http::assertSent(fn ($r) => ! $r->hasHeader('x-cg-pro-api-key'));
+    Http::assertSent(fn ($r) => ! $r->hasHeader('x-cg-pro-api-key') && $r->hasHeader('User-Agent', 'ApertureCards/1.0 (platform market rates)'));
 });
 
 it('serializes platform refreshes with the shared cache lock', function () {
@@ -656,4 +656,75 @@ it('requires credentials or endpoint when explicitly selecting private services'
     expect(fn () => $action->execute($actor, ['kind' => 'market', 'enabled' => true, 'use_public' => false, 'password' => 'local-password']))->toThrow(DomainException::class);
     expect(fn () => $action->execute($actor, ['kind' => 'network', 'network' => 'ETHEREUM', 'enabled' => false, 'use_public' => false, 'rpc_url' => '', 'confirmations' => 6, 'password' => 'local-password']))->toThrow(ValidationException::class);
     Http::assertNothingSent();
+});
+
+it('saves several asset settings with one password and one atomic transaction', function () {
+    Http::fake();
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $sections = [
+        ['kind' => 'market', 'enabled' => false, 'use_public' => true],
+        ['kind' => 'network', 'network' => 'BITCOIN', 'enabled' => false, 'use_public' => true, 'confirmations' => 8],
+    ];
+    $this->actingAs($actor, 'platform_admin')->post('http://admin.localhost/platform/settings/assets', ['kind' => 'batch', 'password' => 'local-password', 'sections' => $sections])->assertRedirect()->assertSessionHasNoErrors();
+    expect(MarketSettings::findOrFail(1)->enabled)->toBeFalse()->and(ChainConnection::findOrFail('BITCOIN')->confirmations)->toBe(8);
+    Http::assertNothingSent();
+});
+
+it('rolls back the whole settings batch and never flashes nested credentials on validation errors', function () {
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $before = MarketSettings::findOrFail(1)->getRawOriginal();
+    $this->actingAs($actor, 'platform_admin')->post('http://admin.localhost/platform/settings/assets', ['kind' => 'batch', 'password' => 'local-password', 'sections' => [
+        ['kind' => 'market', 'enabled' => false, 'use_public' => false, 'api_key' => 'private-batch-secret'],
+        ['kind' => 'rail', 'code' => 'ETH_ETHEREUM', 'enabled' => true, 'address' => 'invalid'],
+    ]])->assertSessionHasErrors('sections.1.form')->assertSessionMissing('_old_input.sections')->assertSessionMissing('_old_input.password');
+    expect(MarketSettings::findOrFail(1)->getRawOriginal())->toBe($before);
+});
+
+it('prepares node reads before saving a batch and saves a network before its rail', function () {
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $level = DB::transactionLevel();
+    ChainConnection::findOrFail('ETHEREUM')->update(['enabled' => false]);
+    $hash = '0x'.str_repeat('a', 64);
+    Http::fake(['ethereum-rpc.publicnode.com' => function ($r) use ($level, $hash) {
+        expect(DB::transactionLevel())->toBe($level);
+
+        return Http::response(['result' => match ($r['method']) {
+            'eth_chainId' => '0x1',
+            'eth_getBlockByNumber' => ['number' => '0x64', 'hash' => $hash, 'timestamp' => '0x64', 'transactions' => []],
+            'debug_traceBlockByNumber' => [],
+        }]);
+    }]);
+    app(ConfigureAssetsAction::class)->execute($actor, ['kind' => 'batch', 'password' => 'local-password', 'sections' => [
+        ['kind' => 'rail', 'code' => 'ETH_ETHEREUM', 'enabled' => true, 'address' => '0x'.str_repeat('1', 40)],
+        ['kind' => 'network', 'network' => 'ETHEREUM', 'enabled' => true, 'use_public' => true, 'confirmations' => 6],
+    ]]);
+    expect(ChainConnection::findOrFail('ETHEREUM')->enabled)->toBeTrue()->and(AssetRail::findOrFail('ETH_ETHEREUM')->enabled)->toBeTrue();
+});
+
+it('rejects duplicate sections and global configuration in a company batch', function () {
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $section = ['kind' => 'market', 'enabled' => false, 'use_public' => true];
+    $action = app(ConfigureAssetsAction::class);
+    expect(fn () => $action->execute($actor, ['kind' => 'batch', 'password' => 'local-password', 'sections' => [$section, $section]]))->toThrow(ValidationException::class);
+    expect(fn () => $action->execute($actor, ['kind' => 'batch', 'password' => 'local-password', 'sections' => [$section]], $this->tenant))->toThrow(ValidationException::class);
+    expect(MarketSettings::findOrFail(1)->enabled)->toBeTrue();
+});
+
+it('reports unsupported trace methods without exposing provider response contents', function () {
+    Http::fake(['ethereum-rpc.publicnode.com' => Http::response(['error' => ['code' => -32601, 'message' => 'sensitive-provider-content']])]);
+    $c = new ChainConnection(['network' => 'ETHEREUM', 'enabled' => true]);
+    try {
+        app(ChainRpc::class)->call($c, 'debug_traceBlockByNumber', ['0x64', ['tracer' => 'callTracer']]);
+        test()->fail('Unsupported method must not pass verification');
+    } catch (DomainException $e) {
+        expect($e->getMessage())->toContain('does not support complete transfer verification')->not->toContain('sensitive-provider-content');
+    }
+});
+
+it('preserves tiny money and long blockchain hex strings without PCRE stack exhaustion', function () {
+    $hex = str_repeat('abcd1234', 300000);
+    $escaped = str_repeat('\\"', 50000);
+    $data = ExactJson::decode('{"hex":"'.$hex.'","escaped":"'.$escaped.'","amount":0.000000000000000001,"signed":-1.23e-8}');
+    expect($data['hex'])->toBe($hex)->and(strlen($data['escaped']))->toBe(50000)->and($data['amount'])->toBe('0.000000000000000001')->and($data['signed'])->toBe('-1.23e-8');
+    expect(fn () => ExactJson::decode('{"amount":01}'))->toThrow(UnexpectedValueException::class);
 });

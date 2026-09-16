@@ -2,6 +2,38 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'The node returned incomplete or invalid data. Verification was not completed.':
+        '节点返回的数据不完整或格式错误，尚未完成核验。',
+    'Save all changes': '保存全部更改',
+    'Enter your password once for this page. It is cleared when you leave or switch companies.':
+        '本页只需输入一次密码，即可保存配置、更新汇率和测试连接；离开页面或切换公司后清除。',
+    'Duplicate configuration section.': '同一配置不能重复提交。',
+    'The price service denied access. Check the service credentials or network access.':
+        '行情服务拒绝访问，请检查服务凭据或服务器网络。',
+    'The price service is rate limited. Please retry after one minute.':
+        '行情服务请求已限流，请一分钟后重试。',
+    'The price service is temporarily unavailable. Please retry later.':
+        '行情服务暂时不可用，请稍后重试。',
+    'The price service returned incomplete or outdated rates. No rates were published.':
+        '行情数据不完整或已过期，未更新平台汇率，请稍后重试。',
+    'Unable to connect to the price service. Check server network access and retry.':
+        '无法连接行情服务，请检查服务器网络后重试。',
+    'The node denied this query. A supported node or access credential is required.':
+        '节点拒绝此查询，需要支持该查询的节点或访问凭据。',
+    'The node is rate limited. Please retry later.': '节点请求已限流，请稍后重试。',
+    'The node is temporarily unavailable. Please retry later.': '节点服务暂时不可用，请稍后重试。',
+    'The node is reachable but does not support complete transfer verification. Use a compatible node.':
+        '节点已连通，但不支持完整转账核验（包括 ETH 内部转账）。请在高级设置中配置支持此能力的节点。',
+    'The node could not provide the required transfer evidence. Check its query permissions.':
+        '节点无法提供完整转账凭据，请检查节点的查询权限。',
+    'The network connection is unavailable.': '无法连接节点，请检查服务器网络和节点地址。',
+    'Market prices are unavailable.':
+        '暂无可用汇率，请确认行情已启用；正在更新或限流时请一分钟后重试。',
+    'Complete the required configuration first.': '请补全已启用项目的配置后保存。',
+    'The initial scan boundary cannot be changed.': '已有扫描起点不能修改，请刷新页面后重试。',
+    'The node hostname must be explicitly allowed in deployment configuration.':
+        '自定义节点域名需要加入服务器的 ASSET_RPC_ALLOWED_HOSTS。',
+
     'Internal balances and exchange use the platform ledger. Only external deposits and withdrawals query the blockchain.':
         '平台内部余额与兑换使用系统账本，仅外部充值、提现需要查询区块链。',
     'Platform exchange rates': '平台兑换汇率',

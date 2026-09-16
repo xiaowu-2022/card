@@ -49,6 +49,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->dontFlash([
+            'sections', // Batched asset configuration can contain replace-only credentials.
             'new_contact', 'phone', 'code', 'otp', 'address', 'credential', 'api_key',
             'reset_contact',
             'support_message', 'support_image',

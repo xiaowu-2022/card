@@ -1,5 +1,14 @@
 # Virtual Card SaaS Agent Rules
 
+On 2026-09-16 the user required one asset-settings form and one password input per
+page. Changes in the selected global/company scope save atomically in one batch;
+the current password remains only in transient component memory for page actions,
+and every request still verifies it. No session/localStorage credential cache.
+Nested configuration secrets must never be flashed. Public connection diagnostics
+must distinguish basic reachability from complete transfer verification; unsupported
+Ethereum tracing remains a failed capability test and cannot enable a scanner.
+See `docs/architecture/MULTI_ASSET_CENTER.md`.
+
 On 2026-09-16 the user simplified multi-asset configuration: built-in public
 Ethereum/Bitcoin read endpoints and optional keyless public prices, with SaaS
 manual confirmation of fixed deposit orders. Internal balances/exchange remain

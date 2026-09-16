@@ -7,10 +7,12 @@ use App\Domain\Assets\MarketSnapshot;
 use App\Infrastructure\Assets\ExactJson;
 use App\Support\Errors\DomainException;
 use Brick\Math\BigDecimal;
+use Brick\Math\Exception\MathException;
 use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 final class MarketPrices
 {
@@ -45,7 +47,7 @@ final class MarketPrices
     private function fetch(MarketSettings $settings): MarketSnapshot
     {
         try {
-            $http = Http::connectTimeout(5)->timeout(15)->withoutRedirecting();
+            $http = Http::connectTimeout(5)->timeout(15)->withoutRedirecting()->withUserAgent('ApertureCards/1.0 (platform market rates)')->acceptJson();
             $url = 'https://api.coingecko.com/api/v3/simple/price';
             if ($settings->api_key) {
                 $http = $http->withHeaders(['x-cg-pro-api-key' => $settings->api_key]);
@@ -56,7 +58,12 @@ final class MarketPrices
                 'include_last_updated_at' => 'true', 'precision' => 'full',
             ]);
             if (! $response->successful()) {
-                throw new \UnexpectedValueException;
+                Log::warning('assets.market.request_failed', ['service' => $settings->api_key ? 'COINGECKO_PRO' : 'COINGECKO_PUBLIC', 'http_status' => $response->status()]);
+                throw new DomainException('ASSET_PRICES_UNAVAILABLE', match ($response->status()) {
+                    401, 403 => 'The price service denied access. Check the service credentials or network access.',
+                    429 => 'The price service is rate limited. Please retry after one minute.',
+                    default => 'The price service is temporarily unavailable. Please retry later.',
+                }, 503);
             }
             $data = ExactJson::decode($response->body());
             $prices = [];
@@ -76,8 +83,14 @@ final class MarketPrices
             }
 
             return MarketSnapshot::query()->create(['provider' => 'COINGECKO', 'usd_prices' => $prices, 'observed_at' => CarbonImmutable::createFromTimestampUTC($time)]);
+        } catch (DomainException $e) {
+            throw $e;
+        } catch (\UnexpectedValueException|MathException $e) {
+            Log::warning('assets.market.invalid_data', ['reason' => 'invalid_or_stale_prices']);
+            throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'The price service returned incomplete or outdated rates. No rates were published.', 503);
         } catch (\Throwable) {
-            throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'Market prices are unavailable.', 503);
+            Log::warning('assets.market.connection_failed');
+            throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'Unable to connect to the price service. Check server network access and retry.', 503);
         }
     }
 

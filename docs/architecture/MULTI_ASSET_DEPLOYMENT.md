@@ -78,7 +78,18 @@ ESLint, 67 i18n checks and Vite build pass. Vite retains the existing bundle-siz
 advisory; it is not a build failure. Browser checks: 36 consumer and 18 admin
 cases, with no financial/configuration submissions. See [previews](../previews/multi-assets/README.md).
 
-Public node reachability must be tested from the deployment host. The development
-network returned HTTP 403 for the public ETH/BTC read probes during this revision;
-this is not proof of production access. Do not bypass the capability check or finality
-rules to enable an unavailable endpoint. SaaS manual receipt remains order-scoped.
+## Unified configuration follow-up
+This follow-up needs no migration. Rebuild frontend, refresh PHP/config caches and
+restart long-running application processes as usual. The page has one password and
+one Save all changes action per global/company scope. Test and refresh reuse the
+password only while that page is mounted. Unsaved changes are not silently submitted
+by test/refresh actions.
+
+Public CoinGecko requires the descriptive User-Agent now sent by MarketPrices.
+Local PHP-runtime tests successfully saved fresh market snapshots. Bitcoin full-block
+reads succeeded with gzip plus the large-JSON parser fix. Ethereum PublicNode basic
+reads succeeded, but its debug trace method is unavailable and its alternative trace
+endpoint requires access credentials. The test now explains this instead of a generic
+error. A compatible endpoint supporting complete finalized-block traces must be supplied
+in advanced settings for native-ETH verification; do not bypass the capability gate.
+Node tests do not start a scanner or create financial observations.
