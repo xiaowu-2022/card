@@ -1,5 +1,86 @@
 # Virtual Card SaaS Agent Rules
 
+On 2026-09-17 the user approved the supplied growth-strategy poster on the public
+homepage's second section and below Accounts on Assets. Their final correction
+requires the original portrait layout, all text and branding preserved, with only
+the bottom-right watermark removed. This supersedes the landscape redesign and
+permits this specific campaign art on Assets only. Embedded poster copy stays
+original; surrounding controls and accessible descriptions remain localized.
+See `docs/architecture/GROWTH_CAMPAIGN.md`.
+
+On 2026-09-17 the user approved unified account activation and deposit-to-annual-fee
+conversion. Current card issue/load qualification is a satisfied deposit OR an
+effective paid agent period; KYC, status, wallet and refund-linked card gates remain.
+Top-ups no longer automatically fund deposits. One immutable tenant/user activation
+fact covers first deposit or first agent purchase. Only deposit-first earns activation
+commission; both count direct 1 / indirect 0.5 once toward annual returns. Quotes
+convert min(deposit,due), charge the wallet remainder, and settle both via LedgerWriter.
+Annual commissions use only wallet-paid money, while returns include converted deposit.
+Direct agents receive their full rate; indirect agents must rank >= the payer's purchased
+rank and receive only uncovered positive rate differences. Payer percentage is never
+subtracted. This supersedes all conflicting earlier deposit/activation/annual-rate
+rules, without permitting Ledger rewrites or real financial testing. See
+`docs/architecture/UNIFIED_ACCOUNT_ACTIVATION.md`.
+
+On 2026-09-17 the user approved direct USDT commission receipts. Activation and
+annual commissions debit TENANT_COMMISSION_CLEARING and credit USER_AVAILABLE
+through LedgerWriter. The application may create a missing USDT Wallet on the
+first receipt without KYC, with SYSTEM audit; it never reactivates disabled users
+or wallets. Spending retains all existing KYC/status/balance checks. Deposit refund
+application, cancellation and completion do not restrict commission. Manual commission
+transfers and their refund restrictions are removed. Lifetime commission is reporting
+only; asset valuation includes actual wallet funds once. Existing immutable history
+is retained. The user authorized one previewable, idempotent Ledger-based consolidation
+of development commission balances, only on local/testing card_mock/card_ui_test;
+migrations never move funds. This explicitly supersedes the earlier commission
+refund restriction and wallet-before-receipt requirements. See
+`docs/architecture/DIRECT_COMMISSION_RECEIPTS.md`.
+
+On 2026-09-17 the user confirmed this system is in development with no legacy
+production data. Design all future changes around the current approved rules;
+do not add old/new data branches, compatibility modes, fallback workflows or
+historical-policy retention solely for backward compatibility. This supersedes
+the earlier new-period-only annual rebate decision. It does not authorize database
+resets, deleting user data, rewriting Ledger, or running unrequested money operations.
+
+All promotion periods use automatic annual-fee returns, including current periods,
+upgrades and renewals. AUTO_FIRST_FUNDING is the sole supported rule: first-ever
+successful deposit activation within the period counts distinct source accounts,
+not funding occurrences. The user reaffirmed direct 1 / indirect 0.5 weighting;
+repeat/refund/re-funding and annual purchases do not count. No manual application,
+withdrawal or approval endpoints/UI. Capture durable entitlements in source
+transactions, settle after commit using LedgerWriter, and recover via promotion:recover.
+Pending returns block upgrades; captured entitlements survive expiry. Only paid,
+unreturned fees are returned, with SYSTEM provenance. Upgrade retains expiry,
+progress and the original tariff basis. The asset commission tile shows cumulative
+income and opens invitation data; asset valuation uses actual wallet funds, not cumulative income.
+See docs/architecture/AUTOMATIC_PROMOTION_REBATES.md.
+
+On 2026-09-17 the user removed repeat deposit activation commissions. Only a
+user's first successful positive security-deposit funding may earn activation
+commission; subsequent funding, including after refund or a requirement increase,
+earns none for any ancestor. Check immutable tenant/user funding history, including
+first funding with no rewards. Preserve historical awards, Ledger, funding activity,
+annual-fee commissions and first-funding rebate counts. This supersedes the repeat-reward
+clauses below. See docs/architecture/PAID_PROMOTION.md.
+
+On 2026-09-16 the user changed multi-asset Ethereum/Bitcoin withdrawal fees from a
+fixed original-asset amount to a percentage of the requested gross withdrawal.
+New configuration uses an explicit 0 <= percentage < 100 field, up to 8 decimal
+places. Fees round up to the chain transfer unit and are deducted from gross;
+positive net payout remains required. Do not reinterpret legacy fixed fees as
+percentages: new settings start unconfigured, and existing order snapshots/retries
+and historical settlement stay unchanged. Legacy USDT/TRON's separate withdrawal
+flow is outside the pictured multi-asset configuration. See MULTI_ASSET_CENTER.md.
+
+On 2026-09-16 the user removed internal-exchange fees and per-order/per-user daily
+exchange caps. USDC/ETH/BTC-to-USDT configuration retains only enablement. New
+quotes always snapshot zero fee and ignore legacy fee/limit policy columns, including
+null values. Legacy unconfirmed fee quotes require re-quoting without changing their
+snapshots; completed orders/history and idempotent replays remain unchanged. Preserve
+balances, asset precision/storage bounds, eligibility, fresh pricing, quote expiry,
+tenant ownership and atomic Ledger settlement. See MULTI_ASSET_CENTER.md.
+
 On 2026-09-16 the user explicitly removed repeat password/verification-code prompts
 from SaaS Platform configuration and update operations, including rate refreshes,
 connection tests, notification profile management/test sends, administrator management,

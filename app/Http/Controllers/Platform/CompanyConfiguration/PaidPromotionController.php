@@ -4,14 +4,10 @@ namespace App\Http\Controllers\Platform\CompanyConfiguration;
 
 use App\Application\Promotion\ConfigurePaidPromotion;
 use App\Application\Promotion\PaidPromotionQuery;
-use App\Application\Promotion\PaidPromotionRebate;
 use App\Application\Promotion\PaidPromotionRules;
-use App\Domain\Admin\Enums\ScopeType;
-use App\Domain\Admin\Services\AuthorizationService;
 use App\Domain\Tenant\Models\Tenant;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 final class PaidPromotionController extends Controller
@@ -21,9 +17,7 @@ final class PaidPromotionController extends Controller
         $rules->platform($request->user('platform_admin'), 'tenant.manage');
         $page = max(1, min(100000, $request->integer('page', 1)));
 
-        return Inertia::render('platform/PaidPromotion', ['paid' => $query->platform($tenant->id, $page) + [
-            'canReview' => app(AuthorizationService::class)->allows($request->user('platform_admin'), ScopeType::Platform, null, 'promotion_refunds.review'),
-        ]]);
+        return Inertia::render('platform/PaidPromotion', ['paid' => $query->platform($tenant->id, $page)]);
     }
 
     public function configure(Tenant $tenant, Request $request, ConfigurePaidPromotion $configure, string $level)
@@ -34,14 +28,5 @@ final class PaidPromotionController extends Controller
         $configure->execute($tenant->id, $request->user('platform_admin'), $level, $v);
 
         return back()->with('success', 'Promotion update completed.');
-    }
-
-    public function review(Tenant $tenant, Request $request, PaidPromotionRebate $rebates, string $rebate)
-    {
-        $v = $request->validate(['decision' => ['required', Rule::in(['approve', 'reject'])], 'reason' => ['nullable', 'string', 'max:300'],
-            'confirmed' => ['required', 'accepted']]);
-        $rebates->review($tenant->id, $rebate, $request->user('platform_admin'), $v['decision'] === 'approve', $v['reason'] ?? null);
-
-        return back()->with('success', 'Fee rebate review completed.');
     }
 }

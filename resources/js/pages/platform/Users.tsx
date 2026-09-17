@@ -87,7 +87,7 @@ export default function Users({
                         ...(financialAccess.commission
                             ? [
                                   {
-                                      label: 'Commission',
+                                      label: 'Cumulative commission',
                                       render: (row: User) => (
                                           <MoneyDisplay amount={row.commission!} asset="USDT" />
                                       ),

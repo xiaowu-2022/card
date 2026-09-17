@@ -106,12 +106,9 @@ Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operat
     Route::get('/promotion/rewards', [PaidPromotionController::class, 'details'])->name('user.promotion.rewards');
     Route::post('/promotion/quotes', [PaidPromotionController::class, 'quote'])->middleware('throttle:10,1');
     Route::post('/promotion/quotes/{order}/confirm', [PaidPromotionController::class, 'confirm'])->whereUuid('order')->middleware('throttle:5,1');
-    Route::post('/promotion/rebates', [PaidPromotionController::class, 'apply'])->middleware('throttle:5,1');
-    Route::post('/promotion/rebates/{rebate}/withdraw', [PaidPromotionController::class, 'withdraw'])->whereUuid('rebate')->middleware('throttle:5,1');
     Route::get('/promotion', [PromotionController::class, 'show'])->name('user.promotion');
     Route::get('/promotion/commissions', [PromotionController::class, 'commissions'])->name('user.promotion.commissions');
     Route::get('/promotion/{section}', [PromotionController::class, 'show'])->whereIn('section', ['team', 'daily', 'direct', 'invitations', 'rules'])->name('user.promotion.section');
-    Route::post('/promotion', [PromotionController::class, 'update'])->middleware('throttle:10,1')->name('user.promotion.update');
     Route::get('/about', [AboutController::class, 'index'])->name('user.about');
     Route::get('/about/{article}', [AboutController::class, 'show'])->whereIn('article', ['terms', 'privacy', 'account-closure'])->name('user.about.article');
     Route::post('/kyc/applications', [KycController::class, 'store'])->name('user.kyc.applications.store');

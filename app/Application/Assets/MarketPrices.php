@@ -103,6 +103,26 @@ final class MarketPrices
         return MarketSnapshot::query()->where('observed_at', '>=', now()->subSeconds(120))->where('observed_at', '<=', now()->addSeconds(5))->latest('observed_at')->first();
     }
 
+    /** Administrative visibility retains saved rates; financial callers must use latest(). */
+    public function configuration(): array
+    {
+        $settings = MarketSettings::query()->findOrFail(1);
+        $snapshot = MarketSnapshot::query()->latest('observed_at')->first();
+        // Match the second-resolution timestamps bound by latest()'s database query.
+        $now = CarbonImmutable::now()->startOfSecond();
+
+        return [
+            'enabled' => $settings->enabled,
+            'configured' => filled($settings->api_key),
+            'snapshot' => $snapshot ? [
+                'observed_at' => $snapshot->observed_at->toIso8601String(),
+                'fresh' => $snapshot->observed_at->greaterThanOrEqualTo($now->subSeconds(120))
+                    && $snapshot->observed_at->lessThanOrEqualTo($now->addSeconds(5)),
+                'rates' => collect(['USDC', 'ETH', 'BTC'])->mapWithKeys(fn ($asset) => [$asset => (string) $this->rate($snapshot, $asset)])->all(),
+            ] : null,
+        ];
+    }
+
     public function rate(MarketSnapshot $snapshot, string $asset): BigDecimal
     {
         return BigDecimal::of($snapshot->usd_prices[$asset])->dividedBy($snapshot->usd_prices['USDT'], 18, RoundingMode::Down);

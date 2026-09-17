@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class AssetOverviewQuery
 {
-    public function __construct(private MarketPrices $prices) {}
+    public function __construct(private MarketPrices $prices, private \App\Application\Promotion\PromotionReportQuery $promotion) {}
 
     /** One read snapshot for all balances. No account creation on GET. */
     public function get(string $tenantId, string $userId, array $legacy): array
@@ -46,8 +46,7 @@ final readonly class AssetOverviewQuery
             }
             $available = $balance('USER_AVAILABLE');
             $deposit = $asset === 'USDT' ? $balance('USER_SECURITY_DEPOSIT') : '0';
-            $commission = $asset === 'USDT' ? $balance('USER_COMMISSION') : '0';
-            $native = BigDecimal::of($available)->plus($held)->plus($deposit)->plus($commission);
+            $native = BigDecimal::of($available)->plus($held)->plus($deposit);
             if ($asset === 'USDT') {
                 // USDT is the valuation unit; its own balance needs no market quote.
                 $total = $total->plus($native);
@@ -61,17 +60,17 @@ final readonly class AssetOverviewQuery
             }
             $options = [];
             if ($asset === 'USDT' && (($legacy['topupAvailable'] ?? false) || ($legacy['withdrawalAvailable'] ?? false))) {
-                $options[] = ['code' => 'USDT_TRON', 'network' => 'TRON', 'deposit' => (bool) $legacy['topupAvailable'], 'withdrawal' => (bool) $legacy['withdrawalAvailable'], 'fee' => null, 'minimum' => null];
+                $options[] = ['code' => 'USDT_TRON', 'network' => 'TRON', 'deposit' => (bool) $legacy['topupAvailable'], 'withdrawal' => (bool) $legacy['withdrawalAvailable'], 'feePercent' => null, 'minimum' => null];
             }
             foreach ($rails->where('asset_code', $asset) as $rail) {
                 $settings = $company->get($rail->code);
                 if (! $settings || ! $connections->has($rail->network) || ! $rail->deposit_address) {
                     continue;
                 }
-                $options[] = ['code' => $rail->code, 'network' => $rail->network, 'deposit' => $assetEligible && $settings->deposit_enabled && $settings->minimum_deposit !== null, 'withdrawal' => $assetEligible && $settings->withdrawal_enabled && $settings->withdrawal_fee !== null, 'fee' => $settings->withdrawal_fee === null ? null : Money::of($settings->withdrawal_fee, $asset)->amount(), 'minimum' => $settings->minimum_deposit === null ? null : Money::of($settings->minimum_deposit, $asset)->amount()];
+                $options[] = ['code' => $rail->code, 'network' => $rail->network, 'deposit' => $assetEligible && $settings->deposit_enabled && $settings->minimum_deposit !== null, 'withdrawal' => $assetEligible && $settings->withdrawal_enabled && $settings->withdrawal_fee_percent !== null, 'feePercent' => $settings->withdrawal_fee_percent, 'minimum' => $settings->minimum_deposit === null ? null : Money::of($settings->minimum_deposit, $asset)->amount()];
             }
             $policy = $policies->get($asset);
-            $activity = DB::table('ledger_postings as p')->join('ledger_accounts as a', 'a.id', '=', 'p.ledger_account_id')->join('ledger_entries as e', 'e.id', '=', 'p.ledger_entry_id')->where('a.tenant_id', $tenantId)->where('p.tenant_id', $tenantId)->where('e.tenant_id', $tenantId)->where('a.user_id', $userId)->where('a.asset_code', $asset)->where('a.account_type', 'USER_AVAILABLE')->orderByDesc('e.posted_at')->orderByDesc('p.id')->limit(5)->get(['p.id', 'p.delta', 'e.posted_at', 'e.event_type'])->map(fn ($p) => ['id' => $p->id, 'amount' => Money::of($p->delta, $asset)->amount(), 'time' => $p->posted_at, 'kind' => $p->event_type === 'PROMOTION_ANNUAL_FEE' ? 'Promotion annual fee paid' : ($p->event_type === 'PROMOTION_FEE_REBATE' ? 'Annual fee returned' : (str_starts_with($p->event_type, 'ASSET_EXCHANGE') ? 'Exchange' : (str_starts_with($p->event_type, 'ASSET_WITHDRAWAL') ? 'Withdrawal' : (str_starts_with($p->event_type, 'ASSET_DEPOSIT') ? 'Top up' : 'Account activity'))))])->all();
+            $activity = DB::table('ledger_postings as p')->join('ledger_accounts as a', 'a.id', '=', 'p.ledger_account_id')->join('ledger_entries as e', 'e.id', '=', 'p.ledger_entry_id')->where('a.tenant_id', $tenantId)->where('p.tenant_id', $tenantId)->where('e.tenant_id', $tenantId)->where('a.user_id', $userId)->where('a.asset_code', $asset)->where('a.account_type', 'USER_AVAILABLE')->orderByDesc('e.posted_at')->orderByDesc('p.id')->limit(5)->get(['p.id', 'p.delta', 'e.posted_at', 'e.event_type'])->map(fn ($p) => ['id' => $p->id, 'amount' => Money::of($p->delta, $asset)->amount(), 'time' => $p->posted_at, 'kind' => $p->event_type === 'COMMISSION_EARN' ? 'Activation commission' : ($p->event_type === 'PROMOTION_ANNUAL_COMMISSION' ? 'Annual fee commission' : ($p->event_type === 'COMMISSION_BALANCE_CONSOLIDATED' ? 'Commission credited to USDT' : ($p->event_type === 'PROMOTION_ANNUAL_FEE' ? 'Promotion annual fee paid' : ($p->event_type === 'PROMOTION_FEE_REBATE' ? 'Annual fee returned' : (str_starts_with($p->event_type, 'ASSET_EXCHANGE') ? 'Exchange' : (str_starts_with($p->event_type, 'ASSET_WITHDRAWAL') ? 'Withdrawal' : (str_starts_with($p->event_type, 'ASSET_DEPOSIT') ? 'Top up' : 'Account activity')))))))])->all();
             $orders = collect();
             foreach (['deposit' => AssetDepositOrder::class, 'withdrawal' => AssetWithdrawalOrder::class, 'exchange' => ExchangeOrder::class] as $mode => $model) {
                 $orders = $orders->merge($model::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', $asset)->latest()->limit(5)->get()->map(fn ($o) => [
@@ -84,13 +83,13 @@ final readonly class AssetOverviewQuery
             $exchangeReason = match (true) {
                 $asset === 'USDT' => 'Select another currency to exchange to USDT.',
                 ! $assetEligible => 'Exchange is unavailable for this account.',
-                ! $policy?->enabled, $policy->fee_percent === null, $policy->single_limit === null, $policy->daily_limit === null => 'Exchange is not enabled for this currency.',
+                ! $policy?->enabled => 'Exchange is not enabled for this currency.',
                 $snapshot === null => 'Market prices are unavailable.',
                 default => null,
             };
-            $assets[] = ['asset' => $asset, 'available' => $available, 'held' => Money::of((string) $held, $asset)->amount(), 'deposit' => $deposit, 'commission' => $commission, 'rails' => $options, 'transfer' => $asset === 'USDT' && $eligible, 'exchange' => $exchangeReason === null, 'exchangeUnavailableReason' => $exchangeReason, 'activity' => $activity, 'orders' => $orders->sortByDesc('time')->take(10)->values()->all()];
+            $assets[] = ['asset' => $asset, 'available' => $available, 'held' => Money::of((string) $held, $asset)->amount(), 'deposit' => $deposit, 'rails' => $options, 'transfer' => $asset === 'USDT' && $eligible, 'exchange' => $exchangeReason === null, 'exchangeUnavailableReason' => $exchangeReason, 'activity' => $activity, 'orders' => $orders->sortByDesc('time')->take(10)->values()->all()];
         }
 
-        return ['assets' => $assets, 'estimate' => $valuationAvailable ? (string) $total->toScale(8, RoundingMode::Down) : null, 'updatedAt' => $valuationAvailable && $usesMarketPrices ? $snapshot?->observed_at->toIso8601String() : null];
+        return ['activation' => app(\App\Application\Promotion\AccountActivationStatus::class)->get($tenantId, $userId), 'cumulativeCommission' => $this->promotion->cumulative($tenantId, $userId), 'assets' => $assets, 'estimate' => $valuationAvailable ? (string) $total->toScale(8, RoundingMode::Down) : null, 'updatedAt' => $valuationAvailable && $usesMarketPrices ? $snapshot?->observed_at->toIso8601String() : null];
     }
 }

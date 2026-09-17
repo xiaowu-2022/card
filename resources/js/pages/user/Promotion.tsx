@@ -20,7 +20,6 @@ import {
 import { UserLayout } from '@/layouts/UserLayout';
 import { UserPageHeader } from '@/components/user/UserPageHeader';
 import { PromotionDateFilter } from '@/components/user/PromotionDateFilter';
-import { FinancialConfirmation } from '@/components/user/FinancialConfirmation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -49,11 +48,8 @@ type Promotion = {
     paid: PaidPromotionData;
     invitationCode: string;
     levelName: string | null;
-    availableCommission: string;
     myCommission: string;
     supported: boolean;
-    canTransfer: boolean;
-    commissionRefundRestricted?: boolean;
     date: string;
     timezone: string;
     totals: Stats;
@@ -178,7 +174,6 @@ export default function PromotionPage({
     section?: 'invitations' | 'daily' | 'direct';
 }) {
     useClientTranslation();
-    const [requestId, setRequestId] = useState(() => crypto.randomUUID());
     const errors = usePage<SharedProps>().props.errors as Record<string, string>;
     const title = {
         invitations: 'Invitation data',
@@ -238,39 +233,9 @@ export default function PromotionPage({
                                     <span className="text-sm font-normal">USDT</span>
                                 </p>
                             </div>
-                            <div className="promotion-commission-bottom">
-                                <div className="promotion-earned">
-                                    <p>{t('Commission balance')}</p>
-                                    <p className="break-all">
-                                        {systemMoney(p.availableCommission)}
-                                    </p>
-                                </div>
-                                <div className="promotion-commission-action">
-                                    <FinancialConfirmation
-                                        title={t('Transfer commission to balance')}
-                                        warning={t(
-                                            'Transfer all available commission to your wallet. Withdrawals must use the wallet withdrawal flow.',
-                                        )}
-                                        url="/promotion"
-                                        payload={{ action: 'transfer', request_id: requestId }}
-                                        disabled={
-                                            !p.supported ||
-                                            !p.canTransfer ||
-                                            /^0(?:\.0+)?$/.test(p.availableCommission)
-                                        }
-                                        onCompleted={() => setRequestId(crypto.randomUUID())}
-                                    />
-                                </div>
-                            </div>
-                            {!p.canTransfer && (
-                                <p className="promotion-commission-note">
-                                    {t(
-                                        p.commissionRefundRestricted
-                                            ? 'During and after a deposit refund, commission can still be earned but cannot be transferred to your wallet or withdrawn. Existing wallet balance can still be withdrawn.'
-                                            : 'An active verified wallet is required to receive commission.',
-                                    )}
-                                </p>
-                            )}
+                            <p className="promotion-commission-note">
+                                {t('Commission is automatically credited to your USDT balance.')}
+                            </p>
                         </section>
                         <nav className="promotion-destinations" aria-label={t('Promotion details')}>
                             {[

@@ -34,6 +34,9 @@ export function walletActivityItems(entries: WalletActivity[]): UserActivityItem
         PROMOTION_ANNUAL_FEE: 'Promotion annual fee paid',
         PROMOTION_FEE_REBATE: 'Annual fee returned',
         COMMISSION_TRANSFER: 'Balance transfer received',
+        COMMISSION_EARN: 'Activation commission',
+        PROMOTION_ANNUAL_COMMISSION: 'Annual fee commission',
+        COMMISSION_BALANCE_CONSOLIDATED: 'Commission credited to USDT',
         SECURITY_DEPOSIT_REFUND: 'Security deposit refunded',
     };
     return entries.map((entry) => ({

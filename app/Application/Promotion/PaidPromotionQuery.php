@@ -2,6 +2,7 @@
 
 namespace App\Application\Promotion;
 
+use App\Application\Wallet\WalletEligibilityService;
 use App\Domain\Ledger\Models\LedgerAccount;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Promotion\Models\CommissionAward;
@@ -23,7 +24,7 @@ final readonly class PaidPromotionQuery
         ])->all();
     }
 
-    /** Benefits-only read: no team traversal, income aggregation or member details. */
+    /** Benefits and rebate progress only: no team traversal or member details. */
     public function benefits(string $tenant, string $user): array
     {
         User::query()->where('tenant_id', $tenant)->whereKey($user)->firstOrFail();
@@ -37,9 +38,10 @@ final readonly class PaidPromotionQuery
             'percent' => $cycle?->percent ?? 0, 'reward' => (string) ($cycle?->reward ?? 20),
             'membershipStatus' => $cycle ? 'ACTIVE' : ($previous ? 'EXPIRED' : 'NONE'),
             'previousCycle' => $previous ? ['rank' => $previous->rank, 'endsAt' => $previous->ends_at] : null,
-            'cycle' => $cycle ? ['id' => $cycle->id, 'startsAt' => $cycle->starts_at, 'endsAt' => $cycle->ends_at, 'tariff' => $cycle->tariff] : null,
+            'cycle' => $cycle ? ['id' => $cycle->id, 'startsAt' => $cycle->starts_at, 'endsAt' => $cycle->ends_at, 'tariff' => $cycle->tariff, 'rebatePolicy' => $cycle->rebate_policy] : null,
             'pending' => $cycle && (clone $claims)->where('cycle_id', $cycle->id)->where('status', 'PENDING')->exists(),
             'hasClaims' => $claims->exists(),
+            'progress' => $cycle ? $this->rebates->progress($cycle) : null,
         ];
     }
 
@@ -94,11 +96,14 @@ final readonly class PaidPromotionQuery
         $claims = DB::table('paid_promotion_rebates')->where('tenant_id', $tenant)->where('user_id', $user)->orderByDesc('created_at')->orderBy('id')->offset(($claimsPage - 1) * 30)->limit(31)->get();
         $progress = $cycle ? $this->rebates->progress($cycle) : null;
 
-        return ['membershipStatus' => $cycle ? 'ACTIVE' : ($previous ? 'EXPIRED' : 'NONE'),
+        $eligibility = app(WalletEligibilityService::class)->forUser(Tenant::findOrFail($tenant), User::where('tenant_id', $tenant)->findOrFail($user));
+
+        return ['activation' => $eligibility['activation'], 'paymentAccess' => ['verified' => $eligibility['kycStatus'] === 'APPROVED', 'walletActive' => $eligibility['walletStatus'] === 'ACTIVE', 'canCreateWallet' => $eligibility['canActivate']],
+            'membershipStatus' => $cycle ? 'ACTIVE' : ($previous ? 'EXPIRED' : 'NONE'),
             'previousCycle' => $previous ? ['rank' => $previous->rank, 'endsAt' => $previous->ends_at] : null,
             'availableBalance' => Money::of($available ?? '0', 'USDT')->amount(),
             'levels' => $this->levels($tenant), 'rank' => $cycle?->rank ?? 0, 'percent' => $cycle?->percent ?? 0, 'reward' => (string) ($cycle?->reward ?? 20),
-            'cycle' => $cycle ? ['id' => $cycle->id, 'startsAt' => $cycle->starts_at, 'endsAt' => $cycle->ends_at, 'tariff' => $cycle->tariff] : null,
+            'cycle' => $cycle ? ['id' => $cycle->id, 'startsAt' => $cycle->starts_at, 'endsAt' => $cycle->ends_at, 'tariff' => $cycle->tariff, 'rebatePolicy' => $cycle->rebate_policy] : null,
             'progress' => $progress, 'pending' => $cycle && DB::table('paid_promotion_rebates')->where('tenant_id', $tenant)->where('user_id', $user)->where('cycle_id', $cycle->id)->where('status', 'PENDING')->exists(),
             'claimsPage' => $claimsPage, 'hasMoreClaims' => $claims->count() > 30,
             'claims' => $claims->take(30)->map(fn ($r) => $this->claim($r))->all(), 'tables' => $tables, 'totals' => $totals, 'legacy' => (string) $legacy,
@@ -118,27 +123,42 @@ final readonly class PaidPromotionQuery
 
     public function scopedOrder(string $tenant, string $user, string $id): array
     {
-        return $this->order(DB::table('paid_promotion_orders')->where('tenant_id', $tenant)->where('user_id', $user)->where('id', $id)->firstOrFail());
+        $order = DB::table('paid_promotion_orders')->where('tenant_id', $tenant)->where('user_id', $user)->where('id', $id)->firstOrFail();
+        $preview = null;
+        $cycle = $this->rules->cycle($tenant, $user);
+        // Preview the quoted economics without changing qualification or creating a return.
+        if ($order->status === 'QUOTED' && $order->cycle_id === $cycle?->id
+            && BigDecimal::of($order->previous_tariff)->compareTo($cycle?->tariff ?? '0') === 0) {
+            $progress = $cycle ? $this->rebates->progress($cycle) : null;
+            $paid = BigDecimal::of($progress['paid'] ?? '0')->plus($order->settlement_total)->toScale(8);
+            $returned = $progress['returned'] ?? '0.00000000';
+            $preview = ['policy' => 'AUTO_FIRST_FUNDING', 'pending' => false,
+                'direct' => $progress['direct'] ?? 0, 'indirect' => $progress['indirect'] ?? 0,
+                'target' => $order->target, 'paid' => (string) $paid, 'returned' => $returned,
+                'remaining' => (string) $paid->minus($returned)->toScale(8)];
+        }
+
+        return $this->order($order) + ['rebatePreview' => $preview];
     }
 
     public function platform(string $tenant, int $page): array
     {
         $rows = DB::table('paid_promotion_rebates as r')->join('users as u', fn ($j) => $j->on('u.id', '=', 'r.user_id')->on('u.tenant_id', '=', 'r.tenant_id'))
-            ->leftJoin('admin_users as a', 'a.id', '=', 'r.reviewer_id')->where('r.tenant_id', $tenant)
-            ->orderByRaw("CASE WHEN r.status='PENDING' THEN 0 ELSE 1 END")->orderByDesc('r.created_at')->orderBy('r.id')->offset(($page - 1) * 30)->limit(31)->get(['r.*', 'u.account_id', 'a.name as reviewer_name']);
+            ->where('r.tenant_id', $tenant)
+            ->orderByRaw("CASE WHEN r.status='PENDING' THEN 0 ELSE 1 END")->orderByDesc('r.created_at')->orderBy('r.id')->offset(($page - 1) * 30)->limit(31)->get(['r.*', 'u.account_id']);
 
         return ['companyName' => Tenant::query()->whereKey($tenant)->value('name'), 'tenantId' => $tenant, 'levels' => $this->levels($tenant), 'page' => $page, 'hasMore' => $rows->count() > 30,
-            'claims' => $rows->take(30)->map(fn ($r) => $this->claim($r) + ['accountId' => $r->account_id, 'reviewer' => $r->reviewer_name])->all()];
+            'claims' => $rows->take(30)->map(fn ($r) => $this->claim($r) + ['accountId' => $r->account_id])->all()];
     }
 
     public function order(object $o): array
     {
-        return ['id' => $o->id, 'rank' => $o->rank, 'amount' => $o->amount, 'previousTariff' => $o->previous_tariff, 'tariff' => $o->tariff, 'expiresAt' => $o->expires_at, 'status' => $o->status, 'cycleId' => $o->cycle_id];
+        return ['id' => $o->id, 'rank' => $o->rank, 'amount' => $o->amount, 'depositApplied' => $o->deposit_applied, 'settlementTotal' => $o->settlement_total, 'previousTariff' => $o->previous_tariff, 'tariff' => $o->tariff, 'expiresAt' => $o->expires_at, 'status' => $o->status, 'cycleId' => $o->cycle_id];
     }
 
     public function claim(object $r): array
     {
-        return ['id' => $r->id, 'rank' => $r->rank, 'amount' => $r->amount, 'status' => $r->status, 'target' => $r->target, 'direct' => $r->direct_count, 'indirect' => $r->indirect_count, 'createdAt' => $r->created_at, 'reviewedAt' => $r->reviewed_at, 'reason' => $r->reason];
+        return ['id' => $r->id, 'rank' => $r->rank, 'amount' => $r->amount, 'status' => $r->status, 'target' => $r->target, 'direct' => $r->direct_count, 'indirect' => $r->indirect_count, 'createdAt' => $r->created_at, 'source' => $r->source, 'processedAt' => $r->processed_at];
     }
 
     private function shares(string $tenant, string $user): Builder

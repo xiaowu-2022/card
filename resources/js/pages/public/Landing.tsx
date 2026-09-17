@@ -25,6 +25,7 @@ import {
 import { LanguageSwitcher } from '@/components/user/LanguageSwitcher';
 import type { SharedProps } from '@/types/global';
 import { userThemeStyle } from '@/lib/user-theme';
+import { GrowthCampaign } from '@/components/user/GrowthCampaign';
 
 const services = [
     {
@@ -251,6 +252,7 @@ export default function Landing() {
                         <span className="marketing-art-note">{t('Card design illustration')}</span>
                     </div>
                 </section>
+                <GrowthCampaign variant="public" />
                 <div className="marketing-service-strip">
                     <p>{t('Your account. Your cards. One place.')}</p>
                     <div>

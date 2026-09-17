@@ -2,14 +2,11 @@
 
 namespace App\Http\Controllers\User;
 
-use App\Application\Promotion\PromotionMembershipAction;
 use App\Application\Promotion\PromotionQuery;
 use App\Application\Promotion\PromotionReportQuery;
-use App\Application\Promotion\TransferCommissionAction;
 use App\Domain\Tenant\TenantContext;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PromotionDateRequest;
-use App\Http\Requests\PromotionRequest;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -45,14 +42,4 @@ final class PromotionController extends Controller
         return Inertia::render('user/PromotionCommissions', ['history' => $query->commissions($context->id(), $request->user('tenant_user')->id, $request->validated())]);
     }
 
-    public function update(PromotionRequest $request, TenantContext $context, PromotionMembershipAction $members, TransferCommissionAction $transfer): RedirectResponse
-    {
-        if ($request->validated('action') === 'transfer') {
-            $transfer->execute($context->id(), $request->user('tenant_user')->id, $request->validated('request_id'));
-        } else {
-            $members->assignDirectLevel($context->id(), $request->user('tenant_user')->id, $request->validated('member_id'), $request->validated('level_id'));
-        }
-
-        return back()->with('success', 'Promotion update completed.');
-    }
 }

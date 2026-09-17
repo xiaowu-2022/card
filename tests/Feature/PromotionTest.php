@@ -3,14 +3,12 @@
 use App\Application\Kyc\ApproveKycAction;
 use App\Application\Kyc\SubmitKycApplicationAction;
 use App\Application\Promotion\CommissionHistoryQuery;
-use App\Application\Promotion\CommissionTransferEligibility;
 use App\Application\Promotion\CompanyFundBookQuery;
 use App\Application\Promotion\ConfigurePaidPromotion;
 use App\Application\Promotion\ConfigurePromotionAction;
 use App\Application\Promotion\PaidPromotionPurchase;
 use App\Application\Promotion\PromotionMembershipAction;
 use App\Application\Promotion\PromotionQuery;
-use App\Application\Promotion\TransferCommissionAction;
 use App\Application\SecurityDeposit\FundSecurityDepositAction;
 use App\Application\SecurityDeposit\RefundSecurityDepositAction;
 use App\Application\Wallet\ActivateUserWalletAction;
@@ -81,7 +79,7 @@ function promotionPurchasedRank($test, User $user, int $rank): void
     $action->confirm($test->tenant->id, $user->id, $q->id);
 }
 
-it('earns company-funded commission only from real deposit funding and pays again after actual refund', function (): void {
+it('earns company-funded commission only from real deposit funding and never pays again after actual refund', function (): void {
     $members = app(PromotionMembershipAction::class);
     $configure = app(ConfigurePromotionAction::class);
     $level = $configure->level($this->tenant->id, $this->platform->id, 1, 'Agent', '5', null);
@@ -95,8 +93,8 @@ it('earns company-funded commission only from real deposit funding and pays agai
     $fund->execute($this->tenant->id, $child->id, $request, '50');
     $fund->execute($this->tenant->id, $child->id, $request, '50');
     expect(CommissionAward::query()->count())->toBe(1);
-    $commission = LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->where('account_type', 'USER_COMMISSION')->firstOrFail();
-    expect($commission->balance)->toBe('20.00000000')->and($commission->wallet_id)->toBeNull();
+    $commission = LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->where('account_type', 'USER_AVAILABLE')->firstOrFail();
+    expect($commission->balance)->toBe('20.00000000')->and($commission->wallet_id)->not->toBeNull();
     $refunds = app(RefundSecurityDepositAction::class);
     $cancelled = $refunds->request($this->tenant->id, $child->id, (string) Str::uuid());
     $refunds->cancel($this->tenant->id, $child->id, $cancelled->id);
@@ -106,19 +104,14 @@ it('earns company-funded commission only from real deposit funding and pays agai
     expect($refunds->settle($this->tenant->id, $child->id, $refund->id)->status)->toBe('COMPLETED');
     expect($commission->fresh()->balance)->toBe('20.00000000');
     $fund->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
-    expect($commission->fresh()->balance)->toBe('40.00000000');
-    expect(LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('account_type', 'TENANT_COMMISSION_CLEARING')->value('balance'))->toBe('-40.00000000');
+    expect($commission->fresh()->balance)->toBe('20.00000000');
+    expect(LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('account_type', 'TENANT_COMMISSION_CLEARING')->value('balance'))->toBe('-20.00000000');
     expect(LedgerAccount::query()->where('wallet_id', $wallet->id)->where('account_type', 'USER_SECURITY_DEPOSIT')->value('balance'))->toBe('50.00000000');
-    promotionTestWallet($this, $this->user);
-    $transferRequest = (string) Str::uuid();
-    $transfer = app(TransferCommissionAction::class)->execute($this->tenant->id, $this->user->id, $transferRequest);
-    expect($transfer->amount)->toBe('40.00000000')->and($commission->fresh()->balance)->toBe('0.00000000');
-    expect(app(TransferCommissionAction::class)->execute($this->tenant->id, $this->user->id, $transferRequest)->id)->toBe($transfer->id);
     $historyQuery = app(CommissionHistoryQuery::class);
     $entryCount = DB::table('ledger_entries')->count();
     $history = $historyQuery->execute($this->tenant->id, $this->user->id);
-    expect($history['items'])->toHaveCount(3)
-        ->and(array_column($history['items'], 'amount'))->toContain('20.00000000', '-40.00000000')
+    expect($history['items'])->toHaveCount(1)
+        ->and(array_column($history['items'], 'amount'))->toBe(['20.00000000'])
         ->and(collect($history['items'])->where('kind', 'earned')->pluck('sourceAccountId')->unique()->values()->all())->toBe([$child->fresh()->account_id])
         ->and($historyQuery->execute($this->tenant->id, $child->id)['items'])->toBe([])
         ->and($historyQuery->execute($this->tenant->id, $this->user->id, now($this->tenant->timezone)->subDay()->format('Y-m-d'))['items'])->toBe([])
@@ -126,75 +119,16 @@ it('earns company-funded commission only from real deposit funding and pays agai
         ->and(DB::table('ledger_entries')->count())->toBe($entryCount);
     $report = app(PromotionQuery::class)->execute($this->tenant->id, $this->user->id, null);
     expect($report['totals']['invited'])->toBe(1)->and($report['totals']['activated'])->toBe(1)
-        ->and($report['totals']['deposits'])->toBe('100.00000000')->and($report['totals']['commission'])->toBe('40.00000000');
+        ->and($report['totals']['deposits'])->toBe('100.00000000')->and($report['totals']['commission'])->toBe('20.00000000');
     $yesterday = app(PromotionQuery::class)->execute($this->tenant->id, $this->user->id, now($this->tenant->timezone)->subDay()->format('Y-m-d'));
     expect($yesterday['daily']['invited'])->toBe(0)->and($yesterday['details'])->toBe([]);
     $book = app(CompanyFundBookQuery::class)->execute($this->tenant->id, null, 1);
-    expect($book['totals']['commissionCost'])->toBe('40.00000000');
+    expect($book['totals']['commissionCost'])->toBe('20.00000000');
     $activity = app(UserWalletQuery::class)->get($this->tenant->id, $this->user->id)['activity'];
-    expect(array_column($activity, 'eventType'))->not->toContain('COMMISSION_EARN')->toContain('COMMISSION_TRANSFER');
+    expect(array_column($activity, 'eventType'))->toContain('COMMISSION_EARN')->not->toContain('COMMISSION_TRANSFER');
     DB::statement('SET CONSTRAINTS promotion_funding_evidence, commission_award_evidence, commission_transfer_evidence, deposit_refund_evidence IMMEDIATE');
 });
 
-it('keeps earning commission but blocks new transfers during and after own deposit refunds without blocking wallet withdrawals', function (): void {
-    $wallet = promotionTestWallet($this, $this->user);
-    $configure = app(ConfigurePromotionAction::class);
-    $level = $configure->level($this->tenant->id, $this->platform->id, 1, 'Agent', '5', null);
-    $parent = app(PromotionMembershipAction::class)->ensure($this->tenant->id, $this->user->id);
-    $fund = app(FundSecurityDepositAction::class);
-    $fund->execute($this->tenant->id, $this->user->id, (string) Str::uuid(), '50');
-    $earn = function (string $suffix) use ($parent, $fund): void {
-        $child = $this->user->replicate(['account_id']);
-        $child->forceFill(['email' => 'refund-commission-'.$suffix.'@example.test'])->save();
-        app(PromotionMembershipAction::class)->ensure($this->tenant->id, $child->id, $parent->id);
-        promotionTestWallet($this, $child);
-        $fund->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
-    };
-    $earn('before');
-    $transfers = app(TransferCommissionAction::class);
-    $oldId = (string) Str::uuid();
-    $old = $transfers->execute($this->tenant->id, $this->user->id, $oldId);
-    $refunds = app(RefundSecurityDepositAction::class);
-    $refund = $refunds->request($this->tenant->id, $this->user->id, (string) Str::uuid());
-    $earn('pending');
-    $commission = LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->where('account_type', 'USER_COMMISSION')->firstOrFail();
-    $assertBlocked = function () use ($transfers, $commission, $oldId, $old): void {
-        $before = DB::table('ledger_entries')->count();
-        $amount = $commission->fresh()->balance;
-        expect(fn () => $transfers->execute($this->tenant->id, $this->user->id, (string) Str::uuid()))->toThrow(DomainException::class);
-        expect($transfers->execute($this->tenant->id, $this->user->id, $oldId)->id)->toBe($old->id);
-        $report = app(PromotionQuery::class)->execute($this->tenant->id, $this->user->id, null);
-        expect($report['canTransfer'])->toBeFalse()->and($report['commissionRefundRestricted'])->toBeTrue()
-            ->and($report['availableCommission'])->toBe($amount)
-            ->and(DB::table('ledger_entries')->count())->toBe($before);
-        $this->actingAs($this->user, 'tenant_user')->postJson('http://a.localhost/promotion', [
-            'action' => 'transfer', 'request_id' => (string) Str::uuid(), 'current_password' => 'local-password', 'confirmed' => true,
-        ])->assertStatus(409);
-    };
-    $withdraw = function () use ($wallet): void {
-        $order = app(CreateWithdrawalAction::class)->executeWithAddress(
-            $this->tenant->id, $this->user->id, (string) Str::uuid(), 'T'.str_repeat('A', 33), '1', expectedFee: '0');
-        expect($order->wallet_id)->toBe($wallet->id)->and($order->status->value)->toBe('PENDING');
-    };
-    expect($commission->balance)->toBe('20.00000000');
-    $assertBlocked();
-    $withdraw();
-    $refunds->cancel($this->tenant->id, $this->user->id, $refund->id);
-    $assertBlocked(); // Restoration has not completed yet.
-    $refunds->settle($this->tenant->id, $this->user->id, $refund->id);
-    expect(app(PromotionQuery::class)->execute($this->tenant->id, $this->user->id, null)['canTransfer'])->toBeTrue();
-    $refund = $refunds->request($this->tenant->id, $this->user->id, (string) Str::uuid());
-    $refunds->settle($this->tenant->id, $this->user->id, $refund->id);
-    expect($refund->fresh()->status)->toBe('COMPLETED');
-    $earn('completed');
-    expect($commission->fresh()->balance)->toBe('40.00000000');
-    $assertBlocked();
-    $withdraw();
-    // Another user/company's refund cannot lock this subject through an unscoped lookup.
-    expect(CommissionTransferEligibility::refundRestricted((string) Str::uuid(), $this->user->id))->toBeFalse()
-        ->and(CommissionTransferEligibility::refundRestricted($this->tenant->id, (string) Str::uuid()))->toBeFalse();
-    DB::statement('SET CONSTRAINTS commission_award_evidence, commission_transfer_evidence, deposit_refund_evidence IMMEDIATE');
-});
 
 it('binds linked invitations to the browser and OTP challenge and rejects tampering', function (): void {
     Mail::fake();
@@ -242,7 +176,7 @@ it('allocates multi-level differences from the company once and preserves earned
     $l = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->where('rank', 3)->first();
     app(ConfigurePaidPromotion::class)->execute($this->tenant->id, $this->platform, $l->id, ['fee' => $l->fee, 'percent' => 0, 'reward' => 75, 'target' => $l->target, 'revision' => $l->revision, 'enabled' => true]);
     $report = app(PromotionQuery::class)->execute($this->tenant->id, $this->user->id, null);
-    expect($report['totals'])->toBe(['invited' => 3, 'activated' => 1, 'deposits' => '50.00000000', 'commission' => '70.00000000']);
+    expect($report['totals'])->toBe(['invited' => 3, 'activated' => 3, 'deposits' => '50.00000000', 'commission' => '70.00000000']);
     $details = collect($report['details']);
     $deposit = $details->firstWhere('kind', 'Deposit funded');
     expect($deposit['sourceAccountId'])->toBe($chain[0]->account_id)
@@ -285,7 +219,7 @@ it('restricts company configuration and fund-book access to the resolved company
     $this->get('http://a.localhost/admin/company-funds')->assertOk();
     $this->get('http://b.localhost/admin/company-funds')->assertForbidden();
     $this->actingAs($this->user, 'tenant_user')->get('http://a.localhost/promotion?date=invalid')->assertRedirect();
-    $this->postJson('http://a.localhost/promotion', ['action' => 'transfer', 'request_id' => (string) Str::uuid(), 'current_password' => 'wrong', 'confirmed' => true])->assertUnprocessable();
+    $this->postJson('http://a.localhost/promotion', ['action' => 'transfer', 'request_id' => (string) Str::uuid(), 'current_password' => 'wrong', 'confirmed' => true])->assertStatus(405);
 });
 
 it('creates scoped unique immutable invitations without changing funds', function (): void {

@@ -27,9 +27,7 @@ final class CommissionHistoryQuery
             ->join('users as u', fn ($j) => $j->on('u.id', '=', 'e.user_id')->on('u.tenant_id', '=', 'e.tenant_id'))
             ->where('s.tenant_id', $tenantId)->where('s.user_id', $userId)->where('e.kind', 'ANNUAL')->where('s.amount', '>', 0)
             ->selectRaw("s.id, 'annual' AS kind, s.amount::text AS amount, 'USDT' AS asset_code, u.account_id AS source_account_id, e.occurred_at");
-        $transferred = DB::table('commission_transfers')->where('tenant_id', $tenantId)->where('user_id', $userId)
-            ->selectRaw("id, 'transferred' AS kind, (-amount)::text AS amount, asset_code, NULL::text AS source_account_id, created_at AS occurred_at");
-        $query = DB::query()->fromSub($earned->unionAll($annual)->unionAll($transferred), 'history');
+        $query = DB::query()->fromSub($earned->unionAll($annual), 'history');
         if ($date) {
             $day = CarbonImmutable::createFromFormat('!Y-m-d', $date, $tenant->timezone);
             $query->where('occurred_at', '>=', $day->utc())->where('occurred_at', '<', $day->addDay()->utc());

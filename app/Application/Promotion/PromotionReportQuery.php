@@ -11,6 +11,11 @@ use Illuminate\Support\Facades\DB;
 /** Read-only projections; income is deduplicated by its immutable award identity. */
 final class PromotionReportQuery
 {
+    public function cumulative(string $tenant, string $user): string
+    {
+        return \App\Domain\Ledger\ValueObjects\Money::of((string) $this->income($tenant, $user)->sum('amount'), 'USDT')->amount();
+    }
+
     public function income(string $tenant, string $user): Builder
     {
         $paid = DB::table('paid_promotion_shares as s')
@@ -71,43 +76,34 @@ final class PromotionReportQuery
     public function commissions(string $tenant, string $user, array $filters): array
     {
         $context = $this->context($tenant, $user, $filters);
-        $tab = $filters['tab'] ?? 'income';
         $page = (int) ($filters['page'] ?? 1);
-        if ($tab === 'transfers') {
-            $query = $this->period(DB::table('commission_transfers')->where('tenant_id', $tenant)->where('user_id', $user), $context, 'created_at');
-            $totals = ['total' => (string) (clone $query)->sum('amount')];
-            $rows = $query->orderByDesc('created_at')->orderBy('id')->offset(($page - 1) * 30)->limit(31)->get();
-            $items = $rows->take(30)->map(fn ($r) => ['id' => $r->id, 'kind' => 'transferred', 'amount' => $r->amount, 'occurredAt' => $r->created_at])->all();
-            $filters = array_intersect_key($filters, array_flip(['tab', 'page', 'date_from', 'date_to', 'date']));
-        } else {
-            $query = $this->period($this->income($tenant, $user), $context);
-            if (($filters['kind'] ?? 'all') !== 'all') {
-                $query->where('kind', $filters['kind']);
-            }
-            if (! empty($filters['account_id'])) {
-                $query->where('source_account_id', 'like', '%'.$filters['account_id'].'%');
-            }
-            if (($filters['rank'] ?? 'all') === 'unknown') {
-                $query->whereNull('source_rank');
-            } elseif (($filters['rank'] ?? 'all') !== 'all') {
-                $query->where('source_rank', (int) $filters['rank']);
-            }
-            match ($filters['relation'] ?? 'all') {
-                'direct' => $query->where('depth', 1), 'indirect' => $query->where('depth', '>', 1),
-                'unknown' => $query->whereNull('depth'), default => null,
-            };
-            $totals = $this->totals($query);
-            $rows = $query->orderByDesc('occurred_at')->orderBy('id')->offset(($page - 1) * 30)->limit(31)->get();
-            $items = $rows->take(30)->map(fn ($r) => [
-                'id' => $r->id, 'kind' => $r->kind, 'amount' => $r->amount, 'sourceAccountId' => $r->source_account_id,
-                'sourceRank' => $r->source_rank, 'beneficiaryRank' => $r->beneficiary_rank,
-                'relation' => $r->depth === null ? 'unknown' : ($r->depth === 1 ? 'direct' : 'indirect'),
-                'sourceAmount' => $r->source_amount, 'rate' => $r->rate, 'standard' => $r->standard, 'covered' => $r->covered,
-                'occurredAt' => $r->occurred_at, 'businessAt' => $r->business_at,
-            ])->all();
+        $query = $this->period($this->income($tenant, $user), $context);
+        if (($filters['kind'] ?? 'all') !== 'all') {
+            $query->where('kind', $filters['kind']);
         }
+        if (! empty($filters['account_id'])) {
+            $query->where('source_account_id', 'like', '%'.$filters['account_id'].'%');
+        }
+        if (($filters['rank'] ?? 'all') === 'unknown') {
+            $query->whereNull('source_rank');
+        } elseif (($filters['rank'] ?? 'all') !== 'all') {
+            $query->where('source_rank', (int) $filters['rank']);
+        }
+        match ($filters['relation'] ?? 'all') {
+            'direct' => $query->where('depth', 1), 'indirect' => $query->where('depth', '>', 1),
+            'unknown' => $query->whereNull('depth'), default => null,
+        };
+        $totals = $this->totals($query);
+        $rows = $query->orderByDesc('occurred_at')->orderBy('id')->offset(($page - 1) * 30)->limit(31)->get();
+        $items = $rows->take(30)->map(fn ($r) => [
+            'id' => $r->id, 'kind' => $r->kind, 'amount' => $r->amount, 'sourceAccountId' => $r->source_account_id,
+            'sourceRank' => $r->source_rank, 'beneficiaryRank' => $r->beneficiary_rank,
+            'relation' => $r->depth === null ? 'unknown' : ($r->depth === 1 ? 'direct' : 'indirect'),
+            'sourceAmount' => $r->source_amount, 'rate' => $r->rate, 'standard' => $r->standard, 'covered' => $r->covered,
+            'occurredAt' => $r->occurred_at, 'businessAt' => $r->business_at,
+        ])->all();
 
-        return $context + ['tab' => $tab, 'filters' => $filters, 'totals' => $totals, 'items' => $items, 'page' => $page, 'hasMore' => $rows->count() > 30];
+        return $context + ['filters' => $filters, 'totals' => $totals, 'items' => $items, 'page' => $page, 'hasMore' => $rows->count() > 30];
     }
 
     private function team(string $tenant, string $user): Builder
@@ -135,14 +131,13 @@ final class PromotionReportQuery
             ->where('f.tenant_id', $tenant)
             ->selectRaw("f.id,'activation' AS kind,u.account_id,t.depth,e.source_rank,f.amount AS source_amount,
                 COALESCE(i.amount,0) AS commission,i.occurred_at AS posted_at,f.funded_at AS occurred_at,
-                NOT EXISTS(SELECT 1 FROM promotion_funding_events older WHERE older.tenant_id=f.tenant_id AND older.user_id=f.user_id
-                  AND (older.funded_at,older.id)<(f.funded_at,f.id)) AS first_funding,NULL::text AS purchase_kind");
+                EXISTS(SELECT 1 FROM account_activations aa WHERE aa.tenant_id=f.tenant_id AND aa.user_id=f.user_id AND aa.source_type='DEPOSIT' AND aa.source_id=f.funding_entry_id) AS first_funding,NULL::text AS purchase_kind");
         $annual = DB::table('paid_promotion_orders as o')->joinSub(clone $team, 't', 't.user_id', '=', 'o.user_id')
             ->join('users as u', fn ($j) => $j->on('u.id', '=', 'o.user_id')->on('u.tenant_id', '=', 'o.tenant_id'))
             ->leftJoinSub($this->income($tenant, $user)->where('kind', 'annual'), 'i', 'i.source_id', '=', 'o.id')
             ->where('o.tenant_id', $tenant)->where('o.status', 'COMPLETED')
             ->selectRaw("o.id,'annual' AS kind,u.account_id,t.depth,o.rank AS source_rank,o.amount AS source_amount,
-                COALESCE(i.amount,0) AS commission,i.occurred_at AS posted_at,o.completed_at AS occurred_at,false AS first_funding,
+                COALESCE(i.amount,0) AS commission,i.occurred_at AS posted_at,o.completed_at AS occurred_at,EXISTS(SELECT 1 FROM account_activations aa WHERE aa.tenant_id=o.tenant_id AND aa.user_id=o.user_id AND aa.source_type='ANNUAL' AND aa.source_id=o.id) AS first_funding,
                 CASE WHEN o.previous_tariff>0 THEN 'upgrade' WHEN EXISTS(SELECT 1 FROM paid_promotion_cycles prior
                   WHERE prior.tenant_id=o.tenant_id AND prior.user_id=o.user_id AND prior.id<>o.cycle_id AND prior.ends_at<=o.completed_at)
                   THEN 'renewal' ELSE 'purchase' END AS purchase_kind");

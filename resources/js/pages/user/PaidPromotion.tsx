@@ -1,15 +1,22 @@
 import {
     promotionLevel,
-    rebateStatus,
     membershipAction,
     promotionMoney,
     promotionUnits,
 } from '@/lib/paid-promotion';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
+import { ShieldAlert } from 'lucide-react';
 import { UserLayout } from '@/layouts/UserLayout';
 import { UserPageHeader } from '@/components/user/UserPageHeader';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from '@/components/ui/dialog';
 import { FinancialConfirmation } from '@/components/user/FinancialConfirmation';
 import { type PaidPromotionData } from '@/components/user/PaidPromotionSummary';
 import { exactAmount } from '@/lib/exact-amount';
@@ -20,6 +27,8 @@ type Quote = {
     rank: number;
     amount: string;
     previousTariff: string;
+    depositApplied: string;
+    settlementTotal: string;
     tariff: string;
     expiresAt: string;
     status: string;
@@ -34,8 +43,8 @@ export default function PaidPromotion({
 }) {
     useClientTranslation();
     const form = useForm({ level_id: '', request_id: crypto.randomUUID() });
-    const [requestId, setRequestId] = useState(() => crypto.randomUUID());
     const [clock, setClock] = useState(() => Date.now());
+    const [verificationPromptOpen, setVerificationPromptOpen] = useState(!p.paymentAccess.verified);
     useEffect(() => {
         const timer = window.setInterval(() => setClock(Date.now()), 1000);
         return () => window.clearInterval(timer);
@@ -48,18 +57,36 @@ export default function PaidPromotion({
             l.rank > p.rank &&
             (!p.cycle || promotionUnits(l.fee) > promotionUnits(p.cycle.tariff)),
     );
-    const title = membershipAction(p);
-    const ready =
-        !!p.progress &&
-        !!p.cycle &&
-        new Date(p.cycle.endsAt).getTime() > clock &&
-        2 * p.progress.direct + p.progress.indirect >= 2 * p.progress.target &&
-        !/^0(?:\.0+)?$/.test(p.progress.remaining) &&
-        !p.pending;
+    const ready = p.paymentAccess.verified && p.paymentAccess.walletActive;
+    const title = p.activation.qualified ? membershipAction(p) : 'Activate your account';
     return (
         <UserLayout>
             <Head title={t(title)} />
             <UserPageHeader title={t(title)} backHref="/promotion" />
+            <Dialog
+                open={!p.paymentAccess.verified && verificationPromptOpen}
+                onOpenChange={setVerificationPromptOpen}
+            >
+                <DialogContent closeLabel={t('Close')} className="max-w-sm rounded-2xl bg-white">
+                    <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-amber-100 text-amber-800">
+                        <ShieldAlert className="size-6" aria-hidden="true" />
+                    </div>
+                    <DialogHeader>
+                        <DialogTitle>{t('Complete identity verification')}</DialogTitle>
+                        <DialogDescription className="leading-6">
+                            {t('Verify your identity before using financial services.')}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-2">
+                        <Button asChild className="bg-amber-700 text-white">
+                            <Link href="/kyc">{t('Verify now')}</Link>
+                        </Button>
+                        <Button variant="ghost" onClick={() => setVerificationPromptOpen(false)}>
+                            {t('Cancel')}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
             <div className="mx-auto max-w-2xl space-y-5 pb-5">
                 <section className="space-y-2 rounded-2xl bg-[#f2f6ef] p-5">
                     <p className="text-xs text-muted-foreground">{t('My promotion level')}</p>
@@ -86,9 +113,42 @@ export default function PaidPromotion({
                         })}
                     </p>
                     <p className="text-xs leading-5 text-muted-foreground">
-                        {t('Annual fees and security deposits are separate. No automatic renewal.')}
+                        {t(
+                            'Ordinary members pay a deposit with no annual fee. Active agents are exempt from the deposit.',
+                        )}
                     </p>
                 </section>
+                {!p.paymentAccess.verified ? (
+                    <section className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+                        <ShieldAlert
+                            className="mt-0.5 size-5 shrink-0 text-amber-700"
+                            aria-hidden="true"
+                        />
+                        <div className="min-w-0 space-y-2">
+                            <h2 className="text-sm font-semibold">
+                                {t('Complete identity verification')}
+                            </h2>
+                            <p className="text-xs leading-5 text-amber-900">
+                                {t('Verify your identity before using financial services.')}
+                            </p>
+                            <Button asChild size="sm" className="bg-amber-700 text-white">
+                                <Link href="/kyc">{t('Verify now')}</Link>
+                            </Button>
+                        </div>
+                    </section>
+                ) : (
+                    !ready && (
+                        <div className="rounded-xl border p-4 text-sm">
+                            {p.paymentAccess.canCreateWallet ? (
+                                <Button onClick={() => router.post('/wallet/activate')}>
+                                    {t('Activate wallet')}
+                                </Button>
+                            ) : (
+                                <p>{t('Wallet access is restricted')}</p>
+                            )}
+                        </div>
+                    )
+                )}
                 <ol aria-label={t('Membership steps')} className="grid grid-cols-3 gap-2 text-xs">
                     {[
                         'Choose promotion level',
@@ -116,12 +176,17 @@ export default function PaidPromotion({
                             {t(
                                 p.cycle
                                     ? 'Upgrades charge the difference from your purchased tariff and retain the current expiry date.'
-                                    : 'Choose a level and pay to activate one year of membership. No automatic renewal.',
+                                    : 'Choose a member deposit or an annual agent level.',
                             )}
                         </p>
+                        {p.activation.refundPending && (
+                            <p className="text-sm text-muted-foreground">
+                                {t('Cancel the pending security deposit refund before continuing.')}
+                            </p>
+                        )}
                         {p.pending && (
                             <p role="status" className="rounded-xl bg-muted p-4 text-sm">
-                                {t('Withdraw the pending fee rebate request before upgrading.')}
+                                {t('Annual fee return is processing. Try upgrading shortly.')}
                             </p>
                         )}
                         {!available.length && (
@@ -137,14 +202,64 @@ export default function PaidPromotion({
                             className="space-y-4"
                             onSubmit={(e) => {
                                 e.preventDefault();
+                                if (form.data.level_id === 'ordinary') {
+                                    router.visit('/security-deposit');
+                                    return;
+                                }
                                 form.post('/promotion/quotes', {
                                     onSuccess: () =>
                                         form.setData('request_id', crypto.randomUUID()),
                                 });
                             }}
                         >
-                            <fieldset disabled={p.pending || form.processing} className="space-y-3">
+                            <fieldset
+                                disabled={
+                                    p.pending ||
+                                    p.activation.refundPending ||
+                                    !ready ||
+                                    form.processing
+                                }
+                                className="space-y-3"
+                            >
                                 <legend className="sr-only">{t('Choose promotion level')}</legend>
+                                {!p.activation.agent && p.activation.ordinaryAvailable && (
+                                    <label
+                                        className={`flex cursor-pointer gap-3 rounded-xl border p-4 ${form.data.level_id === 'ordinary' ? 'border-emerald-800 bg-emerald-50/50' : 'bg-surface'}`}
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="level"
+                                            value="ordinary"
+                                            checked={form.data.level_id === 'ordinary'}
+                                            onChange={() =>
+                                                form.setData({
+                                                    level_id: 'ordinary',
+                                                    request_id: crypto.randomUUID(),
+                                                })
+                                            }
+                                            className="mt-1 size-4 shrink-0 accent-emerald-800"
+                                        />
+                                        <span className="min-w-0 space-y-2">
+                                            <span className="block text-sm font-semibold">
+                                                {promotionLevel(0)}
+                                            </span>
+                                            <span className="block text-xs text-muted-foreground">
+                                                {t('No annual fee')}
+                                            </span>
+                                            <span className="block text-lg font-semibold">
+                                                {promotionMoney(p.activation.depositRequired)}
+                                            </span>
+                                            <span className="block text-xs text-muted-foreground">
+                                                {t('Security deposit')}
+                                            </span>
+                                            <span className="block text-xs text-muted-foreground">
+                                                {t(
+                                                    'Your deposit can be converted into an agent annual fee when upgrading.',
+                                                )}
+                                            </span>
+                                        </span>
+                                    </label>
+                                )}
                                 {available.map((l) => (
                                     <div
                                         key={l.id}
@@ -194,13 +309,13 @@ export default function PaidPromotion({
                                             </summary>
                                             <p>
                                                 {t(
-                                                    'Rebate requires {{target}} weighted funding events. Direct counts as one; indirect counts as half.',
+                                                    'Automatic return requires {{target}} weighted activated accounts. Each direct account counts as 1; each indirect account as 0.5.',
                                                     { target: l.target },
                                                 )}
                                             </p>
                                             <p>
                                                 {t(
-                                                    'Each successful deposit funding counts. Apply before expiry; the platform reviews your request.',
+                                                    'Each account counts once on its first member deposit or agent purchase. Annual fees are returned automatically when the target is reached.',
                                                 )}
                                             </p>
                                         </details>
@@ -212,13 +327,24 @@ export default function PaidPromotion({
                                     {errorMessage(error)}
                                 </p>
                             ))}
-                            {!!available.length && (
+                            {(available.length > 0 ||
+                                (!p.activation.agent && p.activation.ordinaryAvailable)) && (
                                 <Button
                                     className="min-h-12 w-full rounded-full"
                                     type="submit"
-                                    disabled={form.processing || p.pending || !form.data.level_id}
+                                    disabled={
+                                        form.processing ||
+                                        p.pending ||
+                                        p.activation.refundPending ||
+                                        !ready ||
+                                        !form.data.level_id
+                                    }
                                 >
-                                    {t('Next: review fees')}
+                                    {t(
+                                        form.data.level_id === 'ordinary'
+                                            ? 'Pay security deposit'
+                                            : 'Next: review fees',
+                                    )}
                                 </Button>
                             )}
                         </form>
@@ -244,12 +370,12 @@ export default function PaidPromotion({
                                 !/^0(?:\.0+)?$/.test(q.previousTariff)
                                     ? [['Purchased tariff', promotionMoney(q.previousTariff)]]
                                     : []),
+                                ['Annual fee settlement total', promotionMoney(q.settlementTotal)],
                                 [
-                                    q.cycleId && !/^0(?:\.0+)?$/.test(q.previousTariff)
-                                        ? 'Upgrade payment'
-                                        : 'Amount due',
-                                    promotionMoney(q.amount),
+                                    'Deposit converted to annual fee',
+                                    promotionMoney(q.depositApplied),
                                 ],
+                                ['Wallet payment', promotionMoney(q.amount)],
                                 ['Available USDT balance', promotionMoney(p.availableBalance)],
                             ].map(([label = '', value = '0']) => (
                                 <div key={label} className="flex flex-wrap justify-between gap-2">
@@ -277,6 +403,13 @@ export default function PaidPromotion({
                                         time: dateTime(q.expiresAt),
                                     })}
                                 </p>
+                                {promotionUnits(q.depositApplied) > 0n && (
+                                    <p className="text-xs leading-5 text-muted-foreground">
+                                        {t(
+                                            'The converted deposit becomes annual fee and is no longer refundable as a deposit. Commission uses only the wallet payment; annual fee returns include the converted deposit.',
+                                        )}
+                                    </p>
+                                )}
                                 {expired && (
                                     <p role="alert" className="text-sm text-destructive">
                                         {t('The payment quote has expired. Review fees again.')}
@@ -290,17 +423,23 @@ export default function PaidPromotion({
                                 <FinancialConfirmation
                                     title={t('Confirm promotion payment')}
                                     warning={t(
-                                        q.cycleId
-                                            ? 'Pay {{amount}} USDT to upgrade to {{level}}. The original expiry date stays unchanged.'
-                                            : 'Pay {{amount}} USDT for {{level}}, valid for one year. No automatic renewal.',
+                                        'Convert {{deposit}} USDT of deposit and pay {{amount}} USDT from your wallet for {{level}}. The {{total}} USDT total becomes annual fee; the converted deposit cannot be refunded separately.',
                                         {
+                                            deposit: exactAmount(q.depositApplied),
                                             amount: exactAmount(q.amount),
+                                            total: exactAmount(q.settlementTotal),
                                             level: promotionLevel(q.rank),
                                         },
                                     )}
                                     url={`/promotion/quotes/${q.id}/confirm`}
                                     payload={{}}
-                                    disabled={expired || insufficient || p.pending}
+                                    disabled={
+                                        expired ||
+                                        insufficient ||
+                                        p.pending ||
+                                        p.activation.refundPending ||
+                                        !ready
+                                    }
                                 />
                                 <Link
                                     href="/promotion/membership"
@@ -317,92 +456,6 @@ export default function PaidPromotion({
                         )}
                     </section>
                 )}
-                {p.progress && (
-                    <section id="annual-rebate" className="scroll-mt-4 rounded-2xl bg-surface p-5">
-                        <h2 className="font-semibold">{t('This year’s annual fee rebate')}</h2>
-                        <p className="mt-3 text-sm">
-                            {t('Direct {{direct}} + indirect {{indirect}} / 2; target {{target}}', {
-                                direct: p.progress.direct,
-                                indirect: p.progress.indirect,
-                                target: p.progress.target,
-                            })}
-                        </p>
-                        <p className="mt-2 text-sm">
-                            {t(
-                                'Paid {{paid}}; returned {{returned}}; remaining {{remaining}} USDT',
-                                {
-                                    paid: exactAmount(p.progress.paid),
-                                    returned: exactAmount(p.progress.returned),
-                                    remaining: exactAmount(p.progress.remaining),
-                                },
-                            )}
-                        </p>
-                        <p className="my-3 text-sm text-muted-foreground">
-                            {t(
-                                'Each successful deposit funding counts. Apply before expiry; the platform reviews your request.',
-                            )}
-                        </p>
-                        <p className="mb-3 break-words text-sm font-medium">
-                            {t('Eligible rebate amount')}:{' '}
-                            {promotionMoney(ready ? p.progress.remaining : '0')}
-                        </p>
-                        {p.pending && <p className="mb-3 text-sm">{t('Under review')}</p>}
-                        <FinancialConfirmation
-                            title={t('Apply for annual fee rebate')}
-                            warning={t(
-                                'Apply to return {{amount}} USDT of annual fees. Approval does not cancel your level.',
-                                { amount: exactAmount(p.progress.remaining) },
-                            )}
-                            url="/promotion/rebates"
-                            payload={{ request_id: requestId }}
-                            disabled={!ready}
-                            onCompleted={() => setRequestId(crypto.randomUUID())}
-                        />
-                    </section>
-                )}
-                <section id="rebate-history" className="scroll-mt-4">
-                    <h2 className="mb-3 font-semibold">{t('Fee rebate history')}</h2>
-                    {p.claims.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">{t('No activity yet')}</p>
-                    ) : (
-                        p.claims.map((c) => (
-                            <div className="space-y-2 border-b py-4 text-sm" key={c.id}>
-                                <div className="flex justify-between gap-3">
-                                    <span>
-                                        {promotionLevel(c.rank)} · {rebateStatus(c.status)}
-                                    </span>
-                                    <span>{exactAmount(c.amount)} USDT</span>
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                    {dateTime(c.createdAt)}
-                                </p>
-                                {c.reason && <p>{c.reason}</p>}
-                                {c.status === 'PENDING' && (
-                                    <FinancialConfirmation
-                                        title={t('Withdraw rebate request')}
-                                        warning={t(
-                                            'Withdraw this pending request. No funds will move.',
-                                        )}
-                                        url={`/promotion/rebates/${c.id}/withdraw`}
-                                        payload={{}}
-                                    />
-                                )}
-                            </div>
-                        ))
-                    )}
-                </section>
-                <nav className="flex justify-between gap-4">
-                    {p.claimsPage > 1 && (
-                        <Link href={`/promotion/membership?claims_page=${p.claimsPage - 1}`}>
-                            {t('Previous')}
-                        </Link>
-                    )}
-                    {p.hasMoreClaims && (
-                        <Link href={`/promotion/membership?claims_page=${p.claimsPage + 1}`}>
-                            {t('Next')}
-                        </Link>
-                    )}
-                </nav>
                 <Link href="/promotion" className="block py-3 text-center underline">
                     {t('Back to promotion')}
                 </Link>

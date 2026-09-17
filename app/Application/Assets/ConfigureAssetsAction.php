@@ -156,12 +156,12 @@ final readonly class ConfigureAssetsAction
             $rail->update(['enabled' => $data['enabled'], 'deposit_address' => $address]);
         } elseif ($kind === 'company-rail' && $tenant) {
             Tenant::whereKey($tenant->id)->lockForUpdate()->firstOrFail();
-            $data = Validator::make($input, ['code' => 'required|exists:asset_rails,code', 'deposit_enabled' => 'required|boolean', 'withdrawal_enabled' => 'required|boolean', 'minimum' => 'nullable|string|regex:/^\d{1,12}(?:\.\d{1,18})?$/', 'fee' => 'nullable|string|regex:/^\d{1,12}(?:\.\d{1,18})?$/'])->validate();
+            $data = Validator::make($input, ['code' => 'required|exists:asset_rails,code', 'deposit_enabled' => 'required|boolean', 'withdrawal_enabled' => 'required|boolean', 'minimum' => 'nullable|string|regex:/^\d{1,12}(?:\.\d{1,18})?$/', 'fee_percent' => ['nullable', 'string', 'regex:/^(?:0|[1-9][0-9]?)(?:\.[0-9]{1,8})?$/D']])->validate();
             $rail = AssetRail::findOrFail($data['code']);
-            if ($data['deposit_enabled'] && ($data['minimum'] ?? null) === null || $data['withdrawal_enabled'] && ($data['fee'] ?? null) === null) {
+            if ($data['deposit_enabled'] && ($data['minimum'] ?? null) === null || $data['withdrawal_enabled'] && ($data['fee_percent'] ?? null) === null) {
                 throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
             }
-            foreach (['minimum', 'fee'] as $field) {
+            foreach (['minimum'] as $field) {
                 if (isset($data[$field])) {
                     try {
                         $value = BigDecimal::of($data[$field])->toScale(AssetCatalog::chainScale($rail->asset_code));
@@ -173,19 +173,14 @@ final readonly class ConfigureAssetsAction
                     }
                 }
             }
-            CompanyRail::updateOrCreate(['tenant_id' => $tenant->id, 'rail_code' => $rail->code], ['deposit_enabled' => $data['deposit_enabled'], 'withdrawal_enabled' => $data['withdrawal_enabled'], 'minimum_deposit' => $data['minimum'] ?? null, 'withdrawal_fee' => $data['fee'] ?? null]);
+            CompanyRail::updateOrCreate(['tenant_id' => $tenant->id, 'rail_code' => $rail->code], ['deposit_enabled' => $data['deposit_enabled'], 'withdrawal_enabled' => $data['withdrawal_enabled'], 'minimum_deposit' => $data['minimum'] ?? null, 'withdrawal_fee_percent' => $data['fee_percent'] ?? null]);
         } elseif ($kind === 'exchange' && $tenant) {
             Tenant::whereKey($tenant->id)->lockForUpdate()->firstOrFail();
-            $data = Validator::make($input, ['asset' => 'required|in:USDC,ETH,BTC', 'enabled' => 'required|boolean', 'fee' => 'nullable|string|regex:/^\d{1,2}(?:\.\d{1,8})?$/', 'single' => 'nullable|string|regex:/^\d{1,12}(?:\.\d{1,8})?$/', 'daily' => 'nullable|string|regex:/^\d{1,12}(?:\.\d{1,8})?$/'])->validate();
-            if ($data['enabled'] && (! isset($data['fee'],$data['single'],$data['daily']) || ! BigDecimal::of($data['single'])->isPositive() || BigDecimal::of($data['daily'])->isLessThan($data['single']))) {
-                throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
-            }
-            foreach (['single', 'daily'] as $field) {
-                if (isset($data[$field]) && ! BigDecimal::of($data[$field])->isPositive()) {
-                    throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
-                }
-            }
-            ExchangePolicy::updateOrCreate(['tenant_id' => $tenant->id, 'asset_code' => $data['asset']], ['enabled' => $data['enabled'], 'fee_percent' => $data['fee'] ?? null, 'single_limit' => $data['single'] ?? null, 'daily_limit' => $data['daily'] ?? null]);
+            $data = Validator::make($input, ['asset' => 'required|in:USDC,ETH,BTC', 'enabled' => 'required|boolean'])->validate();
+            // Legacy clients cannot reintroduce a fee or limits through stale fields.
+            ExchangePolicy::updateOrCreate(['tenant_id' => $tenant->id, 'asset_code' => $data['asset']], [
+                'enabled' => $data['enabled'], 'fee_percent' => '0', 'single_limit' => null, 'daily_limit' => null,
+            ]);
         } else {
             abort(422);
         }

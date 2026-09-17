@@ -3,6 +3,7 @@
 namespace App\Application\SecurityDeposit;
 
 use App\Application\Promotion\EarnDepositCommissionAction;
+use App\Application\Promotion\PaidPromotionRules;
 use App\Application\SecurityDeposit\DTOs\SecurityDepositFundingReceipt;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Kyc\Enums\KycUserStatus;
@@ -62,6 +63,9 @@ final readonly class FundSecurityDepositAction
                 return $this->receiptForExisting($existing, $tenantId, $wallet->id);
             }
             RefundSecurityDepositAction::assertNoPending($tenantId, $userId);
+            if (app(PaidPromotionRules::class)->cycle($tenantId, $userId)) {
+                throw new DomainException('AGENT_DEPOSIT_EXEMPT', 'Active agents do not need a security deposit.', 409);
+            }
 
             if ($tenant->status !== TenantStatus::Active) {
                 throw new DomainException('TENANT_NOT_ACTIVE', 'Security deposit funding requires an active tenant.', 403);

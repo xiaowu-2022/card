@@ -16,8 +16,7 @@ final readonly class WalletActivityQuery
         $types = ['CARD_MANAGEMENT_ORDER', 'CARD_ISSUE_ORDER', 'WITHDRAWAL_ORDER'];
         $keySql = "CASE WHEN reference_type IN ('CARD_MANAGEMENT_ORDER','CARD_ISSUE_ORDER','WITHDRAWAL_ORDER') AND reference_id IS NOT NULL THEN reference_type || ':' || reference_id::text ELSE ledger_entries.id::text END";
         $base = LedgerEntry::query()->where('ledger_entries.asset_code', Tenant::query()->whereKey($tenantId)->value('default_asset'))->where('ledger_entries.tenant_id', $tenantId)->whereNotNull('sealed_at')
-            ->where('event_type', '<>', 'COMMISSION_EARN')
-            ->whereHas('postings.account', fn ($q) => $q->where('tenant_id', $tenantId)->where('user_id', $userId));
+            ->whereHas('postings.account', fn ($q) => $q->where('tenant_id', $tenantId)->where('user_id', $userId)->whereNotNull('wallet_id'));
         $keys = (clone $base)->selectRaw("$keySql AS activity_key, MAX(posted_at) AS activity_time")
             ->groupByRaw($keySql)->orderByDesc('activity_time')->orderBy('activity_key')->limit(20)->pluck('activity_key');
 

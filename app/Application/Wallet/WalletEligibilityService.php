@@ -43,6 +43,7 @@ final readonly class WalletEligibilityService
             $remaining = Money::of('0', $requiredAsset);
         }
 
+        $activation = app(\App\Application\Promotion\AccountActivationStatus::class)->get($tenant->id, $user->id);
         $reasons = [];
         if ($tenant->status !== TenantStatus::Active) {
             $reasons[] = 'TENANT_NOT_ACTIVE';
@@ -58,7 +59,7 @@ final readonly class WalletEligibilityService
         }
         if ($assetMismatch) {
             $reasons[] = 'SECURITY_DEPOSIT_ASSET_MISMATCH';
-        } elseif ($deposit->compare($required) < 0) {
+        } elseif (! $activation['qualified']) {
             $reasons[] = 'SECURITY_DEPOSIT_INSUFFICIENT';
         }
         $cardFoundationReady = $tenant->status === TenantStatus::Active
@@ -66,7 +67,7 @@ final readonly class WalletEligibilityService
             && $kycStatus === KycUserStatus::Approved
             && $wallet?->status === WalletStatus::Active
             && ! $assetMismatch
-            && $deposit->compare($required) >= 0;
+            && $activation['qualified'];
 
         return [
             'userStatus' => $user->status->value,
@@ -75,6 +76,8 @@ final readonly class WalletEligibilityService
             'walletStatus' => $wallet?->status->value,
             'canActivate' => $tenant->status === TenantStatus::Active && $user->status === UserStatus::Active && $kycStatus === KycUserStatus::Approved && $wallet === null,
             'depositSatisfied' => ! $assetMismatch && $deposit->compare($required) >= 0,
+            'activation' => $activation,
+            'activationSatisfied' => ! $assetMismatch && $activation['qualified'],
             'canUseCardService' => $cardFoundationReady,
             'reasonCodes' => $reasons,
             'wallet' => $wallet ? ['id' => $wallet->id, 'asset' => $wallet->asset_code, 'status' => $wallet->status->value] : null,

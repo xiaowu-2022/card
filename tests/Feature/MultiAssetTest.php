@@ -60,7 +60,7 @@ beforeEach(function () {
     ChainConnection::where('network', 'ETHEREUM')->update(['enabled' => true, 'start_height' => 100, 'next_height' => 100]);
     foreach (['ETH_ETHEREUM', 'USDC_ETHEREUM', 'USDT_ETHEREUM'] as $code) {
         AssetRail::whereKey($code)->update(['enabled' => true, 'deposit_address' => '0x'.str_repeat('1', 40)]);
-        CompanyRail::create(['tenant_id' => $this->tenant->id, 'rail_code' => $code, 'deposit_enabled' => true, 'withdrawal_enabled' => true, 'minimum_deposit' => '0.000001', 'withdrawal_fee' => '0.000001']);
+        CompanyRail::create(['tenant_id' => $this->tenant->id, 'rail_code' => $code, 'deposit_enabled' => true, 'withdrawal_enabled' => true, 'minimum_deposit' => '0.000001', 'withdrawal_fee' => '0.000001', 'withdrawal_fee_percent' => '0.0001']);
     }
     MarketSettings::whereKey(1)->update(['enabled' => true]);
     MarketSnapshot::create(['provider' => 'COINGECKO', 'usd_prices' => ['USDT' => '0.999', 'USDC' => '0.998', 'ETH' => '2000', 'BTC' => '60000'], 'observed_at' => now()]);
@@ -87,10 +87,10 @@ it('exchanges atomically using saved economics and replays the same pair', funct
     ($this->fund)('ETH', '1');
     $action = app(ExchangeAssetsAction::class);
     $q = $action->quote($this->tenant->id, $this->user->id, 'ETH', '0.1', (string) Str::uuid());
-    expect($q->receive_amount)->toBe('199.99999999');
+    expect($q->receive_amount)->toBe('200.20020020')->and($q->fee_amount)->toBe('0.00000000');
     ExchangePolicy::where('asset_code', 'ETH')->update(['fee_percent' => '5']);
     $done = $action->confirm($this->tenant->id, $this->user->id, $q->id);
-    expect($done->status)->toBe('COMPLETED')->and($done->fee_percent)->toBe('0.10000000');
+    expect($done->status)->toBe('COMPLETED')->and($done->fee_percent)->toBe('0.00000000');
     $count = LedgerEntry::count();
     $again = $action->confirm($this->tenant->id, $this->user->id, $q->id);
     expect($again->target_entry_id)->toBe($done->target_entry_id)->and(LedgerEntry::count())->toBe($count);
@@ -128,21 +128,22 @@ it('holds the original asset and cancels only before approval', function () {
     ($this->fund)('ETH', '1');
     $action = app(WithdrawAssetsAction::class);
     $request = (string) Str::uuid();
-    $o = $action->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '0.2', '0x'.str_repeat('2', 40), '0.000001', $request, true);
-    expect($action->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '0.2', '0x'.str_repeat('2', 40), '0.000001', $request, true)->id)->toBe($o->id);
+    $o = $action->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '0.2', '0x'.str_repeat('2', 40), '0.0000002', $request, true);
+    expect($action->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '0.2', '0x'.str_repeat('2', 40), '0.0000002', $request, true)->id)->toBe($o->id);
     $action->cancel($this->tenant->id, $this->user->id, $o->id);
     expect($o->fresh()->status)->toBe('CANCELLED');
     DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     DB::statement('SET CONSTRAINTS ALL DEFERRED');
 });
 
-it('rejects stale prices and quotes that exceed configured limits', function () {
+it('rejects stale prices while ignoring legacy configured limits', function () {
     ($this->fund)('ETH', '10');
     $action = app(ExchangeAssetsAction::class);
-    expect(fn () => $action->quote($this->tenant->id, $this->user->id, 'ETH', '3', (string) Str::uuid()))->toThrow(DomainException::class);
+    $quote = $action->quote($this->tenant->id, $this->user->id, 'ETH', '3', (string) Str::uuid());
+    expect($quote->fee_amount)->toBe('0.00000000');
     $this->travel(121)->seconds();
     expect(fn () => $action->quote($this->tenant->id, $this->user->id, 'ETH', '0.1', (string) Str::uuid()))->toThrow(DomainException::class);
-    expect(ExchangeOrder::count())->toBe(0);
+    expect(ExchangeOrder::count())->toBe(1);
 });
 it('prevents overspending with two separately quoted exchanges', function () {
     ($this->fund)('ETH', '1');
@@ -257,7 +258,7 @@ it('stops on a changed checkpoint without rewriting money', function () {
 it('keeps payout UNKNOWN holds and prevents cancellation or a different transaction', function () {
     ($this->fund)('ETH', '1');
     $a = app(WithdrawAssetsAction::class);
-    $o = $a->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '0.2', '0x'.str_repeat('2', 40), '0.000001', (string) Str::uuid(), true);
+    $o = $a->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '0.2', '0x'.str_repeat('2', 40), '0.0000002', (string) Str::uuid(), true);
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $a->review($this->tenant->id, $o->id, $actor, true);
     assetEthereumNode([]);
@@ -317,10 +318,10 @@ it('submits scoped deposit and exchange HTTP requests with stable identifiers', 
 it('settles a uniquely proven ETH payout once with fee accounting', function () {
     ($this->fund)('ETH', '1');
     $a = app(WithdrawAssetsAction::class);
-    $o = $a->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '0.2', '0x'.str_repeat('2', 40), '0.000001', (string) Str::uuid(), true);
+    $o = $a->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '0.2', '0x'.str_repeat('2', 40), '0.0000002', (string) Str::uuid(), true);
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $a->review($this->tenant->id, $o->id, $actor, true);
-    $wei = BigDecimal::of('0.199999')->withPointMovedRight(18)->toBigInteger()->toBase(16);
+    $wei = BigDecimal::of('0.1999998')->withPointMovedRight(18)->toBigInteger()->toBase(16);
     assetEthereumNode([['type' => 'CALL', 'to' => $o->address, 'value' => '0x'.$wei]]);
     $result = $a->verify($this->tenant->id, $o->id, $actor, '0x'.str_repeat('b', 64), (string) Str::uuid());
     expect($result->status)->toBe('COMPLETED');
@@ -334,11 +335,11 @@ it('settles a uniquely proven ETH payout once with fee accounting', function () 
     DB::statement('SET CONSTRAINTS ALL DEFERRED');
 });
 
-it('rechecks funds after a withdrawal consumes a quoted balance and enforces the daily cap', function () {
+it('rechecks available funds and allows exchanges beyond legacy daily caps', function () {
     ($this->fund)('ETH', '1');
     $exchange = app(ExchangeAssetsAction::class);
     $quote = $exchange->quote($this->tenant->id, $this->user->id, 'ETH', '0.8', (string) Str::uuid());
-    $withdraw = app(WithdrawAssetsAction::class)->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '0.4', '0x'.str_repeat('2', 40), '0.000001', (string) Str::uuid(), true);
+    $withdraw = app(WithdrawAssetsAction::class)->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '0.4', '0x'.str_repeat('2', 40), '0.0000004', (string) Str::uuid(), true);
     $entries = LedgerEntry::count();
     expect(fn () => $exchange->confirm($this->tenant->id, $this->user->id, $quote->id))->toThrow(DomainException::class);
     expect(LedgerEntry::count())->toBe($entries)->and($quote->fresh()->status)->toBe('QUOTED');
@@ -346,7 +347,7 @@ it('rechecks funds after a withdrawal consumes a quoted balance and enforces the
     ExchangePolicy::where('tenant_id', $this->tenant->id)->where('asset_code', 'ETH')->update(['single_limit' => '2000', 'daily_limit' => '2000']);
     $exchange->confirm($this->tenant->id, $this->user->id, $quote->id);
     $next = $exchange->quote($this->tenant->id, $this->user->id, 'ETH', '0.2', (string) Str::uuid());
-    expect(fn () => $exchange->confirm($this->tenant->id, $this->user->id, $next->id))->toThrow(DomainException::class);
+    expect($exchange->confirm($this->tenant->id, $this->user->id, $next->id)->status)->toBe('COMPLETED');
 });
 
 it('exposes existing TRON withdrawals to SaaS with scoped review and no alternate settlement', function () {
@@ -430,7 +431,7 @@ it('serializes actual simultaneous exchange and withdrawal requests without over
     $quote = app(ExchangeAssetsAction::class)->quote($tenant, $user, 'ETH', '0.8', (string) Str::uuid());
     $results = raceAssetOperations([
         fn () => app(ExchangeAssetsAction::class)->confirm($tenant, $user, $quote->id),
-        fn () => app(WithdrawAssetsAction::class)->create($tenant, $user, 'ETH_ETHEREUM', '0.4', '0x'.str_repeat('2', 40), '0.000001', (string) Str::uuid(), true),
+        fn () => app(WithdrawAssetsAction::class)->create($tenant, $user, 'ETH_ETHEREUM', '0.4', '0x'.str_repeat('2', 40), '0.0000004', (string) Str::uuid(), true),
     ]);
     sort($results);
     expect($results)->toBe(['completed', 'rejected']);
@@ -725,3 +726,83 @@ it('preserves tiny money and long blockchain hex strings without PCRE stack exha
     expect($data['hex'])->toBe($hex)->and(strlen($data['escaped']))->toBe(50000)->and($data['amount'])->toBe('0.000000000000000001')->and($data['signed'])->toBe('-1.23e-8');
     expect(fn () => ExactJson::decode('{"amount":01}'))->toThrow(UnexpectedValueException::class);
 });
+
+
+it('enables exchange with no fee or limit configuration and ignores stale client fields', function () {
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/assets/settings';
+    $this->actingAs($actor, 'platform_admin')->post($url, ['kind' => 'exchange', 'asset' => 'ETH', 'enabled' => true])
+        ->assertRedirect()->assertSessionHasNoErrors();
+    $this->post($url, ['kind' => 'exchange', 'asset' => 'ETH', 'enabled' => true, 'fee' => '99', 'single' => '1', 'daily' => '1'])
+        ->assertRedirect()->assertSessionHasNoErrors();
+    $policy = ExchangePolicy::where('tenant_id', $this->tenant->id)->where('asset_code', 'ETH')->sole();
+    expect($policy->fee_percent)->toBe('0.00000000')->and($policy->single_limit)->toBeNull()->and($policy->daily_limit)->toBeNull();
+    ($this->fund)('ETH', '1');
+    $overview = app(AssetOverviewQuery::class)->get($this->tenant->id, $this->user->id, ['transferAvailable' => true]);
+    expect(collect($overview['assets'])->firstWhere('asset', 'ETH')['exchange'])->toBeTrue();
+    $action = app(ExchangeAssetsAction::class);
+    $quote = $action->quote($this->tenant->id, $this->user->id, 'ETH', '1', (string) Str::uuid());
+    expect($quote->fee_amount)->toBe('0.00000000')->and($quote->receive_amount)->toBe($quote->gross_amount);
+    $action->confirm($this->tenant->id, $this->user->id, $quote->id);
+    expect(BigDecimal::of((string) LedgerAccount::where('tenant_id', $this->tenant->id)->where('account_type', 'TENANT_FEE_REVENUE')->sum('balance'))->isZero())->toBeTrue();
+});
+
+it('requires a new zero-fee quote for legacy unconfirmed fee snapshots without rewriting them', function () {
+    ($this->fund)('ETH', '1');
+    $snapshot = MarketSnapshot::firstOrFail();
+    $legacy = ExchangeOrder::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->user->id,
+        'request_id' => (string) Str::uuid(), 'asset_code' => 'ETH', 'amount' => '0.1',
+        'rate' => '2000', 'gross_amount' => '200', 'fee_amount' => '2', 'receive_amount' => '198',
+        'fee_percent' => '1', 'snapshot_id' => $snapshot->id, 'expires_at' => now()->addSeconds(30)]);
+    $before = LedgerEntry::count();
+    expect(fn () => app(ExchangeAssetsAction::class)->confirm($this->tenant->id, $this->user->id, $legacy->id))
+        ->toThrow(DomainException::class, 'The quote has expired. Request a new quote.');
+    expect(LedgerEntry::count())->toBe($before)->and($legacy->fresh()->fee_amount)->toBe('2.00000000')
+        ->and($legacy->fresh()->status)->toBe('QUOTED');
+});
+
+
+it('calculates withdrawal percentages and retains the order fee after configuration changes', function () {
+    ($this->fund)('USDC', '200');
+    $settings = CompanyRail::where('tenant_id', $this->tenant->id)->where('rail_code', 'USDC_ETHEREUM')->sole();
+    $settings->update(['withdrawal_fee_percent' => '1']);
+    $action = app(WithdrawAssetsAction::class);
+    $id = (string) Str::uuid();
+    $address = '0x'.str_repeat('2', 40);
+    $order = $action->create($this->tenant->id, $this->user->id, 'USDC_ETHEREUM', '100', $address, '1', $id, true);
+    expect($order->fee_amount)->toBe('1.000000')->and($order->fee_percent)->toBe('1.00000000');
+    $settings->update(['withdrawal_fee_percent' => '2']);
+    expect($action->create($this->tenant->id, $this->user->id, 'USDC_ETHEREUM', '100', $address, '1', $id, true)->id)->toBe($order->id);
+    $count = LedgerEntry::count();
+    expect(fn () => $action->create($this->tenant->id, $this->user->id, 'USDC_ETHEREUM', '100', $address, '1', (string) Str::uuid(), true))->toThrow(DomainException::class, 'The withdrawal fee changed.');
+    expect(LedgerEntry::count())->toBe($count);
+    $action->cancel($this->tenant->id, $this->user->id, $order->id);
+    expect(LedgerAccount::where('user_id', $this->user->id)->where('asset_code', 'USDC')->where('account_type', 'USER_AVAILABLE')->sole()->balance)->toBe('200.000000');
+    expect($order->fresh()->fee_amount)->toBe('1.000000')->and($order->fresh()->fee_percent)->toBe('1.00000000');
+});
+
+it('requires an explicit percentage instead of interpreting an old fixed withdrawal fee', function () {
+    CompanyRail::where('tenant_id', $this->tenant->id)->update(['withdrawal_fee_percent' => null]);
+    expect(fn () => app(\App\Application\Assets\AssetRails::class)->enabled($this->tenant->id, 'ETH_ETHEREUM', 'withdrawal'))->toThrow(DomainException::class);
+    $actor = AdminUser::where('email', 'owner@platform.local')->sole();
+    $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/assets/settings';
+    $input = ['kind' => 'company-rail', 'code' => 'ETH_ETHEREUM', 'deposit_enabled' => false, 'withdrawal_enabled' => true];
+    $this->actingAs($actor, 'platform_admin')->post($url, $input + ['fee' => '1'])->assertSessionHasErrors();
+    $this->post($url, $input + ['fee_percent' => '0'])->assertRedirect()->assertSessionHasNoErrors();
+    expect(CompanyRail::where('tenant_id', $this->tenant->id)->where('rail_code', 'ETH_ETHEREUM')->sole()->withdrawal_fee_percent)->toBe('0.00000000');
+});
+
+it('rejects invalid configured withdrawal percentages', function (string $rate) {
+    $actor = AdminUser::where('email', 'owner@platform.local')->sole();
+    $this->actingAs($actor, 'platform_admin')->post('http://admin.localhost/platform/tenants/'.$this->tenant->id.'/assets/settings', [
+        'kind' => 'company-rail', 'code' => 'ETH_ETHEREUM', 'deposit_enabled' => false, 'withdrawal_enabled' => true, 'fee_percent' => $rate,
+    ])->assertSessionHasErrors('fee_percent');
+})->with(['100', '-1', '1e2', '0.123456789']);
+
+it('rounds percentage fees up to the exact network unit', function (string $asset, string $amount, string $rate, string $expected) {
+    expect(\App\Domain\Assets\WithdrawalFee::calculate($amount, $rate, $asset)->amount())->toBe($expected);
+})->with([
+    ['USDT', '100', '1', '1.00000000'], ['USDC', '0.000101', '1', '0.000002'],
+    ['ETH', '0.000000000000000101', '1', '0.000000000000000002'],
+    ['BTC', '0.00000101', '1', '0.00000002'], ['BTC', '1', '0', '0.00000000'],
+]);

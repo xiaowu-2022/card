@@ -18,7 +18,7 @@ final class PromotionDateRequest extends FormRequest
         return [
             'date_from' => ['nullable', 'required_with:date_to', 'date_format:Y-m-d'],
             'date_to' => ['nullable', 'required_with:date_from', 'date_format:Y-m-d', 'after_or_equal:date_from'],
-            'tab' => ['sometimes', 'in:income,transfers'],
+            'tab' => ['prohibited'],
             'kind' => ['sometimes', 'in:all,annual,activation,legacy'],
             'activity' => ['sometimes', 'in:all,invitation,activation,annual'],
             'rank' => ['sometimes', $this->routeIs('user.promotion.commissions') ? 'in:all,unknown,0,1,2,3,4,5,6,7,8' : 'in:all,0,1,2,3,4,5,6,7,8'],

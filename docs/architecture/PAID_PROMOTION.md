@@ -1,11 +1,19 @@
 # Paid promotion (approved 2026-09-16)
 
+Current activation, mixed annual payment and annual allocation rules are defined in
+[UNIFIED_ACCOUNT_ACTIVATION.md](UNIFIED_ACCOUNT_ACTIVATION.md), approved 2026-09-17.
+It supersedes conflicting deposit-only counting, automatic funding and reward rules below.
+
+The 2026-09-17 automatic-return revision in AUTOMATIC_PROMOTION_REBATES.md supersedes
+all manual rebate/counting rules. Every period now uses automatic first-funding returns.
+
 Eight annual USDT tariffs: 1000/2000/5000/10000/20000/50000/100000/200000;
 annual reward percentages 30/40/50/60/70/80/90/100; activation rewards
 50/60/70/80/90/100/110/120; rebate targets 100/135/250/400/666/1428/2500/4000.
 Ordinary members earn 20 USDT only for direct deposit funding. Fees do not activate
-deposits, and deposit funding does not buy qualification. Re-funding after a real
-refund earns/counts again. Referral identities remain immutable and tenant-scoped.
+deposits, and deposit funding does not buy qualification. Subsequent funding remains
+recorded but counts toward neither rebates nor activation commission (2026-09-17
+revision). Referral identities remain immutable and tenant-scoped.
 
 ## Qualification and money
 One calendar year in company timezone, exclusive end boundary; February 29 uses
@@ -29,25 +37,23 @@ starts with zero already covered; an ordinary direct inviter contributes 20,
 ordinary indirect ancestors contribute zero, and paid ancestors receive only
 positive differences above the running maximum. The source user's own level does
 not reduce their inviter's reward. Expired qualification behaves as ordinary.
-Existing commission-to-Wallet restrictions continue unchanged.
+Activation and annual rewards credit USER_AVAILABLE directly. Receipt can provision a
+missing USDT wallet without KYC; spending retains its existing checks. Refund status
+does not restrict commissions. See DIRECT_COMMISSION_RECEIPTS.md.
 
 ## Fee rebates
-Within the cycle, 2*direct funding events + indirect funding events >= 2*target.
-All non-direct descendants count as indirect, the owner does not count. Counts
-use immutable event/ancestry snapshots, not current balances or unique people.
-User applies before expiry; one pending request per cycle. Applicant may withdraw;
-rejection allows another application. Pending claims block upgrade until withdrawn.
-Application snapshots preserve counts/threshold/remaining paid amount. After expiry,
-already submitted claims remain reviewable. Platform promotion_refunds.review,
-active membership, password and explicit confirmation are mandatory. Approve once
-through LedgerWriter and atomic immutable actor/time audit. No clawback; qualification
-remains. A later upgrade may claim only additional paid, unreturned fees against
-the new target, retaining current-cycle counts. No automatic rebate or ordinary
-early-cancellation refund is introduced.
+Within the cycle, 2*direct first-funding events + indirect first-funding events >=
+2*target. Every non-direct descendant counts as indirect; the owner does not count.
+Counts use immutable first-funding/ancestry snapshots. Re-funding and top-ups do not
+increase progress. Reaching the threshold captures a durable automatic return intent;
+settlement returns only paid/unreturned fees through LedgerWriter with SYSTEM audit.
+Pending returns block upgrades; captured returns may complete after expiry. Upgrade
+retains expiry/counts, adopts its new threshold and returns only additional unreturned
+fees. There are no manual application/review routes. See AUTOMATIC_PROMOTION_REBATES.md.
 
 ## Interfaces and presentation
-User quote/confirm, rebate apply/withdraw; Platform tariff configuration and scoped
-rebate review. GETs are read-only. Annual and activation tables independently group
+User quote/confirm and read-only return history; Platform tariff configuration and
+read-only automatic return records. GETs are read-only. Annual and activation tables independently group
 actual awards by source rank, direct/indirect, with real order/event counts. Price
 ranges represent multiple historical rates; paginated details expose account IDs,
 never contacts. Historical awards without source-rank snapshots remain legacy.
@@ -229,3 +235,19 @@ settlement calculations, full precision, and statistics notes stay behind disclo
 Member rows emphasize account/current grade and personal income contribution; its
 breakdown expands in place and the contribution links to the source-filtered statement.
 These presentation changes do not change query periods, aggregation, or money rules.
+
+## First-funding-only activation commission (2026-09-17)
+
+The user removed rewards for reactivation. Only the first positive, sealed
+security-deposit funding for a tenant/user may earn activation rewards. Refunds,
+requirement increases, inviter level upgrades and a first payment with no eligible
+reward do not create another opportunity. The allocator checks immutable Ledger
+funding history under the funding flow's existing Tenant/User locks. It retains
+every funding/event snapshot for reporting and rebate progress, and records
+zero-value shares for subsequent funding, without creating awards or commission
+postings. Their applicable standard, covered amount and reward are zero, while the
+current qualification/rank references remain recorded. These shares preserve rebate
+counts and routing evidence. Existing awards
+and snapshots are never changed or clawed back; annual commissions are unchanged.
+No migration or historical replay is required. Invitation-rule copy in all four
+consumer languages describes first funding and removes repeat-reward messaging.

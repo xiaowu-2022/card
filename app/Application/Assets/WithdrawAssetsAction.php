@@ -5,6 +5,7 @@ namespace App\Application\Assets;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Assets\AssetWithdrawalOrder;
 use App\Domain\Assets\ChainConnection;
+use App\Domain\Assets\WithdrawalFee;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Ledger\DTOs\LedgerPostingInstruction;
 use App\Domain\Ledger\DTOs\LedgerPostingPlan;
@@ -62,7 +63,7 @@ final readonly class WithdrawAssetsAction
             [$tenant,$user] = $this->access->operational($tenantId, $userId);
             [$rail,$company] = $this->rails->enabled($tenantId, $railCode, 'withdrawal');
             $money = $this->rails->amount($amount, $rail->asset_code);
-            $fee = Money::of($company->withdrawal_fee, $rail->asset_code);
+            $fee = WithdrawalFee::calculate($money->amount(), $company->withdrawal_fee_percent, $rail->asset_code);
             if (! BigDecimal::of($fee->amount())->isEqualTo($expectedFee)) {
                 throw new DomainException('WITHDRAWAL_FEE_CHANGED', 'The withdrawal fee changed. Review the updated amount.', 409);
             }
@@ -70,7 +71,7 @@ final readonly class WithdrawAssetsAction
                 throw new DomainException('AMOUNT_INVALID', 'The amount must exceed the withdrawal fee.');
             }
             $wallet = $this->access->wallet($tenant, $user, $rail->asset_code);
-            $order = AssetWithdrawalOrder::query()->create(['tenant_id' => $tenantId, 'user_id' => $userId, 'wallet_id' => $wallet->id, 'asset_code' => $rail->asset_code, 'rail_code' => $railCode, 'network' => $rail->network, 'contract' => $rail->contract, 'address' => $address, 'address_hash' => $this->protector->hash($tenantId, $userId, $address), 'request_id' => $requestId, 'request_hash' => hash('sha256', $railCode.':'.$money->amount().':'.$fee->amount().':'.$address), 'amount' => $money->amount(), 'fee_amount' => $fee->amount()]);
+            $order = AssetWithdrawalOrder::query()->create(['tenant_id' => $tenantId, 'user_id' => $userId, 'wallet_id' => $wallet->id, 'asset_code' => $rail->asset_code, 'rail_code' => $railCode, 'network' => $rail->network, 'contract' => $rail->contract, 'address' => $address, 'address_hash' => $this->protector->hash($tenantId, $userId, $address), 'request_id' => $requestId, 'request_hash' => hash('sha256', $railCode.':'.$money->amount().':'.$fee->amount().':'.$address), 'amount' => $money->amount(), 'fee_amount' => $fee->amount(), 'fee_percent' => $company->withdrawal_fee_percent]);
             $entry = $this->post($order, 'hold', [['USER_AVAILABLE', '-'.$money->amount()], ['USER_WITHDRAWAL_HOLD', $money->amount()]]);
             $order->update(['hold_entry_id' => $entry->id]);
             $this->audit->record($tenantId, 'USER', $userId, 'ASSET_WITHDRAWAL_CREATED', 'asset_withdrawal_order', $order->id, null, ['amount' => $order->amount, 'asset' => $order->asset_code]);

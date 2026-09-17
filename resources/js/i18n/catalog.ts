@@ -8,6 +8,32 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    'Growth strategy announcement': [
+        '增长战略发布',
+        'Pengumuman strategi pertumbuhan',
+        'Presentación de la estrategia de crecimiento',
+    ],
+    'Aim to reach 500 million users worldwide by 2030': [
+        '力争2030年全球用户达到5亿',
+        'Sasaran mencapai 500 juta pengguna di seluruh dunia menjelang 2030',
+        'Aspiramos a alcanzar 500 millones de usuarios en todo el mundo para 2030',
+    ],
+    'Long-term operational investment': [
+        '长期运营投入',
+        'Pelaburan operasi jangka panjang',
+        'Inversión operativa a largo plazo',
+    ],
+    'Growth through referrals': [
+        '推荐裂变增长',
+        'Pertumbuhan melalui rujukan',
+        'Crecimiento mediante recomendaciones',
+    ],
+    'Ongoing user acquisition': [
+        '持续推进拉新',
+        'Pemerolehan pengguna berterusan',
+        'Captación continua de usuarios',
+    ],
+    'Visit promotion center': ['进入推广中心', 'Ke pusat promosi', 'Ir al centro de promoción'],
     ...assetsCatalog,
     ...paidPromotionCatalog,
     ...clientPolishCatalog,

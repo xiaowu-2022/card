@@ -108,19 +108,19 @@ it('atomically provisions a wallet and replays payment instructions even after t
     expect(fn () => activationTopup($this, '201', $id))->toThrow(DomainException::class);
 });
 
-it('credits the full enlarged payment and allocates only the required deposit once', function (): void {
+it('credits all topup funds to USDT and never automatically selects deposit activation', function (): void {
     $order = activationTopup($this, '150')->order;
     $transfer = new IncomingBlockchainTransfer('TRON', hash('sha256', $order->id), 0,
         $order->token_contract, $order->deposit_address, $order->expected_amount, 20, CarbonImmutable::now());
     app(ProcessIncomingTrc20TransferAction::class)->execute($transfer);
-    $intent = InitialDepositIntent::query()->where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->firstOrFail();
-    app(AllocateInitialDepositAction::class)->execute($this->tenant->id, $intent->id);
+    expect(InitialDepositIntent::query()->count())->toBe(0);
+    app(AllocateInitialDepositAction::class)->execute($this->tenant->id, (string) Str::uuid());
     app(ProcessIncomingTrc20TransferAction::class)->execute($transfer);
-    app(AllocateInitialDepositAction::class)->execute($this->tenant->id, $intent->id);
+    app(AllocateInitialDepositAction::class)->execute($this->tenant->id, (string) Str::uuid());
     expect($order->expected_amount)->toBe('150.01000000')
-        ->and(LedgerAccount::query()->where('wallet_id', $order->wallet_id)->where('account_type', 'USER_AVAILABLE')->value('balance'))->toBe('50.01000000')
-        ->and(LedgerAccount::query()->where('wallet_id', $order->wallet_id)->where('account_type', 'USER_SECURITY_DEPOSIT')->value('balance'))->toBe('100.00000000')
-        ->and(LedgerEntry::query()->where('event_type', 'SECURITY_DEPOSIT_FUND')->count())->toBe(1);
+        ->and(LedgerAccount::query()->where('wallet_id', $order->wallet_id)->where('account_type', 'USER_AVAILABLE')->value('balance'))->toBe('150.01000000')
+        ->and(LedgerAccount::query()->where('wallet_id', $order->wallet_id)->where('account_type', 'USER_SECURITY_DEPOSIT')->value('balance'))->toBe('0.00000000')
+        ->and(LedgerEntry::query()->where('event_type', 'SECURITY_DEPOSIT_FUND')->count())->toBe(0);
 });
 
 it('fails closed for unavailable company settings without changing currency or provisioning', function (string $gate): void {
@@ -164,10 +164,10 @@ it('enables the payment button after unused USD normalization and credits the en
     $transfer = new IncomingBlockchainTransfer('TRON', hash('sha256', $order->id), 0,
         $order->token_contract, $order->deposit_address, $order->expected_amount, 20, CarbonImmutable::now());
     app(ProcessIncomingTrc20TransferAction::class)->execute($transfer);
-    $intent = InitialDepositIntent::query()->where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->firstOrFail();
-    app(AllocateInitialDepositAction::class)->execute($this->tenant->id, $intent->id);
+    expect(InitialDepositIntent::query()->count())->toBe(0);
+    app(AllocateInitialDepositAction::class)->execute($this->tenant->id, (string) Str::uuid());
     app(ProcessIncomingTrc20TransferAction::class)->execute($transfer);
-    expect(LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('wallet_id', $wallet->id)->where('account_type', 'USER_AVAILABLE')->value('balance'))->toBe('0.01000000')
-        ->and(LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('wallet_id', $wallet->id)->where('account_type', 'USER_SECURITY_DEPOSIT')->value('balance'))->toBe('100.00000000')
+    expect(LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('wallet_id', $wallet->id)->where('account_type', 'USER_AVAILABLE')->value('balance'))->toBe('100.01000000')
+        ->and(LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('wallet_id', $wallet->id)->where('account_type', 'USER_SECURITY_DEPOSIT')->value('balance'))->toBe('0.00000000')
         ->and(LedgerEntry::query()->where('event_type', 'WALLET_TOPUP_CREDIT')->count())->toBe(1);
 });

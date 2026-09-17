@@ -25,7 +25,7 @@ final class PlatformUserQuery
             ->when($financialAccess['balances'] ?? false, fn ($q) => $q
                 ->selectSub($this->balance('USER_AVAILABLE'), 'available_balance')
                 ->selectSub($this->balance('USER_SECURITY_DEPOSIT'), 'security_deposit'))
-            ->when($financialAccess['commission'] ?? false, fn ($q) => $q->selectSub($this->balance('USER_COMMISSION'), 'commission'))
+            ->when($financialAccess['commission'] ?? false, fn ($q) => $q->selectSub($this->commissionIncome(), 'commission'))
             ->when($financialAccess['withdrawals'] ?? false, fn ($q) => $q->selectSub(
                 DB::table('withdrawal_orders as wo')->whereColumn('wo.tenant_id', 'u.tenant_id')->whereColumn('wo.user_id', 'u.id')
                     ->where('wo.asset_code', 'USDT')->where('wo.status', 'SUCCEEDED')
@@ -47,6 +47,15 @@ final class PlatformUserQuery
         // Correlated subqueries avoid multiplying amounts when a user has multiple orders/accounts.
         return DB::table('ledger_accounts as la')->whereColumn('la.tenant_id', 'u.tenant_id')->whereColumn('la.user_id', 'u.id')
             ->where('la.asset_code', 'USDT')->where('la.account_type', $type)->selectRaw('COALESCE(SUM(la.balance), 0)::text');
+    }
+
+    private function commissionIncome(): Builder
+    {
+        return DB::table('ledger_postings as cp')->join('ledger_entries as ce', fn ($j) => $j->on('ce.id', '=', 'cp.ledger_entry_id')->on('ce.tenant_id', '=', 'cp.tenant_id'))
+            ->join('ledger_accounts as ca', fn ($j) => $j->on('ca.id', '=', 'cp.ledger_account_id')->on('ca.tenant_id', '=', 'cp.tenant_id'))
+            ->whereColumn('ca.tenant_id', 'u.tenant_id')->whereColumn('ca.user_id', 'u.id')->where('ca.asset_code', 'USDT')
+            ->whereNotNull('ce.sealed_at')->whereIn('ce.event_type', ['COMMISSION_EARN', 'PROMOTION_ANNUAL_COMMISSION'])->where('cp.delta', '>', 0)
+            ->selectRaw('COALESCE(SUM(cp.delta), 0)::text');
     }
 
     private function decimal(string $value): string

@@ -17,6 +17,7 @@ type WalletState = {
     status: string;
     available: { amount: MoneyAmount; asset: string };
     depositSatisfied: boolean;
+    activationSatisfied: boolean;
     depositRemaining: { amount: MoneyAmount; asset: string };
     depositHasEnoughAvailable: boolean;
     topupAvailable: boolean;
@@ -85,15 +86,15 @@ function NextStep({ kycStatus, wallet }: { kycStatus: KycStatus; wallet: WalletS
             />
         );
     }
-    if (!wallet.depositSatisfied) {
+    if (!wallet.activationSatisfied) {
         return (
             <UserStatusBanner
                 tone="warning"
-                title={t('Security deposit required')}
+                title={t('Account pending activation')}
                 description={t('Remaining: {{amount}}', {
                     amount: systemMoney(wallet.depositRemaining.amount),
                 })}
-                action={{ label: t('Pay security deposit'), href: '/security-deposit' }}
+                action={{ label: t('Activate now'), href: '/promotion/membership' }}
             />
         );
     }
@@ -107,7 +108,18 @@ export default function Dashboard({ kycStatus, wallet, activity = [], assetOverv
             <Head title={t('Home')} />
             <div className="space-y-6 sm:space-y-8">
                 {assetOverview ? (
-                    <AssetCenter overview={assetOverview} />
+                    <AssetCenter
+                        overview={assetOverview}
+                        prerequisiteHref={
+                            kycStatus !== 'APPROVED'
+                                ? '/kyc'
+                                : !wallet
+                                  ? '/promotion/membership'
+                                  : wallet.status !== 'ACTIVE'
+                                    ? '/wallet'
+                                    : undefined
+                        }
+                    />
                 ) : (
                     <div className="user-overview">
                         <h1 className="sr-only">{t('Home')}</h1>
@@ -148,7 +160,9 @@ export default function Dashboard({ kycStatus, wallet, activity = [], assetOverv
                         />
                     </div>
                 )}
-                <NextStep kycStatus={kycStatus} wallet={wallet} />
+                {(!assetOverview || kycStatus !== 'APPROVED') && (
+                    <NextStep kycStatus={kycStatus} wallet={wallet} />
+                )}
                 {!assetOverview && (
                     <div className="rounded-[var(--user-radius-lg)] bg-surface px-5 pt-5 pb-2 sm:px-7">
                         <UserSection

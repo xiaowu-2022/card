@@ -74,24 +74,7 @@ function Tariff({ level: l, base }: { level: PaidLevel; base: string }) {
         </form>
     );
 }
-function Review({
-    claim: c,
-    base,
-    canReview,
-}: {
-    claim: PaidClaim & { accountId: string; reviewer: string | null };
-    base: string;
-    canReview: boolean;
-}) {
-    const f = useForm({ decision: 'approve', reason: '', confirmed: false });
-    const status = (
-        {
-            PENDING: 'Under review',
-            APPROVED: 'Fee returned',
-            REJECTED: 'Request rejected',
-            WITHDRAWN: 'Request withdrawn',
-        } as Record<string, string>
-    )[c.status];
+function ReturnRecord({ claim: c }: { claim: PaidClaim & { accountId: string } }) {
     return (
         <article className="rounded-xl border bg-surface p-4 text-sm">
             <div className="flex flex-wrap justify-between gap-3">
@@ -99,7 +82,8 @@ function Review({
                     {c.accountId} · {name(c.rank)}
                 </h3>
                 <span>
-                    {exactAmount(c.amount)} {'USDT'} · {t(status ?? 'Under review')}
+                    {exactAmount(c.amount)} {'USDT'} ·{' '}
+                    {t(c.status === 'APPROVED' ? 'Fee returned' : 'Processing')}
                 </span>
             </div>
             <p className="mt-2">
@@ -110,63 +94,10 @@ function Review({
                 })}
             </p>
             <p className="mt-2 text-muted-foreground">{dateTime(c.createdAt)}</p>
-            {c.reviewedAt && (
-                <p>
-                    {c.reviewer ?? '—'} · {dateTime(c.reviewedAt)}
-                </p>
-            )}
-            {c.reason && <p className="mt-2">{c.reason}</p>}
-            {c.status === 'PENDING' && canReview && (
-                <form
-                    className="mt-4 space-y-3"
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        f.post(`${base}/rebates/${c.id}`, {
-                            preserveScroll: true,
-                            onSuccess: () => f.reset('confirmed'),
-                        });
-                    }}
-                >
-                    <label className="block">
-                        {t('Review decision')}
-                        <select
-                            className="ml-3 rounded border p-2"
-                            value={f.data.decision}
-                            onChange={(e) => f.setData('decision', e.target.value)}
-                        >
-                            <option value="approve">{t('Approve rebate')}</option>
-                            <option value="reject">{t('Reject request')}</option>
-                        </select>
-                    </label>
-                    <label className="block">
-                        {t('Review reason')}
-                        <Input
-                            maxLength={300}
-                            value={f.data.reason}
-                            onChange={(e) => f.setData('reason', e.target.value)}
-                        />
-                    </label>
-
-                    <label className="flex items-start gap-2">
-                        <input
-                            type="checkbox"
-                            checked={f.data.confirmed}
-                            onChange={(e) => f.setData('confirmed', e.target.checked)}
-                        />
-                        {t(
-                            'I verified the request. Approval returns the stated fee to the user USDT balance without reversing commissions.',
-                        )}
-                    </label>
-                    {Object.values(f.errors).map((v, i) => (
-                        <p role="alert" key={i} className="text-red-700">
-                            {errorMessage(v)}
-                        </p>
-                    ))}
-                    <Button disabled={f.processing || !f.data.confirmed}>
-                        {t('Submit review')}
-                    </Button>
-                </form>
-            )}
+            <p>
+                {t('Automatic annual fee return')} ·{' '}
+                {c.processedAt ? dateTime(c.processedAt) : t('Processing')}
+            </p>
         </article>
     );
 }
@@ -174,11 +105,10 @@ export default function PaidPromotion({
     paid: p,
 }: {
     paid: {
-        canReview: boolean;
         companyName: string;
         tenantId: string;
         levels: PaidLevel[];
-        claims: (PaidClaim & { accountId: string; reviewer: string | null })[];
+        claims: (PaidClaim & { accountId: string })[];
         page: number;
         hasMore: boolean;
     };
@@ -206,9 +136,9 @@ export default function PaidPromotion({
                         ))}
                     </div>
                 </details>
-                <h2 className="font-semibold">{t('Annual fee rebate review')}</h2>
+                <h2 className="font-semibold">{t('Automatic annual fee return')}</h2>
                 {p.claims.map((c) => (
-                    <Review key={c.id} claim={c} base={base} canReview={p.canReview} />
+                    <ReturnRecord key={c.id} claim={c} />
                 ))}
                 {!p.claims.length && <p>{t('No activity yet')}</p>}
                 <div className="flex gap-4">

@@ -1,3 +1,4 @@
+import type { AccountActivation } from './AssetCenter';
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import {
@@ -30,10 +31,12 @@ export type PaidClaim = {
     direct: number;
     indirect: number;
     createdAt: string;
-    reviewedAt: string | null;
-    reason: string | null;
+    processedAt: string | null;
+    source: 'AUTO';
 };
 export type PaidPromotionData = {
+    activation: AccountActivation;
+    paymentAccess: { verified: boolean; walletActive: boolean; canCreateWallet: boolean };
     membershipStatus: 'NONE' | 'ACTIVE' | 'EXPIRED';
     previousCycle: { rank: number; endsAt: string } | null;
     availableBalance: string;
@@ -41,8 +44,16 @@ export type PaidPromotionData = {
     rank: number;
     percent: number;
     reward: string;
-    cycle: { id: string; startsAt: string; endsAt: string; tariff: string } | null;
+    cycle: {
+        id: string;
+        startsAt: string;
+        endsAt: string;
+        tariff: string;
+        rebatePolicy: 'AUTO_FIRST_FUNDING';
+    } | null;
     progress: {
+        policy: 'AUTO_FIRST_FUNDING';
+        pending: boolean;
         direct: number;
         indirect: number;
         target: number;

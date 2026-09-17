@@ -217,3 +217,52 @@ reused its single password input for save, successful rate refresh and successfu
 Bitcoin verification; Ethereum displayed the explicit unsupported-capability error.
 375/768/1440 widths had no horizontal overflow. Temporary market enablement and
 the local Vite hot-file override were restored after verification.
+
+## Saved-rate visibility (2026-09-16)
+Platform settings display the last persisted USDC/ETH/BTC-to-USDT rates even after
+the 120-second validity period or while market updates are disabled. Their timestamp
+and explicit reference-only/expired status remain visible. No snapshot is a separate
+state with instructions to save enablement and request an update. The read never
+fetches external prices or manufactures a snapshot. Financial callers still use
+MarketPrices::latest(), enforcing enabled settings and original freshness bounds;
+this display change never makes stale rates eligible for valuation or exchange.
+
+## Zero-fee uncapped internal exchange (2026-09-16)
+The user removed configured exchange fees, single-exchange caps and daily exchange
+caps. Company USDC/ETH/BTC-to-USDT policies now expose only enablement. New quotes
+always store zero fee percentage/amount and receive the full gross USDT amount,
+rounded down to existing USDT precision. Existing policy fee/limit fields, including
+nulls, never gate new quotes or settlement. Explicit configuration saves canonicalize
+these fields to zero/null and ignore stale client submissions. No migration or bulk
+rewrite is needed; legacy columns remain for schema compatibility.
+
+Unconfirmed legacy quotes containing fees must be re-quoted; they cannot charge a
+fee after deployment and are not rewritten. Already completed orders retain their
+financial history and replay idempotently. Confirmation still checks enablement,
+ownership, quote expiry, eligibility and available funds, and atomically posts both
+single-asset Ledger entries. Exact numeric precision/storage bounds remain enforced.
+There is no automatic refund/replay of past fees or change to withdrawal fees.
+
+## Percentage withdrawal fees (2026-09-16)
+For the multi-asset Ethereum/Bitcoin rails, company settings now store
+`withdrawal_fee_percent` (nullable NUMERIC(10,8), 0 inclusive to 100 exclusive).
+`asset_withdrawal_orders.fee_percent` snapshots the configured percentage. Fee amount
+is gross requested original-asset amount × percentage / 100, rounded up to network
+precision (USDT/USDC 6, BTC 8, ETH 18). Net payout is gross minus that fee and must
+remain positive. Zero percentage explicitly means free withdrawal.
+
+The browser shows percentage, exact fee and net payout using integer arithmetic.
+The server recalculates from company settings, verifies expected_fee, then creates
+the immutable percentage/amount snapshot and holds the gross amount. Fee changes
+require review again. Existing request IDs replay their saved order before current
+configuration checks. Cancel/reject release the original gross hold. Settlement
+uses the saved fee/net and never current configuration. Existing database order
+immutability covers the new snapshot column. Private addresses and operator audits
+retain existing protections.
+
+The additive migration deliberately does not convert fixed monetary amounts to
+percentages or rewrite old orders. Old `withdrawal_fee` remains legacy data; new
+withdrawals require explicitly configured percentages. Admin mutation uses the new
+`fee_percent` input, so stale fixed-fee submissions cannot be mistaken for rates.
+Existing orders have a null rate snapshot and retain their original monetary fee.
+The separate legacy USDT/TRON workflow is unchanged by this pictured-settings change.

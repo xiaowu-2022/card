@@ -38,7 +38,7 @@ final readonly class SecurityDepositFundingQuery
 
         $remaining = $state['depositRemaining'];
         $available = $state['available'] ?? Money::of('0', $remaining['asset'])->jsonSerialize();
-        $canFund = $remaining['amount'] !== '0.00000000'
+        $canFund = ! $state['activation']['agent'] && $remaining['amount'] !== '0.00000000'
             && Money::of($available['amount'], $available['asset'])->compare(Money::of($remaining['amount'], $remaining['asset'])) >= 0;
         $pending = SecurityDepositRefundRequest::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('status', 'CHECKING')->first();
 
@@ -50,6 +50,7 @@ final readonly class SecurityDepositFundingQuery
             'availableAfter' => $canFund
                 ? Money::of($available['amount'], $available['asset'])->subtract(Money::of($remaining['amount'], $remaining['asset']))->jsonSerialize()
                 : null,
+            'agentExempt' => $state['activation']['agent'],
             'canFund' => $canFund && $pending === null,
             'refund' => ['pendingId' => $pending?->id,
                 'canRequest' => $pending === null && $tenant->businessSettings->security_deposit_refund_wait_days !== null && $available['asset'] === 'USDT' && Money::of($state['depositCurrent']['amount'], 'USDT')->isPositive(),
@@ -61,7 +62,7 @@ final readonly class SecurityDepositFundingQuery
             'satisfied' => $state['depositSatisfied'],
             // Round the editable top-up minimum upward; never round the deposit funding amount.
             'minimumTopup' => ['amount' => (string) BigDecimal::of($remaining['amount'])->toScale(2, RoundingMode::Ceiling)->toScale(8), 'asset' => $remaining['asset']],
-            'topupAvailable' => $pending === null && ! $state['depositSatisfied']
+            'topupAvailable' => $pending === null && ! $state['activationSatisfied']
                 && $tenant->default_asset === 'USDT' && $remaining['asset'] === 'USDT'
                 && (bool) $tenant->businessSettings->allow_wallet_topup && $this->gateway->available()
                 && (string) config('payment.trc20_deposit_address') !== ''

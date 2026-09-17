@@ -2114,3 +2114,28 @@ it('protects SaaS card transaction reads with company scoping and active cards r
     DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'cards.read')->value('id'))->delete();
     $this->actingAs($platform->fresh(), 'platform_admin')->getJson($url)->assertForbidden();
 });
+
+it('uses paid agent eligibility for issuing and loading without a deposit and stops new actions on expiry', function (): void {
+    phaseTenReadyUser($this, '3000');
+    $purchase = app(\App\Application\Promotion\PaidPromotionPurchase::class);
+    $level = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->where('rank', 1)->value('id');
+    $quote = $purchase->quote($this->tenant->id, $this->user->id, $level, (string) Str::uuid());
+    $paid = $purchase->confirm($this->tenant->id, $this->user->id, $quote->id);
+    expect(phaseTenAccount($this, LedgerAccountType::UserSecurityDeposit)->balance)->toBe('0.00000000');
+    expect(phaseTenIssue($this)->status)->toBe(CardIssueStatus::Succeeded);
+    $card = UserCard::where('user_id', $this->user->id)->firstOrFail();
+    $provider = Mockery::mock(CardProviderInterface::class);
+    $provider->shouldReceive('available')->andReturn(true);
+    $provider->shouldReceive('name')->andReturn('PHOTONPAY');
+    $provider->shouldReceive('quoteCardLoad')->once()->andReturnUsing(fn ($id, $amount, $request) => new ProviderCardQuoteDTO($request, '20.00000000', '20.00000000', '0.00000000'));
+    app()->instance(CardProviderInterface::class, $provider);
+    $action = app(ManageCardAction::class);
+    $load = $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '20');
+    expect($load->status)->toBe('QUOTED');
+    $before = $card->fresh()->getAttributes();
+    $this->travelTo(CarbonImmutable::parse(DB::table('paid_promotion_cycles')->where('id', $paid->cycle_id)->value('ends_at')));
+    expect(fn () => $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '20'))->toThrow(DomainException::class);
+    $this->holder = phaseTenHolder($this);
+    expect(fn () => phaseTenIssue($this))->toThrow(DomainException::class, 'Activate your account');
+    expect($card->fresh()->getAttributes())->toBe($before);
+});

@@ -1,5 +1,15 @@
 # Promotion, company cost book and guarantee lifecycle
 
+Current activation, mixed annual payment and annual allocation rules are defined in
+[UNIFIED_ACCOUNT_ACTIVATION.md](UNIFIED_ACCOUNT_ACTIVATION.md), approved 2026-09-17.
+It supersedes conflicting deposit-only counting, automatic funding and reward rules below.
+
+The 2026-09-17 [direct USDT commission contract](DIRECT_COMMISSION_RECEIPTS.md)
+supersedes all earlier independent commission-balance, manual-transfer, refund
+restriction and receiving-wallet KYC requirements below. Cumulative income is
+reporting only; valuation counts actual wallet funds once. Historical implementation
+notes are not alternate runtime modes.
+
 2026-09-16 paid-promotion revision: see [PAID_PROMOTION.md](PAID_PROMOTION.md).
 Paid annual qualification replaces manual assignment. Ordinary members retain
 only a 20 USDT direct activation reward; annual percentage differentials and
@@ -30,8 +40,9 @@ authorized stage, not permission to weaken any financial safety constraint.
   verified top-up flow, then automatically allocated to Security Deposit. It must
   not skip Wallet credit or treat an external payment notification as deposit
   funding. The server calculates the remaining guarantee requirement.
-- After an actual guarantee refund, a new successful Wallet-to-Deposit funding
-  event can earn commission again. There is no once-per-user lifetime reward cap.
+- Only the first successful funding for a Tenant/User can earn activation
+  commission (2026-09-17). Later funding after refunds or requirement increases
+  earns no additional activation commission.
 - Cancelling a pending guarantee-refund request is not a new funding event and
   earns nothing, even if implementation later includes releasing a refund hold.
 - A guarantee refund does not stop commission earnings or claw back balances.
@@ -111,10 +122,10 @@ receipts. No mutable commission balance column. Reporting distinguishes cash flo
 customer liabilities, fee revenue and accrued commission expense.
 
 Initial-root invitation provisioning, daily reporting timezone/count semantics,
-refund eligibility and outstanding-order handling are defined below. Repeated successful
-refund-and-fund cycles can generate repeated company expenses under the confirmed
-rule; do not silently add a cooling period, lifetime cap, commission freeze or
-automatic re-funding loop as an anti-abuse shortcut.
+refund eligibility and outstanding-order handling are defined below. As revised on
+2026-09-17, only first successful funding may generate
+activation commission. Later refund-and-fund cycles remain recorded but generate no
+new commission expense. Existing commission is neither frozen nor clawed back.
 
 ## Non-financial foundation schema
 
@@ -148,7 +159,7 @@ cannot bypass invitation validation. Historical unbound challenges must be repla
 GET `/promotion` includes the user's own commission account separately from the
 entire descendant tree. Invitation counts are all descendants; activation counts
 are unique descendants with a first recorded qualifying funding event. A later
-genuine re-funding increments deposit volume and commissions, not activation count.
+genuine re-funding increments deposit volume, not commissions or activation count.
 Team commission is awards to the current user and their descendants. No historical
 commissions or referrals are fabricated or backfilled. Day boundaries use the
 Tenant timezone, stored timestamps remain UTC, and the default day is today.

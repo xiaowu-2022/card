@@ -20,6 +20,7 @@ type Preview = {
     availableAfter: Money | null;
     canFund: boolean;
     satisfied: boolean;
+    agentExempt: boolean;
     topupAvailable: boolean;
     minimumTopup: Money;
     refund: DepositRefund;
@@ -47,7 +48,16 @@ export default function SecurityDeposit({ preview }: { preview: Preview }) {
                         {t('Security deposit history')}
                     </Link>
                 </div>
-                {preview.satisfied ? (
+                {preview.agentExempt ? (
+                    <section className="rounded-2xl bg-[#f2f6ef] p-5">
+                        <h2 className="font-semibold">
+                            {t('Active agents do not need a security deposit.')}
+                        </h2>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                            {t('Current deposit')}: <MoneyDisplay {...preview.current} />
+                        </p>
+                    </section>
+                ) : preview.satisfied ? (
                     <section className="rounded-[var(--user-radius-md)] border border-emerald-200 bg-emerald-50 p-5 text-emerald-950">
                         <div className="flex gap-3">
                             <ShieldCheck className="mt-0.5 size-5 shrink-0" aria-hidden="true" />

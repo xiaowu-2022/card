@@ -1,4 +1,4 @@
-import { exactAmount } from '@/lib/exact-amount';
+import { exactAmount, withdrawalPercentageFee } from '@/lib/exact-amount';
 import { useEffect, useState } from 'react';
 import { Head, Link, useForm, usePage, router } from '@inertiajs/react';
 import { ChevronDown, Check } from 'lucide-react';
@@ -19,6 +19,7 @@ type Result = {
     network?: string;
     address?: string;
     fee?: string;
+    feePercent?: string | null;
     receive?: string;
     rate?: string;
     expiresAt?: string;
@@ -48,6 +49,7 @@ export default function AssetFlow({
         : 0;
     const [picker, setPicker] = useState<'asset' | 'network' | null>(null);
     const [review, setReview] = useState(false);
+    const [reviewRate, setReviewRate] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
     const form = useForm({
         mode,
@@ -62,6 +64,13 @@ export default function AssetFlow({
     const account = overview.assets.find((a) => a.asset === form.data.asset)!;
     const rails = account.rails.filter((r) => (mode === 'deposit' ? r.deposit : r.withdrawal));
     const rail = rails.find((r) => r.code === form.data.rail);
+    const calculatedFee = withdrawalPercentageFee(
+        form.data.amount,
+        rail?.feePercent ?? null,
+        account.asset,
+    );
+    const shownFee = review ? form.data.expected_fee : calculatedFee;
+    const shownRate = review ? reviewRate : rail?.feePercent;
     const unavailable = mode === 'exchange' ? !account.exchange : rails.length === 0;
     const unavailableMessage =
         mode === 'exchange'
@@ -101,7 +110,13 @@ export default function AssetFlow({
             router.visit(mode === 'deposit' ? '/wallet/top-up' : '/wallet/withdraw');
             return;
         }
-        form.post('/assets/orders', { preserveScroll: true });
+        form.post('/assets/orders', {
+            preserveScroll: true,
+            onError: () => {
+                setReview(false);
+                form.setData('confirmed', false);
+            },
+        });
     };
     const operation = (url: string) => {
         setBusy(true);
@@ -173,6 +188,8 @@ export default function AssetFlow({
                             <p className="break-all text-sm">
                                 {t('Platform fee')}: {exactAmount(result.fee)}{' '}
                                 {mode === 'exchange' ? 'USDT' : result.asset}
+                                {result.feePercent != null &&
+                                    ` (${exactAmount(result.feePercent)}%)`}
                             </p>
                         )}
                         {result.receive && (
@@ -306,9 +323,11 @@ export default function AssetFlow({
                                         {account.asset}
                                     </p>
                                 )}
-                                {rail?.fee !== null && mode === 'withdrawal' && rail && (
+                                {mode === 'withdrawal' && shownRate != null && (
                                     <p className="text-sm">
-                                        {t('Platform fee')}: {exactAmount(rail.fee)} {account.asset}
+                                        {t('Withdrawal fee rate')}: {exactAmount(shownRate)}%
+                                        {shownFee !== null &&
+                                            ` · ${exactAmount(shownFee)} ${account.asset}`}
                                     </p>
                                 )}
                                 {mode === 'withdrawal' && review && (
@@ -321,7 +340,7 @@ export default function AssetFlow({
                                         </p>
                                         <p>
                                             {t('You receive')}:{' '}
-                                            {subtract(form.data.amount, rail?.fee ?? '0')}{' '}
+                                            {subtract(form.data.amount, form.data.expected_fee)}{' '}
                                             {account.asset}
                                         </p>
                                         <label className="flex min-h-11 items-center gap-3">
@@ -349,12 +368,15 @@ export default function AssetFlow({
                                         form.processing ||
                                         !form.data.amount ||
                                         (mode === 'exchange' ? !account.exchange : !rail) ||
-                                        (review && !form.data.confirmed)
+                                        (review && !form.data.confirmed) ||
+                                        (mode === 'withdrawal' && calculatedFee === null)
                                     }
                                     onClick={() => {
                                         if (mode === 'withdrawal' && !review) {
+                                            if (calculatedFee === null) return;
+                                            setReviewRate(rail?.feePercent ?? null);
                                             setReview(true);
-                                            form.setData('expected_fee', rail?.fee ?? '');
+                                            form.setData('expected_fee', calculatedFee);
                                         } else submit();
                                     }}
                                 >

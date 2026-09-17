@@ -138,9 +138,8 @@ final readonly class CreateCardIssueAction
                     throw new DomainException('CARD_ISSUE_ACCOUNTS_UNAVAILABLE', 'Card issue accounts are unavailable.', 409);
                 }
             }
-            $requiredDeposit = Money::of($settings->required_security_deposit_amount, 'USDT');
-            if (Money::of($accounts[LedgerAccountType::UserSecurityDeposit->value]->balance, 'USDT')->compare($requiredDeposit) < 0) {
-                throw new DomainException('SECURITY_DEPOSIT_INSUFFICIENT', 'Complete the Security Deposit before opening a Card.', 409);
+            if (! app(\App\Application\Promotion\AccountActivationStatus::class)->get($tenantId, $userId)['qualified']) {
+                throw new DomainException('SECURITY_DEPOSIT_INSUFFICIENT', 'Activate your account before opening a card.', 409);
             }
             if ($product->opening_fee === null) {
                 throw new DomainException('CARD_PRODUCT_NOT_ACTIVE', 'Card setup is currently unavailable.', 409);

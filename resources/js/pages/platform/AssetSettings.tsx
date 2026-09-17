@@ -14,7 +14,7 @@ type Props = {
     market: {
         enabled: boolean;
         configured: boolean;
-        snapshot: { observed_at: string; rates: Record<string, string> } | null;
+        snapshot: { observed_at: string; fresh: boolean; rates: Record<string, string> } | null;
     };
     networks: {
         network: string;
@@ -32,14 +32,11 @@ type Props = {
         deposit_enabled: boolean;
         withdrawal_enabled: boolean;
         minimum_deposit: string | null;
-        withdrawal_fee: string | null;
+        withdrawal_fee_percent: string | null;
     }[];
     policies: {
         asset_code: string;
         enabled: boolean;
-        fee_percent: string | null;
-        single_limit: string | null;
-        daily_limit: string | null;
     }[];
 };
 type Field = {
@@ -74,7 +71,7 @@ function initialSections(p: Props): Section[] {
                     deposit_enabled: c?.deposit_enabled ?? false,
                     withdrawal_enabled: c?.withdrawal_enabled ?? false,
                     minimum: trim(c?.minimum_deposit),
-                    fee: trim(c?.withdrawal_fee),
+                    fee_percent: trim(c?.withdrawal_fee_percent),
                 };
             }),
             ...['USDC', 'ETH', 'BTC'].map((asset) => {
@@ -83,9 +80,6 @@ function initialSections(p: Props): Section[] {
                     kind: 'exchange',
                     asset,
                     enabled: c?.enabled ?? false,
-                    fee: trim(c?.fee_percent),
-                    single: trim(c?.single_limit),
-                    daily: trim(c?.daily_limit),
                 };
             }),
         ];
@@ -240,6 +234,9 @@ function AssetSettingsForm(p: Props) {
                                     after={
                                         p.market.snapshot ? (
                                             <div className="space-y-2 border-t pt-3 text-sm">
+                                                <p className="font-medium">
+                                                    {t('Last saved rates')}
+                                                </p>
                                                 <p className="text-muted-foreground">
                                                     {t('Updated at')}:{' '}
                                                     {dateTime(p.market.snapshot.observed_at)}
@@ -251,11 +248,26 @@ function AssetSettingsForm(p: Props) {
                                                         </p>
                                                     ),
                                                 )}
+                                                <p className="text-xs text-muted-foreground">
+                                                    {!p.market.enabled
+                                                        ? t(
+                                                              'Rate updates are disabled. Saved rates are shown for reference only.',
+                                                          )
+                                                        : p.market.snapshot.fresh
+                                                          ? t(
+                                                                'These rates are within the exchange validity period.',
+                                                            )
+                                                          : t(
+                                                                'These rates have expired and cannot be used for exchange. Update platform rates and check the server scheduler.',
+                                                            )}
+                                                </p>
                                             </div>
                                         ) : (
                                             <p className="text-sm text-muted-foreground">
                                                 {t(
-                                                    'No fresh platform rates. Enable rates and run a platform update.',
+                                                    p.market.enabled
+                                                        ? 'No rates have been saved yet. Click Update platform rates.'
+                                                        : 'No rates have been saved yet. Enable and save the settings, then update platform rates.',
                                                 )}
                                             </p>
                                         )
@@ -416,9 +428,9 @@ function AssetSettingsForm(p: Props) {
                                                     value: trim(c?.minimum_deposit),
                                                 },
                                                 {
-                                                    name: 'fee',
-                                                    label: 'Withdrawal fee (original currency)',
-                                                    value: trim(c?.withdrawal_fee),
+                                                    name: 'fee_percent',
+                                                    label: 'Withdrawal fee (%)',
+                                                    value: trim(c?.withdrawal_fee_percent),
                                                 },
                                             ]}
                                         />
@@ -445,21 +457,6 @@ function AssetSettingsForm(p: Props) {
                                                     name: 'enabled',
                                                     label: 'Enabled',
                                                     value: c?.enabled ?? false,
-                                                },
-                                                {
-                                                    name: 'fee',
-                                                    label: 'Fee percentage',
-                                                    value: trim(c?.fee_percent),
-                                                },
-                                                {
-                                                    name: 'single',
-                                                    label: 'Single exchange limit (USDT)',
-                                                    value: trim(c?.single_limit),
-                                                },
-                                                {
-                                                    name: 'daily',
-                                                    label: 'Daily user limit (USDT)',
-                                                    value: trim(c?.daily_limit),
                                                 },
                                             ]}
                                         />

@@ -19,21 +19,21 @@ it('serves independent promotion pages and commission history behind user authen
     $this->get('http://a.localhost/promotion')->assertOk()->assertInertia(fn ($page) => $page->where('section', 'overview'));
     foreach (['daily', 'direct'] as $section) {
         $this->get('http://a.localhost/promotion/'.$section)->assertOk()
-            ->assertInertia(fn ($page) => $page->component('user/Promotion')->where('section', $section));
+            ->assertInertia(fn ($page) => $page->component('user/PromotionReport')->where('section', $section));
     }
-    $this->get('http://a.localhost/promotion/team')->assertRedirect('/promotion#team-summary');
+    $this->get('http://a.localhost/promotion/team')->assertRedirect('/promotion/invitations');
     $this->get('http://a.localhost/promotion/commissions')->assertOk()
-        ->assertInertia(fn ($page) => $page->component('user/PromotionCommissions')->where('history.items', [])->where('history.date', null));
+        ->assertInertia(fn ($page) => $page->component('user/PromotionCommissions')->where('history.items', [])->where('history.dateFrom', null));
     $this->get('http://a.localhost/promotion/unknown')->assertNotFound();
 });
 
 it('keeps daily filters and direct pagination within their child pages', function (): void {
     $this->actingAs($this->user, 'tenant_user')->get('http://a.localhost/promotion/daily?date=2026-09-10&page=2')->assertOk()
-        ->assertInertia(fn ($page) => $page->where('section', 'daily')->where('promotion.date', '2026-09-10')->where('promotion.page', 2));
-    $this->get('http://a.localhost/promotion/direct?direct_page=2')->assertOk()
-        ->assertInertia(fn ($page) => $page->where('section', 'direct')->where('promotion.directPage', 2));
+        ->assertInertia(fn ($page) => $page->where('section', 'daily')->where('report.dateFrom', '2026-09-10')->where('report.page', 2));
+    $this->get('http://a.localhost/promotion/direct?page=2')->assertOk()
+        ->assertInertia(fn ($page) => $page->where('section', 'direct')->where('report.page', 2));
     $this->get('http://a.localhost/promotion/commissions?date=2026-09-10&page=2')->assertOk()
-        ->assertInertia(fn ($page) => $page->where('history.date', '2026-09-10')->where('history.page', 2));
+        ->assertInertia(fn ($page) => $page->where('history.dateFrom', '2026-09-10')->where('history.page', 2));
     $this->getJson('http://a.localhost/promotion/commissions?date=wrong')->assertUnprocessable();
 });
 

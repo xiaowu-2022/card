@@ -3,19 +3,6 @@ import { displayMoney } from '@/lib/exact-amount';
 export function promotionLevel(rank: number): string {
     return rank ? t('Mastercard level {{rank}}', { rank }) : t('Ordinary member');
 }
-export function rebateStatus(status: string): string {
-    return t(
-        (
-            {
-                PENDING: 'Under review',
-                APPROVED: 'Fee returned',
-                REJECTED: 'Request rejected',
-                WITHDRAWN: 'Request withdrawn',
-            } as Record<string, string>
-        )[status] ?? 'Under review',
-    );
-}
-
 // Display-only exact USDT arithmetic; all payment amounts still come from server quotes.
 export function promotionUnits(amount: string): bigint {
     const [whole = '0', fraction = ''] = amount.split('.');

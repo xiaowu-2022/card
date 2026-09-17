@@ -21,6 +21,8 @@ type Eligibility = {
     walletStatus: string | null;
     canActivate: boolean;
     depositSatisfied: boolean;
+    activation: { agent: boolean };
+    activationSatisfied: boolean;
     reasonCodes: string[];
     wallet: { id: string; asset: string; status: string } | null;
     available: Money | null;
@@ -161,9 +163,11 @@ export default function Wallet({
                                 <div className="min-w-0 flex-1">
                                     <h2 className="font-semibold">{t('Security deposit')}</h2>
                                     <p className="mt-1 text-xs text-muted-foreground">
-                                        {eligibility.depositSatisfied
-                                            ? t('Requirement met')
-                                            : t('Complete your requirement to access cards')}
+                                        {eligibility.activation.agent
+                                            ? t('Active agents do not need a security deposit.')
+                                            : eligibility.depositSatisfied
+                                              ? t('Requirement met')
+                                              : t('Complete your requirement to access cards')}
                                     </p>
                                 </div>
                                 {depositAvailable ? (
@@ -192,7 +196,7 @@ export default function Wallet({
                                     </p>
                                 </div>
                             </div>
-                            {!eligibility.depositSatisfied ? (
+                            {!eligibility.activationSatisfied ? (
                                 <p className="mt-3 text-xs text-muted-foreground">
                                     <span className="mr-2">{t('Remaining requirement')}</span>
                                     <MoneyDisplay {...eligibility.depositRemaining} compact />

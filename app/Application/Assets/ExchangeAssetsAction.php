@@ -45,18 +45,18 @@ final readonly class ExchangeAssetsAction
                 return $existing;
             }
             [$tenant,$user] = $this->access->operational($tenantId, $userId);
-            $policy = $this->policy($tenantId, $asset);
+            $this->policy($tenantId, $asset);
             $snapshot = $this->prices->latest();
             if (! $snapshot) {
                 throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'Market prices are unavailable.', 503);
             }
             $rate = $this->prices->rate($snapshot, $asset);
             $gross = BigDecimal::of($money->amount())->multipliedBy($rate)->toScale(8, RoundingMode::Down);
-            $fee = $gross->multipliedBy($policy->fee_percent)->dividedBy('100', 8, RoundingMode::Ceiling);
+            $fee = BigDecimal::zero()->toScale(8);
             $net = $gross->minus($fee);
             Money::of((string) $gross, 'USDT');
-            if (! $net->isPositive() || $gross->isGreaterThan($policy->single_limit)) {
-                throw new DomainException('EXCHANGE_LIMIT', 'The amount is outside the exchange limits.');
+            if (! $net->isPositive()) {
+                throw new DomainException('AMOUNT_INVALID', 'Enter an amount within the currency precision.');
             }
             // A quote reads existing source funds; it neither creates wallets nor holds money.
             $available = LedgerAccount::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', $asset)->where('account_type', 'USER_AVAILABLE')->first();
@@ -64,7 +64,7 @@ final readonly class ExchangeAssetsAction
                 throw new DomainException('INSUFFICIENT_AVAILABLE_BALANCE', 'Your available balance is not enough.');
             }
 
-            return ExchangeOrder::query()->create(['tenant_id' => $tenantId, 'user_id' => $userId, 'request_id' => $requestId, 'asset_code' => $asset, 'amount' => $money->amount(), 'rate' => (string) $rate, 'gross_amount' => (string) $gross, 'fee_amount' => (string) $fee, 'receive_amount' => (string) $net, 'fee_percent' => $policy->fee_percent, 'snapshot_id' => $snapshot->id, 'expires_at' => now()->addSeconds(30)]);
+            return ExchangeOrder::query()->create(['tenant_id' => $tenantId, 'user_id' => $userId, 'request_id' => $requestId, 'asset_code' => $asset, 'amount' => $money->amount(), 'rate' => (string) $rate, 'gross_amount' => (string) $gross, 'fee_amount' => (string) $fee, 'receive_amount' => (string) $net, 'fee_percent' => '0', 'snapshot_id' => $snapshot->id, 'expires_at' => now()->addSeconds(30)]);
         }, 3);
     }
 
@@ -79,11 +79,10 @@ final readonly class ExchangeAssetsAction
             if ($order->expires_at->lessThanOrEqualTo(now())) {
                 throw new DomainException('EXCHANGE_EXPIRED', 'The quote has expired. Request a new quote.', 409);
             }
-            $policy = $this->policy($tenantId, $order->asset_code);
-            $start = now($tenant->timezone)->startOfDay()->utc();
-            $used = (string) ExchangeOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', $order->asset_code)->where('status', 'COMPLETED')->where('completed_at', '>=', $start)->sum('gross_amount');
-            if (BigDecimal::of($order->gross_amount)->isGreaterThan($policy->single_limit) || BigDecimal::of($used)->plus($order->gross_amount)->isGreaterThan($policy->daily_limit)) {
-                throw new DomainException('EXCHANGE_LIMIT', 'The amount is outside the exchange limits.');
+            $this->policy($tenantId, $order->asset_code);
+            // Do not charge a legacy fee or rewrite its immutable quote economics.
+            if (BigDecimal::of($order->fee_amount)->isPositive() || BigDecimal::of($order->fee_percent)->isPositive()) {
+                throw new DomainException('EXCHANGE_EXPIRED', 'The quote has expired. Request a new quote.', 409);
             }
             $source = $this->access->wallet($tenant, $user, $order->asset_code);
             $target = $this->access->wallet($tenant, $user, 'USDT');
@@ -96,9 +95,6 @@ final readonly class ExchangeAssetsAction
                 new LedgerPostingInstruction($sourceClearing->id, Money::of($order->amount, $order->asset_code)),
             ]));
             $postings = [new LedgerPostingInstruction($targetClearing->id, Money::of('-'.$order->gross_amount, 'USDT')), new LedgerPostingInstruction($targetAccount->id, Money::of($order->receive_amount, 'USDT'))];
-            if (Money::of($order->fee_amount, 'USDT')->isPositive()) {
-                $postings[] = new LedgerPostingInstruction($this->access->companyAccount($tenantId, 'USDT', 'TENANT_FEE_REVENUE')->id, Money::of($order->fee_amount, 'USDT'));
-            }
             $targetEntry = $this->ledger->post(new LedgerPostingPlan($tenantId, 'USDT', 'exchange:'.$id.':target', 'ASSET_EXCHANGE_IN', 'ASSET_EXCHANGE', $id, null, $postings));
             $order->update(['status' => 'COMPLETED', 'source_entry_id' => $sourceEntry->id, 'target_entry_id' => $targetEntry->id, 'completed_at' => now()]);
             $this->audit->record($tenantId, 'USER', $userId, 'ASSET_EXCHANGED', 'asset_exchange_order', $id, null, ['asset' => $order->asset_code, 'amount' => $order->amount, 'receive_amount' => $order->receive_amount, 'fee_amount' => $order->fee_amount, 'snapshot_id' => $order->snapshot_id]);
@@ -110,7 +106,7 @@ final readonly class ExchangeAssetsAction
     private function policy(string $tenantId, string $asset): ExchangePolicy
     {
         $policy = ExchangePolicy::query()->where('tenant_id', $tenantId)->where('asset_code', $asset)->first();
-        if (! $policy?->enabled || $policy->fee_percent === null || $policy->single_limit === null || $policy->daily_limit === null) {
+        if (! $policy?->enabled) {
             throw new DomainException('EXCHANGE_UNAVAILABLE', 'Exchange is not available for this asset.', 403);
         }
 

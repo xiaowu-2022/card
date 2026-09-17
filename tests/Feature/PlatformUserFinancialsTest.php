@@ -109,12 +109,12 @@ it('reads exact owned balances and successful gross withdrawal totals without mu
     $balances = LedgerAccount::query()->orderBy('id')->pluck('balance', 'id')->all();
     $entries = DB::table('ledger_entries')->count();
     $this->get('http://admin.localhost/platform/users?company='.$tenant->id.'&search='.$user->account_id)->assertOk()->assertInertia(fn ($p) => $p
-        ->has('users.data', 1)->where('users.data.0.availableBalance', '270.09345678')
-        ->where('users.data.0.securityDeposit', '100.00000000')->where('users.data.0.commission', '2.12345678')
+        ->has('users.data', 1)->where('users.data.0.availableBalance', '272.21691356')
+        ->where('users.data.0.securityDeposit', '100.00000000')->where('users.data.0.commission', '0.00000000')
         ->where('users.data.0.totalWithdrawn', '120.03000000')->missing('users.data.0.accounts'));
     [$otherTenant, $otherUser] = $fixtures['tenant-b'];
     $this->get('http://admin.localhost/platform/users?company='.$otherTenant->id)->assertOk()->assertInertia(fn ($p) => $p
-        ->has('users.data', 1)->where('users.data.0.id', $otherUser->id)->where('users.data.0.availableBalance', '600.87654321')
+        ->has('users.data', 1)->where('users.data.0.id', $otherUser->id)->where('users.data.0.availableBalance', '602.99999999')
         ->where('users.data.0.totalWithdrawn', '0.00000000'));
     expect(LedgerAccount::query()->orderBy('id')->pluck('balance', 'id')->all())->toBe($balances)
         ->and(DB::table('ledger_entries')->count())->toBe($entries);

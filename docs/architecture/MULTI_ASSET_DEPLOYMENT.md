@@ -80,9 +80,9 @@ cases, with no financial/configuration submissions. See [previews](../previews/m
 
 ## Unified configuration follow-up
 This follow-up needs no migration. Rebuild frontend, refresh PHP/config caches and
-restart long-running application processes as usual. The page has one password and
-one Save all changes action per global/company scope. Test and refresh reuse the
-password only while that page is mounted. Unsaved changes are not silently submitted
+restart long-running application processes as usual. The page has one Save all changes action per global/company scope. Platform
+updates use the active authorized session without repeated password entry, per
+PLATFORM_UPDATE_AUTHENTICATION.md. Unsaved changes are not silently submitted
 by test/refresh actions.
 
 Public CoinGecko requires the descriptive User-Agent now sent by MarketPrices.
@@ -93,3 +93,22 @@ endpoint requires access credentials. The test now explains this instead of a ge
 error. A compatible endpoint supporting complete finalized-block traces must be supplied
 in advanced settings for native-ETH verification; do not bypass the capability gate.
 Node tests do not start a scanner or create financial observations.
+
+The SaaS settings page retains the last saved rates with an expired/disabled label,
+rather than hiding them after two minutes. If timestamps stop advancing, check the
+existing per-minute scheduler and `assets:refresh-prices` command; manually updating
+once does not start recurring updates. Old rates remain ineligible for exchange.
+
+Internal-exchange follow-up (2026-09-16): company exchange configuration now requires
+only enablement. Fees are zero and the previous single/daily caps are ignored, even
+when stored on existing policies. No migration or resave is required for existing
+enabled currencies. Old unconfirmed fee quotes require a new quote. Completed
+records, balances, withdrawal fees, freshness and expiry rules remain unchanged.
+
+Percentage withdrawal fees (2026-09-16) require the additive
+`2026_09_16_000300_add_asset_withdrawal_fee_percent` migration before serving the
+updated application. Run the normal production migration command, rebuild assets
+and restart long-running workers. Then enter each company's network withdrawal fee
+percentage in SaaS (1 means 1%, 0 means free). Previous fixed fees are not converted;
+new withdrawal requests remain unavailable until a percentage is configured. Existing
+orders can still be reviewed, cancelled and settled using their immutable fee amount.

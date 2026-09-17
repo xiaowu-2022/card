@@ -13,13 +13,13 @@ import {
     Coins,
 } from 'lucide-react';
 import { t, dateTime } from '@/i18n';
+import { GrowthCampaign } from '@/components/user/GrowthCampaign';
 
 export type AssetAccount = {
     asset: string;
     available: string;
     held: string;
     deposit: string;
-    commission: string;
     exchange: boolean;
     exchangeUnavailableReason?: string | null;
     transfer?: boolean;
@@ -28,13 +28,27 @@ export type AssetAccount = {
         network: string;
         deposit: boolean;
         withdrawal: boolean;
-        fee: string | null;
+        feePercent: string | null;
         minimum: string | null;
     }[];
     activity: { id: string; kind: string; amount: string; time: string }[];
     orders?: { id: string; mode: string; amount: string; state: string; time: string }[];
 };
+export type AccountActivation = {
+    qualified: boolean;
+    agent: boolean;
+    rank: number;
+    endsAt: string | null;
+    ordinaryAvailable: boolean;
+    depositSatisfied: boolean;
+    depositRequired: string;
+    depositCurrent: string;
+    depositRemaining: string;
+    refundPending: boolean;
+};
 export type AssetOverview = {
+    activation: AccountActivation;
+    cumulativeCommission: string;
     assets: AssetAccount[];
     estimate: string | null;
     updatedAt: string | null;
@@ -55,7 +69,13 @@ export function AssetIcon({ asset }: { asset: string }) {
         </span>
     );
 }
-export function AssetCenter({ overview }: { overview: AssetOverview }) {
+export function AssetCenter({
+    overview,
+    prerequisiteHref,
+}: {
+    overview: AssetOverview;
+    prerequisiteHref?: string;
+}) {
     const [selected, setSelected] = useState('USDT');
     const [expanded, setExpanded] = useState(false);
     const { auth } = usePage<SharedProps>().props;
@@ -97,9 +117,9 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
               },
               {
                   id: 'commission',
-                  label: 'Commission',
-                  amount: usdt.commission,
-                  href: '/promotion',
+                  label: 'Cumulative commission',
+                  amount: overview.cumulativeCommission,
+                  href: '/promotion/invitations',
                   icon: Coins,
               },
           ]
@@ -122,36 +142,32 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
         overview.assets.find((a) => a.exchange) ??
         overview.assets.find((a) => a.asset !== 'USDT');
     const shortcuts = [
-        ...(depositAsset
-            ? [
-                  {
-                      label: 'Top up',
-                      href: `/assets/operate?mode=deposit&asset=${depositAsset.asset}`,
-                      icon: ArrowDown,
-                  },
-              ]
-            : []),
-        ...(withdrawalAsset
-            ? [
-                  {
-                      label: 'Withdraw',
-                      href: `/assets/operate?mode=withdrawal&asset=${withdrawalAsset.asset}`,
-                      icon: ArrowUp,
-                  },
-              ]
-            : []),
-        ...(exchangeAsset
-            ? [
-                  {
-                      label: 'Exchange',
-                      href: `/assets/operate?mode=exchange&asset=${exchangeAsset.asset}`,
-                      icon: ArrowLeftRight,
-                  },
-              ]
-            : []),
-        ...(usdt?.transfer
-            ? [{ label: 'Transfer', href: '/wallet/transfer', icon: ArrowLeftRight }]
-            : []),
+        {
+            label: 'Top up',
+            href:
+                prerequisiteHref ??
+                `/assets/operate?mode=deposit&asset=${depositAsset?.asset ?? 'USDT'}`,
+            icon: ArrowDown,
+        },
+        {
+            label: 'Withdraw',
+            href:
+                prerequisiteHref ??
+                `/assets/operate?mode=withdrawal&asset=${withdrawalAsset?.asset ?? 'USDT'}`,
+            icon: ArrowUp,
+        },
+        {
+            label: 'Exchange',
+            href:
+                prerequisiteHref ??
+                `/assets/operate?mode=exchange&asset=${exchangeAsset?.asset ?? 'USDC'}`,
+            icon: ArrowLeftRight,
+        },
+        {
+            label: 'Transfer',
+            href: prerequisiteHref ?? (usdt?.transfer ? '/wallet/transfer' : '/wallet'),
+            icon: ArrowLeftRight,
+        },
     ];
     return (
         <div className="space-y-4">
@@ -178,7 +194,9 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
                     <p className="mt-2 text-[11px] text-muted-foreground">
                         {overview.estimate === null
                             ? t('Valuation unavailable. Original balances are unchanged.')
-                            : t('Prices updated: {{time}}', { time: dateTime(overview.updatedAt!) })}
+                            : t('Prices updated: {{time}}', {
+                                  time: dateTime(overview.updatedAt!),
+                              })}
                     </p>
                 )}
             </section>
@@ -200,6 +218,26 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
                         </Link>
                     ))}
                 </nav>
+            )}
+            {!overview.activation.qualified && (
+                <section
+                    aria-label={t('Account activation')}
+                    className="flex items-center gap-3 rounded-2xl bg-[#f2f6ef] px-4 py-3"
+                >
+                    <ShieldCheck className="size-5 shrink-0 text-emerald-800" aria-hidden="true" />
+                    <div className="min-w-0 flex-1">
+                        <h2 className="text-sm font-semibold">{t('Account pending activation')}</h2>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                            {t('Pay a member deposit or choose an agent level to activate.')}
+                        </p>
+                    </div>
+                    <Link
+                        href="/promotion/membership"
+                        className="shrink-0 rounded-full bg-[#193c34] px-3 py-2.5 text-xs font-medium text-white"
+                    >
+                        {t('Activate now')}
+                    </Link>
+                </section>
             )}
             <section className="rounded-2xl bg-surface px-4 pb-4 sm:px-5 sm:pb-5">
                 <div className="flex min-h-14 items-center justify-between gap-3">
@@ -277,6 +315,7 @@ export function AssetCenter({ overview }: { overview: AssetOverview }) {
                     })}
                 </div>
             </section>
+            <GrowthCampaign variant="account" />
             {!!current.orders?.length && (
                 <section>
                     <h2 className="mb-2 font-semibold">{t('Recent requests')}</h2>

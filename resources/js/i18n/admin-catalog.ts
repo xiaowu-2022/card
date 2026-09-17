@@ -2,6 +2,19 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Cumulative commission': '累计佣金',
+    'Automatic annual fee return': '系统自动返还年费',
+    'Withdrawal fee (%)': '提现手续费（%）',
+    'Last saved rates': '最近保存的汇率',
+    'Rate updates are disabled. Saved rates are shown for reference only.':
+        '汇率更新已停用，已保存报价仅供查看。',
+    'These rates are within the exchange validity period.': '报价在有效期内，可用于兑换。',
+    'These rates have expired and cannot be used for exchange. Update platform rates and check the server scheduler.':
+        '报价已过期，不能用于兑换。请更新平台汇率，并检查服务器定时任务是否正常运行。',
+    'No rates have been saved yet. Click Update platform rates.':
+        '尚未保存过汇率，请点击“更新平台汇率”。',
+    'No rates have been saved yet. Enable and save the settings, then update platform rates.':
+        '尚未保存过汇率，请先启用并保存设置，再更新平台汇率。',
     'Creating this administrator grants immediate access with the selected role. Existing accounts and passwords will not be changed.':
         '创建后，此管理员将立即获得所选角色的访问权限。现有账号和密码不会更改。',
     'Changes take effect for this company immediately. Suspending membership blocks access to this company.':

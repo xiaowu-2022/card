@@ -1,4 +1,9 @@
 export const assetsCatalog = {
+    'Withdrawal fee rate': [
+        '提现手续费率',
+        'Kadar yuran pengeluaran',
+        'Porcentaje de comisión de retirada',
+    ],
     Accounts: ['账户', 'Akaun', 'Cuentas'],
     'Receive currency': ['到账币种', 'Mata wang diterima', 'Moneda de destino'],
     'Card opening and card top-ups use your available USDT balance.': [

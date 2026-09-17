@@ -34,9 +34,6 @@ export function DepositRefundControls({ refund }: { refund: DepositRefund }) {
         return () => window.clearInterval(timer);
     }, [refund.pendingId]);
     const warning = [
-        t(
-            'During and after a deposit refund, commission can still be earned but cannot be transferred to your wallet or withdrawn. Existing wallet balance can still be withdrawn.',
-        ),
         t('Applying for a deposit refund freezes your cards and locks card actions.'),
         t(
             'Cards cannot be used during the deposit refund period. Only transaction history is available.',

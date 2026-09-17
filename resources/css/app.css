@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import './marketing.css';
+@import './growth-campaign.css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../views/**/*.blade.php';

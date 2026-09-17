@@ -16,7 +16,6 @@ use App\Domain\Assets\ChainConnection;
 use App\Domain\Assets\ChainObservation;
 use App\Domain\Assets\CompanyRail;
 use App\Domain\Assets\ExchangePolicy;
-use App\Domain\Assets\MarketSettings;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\Withdrawal\Services\WithdrawalAddressProtector;
@@ -35,11 +34,11 @@ final class AssetsController extends Controller
 
         return Inertia::render('platform/AssetSettings', [
             'companies' => Tenant::orderBy('name')->get(['id', 'name'])->toArray(), 'company' => $tenant?->id,
-            'market' => ['enabled' => MarketSettings::findOrFail(1)->enabled, 'configured' => filled(MarketSettings::findOrFail(1)->api_key), 'snapshot' => ($snapshot = app(MarketPrices::class)->latest()) ? ['observed_at' => $snapshot->observed_at->toIso8601String(), 'rates' => collect(['USDC', 'ETH', 'BTC'])->mapWithKeys(fn ($asset) => [$asset => (string) app(MarketPrices::class)->rate($snapshot, $asset)])->all()] : null],
+            'market' => app(MarketPrices::class)->configuration(),
             'networks' => ChainConnection::all()->map(fn ($c) => ['network' => $c->network, 'enabled' => $c->enabled, 'rpc_url' => $c->rpc_url ?: PublicChainNodes::URLS[$c->network], 'use_public' => ! $c->rpc_url || $c->rpc_url === PublicChainNodes::URLS[$c->network], 'start_height' => $c->start_height, 'next_height' => $c->next_height, 'confirmations' => $c->confirmations, 'configured' => filled($c->credential)])->all(),
             'rails' => AssetRail::all()->map(fn ($a) => ['code' => $a->code, 'asset' => $a->asset_code, 'network' => $a->network, 'address' => $a->deposit_address ?? '', 'enabled' => $a->enabled])->all(),
-            'companyRails' => $tenant ? CompanyRail::where('tenant_id', $tenant->id)->get(['rail_code', 'deposit_enabled', 'withdrawal_enabled', 'minimum_deposit', 'withdrawal_fee'])->toArray() : [],
-            'policies' => $tenant ? ExchangePolicy::where('tenant_id', $tenant->id)->get(['asset_code', 'enabled', 'fee_percent', 'single_limit', 'daily_limit'])->toArray() : [],
+            'companyRails' => $tenant ? CompanyRail::where('tenant_id', $tenant->id)->get(['rail_code', 'deposit_enabled', 'withdrawal_enabled', 'minimum_deposit', 'withdrawal_fee_percent'])->toArray() : [],
+            'policies' => $tenant ? ExchangePolicy::where('tenant_id', $tenant->id)->get(['asset_code', 'enabled'])->toArray() : [],
         ]);
     }
 

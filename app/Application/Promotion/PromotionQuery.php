@@ -53,7 +53,7 @@ final readonly class PromotionQuery
         $awards = CommissionAward::query()->join('ledger_entries as earned_entry', function ($join): void {
             $join->on('earned_entry.id', '=', 'commission_awards.ledger_entry_id')->on('earned_entry.tenant_id', '=', 'commission_awards.tenant_id');
         })->where('commission_awards.tenant_id', $tenantId)->whereIn('commission_awards.user_id', $beneficiaries);
-        $firstFunding = (clone $funds)->selectRaw('user_id, MIN(funded_at) AS activated_at')->groupBy('user_id')->get();
+        $firstFunding = DB::table('account_activations')->where('tenant_id', $tenantId)->whereIn('user_id', $ids)->get(['user_id', 'activated_at']);
         $inDay = fn ($time) => CarbonImmutable::parse($time)->greaterThanOrEqualTo($start) && CarbonImmutable::parse($time)->lessThan($end);
         $level = PromotionLevel::query()->where('tenant_id', $tenantId)->whereKey($member->level_id)->first();
         $directQuery = DB::table('promotion_members as m')->join('users as u', 'u.id', '=', 'm.user_id')
@@ -120,19 +120,13 @@ final readonly class PromotionQuery
             })->where('source_member.tenant_id', $tenantId)->whereIn('source_member.user_id', $rows->take(30)->pluck('source_user_id'))
             ->get(['source_member.user_id', 'source_user.account_id', 'inviter.user_id as inviter_user_id', 'inviter_user.account_id as inviter_account_id'])->keyBy('user_id');
 
-        $refundRestricted = CommissionTransferEligibility::refundRestricted($tenantId, $userId);
-
         $paid = app(PaidPromotionQuery::class)->execute($tenantId, $userId);
 
         return [
             'paid' => $paid,
             'date' => $day->format('Y-m-d'), 'timezone' => $tenant->timezone, 'invitationCode' => $member->invitation_code,
             'levelName' => $level?->name, 'supported' => $tenant->default_asset === 'USDT',
-            'commissionRefundRestricted' => $refundRestricted,
-            'canTransfer' => ! $refundRestricted && Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', 'USDT')->where('status', 'ACTIVE')->exists()
-                && $this->kyc->forUser($tenantId, $userId) === KycUserStatus::Approved,
-            'availableCommission' => LedgerAccount::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('account_type', 'USER_COMMISSION')->value('balance') ?? '0.00000000',
-            'myCommission' => (string) BigDecimal::of($paid['totals']['ANNUAL'])->plus($paid['totals']['ACTIVATION'])->plus($paid['legacy']),
+            'myCommission' => app(PromotionReportQuery::class)->cumulative($tenantId, $userId),
             'totals' => ['invited' => count($ids), 'activated' => $firstFunding->count(), 'deposits' => (string) (clone $funds)->sum('amount'), 'commission' => (string) (clone $awards)->sum('amount')],
             'daily' => ['invited' => count(array_filter($team, fn ($row) => $inDay($row->created_at))), 'activated' => $firstFunding->filter(fn ($row) => $inDay($row->activated_at))->count(),
                 'deposits' => (string) (clone $funds)->where('funded_at', '>=', $start)->where('funded_at', '<', $end)->sum('amount'),

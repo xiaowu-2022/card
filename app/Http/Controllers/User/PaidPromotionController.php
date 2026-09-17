@@ -4,7 +4,6 @@ namespace App\Http\Controllers\User;
 
 use App\Application\Promotion\PaidPromotionPurchase;
 use App\Application\Promotion\PaidPromotionQuery;
-use App\Application\Promotion\PaidPromotionRebate;
 use App\Domain\Tenant\TenantContext;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -43,21 +42,5 @@ final class PaidPromotionController extends Controller
         $purchase->confirm($context->id(), $request->user('tenant_user')->id, $order);
 
         return redirect('/promotion/membership?order='.$order)->with('success', 'Promotion payment completed.');
-    }
-
-    public function apply(Request $request, TenantContext $context, PaidPromotionRebate $rebates)
-    {
-        $v = $request->validate(['request_id' => ['required', 'uuid'], 'current_password' => ['required', 'current_password:tenant_user'], 'confirmed' => ['required', 'accepted'], 'amount' => ['prohibited']]);
-        $rebates->apply($context->id(), $request->user('tenant_user')->id, $v['request_id']);
-
-        return back()->with('success', 'Fee rebate request submitted.');
-    }
-
-    public function withdraw(Request $request, TenantContext $context, PaidPromotionRebate $rebates, string $rebate)
-    {
-        $request->validate(['confirmed' => ['required', 'accepted'], 'current_password' => ['required', 'current_password:tenant_user']]);
-        $rebates->withdraw($context->id(), $request->user('tenant_user')->id, $rebate);
-
-        return back()->with('success', 'Fee rebate request withdrawn.');
     }
 }

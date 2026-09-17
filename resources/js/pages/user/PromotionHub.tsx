@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Users, BookOpen, Copy, Share2, Check } from 
 import { UserLayout } from '@/layouts/UserLayout';
 import { UserPageHeader } from '@/components/user/UserPageHeader';
 import { Button } from '@/components/ui/button';
+import { AnnualRebateProgress } from '@/components/user/AnnualRebateProgress';
 import type { PaidPromotionData } from '@/components/user/PaidPromotionSummary';
 import { promotionLevel, promotionUnits } from '@/lib/paid-promotion';
 import { t, dateTime, errorMessage, useClientTranslation } from '@/i18n';
@@ -20,6 +21,7 @@ type Benefits = Pick<
     | 'previousCycle'
     | 'cycle'
     | 'pending'
+    | 'progress'
 > & { hasClaims: boolean };
 type Home = { paid: Benefits; invitationCode: string; canPurchase: boolean };
 
@@ -124,7 +126,7 @@ export default function PromotionHub({
         ],
         [
             'Activation commission',
-            'A successful security deposit payment triggers activation rewards. Registration and paying an annual fee are not deposit activation. A new payment after a refund can earn rewards again; cancelling a refund is not a new activation.',
+            'Each account activates once through a member deposit or agent purchase. Only first activation through a deposit earns activation commission; direct agent purchases earn annual fee commission only.',
         ],
         [
             'Reward differentials',
@@ -132,7 +134,7 @@ export default function PromotionHub({
         ],
         [
             'Annual fee commission',
-            'Annual fee commission is calculated on the amount actually paid for a purchase, renewal or upgrade. From the nearest inviter upwards, only the positive difference above the highest covered rate is paid. Ordinary members do not participate; equal or lower rates earn no extra share.',
+            'Annual fee commission uses the wallet payment only. Direct agents earn their own rate regardless of the payer’s level. Indirect agents must be at or above the payer’s purchased level and earn only the uncovered rate difference. Ineligible ancestors do not consume a rate share.',
         ],
         [
             'Membership validity',
@@ -140,7 +142,7 @@ export default function PromotionHub({
         ],
         [
             'Annual fee rebate conditions',
-            'Each paid year counts direct deposit payments as one and indirect payments as half. On reaching your level’s threshold, apply before expiry for platform review. Returns are limited to that cycle’s paid, unreturned annual fees. Upgrades retain progress and apply the new threshold; returned fees do not reduce the upgrade tariff.',
+            'Count each account once at its first deposit or agent activation within the paid year: direct as 1 and indirect as 0.5. Renewals, upgrades and repeat deposits do not count again. Eligible annual fee returns include converted deposits and are credited automatically to USDT. Upgrades keep progress and expiry.',
         ],
     ];
     return (
@@ -186,10 +188,10 @@ export default function PromotionHub({
                             </p>
                         </section>
                         <Link
-                            href="/promotion/membership#annual-rebate"
+                            href="/promotion/membership#rebate-history"
                             className="min-h-11 py-3 text-sm underline"
                         >
-                            {t('Manage annual fee rebate')}
+                            {t('Fee rebate history')}
                         </Link>
                     </>
                 ) : (
@@ -351,6 +353,11 @@ export default function PromotionHub({
                                                     </p>
                                                 </div>
                                             </div>
+                                            {current && p.cycle && p.progress && (
+                                                <div className="mt-3">
+                                                    <AnnualRebateProgress progress={p.progress} />
+                                                </div>
+                                            )}
                                             <div className="mt-auto pt-3">
                                                 {current ? (
                                                     <p className="text-xs leading-5">
@@ -440,12 +447,12 @@ export default function PromotionHub({
                             )}
                             {p.pending && (
                                 <p role="status" className="mt-3 rounded-xl bg-muted p-3 text-sm">
-                                    {t('Withdraw the pending fee rebate request before upgrading.')}{' '}
+                                    {t('Annual fee return is processing. Try upgrading shortly.')}{' '}
                                     <Link
                                         href="/promotion/membership#rebate-history"
                                         className="underline"
                                     >
-                                        {t('Manage annual fee rebate')}
+                                        {t('Fee rebate history')}
                                     </Link>
                                 </p>
                             )}
@@ -474,35 +481,6 @@ export default function PromotionHub({
                                 </Link>
                             ))}
                         </nav>
-                        {(p.cycle || p.previousCycle || p.hasClaims) && (
-                            <section className="border-y py-4 text-sm">
-                                {(p.cycle || p.previousCycle) && (
-                                    <p>
-                                        {p.cycle
-                                            ? t('Valid until {{time}}', {
-                                                  time: dateTime(p.cycle.endsAt),
-                                              })
-                                            : t(
-                                                  'Your previous level expired on {{time}}. Ordinary member rewards now apply.',
-                                                  { time: dateTime(p.previousCycle!.endsAt) },
-                                              )}
-                                    </p>
-                                )}
-                                {(p.cycle || p.hasClaims) && (
-                                    <Link
-                                        className="mt-2 inline-flex min-h-11 items-center gap-2 text-primary underline"
-                                        href={`/promotion/membership#${p.cycle ? 'annual-rebate' : 'rebate-history'}`}
-                                    >
-                                        {t(
-                                            p.cycle
-                                                ? 'This year’s annual fee rebate'
-                                                : 'Fee rebate history',
-                                        )}
-                                        <ChevronRight className="size-4" />
-                                    </Link>
-                                )}
-                            </section>
-                        )}
                         <section>
                             <h2>{t('Invitation steps')}</h2>
                             <ol className="promotion-invite-steps">

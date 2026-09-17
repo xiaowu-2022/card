@@ -15,7 +15,7 @@ use Illuminate\Support\Str;
 
 final readonly class PaidPromotionRewards
 {
-    public function __construct(private PaidPromotionRules $rules, private CommissionAccounts $accounts, private LedgerWriter $ledger) {}
+    public function __construct(private PaidPromotionRules $rules, private CommissionAccounts $accounts, private LedgerWriter $ledger, private PaidPromotionRebate $rebates, private RecordAccountActivation $activation) {}
 
     /** Only within the source financial transaction; zero shares preserve count/routing evidence. */
     public function execute(string $tenant, string $sourceUser, string $kind, string $sourceId, string $amount, ?int $purchasedRank = null): void
@@ -28,12 +28,30 @@ final readonly class PaidPromotionRewards
         }
         $time = CarbonImmutable::now();
         $id = (string) Str::uuid();
+        $activationEligible = false;
+        $firstFunding = false;
+        if ($kind === 'ACTIVATION') {
+            $funding = DB::table('promotion_funding_events')->where('tenant_id', $tenant)->where('user_id', $sourceUser)->where('id', $sourceId)->firstOrFail();
+            $time = CarbonImmutable::parse($funding->funded_at);
+            $firstFunding = ! DB::table('promotion_funding_events')->where('tenant_id', $tenant)->where('user_id', $sourceUser)->where('id', '<>', $sourceId)->exists();
+            $activationEligible = $this->activation->execute($tenant, $sourceUser, 'DEPOSIT', $funding->funding_entry_id, $funding->funding_entry_id, $time);
+        } else {
+            $order = DB::table('paid_promotion_orders')->where('tenant_id', $tenant)->where('user_id', $sourceUser)->where('id', $sourceId)->where('status', 'COMPLETED')->firstOrFail();
+            $time = CarbonImmutable::parse($order->completed_at);
+            $activationEligible = $this->activation->execute($tenant, $sourceUser, 'ANNUAL', $sourceId, $order->ledger_entry_id, $time);
+        }
         DB::table('paid_promotion_events')->insert(['id' => $id, 'tenant_id' => $tenant, 'user_id' => $sourceUser, 'kind' => $kind, 'source_id' => $sourceId,
-            'source_rank' => $purchasedRank ?? ($this->rules->cycle($tenant, $sourceUser, $time)?->rank ?? 0), 'amount' => $amount, 'occurred_at' => $time, 'created_at' => $time]);
+            'source_rank' => $purchasedRank ?? ($this->rules->cycle($tenant, $sourceUser, $time)?->rank ?? 0), 'amount' => $amount, 'occurred_at' => $time, 'created_at' => $time, 'is_first_funding' => $kind === 'ACTIVATION' ? $firstFunding : false]);
         $highest = 0;
-        foreach ($this->rules->ancestors($tenant, $sourceUser) as $ancestor) {
+        $ancestors = $this->rules->ancestors($tenant, $sourceUser);
+        foreach ($ancestors as $ancestor) {
             $cycle = $this->rules->cycle($tenant, $ancestor->user_id, $time);
             $standard = $kind === 'ANNUAL' ? ($cycle?->percent ?? 0) : ($cycle?->reward ?? ($ancestor->depth === 1 ? 20 : 0));
+            if (($kind === 'ACTIVATION' && ! $activationEligible)
+                || ($kind === 'ANNUAL' && $ancestor->depth > 1 && ($cycle?->rank ?? 0) < $purchasedRank)) {
+                // Subsequent funding earns no reward; retain a zero share for activity history only.
+                $standard = 0;
+            }
             $covered = $highest;
             $difference = max(0, $standard - $highest);
             $highest = max($standard, $highest);
@@ -56,6 +74,11 @@ final readonly class PaidPromotionRewards
             DB::table('paid_promotion_shares')->insert(['id' => $shareId, 'tenant_id' => $tenant, 'user_id' => $ancestor->user_id, 'event_id' => $id,
                 'cycle_id' => $cycle?->id, 'revision' => $cycle?->revision, 'standard' => $standard, 'covered' => $covered,
                 'depth' => $ancestor->depth, 'rank' => $cycle?->rank ?? 0, 'rate' => (string) $difference, 'amount' => (string) $reward, 'ledger_entry_id' => $entry?->id, 'created_at' => $time]);
+        }
+        if ($activationEligible) {
+            foreach ($ancestors as $ancestor) {
+                $this->rebates->capture($tenant, $ancestor->user_id, $time);
+            }
         }
     }
 }

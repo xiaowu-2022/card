@@ -470,7 +470,7 @@ final class PhotonPayCardProvider implements CardProviderInterface
                         if (! is_string($expiry) || ! ctype_digit($expiry) || strlen($expiry) > 13) {
                             throw new ProviderAuthenticationException('Token expiry unavailable.');
                         }
-                        $ttl = min(600, intdiv((int) $expiry, 1000) - time() - 30);
+                        $ttl = min(6600, intdiv((int) $expiry, 1000) - time() - 30);
                         if ($ttl <= 0) {
                             throw new ProviderAuthenticationException('Token expired.');
                         }

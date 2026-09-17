@@ -40,7 +40,7 @@ final readonly class UserWalletQuery
                 && $eligibility['kycStatus'] === 'APPROVED'
                 && $eligibility['walletStatus'] === 'ACTIVE'
                 && ! in_array('SECURITY_DEPOSIT_ASSET_MISMATCH', $eligibility['reasonCodes'], true)
-                && ! $eligibility['depositSatisfied'],
+                && ! $eligibility['activationSatisfied'],
             'depositHasEnoughAvailable' => $eligibility['available'] !== null
                 && ! in_array('SECURITY_DEPOSIT_ASSET_MISMATCH', $eligibility['reasonCodes'], true)
                 && Money::of($eligibility['available']['amount'], $eligibility['available']['asset'])

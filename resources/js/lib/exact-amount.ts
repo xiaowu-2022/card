@@ -75,3 +75,32 @@ export function displayMoney(amount: string): string {
     const sign = match[1] === '-' && cents !== 0n ? '-' : '';
     return `${sign}${cents / 100n}.${(cents % 100n).toString().padStart(2, '0')}`;
 }
+
+// Display/review only. The server recomputes the fee from its own percentage setting.
+export function withdrawalPercentageFee(
+    amount: string,
+    percent: string | null,
+    asset: string,
+): string | null {
+    const scale =
+        asset === 'ETH' ? 18 : asset === 'BTC' ? 8 : ['USDT', 'USDC'].includes(asset) ? 6 : null;
+    if (
+        scale === null ||
+        percent === null ||
+        !/^\d{1,12}(?:\.\d{1,18})?$/.test(amount) ||
+        !/^\d{1,2}(?:\.\d{1,8})?$/.test(percent)
+    )
+        return null;
+    const [whole, fraction = ''] = amount.split('.');
+    if (/[1-9]/.test(fraction.slice(scale))) return null;
+    const units =
+        BigInt(whole!) * 10n ** BigInt(scale) + BigInt(fraction.slice(0, scale).padEnd(scale, '0'));
+    if (units <= 0n) return null;
+    const [rateWhole, rateFraction = ''] = percent.split('.');
+    const rate = BigInt(rateWhole!) * 100000000n + BigInt(rateFraction.padEnd(8, '0'));
+    if (rate >= 10000000000n) return null;
+    const fee = (units * rate + 10000000000n - 1n) / 10000000000n;
+    if (fee >= units) return null;
+    const digits = fee.toString().padStart(scale + 1, '0');
+    return `${digits.slice(0, -scale)}.${digits.slice(-scale)}`;
+}

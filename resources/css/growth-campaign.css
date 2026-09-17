@@ -1,0 +1,48 @@
+/* The approved poster is an indivisible asset: never crop, overlay or re-typeset it. */
+.growth-campaign {
+    display: block;
+    overflow: hidden;
+    background: #061427;
+    color: #f5d89f;
+    text-decoration: none;
+}
+.growth-campaign-art {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1114 / 1412;
+    object-fit: contain;
+    color: #fff;
+}
+.growth-campaign-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.5;
+    color: #f5d89f;
+}
+.growth-campaign-action svg {
+    flex-shrink: 0;
+}
+.growth-campaign a:focus-visible,
+.growth-campaign-account:focus-visible {
+    outline: 3px solid #e8c78d;
+    outline-offset: -4px;
+}
+.growth-campaign-public {
+    width: min(686px, calc(100% - 32px));
+    margin: 40px auto;
+}
+.growth-campaign-account {
+    width: 100%;
+}
+@media (max-width: 767px) {
+    .growth-campaign-public {
+        margin-block: 24px;
+    }
+}

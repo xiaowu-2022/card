@@ -33,6 +33,7 @@ final class DashboardController extends Controller
             'wallet' => $walletData && $walletData['wallet'] ? [
                 'status' => $walletData['wallet']['status'],
                 'available' => $walletData['available'],
+                'activationSatisfied' => $walletData['activationSatisfied'],
                 'depositSatisfied' => $walletData['depositSatisfied'],
                 'depositRemaining' => $walletData['depositRemaining'],
                 'depositHasEnoughAvailable' => $walletResult['depositHasEnoughAvailable'],

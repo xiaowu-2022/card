@@ -1,4 +1,174 @@
 export const paidPromotionCatalog = {
+    'Choose a member deposit or an annual agent level.': [
+        '选择缴纳普通会员保证金，或购买代理年费等级。',
+        'Pilih deposit ahli biasa atau tahap ejen tahunan.',
+        'Elija el depósito de miembro ordinario o un nivel de agente anual.',
+    ],
+
+    'Convert {{deposit}} USDT of deposit and pay {{amount}} USDT from your wallet for {{level}}. The {{total}} USDT total becomes annual fee; the converted deposit cannot be refunded separately.':
+        [
+            '将 {{deposit}} USDT 保证金转为年费，并从余额支付 {{amount}} USDT，购买{{level}}。年费合计 {{total}} USDT；已转换的保证金不能单独申请退款。',
+            'Tukar deposit {{deposit}} USDT dan bayar {{amount}} USDT daripada dompet untuk {{level}}. Jumlah {{total}} USDT menjadi yuran tahunan; deposit yang ditukar tidak boleh dipulangkan berasingan.',
+            'Convierta {{deposit}} USDT de garantía y pague {{amount}} USDT del monedero por {{level}}. El total de {{total}} USDT pasa a ser cuota anual; la garantía convertida no se puede reembolsar por separado.',
+        ],
+
+    'Account activation': ['账号激活', 'Pengaktifan akaun', 'Activación de cuenta'],
+    'Account pending activation': [
+        '账号待激活',
+        'Akaun belum diaktifkan',
+        'Cuenta pendiente de activación',
+    ],
+    'Activate your account': ['激活账号', 'Aktifkan akaun anda', 'Activa tu cuenta'],
+    'Activate now': ['去激活', 'Aktifkan sekarang', 'Activar ahora'],
+    'Pay a member deposit or choose an agent level to activate.': [
+        '缴纳会员保证金或选择代理等级，即可激活。',
+        'Bayar deposit ahli atau pilih tahap ejen untuk mengaktifkan akaun.',
+        'Paga el depósito de miembro o elige un nivel de agente para activar tu cuenta.',
+    ],
+    'Ordinary members pay a deposit with no annual fee. Active agents are exempt from the deposit.':
+        [
+            '普通会员免年费，需缴保证金；有效代理免保证金。',
+            'Ahli biasa membayar deposit tanpa yuran tahunan. Ejen aktif dikecualikan daripada deposit.',
+            'Los miembros ordinarios pagan un depósito, sin cuota anual. Los agentes activos están exentos del depósito.',
+        ],
+    'Your deposit can be converted into an agent annual fee when upgrading.': [
+        '升级代理时，保证金可转为年费并补交差额。',
+        'Deposit boleh ditukar kepada yuran tahunan ejen semasa naik taraf dengan membayar perbezaan.',
+        'Al ascender, el depósito puede convertirse en cuota anual y solo pagas la diferencia.',
+    ],
+    'Deposit converted to annual fee': [
+        '保证金转入年费',
+        'Deposit ditukar kepada yuran tahunan',
+        'Depósito convertido en cuota anual',
+    ],
+    'Annual fee settlement total': [
+        '本次结算年费',
+        'Jumlah yuran tahunan diselesaikan',
+        'Cuota anual liquidada',
+    ],
+    'Wallet payment': ['本次余额实付', 'Bayaran daripada baki dompet', 'Pago desde el saldo'],
+    'The converted deposit becomes annual fee and is no longer refundable as a deposit. Commission uses only the wallet payment; annual fee returns include the converted deposit.':
+        [
+            '转入部分成为年费，不再单独退还保证金。返佣按余额实付计算，达标返年费包含保证金转入部分。',
+            'Deposit yang ditukar menjadi yuran tahunan dan tidak boleh dipulangkan sebagai deposit. Komisen dikira atas bayaran dompet sahaja; pulangan yuran termasuk deposit yang ditukar.',
+            'El depósito convertido pasa a ser cuota anual y ya no se devuelve como depósito. La comisión se calcula solo sobre el pago del saldo; la devolución anual incluye el depósito convertido.',
+        ],
+    'Active agents do not need a security deposit.': [
+        '有效代理无需缴纳保证金。',
+        'Ejen aktif tidak perlu membayar deposit keselamatan.',
+        'Los agentes activos no necesitan depósito de garantía.',
+    ],
+    'Current deposit': ['当前保证金', 'Deposit semasa', 'Depósito actual'],
+    'Activate your account before opening a card.': [
+        '请先激活账号再开卡。',
+        'Aktifkan akaun sebelum membuka kad.',
+        'Activa tu cuenta antes de solicitar una tarjeta.',
+    ],
+    'Each account activates once through a member deposit or agent purchase. Only first activation through a deposit earns activation commission; direct agent purchases earn annual fee commission only.':
+        [
+            '账号通过缴纳会员保证金或购买代理首次激活，仅计一次。只有首次通过保证金激活才产生激活佣金；直接购买代理仅产生年费佣金。',
+            'Akaun diaktifkan sekali melalui deposit ahli atau pembelian ejen. Hanya pengaktifan pertama melalui deposit menghasilkan komisen pengaktifan; pembelian ejen terus menghasilkan komisen yuran tahunan sahaja.',
+            'La cuenta se activa una vez mediante un depósito o la compra de agente. Solo la primera activación mediante depósito genera comisión de activación; la compra directa de agente genera únicamente comisión anual.',
+        ],
+    'Annual fee commission uses the wallet payment only. Direct agents earn their own rate regardless of the payer’s level. Indirect agents must be at or above the payer’s purchased level and earn only the uncovered rate difference. Ineligible ancestors do not consume a rate share.':
+        [
+            '年费佣金仅按余额实付计算。直推代理按本人比例获佣，不受付款人等级限制。间推代理等级须不低于付款人购买后的等级，仅获得未覆盖的比例差额；无资格的中间层不占比例。',
+            'Komisen yuran tahunan hanya berdasarkan bayaran dompet. Ejen langsung menerima kadar sendiri tanpa mengira tahap pembayar. Ejen tidak langsung mesti setaraf atau lebih tinggi daripada tahap yang dibeli dan hanya menerima perbezaan kadar yang belum diliputi. Ejen tidak layak tidak menggunakan bahagian kadar.',
+            'La comisión anual se basa solo en el pago del saldo. El agente directo recibe su porcentaje sin importar el nivel del pagador. Los agentes indirectos deben tener un nivel igual o superior al adquirido y reciben solo la diferencia no cubierta. Los no elegibles no consumen porcentaje.',
+        ],
+    'Count each account once at its first deposit or agent activation within the paid year: direct as 1 and indirect as 0.5. Renewals, upgrades and repeat deposits do not count again. Eligible annual fee returns include converted deposits and are credited automatically to USDT. Upgrades keep progress and expiry.':
+        [
+            '年度内首次缴纳保证金或购买代理的账号仅计一次：直属计1，间推计0.5。续费、升级和重复缴纳不重复计数。达标后年费自动返入USDT，包含保证金转换额；升级保留进度与到期日。',
+            'Setiap akaun dikira sekali pada deposit atau pembelian ejen pertama dalam tahun berbayar: langsung 1, tidak langsung 0.5. Pembaharuan, naik taraf dan deposit berulang tidak dikira semula. Pulangan yuran termasuk deposit ditukar dan dikreditkan automatik ke USDT. Naik taraf mengekalkan kemajuan dan tarikh luput.',
+            'Cada cuenta cuenta una vez al hacer su primer depósito o compra de agente durante el año: directa 1, indirecta 0,5. Renovaciones, ascensos y depósitos repetidos no suman otra vez. La devolución incluye depósitos convertidos y se abona automáticamente en USDT. El ascenso conserva el progreso y el vencimiento.',
+        ],
+    'Each account counts once on its first member deposit or agent purchase. Annual fees are returned automatically when the target is reached.':
+        [
+            '每个账号首次缴纳会员保证金或购买代理仅计一次，达标后自动返还年费。',
+            'Setiap akaun dikira sekali pada deposit ahli atau pembelian ejen pertama. Yuran tahunan dipulangkan secara automatik apabila sasaran dicapai.',
+            'Cada cuenta cuenta una sola vez al hacer el primer depósito o compra de agente. La cuota se devuelve automáticamente al alcanzar el objetivo.',
+        ],
+    'Confirm the quoted deposit conversion and USDT payment. Converted deposits become annual fees and cannot be refunded separately. Membership lasts one year; rewards are not guaranteed.':
+        [
+            '请确认报价中的保证金转换额与USDT实付金额。转入的保证金成为年费，不再单独退还。等级有效期一年，奖励不作保证。',
+            'Sahkan penukaran deposit dan bayaran USDT dalam sebut harga. Deposit ditukar menjadi yuran tahunan dan tidak boleh dipulangkan berasingan. Keahlian sah setahun; ganjaran tidak dijamin.',
+            'Confirma la conversión del depósito y el pago USDT indicados. El depósito convertido pasa a ser cuota anual y no se devuelve por separado. La membresía dura un año; las recompensas no están garantizadas.',
+        ],
+
+    'Commission is automatically credited to your USDT balance.': [
+        '佣金自动计入 USDT 余额',
+        'Komisen dikreditkan secara automatik ke baki USDT anda.',
+        'Las comisiones se abonan automáticamente a tu saldo USDT.',
+    ],
+    'Commission credited to USDT': [
+        '佣金转入 USDT',
+        'Komisen dikreditkan ke USDT',
+        'Comisión abonada en USDT',
+    ],
+    'Annual fee return progress after payment': [
+        '支付后年费返还进度',
+        'Kemajuan pulangan yuran selepas pembayaran',
+        'Progreso de devolución tras el pago',
+    ],
+    'After successful payment, {{amount}} USDT will be returned automatically.': [
+        '支付成功后，将自动返还 {{amount}} USDT。',
+        'Selepas pembayaran berjaya, {{amount}} USDT akan dipulangkan secara automatik.',
+        'Tras completar el pago, se devolverán automáticamente {{amount}} USDT.',
+    ],
+    'Cumulative commission': ['累计佣金', 'Komisen terkumpul', 'Comisiones acumuladas'],
+    'Annual fee return progress': [
+        '年费返还进度',
+        'Kemajuan pulangan yuran tahunan',
+        'Progreso de devolución anual',
+    ],
+    'Annual fee return is processing.': [
+        '年费返还处理中',
+        'Pulangan yuran tahunan sedang diproses.',
+        'La devolución anual se está procesando.',
+    ],
+    'Annual fee returned: {{amount}} USDT': [
+        '年费已返还 {{amount}} USDT',
+        'Yuran tahunan dipulangkan: {{amount}} USDT',
+        'Cuota anual devuelta: {{amount}} USDT',
+    ],
+    '{{count}} more weighted account activations to automatically return {{amount}} USDT': [
+        '激活进度还差 {{count}}，达标自动返还 {{amount}} USDT',
+        'Baki {{count}} pengaktifan akaun berwajaran untuk pulangan automatik {{amount}} USDT',
+        'Faltan {{count}} activaciones de cuenta ponderadas para devolver automáticamente {{amount}} USDT',
+    ],
+    'Direct counts as 1; indirect as 0.5.': [
+        '直属计1，间推计0.5',
+        'Langsung dikira 1; tidak langsung 0.5.',
+        'Directos cuentan 1; indirectos 0.5.',
+    ],
+    'Automatic return completed': [
+        '已自动返还',
+        'Pulangan automatik selesai',
+        'Devolución automática completada',
+    ],
+    'Annual fee return is processing. Try upgrading shortly.': [
+        '年费返还处理中，请稍后升级。',
+        'Pulangan yuran sedang diproses. Cuba naik taraf sebentar lagi.',
+        'Devolución en proceso. Intenta mejorar el nivel en breve.',
+    ],
+    'Annual fees are returned automatically for this period.': [
+        '本年度年费自动返还，无需申请或审核。',
+        'Yuran tempoh ini dipulangkan secara automatik.',
+        'Las cuotas de este periodo se devuelven automáticamente.',
+    ],
+    'Each account counts once on its first successful deposit activation. Annual fees are returned automatically when the target is reached.':
+        [
+            '按首次成功缴纳保证金的激活账号去重计数，同一账号只计一次，达标后自动返还年费。',
+            'Setiap akaun dikira sekali pada pengaktifan deposit pertama yang berjaya. Yuran dipulangkan automatik apabila sasaran dicapai.',
+            'Cada cuenta cuenta una sola vez al activar su depósito por primera vez. La cuota se devuelve automáticamente al alcanzar la meta.',
+        ],
+    'Count each account once when first activated by a successful deposit within the paid year: direct as 1 and indirect as 0.5. Repeat deposits do not count. On reaching the target, paid, unreturned annual fees are returned automatically to your USDT wallet. Upgrades retain progress and use the new target; returned fees do not reduce the upgrade tariff.':
+        [
+            '统计付费年度内首次成功缴纳保证金的激活账号，同一账号只计一次：直属计1，间推计0.5；重复缴纳不增加计数。达标后，本年度已付且尚未返还的年费自动返入USDT钱包。升级保留进度并采用新门槛；已返年费不减少升级补差基数。',
+            'Setiap akaun dikira sekali apabila diaktifkan melalui deposit pertama yang berjaya dalam tahun berbayar: langsung 1, tidak langsung 0.5. Deposit berulang tidak dikira. Apabila sasaran dicapai, yuran berbayar yang belum dipulangkan dikreditkan automatik ke dompet USDT. Naik taraf mengekalkan kemajuan dengan sasaran baharu; pulangan tidak mengurangkan asas tarif naik taraf.',
+            'Cada cuenta cuenta una vez al activarse con su primer depósito durante el año pagado: directa 1 e indirecta 0,5. Los depósitos repetidos no cuentan. Al alcanzar la meta, las cuotas pagadas y no devueltas se abonan automáticamente a tu billetera USDT. Las mejoras conservan el progreso con una nueva meta; las devoluciones no reducen la base de la tarifa de mejora.',
+        ],
+
     Filters: ['筛选', 'Tapis', 'Filtros'],
     'Apply filters': ['确定', 'Gunakan', 'Aplicar'],
     'Clear filter': ['清除筛选', 'Kosongkan penapis', 'Quitar filtro'],
@@ -266,11 +436,11 @@ export const paidPromotionCatalog = {
         'Syarat pulangan yuran tahunan',
         'Condiciones de devolución de cuota',
     ],
-    'Rebate requires {{target}} weighted funding events. Direct counts as one; indirect counts as half.':
+    'Automatic return requires {{target}} weighted activated accounts. Each direct account counts as 1; each indirect account as 0.5.':
         [
-            '达到 {{target}} 次折算缴纳可申请返年费：直属每次计 1，间推每次计 0.5。',
-            'Capai {{target}} pendanaan berwajaran untuk memohon pulangan: langsung dikira 1, tidak langsung 0.5.',
-            'Puedes solicitar la devolución al alcanzar {{target}} aportaciones ponderadas: directa cuenta 1 e indirecta 0,5.',
+            '激活账号折算达到 {{target}} 即自动返年费：直属账号计1，间推账号计0.5。',
+            'Pulangan automatik memerlukan {{target}} akaun aktif berwajaran. Setiap akaun langsung dikira 1; tidak langsung 0.5.',
+            'La devolución automática requiere {{target}} cuentas activadas ponderadas: cada directa cuenta 1 y cada indirecta 0,5.',
         ],
     'Next: review fees': [
         '下一步：核对费用',
@@ -315,11 +485,6 @@ export const paidPromotionCatalog = {
         '支付 {{amount}} USDT，购买{{level}}，有效期一年，不自动续费。',
         'Bayar {{amount}} USDT untuk {{level}}, sah setahun. Tiada pembaharuan automatik.',
         'Paga {{amount}} USDT por {{level}}, válido un año. Sin renovación automática.',
-    ],
-    'Apply to return {{amount}} USDT of annual fees. Approval does not cancel your level.': [
-        '申请返还 {{amount}} USDT 年费。审核通过不影响等级有效期。',
-        'Mohon pulangan yuran {{amount}} USDT. Kelulusan tidak membatalkan tahap anda.',
-        'Solicita la devolución de {{amount}} USDT. La aprobación no cancela tu nivel.',
     ],
 
     'Promotion annual fee paid': [
@@ -474,37 +639,10 @@ export const paidPromotionCatalog = {
         'Dibayar {{paid}}; dipulangkan {{returned}}; baki {{remaining}} USDT',
         'Pagado {{paid}}; devuelto {{returned}}; pendiente {{remaining}} USDT',
     ],
-    'Each successful deposit funding counts. Apply before expiry; the platform reviews your request.':
-        [
-            '每次实际成功缴纳均计数。请在到期前申请，由平台审核返还。',
-            'Setiap bayaran deposit berjaya dikira. Mohon sebelum tamat; platform menyemak permohonan.',
-            'Cada aporte de garantía completado cuenta. Solicite antes del vencimiento; la plataforma revisará la solicitud.',
-        ],
-    'Apply for annual fee rebate': [
-        '申请返还年费',
-        'Mohon pulangan yuran',
-        'Solicitar devolución de cuota',
-    ],
-    'Submit the current annual fee rebate for review. Approval returns eligible fees to your USDT balance without cancelling your level.':
-        [
-            '提交本年度年费返还申请。审核通过后返至 USDT 余额，等级保留到期。',
-            'Hantar permohonan pulangan tahun semasa. Jika diluluskan, yuran dipulangkan ke baki USDT dan tahap kekal sehingga tamat.',
-            'Envíe la solicitud del año actual. Al aprobarla se devuelve la cuota al saldo USDT y se conserva el nivel hasta su vencimiento.',
-        ],
     'Fee rebate history': [
         '年费返还记录',
         'Rekod pulangan yuran',
         'Historial de devoluciones de cuotas',
-    ],
-    'Withdraw rebate request': [
-        '撤回返费申请',
-        'Tarik balik permohonan',
-        'Retirar solicitud de devolución',
-    ],
-    'Withdraw this pending request. No funds will move.': [
-        '撤回这笔待审核申请，不产生资金变动。',
-        'Tarik balik permohonan belum selesai. Tiada dana dipindahkan.',
-        'Retirar esta solicitud pendiente. No se moverán fondos.',
     ],
     'Back to promotion': ['返回推广中心', 'Kembali ke promosi', 'Volver a promoción'],
     'Under review': ['审核中', 'Dalam semakan', 'En revisión'],
@@ -520,11 +658,6 @@ export const paidPromotionCatalog = {
         'Configuración de promoción de pago',
     ],
     'Promotion tariffs': ['推广等级收费规则', 'Tarif promosi', 'Tarifas de promoción'],
-    'Annual fee rebate review': [
-        '年费返还审核',
-        'Semakan pulangan yuran',
-        'Revisión de devolución de cuota',
-    ],
     'Rules apply to new payments only. Qualification requires payment; manual level assignment is unavailable.':
         [
             '规则仅用于新付款。等级须付款获得，不支持手动分配。',
@@ -540,7 +673,6 @@ export const paidPromotionCatalog = {
     ],
     'Fee rebate target': ['返年费门槛', 'Sasaran pulangan yuran', 'Objetivo de devolución'],
     'Review decision': ['审核决定', 'Keputusan semakan', 'Decisión de revisión'],
-    'Approve rebate': ['通过并返还', 'Lulus dan pulangkan', 'Aprobar y devolver'],
     'Reject request': ['拒绝申请', 'Tolak permohonan', 'Rechazar solicitud'],
     'Review reason': ['审核说明', 'Sebab semakan', 'Motivo de revisión'],
     'Submit review': ['确认审核', 'Sahkan semakan', 'Confirmar revisión'],
@@ -566,21 +698,6 @@ export const paidPromotionCatalog = {
         'Kos komisen yuran tahunan',
         'Coste de comisiones por cuotas',
     ],
-    'Fee rebate request submitted.': [
-        '返年费申请已提交。',
-        'Permohonan pulangan dihantar.',
-        'Solicitud de devolución enviada.',
-    ],
-    'Fee rebate request withdrawn.': [
-        '返年费申请已撤回。',
-        'Permohonan pulangan ditarik balik.',
-        'Solicitud de devolución retirada.',
-    ],
-    'Fee rebate review completed.': [
-        '返年费审核已完成。',
-        'Semakan pulangan selesai.',
-        'Revisión de devolución completada.',
-    ],
     'The promotion quote expired. Request a new quote.': [
         '年费报价已过期，请重新获取。',
         'Sebut harga tamat. Dapatkan yang baharu.',
@@ -596,25 +713,10 @@ export const paidPromotionCatalog = {
         'Hanya naik taraf dibenarkan sebelum tamat.',
         'Antes del vencimiento solo se permiten mejoras de nivel.',
     ],
-    'Withdraw the pending fee rebate request before upgrading.': [
-        '请先撤回审核中的返年费申请，再升级。',
-        'Tarik balik permohonan pulangan sebelum naik taraf.',
-        'Retire la solicitud de devolución pendiente antes de mejorar el nivel.',
-    ],
-    'A fee rebate request is already under review.': [
-        '已有一笔返年费申请正在审核。',
-        'Permohonan pulangan sedang disemak.',
-        'Ya hay una solicitud de devolución en revisión.',
-    ],
     'The annual fee rebate requirements are not met.': [
         '尚未达到返年费条件，或已无可返金额。',
         'Syarat pulangan belum dipenuhi atau tiada amaun boleh dipulangkan.',
         'No se cumplen las condiciones de devolución o no queda importe reembolsable.',
-    ],
-    'This fee rebate request is already finalized.': [
-        '该返年费申请已结束。',
-        'Permohonan pulangan ini telah dimuktamadkan.',
-        'Esta solicitud de devolución ya ha finalizado.',
     ],
     'An active paid promotion period is required.': [
         '需要有效的付费推广资格。',
@@ -672,11 +774,11 @@ export const paidPromotionCatalog = {
             'Rakan yang mendaftar melalui pautan atau kod anda menyertai pasukan anda. Jemputan langsung dan tidak langsung dikira berasingan.',
             'Los amigos que se registran con tu enlace o código se unen a tu equipo. Los invitados directos y los descendientes indirectos se cuentan por separado.',
         ],
-    'A successful security deposit payment triggers activation rewards. Registration and paying an annual fee are not deposit activation. A new payment after a refund can earn rewards again; cancelling a refund is not a new activation.':
+    'Only the first successful security deposit payment triggers activation rewards. Registration and paying an annual fee are not deposit activation.':
         [
-            '保证金成功缴纳后触发激活奖励。注册、支付推广年费不算保证金激活。退款后重新缴纳可再次返佣；取消退款不算新激活。',
-            'Bayaran deposit jaminan yang berjaya mencetuskan ganjaran pengaktifan. Pendaftaran dan yuran tahunan bukan pengaktifan. Bayaran baharu selepas bayaran balik boleh mendapat ganjaran lagi; pembatalan bayaran balik bukan pengaktifan baharu.',
-            'El pago correcto de la garantía genera recompensas de activación. Registrarse o pagar la cuota anual no activa la garantía. Un nuevo pago tras un reembolso puede generar otra recompensa; cancelar el reembolso no es una nueva activación.',
+            '仅首次成功缴纳保证金触发激活奖励。注册、支付推广年费不算保证金激活。',
+            'Hanya bayaran deposit jaminan pertama yang berjaya mencetuskan ganjaran pengaktifan. Pendaftaran dan bayaran yuran tahunan bukan pengaktifan deposit.',
+            'Solo el primer pago correcto de la garantía genera recompensas de activación. Registrarse o pagar la cuota anual no activa la garantía.',
         ],
     'Reward differentials': ['奖励级差', 'Perbezaan ganjaran', 'Diferencias de recompensa'],
     'The direct inviter earns their activation standard; higher ancestors earn only the positive uncovered difference. Ordinary members earn 20 USDT for direct activations only. The payer’s own level does not reduce their direct inviter’s reward.':
@@ -698,12 +800,6 @@ export const paidPromotionCatalog = {
             'Keahlian sah setahun dengan pembaharuan manual selepas tamat. Keahlian aktif hanya boleh dinaik taraf dengan membayar beza tarif tanpa mengubah tarikh tamat. Selepas tamat, ganjaran ahli biasa terpakai; komisen lama kekal.',
             'El nivel dura un año y se renueva manualmente tras vencer. Durante su vigencia solo se permite mejorar pagando la diferencia, sin cambiar el vencimiento. Al vencer se aplican recompensas ordinarias; las comisiones pasadas se conservan.',
         ],
-    'Each paid year counts direct deposit payments as one and indirect payments as half. On reaching your level’s threshold, apply before expiry for platform review. Returns are limited to that cycle’s paid, unreturned annual fees. Upgrades retain progress and apply the new threshold; returned fees do not reduce the upgrade tariff.':
-        [
-            '每个付费年度内，直属保证金缴纳计1次，间推计0.5次。达到等级门槛后需在到期前申请，由平台审核；最多返还本周期已付且尚未返还的年费。升级保留进度并采用新门槛；已返年费不减少补差基数。',
-            'Setiap tahun berbayar mengira bayaran deposit langsung sebagai satu dan tidak langsung sebagai separuh. Apabila mencapai ambang tahap, mohon sebelum tamat untuk semakan platform. Pulangan terhad kepada yuran kitaran yang dibayar dan belum dipulangkan. Naik taraf mengekalkan kemajuan dengan ambang baharu; yuran yang dipulangkan tidak mengurangkan asas tarif naik taraf.',
-            'En cada año pagado, las garantías directas cuentan como una y las indirectas como media. Al alcanzar el umbral, solicita la devolución antes del vencimiento para revisión. Solo se devuelve la cuota pagada y aún no devuelta del ciclo. Las mejoras conservan el progreso y usan el nuevo umbral; las devoluciones no reducen la base de la mejora.',
-        ],
     'Annual fee rebate thresholds': [
         '返年费门槛',
         'Ambang pemulangan yuran tahunan',
@@ -718,11 +814,6 @@ export const paidPromotionCatalog = {
         '此处展示当前可购买等级的门槛；你的付费年度按已保存的条款执行。',
         'Ambang ini ialah terma tawaran semasa. Tahun berbayar anda menggunakan terma tersimpan.',
         'Estos umbrales son los de la oferta actual. Tu año pagado utiliza las condiciones guardadas.',
-    ],
-    'Manage annual fee rebate': [
-        '管理年费返还',
-        'Urus pemulangan yuran',
-        'Gestionar devolución anual',
     ],
     'Promotion level benefits': [
         '推广等级权益',

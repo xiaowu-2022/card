@@ -91,7 +91,7 @@ final class AssetsController extends Controller
 
         return $base + match ($mode) {
             'deposit' => ['network' => $o->network, 'address' => $o->address, 'expiresAt' => $o->expires_at->toIso8601String()],
-            'withdrawal' => ['network' => $o->network, 'address' => app(WithdrawalAddressProtector::class)->mask($o->address), 'fee' => $o->fee_amount, 'receive' => (string) BigDecimal::of($o->amount)->minus($o->fee_amount), 'canCancel' => $o->status === 'PENDING'],
+            'withdrawal' => ['network' => $o->network, 'address' => app(WithdrawalAddressProtector::class)->mask($o->address), 'feePercent' => $o->fee_percent, 'fee' => $o->fee_amount, 'receive' => (string) BigDecimal::of($o->amount)->minus($o->fee_amount), 'canCancel' => $o->status === 'PENDING'],
             'exchange' => ['rate' => $o->rate, 'fee' => $o->fee_amount, 'receive' => $o->receive_amount, 'expiresAt' => $o->expires_at->toIso8601String(), 'canConfirm' => $o->status === 'QUOTED' && $o->expires_at->isFuture()],
         };
     }

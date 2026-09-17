@@ -12,8 +12,6 @@ use App\Domain\Ledger\Services\LedgerWriter;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Payment\Enums\WalletTopupStatus;
 use App\Domain\Payment\Models\WalletTopupOrder;
-use App\Domain\SecurityDeposit\Models\InitialDepositIntent;
-use App\Jobs\AllocateInitialDeposit;
 use App\Support\Errors\DomainException;
 use Illuminate\Support\Facades\DB;
 
@@ -61,17 +59,6 @@ final readonly class CreditWalletTopupAction
             $order->ledger_entry_id = $entry->id;
             $order->credited_at = now();
             $order->save();
-            if ($order->asset_code === 'USDT') {
-                $intent = InitialDepositIntent::query()->firstOrCreate(
-                    ['tenant_id' => $tenantId, 'user_id' => $order->user_id], ['topup_id' => $order->id, 'status' => 'PENDING'],
-                );
-                DB::afterCommit(function () use ($intent): void {
-                    try {
-                        AllocateInitialDeposit::dispatch($intent->tenant_id, $intent->id);
-                    } catch (\Throwable) { /* Durable intent is retried by promotion:recover. Never undo an externally paid credit. */
-                    }
-                });
-            }
             $this->audit->record($tenantId, 'SYSTEM', null, 'WALLET_TOPUP_CREDITED', 'wallet_topup_order', $order->id, null, [
                 'asset' => $order->asset_code, 'status' => WalletTopupStatus::Credited->value, 'ledger_entry_id' => $entry->id,
             ]);

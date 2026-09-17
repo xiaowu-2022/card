@@ -14,6 +14,6 @@ final class AssetWithdrawalOrder extends AssetRecord
 
     protected function casts(): array
     {
-        return ['amount' => AssetAmountCast::class, 'fee_amount' => AssetAmountCast::class, 'address' => WithdrawalAddressCast::class, 'reviewed_at' => 'immutable_datetime'];
+        return ['fee_percent' => 'decimal:8', 'amount' => AssetAmountCast::class, 'fee_amount' => AssetAmountCast::class, 'address' => WithdrawalAddressCast::class, 'reviewed_at' => 'immutable_datetime'];
     }
 }

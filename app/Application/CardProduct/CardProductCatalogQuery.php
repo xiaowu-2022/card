@@ -118,12 +118,12 @@ final readonly class CardProductCatalogQuery
             $available = $state['available'];
             $baseReady = $state['tenantStatus'] === 'ACTIVE' && $state['userStatus'] === 'ACTIVE'
                 && $state['kycStatus'] === 'APPROVED' && $state['walletStatus'] === 'ACTIVE'
-                && $state['depositSatisfied'] && ($state['wallet']['asset'] ?? null) === 'USDT';
+                && $state['activationSatisfied'] && ($state['wallet']['asset'] ?? null) === 'USDT';
             $enough = $available !== null && $available['asset'] === 'USDT'
                 && Money::of($available['amount'], 'USDT')->compare($required) >= 0;
             $ready = $baseReady && $enough;
             $guidance = match (true) {
-                $state['reasonCodes'] === ['SECURITY_DEPOSIT_INSUFFICIENT'] => 'Top up your security deposit before opening a card.',
+                $state['reasonCodes'] === ['SECURITY_DEPOSIT_INSUFFICIENT'] => 'Activate your account before opening a card.',
                 ! $baseReady => 'Complete verification, wallet setup, and security deposit first.',
                 ! $enough => 'Add funds before opening a card.',
                 default => 'Ready for card setup.',

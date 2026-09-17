@@ -10,6 +10,6 @@ final class CompanyRail extends AssetRecord
 
     protected function casts(): array
     {
-        return ['deposit_enabled' => 'boolean', 'withdrawal_enabled' => 'boolean'];
+        return ['deposit_enabled' => 'boolean', 'withdrawal_enabled' => 'boolean', 'withdrawal_fee_percent' => 'decimal:8'];
     }
 }

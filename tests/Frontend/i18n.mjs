@@ -258,9 +258,9 @@ test('deposit activation uses a direct localized entry and exact editable minimu
     const dashboard = readFileSync('resources/js/pages/user/Dashboard.tsx', 'utf8');
     assert.ok(!wallet.includes("router.post('/wallet/activate')"));
     assert.ok(dashboard.includes("label: t('Activate wallet'), href: '/security-deposit'"));
-    assert.ok(dashboard.includes('if (!wallet.depositSatisfied)'));
+    assert.ok(dashboard.includes('if (!wallet.activationSatisfied)'));
     assert.ok(dashboard.includes("title={t('Set up your wallet')}"));
-    assert.ok(dashboard.includes("title={t('Security deposit required')}"));
+    assert.ok(dashboard.includes("title={t('Account pending activation')}"));
     assert.equal(catalog['Pending activation'][0], '待激活');
     const form = readFileSync('resources/js/components/user/DepositTopupForm.tsx', 'utf8');
     assert.ok(!form.includes("t('Deposit top-up is currently unavailable.')"));
@@ -272,7 +272,7 @@ test('deposit activation uses a direct localized entry and exact editable minimu
 
 test('the funded deposit banner displays actual deposited money instead of a generic success message', () => {
     const page = readFileSync('resources/js/pages/user/SecurityDeposit.tsx', 'utf8');
-    const funded = page.split('{preview.satisfied ? (')[1].split(') : !preview.canFund ? (')[0];
+    const funded = page.split('preview.satisfied ? (')[1].split(') : !preview.canFund ? (')[0];
     assert.ok(funded.includes("t('Security deposit')"));
     assert.ok(funded.includes('<MoneyDisplay {...preview.current} />'));
     assert.ok(!funded.includes('preview.required'));
@@ -389,18 +389,14 @@ test('top-up instructions use the persisted exact amount and address in a locall
     assert.equal(exactAmount('10000000000.99000000'), '10000000000.99');
 });
 
-test('promotion redesign retains financial confirmation, exact amounts and independent pagination', () => {
+test('promotion income credits USDT automatically and retains independent pagination', () => {
     const page = readFileSync('resources/js/pages/user/Promotion.tsx', 'utf8');
     for (const invariant of [
-        '<FinancialConfirmation',
-        "action: 'transfer', request_id: requestId",
-        '!p.canTransfer',
-        '!p.supported',
-        'systemMoney(p.availableCommission)',
         'direct_page: p.directPage',
         'page: p.page',
         'page: 1',
         'promotion-stats-daily',
+        'Commission is automatically credited to your USDT balance.',
     ])
         assert.ok(page.includes(invariant), invariant);
     assert.ok(page.includes('p.page > 1 || p.hasMore'));
@@ -548,11 +544,11 @@ test('refund notices are localized separate bullet points on the page and in con
     }
     assert.ok(!controls.includes('A deposit refund does not affect your commission.'));
     const commissionNotice = 'During and after a deposit refund, commission can still be earned but cannot be transferred to your wallet or withdrawn. Existing wallet balance can still be withdrawn.';
-    assert.ok(controls.includes(commissionNotice));
+    assert.ok(!controls.includes(commissionNotice));
     const promotion = readFileSync('resources/js/pages/user/Promotion.tsx', 'utf8');
-    assert.ok(promotion.includes('!p.canTransfer'));
-    assert.ok(promotion.includes('p.commissionRefundRestricted'));
-    assert.ok(promotion.includes('During and after a deposit refund, commission can still be earned but cannot be transferred to your wallet or withdrawn. Existing wallet balance can still be withdrawn.'));
+    assert.ok(!promotion.includes('canTransfer'));
+    assert.ok(!promotion.includes('commissionRefundRestricted'));
+    assert.ok(!promotion.includes(commissionNotice));
 });
 
 test('deposit history is a separate page with a top-right entry and no embedded refund list', () => {
@@ -1763,7 +1759,9 @@ test('promotion reports keep income, transfers and member contributions distinct
         for (const locale of locales) {
             void i18n.clientI18n.changeLanguage(locale);
             const home = renderToStaticMarkup(React.createElement(Promotion, { promotion: p }));
-            for (const amount of ['16,880.00 USDT', '18,000.00']) assert.ok(home.includes(amount));
+            assert.ok(home.includes('18,000.00'));
+            assert.ok(!home.includes('16,880.00 USDT'));
+            assert.ok(home.includes(i18n.t('Commission is automatically credited to your USDT balance.')));
             assert.ok(home.includes('id="team-summary"'));
             assert.ok(!home.includes('href="/promotion/team"'));
             const daily = renderToStaticMarkup(React.createElement(Report, { section: 'daily', report: {
@@ -1785,13 +1783,7 @@ test('promotion reports keep income, transfers and member contributions distinct
             assert.ok(rows.includes('80 %'));
             assert.equal((rows.match(/202609134788/g) ?? []).length, 2);
             assert.ok(!rows.includes('Asia/Kuala_Lumpur'));
-            const transfers = renderToStaticMarkup(React.createElement(Commissions, { history: {
-                ...history, tab: 'transfers', totals: { total: '20' }, items: [{ id: 'transfer', kind: 'transferred', amount: '20', occurredAt: '2026-09-13T09:50:00Z' }],
-            } }));
-            assert.ok(transfers.includes('20.00 USDT'));
-            assert.ok(!transfers.includes('-20.00') && !transfers.includes('+20.00'));
-            assert.ok(!transfers.includes(i18n.t('Source account ID')));
-            assert.ok(!transfers.includes(i18n.t('Annual fee commission')));
+            assert.ok(!rows.includes(i18n.t('Transfers to balance')));
 
         }
     } finally { void i18n.clientI18n.changeLanguage(previousLocale); }
@@ -1827,4 +1819,132 @@ test('saved consumer language survives old navigation snapshots without crossing
     assert.equal(resolveConfirmedLocale(consumerLocaleScope('tenant-b', 'user-a'), 'en', ['en', 'zh-CN']), 'en');
     assert.equal(resolveConfirmedLocale(consumerLocaleScope('tenant-a', 'user-b'), 'en', ['en', 'zh-CN']), 'en');
     assert.equal(resolveConfirmedLocale(scope, 'en', ['en']), 'en');
+});
+
+test('multi-asset withdrawal percentages use exact units and round fees up', () => {
+    const { withdrawalPercentageFee: fee } = loadTs('resources/js/lib/exact-amount.ts');
+    assert.equal(fee('100', '1', 'USDT'), '1.000000');
+    assert.equal(fee('0.000101', '1', 'USDC'), '0.000002');
+    assert.equal(fee('0.000000000000000101', '1', 'ETH'), '0.000000000000000002');
+    assert.equal(fee('0.00000101', '1', 'BTC'), '0.00000002');
+    assert.equal(fee('1', '0.00000000', 'BTC'), '0.00000000');
+    assert.equal(fee('0.000001', '1', 'USDC'), null);
+    assert.equal(fee('1', '100', 'ETH'), null);
+    assert.equal(fee('1', '-1', 'ETH'), null);
+    assert.equal(fee('1', null, 'BTC'), null);
+    assert.equal(fee('1.0000001', '1', 'USDT'), null);
+    assert.equal(fee('1e5', '1', 'BTC'), null);
+});
+
+test('annual return progress distinguishes automatic, pending and completed states in four languages', () => {
+    const React = require('react');
+    const { renderToStaticMarkup } = require('react-dom/server');
+    const amounts = loadTs('resources/js/lib/exact-amount.ts');
+    const overrides = { '@/i18n': i18n, '@/lib/exact-amount': amounts, '@inertiajs/react': { Link: 'a' } };
+    overrides['@/lib/paid-promotion'] = loadTs('resources/js/lib/paid-promotion.ts', overrides);
+    const { AnnualRebateProgress } = loadTs('resources/js/components/user/AnnualRebateProgress.tsx', overrides);
+    const initial = { policy: 'AUTO_FIRST_FUNDING', direct: 34, indirect: 3, target: 100, paid: '1000.00000000', returned: '0', remaining: '1000.00000000', pending: false };
+    const previous = i18n.clientI18n.language;
+    try {
+        for (const locale of locales) {
+            void i18n.clientI18n.changeLanguage(locale);
+            const render = progress => renderToStaticMarkup(React.createElement(AnnualRebateProgress, { progress }));
+            const pending = render(initial);
+            assert.ok(pending.includes('aria-valuenow="35.5"'));
+            assert.ok(pending.includes('64.5'));
+            assert.ok(pending.includes('1000 USDT'));
+            assert.ok(!pending.includes('<a'));
+            assert.ok(!pending.includes('{{'));
+            const processing = render({ ...initial, pending: true });
+            assert.ok(processing.includes(i18n.t('Annual fee return is processing.')));
+            const preview = renderToStaticMarkup(React.createElement(AnnualRebateProgress, { progress: { ...initial, direct: 100 }, preview: true }));
+            assert.ok(preview.includes(i18n.t('Annual fee return progress after payment')));
+            assert.ok(preview.includes(i18n.t('After successful payment, {{amount}} USDT will be returned automatically.', {amount:'1000'})));
+            assert.ok(!preview.includes(i18n.t('Annual fee return is processing.')));
+            const complete = render({ ...initial, direct: 101, remaining: '0', returned: '1000' });
+            assert.ok(complete.includes('aria-valuenow="100"'));
+            assert.ok(complete.includes(i18n.t('Annual fee returned: {{amount}} USDT', { amount: '1000' })));
+
+        }
+    } finally { void i18n.clientI18n.changeLanguage(previous); }
+});
+
+test('membership page omits rebate progress and history in every locale', () => {
+    const React = require('react');
+    const { renderToStaticMarkup } = require('react-dom/server');
+    const overrides = {
+        '@/i18n': { ...i18n, useClientTranslation: () => ({ i18n: i18n.clientI18n }) },
+        '@/lib/exact-amount': loadTs('resources/js/lib/exact-amount.ts'),
+        '@inertiajs/react': { Head: () => null, Link: 'a', useForm: data => ({ data, errors: {}, processing: false }) },
+        '@/layouts/UserLayout': { UserLayout: ({ children }) => React.createElement('main', null, children) },
+        '@/components/user/UserPageHeader': { UserPageHeader: ({ title }) => React.createElement('h1', null, title) },
+        '@/components/ui/button': { Button: 'button' },
+        '@/components/ui/dialog': { Dialog: ({ children }) => children, DialogContent: () => null, DialogHeader: 'div', DialogTitle: 'h2', DialogDescription: 'p' },
+        '@/components/user/FinancialConfirmation': { FinancialConfirmation: ({ url, title }) => React.createElement('button', { 'data-action': url }, title) },
+    };
+    overrides['@/lib/paid-promotion'] = loadTs('resources/js/lib/paid-promotion.ts', overrides);
+    overrides['@/components/user/AnnualRebateProgress'] = loadTs('resources/js/components/user/AnnualRebateProgress.tsx', overrides);
+    const Page = loadTs('resources/js/pages/user/PaidPromotion.tsx', overrides).default;
+    const paid = {
+        activation: { agent: true, qualified: true, refundPending: false }, paymentAccess: { verified: true, walletActive: true, canCreateWallet: false },
+        rank: 1, membershipStatus: 'ACTIVE', percent: 30, reward: '50', availableBalance: '2000',
+        cycle: { tariff: '1000', endsAt: '2027-09-17T01:00:00Z', rebatePolicy: 'AUTO_FIRST_FUNDING' },
+        progress: { policy: 'AUTO_FIRST_FUNDING', direct: 35, indirect: 0, target: 100, remaining: '1000', paid: '1000', returned: '0', pending: false },
+        levels: [{ id: 'rank2', rank: 2, enabled: true, fee: '2000', percent: 40, reward: '60', target: 135 }],
+        claims: [], claimsPage: 1, hasMoreClaims: false, pending: false,
+    };
+    const previous = i18n.clientI18n.language;
+    try {
+        for (const locale of locales) {
+            void i18n.clientI18n.changeLanguage(locale);
+            for (const pending of [false, true]) {
+                const html = renderToStaticMarkup(React.createElement(Page, { paid: { ...paid, pending, progress: { ...paid.progress, pending } }, quote: null }));
+                assert.ok(!html.includes(i18n.t('Annual fee return progress')));
+                assert.ok(!html.includes(i18n.t('Fee rebate history')));
+                assert.ok(!html.includes('/promotion/rebates'));
+                assert.ok(!html.includes('MANUAL'));
+                assert.ok(!html.includes('请在到期前申请'));
+                assert.ok(html.includes(i18n.t('Each account counts once on its first member deposit or agent purchase. Annual fees are returned automatically when the target is reached.')));
+                if (pending) assert.ok(html.includes(i18n.t('Annual fee return is processing. Try upgrading shortly.')));
+                const inactive = { ...paid, rank: 0, cycle: null, membershipStatus: 'NONE', pending: false,
+                    activation: { qualified: false, agent: false, ordinaryAvailable: true, depositRequired: '300', refundPending: false } };
+                const choice = renderToStaticMarkup(React.createElement(Page, { paid: inactive, quote: null }));
+                assert.ok(choice.includes('value="ordinary"'));
+                assert.ok(choice.includes(i18n.t('No annual fee')));
+                assert.ok(choice.includes(i18n.t('Activate your account')));
+                assert.ok(!html.includes('value="ordinary"'));
+                const quote = { id: 'quote', rank: 2, amount: '700', depositApplied: '300', settlementTotal: '1000', previousTariff: '1000', tariff: '2000', status: 'QUOTED', expiresAt: '2099-01-01T00:00:00Z', cycleId: 'cycle' };
+                const review = renderToStaticMarkup(React.createElement(Page, { paid, quote }));
+                for (const key of ['Deposit converted to annual fee', 'Wallet payment', 'Annual fee settlement total']) assert.ok(review.includes(i18n.t(key)));
+
+            }
+        }
+    } finally { void i18n.clientI18n.changeLanguage(previous); }
+});
+
+
+test('assets show the activation entry above accounts only when qualification is missing in four locales', () => {
+    const React = require('react');
+    const { renderToStaticMarkup } = require('react-dom/server');
+    const overrides = {
+        '@/i18n': i18n,
+        '@/lib/exact-amount': loadTs('resources/js/lib/exact-amount.ts'),
+        '@inertiajs/react': { Link: 'a', usePage: () => ({ props: {auth: { user: {id: 'fixture'} }}}) },
+    };
+    overrides['@/components/user/GrowthCampaign'] = loadTs('resources/js/components/user/GrowthCampaign.tsx', { ...overrides, '@/i18n': { ...i18n, useClientTranslation: () => ({ i18n: i18n.clientI18n }) } });
+    const { AssetCenter } = loadTs('resources/js/components/user/AssetCenter.tsx', overrides);
+    const overview = { activation: { qualified: false }, cumulativeCommission: '12.00', estimate: '300', updatedAt: null,
+        assets: [{asset: 'USDT', available: '300', held: '0', deposit: '0', exchange: false, rails: [], activity: []}] };
+    const previous = i18n.clientI18n.language;
+    try {
+        for (const locale of locales) {
+            void i18n.clientI18n.changeLanguage(locale);
+            const pending = renderToStaticMarkup(React.createElement(AssetCenter, {overview}));
+            const active = renderToStaticMarkup(React.createElement(AssetCenter, {overview: {...overview, activation: {qualified: true}}}));
+            assert.ok(pending.includes('href="/promotion/membership"'));
+            assert.ok(pending.indexOf(i18n.t('Account pending activation')) < pending.indexOf('id="asset-accounts"'));
+            assert.ok(!active.includes(i18n.t('Account pending activation')));
+            assert.ok(active.includes('href="/promotion/invitations"'));
+        }
+    } finally { void i18n.clientI18n.changeLanguage(previous); }
 });

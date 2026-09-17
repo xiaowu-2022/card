@@ -56,7 +56,7 @@ final class PhotonPayMerchantReport
                         if (! is_string($value) || $value === '' || ! is_string($expiry) || ! ctype_digit($expiry) || strlen($expiry) > 13) {
                             throw new RuntimeException('Reporting authentication unavailable.');
                         }
-                        $ttl = min(600, intdiv((int) $expiry, 1000) - time() - 30);
+                        $ttl = min(6600, intdiv((int) $expiry, 1000) - time() - 30);
                         if ($ttl <= 0) {
                             throw new RuntimeException('Reporting token expired.');
                         }
