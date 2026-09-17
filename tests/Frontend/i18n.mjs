@@ -623,9 +623,9 @@ test('consumer header language and support icons share responsive sizing and str
     assert.match(css, /\.user-header-action svg \{[^}]*width: clamp\(24px, 5\.867cqw, 44px\);[^}]*height: clamp\(24px, 5\.867cqw, 44px\);/);
 });
 
-test('card controls expose four primary actions and permission-scoped management in More', () => {
+test('card controls expose primary unfreeze for frozen cards and permission-scoped management in More', () => {
     const source = readFileSync('resources/js/components/user/CardManagementActions.tsx', 'utf8');
-    assert.ok(source.includes("const actions = ['reveal', 'load', 'return', 'transactions']"));
+    assert.match(source, /const actions = \[\s*'reveal',\s*card.state === 'Frozen' \? 'unfreeze' : 'load',\s*'return',\s*'transactions',?\s*\]/);
     assert.ok(source.includes("const moreActions = ['freeze', 'unfreeze', 'holder', 'cancel'].filter"));
     const controls = source.slice(source.indexOf('data-card-actions'), source.indexOf('<Dialog\n'));
     assert.ok(controls.includes('capabilities.includes(action)'));
@@ -682,7 +682,7 @@ test('card reload displays the server wallet balance and confirms the same serve
 
 test('opening a card starts with product selection even with a single product and preserves pending application gates', () => {
     const page = readFileSync('resources/js/pages/user/Cards.tsx', 'utf8');
-    const trigger = page.slice(page.indexOf('id="open-card-application"'), page.indexOf('aria-haspopup="dialog"'));
+    const trigger = page.slice(page.indexOf('id="open-card-application"'), page.indexOf('aria-haspopup="dialog"', page.indexOf('id="open-card-application"')));
     assert.ok(trigger.includes('setChoosingCard(true)'));
     assert.ok(!trigger.includes('setApplicationProductId'));
     assert.ok(page.includes('data-card-product-picker'));
@@ -1533,7 +1533,7 @@ test('default card display name follows the selected language and keeps U unchan
         void i18n.clientI18n.changeLanguage(previousLocale);
     }
     const page = readFileSync('resources/js/pages/user/Cards.tsx', 'utf8');
-    for (const field of ['option.name', 'product.name', 'firstProduct.name', 'card.productName'])
+    for (const field of ['option.name', 'product.name', 'card.productName'])
         assert.ok(page.includes(`cardDisplayName(${field})`), field);
 });
 
@@ -1884,6 +1884,7 @@ test('membership page omits rebate progress and history in every locale', () => 
     };
     overrides['@/lib/paid-promotion'] = loadTs('resources/js/lib/paid-promotion.ts', overrides);
     overrides['@/components/user/AnnualRebateProgress'] = loadTs('resources/js/components/user/AnnualRebateProgress.tsx', overrides);
+    overrides['@/components/user/IdentityVerificationDialog'] = loadTs('resources/js/components/user/IdentityVerificationDialog.tsx', overrides);
     const Page = loadTs('resources/js/pages/user/PaidPromotion.tsx', overrides).default;
     const paid = {
         activation: { agent: true, qualified: true, refundPending: false }, paymentAccess: { verified: true, walletActive: true, canCreateWallet: false },
@@ -1944,7 +1945,8 @@ test('assets show the activation entry above accounts only when qualification is
             assert.ok(pending.includes('href="/promotion/membership"'));
             assert.ok(pending.indexOf(i18n.t('Account pending activation')) < pending.indexOf('id="asset-accounts"'));
             assert.ok(!active.includes(i18n.t('Account pending activation')));
-            assert.ok(active.includes('href="/promotion/invitations"'));
+            assert.ok(!active.includes('href="/promotion/invitations"'));
+            assert.ok(active.includes(i18n.t('Wealth management')));
         }
     } finally { void i18n.clientI18n.changeLanguage(previous); }
 });

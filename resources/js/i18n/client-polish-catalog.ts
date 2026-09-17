@@ -21,6 +21,7 @@ export const clientPolishCatalog: Record<string, [string, string, string]> = {
     ],
     Settings: ['设置', 'Tetapan', 'Ajustes'],
     'Common features': ['常用功能', 'Ciri lazim', 'Funciones habituales'],
+    'Verify identity': ['去实名', 'Sahkan identiti', 'Verificar identidad'],
     'Go to verification': ['去认证', 'Sahkan identiti', 'Verificar identidad'],
     'Recorded time': ['记录时间', 'Masa direkodkan', 'Fecha de registro'],
     Fee: ['手续费', 'Fi', 'Comisión'],
@@ -202,7 +203,7 @@ export const clientPolishCatalog: Record<string, [string, string, string]> = {
     'Asset activity': ['资产明细', 'Aktiviti aset', 'Movimientos de activos'],
     'Not verified': ['未认证', 'Belum disahkan', 'Sin verificar'],
     Normal: ['正常', 'Normal', 'Normal'],
-    Frozen: ['已冻结', 'Dibekukan', 'Congelada'],
+    Frozen: ['冻结', 'Dibekukan', 'Congelada'],
     'Under review': ['审核中', 'Dalam semakan', 'En revisión'],
     All: ['全部', 'Semua', 'Todos'],
 };

@@ -49,3 +49,16 @@ it('paginates only the owners refund records without exposing internal evidence'
         ->assertOk()->assertInertia(fn ($page) => $page->has('history.data', 1)->where('history.data.0.state', 'cancelled')->where('history.data.0.amount', '100.12345678'));
     expect(LedgerEntry::query()->count())->toBe(0);
 });
+
+it('guides unverified users to KYC before loading the deposit funding preview', function (bool $hasWallet): void {
+    if ($hasWallet) {
+        Wallet::query()->create(['tenant_id' => $this->tenant->id, 'user_id' => $this->user->id, 'asset_code' => 'USDT', 'status' => 'ACTIVE']);
+    }
+    $walletsBefore = Wallet::query()->count();
+    $entriesBefore = LedgerEntry::query()->count();
+    $this->actingAs($this->user, 'tenant_user')->get('http://a.localhost/security-deposit')
+        ->assertRedirect('/kyc');
+    expect(Wallet::query()->count())->toBe($walletsBefore)
+        ->and(LedgerEntry::query()->count())->toBe($entriesBefore);
+    $this->get('http://b.localhost/security-deposit')->assertRedirect('/login');
+})->with([false, true]);

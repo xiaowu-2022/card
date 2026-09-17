@@ -115,6 +115,7 @@ export const paidPromotionCatalog = {
         'Selepas pembayaran berjaya, {{amount}} USDT akan dipulangkan secara automatik.',
         'Tras completar el pago, se devolverán automáticamente {{amount}} USDT.',
     ],
+    'Wealth management': ['理财', 'Pengurusan kekayaan', 'Gestión patrimonial'],
     'Cumulative commission': ['累计佣金', 'Komisen terkumpul', 'Comisiones acumuladas'],
     'Annual fee return progress': [
         '年费返还进度',
@@ -360,6 +361,8 @@ export const paidPromotionCatalog = {
         'Baki tersedia tidak mencukupi. Sila tambah nilai dahulu.',
         'El saldo disponible es insuficiente. Recarga primero.',
     ],
+    'Account inactive': ['未激活', 'Belum diaktifkan', 'Sin activar'],
+    Upgrade: ['升级', 'Naik taraf', 'Mejorar'],
     'My promotion level': ['我的推广等级', 'Tahap promosi saya', 'Mi nivel de promoción'],
     'Apply for promotion membership': [
         '申请推广等级',

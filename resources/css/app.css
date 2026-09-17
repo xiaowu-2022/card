@@ -533,21 +533,6 @@ a.user-quick-action:hover .user-quick-action-circle {
     gap: 14px;
     padding: 8px 0 16px;
 }
-.user-account-avatar {
-    display: grid;
-    place-items: center;
-    flex-shrink: 0;
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    color: var(--user-primary);
-    background: var(--user-primary-soft);
-}
-.user-account-avatar svg {
-    width: 26px;
-    height: 26px;
-    stroke-width: 1.6;
-}
 .user-account-page .user-profile-name {
     font-size: clamp(20px, 3.2cqw, 24px);
 }
@@ -637,49 +622,23 @@ a.user-quick-action:hover .user-quick-action-circle {
 .user-card-stage {
     display: grid;
     place-items: center;
-    height: min(56.533cqw, 424px);
+    padding-block: clamp(12px, 3.2cqw, 24px);
 }
+/* Frame the supplied artwork at its card edge, excluding the outer backdrop. */
 .user-card-preview {
     position: relative;
-    width: 78%;
-    aspect-ratio: 1.58;
-    border-radius: min(2.4cqw, 18px);
+    width: min(100%, 562px);
+    aspect-ratio: 520 / 303;
     overflow: hidden;
-    background: #216652;
-    color: white;
-    transform: rotate(-11deg);
+    border-radius: 4.6% / 7.9%;
 }
-.user-card-preview::before {
-    content: '';
+.user-card-preview img {
     position: absolute;
-    width: 120%;
-    height: 110%;
-    left: 20%;
-    top: -57%;
-    border-radius: 45%;
-    background: #4aaa8d;
-    transform: rotate(25deg);
-}
-.user-card-preview-symbol {
-    position: absolute;
-    top: 12%;
-    left: 8%;
-    width: 9%;
+    width: 117.885%;
+    max-width: none;
     height: auto;
-}
-.user-card-preview-brand {
-    position: absolute;
-    bottom: 13%;
-    left: 8%;
-    max-width: 60%;
-    font-size: clamp(13px, 3.2cqw, 24px);
-    font-weight: 600;
-}
-.user-card-preview-type {
-    position: absolute;
-    bottom: 13%;
-    right: 8%;
-    font-size: clamp(9px, 1.867cqw, 14px);
+    left: -8.269%;
+    top: -12.211%;
 }
 .user-card-intro {
     width: min(75cqw, 562px);
@@ -727,6 +686,9 @@ a.user-quick-action:hover .user-quick-action-circle {
     background: #171915;
     color: white;
     padding: clamp(24px, 4.267cqw, 32px);
+}
+.user-card-visual-frozen {
+    background: #626262;
 }
 .user-card-product {
     margin-inline: auto;

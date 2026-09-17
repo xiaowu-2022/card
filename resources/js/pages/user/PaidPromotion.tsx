@@ -10,13 +10,7 @@ import { ShieldAlert } from 'lucide-react';
 import { UserLayout } from '@/layouts/UserLayout';
 import { UserPageHeader } from '@/components/user/UserPageHeader';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-} from '@/components/ui/dialog';
+import { IdentityVerificationDialog } from '@/components/user/IdentityVerificationDialog';
 import { FinancialConfirmation } from '@/components/user/FinancialConfirmation';
 import { type PaidPromotionData } from '@/components/user/PaidPromotionSummary';
 import { exactAmount } from '@/lib/exact-amount';
@@ -63,30 +57,10 @@ export default function PaidPromotion({
         <UserLayout>
             <Head title={t(title)} />
             <UserPageHeader title={t(title)} backHref="/promotion" />
-            <Dialog
+            <IdentityVerificationDialog
                 open={!p.paymentAccess.verified && verificationPromptOpen}
-                onOpenChange={setVerificationPromptOpen}
-            >
-                <DialogContent closeLabel={t('Close')} className="max-w-sm rounded-2xl bg-white">
-                    <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-amber-100 text-amber-800">
-                        <ShieldAlert className="size-6" aria-hidden="true" />
-                    </div>
-                    <DialogHeader>
-                        <DialogTitle>{t('Complete identity verification')}</DialogTitle>
-                        <DialogDescription className="leading-6">
-                            {t('Verify your identity before using financial services.')}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="flex flex-col gap-2">
-                        <Button asChild className="bg-amber-700 text-white">
-                            <Link href="/kyc">{t('Verify now')}</Link>
-                        </Button>
-                        <Button variant="ghost" onClick={() => setVerificationPromptOpen(false)}>
-                            {t('Cancel')}
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
+                onDismiss={() => setVerificationPromptOpen(false)}
+            />
             <div className="mx-auto max-w-2xl space-y-5 pb-5">
                 <section className="space-y-2 rounded-2xl bg-[#f2f6ef] p-5">
                     <p className="text-xs text-muted-foreground">{t('My promotion level')}</p>

@@ -209,3 +209,20 @@ not prescribe the previous 2048-bit notification-key minimum. Local generated-ke
 tests establish parsing/signature compatibility, not the authenticity of an operator's
 key or successful live callback delivery. Deploy the verifier change, correct the
 server PEM if needed, rebuild configuration cache and reload PHP-FPM before acceptance.
+
+## Frozen card presentation (2026-09-17)
+
+Frozen cards use a gray card face and a localized Frozen badge (冻结 in Chinese).
+Their primary action row exposes Unfreeze in place of Reload, through the existing
+password/confirmation flow and server-returned capability checks. More omits this
+duplicate action. The generic disabled-actions explanation below cards is removed.
+Refund-locked cards retain transaction-only controls and their specific explanation.
+This changes presentation only; provider status and all mutation gates remain authoritative.
+
+## Unverified application entry (2026-09-17)
+
+The application intro omits the generic product-requirements sentence. Signed-in
+unverified users immediately see a verification dialog when entering Cards, with
+a Verify identity (去实名) link to `/kyc`. Dismissing via Cancel, close, Escape or
+outside click returns to `/dashboard` with history replacement. The intro retains
+its Verify identity button; there is no bottom-of-page KYC banner. Server KYC and card-application gates remain.

@@ -1,11 +1,12 @@
 import { displayMoney } from '@/lib/exact-amount';
 import { t, useClientTranslation, errorMessage } from '@/i18n';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { Aperture, CheckCircle2, CreditCard, LoaderCircle, Plus, RefreshCw } from 'lucide-react';
+import { CheckCircle2, CreditCard, LoaderCircle, Plus, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MoneyDisplay } from '@/components/user/UserMoney';
 import { UserEmptyState } from '@/components/user/UserEmptyState';
 import { UserStatusBanner } from '@/components/user/UserStatusBanner';
+import { IdentityVerificationDialog } from '@/components/user/IdentityVerificationDialog';
 import { UserCardTransactions } from '@/components/user/UserCardTransactions';
 import { CardManagementActions } from '@/components/user/CardManagementActions';
 import { CardholderMaterialsForm } from '@/components/user/CardholderMaterialsForm';
@@ -543,6 +544,12 @@ export default function Cards(props: Props) {
     );
     const firstProduct = props.products[0];
     const [choosingCard, setChoosingCard] = useState(false);
+    const [verificationPromptOpen, setVerificationPromptOpen] = useState(
+        !props.kycApproved && !props.demo,
+    );
+    const closeVerificationPrompt = () => {
+        router.visit('/dashboard', { replace: true });
+    };
     const [applicationProductId, setApplicationProductId] = useState<string | null>(null);
     const canOpenApplication =
         props.kycApproved &&
@@ -561,36 +568,43 @@ export default function Cards(props: Props) {
             <div className="space-y-7 sm:space-y-9">
                 <h1 className="sr-only">{t('Cards')}</h1>
                 {props.cards.length === 0 && firstProduct && !canOpenApplication ? (
-                    <div className="user-card-stage" aria-label={t('Card design illustration')}>
-                        <div className="user-card-preview" aria-hidden="true">
-                            <Aperture className="user-card-preview-symbol" />
-                            <span className="user-card-preview-brand">
-                                {tenant?.branding.brandName}
-                            </span>
-                            <span className="user-card-preview-type">
-                                {t('Mastercard U Card ·')}
-                                {firstProduct.cardCurrency}
-                            </span>
+                    <div className="user-card-intro">
+                        <h2>{t('Apply for a Mastercard U Card')}</h2>
+                    </div>
+                ) : null}
+                {props.cards.length === 0 && firstProduct && !canOpenApplication ? (
+                    <div className="user-card-stage">
+                        <div className="user-card-preview">
+                            <img
+                                src="/images/marketing/spec-pay-application-card.png"
+                                alt={t('Card design illustration')}
+                                width={613}
+                                height={353}
+                            />
                         </div>
                     </div>
                 ) : null}
                 {props.cards.length === 0 && firstProduct && !canOpenApplication ? (
                     <section className="user-card-intro">
-                        <h2>{t('Apply for a Mastercard U Card')}</h2>
-                        <p>
-                            {t(
-                                'Review the requirements, opening fee and initial funding for {{product}}.',
-                                { product: cardDisplayName(firstProduct.name) },
-                            )}
-                        </p>
-                        <a
-                            className="user-card-intro-action"
-                            href={props.demo ? '/login' : '#card-setup'}
-                        >
-                            {props.demo
-                                ? t('Sign in to apply')
-                                : t('View application requirements')}
-                        </a>
+                        {!props.kycApproved && !props.demo ? (
+                            <button
+                                type="button"
+                                className="user-card-intro-action w-full"
+                                onClick={() => setVerificationPromptOpen(true)}
+                                aria-haspopup="dialog"
+                            >
+                                {t('Verify identity')}
+                            </button>
+                        ) : (
+                            <a
+                                className="user-card-intro-action"
+                                href={props.demo ? '/login' : '#card-setup'}
+                            >
+                                {props.demo
+                                    ? t('Sign in to apply')
+                                    : t('View application requirements')}
+                            </a>
+                        )}
                     </section>
                 ) : null}
 
@@ -613,14 +627,22 @@ export default function Cards(props: Props) {
                         <div className="grid gap-6">
                             {props.cards.map((card) => (
                                 <div key={card.id} className="user-card-group">
-                                    <div className="user-card-visual">
+                                    <div
+                                        className={`user-card-visual${card.state === 'Frozen' ? ' user-card-visual-frozen' : ''}`}
+                                    >
                                         <div className="flex items-start justify-between">
                                             <p className="font-semibold">
                                                 {cardDisplayName(card.productName)}
                                             </p>
                                             <CreditCard className="size-5 text-white/70" />
                                         </div>
-                                        <p className="mt-2 text-xs text-white/80">
+                                        <p
+                                            className={
+                                                card.state === 'Frozen'
+                                                    ? 'mt-2 inline-flex rounded-full bg-white/15 px-3 py-1 text-sm font-semibold text-white'
+                                                    : 'mt-2 text-xs text-white/80'
+                                            }
+                                        >
                                             {t(card.state ?? 'Awaiting confirmation')}
                                         </p>
                                         <p className="mt-5 font-mono text-lg tracking-wider">
@@ -684,15 +706,10 @@ export default function Cards(props: Props) {
                         )}
                     />
                 ) : null}
-                {!props.kycApproved && !props.demo ? (
-                    <UserStatusBanner
-                        tone="warning"
-                        title={t('Identity verification required')}
-                        description={t(
-                            'Complete identity verification before starting card setup.',
-                        )}
-                    />
-                ) : null}
+                <IdentityVerificationDialog
+                    open={verificationPromptOpen}
+                    onDismiss={closeVerificationPrompt}
+                />
                 {props.demo ? (
                     <UserStatusBanner
                         tone="neutral"

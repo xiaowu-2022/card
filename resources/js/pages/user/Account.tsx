@@ -1,6 +1,14 @@
 import { t, useClientTranslation } from '@/i18n';
 import { Head, Link, usePage } from '@inertiajs/react';
-import { ChevronRight, Settings, ShieldCheck, Users, MessageSquare, UserRound } from 'lucide-react';
+import {
+    ChevronRight,
+    Settings,
+    ShieldCheck,
+    Users,
+    MessageSquare,
+    ArrowUpRight,
+} from 'lucide-react';
+import { promotionLevel } from '@/lib/paid-promotion';
 import { UserLayout } from '@/layouts/UserLayout';
 import type { SharedProps } from '@/types/global';
 import { AccountIdCopy } from '@/components/user/AccountIdCopy';
@@ -14,7 +22,15 @@ function maskedContact(email?: string | null, phone?: string | null) {
     return phone ? `${phone.slice(0, 3)}••••${phone.slice(-3)}` : '';
 }
 
-export default function Account({ kycStatus }: { kycStatus: string }) {
+export default function Account({
+    kycStatus,
+    promotionRank,
+    accountQualified,
+}: {
+    kycStatus: string;
+    promotionRank: number;
+    accountQualified: boolean;
+}) {
     useClientTranslation();
     const { auth } = usePage<SharedProps>().props;
     const name = auth.user?.displayName?.trim() || t('Account user');
@@ -30,14 +46,28 @@ export default function Account({ kycStatus }: { kycStatus: string }) {
             <div className="user-account-page">
                 <section className="user-profile">
                     <div className="user-account-identity">
-                        <span className="user-account-avatar" aria-hidden="true">
-                            <UserRound />
-                        </span>
                         <div className="min-w-0 flex-1">
                             <h2 className="user-profile-name">{name}</h2>
                             <p className="user-profile-contact">
                                 {maskedContact(auth.user?.email, auth.user?.phone)}
                             </p>
+                        </div>
+                        <div className="flex max-w-[55%] shrink-0 items-center gap-1 sm:gap-3">
+                            <span
+                                className="min-w-0 text-sm font-medium text-[var(--user-primary)]"
+                                aria-label={t('My promotion level')}
+                            >
+                                {accountQualified
+                                    ? promotionLevel(promotionRank)
+                                    : t('Account inactive')}
+                            </span>
+                            <Link
+                                href="/promotion/membership"
+                                className="inline-flex min-h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 text-sm font-medium text-[var(--user-primary)] hover:bg-[var(--user-primary-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--user-primary)]"
+                            >
+                                <ArrowUpRight className="size-4" aria-hidden="true" />
+                                {t('Upgrade')}
+                            </Link>
                         </div>
                     </div>
                     {auth.user?.accountId && (

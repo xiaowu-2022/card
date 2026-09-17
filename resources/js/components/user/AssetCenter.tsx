@@ -104,23 +104,24 @@ export function AssetCenter({
     };
     const current = overview.assets.find((a) => a.asset === selected) ?? overview.assets[0];
     if (!current) return null;
-    const show = (value: string) => (hidden ? '••••••' : exactAmount(value));
+    const show = (value: string | null) =>
+        hidden ? '••••••' : value === null ? '—' : exactAmount(value);
     const usdt = overview.assets.find((a) => a.asset === 'USDT');
     const managedAccounts = usdt
         ? [
+              {
+                  id: 'wealth',
+                  label: 'Wealth management',
+                  amount: null,
+                  href: null,
+                  icon: Coins,
+              },
               {
                   id: 'deposit',
                   label: 'Security deposit',
                   amount: usdt.deposit,
                   href: '/security-deposit',
                   icon: ShieldCheck,
-              },
-              {
-                  id: 'commission',
-                  label: 'Cumulative commission',
-                  amount: overview.cumulativeCommission,
-                  href: '/promotion/invitations',
-                  icon: Coins,
               },
           ]
         : [];
@@ -276,18 +277,22 @@ export function AssetCenter({
                                 ) : (
                                     <AssetIcon asset={a.asset} />
                                 )}
+                                {a.id !== 'wealth' && (
+                                    <span
+                                        title={a.icon ? `${show(a.amount)} USDT` : show(a.amount)}
+                                        className="mt-2 flex w-full min-w-0 items-baseline justify-center gap-1 text-sm font-medium tabular-nums"
+                                    >
+                                        <span className="truncate">{show(a.amount)}</span>
+                                        {a.icon && (
+                                            <span className="shrink-0 text-[10px] font-normal">
+                                                USDT
+                                            </span>
+                                        )}
+                                    </span>
+                                )}
                                 <span
-                                    title={a.icon ? `${show(a.amount)} USDT` : show(a.amount)}
-                                    className="mt-2 flex w-full min-w-0 items-baseline justify-center gap-1 text-sm font-medium tabular-nums"
+                                    className={`${a.id === 'wealth' ? 'mt-2' : 'mt-1'} block w-full break-words text-xs text-muted-foreground`}
                                 >
-                                    <span className="truncate">{show(a.amount)}</span>
-                                    {a.icon && (
-                                        <span className="shrink-0 text-[10px] font-normal">
-                                            USDT
-                                        </span>
-                                    )}
-                                </span>
-                                <span className="mt-1 block w-full break-words text-xs text-muted-foreground">
                                     {t(a.label)}
                                 </span>
                             </>
@@ -301,6 +306,10 @@ export function AssetCenter({
                             >
                                 {content}
                             </Link>
+                        ) : a.id === 'wealth' ? (
+                            <div key={a.id} aria-label={t(a.label)} className={className}>
+                                {content}
+                            </div>
                         ) : (
                             <button
                                 key={a.id}

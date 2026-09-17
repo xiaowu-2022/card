@@ -88,3 +88,12 @@ are unchanged.
 
 Subpage titles use equal reserved space on both sides so the back control does not
 shift the title off center. Long localized titles wrap within the center column.
+
+## Me promotion shortcut (2026-09-17)
+
+The Me profile omits the avatar and shows the current effective promotion level
+to the right of the name/contact block in a horizontal row, alongside an icon-and-text Upgrade link to `/promotion/membership`.
+The rank and qualification come from the tenant/user-scoped AccountActivationStatus.
+Accounts without current deposit or paid-period qualification show 未激活 (Account inactive);
+qualified accounts without a paid rank show Ordinary member. The link only opens the existing
+membership flow and retains its eligibility, quote and payment confirmation rules.

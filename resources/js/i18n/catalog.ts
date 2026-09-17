@@ -570,6 +570,7 @@ export const catalog = {
     'Return card balance': ['资金退回', 'Pulangkan baki kad', 'Devolver saldo'],
     'Cancel card': ['注销卡片', 'Batalkan kad', 'Cancelar tarjeta'],
     'Freeze card': ['冻结卡片', 'Bekukan kad', 'Bloquear tarjeta'],
+    Unfreeze: ['解冻', 'Nyahbeku', 'Desbloquear'],
     'Unfreeze card': ['解冻卡片', 'Nyahbeku kad', 'Desbloquear tarjeta'],
     'Quote ready': ['报价已就绪', 'Sebut harga tersedia', 'Cotización disponible'],
     'Operation declined': ['操作未通过', 'Operasi ditolak', 'Operación rechazada'],
@@ -1350,7 +1351,7 @@ export const catalog = {
         'Sahkan satu kaedah hubungan dahulu.',
         'Primero, verifica un método de contacto.',
     ],
-    Frozen: ['已冻结', 'Dibekukan', 'Bloqueada'],
+    Frozen: ['冻结', 'Dibekukan', 'Bloqueada'],
     'Funds have been returned to your available balance.': [
         '资金已退回可用余额。',
         'Dana telah dikembalikan ke baki tersedia anda.',

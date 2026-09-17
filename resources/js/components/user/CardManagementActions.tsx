@@ -77,6 +77,7 @@ const shortLabels: Record<string, string> = {
     return: 'Return',
     transactions: 'Transactions',
     cancel: 'Close card',
+    unfreeze: 'Unfreeze',
 };
 const icons = {
     reveal: Eye,
@@ -518,14 +519,18 @@ export function CardManagementActions({
                 parsedAmount <= toMinor(availableBalance) &&
                 parsedAmount >= toMinor(card.minimumReload ?? '0'))) &&
         (active !== 'return' || (card.balance !== null && parsedAmount <= toMinor(card.balance)));
-    const actions = ['reveal', 'load', 'return', 'transactions'];
-    const moreActions = ['freeze', 'unfreeze', 'holder', 'cancel'].filter((action) =>
-        capabilities.includes(action),
+    const actions = [
+        'reveal',
+        card.state === 'Frozen' ? 'unfreeze' : 'load',
+        'return',
+        'transactions',
+    ];
+    const moreActions = ['freeze', 'unfreeze', 'holder', 'cancel'].filter(
+        (action) => capabilities.includes(action) && !actions.includes(action),
     );
     const visibleActions = card.refundLocked
         ? ['transactions']
         : actions.filter((action) => action !== 'holder');
-    const unavailableNotice = `card-actions-unavailable-${card.id}`;
     const terminal = order && ['completed', 'declined', 'expired'].includes(order.state);
     const needsPassword =
         active &&
@@ -548,9 +553,6 @@ export function CardManagementActions({
                             type="button"
                             disabled={!capabilities.includes(action)}
                             aria-label={t(labels[action] ?? 'Card management')}
-                            aria-describedby={
-                                !capabilities.includes(action) ? unavailableNotice : undefined
-                            }
                             className="flex min-h-14 min-w-0 flex-col items-center justify-center gap-1.5 rounded-lg px-0.5 py-2 text-[11px] sm:text-xs hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
                             onClick={() => {
                                 if (capabilities.includes(action)) open(action);
@@ -608,16 +610,6 @@ export function CardManagementActions({
                 <p className="text-center text-xs text-muted-foreground">
                     {t(
                         'Cards are locked for the security deposit refund. Only transaction history is available.',
-                    )}
-                </p>
-            )}
-            {!card.refundLocked && actions.some((action) => !capabilities.includes(action)) && (
-                <p
-                    id={unavailableNotice}
-                    className="border-t border-black/5 px-2 pt-2 text-center text-[11px] leading-relaxed text-muted-foreground"
-                >
-                    {t(
-                        'Unavailable actions are disabled. Card operations require a supported live card, an active card service and an eligible card status.',
                     )}
                 </p>
             )}

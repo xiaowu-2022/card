@@ -6,6 +6,8 @@ use App\Application\SecurityDeposit\FundSecurityDepositAction;
 use App\Application\SecurityDeposit\RefundSecurityDepositAction;
 use App\Application\SecurityDeposit\SecurityDepositFundingQuery;
 use App\Application\SecurityDeposit\SecurityDepositHistoryQuery;
+use App\Domain\Kyc\Enums\KycUserStatus;
+use App\Domain\Kyc\Services\KycStatusService;
 use App\Domain\Tenant\TenantContext;
 use App\Domain\User\Models\User;
 use App\Http\Controllers\Controller;
@@ -30,10 +32,14 @@ final class SecurityDepositController extends Controller
         return back()->with('success', 'Security deposit refund request updated.');
     }
 
-    public function show(TenantContext $context, SecurityDepositFundingQuery $query): Response
+    public function show(TenantContext $context, SecurityDepositFundingQuery $query, KycStatusService $kyc): Response|RedirectResponse
     {
         /** @var User $user */
         $user = Auth::guard('tenant_user')->user();
+
+        if ($kyc->forUser($context->id(), $user->id) !== KycUserStatus::Approved) {
+            return redirect('/kyc');
+        }
 
         return Inertia::render('user/SecurityDeposit', ['preview' => $query->preview($context->id(), $user->id)]);
     }

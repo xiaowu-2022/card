@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\User;
 
+use App\Application\Promotion\AccountActivationStatus;
 use App\Application\User\AccountInformationQuery;
 use App\Application\User\ChangeUserContactAction;
 use App\Application\User\ChangeUserPasswordAction;
@@ -25,9 +26,16 @@ use Inertia\Response;
 
 final class AccountController extends Controller
 {
-    public function show(TenantContext $context, KycStatusService $kyc): Response
+    public function show(TenantContext $context, KycStatusService $kyc, AccountActivationStatus $activationStatus): Response
     {
-        return Inertia::render('user/Account', ['kycStatus' => $kyc->forUser($context->id(), Auth::guard('tenant_user')->id())->value]);
+        $userId = Auth::guard('tenant_user')->id();
+        $activation = $activationStatus->get($context->id(), $userId);
+
+        return Inertia::render('user/Account', [
+            'kycStatus' => $kyc->forUser($context->id(), $userId)->value,
+            'promotionRank' => (int) $activation['rank'],
+            'accountQualified' => $activation['qualified'],
+        ]);
     }
 
     public function settings(): Response
