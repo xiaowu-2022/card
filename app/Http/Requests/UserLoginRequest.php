@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use App\Domain\User\Services\EmailNormalizer;
-use App\Domain\User\Services\PhoneNormalizer;
 use App\Support\Errors\DomainException;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\RateLimiter;
@@ -19,8 +18,7 @@ final class UserLoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'identifier' => ['required', 'string', 'max:255'],
-            'region' => ['nullable', 'string', 'size:2'],
+            'identifier' => ['required', 'string', 'max:255', 'email'],
             'password' => ['required', 'string', 'max:1024'],
         ];
     }
@@ -47,9 +45,7 @@ final class UserLoginRequest extends FormRequest
     {
         $identifier = (string) $this->input('identifier');
         try {
-            $normalized = str_contains($identifier, '@')
-                ? app(EmailNormalizer::class)->normalize($identifier)
-                : app(PhoneNormalizer::class)->normalize($identifier, $this->input('region'));
+            $normalized = app(EmailNormalizer::class)->normalize($identifier);
         } catch (DomainException) {
             $normalized = strtolower(trim($identifier));
         }

@@ -13,14 +13,15 @@ use App\Domain\User\Enums\RegistrationChallengeStatus;
 use App\Domain\User\Enums\RegistrationChannel;
 use App\Domain\User\Models\RegistrationChallenge;
 use App\Domain\User\Models\User;
+use App\Domain\User\Services\OtpHasher;
 use App\Infrastructure\Mail\LaravelEmailVerificationSender;
-use App\Infrastructure\Sms\FakeSmsVerificationSender;
 use App\Infrastructure\Sms\UnavailableSmsVerificationSender;
 use App\Mail\ExistingUserAccountMail;
 use App\Mail\UserVerificationCodeMail;
 use App\Support\Errors\DomainException;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 
 beforeEach(fn () => $this->seed());
 
@@ -44,17 +45,13 @@ it('completes email verification before creating a tenant user', function (): vo
         ->and($created->challenge->fresh()->consumed_at)->not->toBeNull();
 });
 
-it('normalizes and verifies phone registration through the fake sender', function (): void {
+it('rejects phone registration before creating a proof or sending an SMS', function (): void {
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
-    $created = app(CreateRegistrationChallengeAction::class)->execute($tenant, RegistrationChannel::Phone, '012-345 6789', 'MY');
-    $sender = app(SmsVerificationSender::class);
-
-    expect($sender)->toBeInstanceOf(FakeSmsVerificationSender::class)
-        ->and($created->challenge->destination)->toBe('+60123456789')
-        ->and($sender->messages()[0]['code'])->toBe($created->rawCode);
-    app(VerifyRegistrationChallengeAction::class)->execute($tenant->id, $created->challenge->id, $created->rawCode);
-    $user = app(RegisterUserAction::class)->execute($tenant, $created->challenge->id, 'StrongPass1234');
-    expect($user->phone)->toBe('+60123456789')->and($user->phone_verified_at)->not->toBeNull()->and($user->email)->toBeNull();
+    $before = RegistrationChallenge::query()->count();
+    expect(fn () => app(CreateRegistrationChallengeAction::class)->execute($tenant, RegistrationChannel::Phone, '012-345 6789', 'MY'))
+        ->toThrow(DomainException::class, 'Only email registration and sign in are available.');
+    expect(RegistrationChallenge::query()->count())->toBe($before)
+        ->and(app(SmsVerificationSender::class)->messages())->toBe([]);
 });
 
 it('rejects invalid email and phone destinations', function (): void {
@@ -148,10 +145,11 @@ it('rate limits verification sends per tenant destination and keeps tenants isol
     $this->post('http://b.localhost/register/challenges', [...$payload, 'invitation_code' => registrationTestInvitation('tenant-b')])->assertRedirect();
 });
 
-it('uses normalized phone destinations in send rate-limit keys', function (): void {
-    config(['user-auth.resend_cooldown_seconds' => 0, 'user-auth.send_limit_per_hour' => 1]);
-    $this->post('http://a.localhost/register/challenges', ['channel' => 'PHONE', 'destination' => '+60 12-345 6789', 'invitation_code' => registrationTestInvitation()])->assertRedirect();
-    $this->post('http://a.localhost/register/challenges', ['channel' => 'PHONE', 'destination' => '0123456789', 'region' => 'MY', 'invitation_code' => registrationTestInvitation()])->assertSessionHasErrors('destination');
+it('rejects forged phone registration requests before transport', function (): void {
+    foreach (['+60 12-345 6789', '0123456789'] as $number) {
+        $this->post('http://a.localhost/register/challenges', ['channel' => 'PHONE', 'destination' => $number, 'region' => 'MY', 'invitation_code' => registrationTestInvitation()])->assertSessionHasErrors('channel');
+    }
+    expect(app(SmsVerificationSender::class)->messages())->toBe([]);
 });
 
 it('rate limits otp verification independently of persistent challenge locking', function (): void {
@@ -311,9 +309,9 @@ it('does not expose unavailable phone registration as an active channel', functi
 
     $this->get('http://a.localhost/register')->assertOk()->assertInertia(fn ($page) => $page
         ->where('registration.emailAvailable', true)
-        ->where('registration.phoneAvailable', false));
+        ->missing('registration.phoneAvailable'));
     $this->post('http://a.localhost/register/challenges', ['channel' => 'PHONE', 'destination' => '+60123456789', 'invitation_code' => registrationTestInvitation()])
-        ->assertSessionHasErrors('form', 'Phone verification is not available in this environment.');
+        ->assertSessionHasErrors('channel');
     expect(RegistrationChallenge::query()->where('channel', RegistrationChannel::Phone)->exists())->toBeFalse();
 });
 
@@ -380,4 +378,20 @@ it('hashes pii in registration rate-limit keys and never includes otp values', f
         ->and(RateLimiter::attempts('registration-send|destination|'.$tenant->id.'|'.$destination))->toBe(0)
         ->and(RateLimiter::attempts('registration-send|destination|'.$tenant->id.'|'.$rawCode))->toBe(0)
         ->and(RateLimiter::attempts('registration-send|destination|'.$tenant->id.'|'.$created->code_hash))->toBe(0);
+});
+
+it('cannot verify or consume an already supplied phone proof', function (): void {
+    $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
+    $id = (string) Str::uuid();
+    $proof = RegistrationChallenge::query()->create([
+        'id' => $id, 'tenant_id' => $tenant->id, 'channel' => RegistrationChannel::Phone,
+        'destination' => '+60123456789', 'code_hash' => app(OtpHasher::class)->hash($id, '123456'),
+        'status' => RegistrationChallengeStatus::Pending, 'expires_at' => now()->addMinutes(5), 'attempt_count' => 0,
+    ]);
+    expect(fn () => app(VerifyRegistrationChallengeAction::class)->execute($tenant->id, $id, '123456'))->toThrow(DomainException::class);
+    $proof->update(['status' => RegistrationChallengeStatus::Verified, 'verified_at' => now()]);
+    $count = User::query()->count();
+    expect(fn () => app(RegisterUserAction::class)->execute($tenant, $id, 'StrongPass1234'))->toThrow(DomainException::class);
+    $this->withSession(['registration.challenge_ids' => [$id]])->get('http://a.localhost/register/challenges/'.$id)->assertUnprocessable();
+    expect(User::query()->count())->toBe($count)->and($proof->fresh()->consumed_at)->toBeNull();
 });

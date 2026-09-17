@@ -2,9 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Domain\User\Enums\RegistrationChannel;
 use App\Domain\User\Services\EmailNormalizer;
-use App\Domain\User\Services\PhoneNormalizer;
 use App\Support\Errors\DomainException;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\RateLimiter;
@@ -21,9 +19,8 @@ final class CreateRegistrationChallengeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'channel' => ['required', Rule::in(['EMAIL', 'PHONE'])],
-            'destination' => ['required', 'string', 'max:255'],
-            'region' => ['nullable', 'string', 'size:2'],
+            'channel' => ['required', Rule::in(['EMAIL'])],
+            'destination' => ['required', 'string', 'max:255', 'email'],
             // Legacy values are accepted only when the tenant-scoped alias resolves.
             'invitation_code' => ['required', 'string', 'regex:/^(?:[0-9]{6}|[a-fA-F0-9]{24})$/D'],
         ];
@@ -48,10 +45,7 @@ final class CreateRegistrationChallengeRequest extends FormRequest
     private function rateLimitKeys(string $tenantId): array
     {
         try {
-            $channel = RegistrationChannel::from((string) $this->input('channel'));
-            $destination = $channel === RegistrationChannel::Email
-                ? app(EmailNormalizer::class)->normalize((string) $this->input('destination'))
-                : app(PhoneNormalizer::class)->normalize((string) $this->input('destination'), $this->input('region'));
+            $destination = app(EmailNormalizer::class)->normalize((string) $this->input('destination'));
         } catch (DomainException|\ValueError) {
             $destination = strtolower(trim((string) $this->input('destination')));
         }

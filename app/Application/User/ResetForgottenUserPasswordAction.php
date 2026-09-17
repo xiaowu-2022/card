@@ -4,10 +4,7 @@ namespace App\Application\User;
 
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Notification\Contracts\EmailVerificationSender;
-use App\Domain\Notification\Contracts\SmsVerificationSender;
 use App\Domain\Notification\Exceptions\EmailDeliveryUnknown;
-use App\Domain\Notification\Exceptions\SmsDeliveryUnknown;
-use App\Domain\Notification\Services\TenantSmsPolicy;
 use App\Domain\Tenant\Enums\TenantStatus;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Enums\RegistrationChannel;
@@ -16,7 +13,6 @@ use App\Domain\User\Models\User;
 use App\Domain\User\Models\UserPasswordReset;
 use App\Domain\User\Services\EmailNormalizer;
 use App\Domain\User\Services\OtpHasher;
-use App\Domain\User\Services\PhoneNormalizer;
 use App\Support\Errors\DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -26,15 +22,18 @@ final readonly class ResetForgottenUserPasswordAction
 {
     private const INVALID = 'This password reset request is invalid or expired. Request a new code.';
 
-    public function __construct(private EmailNormalizer $emails, private PhoneNormalizer $phones,
+    public function __construct(private EmailNormalizer $emails,
         private OtpHasher $hasher, private EmailVerificationSender $emailSender,
-        private SmsVerificationSender $smsSender, private UserVerificationEmailLimit $emailLimit,
-        private TenantSmsPolicy $smsPolicy, private AuditLogger $audit) {}
+        private UserVerificationEmailLimit $emailLimit,
+        private AuditLogger $audit) {}
 
     public function start(string $tenantId, RegistrationChannel $channel, #[\SensitiveParameter] string $destination,
         #[\SensitiveParameter] string $binding, #[\SensitiveParameter] string $ip, string $requestId): UserPasswordReset
     {
-        $destination = $channel === RegistrationChannel::Email ? $this->emails->normalize($destination) : $this->phones->normalize($destination);
+        if ($channel !== RegistrationChannel::Email) {
+            throw new DomainException('EMAIL_AUTH_ONLY', 'Only email registration and sign in are available.');
+        }
+        $destination = $this->emails->normalize($destination);
         $code = (string) random_int(100000, 999999);
         [$reset, $send, $tenant] = DB::transaction(function () use ($tenantId, $channel, $destination, $binding, $ip, $requestId, $code): array {
             $tenant = $this->lockTenant($tenantId);
@@ -51,12 +50,11 @@ final readonly class ResetForgottenUserPasswordAction
 
                 return [$existing, false, $tenant];
             }
-            $sender = $channel === RegistrationChannel::Email ? $this->emailSender : $this->smsSender;
+            $sender = $this->emailSender;
             if (! $sender->isAvailable($tenant)) {
                 throw new DomainException('PASSWORD_RESET_DELIVERY_UNAVAILABLE', 'Verification delivery is unavailable. Please contact support.', 503);
             }
-            $timing = $channel === RegistrationChannel::Phone ? $this->smsPolicy->timing($tenantId)
-                : ['resend' => (int) config('user-auth.resend_cooldown_seconds'), 'ttl' => 60 * (int) config('user-auth.otp_ttl_minutes')];
+            $timing = ['resend' => (int) config('user-auth.resend_cooldown_seconds'), 'ttl' => 60 * (int) config('user-auth.otp_ttl_minutes')];
             $recipient = UserPasswordReset::query()->where('tenant_id', $tenantId)->where('destination_hash', $hash);
             $recent = UserPasswordReset::query()->where('tenant_id', $tenantId)->where('created_at', '>', now()->subHour());
             if ((clone $recipient)->where('created_at', '>', now()->subSeconds($timing['resend']))->exists()
@@ -66,10 +64,8 @@ final readonly class ResetForgottenUserPasswordAction
                 || (clone $recipient)->where('delivery_uncertain', true)->whereNull('consumed_at')->whereNull('cancelled_at')->where('expires_at', '>', now())->exists()) {
                 throw new DomainException('PASSWORD_RESET_COOLDOWN', 'Please wait before requesting another verification code.', 429);
             }
-            if ($channel === RegistrationChannel::Email) {
-                $this->emailLimit->assertAvailable($tenant, $destination);
-            }
-            $column = $channel === RegistrationChannel::Email ? 'email' : 'phone';
+            $this->emailLimit->assertAvailable($tenant, $destination);
+            $column = 'email';
             // The only credential lookup starts with the trusted company scope.
             $user = User::query()->where('tenant_id', $tenantId)->where($column, $destination)
                 ->whereNotNull($column.'_verified_at')->whereIn('status', [UserStatus::Active, UserStatus::Suspended])->lockForUpdate()->first();
@@ -91,9 +87,9 @@ final readonly class ResetForgottenUserPasswordAction
             try {
                 // Same generic OTP transport for valid contacts, including unmatched contacts.
                 // Receipt, delivery errors and SMTP latency must not reveal account existence.
-                ($channel === RegistrationChannel::Email ? $this->emailSender : $this->smsSender)->sendVerificationCode($tenant, $destination, $code);
+                $this->emailSender->sendVerificationCode($tenant, $destination, $code);
                 $reset->update(['delivery_uncertain' => false]);
-            } catch (EmailDeliveryUnknown|SmsDeliveryUnknown) {
+            } catch (EmailDeliveryUnknown) {
                 // Preserve the original proof after an uncertain send; never retry transport blindly.
             } catch (DomainException) {
                 $reset->update(['delivery_uncertain' => false, 'cancelled_at' => now()]);
@@ -110,7 +106,7 @@ final readonly class ResetForgottenUserPasswordAction
         $error = DB::transaction(function () use ($tenantId, $resetId, $binding, $code, $password): bool {
             $this->lockTenant($tenantId);
             $snapshot = UserPasswordReset::query()->where('tenant_id', $tenantId)->whereKey($resetId)->first();
-            if (! $snapshot || ! hash_equals($snapshot->session_hash, $this->digest($binding))) {
+            if (! $snapshot || $snapshot->channel !== 'EMAIL' || ! hash_equals($snapshot->session_hash, $this->digest($binding))) {
                 return true;
             }
             $user = $snapshot->user_id ? User::query()->where('tenant_id', $tenantId)->whereKey($snapshot->user_id)->lockForUpdate()->first() : null;
@@ -126,7 +122,7 @@ final readonly class ResetForgottenUserPasswordAction
 
                 return true; // Committed before raising a generic validation failure.
             }
-            $column = $reset->channel === 'EMAIL' ? 'email' : 'phone';
+            $column = 'email';
             if (! $user || ! in_array($user->status, [UserStatus::Active, UserStatus::Suspended], true)
                 || ! $user->{$column.'_verified_at'} || $user->{$column} !== $reset->destination
                 || ! hash_equals($reset->credential_hash, $this->credentialDigest($user))) {
@@ -149,7 +145,7 @@ final readonly class ResetForgottenUserPasswordAction
     {
         $reset = UserPasswordReset::query()->where('tenant_id', $tenantId)->whereKey($resetId)
             ->where('session_hash', $this->digest($binding))->first();
-        if (! $reset) {
+        if (! $reset || $reset->channel !== 'EMAIL') {
             throw new DomainException('PASSWORD_RESET_INVALID', self::INVALID);
         }
 

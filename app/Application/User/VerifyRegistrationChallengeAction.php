@@ -5,6 +5,7 @@ namespace App\Application\User;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Enums\RegistrationChallengeStatus;
+use App\Domain\User\Enums\RegistrationChannel;
 use App\Domain\User\Models\RegistrationChallenge;
 use App\Domain\User\Services\OtpHasher;
 use App\Support\Errors\DomainException;
@@ -19,7 +20,7 @@ final readonly class VerifyRegistrationChallengeAction
         [$challenge, $error] = DB::transaction(function () use ($tenantId, $challengeId, $code, $requestId): array {
             Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
             $challenge = RegistrationChallenge::query()->where('tenant_id', $tenantId)->whereKey($challengeId)->lockForUpdate()->first();
-            if (! $challenge || $challenge->status !== RegistrationChallengeStatus::Pending) {
+            if (! $challenge || $challenge->channel !== RegistrationChannel::Email || $challenge->status !== RegistrationChallengeStatus::Pending) {
                 return [$challenge, ['REGISTRATION_CHALLENGE_INVALID', 'This verification challenge is not available.', 422]];
             }
             if ($challenge->expires_at->isPast()) {

@@ -53,13 +53,13 @@ it('resets only an existing verified account and preserves its identity and fina
         ->and($this->user->fresh()->session_version)->toBe(1);
 });
 
-it('normalizes verified phone recovery and uses the company SMS transport', function (): void {
-    $this->user->update(['phone' => '+60123456789', 'phone_verified_at' => now()]);
-    $reset = $this->action->start($this->user->tenant_id, RegistrationChannel::Phone, '+60 12-345 6789', 'browser', '127.0.0.1', (string) Str::uuid());
-    $sent = app(SmsVerificationSender::class)->messages()[0];
-    expect($sent['tenant_id'])->toBe($this->user->tenant_id)->and($sent['destination'])->toBe('+60123456789');
-    $this->action->complete($this->user->tenant_id, $reset->id, 'browser', $sent['code'], 'NewPassword1234');
-    expect(Hash::check('NewPassword1234', $this->user->fresh()->password_hash))->toBeTrue();
+it('rejects phone recovery without sending SMS or changing credentials', function (): void {
+    $before = $this->user->password_hash;
+    expect(fn () => $this->action->start($this->user->tenant_id, RegistrationChannel::Phone, '+60123456789', 'browser', '127.0.0.1', (string) Str::uuid()))
+        ->toThrow(DomainException::class, 'Only email registration and sign in are available.');
+    $this->post('http://a.localhost/forgot-password', ['channel' => 'PHONE', 'reset_contact' => '+60123456789', 'request_id' => (string) Str::uuid()])->assertSessionHasErrors('channel');
+    expect(app(SmsVerificationSender::class)->messages())->toBe([])
+        ->and($this->user->fresh()->password_hash)->toBe($before);
 });
 
 it('uses identical public receipt shapes and generic delivery for unknown unverified and disabled accounts', function (): void {
@@ -217,4 +217,14 @@ it('enforces normalized recipient rate limits and rejects closed company recover
     expect(fn () => $this->action->start($this->user->tenant_id, RegistrationChannel::Email, strtoupper($this->user->email), 'another-browser', '127.0.0.1', (string) Str::uuid()))->toThrow(DomainException::class);
     Tenant::query()->whereKey($this->user->tenant_id)->update(['status' => TenantStatus::Closed, 'closed_at' => now()]);
     $this->get('http://a.localhost/forgot-password')->assertStatus(503);
+});
+
+it('rejects an existing phone reset proof on both view and completion', function (): void {
+    $reset = $this->action->start($this->user->tenant_id, RegistrationChannel::Email, $this->user->email, 'browser', '127.0.0.1', (string) Str::uuid());
+    $code = recoveryCode();
+    $reset->update(['channel' => 'PHONE']);
+    $before = $this->user->password_hash;
+    expect(fn () => $this->action->view($this->user->tenant_id, $reset->id, 'browser'))->toThrow(DomainException::class)
+        ->and(fn () => $this->action->complete($this->user->tenant_id, $reset->id, 'browser', $code, 'NewPassword1234'))->toThrow(DomainException::class)
+        ->and($this->user->fresh()->password_hash)->toBe($before)->and($reset->fresh()->consumed_at)->toBeNull();
 });

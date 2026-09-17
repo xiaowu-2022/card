@@ -26,20 +26,19 @@ final readonly class RegisterUserAction
             return DB::transaction(function () use ($tenant, $challengeId, $password, $displayName, $locale, $requestId): User {
                 $currentTenant = Tenant::query()->whereKey($tenant->id)->lockForUpdate()->firstOrFail();
                 $challenge = RegistrationChallenge::query()->where('tenant_id', $tenant->id)->whereKey($challengeId)->lockForUpdate()->first();
-                if (! $challenge || $challenge->status !== RegistrationChallengeStatus::Verified || $challenge->consumed_at !== null || $challenge->expires_at->isPast()) {
+                if (! $challenge || $challenge->channel !== RegistrationChannel::Email || $challenge->status !== RegistrationChallengeStatus::Verified || $challenge->consumed_at !== null || $challenge->expires_at->isPast()) {
                     throw new DomainException('REGISTRATION_CHALLENGE_NOT_VERIFIED', 'A valid verified challenge is required.');
                 }
 
-                $email = $challenge->channel === RegistrationChannel::Email ? $challenge->destination : null;
-                $phone = $challenge->channel === RegistrationChannel::Phone ? $challenge->destination : null;
+                $email = $challenge->destination;
                 $user = User::query()->create([
                     'tenant_id' => $tenant->id,
                     'email' => $email,
-                    'phone' => $phone,
+                    'phone' => null,
                     'password_hash' => Hash::make($password),
                     'status' => UserStatus::Active,
                     'email_verified_at' => $email ? now() : null,
-                    'phone_verified_at' => $phone ? now() : null,
+                    'phone_verified_at' => null,
                 ]);
                 UserProfile::query()->create(['tenant_id' => $tenant->id, 'user_id' => $user->id, 'display_name' => $displayName ? trim($displayName) : null]);
                 $selectedLocale = $currentTenant->locales()->where('enabled', true)->where('locale', $locale)->exists()

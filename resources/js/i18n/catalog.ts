@@ -8,6 +8,26 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    'Only email registration and sign in are available.': [
+        '仅支持邮箱注册和登录。',
+        'Pendaftaran dan log masuk hanya melalui e-mel.',
+        'Solo se permite registrarse e iniciar sesión con correo electrónico.',
+    ],
+    'First, verify your email address.': [
+        '请先验证你的邮箱。',
+        'Sahkan alamat e-mel anda dahulu.',
+        'Primero, verifica tu dirección de correo electrónico.',
+    ],
+    'Use an invitation code and verify your email address.': [
+        '使用邀请码并验证邮箱，即可注册。',
+        'Gunakan kod jemputan dan sahkan alamat e-mel anda.',
+        'Utiliza un código de invitación y verifica tu correo electrónico.',
+    ],
+    'Use the verified email already linked to your account. This does not create a new account.': [
+        '请使用账户已绑定并验证的邮箱。此操作不会创建新账户。',
+        'Gunakan e-mel disahkan yang telah dipautkan ke akaun anda. Ini tidak mencipta akaun baharu.',
+        'Utiliza el correo electrónico verificado vinculado a tu cuenta. Esto no crea una cuenta nueva.',
+    ],
     'Growth strategy announcement': [
         '增长战略发布',
         'Pengumuman strategi pertumbuhan',

@@ -13,6 +13,6 @@ final class StartUserPasswordResetRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['channel' => ['required', 'in:EMAIL,PHONE'], 'reset_contact' => ['required', 'string', 'max:255'], 'request_id' => ['required', 'uuid']];
+        return ['channel' => ['required', 'in:EMAIL'], 'reset_contact' => ['required', 'string', 'max:255', 'email'], 'request_id' => ['required', 'uuid']];
     }
 }

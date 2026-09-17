@@ -5,10 +5,7 @@ namespace App\Application\User;
 use App\Application\User\DTOs\CreatedRegistrationChallenge;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Notification\Contracts\EmailVerificationSender;
-use App\Domain\Notification\Contracts\SmsVerificationSender;
 use App\Domain\Notification\Exceptions\EmailDeliveryUnknown;
-use App\Domain\Notification\Exceptions\SmsDeliveryUnknown;
-use App\Domain\Notification\Services\TenantSmsPolicy;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Enums\RegistrationChallengeStatus;
 use App\Domain\User\Enums\RegistrationChannel;
@@ -17,7 +14,6 @@ use App\Domain\User\Models\User;
 use App\Domain\User\Services\ContactMasker;
 use App\Domain\User\Services\EmailNormalizer;
 use App\Domain\User\Services\OtpHasher;
-use App\Domain\User\Services\PhoneNormalizer;
 use App\Support\Errors\DomainException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -27,12 +23,9 @@ final readonly class CreateRegistrationChallengeAction
 {
     public function __construct(
         private EmailNormalizer $emails,
-        private PhoneNormalizer $phones,
         private OtpHasher $hasher,
         private ContactMasker $masker,
         private EmailVerificationSender $emailSender,
-        private SmsVerificationSender $smsSender,
-        private TenantSmsPolicy $smsPolicy,
         private UserVerificationEmailLimit $emailLimit,
         private AuditLogger $audit,
     ) {}
@@ -40,23 +33,17 @@ final readonly class CreateRegistrationChallengeAction
     /** @param list<string> $reusableChallengeIds */
     public function execute(Tenant $tenant, RegistrationChannel $channel, string $destination, ?string $region = null, ?string $requestId = null, array $reusableChallengeIds = [], ?string $promotionInviterId = null, ?string $companyInvitationId = null): CreatedRegistrationChallenge
     {
-        if ($channel === RegistrationChannel::Email && ! $this->emailSender->isAvailable($tenant)) {
+        if ($channel !== RegistrationChannel::Email) {
+            throw new DomainException('EMAIL_AUTH_ONLY', 'Only email registration and sign in are available.');
+        }
+        if (! $this->emailSender->isAvailable($tenant)) {
             throw new DomainException('EMAIL_VERIFICATION_UNAVAILABLE', 'Email verification is not available in this environment.', 503);
         }
-        if ($channel === RegistrationChannel::Phone && ! $this->smsSender->isAvailable($tenant)) {
-            throw new DomainException('PHONE_VERIFICATION_UNAVAILABLE', 'Phone verification is not available in this environment.', 503);
-        }
-
-        $destination = $channel === RegistrationChannel::Email
-            ? $this->emails->normalize($destination)
-            : $this->phones->normalize($destination, $region);
-        $contactColumn = $channel === RegistrationChannel::Email ? 'email' : 'phone';
-        $existing = User::query()->where('tenant_id', $tenant->id)->where($contactColumn, $destination)->exists();
+        $destination = $this->emails->normalize($destination);
+        $existing = User::query()->where('tenant_id', $tenant->id)->where('email', $destination)->exists();
         $id = (string) Str::uuid();
         $rawCode = (string) random_int(100000, 999999);
-        $timing = $channel === RegistrationChannel::Phone
-            ? $this->smsPolicy->timing($tenant->id)
-            : ['resend' => (int) config('user-auth.resend_cooldown_seconds'), 'ttl' => 60 * (int) config('user-auth.otp_ttl_minutes')];
+        $timing = ['resend' => (int) config('user-auth.resend_cooldown_seconds'), 'ttl' => 60 * (int) config('user-auth.otp_ttl_minutes')];
 
         try {
             [$challenge, $reusedVerified, $reusedDelivery] = DB::transaction(function () use ($tenant, $channel, $destination, $id, $rawCode, $requestId, $existing, $reusableChallengeIds, $timing, $promotionInviterId, $companyInvitationId): array {
@@ -73,7 +60,7 @@ final readonly class CreateRegistrationChallengeAction
                 foreach ($pending as $pendingChallenge) {
                     if ($pendingChallenge->expires_at->isPast()) {
                         $pendingChallenge->update(['status' => RegistrationChallengeStatus::Expired]);
-                    } elseif ($pendingChallenge->sms_delivery_uncertain || $pendingChallenge->email_delivery_uncertain) {
+                    } elseif ($pendingChallenge->email_delivery_uncertain) {
                         if (in_array($pendingChallenge->id, $reusableChallengeIds, true)) {
                             $this->assertSameInviter($pendingChallenge, $promotionInviterId, $companyInvitationId);
 
@@ -114,9 +101,7 @@ final readonly class CreateRegistrationChallengeAction
                     throw new DomainException('REGISTRATION_SEND_COOLDOWN', 'Please wait before requesting another verification code.', 429);
                 }
 
-                if ($channel === RegistrationChannel::Email) {
-                    $this->emailLimit->assertAvailable($tenant, $destination);
-                }
+                $this->emailLimit->assertAvailable($tenant, $destination);
 
                 RegistrationChallenge::query()
                     ->where('tenant_id', $tenant->id)
@@ -135,8 +120,8 @@ final readonly class CreateRegistrationChallengeAction
                     'status' => RegistrationChallengeStatus::Pending,
                     'attempt_count' => 0,
                     'expires_at' => now()->addSeconds($timing['ttl']),
-                    'sms_delivery_uncertain' => $channel === RegistrationChannel::Phone,
-                    'email_delivery_uncertain' => $channel === RegistrationChannel::Email,
+                    'sms_delivery_uncertain' => false,
+                    'email_delivery_uncertain' => true,
                     'cancelled_at' => null,
                     'promotion_inviter_id' => $promotionInviterId,
                     'promotion_company_invitation_id' => $companyInvitationId,
@@ -156,7 +141,7 @@ final readonly class CreateRegistrationChallengeAction
             throw $exception;
         }
 
-        if (! $reusedVerified && ! $reusedDelivery && $channel === RegistrationChannel::Email) {
+        if (! $reusedVerified && ! $reusedDelivery) {
             try {
                 $existing
                     ? $this->emailSender->sendExistingAccountNotice($tenant, $destination)
@@ -169,22 +154,9 @@ final readonly class CreateRegistrationChallengeAction
                 $this->confirmEmailAttempt($tenant->id, $challenge->id);
                 throw $exception;
             }
-        } elseif (! $reusedVerified && ! $reusedDelivery) {
-            try {
-                $existing
-                    ? $this->smsSender->sendExistingAccountNotice($tenant, $destination)
-                    : $this->smsSender->sendVerificationCode($tenant, $destination, $rawCode);
-                $this->confirmSmsAttempt($tenant->id, $challenge->id);
-                $challenge->sms_delivery_uncertain = false;
-            } catch (SmsDeliveryUnknown) {
-                // Persisted before sending: even a process crash cannot trigger a blind resend.
-            } catch (DomainException $exception) {
-                $this->confirmSmsAttempt($tenant->id, $challenge->id);
-                throw $exception;
-            }
         }
 
-        return new CreatedRegistrationChallenge($challenge, $reusedVerified || $reusedDelivery ? null : $rawCode, $existing, $reusedVerified, ! $reusedVerified && ($challenge->sms_delivery_uncertain || $challenge->email_delivery_uncertain));
+        return new CreatedRegistrationChallenge($challenge, $reusedVerified || $reusedDelivery ? null : $rawCode, $existing, $reusedVerified, ! $reusedVerified && $challenge->email_delivery_uncertain);
     }
 
     private function confirmEmailAttempt(string $tenantId, string $challengeId): void
@@ -197,12 +169,6 @@ final readonly class CreateRegistrationChallengeAction
         if ($challenge->promotion_inviter_id !== $inviterId || $challenge->promotion_company_invitation_id !== $companyId) {
             throw new DomainException('INVITATION_IMMUTABLE', 'The invitation relationship cannot be changed.', 409);
         }
-    }
-
-    private function confirmSmsAttempt(string $tenantId, string $challengeId): void
-    {
-        RegistrationChallenge::query()->where('tenant_id', $tenantId)->whereKey($challengeId)
-            ->update(['sms_delivery_uncertain' => false]);
     }
 
     private function registrationLockKey(string $tenantId, RegistrationChannel $channel, string $destination): int

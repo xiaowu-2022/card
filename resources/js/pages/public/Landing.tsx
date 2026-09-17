@@ -56,7 +56,7 @@ const services = [
 const faqs = [
     {
         question: 'What do I need to register?',
-        answer: 'Use an invitation code and verify your email or phone number.',
+        answer: 'Use an invitation code and verify your email address.',
     },
     {
         question: 'How do I apply for a Mastercard U Card?',

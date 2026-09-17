@@ -7,7 +7,6 @@ use App\Application\Promotion\PromotionMembershipAction;
 use App\Application\User\CreateRegistrationChallengeAction;
 use App\Application\User\VerifyRegistrationChallengeAction;
 use App\Domain\Notification\Contracts\EmailVerificationSender;
-use App\Domain\Notification\Contracts\SmsVerificationSender;
 use App\Domain\Tenant\TenantContext;
 use App\Domain\User\Enums\RegistrationChallengeStatus;
 use App\Domain\User\Enums\RegistrationChannel;
@@ -25,7 +24,7 @@ use Inertia\Response;
 
 final class RegistrationController extends Controller
 {
-    public function create(Request $request, EmailVerificationSender $emailSender, SmsVerificationSender $smsSender, TenantContext $context, PromotionMembershipAction $members): Response
+    public function create(Request $request, EmailVerificationSender $emailSender, TenantContext $context, PromotionMembershipAction $members): Response
     {
         $key = 'promotion.invitation.'.$context->id();
         $invitationInvalid = false;
@@ -59,7 +58,6 @@ final class RegistrationController extends Controller
         return Inertia::render('user/Register', [
             'registration' => [
                 'emailAvailable' => $emailSender->isAvailable($context->tenant()),
-                'phoneAvailable' => $smsSender->isAvailable($context->tenant()),
                 'invitationCode' => $request->session()->get($key, ''),
                 'invitationLocked' => $request->session()->has($key),
                 'invitationInvalid' => $invitationInvalid,
@@ -82,7 +80,7 @@ final class RegistrationController extends Controller
             $context->tenant(),
             RegistrationChannel::from($request->string('channel')->toString()),
             $request->string('destination')->toString(),
-            $request->string('region')->toString() ?: null,
+            null,
             $request->attributes->get('request_id'),
             $ownedChallengeIds,
             $inviter['memberId'],
@@ -103,7 +101,7 @@ final class RegistrationController extends Controller
     {
         $this->assertSessionOwnsChallenge($request, $challenge);
         $model = RegistrationChallenge::query()->where('tenant_id', $context->id())->whereKey($challenge)->first();
-        if (! $model || ! in_array($model->status, [RegistrationChallengeStatus::Pending, RegistrationChallengeStatus::Verified], true) || $model->expires_at->isPast()) {
+        if (! $model || $model->channel !== RegistrationChannel::Email || ! in_array($model->status, [RegistrationChallengeStatus::Pending, RegistrationChallengeStatus::Verified], true) || $model->expires_at->isPast()) {
             throw new DomainException('REGISTRATION_CHALLENGE_INVALID', 'This verification request is invalid or expired.');
         }
 

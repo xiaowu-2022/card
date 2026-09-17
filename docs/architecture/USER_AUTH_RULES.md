@@ -1,5 +1,20 @@
 # User Authentication Rules
 
+## Email-only authentication — approved 2026-09-17
+
+Public registration, login and forgotten-password recovery now accept only email.
+This supersedes earlier email/SMS authentication descriptions in this document and
+the notification/recovery specifications. UI channel switches and country-code
+controls are removed. Requests and application actions reject phone authentication,
+including consumption of phone registration/reset proofs. A configured SMS sender
+does not enable phone registration, and unavailable email delivery has no SMS fallback.
+Invitations, email normalization, OTP ownership/expiry, quotas, tenant-scoped lookup,
+session invalidation and financial eligibility rules remain unchanged.
+
+Phone contact/cardholder fields and independent SMS configuration remain available
+for their separate purposes. No users, sessions, contact data or audit history are
+deleted, and no migration is required. There is no phone-login compatibility mode.
+
 Forgotten-password recovery uses a dedicated browser-bound proof under
 [USER_PASSWORD_RECOVERY.md](USER_PASSWORD_RECOVERY.md), never a registration proof or
 support/admin password override. Successful recovery invalidates all prior User sessions.

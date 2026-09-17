@@ -27,7 +27,7 @@ final class UserAuthController extends Controller
     public function store(UserLoginRequest $request, TenantContext $context, AuthenticateUserAction $action): RedirectResponse
     {
         $request->ensureIsNotRateLimited($context->id());
-        $user = $action->execute($context->id(), $request->string('identifier')->toString(), $request->string('password')->toString(), $request->string('region')->toString() ?: null, $request->attributes->get('request_id'), $request->ip(), $request->userAgent());
+        $user = $action->execute($context->id(), $request->string('identifier')->toString(), $request->string('password')->toString(), null, $request->attributes->get('request_id'), $request->ip(), $request->userAgent());
         if (! $user) {
             $request->hitRateLimiter($context->id());
             throw ValidationException::withMessages(['identifier' => 'Invalid credentials.']);

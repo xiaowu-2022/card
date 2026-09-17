@@ -1,22 +1,15 @@
-import { dialCountries } from '@/lib/phone-input';
 import { t, useClientTranslation, errorMessage } from '@/i18n';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { useState } from 'react';
-import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js/max';
-import { SearchSelect } from '@/components/ui/search-select';
-import { countryOptions } from '@/hooks/useCardGeography';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PublicLayout } from '@/layouts/PublicLayout';
 
 type Props = {
     registration: {
         emailAvailable: boolean;
-        phoneAvailable: boolean;
         invitationCode: string;
         invitationLocked: boolean;
         invitationInvalid?: boolean;
@@ -24,24 +17,15 @@ type Props = {
 };
 
 export default function Register({ registration }: Props) {
-    const { i18n } = useClientTranslation();
+    useClientTranslation();
 
-    const available = registration.emailAvailable || registration.phoneAvailable;
-    const initialChannel = registration.emailAvailable ? 'EMAIL' : 'PHONE';
-    const [channel, setChannel] = useState<'EMAIL' | 'PHONE'>(initialChannel);
+    const available = registration.emailAvailable;
     const form = useForm({
-        channel,
+        channel: 'EMAIL',
         destination: '',
-        region: 'CN',
         invitation_code: registration.invitationCode ?? '',
     });
     const formError = (form.errors as Record<string, string>).form;
-    const selectChannel = (value: string) => {
-        const selected = value as 'EMAIL' | 'PHONE';
-        setChannel(selected);
-        form.clearErrors();
-        form.setData({ ...form.data, channel: selected, destination: '', region: 'CN' });
-    };
     return (
         <PublicLayout compact authPromotion>
             <Head title={t('Create account')} />
@@ -50,7 +34,7 @@ export default function Register({ registration }: Props) {
                     <CardHeader>
                         <CardTitle className="text-2xl">{t('Create your account')}</CardTitle>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            {t('First, verify one contact method.')}
+                            {t('First, verify your email address.')}
                         </p>
                     </CardHeader>
                     <CardContent>
@@ -66,45 +50,11 @@ export default function Register({ registration }: Props) {
                         )}
                         {available && (
                             <>
-                                <Tabs
-                                    value={channel}
-                                    onValueChange={selectChannel}
-                                    className="mb-6"
-                                >
-                                    <TabsList
-                                        className={
-                                            registration.emailAvailable &&
-                                            registration.phoneAvailable
-                                                ? 'grid w-full grid-cols-2'
-                                                : 'grid w-full grid-cols-1'
-                                        }
-                                    >
-                                        {registration.emailAvailable && (
-                                            <TabsTrigger value="EMAIL">{t('Email')}</TabsTrigger>
-                                        )}
-                                        {registration.phoneAvailable && (
-                                            <TabsTrigger value="PHONE">{t('Phone')}</TabsTrigger>
-                                        )}
-                                    </TabsList>
-                                </Tabs>
                                 <form
                                     className="space-y-5"
                                     onSubmit={(event) => {
                                         event.preventDefault();
                                         form.clearErrors();
-                                        if (channel === 'PHONE') {
-                                            const phone = parsePhoneNumberFromString(
-                                                form.data.destination,
-                                                form.data.region as CountryCode,
-                                            );
-                                            if (!phone?.isValid()) {
-                                                form.setError(
-                                                    'destination',
-                                                    'Enter a valid phone number.',
-                                                );
-                                                return;
-                                            }
-                                        }
                                         form.post('/register/challenges');
                                     }}
                                 >
@@ -116,75 +66,22 @@ export default function Register({ registration }: Props) {
                                             </AlertDescription>
                                         </Alert>
                                     )}
-                                    {channel === 'EMAIL' ? (
-                                        <FormField
+                                    <FormField
+                                        id="destination"
+                                        label={t('Email address')}
+                                        error={errorMessage(form.errors.destination)}
+                                    >
+                                        <Input
                                             id="destination"
-                                            label={t('Email address')}
-                                            error={errorMessage(form.errors.destination)}
-                                        >
-                                            <Input
-                                                id="destination"
-                                                type="email"
-                                                autoComplete="email"
-                                                value={form.data.destination}
-                                                onChange={(event) =>
-                                                    form.setData('destination', event.target.value)
-                                                }
-                                                required
-                                            />
-                                        </FormField>
-                                    ) : (
-                                        <>
-                                            <FormField
-                                                id="region"
-                                                label={t('Country code')}
-                                                error={errorMessage(form.errors.region)}
-                                            >
-                                                <SearchSelect
-                                                    id="region"
-                                                    label={t('Country code')}
-                                                    options={countryOptions(
-                                                        dialCountries,
-                                                        i18n.language,
-                                                        true,
-                                                    )}
-                                                    placeholder={t('Please select')}
-                                                    searchLabel={t('Search options')}
-                                                    emptyLabel={t('No matching options')}
-                                                    disabled={form.processing}
-                                                    value={form.data.region}
-                                                    onValueChange={(value) =>
-                                                        form.setData('region', value)
-                                                    }
-                                                />
-                                            </FormField>
-                                            <FormField
-                                                id="destination"
-                                                label={t('Phone number')}
-                                                description={t(
-                                                    'Include the international prefix, or select a country code above.',
-                                                )}
-                                                error={errorMessage(form.errors.destination)}
-                                            >
-                                                <Input
-                                                    id="destination"
-                                                    type="tel"
-                                                    autoComplete="tel"
-                                                    inputMode="tel"
-                                                    maxLength={30}
-                                                    aria-invalid={Boolean(form.errors.destination)}
-                                                    value={form.data.destination}
-                                                    onChange={(event) =>
-                                                        form.setData(
-                                                            'destination',
-                                                            event.target.value,
-                                                        )
-                                                    }
-                                                    required
-                                                />
-                                            </FormField>
-                                        </>
-                                    )}
+                                            type="email"
+                                            autoComplete="email"
+                                            value={form.data.destination}
+                                            onChange={(event) =>
+                                                form.setData('destination', event.target.value)
+                                            }
+                                            required
+                                        />
+                                    </FormField>
                                     <FormField
                                         id="invitation-code"
                                         label={t('Invitation code')}
@@ -209,10 +106,7 @@ export default function Register({ registration }: Props) {
                                     <Button
                                         className="w-full"
                                         type="submit"
-                                        disabled={
-                                            form.processing ||
-                                            (channel === 'PHONE' && dialCountries.length === 0)
-                                        }
+                                        disabled={form.processing}
                                     >
                                         {t('Send verification code')}
                                     </Button>

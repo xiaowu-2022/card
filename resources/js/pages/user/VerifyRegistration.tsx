@@ -7,7 +7,7 @@ import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { PublicLayout } from '@/layouts/PublicLayout';
 
-type Props = { challenge: { id: string; channel: 'EMAIL' | 'PHONE'; status: string } };
+type Props = { challenge: { id: string; channel: 'EMAIL'; status: string } };
 
 export default function VerifyRegistration({ challenge }: Props) {
     useClientTranslation();
@@ -35,7 +35,7 @@ export default function VerifyRegistration({ challenge }: Props) {
                             {verified
                                 ? t('Your contact is verified. Finish creating your account.')
                                 : t('Enter the six-digit code sent by {{value1}}.', {
-                                      value1: challenge.channel === 'EMAIL' ? t('Email') : t('SMS'),
+                                      value1: t('Email'),
                                   })}
                         </p>
                     </CardHeader>

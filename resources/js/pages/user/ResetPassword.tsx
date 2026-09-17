@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 export default function ResetPassword({
     reset,
 }: {
-    reset: { id: string; channel: string; expiresAt: string };
+    reset: { id: string; channel: 'EMAIL'; expiresAt: string };
 }) {
     useClientTranslation();
     const form = useForm({ code: '', password: '', password_confirmation: '', confirmed: false });

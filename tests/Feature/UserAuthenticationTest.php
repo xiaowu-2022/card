@@ -1,5 +1,6 @@
 <?php
 
+use App\Application\User\AuthenticateUserAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Audit\Models\AuditLog;
 use App\Domain\Tenant\Enums\TenantStatus;
@@ -31,15 +32,14 @@ it('authenticates active users only within the resolved tenant', function (): vo
     $this->post('http://b.localhost/login', ['identifier' => 'same-auth@example.test', 'password' => 'PasswordB1234'])->assertRedirect('/dashboard');
 });
 
-it('authenticates the same normalized phone independently in two tenants', function (): void {
-    $tenantA = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
-    $tenantB = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
-    User::query()->create(['tenant_id' => $tenantA->id, 'email' => null, 'phone' => '+60123456789', 'password_hash' => Hash::make('PhonePassA1234'), 'status' => UserStatus::Active, 'phone_verified_at' => now()]);
-    User::query()->create(['tenant_id' => $tenantB->id, 'email' => null, 'phone' => '+60123456789', 'password_hash' => Hash::make('PhonePassB1234'), 'status' => UserStatus::Active, 'phone_verified_at' => now()]);
-    $this->post('http://a.localhost/login', ['identifier' => '+60 12-345 6789', 'password' => 'PhonePassA1234'])->assertRedirect('/dashboard');
-    auth()->guard('tenant_user')->logout();
-    $this->post('http://b.localhost/login', ['identifier' => '+60123456789', 'password' => 'PhonePassA1234'])->assertSessionHasErrors('identifier');
-    $this->post('http://b.localhost/login', ['identifier' => '+60123456789', 'password' => 'PhonePassB1234'])->assertRedirect('/dashboard');
+it('rejects phone login even with a matching password in either tenant', function (): void {
+    foreach (['tenant-a' => 'a.localhost', 'tenant-b' => 'b.localhost'] as $slug => $host) {
+        $tenant = Tenant::query()->where('slug', $slug)->firstOrFail();
+        User::query()->create(['tenant_id' => $tenant->id, 'phone' => '+60123456789', 'password_hash' => Hash::make('PhonePass1234'), 'status' => UserStatus::Active, 'phone_verified_at' => now()]);
+        $this->post("http://{$host}/login", ['identifier' => '+60123456789', 'password' => 'PhonePass1234'])->assertSessionHasErrors('identifier');
+        expect(app(AuthenticateUserAction::class)->execute($tenant->id, '+60123456789', 'PhonePass1234', null, null, null, null))->toBeNull();
+        $this->assertGuest('tenant_user');
+    }
 });
 
 it('returns one generic error for unknown, wrong-password and disabled identities', function (): void {
@@ -117,14 +117,12 @@ it('rate limits login per tenant identifier and ip without cross-tenant pollutio
     $this->post('http://b.localhost/login', ['identifier' => 'user@b.localhost', 'password' => 'local-password'])->assertRedirect('/dashboard');
 });
 
-it('uses normalized phone identifiers in login rate-limit keys', function (): void {
-    $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
-    User::query()->create(['tenant_id' => $tenant->id, 'email' => null, 'phone' => '+60123456789', 'password_hash' => Hash::make('PhonePass1234'), 'status' => UserStatus::Active, 'phone_verified_at' => now()]);
+it('uses normalized email identifiers in login rate-limit keys', function (): void {
     foreach (range(1, 5) as $attempt) {
-        $identifier = $attempt % 2 ? '+60 12-345 6789' : '+60123456789';
+        $identifier = $attempt % 2 ? 'USER@A.LOCALHOST' : 'user@a.localhost';
         $this->post('http://a.localhost/login', ['identifier' => $identifier, 'password' => 'wrong'])->assertSessionHasErrors('identifier');
     }
-    $this->post('http://a.localhost/login', ['identifier' => '+60123456789', 'password' => 'PhonePass1234'])
+    $this->post('http://a.localhost/login', ['identifier' => 'user@a.localhost', 'password' => 'local-password'])
         ->assertSessionHasErrors('identifier', fn (string $message) => str_contains($message, 'Too many'));
 });
 
@@ -236,9 +234,7 @@ it('changes only the current tenant user password when contacts match across ten
         ->and(Hash::check('PasswordB1234', $userB->fresh()->password_hash))->toBeTrue();
 });
 
-it('logs in with a selected calling-code region and a national phone number', function (): void {
-    $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
-    $user = User::query()->create(['tenant_id' => $tenant->id, 'email' => null, 'phone' => '+60123456789', 'password_hash' => Hash::make('PhonePass1234'), 'status' => UserStatus::Active, 'phone_verified_at' => now()]);
-    $this->post('http://a.localhost/login', ['identifier' => '0123456789', 'region' => 'MY', 'password' => 'PhonePass1234'])->assertRedirect('/dashboard');
-    $this->assertAuthenticatedAs($user, 'tenant_user');
+it('rejects national phone login regardless of the submitted region', function (): void {
+    $this->post('http://a.localhost/login', ['identifier' => '0123456789', 'region' => 'MY', 'password' => 'PhonePass1234'])->assertSessionHasErrors('identifier');
+    $this->assertGuest('tenant_user');
 });

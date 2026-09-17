@@ -1,5 +1,12 @@
 # Virtual Card SaaS Agent Rules
 
+On 2026-09-17 the user removed phone registration/login: consumer authentication
+and forgotten-password recovery are email-only, including server-side challenge
+creation, proof consumption and credential lookup. Preserve invitation, OTP,
+tenant isolation, rate limits and session rules. This does not remove phone fields
+used by cardholder/contact workflows or independent SMS notification settings.
+See `docs/architecture/USER_AUTH_RULES.md`.
+
 On 2026-09-17 the user approved the supplied growth-strategy poster on the public
 homepage's second section and below Accounts on Assets. Their final correction
 requires the original portrait layout, all text and branding preserved, with only
