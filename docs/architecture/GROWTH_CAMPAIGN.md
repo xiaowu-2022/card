@@ -38,3 +38,50 @@ layout. No redesign, crop, replacement text or new elements."
 
 The initial alternative design is not referenced or shipped. Original tool outputs
 remain in the local image-generation history; deployment uses only project files.
+
+## Assets carousel approval — 2026-09-18
+
+The user replaced the Assets portrait placement with a compact landscape carousel
+and explicitly selected three themes: invitations, card services, and fixed-term
+wealth. This supersedes the original-art-only restriction for Assets only. The
+public landing page retains the approved original portrait and its full copy.
+
+Assets uses three redesigned 3:1 illustrations, HTML-localized headings and links
+to /promotion, /cards and /wealth. Six-second rotation pauses on interaction or
+hover and respects reduced motion; dots, keyboard arrows and touch swipes provide
+manual navigation. No prices, balances, qualification rules or financial actions
+are changed. The artwork makes no guaranteed-return or card-network claims.
+
+Images were created using built-in image_gen, then resized/encoded to 1200×400
+JPEG for delivery (original generation files retained). Files:
+- public/images/marketing/growth/invitation-banner.jpg
+- public/images/marketing/growth/cards-banner.jpg
+- public/images/marketing/growth/wealth-banner.jpg
+
+Prompt set: ads-marketing; premium text-free 3:1 fintech carousel illustration;
+soft ivory/pale mint, polished 3D, emerald details, studio shadows; left 60%
+negative space for HTML headings, subjects on right; no text, logos, numbers,
+charts, promises or watermarks. Subjects respectively: translucent glass globe
+with connected pearl spheres; two mint/pearl payment cards with small chips;
+mint/pearl coins beside a glass monthly calendar with blank squares.
+
+Verification: tests/Browser/asset-campaign.mjs uses isolated local fixtures with
+no financial requests, checking three widths, four languages, all destinations,
+keyboard, touch, reduced motion and automatic/pause behavior.
+
+### Invitation artwork correction — 2026-09-18
+
+The user corrected the invitation slide to follow the original campaign poster and
+retain all original wording. The other two slides remain unchanged. The new
+`public/images/marketing/growth/invitation-growth-banner.jpg` is a 3:1 recomposition
+of the approved portrait, using its navy/red/gold palette, Earth, card, people and
+bridge imagery. Original Chinese brand/headline/2030 aspiration/three slogans and
+promotion CTA are embedded intact; localized alternative text describes the content.
+The image is contained, never cropped, and carousel controls use gold on navy.
+
+Built-in image_gen edit prompt: recompose the supplied original portrait as a 3:1
+landscape, preserve the brand and globe/card/bridge/people identity; large left-aligned
+Chinese headline, original 2030/5亿 aspiration, all three original slogans and
+进入推广中心 CTA; retain exact Chinese text; navy/red/gold; no extra claims or
+watermarks; reserve bottom safe space for carousel controls. Delivered as 1600px
+JPEG from the original retained generated PNG.

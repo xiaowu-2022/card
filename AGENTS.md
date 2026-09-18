@@ -1,5 +1,11 @@
 # Virtual Card SaaS Agent Rules
 
+On 2026-09-18 the user replaced the Assets growth poster with a compact 3:1
+carousel and approved redesigned invitation, card-service and wealth illustrations.
+This supersedes the original-portrait-only rule on Assets; the public landing page
+retains its original portrait artwork. Localize overlay copy and preserve scoped
+service navigation. See `docs/architecture/GROWTH_CAMPAIGN.md`.
+
 On 2026-09-18 the user approved four-asset fixed-term wealth deposits with monthly
 simple interest, automatic maturity return and whole-order early cancellation that
 returns principal minus interest already paid. SaaS alone configures company/currency

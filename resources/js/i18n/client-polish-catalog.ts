@@ -1,4 +1,27 @@
 export const clientPolishCatalog: Record<string, [string, string, string]> = {
+    'Latest transactions': ['最新交易', 'Transaksi terkini', 'Últimas transacciones'],
+    'Featured services': ['精选服务', 'Perkhidmatan pilihan', 'Servicios destacados'],
+    'Invite and earn': ['邀请推广', 'Jemput dan jana', 'Invita y gana'],
+    'Explore referral rewards': [
+        '查看邀请奖励',
+        'Lihat ganjaran jemputan',
+        'Consulta tus recompensas',
+    ],
+    'Card services': ['卡片服务', 'Perkhidmatan kad', 'Servicios de tarjetas'],
+    'Manage your cards in one place': [
+        '轻松管理我的卡片',
+        'Urus kad di satu tempat',
+        'Gestiona todas tus tarjetas',
+    ],
+    'Earn on savings': ['存币生息', 'Simpanan berfaedah', 'Ahorra y gana'],
+    'Fixed terms, monthly interest': [
+        '定期存入 · 按月结息',
+        'Tempoh tetap, faedah bulanan',
+        'Plazo fijo, interés mensual',
+    ],
+    'Play banners': ['播放轮播', 'Mainkan sepanduk', 'Reproducir banners'],
+    'Pause banners': ['暂停轮播', 'Jeda sepanduk', 'Pausar banners'],
+
     'View details': ['查看详情', 'Lihat butiran', 'Ver detalles'],
     'Joined at': ['加入时间', 'Masa menyertai', 'Fecha de incorporación'],
     'Edit level': ['修改等级', 'Ubah tahap', 'Cambiar nivel'],

@@ -6,6 +6,8 @@ import {
     Eye,
     EyeOff,
     ArrowDown,
+    ArrowDownLeft,
+    ArrowUpRight,
     ArrowUp,
     ArrowLeftRight,
     ChevronRight,
@@ -101,6 +103,10 @@ export function AssetCenter({
         }
         window.dispatchEvent(new Event('balance-visibility'));
     };
+    const recentActivity = overview.assets
+        .flatMap((account) => account.activity.map((row) => ({ ...row, asset: account.asset })))
+        .sort((a, b) => b.time.localeCompare(a.time) || b.id.localeCompare(a.id))
+        .slice(0, 5);
     const current = overview.assets.find((a) => a.asset === 'USDT') ?? overview.assets[0];
     if (!current) return null;
     const show = (value: string | null) =>
@@ -315,6 +321,65 @@ export function AssetCenter({
                 </div>
             </section>
             <GrowthCampaign variant="account" />
+            <section
+                className="rounded-2xl bg-surface px-4 pb-2 sm:px-5"
+                aria-labelledby="recent-transactions-title"
+            >
+                <div className="flex min-h-14 items-center justify-between gap-3">
+                    <h2 id="recent-transactions-title" className="text-base font-semibold">
+                        {t('Latest transactions')}
+                    </h2>
+                    <Link
+                        href="/funds"
+                        className="flex min-h-11 items-center gap-1 rounded-lg text-xs text-muted-foreground focus-visible:outline-2"
+                    >
+                        {t('More')}
+                        <ChevronRight size={14} aria-hidden="true" />
+                    </Link>
+                </div>
+                {recentActivity.length === 0 ? (
+                    <p className="py-7 text-center text-sm text-muted-foreground">
+                        {t('No activity yet')}
+                    </p>
+                ) : (
+                    <div className="divide-y divide-black/5">
+                        {recentActivity.map((row) => {
+                            const debit = row.amount.startsWith('-');
+                            const Icon = debit ? ArrowUpRight : ArrowDownLeft;
+                            const amount = exactAmount(row.amount);
+                            return (
+                                <div key={row.id} className="flex items-start gap-3 py-4 text-sm">
+                                    <span
+                                        className={`flex size-8 shrink-0 items-center justify-center rounded-full ${debit ? 'bg-muted text-slate-600' : 'bg-emerald-50 text-emerald-700'}`}
+                                    >
+                                        <Icon size={16} aria-hidden="true" />
+                                    </span>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap justify-between gap-x-3 gap-y-1">
+                                            <p className="font-medium">{t(row.kind)}</p>
+                                            <p
+                                                className={`min-w-0 break-all font-semibold tabular-nums ${debit ? '' : 'text-emerald-700'}`}
+                                            >
+                                                {hidden
+                                                    ? '••••••'
+                                                    : debit || amount === '0'
+                                                      ? amount
+                                                      : `+${amount}`}{' '}
+                                                <span className="whitespace-nowrap text-xs font-normal">
+                                                    {row.asset}
+                                                </span>
+                                            </p>
+                                        </div>
+                                        <p className="mt-1 text-xs text-muted-foreground">
+                                            {dateTime(row.time)}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </section>
             {!!current.orders?.length && (
                 <section>
                     <h2 className="mb-2 font-semibold">{t('Recent requests')}</h2>
