@@ -270,6 +270,43 @@ test('deposit activation uses a direct localized entry and exact editable minimu
         assert.equal(catalog[match[1]]?.length, 3, match[1]);
 });
 
+test('unfunded deposit notices interpolate the actual remaining amount and asset in every locale', () => {
+    const React = require('react');
+    const { renderToStaticMarkup } = require('react-dom/server');
+    const exactAmount = loadTs('resources/js/lib/exact-amount.ts');
+    const { default: SecurityDeposit } = loadTs('resources/js/pages/user/SecurityDeposit.tsx', {
+        '@/i18n': { ...i18n, useClientTranslation: () => ({ i18n: i18n.clientI18n }) },
+        '@/lib/exact-amount': exactAmount,
+        '@/lib/system-money': loadTs('resources/js/lib/system-money.ts', { './exact-amount': exactAmount }),
+        '@inertiajs/react': { Head: () => null, Link: 'a', useForm: () => ({}), usePage: () => ({ props: { errors: {} } }) },
+        '@/components/user/UserMoney': { MoneyDisplay: () => null },
+        '@/components/user/UserPageHeader': { UserPageHeader: () => null },
+        '@/components/user/UserStatusBanner': { UserStatusBanner: ({ title, description }) => React.createElement('section', null, title, description) },
+        '@/components/ui/button': { Button: 'button' },
+        '@/layouts/UserLayout': { UserLayout: ({ children }) => children },
+        '@/components/user/DepositRefundControls': { DepositRefundControls: () => null },
+        '@/components/user/DepositTopupForm': { DepositTopupForm: () => null },
+    });
+    const previous = i18n.clientI18n.language;
+    try {
+        for (const locale of locales) {
+            void i18n.clientI18n.changeLanguage(locale);
+            for (const amount of ['300.00000000', '125.50000000']) {
+                const html = renderToStaticMarkup(React.createElement(SecurityDeposit, { preview: {
+                    current: { amount: '0.00000000', asset: 'USDT' },
+                    remaining: { amount, asset: 'USDT' },
+                    available: { amount: '0.00000000', asset: 'USDT' },
+                    minimumTopup: { amount, asset: 'USDT' },
+                    canFund: false, satisfied: false, agentExempt: false, refund: {},
+                } }));
+                assert.ok(html.includes(exactAmount.displayMoney(amount)));
+                assert.ok(html.includes('USDT'));
+                assert.ok(!html.includes('{{'));
+            }
+        }
+    } finally { void i18n.clientI18n.changeLanguage(previous); }
+});
+
 test('the funded deposit banner displays actual deposited money instead of a generic success message', () => {
     const page = readFileSync('resources/js/pages/user/SecurityDeposit.tsx', 'utf8');
     const funded = page.split('preview.satisfied ? (')[1].split(') : !preview.canFund ? (')[0];
@@ -1946,7 +1983,7 @@ test('assets show the activation entry above accounts only when qualification is
             assert.ok(pending.indexOf(i18n.t('Account pending activation')) < pending.indexOf('id="asset-accounts"'));
             assert.ok(!active.includes(i18n.t('Account pending activation')));
             assert.ok(!active.includes('href="/promotion/invitations"'));
-            assert.ok(active.includes(i18n.t('Wealth management')));
+            assert.ok(!active.includes(i18n.t('Wealth management')));
         }
     } finally { void i18n.clientI18n.changeLanguage(previous); }
 });

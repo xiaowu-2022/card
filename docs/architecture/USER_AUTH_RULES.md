@@ -1,5 +1,12 @@
 # User Authentication Rules
 
+## Consumer password policy — approved 2026-09-18
+
+Registration, password recovery and password changes require at least 6 characters,
+with no mandatory uppercase, lowercase or numeric composition. Confirmation and
+existing ownership, current-password, OTP and session rules remain in force.
+Administrator password requirements are unchanged.
+
 ## Email-only authentication — approved 2026-09-17
 
 Public registration, login and forgotten-password recovery now accept only email.

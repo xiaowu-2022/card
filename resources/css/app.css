@@ -602,13 +602,33 @@ a.user-quick-action:hover .user-quick-action-circle {
     container-type: inline-size;
     border-radius: 24px;
     background: var(--user-background);
+    touch-action: pan-y pinch-zoom;
+}
+.user-card-dialog .cardholder-materials-form,
+.user-card-dialog .cardholder-materials-form .grid {
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+}
+.user-card-dialog .cardholder-materials-form .grid > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+@media (min-width: 640px) {
+    .user-card-dialog .cardholder-materials-form .sm\:grid-cols-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+.user-theme.user-card-dialog input:not([type='file']):not([type='checkbox']) {
+    min-width: 0;
+    max-width: 100%;
+    font-size: 16px;
 }
 .user-theme .user-card-dialog-body .cardholder-materials-form input:not([type='file']),
 .user-theme .user-card-dialog-body .cardholder-materials-form button[role='combobox'] {
     min-height: 44px;
     border-radius: 8px;
     padding-inline: 12px;
-    font-size: 14px;
+    font-size: 16px;
 }
 .cardholder-materials-form input[type='file'] {
     max-width: 100%;

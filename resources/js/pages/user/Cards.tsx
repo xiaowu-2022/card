@@ -245,7 +245,7 @@ function ProductIssue({
                         {t('Submit materials for this card, then review and confirm opening.')}
                     </DialogDescription>
                 </DialogHeader>
-                <div className="user-card-dialog-body min-h-0 overflow-y-auto overscroll-contain px-5 pb-6 sm:px-7">
+                <div className="user-card-dialog-body min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain px-5 pb-6 sm:px-7">
                     <ol
                         className="mb-6 grid grid-cols-2 gap-3 text-sm"
                         aria-label={t('Card application steps')}
@@ -766,7 +766,7 @@ export default function Cards(props: Props) {
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div
-                                    className="min-h-0 space-y-5 overflow-y-auto overscroll-contain px-5 pb-6 sm:px-7"
+                                    className="min-h-0 min-w-0 space-y-5 overflow-x-hidden overflow-y-auto overscroll-contain px-5 pb-6 sm:px-7"
                                     data-card-product-picker
                                 >
                                     {activeApplication && (

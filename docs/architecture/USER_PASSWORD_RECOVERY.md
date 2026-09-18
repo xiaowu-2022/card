@@ -45,8 +45,8 @@ the original proof merely by requesting a code (recipient throttles still apply)
 
 ## Reset
 
-One POST verifies six digits plus a confirmed password of at least 12 characters,
-upper/lowercase letters and a number, and explicit acknowledgement of session expiry.
+One POST verifies six digits plus a confirmed password of at least 6 characters
+(with no character-composition requirement), and explicit acknowledgement of session expiry.
 Lock Tenant -> User -> reset row. Incorrect attempts commit before returning failure;
 expiry, attempt limit, company/user state, current verified destination, session binding
 and credential fingerprint are checked again. Success atomically changes the password,

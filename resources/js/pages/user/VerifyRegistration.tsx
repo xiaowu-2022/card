@@ -23,7 +23,7 @@ export default function VerifyRegistration({ challenge }: Props) {
     const verifyFormError = (verify.errors as Record<string, string>).form;
     const completeFormError = (complete.errors as Record<string, string>).form;
     return (
-        <PublicLayout compact>
+        <PublicLayout compact authPromotion>
             <Head title={verified ? t('Finish registration') : t('Verify contact')} />
             <div className="mx-auto max-w-md px-4 pt-6 pb-12 sm:pt-12 sm:pb-20">
                 <Card className="rounded-[var(--user-radius-lg)] shadow-[0_12px_40px_rgba(23,32,28,0.06)]">
@@ -87,9 +87,7 @@ export default function VerifyRegistration({ challenge }: Props) {
                                 <FormField
                                     id="password"
                                     label={t('Password')}
-                                    description={t(
-                                        'At least 12 characters with upper/lowercase letters and a number.',
-                                    )}
+                                    description={t('At least 6 characters.')}
                                     error={errorMessage(complete.errors.password)}
                                 >
                                     <Input

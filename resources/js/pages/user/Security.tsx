@@ -169,7 +169,7 @@ function PasswordForm() {
             <FormField
                 id="password"
                 label={t('New password')}
-                description={t('At least 12 characters with upper/lowercase letters and a number.')}
+                description={t('At least 6 characters.')}
                 error={errorMessage(form.errors.password)}
             >
                 <Input

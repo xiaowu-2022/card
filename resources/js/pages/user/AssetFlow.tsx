@@ -394,6 +394,16 @@ export default function AssetFlow({
                         )}
                     </section>
                 )}
+                {mode === 'withdrawal' && !result && (
+                    <div className="space-y-2 px-2 text-sm leading-6 text-muted-foreground">
+                        <p>
+                            {t(
+                                'USDT and USDC withdrawals incur a 10% fee. ETH and BTC withdrawals have no fee.',
+                            )}
+                        </p>
+                        <p>{t('Account-to-account transfers are free for all currencies.')}</p>
+                    </div>
+                )}
                 {Object.values({ ...serverErrors, ...form.errors }).map((message, index) => (
                     <p key={index} role="alert" className="text-sm text-destructive">
                         {errorMessage(message)}

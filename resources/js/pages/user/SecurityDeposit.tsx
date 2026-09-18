@@ -1,4 +1,5 @@
 import { systemMoney } from '@/lib/system-money';
+import { displayMoney } from '@/lib/exact-amount';
 import { t, useClientTranslation, errorMessage } from '@/i18n';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { History, ShieldCheck } from 'lucide-react';
@@ -76,7 +77,8 @@ export default function SecurityDeposit({ preview }: { preview: Preview }) {
                             title={t(
                                 'You need {{value1}} {{value2}} to complete your security deposit',
                                 {
-                                    amount: systemMoney(preview.remaining.amount),
+                                    value1: displayMoney(preview.remaining.amount),
+                                    value2: preview.remaining.asset,
                                 },
                             )}
                             description={t('Available balance: {{amount}}', {

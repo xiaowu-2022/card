@@ -1,4 +1,14 @@
 export const assetsCatalog = {
+    'USDT and USDC withdrawals incur a 10% fee. ETH and BTC withdrawals have no fee.': [
+        'USDT、USDC提现扣除10%费用，ETH、BTC提现零费用。',
+        'Pengeluaran USDT dan USDC dikenakan yuran 10%. Pengeluaran ETH dan BTC tanpa yuran.',
+        'Los retiros de USDT y USDC tienen una comisión del 10%. Los retiros de ETH y BTC no tienen comisión.',
+    ],
+    'Account-to-account transfers are free for all currencies.': [
+        '账号互转所有币种全部零费用。',
+        'Pindahan antara akaun adalah percuma untuk semua mata wang.',
+        'Las transferencias entre cuentas son gratuitas para todas las monedas.',
+    ],
     'Withdrawal fee rate': [
         '提现手续费率',
         'Kadar yuran pengeluaran',

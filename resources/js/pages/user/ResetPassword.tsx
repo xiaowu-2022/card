@@ -52,9 +52,7 @@ export default function ResetPassword({
                 <FormField
                     id="reset_password"
                     label={t('New password')}
-                    description={t(
-                        'At least 12 characters with upper/lowercase letters and a number.',
-                    )}
+                    description={t('At least 6 characters.')}
                 >
                     <Input
                         id="reset_password"

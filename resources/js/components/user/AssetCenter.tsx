@@ -110,13 +110,6 @@ export function AssetCenter({
     const managedAccounts = usdt
         ? [
               {
-                  id: 'wealth',
-                  label: 'Wealth management',
-                  amount: null,
-                  href: null,
-                  icon: Coins,
-              },
-              {
                   id: 'deposit',
                   label: 'Security deposit',
                   amount: usdt.deposit,
@@ -135,6 +128,18 @@ export function AssetCenter({
             icon: null,
             href: null,
         })),
+        ...(usdt && expanded
+            ? [
+                  {
+                      id: 'wealth',
+                      label: 'Wealth management',
+                      amount: null,
+                      asset: 'USDT',
+                      href: null,
+                      icon: Coins,
+                  },
+              ]
+            : []),
     ];
     const depositAsset = overview.assets.find((a) => a.rails.some((r) => r.deposit));
     const withdrawalAsset = overview.assets.find((a) => a.rails.some((r) => r.withdrawal));

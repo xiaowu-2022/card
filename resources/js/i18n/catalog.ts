@@ -1151,10 +1151,10 @@ export const catalog = {
         'Solicitar tarjeta U Mastercard',
     ],
     Assets: ['资产', 'Aset', 'Activos'],
-    'At least 12 characters with upper/lowercase letters and a number.': [
-        '至少 12 个字符，包含大小写字母和数字。',
-        'Sekurang-kurangnya 12 aksara termasuk huruf besar, huruf kecil dan nombor.',
-        'Al menos 12 caracteres con mayúsculas, minúsculas y un número.',
+    'At least 6 characters.': [
+        '至少 6 个字符。',
+        'Sekurang-kurangnya 6 aksara.',
+        'Al menos 6 caracteres.',
     ],
     Available: ['可用', 'Tersedia', 'Disponible'],
     'Available Wallet balance': [

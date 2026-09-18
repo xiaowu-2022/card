@@ -552,12 +552,12 @@ export const paidPromotionCatalog = {
         'Detalle de comisiones por activación',
     ],
     'Annual fee reward rate: {{rate}}%': [
-        '年费奖励比例：{{rate}}%',
+        '邀请代理年费奖励比例：{{rate}}%',
         'Kadar ganjaran yuran tahunan: {{rate}}%',
         'Porcentaje de recompensa anual: {{rate}}%',
     ],
     'Direct activation reward: {{amount}} USDT per event': [
-        '直属激活奖励标准：{{amount}} USDT／次',
+        '邀请普通会员激活奖励标准：{{amount}} USDT／次',
         'Ganjaran pengaktifan langsung: {{amount}} USDT setiap kejadian',
         'Recompensa por activación directa: {{amount}} USDT por evento',
     ],
@@ -582,7 +582,7 @@ export const paidPromotionCatalog = {
         'Seleccione un nivel para ver las recompensas reales. Los rangos reflejan tasas históricas.',
     ],
     'Ordinary members earn 20 USDT for direct activation only.': [
-        '普通会员仅享直属激活奖励 20 USDT。',
+        '普通会员的邀请普通会员激活奖励标准为 20 USDT，仅限直接邀请。',
         'Ahli biasa menerima 20 USDT untuk pengaktifan langsung sahaja.',
         'Los miembros ordinarios reciben 20 USDT solo por activaciones directas.',
     ],
@@ -668,7 +668,7 @@ export const paidPromotionCatalog = {
             'Las reglas se aplican solo a nuevos pagos. El nivel requiere pago; no se asigna manualmente.',
         ],
     'Annual fee (USDT)': ['年费（USDT）', 'Yuran tahunan (USDT)', 'Cuota anual (USDT)'],
-    'Annual reward (%)': ['年费奖励（%）', 'Ganjaran tahunan (%)', 'Recompensa anual (%)'],
+    'Annual reward (%)': ['邀请代理年费奖励（%）', 'Ganjaran tahunan (%)', 'Recompensa anual (%)'],
     'Activation reward (USDT)': [
         '激活奖励（USDT）',
         'Ganjaran pengaktifan (USDT)',
@@ -786,7 +786,7 @@ export const paidPromotionCatalog = {
     'Reward differentials': ['奖励级差', 'Perbezaan ganjaran', 'Diferencias de recompensa'],
     'The direct inviter earns their activation standard; higher ancestors earn only the positive uncovered difference. Ordinary members earn 20 USDT for direct activations only. The payer’s own level does not reduce their direct inviter’s reward.':
         [
-            '直属推荐人按自己的激活奖励标准获奖，更高上级只获得尚未覆盖的正差额。普通会员仅获直属激活奖励20 USDT。缴纳人自己的等级不会扣减直属推荐人的奖励。',
+            '直属推荐人按自己的激活奖励标准获奖，更高上级只获得尚未覆盖的正差额。普通会员的邀请普通会员激活奖励标准为20 USDT，仅限直接邀请。缴纳人自己的等级不会扣减直属推荐人的奖励。',
             'Penjemput langsung menerima ganjaran mengikut tahapnya; penjemput atasan hanya menerima beza positif yang belum diliputi. Ahli biasa hanya mendapat 20 USDT bagi pengaktifan langsung. Tahap pembayar tidak mengurangkan ganjaran penjemput langsung.',
             'El invitador directo recibe la recompensa de su nivel; los superiores solo reciben la diferencia positiva no cubierta. Los miembros ordinarios reciben 20 USDT por activaciones directas. El nivel del pagador no reduce la recompensa del invitador directo.',
         ],
@@ -836,13 +836,13 @@ export const paidPromotionCatalog = {
     ],
     'No annual fee': ['免年费', 'Tiada yuran tahunan', 'Sin cuota anual'],
     'Direct activation standard': [
-        '直属激活奖励',
+        '邀请普通会员激活奖励标准',
         'Ganjaran pengaktifan langsung',
         'Recompensa por activación directa',
     ],
     'USDT / event': ['USDT／次', 'USDT / peristiwa', 'USDT / evento'],
     'Annual fee reward rate': [
-        '年费返佣比例',
+        '邀请代理年费奖励比例',
         'Kadar komisen yuran tahunan',
         'Comisión por cuota anual',
     ],
@@ -902,7 +902,7 @@ export const paidPromotionCatalog = {
         ],
     'Registration alone earns no commission. Ordinary members earn direct activation rewards only.':
         [
-            '注册本身不产生佣金；普通会员仅享直属激活奖励。',
+            '注册本身不产生佣金；普通会员仅享直接邀请普通会员的激活奖励。',
             'Pendaftaran sahaja tidak menghasilkan komisen. Ahli biasa hanya mendapat ganjaran pengaktifan langsung.',
             'Registrarse no genera comisiones. Los miembros ordinarios solo reciben recompensas por activaciones directas.',
         ],

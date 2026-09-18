@@ -15,7 +15,7 @@ final class CompleteUserPasswordResetRequest extends FormRequest
     public function rules(): array
     {
         return ['code' => ['required', 'string', 'regex:/^[0-9]{6}$/'],
-            'password' => ['required', 'string', 'max:1024', 'confirmed', Password::min(12)->letters()->mixedCase()->numbers()],
+            'password' => ['required', 'string', 'max:1024', 'confirmed', Password::min(6)],
             'confirmed' => ['accepted']];
     }
 }
