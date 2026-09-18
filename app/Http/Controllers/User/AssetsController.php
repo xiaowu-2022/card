@@ -5,6 +5,7 @@ namespace App\Http\Controllers\User;
 use App\Application\Assets\AssetOverviewQuery;
 use App\Application\Assets\DepositAssetsAction;
 use App\Application\Assets\ExchangeAssetsAction;
+use App\Application\Assets\FundsQuery;
 use App\Application\Assets\WithdrawAssetsAction;
 use App\Application\Wallet\UserWalletQuery;
 use App\Domain\Assets\AssetCatalog;
@@ -12,13 +13,11 @@ use App\Domain\Assets\AssetDepositOrder;
 use App\Domain\Assets\AssetRail;
 use App\Domain\Assets\AssetWithdrawalOrder;
 use App\Domain\Assets\ExchangeOrder;
-use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Tenant\TenantContext;
 use App\Domain\Withdrawal\Services\WithdrawalAddressProtector;
 use App\Http\Controllers\Controller;
 use Brick\Math\BigDecimal;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 final class AssetsController extends Controller
@@ -40,15 +39,19 @@ final class AssetsController extends Controller
         return Inertia::render('user/AssetFlow', ['overview' => $query->get($context->id(), $user->id, $wallets->get($context->id(), $user->id)), 'mode' => $mode, 'selectedAsset' => $result['asset'] ?? $request->input('asset', 'USDT'), 'result' => $result]);
     }
 
+    public function funds(Request $request, TenantContext $context, FundsQuery $query)
+    {
+        $request->validate(['asset' => 'sometimes|in:ALL,USDT,USDC,ETH,BTC', 'page' => 'sometimes|integer|min:1|max:100000']);
+
+        return Inertia::render('user/AssetHistory', $query->get($context->id(), $request->user('tenant_user')->id, $request->input('asset', 'ALL')));
+    }
+
     public function history(Request $request, TenantContext $context, string $asset)
     {
         AssetCatalog::assert($asset);
         $request->validate(['page' => 'sometimes|integer|min:1|max:100000']);
-        $rows = DB::table('ledger_postings as p')->join('ledger_accounts as a', 'a.id', '=', 'p.ledger_account_id')->join('ledger_entries as e', 'e.id', '=', 'p.ledger_entry_id')
-            ->where('p.tenant_id', $context->id())->where('a.tenant_id', $context->id())->where('e.tenant_id', $context->id())->where('a.user_id', $request->user('tenant_user')->id)->where('a.asset_code', $asset)->where('a.account_type', 'USER_AVAILABLE')->orderByDesc('e.posted_at')->orderByDesc('p.id')
-            ->select(['p.id', 'p.delta', 'e.posted_at', 'e.event_type'])->paginate(25)->through(fn ($r) => ['id' => $r->id, 'amount' => Money::of($r->delta, $asset)->amount(), 'time' => $r->posted_at, 'kind' => str_starts_with($r->event_type, 'ASSET_EXCHANGE') ? 'Exchange' : (str_starts_with($r->event_type, 'ASSET_DEPOSIT') ? 'Top up' : (str_starts_with($r->event_type, 'ASSET_WITHDRAWAL') ? 'Withdrawal' : 'Account activity'))]);
 
-        return Inertia::render('user/AssetHistory', ['asset' => $asset, 'rows' => $rows]);
+        return Inertia::render('user/AssetHistory', app(FundsQuery::class)->get($context->id(), $request->user('tenant_user')->id, $asset));
     }
 
     public function store(Request $request, TenantContext $context, DepositAssetsAction $deposits, WithdrawAssetsAction $withdrawals, ExchangeAssetsAction $exchange)

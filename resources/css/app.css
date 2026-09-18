@@ -554,6 +554,7 @@ a.user-quick-action:hover .user-quick-action-circle {
     border-top: 1px solid var(--border);
 }
 .user-account-page .user-menu-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     margin: 0;
     padding-block: 20px;
     gap: 8px;
@@ -1119,4 +1120,23 @@ a {
 .user-theme .user-page-header > div:first-child > p {
     grid-column: 1 / -1;
     margin-top: 0;
+}
+
+/* Currency actions share the wealth title row without reserving a second action slot. */
+.user-theme .wealth-currency-header .user-page-header {
+    align-items: center;
+    gap: 8px;
+}
+.user-theme .wealth-currency-header .user-page-header > div:first-child {
+    grid-template-columns: 36px minmax(0, 1fr);
+    column-gap: 4px;
+}
+.user-theme .wealth-currency-header .user-page-header h1 {
+    font-size: 18px;
+}
+.user-theme .wealth-currency-header select {
+    width: 92px;
+    min-height: 44px;
+    padding: 8px;
+    font-size: 16px;
 }

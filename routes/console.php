@@ -16,3 +16,5 @@ Schedule::command('deposits:process-refunds')->everyMinute()->withoutOverlapping
 Schedule::command('assets:refresh-prices')->everyMinute()->withoutOverlapping(5)->onOneServer();
 Schedule::command('assets:scan ETHEREUM')->everyMinute()->withoutOverlapping(30)->onOneServer();
 Schedule::command('assets:scan BITCOIN')->everyMinute()->withoutOverlapping(30)->onOneServer();
+
+Schedule::command('wealth:recover')->everyMinute()->withoutOverlapping(30)->onOneServer();

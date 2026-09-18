@@ -1,4 +1,289 @@
 export const assetsCatalog = {
+    'Funds activity': ['资金明细', 'Butiran dana', 'Movimientos de fondos'],
+    '{{asset}} funds account': [
+        '{{asset}} 资金账户',
+        'Akaun dana {{asset}}',
+        'Cuenta de fondos {{asset}}',
+    ],
+    'All currencies': ['全部币种', 'Semua mata wang', 'Todas las monedas'],
+    'Available funds': ['可用资金', 'Dana tersedia', 'Fondos disponibles'],
+    'Funds movements': ['资金变动记录', 'Rekod pergerakan dana', 'Historial de movimientos'],
+
+    'Wealth deposit debit': ['理财存入', 'Deposit simpanan', 'Depósito de inversión'],
+    'Wealth interest received': [
+        '理财利息到账',
+        'Faedah simpanan diterima',
+        'Intereses de inversión recibidos',
+    ],
+    'Wealth maturity principal returned': [
+        '理财到期返本',
+        'Prinsipal dipulangkan pada matang',
+        'Capital devuelto al vencimiento',
+    ],
+    'Wealth early withdrawal returned': [
+        '理财提前取出返还',
+        'Pulangan pengeluaran awal simpanan',
+        'Devolución por retiro anticipado',
+    ],
+    'Exchange received': ['兑换转入', 'Pertukaran masuk', 'Ingreso por cambio'],
+    'Exchange paid': ['兑换转出', 'Pertukaran keluar', 'Salida por cambio'],
+    'Other wallet activity': ['其他余额变动', 'Aktiviti baki lain', 'Otros movimientos de saldo'],
+    'Wallet credit': ['转入余额', 'Baki masuk', 'Abono al saldo'],
+    'Wallet debit': ['转出余额', 'Baki keluar', 'Cargo al saldo'],
+
+    'Wealth deposit information': ['存款信息', 'Maklumat deposit', 'Información del depósito'],
+    'Matured awaiting settlement': [
+        '到期待结算',
+        'Matang, menunggu penyelesaian',
+        'Vencido, pendiente de liquidación',
+    ],
+    '{{asset}} wealth details': [
+        '{{asset}} 理财明细',
+        'Butiran simpanan {{asset}}',
+        'Detalle de inversión {{asset}}',
+    ],
+    'Current wealth principal': ['在存本金', 'Prinsipal semasa', 'Capital invertido actual'],
+    'Wealth deposit records': ['存款记录', 'Rekod deposit', 'Registro de depósitos'],
+    'Wealth view details': ['查看详情', 'Lihat butiran', 'Ver detalles'],
+
+    'Wealth details action': ['明细', 'Butiran', 'Detalle'],
+    'Wealth deposit action': ['存入', 'Simpan', 'Ingresar'],
+    'Wealth withdraw action': ['取出', 'Keluar', 'Retirar'],
+    'No deposits available for early withdrawal.': [
+        '暂无可取出的理财存款',
+        'Tiada deposit yang boleh dikeluarkan awal.',
+        'No hay depósitos disponibles para retiro anticipado.',
+    ],
+
+    'Deposited amount': ['存款金额', 'Jumlah deposit', 'Importe depositado'],
+    'Next expected interest payment': [
+        '下次预计利息到账',
+        'Bayaran faedah dijangka seterusnya',
+        'Próximo abono de intereses previsto',
+    ],
+    'Interest settlement pending': ['待结算', 'Menunggu penyelesaian', 'Liquidación pendiente'],
+    'No upcoming interest payment': [
+        '暂无待到账利息',
+        'Tiada bayaran faedah akan datang',
+        'No hay intereses pendientes',
+    ],
+
+    'After early withdrawal recoveries': [
+        '已扣除提前支取扣回',
+        'Selepas pemulihan pengeluaran awal',
+        'Descontadas las recuperaciones por retiro anticipado',
+    ],
+    'About this valuation': ['估值说明', 'Tentang anggaran ini', 'Acerca de esta valoración'],
+    'New deposits unavailable': [
+        '暂不支持新存入',
+        'Deposit baharu tidak tersedia',
+        'Nuevos depósitos no disponibles',
+    ],
+    'Annual rate: {{rate}}%': [
+        '年化 {{rate}}%',
+        'Kadar tahunan: {{rate}}%',
+        'Tasa anual: {{rate}}%',
+    ],
+    'View / deposit': ['查看 / 存入', 'Lihat / deposit', 'Ver / depositar'],
+    'Last {{count}} months': [
+        '近 {{count}} 个月',
+        '{{count}} bulan terakhir',
+        'Últimos {{count}} meses',
+    ],
+    'No principal yet. Choose a currency above to deposit.': [
+        '暂无在存本金，可选择上方币种存入。',
+        'Belum ada prinsipal. Pilih mata wang di atas untuk deposit.',
+        'Aún no hay capital invertido. Elige una moneda arriba para depositar.',
+    ],
+
+    'No interest activity in this period.': [
+        '此期间暂无利息收支。',
+        'Tiada aktiviti faedah dalam tempoh ini.',
+        'No hay movimientos de intereses en este período.',
+    ],
+    'Cumulative net earnings': [
+        '累计净收益',
+        'Pendapatan bersih terkumpul',
+        'Ganancias netas acumuladas',
+    ],
+    'Principal valuation': ['在存本金估值', 'Anggaran prinsipal', 'Valor estimado del capital'],
+    'Net earnings valuation': [
+        '累计净收益估值',
+        'Anggaran pendapatan bersih terkumpul',
+        'Valor estimado de ganancias netas acumuladas',
+    ],
+    'Valuation unavailable': [
+        '估值暂不可用',
+        'Anggaran tidak tersedia',
+        'Valoración no disponible',
+    ],
+    'Estimated in USDT. Interest already in your wallet is shown separately.': [
+        '折合 USDT 估值，已到账的钱包利息单独展示。',
+        'Anggaran dalam USDT. Faedah dalam dompet ditunjukkan secara berasingan.',
+        'Estimación en USDT. Los intereses abonados en tu billetera se muestran por separado.',
+    ],
+    'Price updated': ['价格更新时间', 'Harga dikemas kini', 'Precio actualizado'],
+    'Principal allocation': ['在存本金分布', 'Agihan prinsipal', 'Distribución del capital'],
+    'Monthly earnings': ['月度收益', 'Pendapatan bulanan', 'Ganancias mensuales'],
+    'Last 12 months \u00b7 actual payment month': [
+        '最近 12 个月 · 按实际到账月份',
+        '12 bulan terakhir · bulan bayaran sebenar',
+        'Últimos 12 meses · mes de abono real',
+    ],
+    'Interest received': ['已到账利息', 'Faedah diterima', 'Intereses recibidos'],
+    'Interest recovered': ['已扣回利息', 'Faedah dituntut semula', 'Intereses recuperados'],
+    'Net earnings': ['净收益', 'Pendapatan bersih', 'Ganancias netas'],
+    'Monthly details': ['月度明细', 'Butiran bulanan', 'Detalle mensual'],
+    'All wealth wallets': [
+        '全部理财钱包',
+        'Semua dompet simpanan',
+        'Todas las billeteras de inversión',
+    ],
+    'Active deposits': ['在存笔数', 'Deposit aktif', 'Depósitos activos'],
+
+    'Your available balance is insufficient for this wealth deposit.': [
+        '可用余额不足，无法存入该笔理财。',
+        'Baki tersedia tidak mencukupi untuk deposit simpanan ini.',
+        'El saldo disponible es insuficiente para esta inversión.',
+    ],
+    'This wealth operation could not be completed safely. Please try again.': [
+        '本次理财操作暂未完成，请重试。',
+        'Operasi simpanan ini tidak dapat diselesaikan. Sila cuba lagi.',
+        'No se pudo completar esta operación. Inténtalo de nuevo.',
+    ],
+    'Interest is automatically paid to your balance every month. Paid interest is recovered on early withdrawal.':
+        [
+            '所有利息每个月一结自动结算到余额，提前支取利息扣回。',
+            'Faedah dibayar secara automatik ke baki setiap bulan. Faedah dibayar dituntut semula jika dikeluarkan awal.',
+            'Los intereses se abonan automáticamente al saldo cada mes. Se recuperan los intereses pagados al retirar antes del vencimiento.',
+        ],
+    'Early withdrawal cancels the whole deposit. You receive principal minus interest already paid; including those payments, you recover your principal.':
+        [
+            '提前支取将整笔取消，本次返还本金减去已发利息；加上之前收到的利息，累计收回本金。',
+            'Pengeluaran awal membatalkan seluruh deposit. Prinsipal ditolak faedah yang sudah dibayar dipulangkan; jumlah keseluruhan yang diterima ialah prinsipal.',
+            'El retiro anticipado cancela todo el depósito. Recibes el capital menos los intereses ya pagados; sumados esos pagos, recuperas el capital.',
+        ],
+    'Wealth principal': ['理财本金', 'Prinsipal simpanan', 'Capital invertido'],
+    'Total interest paid': [
+        '累计已发利息',
+        'Jumlah faedah dibayar',
+        'Intereses abonados acumulados',
+    ],
+    'Wealth term': ['理财期限', 'Tempoh simpanan', 'Plazo de inversión'],
+    '{{months}} months · {{rate}}% annual rate': [
+        '{{months}} 个月 · 年化 {{rate}}%',
+        '{{months}} bulan · kadar tahunan {{rate}}%',
+        '{{months}} meses · tasa anual {{rate}}%',
+    ],
+    'Deposit principal': ['存入本金', 'Prinsipal deposit', 'Capital del depósito'],
+    'Minimum wealth deposit: {{amount}}': [
+        '最低存入：{{amount}}',
+        'Deposit minimum: {{amount}}',
+        'Depósito mínimo: {{amount}}',
+    ],
+    'This wealth product is not available for new deposits.': [
+        '此理财产品暂未开放存入。',
+        'Produk ini belum menerima deposit baharu.',
+        'Este producto no acepta nuevos depósitos.',
+    ],
+    'Review wealth deposit: {{amount}}, {{months}} months, {{rate}}% annual rate.': [
+        '确认存入 {{amount}}，期限 {{months}} 个月，年化 {{rate}}%。',
+        'Semak deposit {{amount}}, {{months}} bulan, kadar tahunan {{rate}}%.',
+        'Revisa el depósito de {{amount}}, {{months}} meses, tasa anual {{rate}}%.',
+    ],
+    'Principal returns automatically at maturity. No automatic renewal or compound interest.': [
+        '到期本金自动返还，不自动续存，不计复利。',
+        'Prinsipal dipulangkan automatik apabila matang. Tiada pembaharuan automatik atau faedah kompaun.',
+        'El capital se devuelve automáticamente al vencimiento. Sin renovación automática ni interés compuesto.',
+    ],
+    'I confirm the term, interest rate and early withdrawal rules.': [
+        '我确认期限、利率及提前支取规则。',
+        'Saya mengesahkan tempoh, kadar dan peraturan pengeluaran awal.',
+        'Confirmo el plazo, la tasa y las reglas de retiro anticipado.',
+    ],
+    'Confirm wealth deposit': ['确认存入理财', 'Sahkan deposit simpanan', 'Confirmar inversión'],
+    'Review wealth deposit': ['核对理财存入', 'Semak deposit simpanan', 'Revisar inversión'],
+    'My wealth deposits': ['我的理财存款', 'Deposit simpanan saya', 'Mis inversiones'],
+    'No wealth deposits yet.': [
+        '暂无理财存款。',
+        'Belum ada deposit simpanan.',
+        'Todavía no hay inversiones.',
+    ],
+    'Maturity date': ['到期日期', 'Tarikh matang', 'Fecha de vencimiento'],
+    'Earning interest': ['计息中', 'Sedang memperoleh faedah', 'Generando intereses'],
+    'Matured and returned': ['已到期返还', 'Matang dan dipulangkan', 'Vencido y devuelto'],
+    'Cancelled early': ['已提前取出', 'Dibatalkan awal', 'Cancelado anticipadamente'],
+    'Wealth deposit details': ['理财存款详情', 'Butiran deposit simpanan', 'Detalles de inversión'],
+    'Deposit date': ['存入日期', 'Tarikh deposit', 'Fecha del depósito'],
+    'Principal returned: {{amount}}': [
+        '已返还本金：{{amount}}',
+        'Prinsipal dipulangkan: {{amount}}',
+        'Capital devuelto: {{amount}}',
+    ],
+    'Withdraw entire deposit early': [
+        '提前支取整笔存款',
+        'Keluarkan seluruh deposit awal',
+        'Retirar todo el depósito anticipadamente',
+    ],
+    'Interest recovered: {{amount}}': [
+        '扣回已发利息：{{amount}}',
+        'Faedah dituntut semula: {{amount}}',
+        'Intereses recuperados: {{amount}}',
+    ],
+    'Amount returned now: {{amount}}': [
+        '本次实际返还：{{amount}}',
+        'Jumlah dipulangkan sekarang: {{amount}}',
+        'Importe a devolver ahora: {{amount}}',
+    ],
+    'I confirm cancellation of the entire deposit and recovery of all paid interest.': [
+        '我确认整笔取消，并扣回该笔全部已发利息。',
+        'Saya mengesahkan pembatalan seluruh deposit dan pemulangan semua faedah yang dibayar.',
+        'Confirmo cancelar todo el depósito y recuperar todos sus intereses abonados.',
+    ],
+    'Confirm early withdrawal': [
+        '确认提前支取',
+        'Sahkan pengeluaran awal',
+        'Confirmar retiro anticipado',
+    ],
+    'Monthly interest schedule': [
+        '每月利息明细',
+        'Jadual faedah bulanan',
+        'Calendario de intereses mensuales',
+    ],
+    'Interest paid': ['已发放', 'Sudah dibayar', 'Abonado'],
+    'Interest cancelled': ['已取消发放', 'Bayaran dibatalkan', 'Pago cancelado'],
+    'Scheduled interest': ['待发放', 'Menunggu bayaran', 'Pendiente de abono'],
+    'Wealth settings changed. Reload and review.': [
+        '理财配置已变化，请刷新后重新核对。',
+        'Tetapan simpanan berubah. Muat semula dan semak.',
+        'La configuración cambió. Recarga y revisa.',
+    ],
+    'Enter a positive amount with valid currency precision.': [
+        '请输入符合币种精度的正金额。',
+        'Masukkan amaun positif mengikut ketepatan mata wang.',
+        'Introduce un importe positivo con la precisión de la moneda.',
+    ],
+    'This wealth request was already used with different details.': [
+        '此请求已用于其他理财信息，请重新核对。',
+        'Permintaan ini telah digunakan dengan butiran lain.',
+        'Esta solicitud ya se usó con otros datos.',
+    ],
+    'This wealth deposit is already closed.': [
+        '该笔理财已结束。',
+        'Deposit simpanan ini sudah ditutup.',
+        'Esta inversión ya está cerrada.',
+    ],
+    'Interest changed. Review the cancellation amount again.': [
+        '已发利息有变化，请重新核对取消金额。',
+        'Faedah berubah. Semak semula amaun pembatalan.',
+        'Los intereses cambiaron. Revisa el importe de cancelación.',
+    ],
+    'The receiving wallet is unavailable. Settlement will retry.': [
+        '收款钱包暂不可用，系统将重试结算。',
+        'Dompet penerima tidak tersedia. Penyelesaian akan dicuba semula.',
+        'La billetera receptora no está disponible. Se reintentará la liquidación.',
+    ],
+
     'USDT and USDC withdrawals incur a 10% fee. ETH and BTC withdrawals have no fee.': [
         'USDT、USDC提现扣除10%费用，ETH、BTC提现零费用。',
         'Pengeluaran USDT dan USDC dikenakan yuran 10%. Pengeluaran ETH dan BTC tanpa yuran.',

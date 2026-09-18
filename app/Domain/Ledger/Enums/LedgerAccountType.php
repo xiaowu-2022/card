@@ -4,6 +4,8 @@ namespace App\Domain\Ledger\Enums;
 
 enum LedgerAccountType: string
 {
+    case UserWealthPrincipal = 'USER_WEALTH_PRINCIPAL';
+    case TenantWealthInterestClearing = 'TENANT_WEALTH_INTEREST_CLEARING';
     case UserAvailable = 'USER_AVAILABLE';
     case UserSecurityDeposit = 'USER_SECURITY_DEPOSIT';
     case UserWithdrawalHold = 'USER_WITHDRAWAL_HOLD';
@@ -32,6 +34,6 @@ enum LedgerAccountType: string
 
     public function permitsNegativeBalance(): bool
     {
-        return in_array($this, [self::TenantTopupClearing, self::TenantWithdrawalClearing, self::TenantCardFundingClearing, self::TenantCommissionClearing, self::TenantExchangeClearing], true);
+        return in_array($this, [self::TenantWealthInterestClearing, self::TenantTopupClearing, self::TenantWithdrawalClearing, self::TenantCardFundingClearing, self::TenantCommissionClearing, self::TenantExchangeClearing], true);
     }
 }

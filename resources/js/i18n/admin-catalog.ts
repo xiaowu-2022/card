@@ -2,6 +2,20 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Wealth settings': '理财配置',
+    'Wealth management': '理财',
+    'Settings affect new deposits only. Existing deposits retain their original terms.':
+        '配置仅影响新存款，已有存款保持原条件。',
+    'Managed by SaaS Platform. Company administrators have read-only access.':
+        '由 SaaS 平台统一配置，公司管理员仅可查看。',
+    'Minimum wealth deposit': '最低理财存入金额',
+    '{{months}} months': '{{months}} 个月',
+    'Annual interest rate (%)': '年化利率（%）',
+    'Save settings': '保存配置',
+    'Select each wealth term exactly once.': '每个理财期限必须且只能配置一次。',
+    'Total term interest must be less than the principal.': '整个期限的总利息必须小于本金。',
+    'Set a minimum amount before enabling wealth products.': '启用理财产品前请设置最低存入金额。',
+
     'Cumulative commission': '累计佣金',
     'Automatic annual fee return': '系统自动返还年费',
     'Withdrawal fee (%)': '提现手续费（%）',

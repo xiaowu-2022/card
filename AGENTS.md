@@ -1,5 +1,13 @@
 # Virtual Card SaaS Agent Rules
 
+On 2026-09-18 the user approved four-asset fixed-term wealth deposits with monthly
+simple interest, automatic maturity return and whole-order early cancellation that
+returns principal minus interest already paid. SaaS alone configures company/currency
+minimums and seven fixed terms/APRs; existing orders retain immutable snapshots. All
+funds use LedgerWriter and dedicated USER_WEALTH_PRINCIPAL and negative-permitted
+TENANT_WEALTH_INTEREST_CLEARING accounts. No activation/promotion effects or real
+financial testing. See `docs/architecture/WEALTH_MANAGEMENT.md`.
+
 On 2026-09-17 the user removed phone registration/login: consumer authentication
 and forgotten-password recovery are email-only, including server-side challenge
 creation, proof consumption and credential lookup. Preserve invitation, OTP,

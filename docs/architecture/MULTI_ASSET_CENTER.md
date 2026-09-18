@@ -266,3 +266,14 @@ withdrawals require explicitly configured percentages. Admin mutation uses the n
 `fee_percent` input, so stale fixed-fee submissions cannot be mistaken for rates.
 Existing orders have a null rate snapshot and retain their original monetary fee.
 The separate legacy USDT/TRON workflow is unchanged by this pictured-settings change.
+
+### Consumer funds navigation
+
+Currency tiles on Assets open `/funds?asset=USDT|USDC|ETH|BTC`; the dashboard no
+longer embeds recent wallet postings. Me includes a Funds activity shortcut to
+`/funds`, defaulting to ALL. The funds page shows actual USER_AVAILABLE balances
+and paginated postings from all four wallets or the selected currency. Every row
+retains its original asset; balances are never added across currencies. Changing
+currency resets pagination; links retain the filter. Existing per-currency
+activity URLs render the same funds view. Queries scope accounts, postings and
+entries to the trusted tenant and user; reads never create wallets or post money.

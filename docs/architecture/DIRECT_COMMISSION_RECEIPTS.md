@@ -105,7 +105,7 @@ annual returns. No external provider or real funds operation is used for accepta
 ## Assets placeholder (2026-09-17)
 
 The user replaced the Assets cumulative-commission tile with a non-interactive
-Wealth management (理财) placeholder. It has no link or asset-selection action.
+Wealth management (理财) entry. The approved 2026-09-18 wealth feature replaces the placeholder with a real link; see WEALTH_MANAGEMENT.md.
 It precedes Security deposit and shows only its icon and label, without an amount or currency row.
 Commission reporting remains in Promotion; wallet funds and total valuation are unchanged.
 This supersedes the earlier Assets commission-tile presentation only.

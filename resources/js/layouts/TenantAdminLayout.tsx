@@ -29,6 +29,12 @@ import type { SharedProps } from '@/types/global';
 
 const items = [
     {
+        label: 'Wealth settings',
+        href: '/admin/wealth',
+        icon: CircleDollarSign,
+        permission: 'tenant_settings.manage',
+    },
+    {
         label: 'Support messages',
         href: '/admin/support',
         icon: MessageSquare,

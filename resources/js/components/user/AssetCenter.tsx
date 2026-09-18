@@ -76,7 +76,6 @@ export function AssetCenter({
     overview: AssetOverview;
     prerequisiteHref?: string;
 }) {
-    const [selected, setSelected] = useState('USDT');
     const [expanded, setExpanded] = useState(false);
     const { auth } = usePage<SharedProps>().props;
     const key = `balance-hidden:${auth.user?.id ?? 'guest'}`;
@@ -102,7 +101,7 @@ export function AssetCenter({
         }
         window.dispatchEvent(new Event('balance-visibility'));
     };
-    const current = overview.assets.find((a) => a.asset === selected) ?? overview.assets[0];
+    const current = overview.assets.find((a) => a.asset === 'USDT') ?? overview.assets[0];
     if (!current) return null;
     const show = (value: string | null) =>
         hidden ? '••••••' : value === null ? '—' : exactAmount(value);
@@ -126,7 +125,7 @@ export function AssetCenter({
             amount: a.available,
             asset: a.asset,
             icon: null,
-            href: null,
+            href: `/funds?asset=${a.asset}`,
         })),
         ...(usdt && expanded
             ? [
@@ -135,7 +134,7 @@ export function AssetCenter({
                       label: 'Wealth management',
                       amount: null,
                       asset: 'USDT',
-                      href: null,
+                      href: '/wealth',
                       icon: Coins,
                   },
               ]
@@ -302,7 +301,7 @@ export function AssetCenter({
                                 </span>
                             </>
                         );
-                        return a.href ? (
+                        return (
                             <Link
                                 key={a.id}
                                 href={a.href}
@@ -311,20 +310,6 @@ export function AssetCenter({
                             >
                                 {content}
                             </Link>
-                        ) : a.id === 'wealth' ? (
-                            <div key={a.id} aria-label={t(a.label)} className={className}>
-                                {content}
-                            </div>
-                        ) : (
-                            <button
-                                key={a.id}
-                                aria-label={t(a.label)}
-                                aria-pressed={current.asset === a.asset}
-                                onClick={() => setSelected(a.asset)}
-                                className={className}
-                            >
-                                {content}
-                            </button>
                         );
                     })}
                 </div>
@@ -361,42 +346,6 @@ export function AssetCenter({
                     ))}
                 </section>
             )}
-            <section>
-                <h2 className="mb-2 font-semibold">
-                    {t('Account activity')} · {current.asset}
-                    <Link
-                        className="float-right py-2 text-sm font-normal underline"
-                        href={`/assets/${current.asset}/activity`}
-                    >
-                        {t('More')}
-                    </Link>
-                </h2>
-                {current.activity.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-muted-foreground">
-                        {t('No activity yet')}
-                    </p>
-                ) : (
-                    current.activity.map((row) => (
-                        <div
-                            key={row.id}
-                            className="flex items-center justify-between gap-3 border-b py-4 text-sm"
-                        >
-                            <div>
-                                <p>{t(row.kind)}</p>
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                    {dateTime(row.time)}
-                                </p>
-                            </div>
-                            <p className="max-w-[55%] break-all text-right font-medium tabular-nums">
-                                {show(row.amount)}
-                                <span className="ml-1 text-xs text-muted-foreground">
-                                    {current.asset}
-                                </span>
-                            </p>
-                        </div>
-                    ))
-                )}
-            </section>
         </div>
     );
 }

@@ -86,6 +86,7 @@ Route::middleware(['tenant.surface:tenant-admin', CompanyConfigurationReadOnly::
     });
 
     Route::middleware('admin.scope:tenant,tenant_settings.manage')->group(function (): void {
+        Route::get('/wealth', [App\Http\Controllers\Platform\WealthController::class, 'read']);
         Route::get('/promotion', [PromotionController::class, 'show'])->name('promotion');
         Route::post('/promotion', [PromotionController::class, 'update'])->middleware('throttle:20,1')->name('promotion.update');
         Route::get('/company-funds', [PromotionController::class, 'funds'])->name('company-funds');

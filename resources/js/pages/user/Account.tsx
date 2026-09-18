@@ -7,6 +7,10 @@ import {
     Users,
     MessageSquare,
     ArrowUpRight,
+    Coins,
+    Landmark,
+    Info,
+    ListOrdered,
 } from 'lucide-react';
 import { promotionLevel } from '@/lib/paid-promotion';
 import { UserLayout } from '@/layouts/UserLayout';
@@ -37,7 +41,11 @@ export default function Account({
     const items = [
         { title: t('Account and security'), icon: ShieldCheck, href: '/account/security' },
         { title: t('Promotion center'), icon: Users, href: '/promotion' },
+        { title: t('Funds activity'), icon: ListOrdered, href: '/funds' },
+        { title: t('Commission'), icon: Coins, href: '/promotion/commissions' },
+        { title: t('Wealth management'), icon: Landmark, href: '/wealth' },
         { title: t('Customer support'), icon: MessageSquare, href: '/support' },
+        { title: t('About us'), icon: Info, href: '/about' },
     ];
     return (
         <UserLayout>

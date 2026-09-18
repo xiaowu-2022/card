@@ -99,6 +99,7 @@ export function CompanyConfigurationLayout({ children }: { children: ReactNode }
                             { path: 'settings/sms', label: 'Aliyun SMS' },
                             { path: 'settings/email', label: 'Proton email' },
                             { path: 'promotion', label: 'Promotion' },
+                            { path: 'wealth', label: 'Wealth settings' },
                             { path: 'team', label: 'Team' },
                         ].map(({ path, label }) => {
                             const sectionPath = `${configurationBase}/${path}`;

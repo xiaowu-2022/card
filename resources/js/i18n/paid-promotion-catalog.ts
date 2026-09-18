@@ -1,4 +1,5 @@
 export const paidPromotionCatalog = {
+    Commission: ['佣金', 'Komisen', 'Comisiones'],
     'Choose a member deposit or an annual agent level.': [
         '选择缴纳普通会员保证金，或购买代理年费等级。',
         'Pilih deposit ahli biasa atau tahap ejen tahunan.',

@@ -123,6 +123,8 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::post('/domains', [DomainManagementController::class, 'assign'])->name('domains.assign');
         Route::get('/card-products', [App\Http\Controllers\Platform\CompanyConfiguration\CardProductController::class, 'index'])->name('card-products.index');
         Route::put('/card-products/{cardProduct}', [App\Http\Controllers\Platform\CompanyConfiguration\CardProductController::class, 'update'])->whereUuid('cardProduct')->name('card-products.update');
+        Route::get('/wealth', [App\Http\Controllers\Platform\WealthController::class, 'show']);
+        Route::post('/wealth', [App\Http\Controllers\Platform\WealthController::class, 'save'])->middleware('throttle:10,1');
         Route::get('/paid-promotion', [PaidPromotionController::class, 'show']);
         Route::post('/paid-promotion/levels/{level}', [PaidPromotionController::class, 'configure'])->whereUuid('level')->middleware('throttle:10,1');
         Route::get('/promotion', [PromotionController::class, 'show'])->name('promotion');
