@@ -1,76 +1,114 @@
+import { InvitationPosterSettings } from '@/components/admin/InvitationPosterSettings';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { PlatformLayout } from '@/layouts/PlatformLayout';
+import { CompanyConfigurationLayout } from '@/components/admin/CompanyConfiguration';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { t, dateTime, useAdminTranslation, errorMessage } from '@/i18n/admin';
 import { exactAmount } from '@/lib/exact-amount';
 import type { PaidLevel, PaidClaim } from '@/components/user/PaidPromotionSummary';
 const name = (rank: number) => t('Mastercard level {{rank}}', { rank });
-function Tariff({ level: l, base }: { level: PaidLevel; base: string }) {
-    const f = useForm({
-        fee: l.fee,
-        percent: l.percent,
-        reward: l.reward,
-        target: l.target,
+function Tariffs({ levels, base }: { levels: PaidLevel[]; base: string }) {
+    const initial = levels.map((l) => ({
+        id: l.id,
+        fee: exactAmount(l.fee),
+        percent: String(l.percent),
+        reward: String(l.reward),
+        target: String(l.target),
         revision: l.revision,
         enabled: l.enabled,
-    });
+    }));
+    const form = useForm({ levels: initial });
+    const fields = {
+        fee: 'Annual fee (USDT)',
+        percent: 'Annual reward (%)',
+        reward: 'Activation reward (USDT)',
+        target: 'Fee rebate target',
+    } as const;
+    const dirty = form.data.levels.filter(
+        (row, i) => JSON.stringify(row) !== JSON.stringify(initial[i]),
+    );
     return (
         <form
-            className="space-y-3 rounded-xl border bg-surface p-4"
-            onSubmit={(e) => {
-                e.preventDefault();
-                f.post(`${base}/levels/${l.id}`, {
-                    preserveScroll: true,
-                    onSuccess: () => {
-                        f.setData('revision', l.revision + 1);
-                    },
-                });
+            className="overflow-hidden rounded-xl border bg-surface"
+            onSubmit={(event) => {
+                event.preventDefault();
+                if (!dirty.length) return;
+                form.transform(() => ({ levels: dirty }));
+                form.post(`${base}/levels`, { preserveScroll: true });
             }}
         >
-            <h3 className="font-semibold">{name(l.rank)}</h3>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {(['fee', 'percent', 'reward', 'target'] as const).map((key) => (
-                    <label className="text-sm" key={key}>
-                        {t(
-                            {
-                                fee: 'Annual fee (USDT)',
-                                percent: 'Annual reward (%)',
-                                reward: 'Activation reward (USDT)',
-                                target: 'Fee rebate target',
-                            }[key],
-                        )}
-                        <Input
-                            className="mt-1"
-                            inputMode="decimal"
-                            value={f.data[key]}
-                            onChange={(e) =>
-                                f.setData(
-                                    key,
-                                    key === 'fee' || key === 'reward'
-                                        ? e.target.value
-                                        : Number(e.target.value),
-                                )
-                            }
-                        />
-                    </label>
-                ))}
+            <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+                <h2 className="font-semibold">{t('Promotion tariffs')}</h2>
+                <Button disabled={form.processing || !dirty.length}>{t('Save all changes')}</Button>
             </div>
-            <label className="flex items-center gap-2 text-sm">
-                <input
-                    type="checkbox"
-                    checked={f.data.enabled}
-                    onChange={(e) => f.setData('enabled', e.target.checked)}
-                />
-                {t('Enabled')}
-            </label>
-
-            {Object.values(f.errors).map((v, i) => (
-                <p role="alert" key={i} className="text-sm text-red-700">
-                    {errorMessage(v)}
+            {Object.values(form.errors).map((error, i) => (
+                <p key={i} role="alert" className="px-4 py-2 text-sm text-destructive">
+                    {errorMessage(error)}
                 </p>
             ))}
-            <Button disabled={f.processing}>{t('Save')}</Button>
+            <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-left text-sm">
+                    <thead className="bg-muted/50 text-xs text-muted-foreground">
+                        <tr>
+                            <th className="px-4 py-3">{t('Level')}</th>
+                            {Object.entries(fields).map(([key, label]) => (
+                                <th key={key} className="px-2 py-3">
+                                    {t(label)}
+                                </th>
+                            ))}
+                            <th className="px-4 py-3">{t('Enabled')}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {form.data.levels.map((row, i) => (
+                            <tr key={row.id} className="border-t">
+                                <th className="whitespace-nowrap px-4 py-2 font-medium">
+                                    {name(levels[i]!.rank)}
+                                </th>
+                                {(Object.keys(fields) as (keyof typeof fields)[]).map((key) => (
+                                    <td key={key} className="px-2 py-2">
+                                        <Input
+                                            className="h-9 min-w-24"
+                                            aria-label={`${name(levels[i]!.rank)} · ${t(fields[key])}`}
+                                            inputMode="decimal"
+                                            disabled={form.processing}
+                                            value={row[key]}
+                                            onChange={(event) =>
+                                                form.setData(
+                                                    'levels',
+                                                    form.data.levels.map((item, index) =>
+                                                        index === i
+                                                            ? { ...item, [key]: event.target.value }
+                                                            : item,
+                                                    ),
+                                                )
+                                            }
+                                        />
+                                    </td>
+                                ))}
+                                <td className="px-4 py-2">
+                                    <input
+                                        type="checkbox"
+                                        aria-label={`${name(levels[i]!.rank)} · ${t('Enabled')}`}
+                                        disabled={form.processing}
+                                        checked={row.enabled}
+                                        onChange={(event) =>
+                                            form.setData(
+                                                'levels',
+                                                form.data.levels.map((item, index) =>
+                                                    index === i
+                                                        ? { ...item, enabled: event.target.checked }
+                                                        : item,
+                                                ),
+                                            )
+                                        }
+                                    />
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </form>
     );
 }
@@ -103,7 +141,9 @@ function ReturnRecord({ claim: c }: { claim: PaidClaim & { accountId: string } }
 }
 export default function PaidPromotion({
     paid: p,
+    posterBackground,
 }: {
+    posterBackground: string | null;
     paid: {
         companyName: string;
         tenantId: string;
@@ -116,7 +156,7 @@ export default function PaidPromotion({
     useAdminTranslation();
     const base = `/platform/tenants/${p.tenantId}/configuration/paid-promotion`;
     return (
-        <PlatformLayout>
+        <CompanyConfigurationLayout>
             <Head title={t('Paid promotion settings')} />
             <div className="mx-auto max-w-5xl space-y-5">
                 <h1 className="text-2xl font-semibold">{t('Paid promotion settings')}</h1>
@@ -126,16 +166,12 @@ export default function PaidPromotion({
                         'Rules apply to new payments only. Qualification requires payment; manual level assignment is unavailable.',
                     )}
                 </p>
-                <details className="rounded-xl border bg-surface p-4">
-                    <summary className="cursor-pointer font-semibold">
-                        {t('Promotion tariffs')}
-                    </summary>
-                    <div className="mt-4 space-y-4">
-                        {p.levels.map((l) => (
-                            <Tariff key={`${l.id}-${l.revision}`} level={l} base={base} />
-                        ))}
-                    </div>
-                </details>
+                <InvitationPosterSettings tenant={p.tenantId} background={posterBackground} />
+                <Tariffs
+                    key={p.levels.map((level) => `${level.id}:${level.revision}`).join(',')}
+                    levels={p.levels}
+                    base={base}
+                />
                 <h2 className="font-semibold">{t('Automatic annual fee return')}</h2>
                 {p.claims.map((c) => (
                     <ReturnRecord key={c.id} claim={c} />
@@ -146,6 +182,6 @@ export default function PaidPromotion({
                     {p.hasMore && <Link href={`${base}?page=${p.page + 1}`}>{t('Next')}</Link>}
                 </div>
             </div>
-        </PlatformLayout>
+        </CompanyConfigurationLayout>
     );
 }

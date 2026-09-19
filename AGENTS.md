@@ -1,3 +1,9 @@
+On 2026-09-19 the user approved company-configured invitation poster backgrounds
+and consumer PNG generation/download with the user invitation QR code. Platform
+tenant.manage owns image configuration; private authenticated tenant-scoped reads,
+validated raster uploads and audited changes are required. No money or promotion
+rules change. See docs/architecture/INVITATION_POSTERS.md.
+
 On 2026-09-19 the user reaffirmed USDT/USDC new deposit instructions must
 use two-decimal requested amounts plus a unique 0.01–0.99 offset, including ERC20.
 Exhausted slots fail closed; preserve immutable prior instructions and late-payment

@@ -4,12 +4,12 @@ namespace App\Application\Promotion;
 
 use App\Domain\Kyc\Enums\KycUserStatus;
 use App\Domain\Kyc\Services\KycStatusService;
-use App\Domain\Ledger\Models\LedgerAccount;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Promotion\Models\CommissionAward;
 use App\Domain\Promotion\Models\PromotionFundingEvent;
 use App\Domain\Promotion\Models\PromotionLevel;
 use App\Domain\Tenant\Models\Tenant;
+use App\Domain\Tenant\Models\TenantBusinessSetting;
 use App\Domain\Wallet\Models\Wallet;
 use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
@@ -26,6 +26,7 @@ final readonly class PromotionQuery
 
         return [
             'paid' => app(PaidPromotionQuery::class)->benefits($tenantId, $userId),
+            'posterBackground' => TenantBusinessSetting::where('tenant_id', $tenantId)->value('invitation_poster_background') ? '/promotion/poster-background' : null,
             'invitationCode' => $member->invitation_code,
             'canPurchase' => $tenant->default_asset === 'USDT'
                 && Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', 'USDT')->where('status', 'ACTIVE')->exists()

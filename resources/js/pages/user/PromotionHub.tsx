@@ -1,3 +1,4 @@
+import { InvitationPoster } from '@/components/user/InvitationPoster';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Users, BookOpen, Copy, Share2, Check } from 'lucide-react';
@@ -23,7 +24,12 @@ type Benefits = Pick<
     | 'pending'
     | 'progress'
 > & { hasClaims: boolean };
-type Home = { paid: Benefits; invitationCode: string; canPurchase: boolean };
+type Home = {
+    posterBackground: string | null;
+    paid: Benefits;
+    invitationCode: string;
+    canPurchase: boolean;
+};
 
 // Whole-unit presentation only. Non-integer configured fees are marked approximate;
 // the payment review continues to show the full server quote precision.
@@ -158,6 +164,20 @@ export default function PromotionHub({
                 />
                 {section === 'rules' ? (
                     <>
+                        <a
+                            href="/images/promotion/invitation-rules.jpg"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block"
+                        >
+                            <img
+                                src="/images/promotion/invitation-rules.jpg"
+                                alt={t('Invitation rules')}
+                                width={1024}
+                                height={1536}
+                                className="h-auto w-full rounded-lg"
+                            />
+                        </a>
                         <div className="space-y-6">
                             {rules.map(([heading = '', body = '']) => (
                                 <section key={heading} className="border-b pb-5">
@@ -168,25 +188,6 @@ export default function PromotionHub({
                                 </section>
                             ))}
                         </div>
-                        <section className="space-y-3">
-                            <h2>{t('Annual fee rebate thresholds')}</h2>
-                            {p.levels.map((l) => (
-                                <div
-                                    key={l.id}
-                                    className="flex justify-between gap-4 border-b py-3 text-sm"
-                                >
-                                    <span>{promotionLevel(l.rank)}</span>
-                                    <span>
-                                        {t('{{count}} weighted events', { count: l.target })}
-                                    </span>
-                                </div>
-                            ))}
-                            <p className="text-xs leading-5 text-muted-foreground">
-                                {t(
-                                    'Thresholds shown are current offer terms. Your paid year uses its saved terms.',
-                                )}
-                            </p>
-                        </section>
                         <Link
                             href="/promotion/membership#rebate-history"
                             className="min-h-11 py-3 text-sm underline"
@@ -197,14 +198,21 @@ export default function PromotionHub({
                 ) : (
                     <>
                         <div ref={shareDock} className="promotion-share-dock">
-                            <Button
-                                className="w-full rounded-full"
-                                onClick={() => void share()}
-                                disabled={sharing}
-                            >
-                                <Share2 className="size-4" />
-                                {t('Share invitation link')}
-                            </Button>
+                            <div className="grid grid-cols-2 gap-3">
+                                <InvitationPoster
+                                    link={link}
+                                    code={home.invitationCode}
+                                    background={home.posterBackground}
+                                />
+                                <Button
+                                    className="w-full rounded-full"
+                                    onClick={() => void share()}
+                                    disabled={sharing}
+                                >
+                                    <Share2 className="size-4" />
+                                    {t('Share invitation link')}
+                                </Button>
+                            </div>
                             <p
                                 role="status"
                                 className="flex items-center gap-2 text-xs text-muted-foreground"

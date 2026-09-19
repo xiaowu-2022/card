@@ -1147,6 +1147,20 @@ export const catalog = {
     Amount: ['金额', 'Amaun', 'Importe'],
     'Wallet credit amount': ['钱包到账金额', 'Amaun kredit dompet', 'Importe abonado a la cartera'],
     'Time remaining': ['剩余有效时间', 'Masa berbaki', 'Tiempo restante'],
+    'Invitation poster': ['邀请海报', 'Poster jemputan', 'Cartel de invitación'],
+    'Scan to register': ['扫码注册', 'Imbas untuk mendaftar', 'Escanea para registrarte'],
+    'Save image': ['保存图片', 'Simpan imej', 'Guardar imagen'],
+    'Save the poster or press and hold the image to save it on your phone.': [
+        '点击保存图片，或在手机上长按图片保存。',
+        'Simpan poster atau tekan lama imej untuk menyimpannya pada telefon.',
+        'Guarda el cartel o mantén pulsada la imagen para guardarla en tu teléfono.',
+    ],
+    'Could not generate poster. Please try again.': [
+        '海报生成失败，请重新打开重试。',
+        'Poster tidak dapat dijana. Sila cuba lagi.',
+        'No se pudo generar el cartel. Inténtalo de nuevo.',
+    ],
+    'Generating poster…': ['正在生成海报…', 'Menjana poster…', 'Generando cartel…'],
     'Amount to send': ['应转金额', 'Amaun untuk dihantar', 'Importe a enviar'],
     'An active verified USDT wallet is required for TRC20 top-ups.': [
         'TRC20 充值需要已激活并完成身份认证的 USDT 钱包。',

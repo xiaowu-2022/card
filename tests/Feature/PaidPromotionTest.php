@@ -35,6 +35,7 @@ use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use App\Domain\Wallet\Models\Wallet;
 use App\Support\Errors\DomainException;
+use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
@@ -300,6 +301,7 @@ it('enforces HTTP ownership and platform scope while removing manual rebate endp
     $this->actingAs($other, 'tenant_user')->get('http://b.localhost/promotion/membership?order='.$order->id)->assertNotFound();
     $base = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/configuration/paid-promotion';
     $this->actingAs($this->platform, 'platform_admin')->get($base)->assertOk();
+    $this->get(str_replace('/paid-promotion', '/promotion', $base))->assertOk()->assertInertia(fn ($page) => $page->component('platform/PaidPromotion')->has('paid.levels')->missing('promotion.members'));
     $level = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->first();
     $this->postJson($base.'/levels/'.$level->id, ['fee' => $level->fee, 'reward' => $level->reward, 'percent' => $level->percent, 'target' => $level->target, 'enabled' => true, 'revision' => $level->revision])->assertRedirect()->assertSessionHasNoErrors();
     $this->postJson($base.'/rebates/'.Str::uuid(), ['decision' => 'approve', 'confirmed' => true])->assertNotFound();
@@ -1172,4 +1174,30 @@ it('rejects altered activation evidence and foreign user attribution at commit',
         DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }))->toThrow(QueryException::class);
     expect(DB::table('account_activations')->count())->toBe(1);
+});
+
+it('saves promotion tariffs as one final configuration and rolls back stale or invalid batches', function () {
+    $base = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/configuration/paid-promotion/levels';
+    $rows = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->orderBy('rank')->get();
+    $payload = $rows->map(fn ($row) => [
+        'id' => $row->id, 'fee' => (string) BigDecimal::of($row->fee)->plus('1000000'),
+        'percent' => $row->percent, 'reward' => $row->reward, 'target' => $row->target,
+        'enabled' => $row->enabled, 'revision' => $row->revision,
+    ])->all();
+    $this->actingAs($this->platform, 'platform_admin')->post($base, ['levels' => $payload])->assertRedirect()->assertSessionHasNoErrors();
+    $saved = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->orderBy('rank')->get();
+    foreach ($saved as $i => $row) {
+        expect($row->fee)->toBe($payload[$i]['fee'])->and($row->revision)->toBe($payload[$i]['revision'] + 1);
+    }
+    $payload[0]['revision']++;
+    $payload[0]['target']++;
+    $this->post($base, ['levels' => $payload])->assertSessionHasErrors();
+    expect(DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->orderBy('rank')->get()->toJson())->toBe($saved->toJson());
+    foreach ($payload as &$row) {
+        $row['revision'] = $saved->firstWhere('id', $row['id'])->revision;
+    }
+    unset($row);
+    $payload[0]['fee'] = '999999999999';
+    $this->post($base, ['levels' => $payload])->assertSessionHasErrors();
+    expect(DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->orderBy('rank')->get()->toJson())->toBe($saved->toJson());
 });

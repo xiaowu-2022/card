@@ -105,6 +105,8 @@ export function CompanyConfigurationLayout({ children }: { children: ReactNode }
                             const sectionPath = `${configurationBase}/${path}`;
                             const active =
                                 currentPath === sectionPath ||
+                                (path === 'promotion' &&
+                                    currentPath === `${configurationBase}/paid-promotion`) ||
                                 currentPath?.startsWith(`${sectionPath}/`) ||
                                 (path === 'settings/branding' &&
                                     currentPath === `${configurationBase}/settings`);

@@ -125,9 +125,12 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::put('/card-products/{cardProduct}', [App\Http\Controllers\Platform\CompanyConfiguration\CardProductController::class, 'update'])->whereUuid('cardProduct')->name('card-products.update');
         Route::get('/wealth', [App\Http\Controllers\Platform\WealthController::class, 'show']);
         Route::post('/wealth', [App\Http\Controllers\Platform\WealthController::class, 'save'])->middleware('throttle:10,1');
+        Route::post('/paid-promotion/levels', [PaidPromotionController::class, 'batch'])->middleware('throttle:10,1');
+        Route::post('/invitation-poster', [\App\Http\Controllers\Platform\CompanyConfiguration\InvitationPosterController::class, 'save'])->middleware('throttle:10,1');
+        Route::get('/invitation-poster/background', [\App\Http\Controllers\Platform\CompanyConfiguration\InvitationPosterController::class, 'platformImage']);
         Route::get('/paid-promotion', [PaidPromotionController::class, 'show']);
         Route::post('/paid-promotion/levels/{level}', [PaidPromotionController::class, 'configure'])->whereUuid('level')->middleware('throttle:10,1');
-        Route::get('/promotion', [PromotionController::class, 'show'])->name('promotion');
+        Route::get('/promotion', [PaidPromotionController::class, 'show'])->name('promotion');
         Route::post('/promotion', [PromotionController::class, 'update'])->middleware('throttle:20,1')->name('promotion.update');
         Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
         Route::get('/settings/{section?}', [TenantSettingsController::class, 'show'])->where('section', 'branding|locales|business|kyc|articles|sms|email')->name('settings');

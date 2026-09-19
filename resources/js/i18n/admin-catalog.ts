@@ -2,6 +2,10 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Invitation poster': '邀请海报',
+    'Poster background': '海报背景图',
+    'Upload a JPG, PNG or WebP background (up to 8 MB). The invitation QR code is placed inside the bottom of the image.':
+        '上传 JPG、PNG 或 WebP 背景图（最大 8 MB），邀请二维码会叠加在图片底部，请预留底部空间。',
     'Save failed. No changes were saved. Your entries remain below; correct the errors and save again.':
         '保存失败，本次所有修改均未保存。已保留下方填写内容，请修正错误后重新保存。',
     'Direct ETH and ERC20 transfers are checked automatically. Deposits that cannot be verified automatically require manual receipt confirmation in deposit orders.':

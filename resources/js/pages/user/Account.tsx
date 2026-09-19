@@ -2,6 +2,7 @@ import { t, useClientTranslation } from '@/i18n';
 import { Head, Link, usePage } from '@inertiajs/react';
 import {
     ChevronRight,
+    BookOpen,
     Settings,
     ShieldCheck,
     Users,
@@ -39,6 +40,7 @@ export default function Account({
     const items = [
         { title: t('Account and security'), icon: ShieldCheck, href: '/account/security' },
         { title: t('Promotion center'), icon: Users, href: '/promotion' },
+        { title: t('Invitation rules'), icon: BookOpen, href: '/promotion/rules' },
         { title: t('Invitation data'), icon: ChartNoAxesCombined, href: '/promotion/invitations' },
         { title: t('Customer support'), icon: MessageSquare, href: '/support' },
         { title: t('About us'), icon: Info, href: '/about' },
