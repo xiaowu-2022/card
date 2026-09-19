@@ -352,3 +352,12 @@ New USDT/USDC ERC20 requests accept at most two decimals and allocate an offset
 from 0.01 through 0.99, matching TRC20. Never reuse historic exact amounts; fail
 closed after 99 candidates. Existing snapshots remain exact and payable, never
 rounded for display. ETH/BTC allocation retains native precision.
+
+
+## Native deposit identification precision (2026-09-19)
+New ETH/BTC deposits add 01–99 units two decimal places beyond the company's
+minimum deposit effective fractional precision, ignoring storage trailing zeros.
+Minimum 0.01 gives offsets 0.0001–0.0099; 0.001 gives 0.00001–0.00099.
+Configuration must leave two places within chain precision. USDT/USDC remain
+0.01–0.99. All historical address/amount reservations, exact receipt matching,
+full-amount Ledger credit and immutable order/idempotency snapshots are preserved.

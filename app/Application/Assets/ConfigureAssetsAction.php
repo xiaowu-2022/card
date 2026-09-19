@@ -146,6 +146,12 @@ final readonly class ConfigureAssetsAction
                 if (isset($data[$field])) {
                     try {
                         $value = BigDecimal::of($data[$field])->toScale(AssetCatalog::chainScale($rail->asset_code));
+                        if (in_array($rail->asset_code, ['ETH', 'BTC'], true)) {
+                            $fraction = explode('.', (string) $value, 2)[1] ?? '';
+                            if (strlen(rtrim($fraction, '0')) + 2 > AssetCatalog::chainScale($rail->asset_code)) {
+                                throw new \InvalidArgumentException;
+                            }
+                        }
                         if ($field === 'minimum' && ! $value->isPositive()) {
                             throw new \InvalidArgumentException;
                         }

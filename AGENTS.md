@@ -1,3 +1,8 @@
+On 2026-09-19 the user changed new ETH/BTC deposit identification offsets to
+1–99 units at two decimal places beyond the company minimum's effective
+precision (ignore trailing zeros). Existing orders remain immutable; USDT/USDC
+retain 0.01–0.99 offsets. Never reuse historical reserved amounts.
+
 On 2026-09-19 the user approved company-configured invitation poster backgrounds
 and consumer PNG generation/download with the user invitation QR code. Platform
 tenant.manage owns image configuration; private authenticated tenant-scoped reads,

@@ -114,7 +114,7 @@ export default function Topup({ available, wallet, topupAvailable, orders, minim
                         </FormField>
                         <p className="mt-3 text-xs leading-5 text-muted-foreground">
                             {t('Minimum deposit')}: {exactAmount(minimum)} {'USDT'} ·{' '}
-                            {t('TRON network (TRC20) · No top-up fee')}
+                            {t('TRC20 · No top-up fee')}
                         </p>
                         <Button className="mt-5 w-full" disabled={!canContinue || processing}>
                             {processing ? t('Creating instructions…') : t('Continue')}

@@ -1,3 +1,4 @@
+import { assetNetworkLabel } from '@/lib/asset-network';
 import { DepositInstructions } from '@/components/user/DepositInstructions';
 import { exactAmount, meetsTopupMinimum, withdrawalPercentageFee } from '@/lib/exact-amount';
 import { useEffect, useState } from 'react';
@@ -163,7 +164,9 @@ export default function AssetFlow({
                                 <h2 className="font-semibold">{t(result.state)}</h2>
                                 <p className="text-sm text-muted-foreground">
                                     {result.asset}
-                                    {result.network ? ` · ${result.network}` : ''}
+                                    {result.network
+                                        ? ` · ${assetNetworkLabel(result.network, account.asset)}`
+                                        : ''}
                                 </p>
                             </div>
                         </div>
@@ -275,7 +278,8 @@ export default function AssetFlow({
                                 onClick={() => setPicker('network')}
                                 className="flex min-h-12 w-full items-center justify-between rounded-xl border px-4 text-sm"
                             >
-                                {rail?.network ?? t('Select network')}
+                                {assetNetworkLabel(rail?.network, account.asset) ??
+                                    t('Select network')}
                                 <ChevronDown size={18} />
                             </button>
                         )}
@@ -317,7 +321,7 @@ export default function AssetFlow({
                                 )}
                                 {rail?.code === 'USDT_TRON' && mode === 'deposit' && (
                                     <p className="text-xs text-muted-foreground">
-                                        {t('TRON network (TRC20) · No top-up fee')}
+                                        {t('TRC20 · No top-up fee')}
                                     </p>
                                 )}
                                 {rail?.minimum && mode === 'deposit' && (
@@ -336,7 +340,8 @@ export default function AssetFlow({
                                 {mode === 'withdrawal' && review && (
                                     <div className="space-y-3 rounded-xl bg-muted p-4 text-sm">
                                         <p className="break-all">
-                                            {rail?.network} · {form.data.address}
+                                            {assetNetworkLabel(rail?.network, account.asset)} ·{' '}
+                                            {form.data.address}
                                         </p>
                                         <p>
                                             {t('Amount')}: {form.data.amount} {account.asset}
@@ -466,15 +471,7 @@ export default function AssetFlow({
                                       }}
                                       className="flex min-h-16 w-full items-center justify-between border-t"
                                   >
-                                      <span>
-                                          {r.network === 'ETHEREUM'
-                                              ? account.asset === 'ETH'
-                                                  ? 'Ethereum'
-                                                  : 'Ethereum (ERC20)'
-                                              : r.network === 'TRON'
-                                                ? 'TRON (TRC20)'
-                                                : 'Bitcoin'}
-                                      </span>
+                                      <span>{assetNetworkLabel(r.network, account.asset)}</span>
                                       {r.code === rail?.code && <Check size={20} />}
                                   </button>
                               ))}

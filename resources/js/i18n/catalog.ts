@@ -1672,10 +1672,10 @@ export const catalog = {
     'TEST / MOCK payment': ['TEST / MOCK 模拟付款', 'Pembayaran TEST / MOCK', 'Pago TEST / MOCK'],
     'TEST CARD': ['TEST 测试卡', 'KAD TEST', 'TARJETA TEST'],
     'TRON address': ['TRON 地址', 'Alamat TRON', 'Dirección TRON'],
-    'TRON network (TRC20) · No top-up fee': [
-        'TRON 网络（TRC20）· 免充值手续费',
-        'Rangkaian TRON (TRC20) · Tiada fi tambah nilai',
-        'Red TRON (TRC20) · Sin comisión de recarga',
+    'TRC20 · No top-up fee': [
+        'TRC20 · 免充值手续费',
+        'TRC20 · Tiada fi tambah nilai',
+        'TRC20 · Sin comisión de recarga',
     ],
     'Tenant-aware': ['独立租户空间', 'Ruang organisasi berasingan', 'Espacio por organización'],
     'The card provider could not approve this setup.': [

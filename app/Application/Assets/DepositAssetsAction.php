@@ -49,10 +49,16 @@ final readonly class DepositAssetsAction
             if ($stablecoin && ! BigDecimal::of($money->amount())->isEqualTo(BigDecimal::of($money->amount())->toScale(2, RoundingMode::Down))) {
                 throw new DomainException('AMOUNT_INVALID', 'Enter a positive amount with at most 2 decimal places.');
             }
-            $unit = $stablecoin ? BigDecimal::of('0.01') : BigDecimal::of('1')->withPointMovedLeft(AssetCatalog::chainScale($rail->asset_code));
-            $exact = BigDecimal::of($money->amount())->plus($stablecoin ? $unit : '0');
+            // Database padding is not configured precision: 0.010000 means two places.
+            $fraction = explode('.', (string) $company->minimum_deposit, 2)[1] ?? '';
+            $offsetScale = $stablecoin ? 2 : strlen(rtrim($fraction, '0')) + 2;
+            if ($offsetScale > AssetCatalog::chainScale($rail->asset_code)) {
+                throw new DomainException('AMOUNT_INVALID', 'Minimum deposit precision leaves no room for two identification digits.');
+            }
+            $unit = BigDecimal::of('1')->withPointMovedLeft($offsetScale);
+            $exact = BigDecimal::of($money->amount())->plus($unit);
             $found = false;
-            for ($i = 0; $i < ($stablecoin ? 99 : 1000); $i++) {
+            for ($i = 0; $i < 99; $i++) {
                 if (! AssetDepositOrder::query()->where('rail_code', $railCode)->where('address_hash', $hash)->where('amount', (string) $exact)->exists()) {
                     $found = true;
                     break;

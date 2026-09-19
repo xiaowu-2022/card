@@ -1,3 +1,4 @@
+import { assetNetworkLabel } from '@/lib/asset-network';
 import { t, dateTime } from '@/i18n';
 import { Link } from '@inertiajs/react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -54,12 +55,7 @@ export function DepositInstructions({
             toast.error(t('Could not copy. Please select and copy the value manually.'));
         }
     };
-    const networkLabel =
-        network === 'TRON'
-            ? 'TRON (TRC20)'
-            : network === 'ETHEREUM' && asset !== 'ETH'
-              ? 'Ethereum (ERC20)'
-              : network;
+    const networkLabel = assetNetworkLabel(network, asset);
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <section className="space-y-4 rounded-2xl bg-surface p-5">

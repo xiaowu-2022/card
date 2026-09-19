@@ -125,7 +125,7 @@ it('allocates immutable exact amounts and replays deposit orders', function () {
     $request = (string) Str::uuid();
     $first = $action->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', $request);
     $second = $action->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', (string) Str::uuid());
-    expect($second->amount)->toBe('1.000000000000000001')->and($action->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', $request)->id)->toBe($first->id);
+    expect($second->amount)->toBe('1.000000020000000000')->and($action->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', $request)->id)->toBe($first->id);
 });
 it('holds the original asset and cancels only before approval', function () {
     ($this->fund)('ETH', '1');
@@ -180,7 +180,7 @@ it('shares manual and verified credit paths without duplicate credit', function 
     expect(LedgerEntry::count())->toBe($before)->and($obs->fresh()->status)->toBe('ALREADY_CREDITED');
     expect($o->fresh()->manual_confirmed_by)->toBe($actor->id);
     $next = $deposits->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', (string) Str::uuid());
-    expect($next->amount)->toBe('1.000000000000000001');
+    expect($next->amount)->toBe('1.000000020000000000');
 });
 it('does not allow company admins or expired orders to use manual confirmation', function () {
     $a = app(DepositAssetsAction::class);
@@ -228,7 +228,7 @@ function assetEthereumNode(array $calls, array $logs = [], array $direct = []): 
 }
 it('scans finalized direct ETH without traces once and preserves the cursor', function () {
     $o = app(DepositAssetsAction::class)->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', (string) Str::uuid());
-    assetEthereumNode([], [], ['from' => '0x'.str_repeat('4', 40), 'to' => $o->address, 'value' => '0xde0b6b3a7640000']);
+    assetEthereumNode([], [], ['from' => '0x'.str_repeat('4', 40), 'to' => $o->address, 'value' => '0x'.BigDecimal::of($o->amount)->withPointMovedRight(18)->toBigInteger()->toBase(16)]);
     Http::assertNothingSent();
     $scan = app(ScanAssetNetwork::class);
     expect($scan->execute('ETHEREUM'))->toBe(1);
@@ -240,7 +240,7 @@ it('scans finalized direct ETH without traces once and preserves the cursor', fu
 });
 it('leaves contract-only ETH pending for idempotent manual receipt confirmation', function () {
     $o = app(DepositAssetsAction::class)->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', (string) Str::uuid());
-    $call = ['type' => 'CALL', 'to' => $o->address, 'value' => '0xde0b6b3a7640000'];
+    $call = ['type' => 'CALL', 'to' => $o->address, 'value' => '0x'.BigDecimal::of($o->amount)->withPointMovedRight(18)->toBigInteger()->toBase(16)];
     assetEthereumNode([$call, $call]);
     app(ScanAssetNetwork::class)->execute('ETHEREUM');
     expect($o->fresh()->status)->toBe('PENDING')->and(ChainObservation::count())->toBe(0);
@@ -255,7 +255,7 @@ it('leaves contract-only ETH pending for idempotent manual receipt confirmation'
 });
 it('ignores reverted native calls and wrong token contracts', function () {
     $o = app(DepositAssetsAction::class)->create($this->tenant->id, $this->user->id, 'USDC_ETHEREUM', '1', (string) Str::uuid());
-    assetEthereumNode([['type' => 'CALL', 'to' => $o->address, 'value' => '0xde0b6b3a7640000', 'error' => 'execution reverted']], [[
+    assetEthereumNode([['type' => 'CALL', 'to' => $o->address, 'value' => '0x'.BigDecimal::of($o->amount)->withPointMovedRight(18)->toBigInteger()->toBase(16), 'error' => 'execution reverted']], [[
         'address' => '0x'.str_repeat('f', 40), 'topics' => ['0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef', '0x'.str_repeat('0', 64), '0x'.str_repeat('0', 24).substr($o->address, 2)], 'data' => '0x'.str_pad('f4240', 64, '0', STR_PAD_LEFT), 'logIndex' => '0x0',
     ]]);
     app(ScanAssetNetwork::class)->execute('ETHEREUM');
@@ -462,7 +462,7 @@ it('credits exactly once when manual receipt confirmation races automatic verifi
     ]);
     expect($results)->toBe(['completed', 'completed']);
     expect(LedgerEntry::where('event_key', 'asset_deposit:'.$order->id.':credit')->count())->toBe(1);
-    expect(LedgerAccount::where('user_id', $order->user_id)->where('asset_code', 'ETH')->where('account_type', 'USER_AVAILABLE')->first()->balance)->toBe('0.100000000000000000');
+    expect(LedgerAccount::where('user_id', $order->user_id)->where('asset_code', 'ETH')->where('account_type', 'USER_AVAILABLE')->first()->balance)->toBe('0.100000010000000000');
 });
 
 it('values USDT without external prices and ignores empty foreign accounts', function (string $marketState) {
@@ -861,7 +861,7 @@ it('accepts four-asset deposits and proven withdrawals with configured stablecoi
     $entries = LedgerEntry::count();
     $withdraw->verify($this->tenant->id, $o->id, $actor, $hash, (string) Str::uuid());
     expect(LedgerEntry::count())->toBe($entries);
-    expect(LedgerAccount::where('user_id', $this->user->id)->where('asset_code', $asset)->where('account_type', 'USER_AVAILABLE')->first()->balance)->toBe(Money::of(in_array($asset, ['USDT', 'USDC'], true) ? '90.01' : '90', $asset)->amount());
+    expect(LedgerAccount::where('user_id', $this->user->id)->where('asset_code', $asset)->where('account_type', 'USER_AVAILABLE')->first()->balance)->toBe(Money::of('90.01', $asset)->amount());
     expect(LedgerAccount::where('user_id', $this->user->id)->where('asset_code', $asset)->where('account_type', 'USER_WITHDRAWAL_HOLD')->first()->balance)->toBe(Money::of('0', $asset)->amount());
     expect(app(LedgerReconciliationService::class)->mismatches())->toBe([]);
 })->with([['USDT', 'USDT_ETHEREUM', '10'], ['USDC', 'USDC_ETHEREUM', '10'], ['ETH', 'ETH_ETHEREUM', '0'], ['BTC', 'BTC_BITCOIN', '0']]);
@@ -957,7 +957,7 @@ it('keeps old ETH deposit snapshots discoverable after receiving address rotatio
     app(ConfigureAssetsAction::class)->execute(AdminUser::where('email', 'owner@platform.local')->firstOrFail(), ['kind' => 'rail', 'code' => 'ETH_ETHEREUM', 'enabled' => true, 'address' => $newAddress]);
     $next = $action->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', (string) Str::uuid());
     expect($old->fresh()->address)->toBe($old->address)->and($next->address)->toBe($newAddress);
-    assetEthereumNode([], [], ['from' => '0x'.str_repeat('3', 40), 'to' => $old->address, 'value' => '0xde0b6b3a7640000']);
+    assetEthereumNode([], [], ['from' => '0x'.str_repeat('3', 40), 'to' => $old->address, 'value' => '0x'.BigDecimal::of($old->amount)->withPointMovedRight(18)->toBigInteger()->toBase(16)]);
     app(ScanAssetNetwork::class)->execute('ETHEREUM');
     expect($old->fresh()->status)->toBe('CREDITED')->and($next->fresh()->status)->toBe('PENDING');
     $entries = LedgerEntry::count();
@@ -976,3 +976,25 @@ it('allocates stablecoin deposit offsets only from 0.01 through 0.99', function 
     expect(fn () => $action->create($this->tenant->id, $this->user->id, $rail, '500', (string) Str::uuid()))->toThrow(DomainException::class, 'Try a different deposit amount.');
     expect(fn () => $action->create($this->tenant->id, $this->user->id, $rail, '500.001', (string) Str::uuid()))->toThrow(DomainException::class);
 })->with(['USDT_ETHEREUM', 'USDC_ETHEREUM']);
+
+it('uses two extra identification places after the native asset minimum', function (string $asset, string $network, string $minimum, string $step) {
+    $rail = $asset.'_'.$network;
+    AssetRail::whereKey($rail)->update(['enabled' => true, 'deposit_address' => $asset === 'BTC' ? '1BoatSLRHtKNngkdXEeobR76b53LETtpyT' : '0x'.str_repeat('1', 40)]);
+    CompanyRail::updateOrCreate(['tenant_id' => $this->tenant->id, 'rail_code' => $rail], ['deposit_enabled' => true, 'withdrawal_enabled' => true, 'minimum_deposit' => $minimum, 'withdrawal_fee_percent' => '0']);
+    $action = app(DepositAssetsAction::class);
+    for ($i = 1; $i <= 99; $i++) {
+        $request = (string) Str::uuid();
+        $order = $action->create($this->tenant->id, $this->user->id, $rail, $minimum, $request);
+        expect(BigDecimal::of($order->amount)->isEqualTo(BigDecimal::of($minimum)->plus(BigDecimal::of($step)->multipliedBy($i))))->toBeTrue();
+    }
+    expect(fn () => $action->create($this->tenant->id, $this->user->id, $rail, $minimum, (string) Str::uuid()))->toThrow(DomainException::class, 'Try a different deposit amount.');
+    CompanyRail::where('tenant_id', $this->tenant->id)->where('rail_code', $rail)->update(['minimum_deposit' => '1']);
+    expect($action->create($this->tenant->id, $this->user->id, $rail, $minimum, $request)->amount)->toBe($order->amount);
+    $next = $action->create($this->tenant->id, $this->user->id, $rail, '1', (string) Str::uuid());
+    expect(BigDecimal::of($next->amount)->isEqualTo('1.01'))->toBeTrue();
+})->with([['ETH', 'ETHEREUM', '0.010000', '0.0001'], ['BTC', 'BITCOIN', '0.001000', '0.00001']]);
+
+it('requires two spare chain decimals in native minimum configuration', function (string $rail, string $minimum) {
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    expect(fn () => app(ConfigureAssetsAction::class)->execute($actor, ['kind' => 'company-rail', 'code' => $rail, 'deposit_enabled' => true, 'withdrawal_enabled' => false, 'minimum' => $minimum], $this->tenant))->toThrow(DomainException::class);
+})->with([['BTC_BITCOIN', '0.0000001'], ['ETH_ETHEREUM', '0.00000000000000001']]);
