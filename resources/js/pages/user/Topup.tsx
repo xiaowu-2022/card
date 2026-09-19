@@ -1,3 +1,4 @@
+import { meetsTopupMinimum, exactAmount } from '@/lib/exact-amount';
 import { t, useClientTranslation, dateTime } from '@/i18n';
 import { Head, router } from '@inertiajs/react';
 import { useRef, useState } from 'react';
@@ -36,6 +37,7 @@ type Props = {
     available: { amount: MoneyAmount; asset: string } | null;
     wallet: { id: string; asset: string } | null;
     topupAvailable: boolean;
+    minimum: string;
     orders: Order[];
 };
 
@@ -51,13 +53,12 @@ const statusLabel = (status: OrderStatus) =>
         EXPIRED: 'Top-up expired',
     })[status];
 
-export default function Topup({ available, wallet, topupAvailable, orders }: Props) {
+export default function Topup({ available, wallet, topupAvailable, orders, minimum }: Props) {
     useClientTranslation();
     const [amount, setAmount] = useState('');
     const [processing, setProcessing] = useState(false);
     const requestId = useRef(crypto.randomUUID());
-    const canContinue =
-        /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(amount) && !/^0+(?:\.0+)?$/.test(amount);
+    const canContinue = meetsTopupMinimum(amount, minimum);
 
     const submit = () => {
         if (!wallet || !canContinue || processing) return;
@@ -112,6 +113,7 @@ export default function Topup({ available, wallet, topupAvailable, orders }: Pro
                             </div>
                         </FormField>
                         <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                            {t('Minimum deposit')}: {exactAmount(minimum)} {'USDT'} ·{' '}
                             {t('TRON network (TRC20) · No top-up fee')}
                         </p>
                         <Button className="mt-5 w-full" disabled={!canContinue || processing}>

@@ -20,7 +20,7 @@ final class UpdateTenantBusinessSettingsRequest extends FormRequest
             'security_deposit_refund_wait_days' => ['prohibited'],
             'allow_wallet_topup' => ['sometimes', 'accepted'],
             'allow_withdrawal' => ['sometimes', 'accepted'],
-            'withdrawal_fixed_fee' => ['sometimes', 'required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,2})?$/'],
+            'withdrawal_fee_percent' => ['sometimes', 'required', 'string', 'regex:/^(?:0|[1-9][0-9]?)(?:\.\d{1,8})?$/'],
         ];
     }
 }

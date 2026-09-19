@@ -14,6 +14,7 @@ use App\Domain\Assets\ExchangeOrder;
 use App\Domain\Assets\ExchangePolicy;
 use App\Domain\Ledger\Models\LedgerAccount;
 use App\Domain\Ledger\ValueObjects\Money;
+use App\Domain\Tenant\Models\TenantBusinessSetting;
 use App\Domain\Wallet\Models\Wallet;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
@@ -62,14 +63,14 @@ final readonly class AssetOverviewQuery
             }
             $options = [];
             if ($asset === 'USDT' && (($legacy['topupAvailable'] ?? false) || ($legacy['withdrawalAvailable'] ?? false))) {
-                $options[] = ['code' => 'USDT_TRON', 'network' => 'TRON', 'deposit' => (bool) $legacy['topupAvailable'], 'withdrawal' => (bool) $legacy['withdrawalAvailable'], 'feePercent' => null, 'minimum' => null];
+                $options[] = ['code' => 'USDT_TRON', 'network' => 'TRON', 'deposit' => (bool) $legacy['topupAvailable'], 'withdrawal' => (bool) $legacy['withdrawalAvailable'], 'feePercent' => null, 'minimum' => TenantBusinessSetting::where('tenant_id', $tenantId)->value('tron_minimum_deposit')];
             }
             foreach ($rails->where('asset_code', $asset) as $rail) {
                 $settings = $company->get($rail->code);
-                if (! $settings || ! $connections->has($rail->network) || ! $rail->deposit_address) {
+                if (! $settings || ! $rail->deposit_address) {
                     continue;
                 }
-                $options[] = ['code' => $rail->code, 'network' => $rail->network, 'deposit' => $assetEligible && $settings->deposit_enabled && $settings->minimum_deposit !== null, 'withdrawal' => $assetEligible && $settings->withdrawal_enabled && $settings->withdrawal_fee_percent !== null, 'feePercent' => $settings->withdrawal_fee_percent, 'minimum' => $settings->minimum_deposit === null ? null : Money::of($settings->minimum_deposit, $asset)->amount()];
+                $options[] = ['code' => $rail->code, 'network' => $rail->network, 'deposit' => $assetEligible && $settings->deposit_enabled && $settings->minimum_deposit !== null, 'withdrawal' => $assetEligible && $connections->has($rail->network) && $settings->withdrawal_enabled && $settings->withdrawal_fee_percent !== null, 'feePercent' => $settings->withdrawal_fee_percent, 'minimum' => $settings->minimum_deposit === null ? null : Money::of($settings->minimum_deposit, $asset)->amount()];
             }
             $policy = $policies->get($asset);
             $activity = DB::table('ledger_postings as p')->join('ledger_accounts as a', 'a.id', '=', 'p.ledger_account_id')->join('ledger_entries as e', 'e.id', '=', 'p.ledger_entry_id')->where('a.tenant_id', $tenantId)->where('p.tenant_id', $tenantId)->where('e.tenant_id', $tenantId)->where('a.user_id', $userId)->where('a.asset_code', $asset)->where('a.account_type', 'USER_AVAILABLE')->orderByDesc('e.posted_at')->orderByDesc('p.id')->limit(5)->get(['p.id', 'p.delta', 'e.posted_at', 'e.event_type'])->map(fn ($p) => ['id' => $p->id, 'amount' => Money::of($p->delta, $asset)->amount(), 'time' => $p->posted_at, 'kind' => AssetActivityLabel::for($p->event_type, $p->delta)])->all();

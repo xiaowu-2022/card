@@ -29,7 +29,7 @@ final class TronGridBlockchainGateway implements BlockchainGatewayInterface, Trc
     {
         try {
             return config('payment.trc20_token_contract') === self::TOKEN
-                && $this->addressHex((string) config('payment.trc20_deposit_address')) !== null
+                && $this->addressHex(app(\App\Application\Assets\TronDepositConfiguration::class)->address()) !== null
                 && $this->key() !== '';
         } catch (Throwable) {
             return false;

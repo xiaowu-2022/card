@@ -3,11 +3,13 @@
 use App\Application\Admin\FinancialOperationQuery;
 use App\Application\Assets\AssetAccess;
 use App\Application\Assets\AssetOverviewQuery;
+use App\Application\Assets\AssetRails;
 use App\Application\Assets\ConfigureAssetsAction;
 use App\Application\Assets\DepositAssetsAction;
 use App\Application\Assets\ExchangeAssetsAction;
 use App\Application\Assets\MarketPrices;
 use App\Application\Assets\ScanAssetNetwork;
+use App\Application\Assets\TronDepositConfiguration;
 use App\Application\Assets\WithdrawAssetsAction;
 use App\Application\Kyc\ApproveKycAction;
 use App\Application\Kyc\SubmitKycApplicationAction;
@@ -23,6 +25,7 @@ use App\Domain\Assets\ExchangeOrder;
 use App\Domain\Assets\ExchangePolicy;
 use App\Domain\Assets\MarketSettings;
 use App\Domain\Assets\MarketSnapshot;
+use App\Domain\Assets\WithdrawalFee;
 use App\Domain\Ledger\DTOs\LedgerPostingInstruction;
 use App\Domain\Ledger\DTOs\LedgerPostingPlan;
 use App\Domain\Ledger\Models\LedgerAccount;
@@ -205,13 +208,13 @@ it('renders read-only currency balances and blocks cross-tenant order reads', fu
 });
 
 /** Deterministic node responses, never a real RPC request. */
-function assetEthereumNode(array $calls, array $logs = []): void
+function assetEthereumNode(array $calls, array $logs = [], array $direct = []): void
 {
     config(['assets.rpc_allowed_hosts' => ['node.example.test'], 'assets.scan_batch_blocks' => 1]);
     ChainConnection::where('network', 'ETHEREUM')->update(['rpc_url' => 'https://node.example.test']);
     $hash = '0x'.str_repeat('a', 64);
     $tx = '0x'.str_repeat('b', 64);
-    $block = ['number' => '0x64', 'hash' => $hash, 'timestamp' => '0x'.dechex(now()->timestamp), 'transactions' => [['hash' => $tx]]];
+    $block = ['number' => '0x64', 'hash' => $hash, 'timestamp' => '0x'.dechex(now()->timestamp), 'transactions' => [['hash' => $tx] + $direct]];
     Http::fake(function ($request) use ($calls, $logs, $hash, $tx, $block) {
         $value = match ($request['method']) {
             'eth_chainId' => '0x1','eth_getBlockByNumber' => $block,
@@ -223,9 +226,10 @@ function assetEthereumNode(array $calls, array $logs = []): void
         return Http::response(json_encode(['jsonrpc' => '2.0', 'id' => 'assets', 'result' => $value], JSON_THROW_ON_ERROR));
     });
 }
-it('scans finalized internal ETH transfers once and preserves the cursor', function () {
+it('scans finalized direct ETH without traces once and preserves the cursor', function () {
     $o = app(DepositAssetsAction::class)->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', (string) Str::uuid());
-    assetEthereumNode([['type' => 'CALL', 'from' => '0x'.str_repeat('4', 40), 'to' => $o->address, 'value' => '0xde0b6b3a7640000']]);
+    assetEthereumNode([], [], ['from' => '0x'.str_repeat('4', 40), 'to' => $o->address, 'value' => '0xde0b6b3a7640000']);
+    Http::assertNothingSent();
     $scan = app(ScanAssetNetwork::class);
     expect($scan->execute('ETHEREUM'))->toBe(1);
     expect($o->fresh()->status)->toBe('CREDITED');
@@ -234,12 +238,20 @@ it('scans finalized internal ETH transfers once and preserves the cursor', funct
     expect(LedgerEntry::count())->toBe($count);
     expect(ChainConnection::find('ETHEREUM')->next_height)->toBe(101);
 });
-it('sends ambiguous duplicate transfers to review without guessing an order', function () {
+it('leaves contract-only ETH pending for idempotent manual receipt confirmation', function () {
     $o = app(DepositAssetsAction::class)->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', (string) Str::uuid());
     $call = ['type' => 'CALL', 'to' => $o->address, 'value' => '0xde0b6b3a7640000'];
     assetEthereumNode([$call, $call]);
     app(ScanAssetNetwork::class)->execute('ETHEREUM');
-    expect($o->fresh()->status)->toBe('PENDING')->and(ChainObservation::where('status', 'REQUIRES_REVIEW')->count())->toBe(2);
+    expect($o->fresh()->status)->toBe('PENDING')->and(ChainObservation::count())->toBe(0);
+    Http::assertNotSent(fn ($r) => $r['method'] === 'debug_traceBlockByNumber');
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $id = (string) Str::uuid();
+    app(DepositAssetsAction::class)->manual($this->tenant->id, $o->id, $actor, $id, true);
+    $count = LedgerEntry::count();
+    app(DepositAssetsAction::class)->manual($this->tenant->id, $o->id, $actor, $id, true);
+    app(ScanAssetNetwork::class)->execute('ETHEREUM');
+    expect($o->fresh()->status)->toBe('CREDITED')->and(LedgerEntry::count())->toBe($count);
 });
 it('ignores reverted native calls and wrong token contracts', function () {
     $o = app(DepositAssetsAction::class)->create($this->tenant->id, $this->user->id, 'USDC_ETHEREUM', '1', (string) Str::uuid());
@@ -300,8 +312,8 @@ it('rejects SSRF endpoints and fails closed before requesting arbitrary hosts', 
 it('permits platform-only configuration, encrypts keys and never returns them', function () {
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $this->actingAs($actor, 'platform_admin')->post('http://admin.localhost/platform/settings/assets', ['kind' => 'market', 'enabled' => true, 'api_key' => 'isolated-price-key'])->assertRedirect()->assertSessionHasNoErrors();
-    expect(DB::table('asset_market_settings')->where('id', 1)->value('api_key'))->not->toContain('isolated-price-key');
-    $this->get('http://admin.localhost/platform/settings/assets')->assertOk()->assertDontSee('isolated-price-key')->assertInertia(fn ($page) => $page->where('market.configured', true));
+    expect(DB::table('asset_market_settings')->where('id', 1)->value('api_key'))->toBeNull();
+    $this->get('http://admin.localhost/platform/settings/assets')->assertOk()->assertDontSee('isolated-price-key')->assertInertia(fn ($page) => $page->where('market.configured', false));
     $this->post('http://admin.localhost/platform/tenants/'.$this->tenant->id.'/assets/settings', ['kind' => 'exchange', 'asset' => 'BTC', 'enabled' => true, 'fee' => '0', 'single' => '100', 'daily' => '200'])->assertRedirect();
     expect(ExchangePolicy::where('tenant_id', $this->tenant->id)->where('asset_code', 'BTC')->first()->fee_percent)->toBe('0.00000000');
     $company = AdminUser::where('email', 'owner@a.localhost')->firstOrFail();
@@ -526,9 +538,11 @@ it('allows public market configuration without a key and explicitly removes an o
 });
 
 it('fetches one exact public snapshot for repeated platform updates', function () {
+    MarketSettings::findOrFail(1)->update(['enabled' => false, 'api_key' => 'unused-secret']);
     $this->travel(121)->seconds();
     $stamp = now()->timestamp;
     Http::fake(['api.coingecko.com/*' => Http::response('{"tether":{"usd":0.999,"last_updated_at":'.$stamp.'},"usd-coin":{"usd":0.998,"last_updated_at":'.$stamp.'},"ethereum":{"usd":2000.123456789123456789,"last_updated_at":'.$stamp.'},"bitcoin":{"usd":60000,"last_updated_at":'.$stamp.'}}')]);
+    $this->artisan('assets:refresh-prices')->assertSuccessful();
     $prices = app(MarketPrices::class);
     $one = $prices->refresh();
     $two = $prices->refresh();
@@ -555,16 +569,16 @@ it('serializes platform refreshes with the shared cache lock', function () {
     }
 });
 
-it('backs off failed price updates and never calls a public fallback with a pro secret', function () {
+it('always uses public prices without stored secrets and backs off failed updates', function () {
     $this->travel(121)->seconds();
     MarketSettings::findOrFail(1)->update(['api_key' => 'pro-secret']);
-    Http::fake(['pro-api.coingecko.com/*' => Http::response([], 503)]);
+    Http::fake(['api.coingecko.com/*' => Http::response([], 503)]);
     $prices = app(MarketPrices::class);
     expect(fn () => $prices->refresh())->toThrow(DomainException::class);
     expect(fn () => $prices->refresh())->toThrow(DomainException::class);
     expect($prices->latest())->toBeNull();
     Http::assertSentCount(1);
-    Http::assertSent(fn ($r) => str_starts_with($r->url(), 'https://pro-api.coingecko.com/') && $r->hasHeader('x-cg-pro-api-key', 'pro-secret'));
+    Http::assertSent(fn ($r) => str_starts_with($r->url(), 'https://api.coingecko.com/') && ! $r->hasHeader('x-cg-pro-api-key'));
 });
 
 it('does not publish stale public market data', function () {
@@ -616,19 +630,20 @@ it('tests a public network without writing configuration or money then starts on
     expect($c->fresh()->next_height)->toBe(198);
 });
 
-it('does not enable a public Ethereum node when complete traces are unavailable', function () {
+it('enables public Ethereum receipt scanning without trace support', function () {
     $c = ChainConnection::findOrFail('ETHEREUM');
     $c->update(['enabled' => false]);
     Http::fake(['ethereum-rpc.publicnode.com' => function ($r) {
         return match ($r['method']) {
             'eth_chainId' => Http::response(['result' => '0x1']),
-            'eth_getBlockByNumber' => Http::response(['result' => ['number' => '0x64', 'timestamp' => '0x64', 'transactions' => [['hash' => 'tx']]]]),
+            'eth_getBlockByNumber' => Http::response(['result' => ['number' => '0x64', 'hash' => 'block100', 'timestamp' => '0x64', 'transactions' => []]]),
             default => Http::response(['error' => ['code' => -32601]]),
         };
     }]);
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
-    expect(fn () => app(ConfigureAssetsAction::class)->execute($actor, ['kind' => 'network', 'network' => 'ETHEREUM', 'enabled' => true, 'use_public' => true, 'confirmations' => 6]))->toThrow(DomainException::class);
-    expect($c->fresh()->enabled)->toBeFalse()->and($c->fresh()->next_height)->toBe(100);
+    app(ConfigureAssetsAction::class)->execute($actor, ['kind' => 'network', 'network' => 'ETHEREUM', 'enabled' => true, 'use_public' => true, 'confirmations' => 6]);
+    expect($c->fresh()->enabled)->toBeTrue()->and($c->fresh()->next_height)->toBe(100);
+    Http::assertNotSent(fn ($r) => $r['method'] === 'debug_traceBlockByNumber');
 });
 
 it('requires explicit receipt confirmation without a second password and credits only once', function () {
@@ -651,7 +666,8 @@ it('requires credentials or endpoint when explicitly selecting private services'
     Http::fake();
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $action = app(ConfigureAssetsAction::class);
-    expect(fn () => $action->execute($actor, ['kind' => 'market', 'enabled' => true, 'use_public' => false]))->toThrow(DomainException::class);
+    $action->execute($actor, ['kind' => 'market', 'enabled' => false, 'use_public' => false]);
+    expect(MarketSettings::findOrFail(1)->enabled)->toBeTrue();
     expect(fn () => $action->execute($actor, ['kind' => 'network', 'network' => 'ETHEREUM', 'enabled' => false, 'use_public' => false, 'rpc_url' => '', 'confirmations' => 6]))->toThrow(ValidationException::class);
     Http::assertNothingSent();
 });
@@ -664,7 +680,7 @@ it('saves several asset settings using the platform session and one atomic trans
         ['kind' => 'network', 'network' => 'BITCOIN', 'enabled' => false, 'use_public' => true, 'confirmations' => 8],
     ];
     $this->actingAs($actor, 'platform_admin')->post('http://admin.localhost/platform/settings/assets', ['kind' => 'batch', 'sections' => $sections])->assertRedirect()->assertSessionHasNoErrors();
-    expect(MarketSettings::findOrFail(1)->enabled)->toBeFalse()->and(ChainConnection::findOrFail('BITCOIN')->confirmations)->toBe(8);
+    expect(MarketSettings::findOrFail(1)->enabled)->toBeTrue()->and(ChainConnection::findOrFail('BITCOIN')->confirmations)->toBe(8);
     Http::assertNothingSent();
 });
 
@@ -727,7 +743,6 @@ it('preserves tiny money and long blockchain hex strings without PCRE stack exha
     expect(fn () => ExactJson::decode('{"amount":01}'))->toThrow(UnexpectedValueException::class);
 });
 
-
 it('enables exchange with no fee or limit configuration and ignores stale client fields', function () {
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/assets/settings';
@@ -761,7 +776,6 @@ it('requires a new zero-fee quote for legacy unconfirmed fee snapshots without r
         ->and($legacy->fresh()->status)->toBe('QUOTED');
 });
 
-
 it('calculates withdrawal percentages and retains the order fee after configuration changes', function () {
     ($this->fund)('USDC', '200');
     $settings = CompanyRail::where('tenant_id', $this->tenant->id)->where('rail_code', 'USDC_ETHEREUM')->sole();
@@ -783,7 +797,7 @@ it('calculates withdrawal percentages and retains the order fee after configurat
 
 it('requires an explicit percentage instead of interpreting an old fixed withdrawal fee', function () {
     CompanyRail::where('tenant_id', $this->tenant->id)->update(['withdrawal_fee_percent' => null]);
-    expect(fn () => app(\App\Application\Assets\AssetRails::class)->enabled($this->tenant->id, 'ETH_ETHEREUM', 'withdrawal'))->toThrow(DomainException::class);
+    expect(fn () => app(AssetRails::class)->enabled($this->tenant->id, 'ETH_ETHEREUM', 'withdrawal'))->toThrow(DomainException::class);
     $actor = AdminUser::where('email', 'owner@platform.local')->sole();
     $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/assets/settings';
     $input = ['kind' => 'company-rail', 'code' => 'ETH_ETHEREUM', 'deposit_enabled' => false, 'withdrawal_enabled' => true];
@@ -800,9 +814,165 @@ it('rejects invalid configured withdrawal percentages', function (string $rate) 
 })->with(['100', '-1', '1e2', '0.123456789']);
 
 it('rounds percentage fees up to the exact network unit', function (string $asset, string $amount, string $rate, string $expected) {
-    expect(\App\Domain\Assets\WithdrawalFee::calculate($amount, $rate, $asset)->amount())->toBe($expected);
+    expect(WithdrawalFee::calculate($amount, $rate, $asset)->amount())->toBe($expected);
 })->with([
     ['USDT', '100', '1', '1.00000000'], ['USDC', '0.000101', '1', '0.000002'],
     ['ETH', '0.000000000000000101', '1', '0.000000000000000002'],
     ['BTC', '0.00000101', '1', '0.00000002'], ['BTC', '1', '0', '0.00000000'],
 ]);
+
+it('accepts four-asset deposits and proven withdrawals with configured stablecoin fees', function (string $asset, string $code, string $fee) {
+    Http::preventStrayRequests();
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $rail = AssetRail::findOrFail($code);
+    ChainConnection::whereKey($rail->network)->update(['enabled' => true, 'start_height' => 100, 'next_height' => 100]);
+    $address = $asset === 'BTC' ? 'bc1q'.str_repeat('q', 38) : '0x'.str_repeat('2', 40);
+    $rail->update(['enabled' => true, 'deposit_address' => $address]);
+    CompanyRail::updateOrCreate(['tenant_id' => $this->tenant->id, 'rail_code' => $code], ['deposit_enabled' => true, 'withdrawal_enabled' => true, 'minimum_deposit' => '1', 'withdrawal_fee_percent' => $fee]);
+    $deposits = app(DepositAssetsAction::class);
+    $deposit = $deposits->create($this->tenant->id, $this->user->id, $code, '100', (string) Str::uuid());
+    $deposits->manual($this->tenant->id, $deposit->id, $actor, (string) Str::uuid(), true);
+    $entries = LedgerEntry::count();
+    $deposits->manual($this->tenant->id, $deposit->id, $actor, (string) Str::uuid(), true);
+    expect(LedgerEntry::count())->toBe($entries);
+    $withdraw = app(WithdrawAssetsAction::class);
+    if ($asset === 'BTC') {
+        config(['assets.rpc_allowed_hosts' => ['node.example.test']]);
+        ChainConnection::whereKey('BITCOIN')->update(['rpc_url' => 'https://node.example.test']);
+        Http::fake(fn ($r) => Http::response(['result' => match ($r['method']) {
+            'validateaddress' => ['isvalid' => true, 'address' => $address], 'getblockchaininfo' => ['chain' => 'main', 'initialblockdownload' => false, 'blocks' => 110], 'getblockhash' => str_repeat('a', 64),
+            'getrawtransaction' => ['blockhash' => str_repeat('a', 64)],
+            'getblockheader' => ['height' => 100],
+            'getblock' => ['hash' => str_repeat('a', 64), 'height' => 100, 'time' => now()->timestamp, 'tx' => [['txid' => str_repeat('b', 64), 'vin' => [], 'vout' => [['n' => 0, 'value' => '10.00000000', 'scriptPubKey' => ['address' => $address]]]]]],
+            default => throw new RuntimeException('Unexpected Bitcoin method'),
+        }]));
+    }
+    $o = $withdraw->create($this->tenant->id, $this->user->id, $code, '10', $address, $fee === '10' ? '1' : '0', (string) Str::uuid(), true);
+    $withdraw->review($this->tenant->id, $o->id, $actor, true);
+    if ($asset === 'BTC') {
+        // Bitcoin proof responses were registered before address validation.
+    } elseif ($asset === 'ETH') {
+        assetEthereumNode([['type' => 'CALL', 'to' => $address, 'value' => '0x'.BigDecimal::of('10')->withPointMovedRight(18)->toBigInteger()->toBase(16)]]);
+    } else {
+        assetEthereumNode([], [['address' => $rail->contract, 'logIndex' => '0x0', 'topics' => ['0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef', '0x'.str_repeat('0', 64), '0x'.str_repeat('0', 24).substr($address, 2)], 'data' => '0x'.str_pad(BigDecimal::of('9')->withPointMovedRight(6)->toBigInteger()->toBase(16), 64, '0', STR_PAD_LEFT)]]);
+    }
+    $hash = ($asset === 'BTC' ? '' : '0x').str_repeat('b', 64);
+    expect($withdraw->verify($this->tenant->id, $o->id, $actor, $hash, (string) Str::uuid())->status)->toBe('COMPLETED');
+    $entries = LedgerEntry::count();
+    $withdraw->verify($this->tenant->id, $o->id, $actor, $hash, (string) Str::uuid());
+    expect(LedgerEntry::count())->toBe($entries);
+    expect(LedgerAccount::where('user_id', $this->user->id)->where('asset_code', $asset)->where('account_type', 'USER_AVAILABLE')->first()->balance)->toBe(Money::of(in_array($asset, ['USDT', 'USDC'], true) ? '90.01' : '90', $asset)->amount());
+    expect(LedgerAccount::where('user_id', $this->user->id)->where('asset_code', $asset)->where('account_type', 'USER_WITHDRAWAL_HOLD')->first()->balance)->toBe(Money::of('0', $asset)->amount());
+    expect(app(LedgerReconciliationService::class)->mismatches())->toBe([]);
+})->with([['USDT', 'USDT_ETHEREUM', '10'], ['USDC', 'USDC_ETHEREUM', '10'], ['ETH', 'ETH_ETHEREUM', '0'], ['BTC', 'BTC_BITCOIN', '0']]);
+
+it('exchanges every supported source asset into USDT with zero fees and exact receipts', function (string $asset, string $received) {
+    ($this->fund)($asset, '1');
+    ExchangePolicy::updateOrCreate(['tenant_id' => $this->tenant->id, 'asset_code' => $asset], ['enabled' => true]);
+    $exchange = app(ExchangeAssetsAction::class);
+    $quote = $exchange->quote($this->tenant->id, $this->user->id, $asset, '1', (string) Str::uuid());
+    expect($quote->receive_amount)->toBe($received)->and($quote->fee_amount)->toBe('0.00000000');
+    $exchange->confirm($this->tenant->id, $this->user->id, $quote->id);
+    $entries = LedgerEntry::count();
+    $exchange->confirm($this->tenant->id, $this->user->id, $quote->id);
+    expect(LedgerEntry::count())->toBe($entries);
+    expect(LedgerAccount::where('user_id', $this->user->id)->where('asset_code', $asset)->where('account_type', 'USER_AVAILABLE')->first()->balance)->toBe(Money::of('0', $asset)->amount());
+    expect(LedgerAccount::where('user_id', $this->user->id)->where('asset_code', 'USDT')->where('account_type', 'USER_AVAILABLE')->first()->balance)->toBe($received);
+    expect(app(LedgerReconciliationService::class)->mismatches())->toBe([]);
+})->with([['USDC', '0.99899899'], ['ETH', '2002.00200200'], ['BTC', '60060.06006006']]);
+
+it('saves the TRON receiving address in the same scoped platform batch and retains it on reload', function () {
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $address = 'T'.str_repeat('1', 33);
+    $entries = LedgerEntry::count();
+    $this->actingAs($actor, 'platform_admin')->post('http://admin.localhost/platform/settings/assets', [
+        'kind' => 'batch', 'sections' => [['kind' => 'tron-rail', 'address' => $address]],
+    ])->assertRedirect()->assertSessionHasNoErrors();
+    expect(app(TronDepositConfiguration::class)->address())->toBe($address);
+    $this->get('http://admin.localhost/platform/settings/assets')->assertInertia(fn ($page) => $page->where('tronAddress', $address));
+    expect(LedgerEntry::count())->toBe($entries);
+    $this->post('http://admin.localhost/platform/settings/assets', [
+        'kind' => 'batch', 'sections' => [['kind' => 'tron-rail', 'address' => 'invalid']],
+    ])->assertSessionHasErrors('sections.0.form');
+    expect(app(TronDepositConfiguration::class)->address())->toBe($address);
+});
+
+it('automatically credits finalized ERC20 receipts without requesting ETH traces', function (string $asset) {
+    $o = app(DepositAssetsAction::class)->create($this->tenant->id, $this->user->id, $asset.'_ETHEREUM', '1', (string) Str::uuid());
+    assetEthereumNode([], [[
+        'address' => $o->contract,
+        'topics' => ['0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef', '0x'.str_repeat('0', 64), '0x'.str_repeat('0', 24).substr($o->address, 2)],
+        'data' => '0x'.str_pad('f6950', 64, '0', STR_PAD_LEFT), 'logIndex' => '0x0',
+    ]]);
+    app(ScanAssetNetwork::class)->execute('ETHEREUM');
+    expect($o->fresh()->status)->toBe('CREDITED');
+    Http::assertNotSent(fn ($r) => $r['method'] === 'debug_traceBlockByNumber');
+})->with(['USDT', 'USDC']);
+
+it('configures the existing company TRC20 percentage fee and minimum through asset settings without changing another company or money', function () {
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $other = Tenant::where('slug', 'tenant-b')->firstOrFail();
+    $otherFee = $other->businessSettings->withdrawal_fee_percent;
+    $entries = LedgerEntry::count();
+    $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/assets/settings';
+    $this->actingAs($actor, 'platform_admin')->post($url, ['kind' => 'batch', 'sections' => [
+        ['kind' => 'company-tron', 'minimum' => '50', 'fee_percent' => '2.50'],
+    ]])->assertRedirect()->assertSessionHasNoErrors();
+    expect($this->tenant->fresh()->businessSettings->withdrawal_fee_percent)->toBe('2.50000000');
+    expect($this->tenant->fresh()->businessSettings->tron_minimum_deposit)->toBe('50.00000000');
+    expect($other->fresh()->businessSettings->tron_minimum_deposit)->toBe('0.00000000');
+    expect($other->fresh()->businessSettings->withdrawal_fee_percent)->toBe($otherFee);
+    expect(LedgerEntry::count())->toBe($entries);
+    $this->get('http://admin.localhost/platform/settings/assets?company='.$this->tenant->id)
+        ->assertInertia(fn ($page) => $page->where('tronFeePercent', '2.50000000'));
+    $this->post($url, ['kind' => 'batch', 'sections' => [
+        ['kind' => 'company-tron', 'minimum' => '50', 'fee_percent' => '3'],
+        ['kind' => 'company-rail', 'code' => 'USDT_ETHEREUM', 'deposit_enabled' => true, 'withdrawal_enabled' => false, 'minimum' => null],
+    ]])->assertSessionHasErrors();
+    expect($this->tenant->fresh()->businessSettings->withdrawal_fee_percent)->toBe('2.50000000');
+});
+
+it('saves all receiving rails offline and accepts manual deposits with scanning disabled', function () {
+    Http::preventStrayRequests();
+    Http::fake(fn () => throw new RuntimeException('Saving addresses must not query a node'));
+    ChainConnection::query()->update(['enabled' => false, 'start_height' => null, 'next_height' => null]);
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $sections = [];
+    foreach (['USDT_ETHEREUM', 'USDC_ETHEREUM', 'ETH_ETHEREUM', 'BTC_BITCOIN'] as $code) {
+        $sections[] = ['kind' => 'rail', 'code' => $code, 'enabled' => true, 'address' => $code === 'BTC_BITCOIN' ? '1BoatSLRHtKNngkdXEeobR76b53LETtpyT' : '0x'.str_repeat('1', 40)];
+    }
+    $this->actingAs($actor, 'platform_admin')->post('http://admin.localhost/platform/settings/assets', ['kind' => 'batch', 'sections' => $sections])->assertRedirect()->assertSessionHasNoErrors();
+    expect(AssetRail::where('enabled', true)->count())->toBe(4);
+    $o = app(DepositAssetsAction::class)->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', (string) Str::uuid());
+    expect($o->fresh()->status)->toBe('PENDING');
+    app(DepositAssetsAction::class)->manual($this->tenant->id, $o->id, $actor, (string) Str::uuid(), true);
+    expect($o->fresh()->status)->toBe('CREDITED');
+    Http::assertNothingSent();
+});
+
+it('keeps old ETH deposit snapshots discoverable after receiving address rotation', function () {
+    $action = app(DepositAssetsAction::class);
+    $old = $action->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', (string) Str::uuid());
+    $newAddress = '0x'.str_repeat('2', 40);
+    app(ConfigureAssetsAction::class)->execute(AdminUser::where('email', 'owner@platform.local')->firstOrFail(), ['kind' => 'rail', 'code' => 'ETH_ETHEREUM', 'enabled' => true, 'address' => $newAddress]);
+    $next = $action->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', (string) Str::uuid());
+    expect($old->fresh()->address)->toBe($old->address)->and($next->address)->toBe($newAddress);
+    assetEthereumNode([], [], ['from' => '0x'.str_repeat('3', 40), 'to' => $old->address, 'value' => '0xde0b6b3a7640000']);
+    app(ScanAssetNetwork::class)->execute('ETHEREUM');
+    expect($old->fresh()->status)->toBe('CREDITED')->and($next->fresh()->status)->toBe('PENDING');
+    $entries = LedgerEntry::count();
+    app(ScanAssetNetwork::class)->execute('ETHEREUM');
+    expect(LedgerEntry::count())->toBe($entries);
+});
+
+it('allocates stablecoin deposit offsets only from 0.01 through 0.99', function (string $rail) {
+    $action = app(DepositAssetsAction::class);
+    for ($i = 1; $i <= 99; $i++) {
+        $request = (string) Str::uuid();
+        $order = $action->create($this->tenant->id, $this->user->id, $rail, '500', $request);
+        expect(BigDecimal::of($order->amount)->isEqualTo('500.'.str_pad((string) $i, 2, '0', STR_PAD_LEFT)))->toBeTrue();
+    }
+    expect($action->create($this->tenant->id, $this->user->id, $rail, '500', $request)->id)->toBe($order->id);
+    expect(fn () => $action->create($this->tenant->id, $this->user->id, $rail, '500', (string) Str::uuid()))->toThrow(DomainException::class, 'Try a different deposit amount.');
+    expect(fn () => $action->create($this->tenant->id, $this->user->id, $rail, '500.001', (string) Str::uuid()))->toThrow(DomainException::class);
+})->with(['USDT_ETHEREUM', 'USDC_ETHEREUM']);

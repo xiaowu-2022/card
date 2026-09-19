@@ -1,3 +1,5 @@
+import { AssetNavigation } from '@/components/admin/AssetNavigation';
+import { Inbox, ArrowUpRight } from 'lucide-react';
 import type { SharedProps } from '@/types/global';
 import {
     ManualOperationHistory,
@@ -47,26 +49,47 @@ export default function AssetOrders({ mode, orders, observations }: Props) {
     return (
         <PlatformLayout>
             <Head title={t(title)} />
-            <div className="space-y-6">
-                <PageHeader title={t(title)} />
-                <div className="flex flex-wrap gap-4 text-sm">
-                    <Link className="underline" href="/platform/asset-tron-withdrawals">
-                        {'USDT / TRON'}
-                    </Link>
-                    <Link className="underline" href="/platform/asset-deposits">
-                        {t('Multi-currency deposits')}
-                    </Link>
-                    <Link className="underline" href="/platform/asset-withdrawals">
-                        {t('Multi-currency withdrawals')}
-                    </Link>
-                    <Link className="underline" href="/platform/settings/assets">
-                        {t('Multi-currency settings')}
-                    </Link>
-                </div>
+            <div className="mx-auto max-w-6xl space-y-6">
+                <PageHeader
+                    title={t(title)}
+                    description={t(
+                        mode === 'deposit'
+                            ? 'Review deposits and confirm received funds.'
+                            : 'Review withdrawal requests and track payout progress.',
+                    )}
+                    actions={
+                        <Button asChild variant="secondary">
+                            <Link
+                                href={
+                                    mode === 'deposit'
+                                        ? '/platform/topups'
+                                        : '/platform/asset-tron-withdrawals'
+                                }
+                            >
+                                {'USDT / TRON'} <ArrowUpRight className="ml-2 size-4" />
+                            </Link>
+                        </Button>
+                    }
+                />
+                <AssetNavigation active={mode} />
                 {orders.data.map((o) => (
                     <OrderRow key={o.id} order={o} mode={mode} />
                 ))}
-                {orders.data.length === 0 && <p>{t('No records')}</p>}
+                {orders.data.length === 0 && (
+                    <section className="flex min-h-72 flex-col items-center justify-center rounded-2xl border bg-surface px-6 py-12 text-center">
+                        <div className="mb-4 rounded-full bg-muted p-4">
+                            <Inbox className="size-7 text-muted-foreground" />
+                        </div>
+                        <h2 className="font-semibold">{t('No records')}</h2>
+                        <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
+                            {t(
+                                mode === 'deposit'
+                                    ? 'New deposit orders will appear here.'
+                                    : 'New withdrawal requests will appear here.',
+                            )}
+                        </p>
+                    </section>
+                )}
                 <div className="flex justify-between">
                     {orders.prev_page_url && (
                         <Link href={orders.prev_page_url}>{t('Previous')}</Link>

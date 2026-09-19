@@ -23,6 +23,8 @@ use App\Domain\User\Models\User;
 use App\Domain\Withdrawal\Contracts\BlockchainGatewayInterface;
 use App\Domain\Withdrawal\DTOs\BlockchainTransferVerification;
 use App\Domain\Withdrawal\Enums\BlockchainVerificationOutcome;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -65,7 +67,7 @@ it('reads exact owned balances and successful gross withdrawal totals without mu
         $owner = AdminUser::query()->where('email', $slug === 'tenant-a' ? 'owner@a.localhost' : 'owner@b.localhost')->firstOrFail();
         app(UpdateTenantBusinessSettingsAction::class)->execute($tenant, [
             'required_security_deposit_amount' => '100', 'required_security_deposit_asset' => 'USDT',
-            'allow_wallet_topup' => true, 'allow_withdrawal' => true, 'withdrawal_fixed_fee' => '1.00',
+            'allow_wallet_topup' => true, 'allow_withdrawal' => true, 'withdrawal_fee_percent' => '1.00',
         ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
         $kyc = app(SubmitKycApplicationAction::class)->execute($tenant, $user, 'MY', 'FINANCIALS-'.$user->id, kycTestImage(), kycTestImage('back.png'));
         app(ApproveKycAction::class)->execute($tenant->id, $kyc->id, $owner);
@@ -91,7 +93,7 @@ it('reads exact owned balances and successful gross withdrawal totals without mu
     }
     [$tenant, $user, $owner] = $fixtures['tenant-a'];
     $destination = app(CreateWithdrawalDestinationAction::class)->execute($tenant->id, $user->id, 'T'.str_repeat('A', 33), 'Test');
-    $create = fn (string $amount) => app(CreateWithdrawalAction::class)->execute($tenant->id, $user->id, (string) Str::uuid(), $destination->id, $amount, null, '1.00');
+    $create = fn (string $amount) => app(CreateWithdrawalAction::class)->execute($tenant->id, $user->id, (string) Str::uuid(), $destination->id, $amount, null, (string) BigDecimal::of($amount)->dividedBy('100', 6, RoundingMode::Ceiling));
     $gateway = Mockery::mock(BlockchainGatewayInterface::class);
     $gateway->shouldReceive('available')->andReturn(true);
     $gateway->shouldReceive('verifyUsdtTrc20Transfer')->twice()->andReturn(new BlockchainTransferVerification(BlockchainVerificationOutcome::Confirmed, (int) config('withdrawal.minimum_confirmations')));

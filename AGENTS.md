@@ -1,4 +1,48 @@
+On 2026-09-19 the user reaffirmed USDT/USDC new deposit instructions must
+use two-decimal requested amounts plus a unique 0.01–0.99 offset, including ERC20.
+Exhausted slots fail closed; preserve immutable prior instructions and late-payment
+protection. ETH/BTC native precision is unchanged.
+
+On 2026-09-19 the user added a company-specific TRON minimum deposit beside
+the percentage withdrawal fee. Validate new requested top-up amounts under the
+Tenant lock; preserve existing instructions and settlement. Initial zero preserves
+the previous absence of a company minimum. See MULTI_ASSET_CENTER.md.
+
+On 2026-09-19 the user changed TRON withdrawal fees to a company-configured
+percentage (0 <= percent < 100, up to 8 decimal places). New orders deduct gross
+amount times percent, rounded up to the 6-decimal TRC20 transfer unit; positive
+net is required. Existing fixed fee amounts are not percentages: the new nullable
+setting requires explicit configuration. Existing order snapshots, retry economics,
+Ledger and chain verification remain unchanged. This supersedes TRON fixed-fee
+configuration rules. Company asset settings use compact rows.
+
 # Virtual Card SaaS Agent Rules
+
+On 2026-09-19 the user approved receiving-address rotation with existing orders.
+New orders use the current address; immutable old orders retain their address,
+amount and expiry. TRON scanning retains per-address checkpoints and continues
+tracking order addresses; multi-asset scanning matches historical order addresses.
+No replay/reset of cursors, Ledger edits or forced credit is permitted. This
+supersedes prior bans on replacing addresses with financial history.
+
+On 2026-09-19 receiving-address saves and deposit availability were decoupled
+from node connectivity/scanner enablement. Validate Bitcoin checksums locally;
+never call RPC when saving rails. Unverified deposits remain pending for scoped
+manual receipt confirmation; scanner/payout verification stays fail-closed.
+
+On 2026-09-19 the user made shared market prices always enabled and public-only.
+Ignore stored enablement/API keys; no admin toggle or credential input. Preserve
+minute refresh throttling, fresh-price validation and read-only consumer requests.
+
+On 2026-09-19 the user limited supported networks to USDT TRON/TRC20 and
+Ethereum/ERC20, USDC Ethereum/ERC20, native ETH Ethereum and BTC Bitcoin.
+Deposit scanning and network enablement no longer require internal ETH traces:
+finalized direct ETH and ERC20 receipts may auto-credit; contract-only ETH and
+other unverified deposits remain pending for explicit scoped Platform manual
+receipt confirmation. Never infer receipt from an unsupported query. Payout
+verification remains fail-closed. Platform may configure the existing TRON
+receiving address alongside ERC20 addresses; addresses with orders are immutable.
+This supersedes the deposit trace-completeness gate only. See MULTI_ASSET_CENTER.md.
 
 On 2026-09-18 the user replaced the Assets growth poster with a compact 3:1
 carousel and approved redesigned invitation, card-service and wealth illustrations.

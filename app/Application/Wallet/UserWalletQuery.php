@@ -32,7 +32,7 @@ final readonly class UserWalletQuery
                 && $eligibility['wallet']['asset'] === 'USDT'
                 && $tenant->businessSettings->allow_wallet_topup
                 && $this->blockchainGateway->available()
-                && (string) config('payment.trc20_deposit_address') !== ''
+                && app(\App\Application\Assets\TronDepositConfiguration::class)->address() !== ''
                 && (string) config('payment.trc20_token_contract') !== '',
             'depositFundingAvailable' => $eligibility['wallet'] !== null
                 && $eligibility['userStatus'] === 'ACTIVE'

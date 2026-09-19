@@ -2,6 +2,7 @@
 
 namespace App\Application\Payment;
 
+use App\Application\Assets\TronDepositConfiguration;
 use App\Domain\Ledger\Enums\LedgerAccountType;
 use App\Domain\Ledger\Models\LedgerAccount;
 use App\Domain\Payment\Models\WalletTopupOrder;
@@ -26,12 +27,13 @@ final readonly class UserWalletTopupQuery
         $enabled = $tenant->status->value === 'ACTIVE' && $user->status->value === 'ACTIVE'
             && $wallet?->status === WalletStatus::Active && $wallet->asset_code === 'USDT'
             && $tenant->businessSettings->allow_wallet_topup && $this->gateway->available()
-            && (string) config('payment.trc20_deposit_address') !== '' && (string) config('payment.trc20_token_contract') !== '';
+            && app(TronDepositConfiguration::class)->address() !== '' && (string) config('payment.trc20_token_contract') !== '';
 
         return [
             'available' => $available ? ['amount' => $available->balance, 'asset' => $available->asset_code] : null,
             'wallet' => $wallet ? ['id' => $wallet->id, 'asset' => $wallet->asset_code] : null,
             'topupAvailable' => $enabled,
+            'minimum' => $tenant->businessSettings->tron_minimum_deposit,
             'orders' => WalletTopupOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)
                 ->latest()->limit(30)->get()->map(fn (WalletTopupOrder $order): array => $this->present($order))->all(),
             'mockSimulationAvailable' => app()->environment(['local', 'testing']),

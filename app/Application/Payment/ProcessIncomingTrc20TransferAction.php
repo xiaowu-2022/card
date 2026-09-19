@@ -2,6 +2,7 @@
 
 namespace App\Application\Payment;
 
+use App\Application\Assets\TronDepositConfiguration;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Payment\Enums\PaymentProviderTransactionStatus;
 use App\Domain\Payment\Enums\WalletTopupStatus;
@@ -145,7 +146,7 @@ final readonly class ProcessIncomingTrc20TransferAction
         $txHash = strtolower(trim($transfer->txHash));
         $destination = trim($transfer->destination);
         if (strtoupper(trim($transfer->network)) !== 'TRON' || preg_match('/^[a-f0-9]{64}$/', $txHash) !== 1 || $transfer->transferIndex < 0
-            || ! hash_equals((string) config('payment.trc20_deposit_address'), $destination)
+            || ! app(TronDepositConfiguration::class)->accepts($destination)
             || ! hash_equals((string) config('payment.trc20_token_contract'), trim($transfer->tokenContract))) {
             return null;
         }

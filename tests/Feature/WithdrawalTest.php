@@ -49,49 +49,49 @@ beforeEach(function (): void {
     $this->address = 'T'.str_repeat('A', 33);
 });
 
-function phaseSevenFixedFee($test, string $fee): void
+function phaseSevenPercentageFee($test, string $fee): void
 {
     app(UpdateTenantBusinessSettingsAction::class)->execute($test->tenant, [
         'required_security_deposit_amount' => '0', 'required_security_deposit_asset' => 'USDT',
-        'allow_wallet_topup' => true, 'allow_withdrawal' => true, 'withdrawal_fixed_fee' => $fee,
+        'allow_wallet_topup' => true, 'allow_withdrawal' => true, 'withdrawal_fee_percent' => $fee,
     ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
 }
 
-it('configures a company fixed fee without moving money or changing other companies', function (): void {
+it('configures a company percentage fee without moving money or changing other companies', function (): void {
     phaseSevenSetup($this);
     $entries = LedgerEntry::query()->count();
     $this->actingAs($this->owner, 'tenant_admin')->post('http://a.localhost/admin/settings/business', [
-        'allow_wallet_topup' => true, 'allow_withdrawal' => true, 'withdrawal_fixed_fee' => '1.25',
+        'allow_wallet_topup' => true, 'allow_withdrawal' => true, 'withdrawal_fee_percent' => '1.25',
     ])->assertForbidden();
     $platform = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
     $this->actingAs($platform, 'platform_admin')->post("http://admin.localhost/platform/tenants/{$this->tenant->id}/configuration/settings/business", [
-        'allow_wallet_topup' => true, 'allow_withdrawal' => true, 'withdrawal_fixed_fee' => '1.25',
+        'allow_wallet_topup' => true, 'allow_withdrawal' => true, 'withdrawal_fee_percent' => '1.25',
     ])->assertRedirect()->assertSessionHasNoErrors();
-    $this->actingAs($this->owner, 'tenant_admin')->get('http://a.localhost/admin/settings/business')->assertOk()->assertInertia(fn ($page) => $page->where('settings.business.withdrawalFixedFee', '1.25000000'));
-    expect($this->tenant->businessSettings()->value('withdrawal_fixed_fee'))->toBe('1.25000000')
-        ->and(Tenant::query()->where('slug', 'tenant-b')->firstOrFail()->businessSettings->withdrawal_fixed_fee)->toBe('0.00000000')
+    $this->actingAs($this->owner, 'tenant_admin')->get('http://a.localhost/admin/settings/business')->assertOk()->assertInertia(fn ($page) => $page->where('settings.business.withdrawalFeePercent', '1.25000000'));
+    expect($this->tenant->businessSettings()->value('withdrawal_fee_percent'))->toBe('1.25000000')
+        ->and(Tenant::query()->where('slug', 'tenant-b')->firstOrFail()->businessSettings->withdrawal_fee_percent)->toBe('0.00000000')
         ->and(LedgerEntry::query()->count())->toBe($entries);
     app(UpdateTenantBusinessSettingsAction::class)->execute($this->tenant, [
         'required_security_deposit_amount' => '0', 'required_security_deposit_asset' => 'USDT',
         'allow_wallet_topup' => true, 'allow_withdrawal' => true,
     ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
-    expect($this->tenant->businessSettings()->value('withdrawal_fixed_fee'))->toBe('1.25000000');
+    expect($this->tenant->businessSettings()->value('withdrawal_fee_percent'))->toBe('1.25000000');
     $this->actingAs($this->user, 'tenant_user')->get('http://a.localhost/wallet/withdraw')
-        ->assertOk()->assertInertia(fn ($page) => $page->where('fixedFee', '1.25000000'));
+        ->assertOk()->assertInertia(fn ($page) => $page->where('feePercent', '1.25000000'));
 });
 
-it('rejects negative excessive-precision or non-decimal fixed fees', function (mixed $fee): void {
-    $data = ['allow_wallet_topup' => true, 'allow_withdrawal' => true, 'withdrawal_fixed_fee' => $fee];
+it('rejects negative excessive-precision or non-decimal percentage fees', function (mixed $fee): void {
+    $data = ['allow_wallet_topup' => true, 'allow_withdrawal' => true, 'withdrawal_fee_percent' => $fee];
     $platform = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
     $this->actingAs($platform, 'platform_admin')->post("http://admin.localhost/platform/tenants/{$this->tenant->id}/configuration/settings/business", $data)
-        ->assertSessionHasErrors('withdrawal_fixed_fee');
+        ->assertSessionHasErrors('withdrawal_fee_percent');
     expect(fn () => app(UpdateTenantBusinessSettingsAction::class)->execute($this->tenant, $data, AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail()))->toThrow(DomainException::class)
-        ->and($this->tenant->businessSettings()->value('withdrawal_fixed_fee'))->toBe('0.00000000');
-})->with(['-1', '0.001', '1e2', '1000000000000', '', null, 1.25]);
+        ->and($this->tenant->businessSettings()->value('withdrawal_fee_percent'))->toBe('0.00000000');
+})->with(['-1', '100', '1e2', '1000000000000', '', null, 1.25]);
 
 it('requires the current fee quote and rolls back direct address creation for stale or impossible net amounts', function (?string $quote, string $amount): void {
     phaseSevenSetup($this);
-    phaseSevenFixedFee($this, '2.50');
+    phaseSevenPercentageFee($this, '2.50');
     $addresses = DB::table('withdrawal_destinations')->count();
     $audits = AuditLog::query()->count();
     expect(fn () => app(CreateWithdrawalAction::class)->executeWithAddress(
@@ -103,37 +103,37 @@ it('requires the current fee quote and rolls back direct address creation for st
         ->and(phaseSevenAccount($this->wallet, LedgerAccountType::UserAvailable)->fresh()->balance)->toBe('250.00000000');
 })->with([[null, '100'], ['0', '100'], ['1', '100'], ['2.50', '2.50'], ['2.50', '2.49']]);
 
-it('snapshots the confirmed fixed fee and preserves retry economics after settings change', function (): void {
+it('snapshots the confirmed percentage fee and preserves retry economics after settings change', function (): void {
     phaseSevenSetup($this);
     $legacy = phaseSevenOrder($this, '10');
-    phaseSevenFixedFee($this, '2.50');
+    phaseSevenPercentageFee($this, '2.50');
     $request = (string) Str::uuid();
-    $data = ['request_id' => $request, 'address' => $this->address, 'amount' => '100.01', 'confirmed' => true, 'expected_fee' => '2.50'];
+    $data = ['request_id' => $request, 'address' => $this->address, 'amount' => '100.01', 'confirmed' => true, 'expected_fee' => '2.50025'];
     $this->actingAs($this->user, 'tenant_user')->post('http://a.localhost/wallet/withdrawals', $data)->assertRedirect()->assertSessionHasNoErrors();
     $order = WithdrawalOrder::query()->where('tenant_id', $this->tenant->id)->where('request_id', $request)->firstOrFail();
-    expect($order->fee_amount)->toBe('2.50000000')->and($order->receive_amount)->toBe('97.51000000')
+    expect($order->fee_amount)->toBe('2.50025000')->and($order->receive_amount)->toBe('97.50975000')
         ->and(phaseSevenAccount($this->wallet, LedgerAccountType::UserWithdrawalHold)->balance)->toBe('110.01000000');
-    phaseSevenFixedFee($this, '3');
+    phaseSevenPercentageFee($this, '3');
     $this->post('http://a.localhost/wallet/withdrawals', $data)->assertRedirect()->assertSessionHasNoErrors();
-    expect($order->fresh()->fee_amount)->toBe('2.50000000')
+    expect($order->fresh()->fee_amount)->toBe('2.50025000')
         ->and(LedgerEntry::query()->where('event_type', 'WITHDRAWAL_HOLD')->count())->toBe(2)
         ->and(phaseSevenOrder($this, '10', $legacy->request_id)->id)->toBe($legacy->id)
         ->and($legacy->fresh()->receive_amount)->toBe('10.00000000')
         ->and(fn () => app(CreateWithdrawalAction::class)->execute($this->tenant->id, $this->user->id, $request, $this->destination->id, '100.01', null, '3'))->toThrow(DomainException::class);
     $this->get("http://a.localhost/wallet/withdrawals/{$order->id}")->assertOk()->assertInertia(fn ($page) => $page
-        ->where('order.feeAmount', '2.50000000')->where('order.receiveAmount', '97.51000000'));
+        ->where('order.feeAmount', '2.50025000')->where('order.receiveAmount', '97.50975000'));
 });
 
 it('verifies the exact net payout and settles gross plus fee exactly once', function (): void {
     phaseSevenSetup($this);
-    phaseSevenFixedFee($this, '2.50');
-    $order = app(CreateWithdrawalAction::class)->execute($this->tenant->id, $this->user->id, (string) Str::uuid(), $this->destination->id, '100.01', null, '2.5');
+    phaseSevenPercentageFee($this, '2.50');
+    $order = app(CreateWithdrawalAction::class)->execute($this->tenant->id, $this->user->id, (string) Str::uuid(), $this->destination->id, '100.01', null, '2.50025');
     app(ApproveWithdrawalAction::class)->execute($this->tenant->id, $order->id, $this->owner);
-    phaseSevenFixedFee($this, '9');
+    phaseSevenPercentageFee($this, '9');
     $tx = str_repeat('e', 64);
     $gateway = Mockery::mock(BlockchainGatewayInterface::class);
     $gateway->shouldReceive('available')->twice()->andReturn(true);
-    $gateway->shouldReceive('verifyUsdtTrc20Transfer')->once()->with($tx, $this->address, '97.51000000')
+    $gateway->shouldReceive('verifyUsdtTrc20Transfer')->once()->with($tx, $this->address, '97.50975000')
         ->andReturn(new BlockchainTransferVerification(BlockchainVerificationOutcome::Confirmed, (int) config('withdrawal.minimum_confirmations')));
     $this->app->instance(BlockchainGatewayInterface::class, $gateway);
     app(VerifyWithdrawalTransactionAction::class)->execute($this->tenant->id, $order->id, $this->owner, $tx);
@@ -144,16 +144,16 @@ it('verifies the exact net payout and settles gross plus fee exactly once', func
         ->and(phaseSevenAccount($this->wallet, LedgerAccountType::UserWithdrawalHold)->balance)->toBe('0.00000000');
     $postings = DB::table('ledger_postings as p')->join('ledger_accounts as a', 'a.id', '=', 'p.ledger_account_id')
         ->where('p.tenant_id', $this->tenant->id)->where('p.ledger_entry_id', $settled->settlement_ledger_entry_id)->pluck('p.delta', 'a.account_type')->map(fn ($delta) => Money::of($delta, 'USDT')->amount())->all();
-    expect($postings)->toEqual(['USER_WITHDRAWAL_HOLD' => '-100.01000000', 'TENANT_WITHDRAWAL_CLEARING' => '97.51000000', 'TENANT_FEE_REVENUE' => '2.50000000']);
+    expect($postings)->toEqual(['USER_WITHDRAWAL_HOLD' => '-100.01000000', 'TENANT_WITHDRAWAL_CLEARING' => '97.50975000', 'TENANT_FEE_REVENUE' => '2.50025000']);
     $book = app(CompanyFundBookQuery::class)->execute($this->tenant->id, null, 1);
-    expect($book['lifetimeTotals']['withdrawals'])->toBe('97.51000000')->and($book['lifetimeTotals']['feeIncome'])->toBe('2.50000000')
+    expect($book['lifetimeTotals']['withdrawals'])->toBe('97.50975000')->and($book['lifetimeTotals']['feeIncome'])->toBe('2.50025000')
         ->and(collect($book['rows'])->pluck('id')->unique()->count())->toBe(count($book['rows']))
         ->and(collect($book['rows'])->where('type', 'WITHDRAWAL_FEE_INCOME')->count())->toBe(1);
 });
 
 it('returns the entire gross hold without fee income on cancellation or rejection', function (string $mode): void {
     phaseSevenSetup($this);
-    phaseSevenFixedFee($this, '2.50');
+    phaseSevenPercentageFee($this, '2.50');
     $order = app(CreateWithdrawalAction::class)->execute($this->tenant->id, $this->user->id, (string) Str::uuid(), $this->destination->id, '100', null, '2.50');
     for ($i = 0; $i < 2; $i++) {
         if ($mode === 'cancel') {
@@ -173,8 +173,8 @@ it('guards immutable fee snapshots and generated net in PostgreSQL and models', 
     expect(fn () => $order->update(['fee_amount' => '1']))->toThrow(LogicException::class)
         ->and(fn () => DB::table('withdrawal_orders')->where('id', $order->id)->update(['fee_amount' => '1']))->toThrow(QueryException::class)
         ->and(fn () => DB::table('withdrawal_orders')->where('id', $order->id)->update(['receive_amount' => '99']))->toThrow(QueryException::class)
-        ->and(fn () => DB::table('tenant_business_settings')->where('tenant_id', $this->tenant->id)->update(['withdrawal_fixed_fee' => '-1']))->toThrow(QueryException::class)
-        ->and(fn () => DB::table('tenant_business_settings')->where('tenant_id', $this->tenant->id)->update(['withdrawal_fixed_fee' => '0.001']))->toThrow(QueryException::class);
+        ->and(fn () => DB::table('tenant_business_settings')->where('tenant_id', $this->tenant->id)->update(['withdrawal_fee_percent' => '-1']))->toThrow(QueryException::class)
+        ->and(fn () => DB::table('tenant_business_settings')->where('tenant_id', $this->tenant->id)->update(['withdrawal_fee_percent' => '100']))->toThrow(QueryException::class);
 });
 
 function phaseSevenSetup($test, string $available = '250.00000000'): void
@@ -491,4 +491,13 @@ it('keeps mock verification unavailable in production and exposes no manual succ
         $this->app->forgetInstance(BlockchainGatewayInterface::class);
     }
     expect(collect(Route::getRoutes())->pluck('uri')->filter(fn (string $uri): bool => preg_match('/withdraw.*(success|balance|hold-amount|manual)/i', $uri) === 1)->all())->toBe([]);
+});
+
+it('rounds TRON percentage fees up to a transfer unit and requires explicit configuration', function (): void {
+    phaseSevenSetup($this);
+    $this->tenant->businessSettings()->update(['withdrawal_fee_percent' => null]);
+    expect(fn () => phaseSevenOrder($this))->toThrow(DomainException::class, 'Complete the required configuration first.');
+    phaseSevenPercentageFee($this, '0.00000001');
+    $order = app(CreateWithdrawalAction::class)->execute($this->tenant->id, $this->user->id, (string) Str::uuid(), $this->destination->id, '0.01', null, '0.000001');
+    expect($order->fee_amount)->toBe('0.00000100')->and($order->receive_amount)->toBe('0.00999900');
 });

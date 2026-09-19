@@ -91,20 +91,20 @@ it('saves SaaS policy and article settings using the selected tenant without alt
 it('saves fees without operation toggles and prevents stale forms from disabling them', function (): void {
     $this->actingAs($this->owner, 'platform_admin');
     $entries = LedgerEntry::query()->count();
-    $this->post($this->base.'/settings/business', ['withdrawal_fixed_fee' => '1.25'])->assertRedirect()->assertSessionHasNoErrors();
+    $this->post($this->base.'/settings/business', ['withdrawal_fee_percent' => '1.25'])->assertRedirect()->assertSessionHasNoErrors();
     $settings = $this->company->businessSettings()->firstOrFail();
     expect($settings->allow_wallet_topup)->toBeTrue()->and($settings->allow_withdrawal)->toBeTrue()
-        ->and($settings->withdrawal_fixed_fee)->toBe('1.25000000');
-    $this->post($this->base.'/settings/business', ['allow_wallet_topup' => false, 'allow_withdrawal' => false, 'withdrawal_fixed_fee' => '9'])->assertSessionHasErrors(['allow_wallet_topup', 'allow_withdrawal']);
-    expect($settings->fresh()->withdrawal_fixed_fee)->toBe('1.25000000');
+        ->and($settings->withdrawal_fee_percent)->toBe('1.25000000');
+    $this->post($this->base.'/settings/business', ['allow_wallet_topup' => false, 'allow_withdrawal' => false, 'withdrawal_fee_percent' => '9'])->assertSessionHasErrors(['allow_wallet_topup', 'allow_withdrawal']);
+    expect($settings->fresh()->withdrawal_fee_percent)->toBe('1.25000000');
     app(UpdateTenantBusinessSettingsAction::class)->execute($this->company, ['allow_wallet_topup' => false, 'allow_withdrawal' => false], $this->owner);
     expect($settings->fresh()->allow_wallet_topup)->toBeTrue()->and($settings->fresh()->allow_withdrawal)->toBeTrue()
         ->and(LedgerEntry::query()->count())->toBe($entries);
 });
 
 it('enables existing companies without changing fee or deposit configuration and enables new companies', function (): void {
-    $this->company->businessSettings()->update(['allow_wallet_topup' => false, 'allow_withdrawal' => false, 'withdrawal_fixed_fee' => '2.50']);
-    $before = $this->company->businessSettings()->firstOrFail()->only(['required_security_deposit_amount', 'required_security_deposit_asset', 'security_deposit_refund_wait_days', 'withdrawal_fixed_fee']);
+    $this->company->businessSettings()->update(['allow_wallet_topup' => false, 'allow_withdrawal' => false, 'withdrawal_fee_percent' => '2.50']);
+    $before = $this->company->businessSettings()->firstOrFail()->only(['required_security_deposit_amount', 'required_security_deposit_asset', 'security_deposit_refund_wait_days', 'withdrawal_fee_percent']);
     DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     DB::statement('SET CONSTRAINTS ALL DEFERRED');
     $migration = require database_path('migrations/2026_09_14_001100_enable_company_wallet_operations.php');
@@ -124,38 +124,38 @@ it('saves deposit amount refund wait and withdrawal fee together for the selecte
     $this->actingAs($this->owner, 'platform_admin')->post($this->base.'/settings/business', [
         'required_security_deposit_amount' => '125.50',
         'security_deposit_refund_wait_days' => '15',
-        'withdrawal_fixed_fee' => '1.25',
+        'withdrawal_fee_percent' => '1.25',
     ])->assertRedirect()->assertSessionHasNoErrors();
     $settings = $this->company->businessSettings()->firstOrFail();
     expect($settings->required_security_deposit_amount)->toBe('125.50000000')
         ->and($settings->security_deposit_refund_wait_days)->toBe(15)
-        ->and($settings->withdrawal_fixed_fee)->toBe('1.25000000')
+        ->and($settings->withdrawal_fee_percent)->toBe('1.25000000')
         ->and($this->otherCompany->businessSettings()->firstOrFail()->toArray())->toBe($beforeOther)
         ->and(LedgerEntry::query()->count())->toBe($entries);
     $audit = AuditLog::query()->where('action', 'TENANT_BUSINESS_SETTINGS_UPDATED')->where('tenant_id', $this->company->id)->sole();
     expect($audit->after_data['security_deposit_refund_wait_days'])->toBe(15)
         ->and($audit->after_data['required_security_deposit_amount'])->toBe('125.50000000')
-        ->and($audit->after_data['withdrawal_fixed_fee'])->toBe('1.25000000')
+        ->and($audit->after_data['withdrawal_fee_percent'])->toBe('1.25000000')
         ->and($audit->actor_id)->toBe($this->owner->id)->and($audit->created_at)->not->toBeNull();
 });
 
 it('does not partially save combined business settings when any field is invalid', function (array $invalid, string $field): void {
     $before = $this->company->businessSettings()->firstOrFail()->toArray();
     $this->actingAs($this->owner, 'platform_admin')->post($this->base.'/settings/business', [
-        'required_security_deposit_amount' => '200', 'security_deposit_refund_wait_days' => '15', 'withdrawal_fixed_fee' => '2.50', ...$invalid,
+        'required_security_deposit_amount' => '200', 'security_deposit_refund_wait_days' => '15', 'withdrawal_fee_percent' => '2.50', ...$invalid,
     ])->assertSessionHasErrors($field);
     expect($this->company->businessSettings()->firstOrFail()->toArray())->toBe($before);
 })->with([
     [['required_security_deposit_amount' => '-1'], 'required_security_deposit_amount'],
     [['security_deposit_refund_wait_days' => '3651'], 'security_deposit_refund_wait_days'],
-    [['withdrawal_fixed_fee' => '1.001'], 'withdrawal_fixed_fee'],
+    [['withdrawal_fee_percent' => '100'], 'withdrawal_fee_percent'],
     [['tenant_id' => '00000000-0000-4000-8000-000000000001'], 'tenant_id'],
     [['required_security_deposit_asset' => 'USD'], 'required_security_deposit_asset'],
 ]);
 
 it('keeps an unconfigured refund wait null when saving the combined form', function (): void {
     $this->actingAs($this->owner, 'platform_admin')->post($this->base.'/settings/business', [
-        'required_security_deposit_amount' => '100', 'security_deposit_refund_wait_days' => '', 'withdrawal_fixed_fee' => '0',
+        'required_security_deposit_amount' => '100', 'security_deposit_refund_wait_days' => '', 'withdrawal_fee_percent' => '0',
     ])->assertRedirect()->assertSessionHasNoErrors();
     expect($this->company->businessSettings()->firstOrFail()->security_deposit_refund_wait_days)->toBeNull();
 });

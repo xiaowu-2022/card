@@ -48,10 +48,10 @@ foreach (range(0, 2) as $i) {
     $users[] = $user;
     $accounts[] = LedgerAccount::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->where('account_type', 'USER_AVAILABLE')->firstOrFail();
 }
-$clearing = LedgerAccount::query()->where('tenant_id', $tenant->id)->where('asset_code', 'USD')->where('account_type', 'TENANT_TOPUP_CLEARING')->firstOrFail();
-app(LedgerWriter::class)->post(new LedgerPostingPlan($tenant->id, 'USD', 'transfer_concurrency:'.Str::uuid(), 'TEST_TOPUP', null, null, null, [
-    new LedgerPostingInstruction($clearing->id, Money::of('-100', 'USD')),
-    new LedgerPostingInstruction($accounts[0]->id, Money::of('100', 'USD')),
+$clearing = LedgerAccount::query()->where('tenant_id', $tenant->id)->where('asset_code', 'USDT')->where('account_type', 'TENANT_TOPUP_CLEARING')->firstOrFail();
+app(LedgerWriter::class)->post(new LedgerPostingPlan($tenant->id, 'USDT', 'transfer_concurrency:'.Str::uuid(), 'TEST_TOPUP', null, null, null, [
+    new LedgerPostingInstruction($clearing->id, Money::of('-100', 'USDT')),
+    new LedgerPostingInstruction($accounts[0]->id, Money::of('100', 'USDT')),
 ]));
 function raceTransfers(array $jobs): array
 {

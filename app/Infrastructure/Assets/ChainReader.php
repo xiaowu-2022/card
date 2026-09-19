@@ -60,7 +60,7 @@ final readonly class ChainReader
     }
 
     /** @return array{hash:string,transfers:array} Each transfer has a stable position within its transaction. */
-    public function block(ChainConnection $c, int $height): array
+    public function block(ChainConnection $c, int $height, bool $includeInternal = false): array
     {
         if ($c->network === 'BITCOIN') {
             return $this->bitcoin($c, $height);
@@ -68,9 +68,11 @@ final readonly class ChainReader
         $block = $this->rpc($c, 'eth_getBlockByNumber', ['0x'.dechex($height), true]);
         $time = CarbonImmutable::createFromTimestampUTC($this->height($block['timestamp']));
         $transfers = [];
-        // Require complete call traces before advancing: silently ignoring internal ETH is unsafe.
-        $traces = $this->rpc($c, 'debug_traceBlockByNumber', ['0x'.dechex($height), ['tracer' => 'callTracer']]);
-        if (count($traces) !== count($block['transactions'])) {
+        // Deposit scanning uses public receipts and direct ETH transfers. Contract-only
+        // ETH receipts remain pending for explicit Platform manual confirmation.
+        // Payout verification retains full trace requirements; it never assumes success.
+        $traces = $includeInternal ? $this->rpc($c, 'debug_traceBlockByNumber', ['0x'.dechex($height), ['tracer' => 'callTracer']]) : [];
+        if ($includeInternal && count($traces) !== count($block['transactions'])) {
             throw new DomainException('CHAIN_UNAVAILABLE', 'Complete network evidence is unavailable.', 503);
         }
         foreach ($block['transactions'] as $index => $tx) {
@@ -89,6 +91,14 @@ final readonly class ChainReader
                     continue;
                 }
                 $transfers[] = ['event_id' => strtolower($tx['hash']).':log:'.$this->height($log['logIndex']), 'tx_hash' => strtolower($tx['hash']), 'contract' => strtolower($log['address']), 'address' => '0x'.strtolower(substr($log['topics'][2], -40)), 'amount' => $this->amount($log['data'], 6), 'occurred_at' => $time];
+            }
+            if (! $includeInternal) {
+                if (isset($tx['to'], $tx['value']) && $this->integer($tx['value'])->isPositive()) {
+                    // Keep the existing root-call identity to deduplicate earlier observations.
+                    $this->calls(['type' => 'CALL', 'from' => $tx['from'] ?? '', 'to' => $tx['to'], 'value' => $tx['value']], '0', strtolower($tx['hash']), $time, $transfers);
+                }
+
+                continue;
             }
             if (($traces[$index]['txHash'] ?? $tx['hash']) !== $tx['hash'] || ! isset($traces[$index]['result'])) {
                 throw new DomainException('CHAIN_UNAVAILABLE', 'Complete network evidence is unavailable.', 503);
@@ -143,7 +153,7 @@ final readonly class ChainReader
         return ['hash' => $hash, 'transfers' => $transfers];
     }
 
-    public function transaction(ChainConnection $c, string $txHash): array
+    public function transaction(ChainConnection $c, string $txHash, bool $includeInternal = true): array
     {
         $final = $this->finalHeight($c);
         if ($c->network === 'ETHEREUM') {
@@ -163,7 +173,7 @@ final readonly class ChainReader
         if ($height > $final) {
             return [];
         }
-        $block = $this->block($c, $height);
+        $block = $this->block($c, $height, $includeInternal);
 
         return array_map(fn ($p) => $p + ['block_height' => $height, 'block_hash' => $block['hash']], array_values(array_filter($block['transfers'], fn ($transfer) => $transfer['tx_hash'] === strtolower($txHash))));
     }

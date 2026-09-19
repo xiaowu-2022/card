@@ -28,7 +28,7 @@ final class TenantSettingsQuery
                 'depositAmount' => $tenant->businessSettings->required_security_deposit_amount,
                 'depositAsset' => $tenant->businessSettings->required_security_deposit_asset,
                 'depositRefundWaitDays' => $tenant->businessSettings->security_deposit_refund_wait_days,
-                'withdrawalFixedFee' => $tenant->businessSettings->withdrawal_fixed_fee,
+                'withdrawalFeePercent' => $tenant->businessSettings->withdrawal_fee_percent,
             ],
             'kyc' => PlatformKycSetting::current()->policy(),
             'supportedLocales' => config('tenancy.supported_locales'),

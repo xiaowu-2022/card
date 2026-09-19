@@ -2,6 +2,8 @@
 
 namespace App\Application\Payment;
 
+use App\Application\Assets\AssetAccess;
+use App\Application\Assets\TronDepositConfiguration;
 use App\Application\Payment\DTOs\CreatedWalletTopup;
 use App\Application\SecurityDeposit\SecurityDepositFundingQuery;
 use App\Application\Wallet\ActivateUserWalletAction;
@@ -75,11 +77,12 @@ final readonly class CreateTrc20WalletTopupAction
         if (! $this->gateway->available()) {
             throw new DomainException('BLOCKCHAIN_MONITOR_UNAVAILABLE', 'USDT top-up is currently unavailable.', 503);
         }
-        [$depositAddress, $tokenContract] = $this->configuredRail();
         $created = false;
 
         /** @var WalletTopupOrder $order */
-        $order = DB::transaction(function () use ($tenantId, $userId, $requested, $requestId, $requestHash, $depositAddress, $tokenContract, $auditRequestId, $forDeposit, &$created): WalletTopupOrder {
+        $order = DB::transaction(function () use ($tenantId, $userId, $requested, $requestId, $requestHash, $auditRequestId, $forDeposit, &$created): WalletTopupOrder {
+            AssetAccess::lock('asset-configuration');
+            [$depositAddress, $tokenContract] = $this->configuredRail();
             DB::statement('SELECT pg_advisory_xact_lock(?)', [$this->allocationLockKey($depositAddress)]);
             $existing = WalletTopupOrder::query()->where('tenant_id', $tenantId)->where('request_id', $requestId)->first();
             if ($existing) {
@@ -102,6 +105,9 @@ final readonly class CreateTrc20WalletTopupAction
             }
             if ($this->kycStatus->forUser($tenantId, $userId) !== KycUserStatus::Approved) {
                 throw new DomainException('KYC_NOT_APPROVED', 'Identity verification must be approved before topping up.', 403);
+            }
+            if (BigDecimal::of($requested->amount())->isLessThan($tenant->businessSettings->tron_minimum_deposit)) {
+                throw new DomainException('DEPOSIT_TOPUP_BELOW_MINIMUM', 'Enter at least the current minimum deposit top-up amount.');
             }
             if ($forDeposit) {
                 $preview = $this->depositPreview->preview($tenantId, $userId);
@@ -197,7 +203,7 @@ final readonly class CreateTrc20WalletTopupAction
     /** @return array{string,string} */
     private function configuredRail(): array
     {
-        $address = (string) config('payment.trc20_deposit_address');
+        $address = app(TronDepositConfiguration::class)->address();
         $token = (string) config('payment.trc20_token_contract');
         $pattern = '/^T[1-9A-HJ-NP-Za-km-z]{33}$/';
         if (preg_match($pattern, $address) !== 1 || preg_match($pattern, $token) !== 1) {

@@ -1,4 +1,9 @@
-import { displayMoney, withdrawalRemainder, withdrawalReceiveAmount } from '@/lib/exact-amount';
+import {
+    displayMoney,
+    withdrawalPercentageFee,
+    withdrawalRemainder,
+    withdrawalReceiveAmount,
+} from '@/lib/exact-amount';
 import { WithdrawalAmounts } from '@/components/user/WithdrawalAmounts';
 import { t, useClientTranslation, errorMessage } from '@/i18n';
 import { Head, Link, useForm } from '@inertiajs/react';
@@ -15,15 +20,15 @@ import type { MoneyAmount } from '@/types/global';
 export default function Withdraw({
     available,
     network,
-    fixedFee,
+    feePercent,
 }: {
     available: { amount: MoneyAmount; asset: string };
     network: string;
-    fixedFee: string;
+    feePercent: string | null;
 }) {
     useClientTranslation();
     const [reviewing, setReviewing] = useState(false);
-    const [reviewedFee, setReviewedFee] = useState(fixedFee);
+    const [reviewedFee, setReviewedFee] = useState('0');
     // Unkeyed form: never remember the raw address in history or persistent storage.
     const withdrawal = useForm<{
         request_id: string;
@@ -40,9 +45,11 @@ export default function Withdraw({
     const normalizedAddress = withdrawal.data.address.trim();
     const validAddress = /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(normalizedAddress);
     const availableAfter = withdrawalRemainder(withdrawal.data.amount, available.amount);
-    const fee = reviewing ? reviewedFee : fixedFee;
+    const calculatedFee = withdrawalPercentageFee(withdrawal.data.amount, feePercent, 'USDT');
+    const fee = reviewing ? reviewedFee : (calculatedFee ?? '0');
     const receiveAmount = withdrawalReceiveAmount(withdrawal.data.amount, fee);
-    const canReview = validAddress && availableAfter !== null && receiveAmount !== null;
+    const canReview =
+        calculatedFee !== null && validAddress && availableAfter !== null && receiveAmount !== null;
     const addressError =
         withdrawal.data.address && !validAddress ? t('Enter a valid TRON address.') : undefined;
     const amountError =
@@ -51,7 +58,7 @@ export default function Withdraw({
                 ? t('Enter a positive amount with at most 2 decimal places.')
                 : t('Your available balance is not enough for this withdrawal.')
             : withdrawal.data.amount && receiveAmount === null
-              ? t('Withdrawal amount must be greater than the fixed fee.')
+              ? t('Withdrawal amount must be greater than the fee.')
               : undefined;
 
     return (
@@ -81,7 +88,7 @@ export default function Withdraw({
                             onSubmit={(event) => {
                                 event.preventDefault();
                                 if (canReview) {
-                                    setReviewedFee(fixedFee);
+                                    setReviewedFee(calculatedFee!);
                                     setReviewing(true);
                                 }
                             }}
@@ -126,6 +133,9 @@ export default function Withdraw({
                                 <span className="text-muted-foreground">{t('Network')}</span>
                                 <span className="font-medium">USDT ({network})</span>
                             </div>
+                            {feePercent === null && (
+                                <p className="text-sm text-destructive">{t('Not configured')}</p>
+                            )}
                             <WithdrawalAmounts fee={fee} receive={receiveAmount} />
                             {withdrawal.errors.form && (
                                 <p role="alert" className="text-sm text-destructive">

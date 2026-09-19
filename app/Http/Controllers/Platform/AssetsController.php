@@ -7,6 +7,7 @@ use App\Application\Assets\ConfigureAssetsAction;
 use App\Application\Assets\DepositAssetsAction;
 use App\Application\Assets\MarketPrices;
 use App\Application\Assets\RecheckAssetDeposit;
+use App\Application\Assets\TronDepositConfiguration;
 use App\Application\Assets\WithdrawAssetsAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Assets\AssetDepositOrder;
@@ -33,6 +34,9 @@ final class AssetsController extends Controller
         $tenant = $r->filled('company') ? Tenant::whereKey($r->input('company'))->firstOrFail() : null;
 
         return Inertia::render('platform/AssetSettings', [
+            'tronMinimum' => $tenant?->businessSettings?->tron_minimum_deposit,
+            'tronFeePercent' => $tenant?->businessSettings?->withdrawal_fee_percent,
+            'tronAddress' => app(TronDepositConfiguration::class)->address(),
             'companies' => Tenant::orderBy('name')->get(['id', 'name'])->toArray(), 'company' => $tenant?->id,
             'market' => app(MarketPrices::class)->configuration(),
             'networks' => ChainConnection::all()->map(fn ($c) => ['network' => $c->network, 'enabled' => $c->enabled, 'rpc_url' => $c->rpc_url ?: PublicChainNodes::URLS[$c->network], 'use_public' => ! $c->rpc_url || $c->rpc_url === PublicChainNodes::URLS[$c->network], 'start_height' => $c->start_height, 'next_height' => $c->next_height, 'confirmations' => $c->confirmations, 'configured' => filled($c->credential)])->all(),

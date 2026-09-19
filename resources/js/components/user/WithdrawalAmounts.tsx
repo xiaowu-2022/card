@@ -1,5 +1,6 @@
 import { t } from '@/i18n';
-import { displayMoney } from '@/lib/exact-amount';
+// Preserve the chain-precision fee and payout shown at confirmation.
+const displayMoney = (value: string) => value.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
 
 export function WithdrawalAmounts({ fee, receive }: { fee: string; receive: string | null }) {
     return (

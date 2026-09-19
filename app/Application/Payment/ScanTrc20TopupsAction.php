@@ -2,6 +2,7 @@
 
 namespace App\Application\Payment;
 
+use App\Application\Assets\TronDepositConfiguration;
 use App\Domain\Payment\Contracts\Trc20ChainReader;
 use App\Domain\Withdrawal\Contracts\BlockchainGatewayInterface;
 use App\Support\Errors\DomainException;
@@ -15,10 +16,30 @@ final readonly class ScanTrc20TopupsAction
     /** @return array<string,int> */
     public function execute(): array
     {
-        $address = (string) config('payment.trc20_deposit_address');
+        $address = app(TronDepositConfiguration::class)->address();
         if (! $this->gateway->available() || $address === '') {
             throw new DomainException('BLOCKCHAIN_MONITOR_UNAVAILABLE', 'Blockchain monitoring is unavailable.', 503);
         }
+        $total = ['CREDITED' => 0, 'PAID' => 0, 'CONFIRMING' => 0, 'UNMATCHED' => 0];
+        $failure = null;
+        foreach (app(TronDepositConfiguration::class)->addresses() as $receivingAddress) {
+            try {
+                foreach ($this->scanAddress($receivingAddress) as $status => $count) {
+                    $total[$status] = ($total[$status] ?? 0) + $count;
+                }
+            } catch (\Throwable $e) {
+                $failure ??= $e;
+            }
+        }
+        if ($failure) {
+            throw $failure;
+        }
+
+        return $total;
+    }
+
+    private function scanAddress(string $address): array
+    {
         $counts = ['CREDITED' => 0, 'PAID' => 0, 'CONFIRMING' => 0, 'UNMATCHED' => 0];
         $start = null;
         $cursor = null;

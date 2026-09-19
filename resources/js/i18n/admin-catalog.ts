@@ -2,6 +2,23 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Save failed. No changes were saved. Your entries remain below; correct the errors and save again.':
+        '保存失败，本次所有修改均未保存。已保留下方填写内容，请修正错误后重新保存。',
+    'Direct ETH and ERC20 transfers are checked automatically. Deposits that cannot be verified automatically require manual receipt confirmation in deposit orders.':
+        '普通 ETH 转账和 ERC20 代币转账自动核验。无法自动核验的充值，请在充值订单中核实后手动确认到账。',
+    'Review deposits and confirm received funds.': '查看充值订单，核实并确认到账。',
+    'Review withdrawal requests and track payout progress.': '审核提现申请，跟进付款进度。',
+    'New deposit orders will appear here.': '用户创建充值订单后，会在这里显示。',
+    'New withdrawal requests will appear here.': '用户提交提现申请后，会在这里显示。',
+    'Manage receiving addresses and company deposit, withdrawal and exchange settings.':
+        '管理收款地址，以及各公司的充值、提现与兑换设置。',
+    'TRC20 deposits and withdrawals are always enabled. The withdrawal fee is a fixed USDT amount.':
+        'TRC20 充值与提现常开，提现手续费按固定 USDT 金额收取。',
+    'Rates expired': '汇率已过期',
+    'A network address with financial history cannot be changed.':
+        '该收款地址已有充值或提现订单，不能直接替换。更换地址需保留旧地址的到账核验。',
+    'This receiving address is locked because deposit orders already use it.':
+        '该地址已有充值订单，暂不支持直接替换。',
     'Wealth settings': '理财配置',
     'Wealth management': '理财',
     'Settings affect new deposits only. Existing deposits retain their original terms.':

@@ -151,7 +151,7 @@ final class DatabaseSeeder extends Seeder
                 ]);
             }
         }
-        TenantBusinessSetting::query()->firstOrCreate(['tenant_id' => $tenant->id], ['required_security_deposit_amount' => '100.00000000', 'required_security_deposit_asset' => $tenant->default_asset, 'allow_wallet_topup' => true, 'allow_withdrawal' => true]);
+        TenantBusinessSetting::query()->firstOrCreate(['tenant_id' => $tenant->id], ['withdrawal_fee_percent' => '0', 'required_security_deposit_amount' => '100.00000000', 'required_security_deposit_asset' => $tenant->default_asset, 'allow_wallet_topup' => true, 'allow_withdrawal' => true]);
         TenantKycSetting::query()->firstOrCreate(['tenant_id' => $tenant->id], ['enabled' => true, 'max_accounts_per_identity' => 1, 'review_mode' => 'MANUAL']);
 
         return $tenant;

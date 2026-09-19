@@ -81,13 +81,13 @@ test('fixed withdrawal fee previews use exact decimal arithmetic and confirmed q
     }
     const form = readFileSync('resources/js/pages/user/Withdraw.tsx', 'utf8');
     assert.ok(form.includes('expected_fee: reviewedFee'));
-    assert.ok(form.includes('setReviewedFee(fixedFee)'));
+    assert.ok(form.includes('setReviewedFee(calculatedFee!)'));
     assert.equal((form.match(/<WithdrawalAmounts/g) ?? []).length, 2);
     const summary = readFileSync('resources/js/components/user/WithdrawalAmounts.tsx', 'utf8');
     for (const key of [
         'Withdrawal fee',
         'Amount to receive',
-        'Withdrawal amount must be greater than the fixed fee.',
+        'Withdrawal amount must be greater than the fee.',
         'The withdrawal fee has changed. Review the updated fee before confirming.',
     ]) {
         assert.equal(catalog[key].length, 3);
@@ -397,20 +397,10 @@ test('top-up instructions use the persisted exact amount and address in a locall
     assert.ok(form.includes('disabled={!canContinue || processing}'));
     assert.ok(form.includes('request_id: requestId.current'));
     const page = readFileSync('resources/js/pages/user/TopupStatus.tsx', 'utf8');
-    assert.ok(page.includes('[instructionsOpen, setInstructionsOpen] = useState(true)'));
-    for (const invariant of [
-        'useState(true)',
-        '<Dialog open={instructionsOpen}',
-        '<QRCodeSVG',
-        'value={order.depositAddress!}',
-        'marginSize={4}',
-        'amount={order.expectedAmount}',
-        "copy(exactAmount(order.expectedAmount), 'Amount')",
-        '!order.paymentDetected',
-        "countdown !== '00:00'",
-        "router.reload({ only: ['order'] })",
-    ])
-        assert.ok(page.includes(invariant), invariant);
+    const instructions = readFileSync('resources/js/components/user/DepositInstructions.tsx', 'utf8');
+    for (const invariant of ['useState(true)', '<Dialog open={open}', '<QRCodeSVG', 'value={address}', 'marginSize={4}', "copy(exactAmount(amount), 'Amount')"]) assert.ok(instructions.includes(invariant), invariant);
+    for (const invariant of ['amount={order.expectedAmount}', '!order.paymentDetected', "countdown !== '00:00'", "router.reload({ only: ['order'] })"]) assert.ok(page.includes(invariant), invariant);
+    assert.ok(readFileSync('resources/js/pages/user/AssetFlow.tsx', 'utf8').includes('<DepositInstructions'));
     assert.ok(!page.includes('Math.random'));
     assert.ok(!page.includes('parseFloat'));
     for (const key of [

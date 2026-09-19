@@ -210,10 +210,10 @@ export const catalog = {
     ],
     'Withdrawal fee': ['提现手续费', 'Fi pengeluaran', 'Comisión de retiro'],
     'Amount to receive': ['实际到账金额', 'Jumlah diterima', 'Importe a recibir'],
-    'Withdrawal amount must be greater than the fixed fee.': [
-        '提现金额必须大于固定手续费。',
-        'Jumlah pengeluaran mesti melebihi fi tetap.',
-        'El importe del retiro debe superar la comisión fija.',
+    'Withdrawal amount must be greater than the fee.': [
+        '提现金额必须大于手续费。',
+        'Jumlah pengeluaran mesti melebihi fi.',
+        'El importe del retiro debe superar la comisión.',
     ],
     'The withdrawal fee has changed. Review the updated fee before confirming.': [
         '提现手续费已变更，请核对最新费用后重新确认。',
@@ -356,6 +356,12 @@ export const catalog = {
         'Kod QR alamat deposit',
         'Código QR de la dirección de depósito',
     ],
+    'Send the exact amount shown, including all decimals, using {{network}} only. The full amount will be credited with no identification fee; other amounts cannot be credited automatically.':
+        [
+            '请仅通过 {{network}} 网络转入显示的完整金额（含小数部分）。充值金额将全部到账，不收取识别费用；其他金额无法自动入账。',
+            'Hantar amaun tepat yang dipaparkan, termasuk semua perpuluhan, melalui {{network}} sahaja. Jumlah penuh akan dikreditkan tanpa fi pengenalan; amaun lain tidak dapat dikreditkan secara automatik.',
+            'Envía el importe exacto mostrado, incluidos todos los decimales, solo por {{network}}. Se abonará íntegramente sin comisión de identificación; otros importes no pueden abonarse automáticamente.',
+        ],
     'The full amount, including the identification decimal, will be credited. Enter every decimal digit shown; this is not a fee.':
         [
             '充值金额会全部到账，包含用于识别充值人的小数部分。请确保小数点后的数字也完整输入，不收取识别费用。',
@@ -1139,6 +1145,8 @@ export const catalog = {
     'Already deposited': ['已缴保证金', 'Deposit dibayar', 'Garantía depositada'],
     'Already registered?': ['已有账户？', 'Sudah berdaftar?', '¿Ya tienes una cuenta?'],
     Amount: ['金额', 'Amaun', 'Importe'],
+    'Wallet credit amount': ['钱包到账金额', 'Amaun kredit dompet', 'Importe abonado a la cartera'],
+    'Time remaining': ['剩余有效时间', 'Masa berbaki', 'Tiempo restante'],
     'Amount to send': ['应转金额', 'Amaun untuk dihantar', 'Importe a enviar'],
     'An active verified USDT wallet is required for TRC20 top-ups.': [
         'TRC20 充值需要已激活并完成身份认证的 USDT 钱包。',

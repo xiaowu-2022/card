@@ -14,6 +14,7 @@ use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Wallet\Models\Wallet;
 use App\Support\Errors\DomainException;
 use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Illuminate\Support\Facades\DB;
 
 final readonly class DepositAssetsAction
@@ -44,10 +45,14 @@ final readonly class DepositAssetsAction
             $hash = hash('sha256', $address);
             AssetAccess::lock('asset-slot:'.$railCode.':'.$hash);
             $wallet = $this->access->wallet($tenant, $user, $rail->asset_code);
-            $unit = BigDecimal::of('1')->withPointMovedLeft(AssetCatalog::chainScale($rail->asset_code));
-            $exact = BigDecimal::of($money->amount());
+            $stablecoin = in_array($rail->asset_code, ['USDT', 'USDC'], true);
+            if ($stablecoin && ! BigDecimal::of($money->amount())->isEqualTo(BigDecimal::of($money->amount())->toScale(2, RoundingMode::Down))) {
+                throw new DomainException('AMOUNT_INVALID', 'Enter a positive amount with at most 2 decimal places.');
+            }
+            $unit = $stablecoin ? BigDecimal::of('0.01') : BigDecimal::of('1')->withPointMovedLeft(AssetCatalog::chainScale($rail->asset_code));
+            $exact = BigDecimal::of($money->amount())->plus($stablecoin ? $unit : '0');
             $found = false;
-            for ($i = 0; $i < 1000; $i++) {
+            for ($i = 0; $i < ($stablecoin ? 99 : 1000); $i++) {
                 if (! AssetDepositOrder::query()->where('rail_code', $railCode)->where('address_hash', $hash)->where('amount', (string) $exact)->exists()) {
                     $found = true;
                     break;

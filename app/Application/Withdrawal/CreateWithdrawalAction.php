@@ -23,6 +23,8 @@ use App\Domain\Withdrawal\Models\WithdrawalDestination;
 use App\Domain\Withdrawal\Models\WithdrawalOrder;
 use App\Domain\Withdrawal\Services\WithdrawalAddressProtector;
 use App\Support\Errors\DomainException;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -119,13 +121,17 @@ final readonly class CreateWithdrawalAction
             }
             // Company settings are serialized by the same Tenant lock. The browser
             // quote is confirmation only, never authority to choose a fee.
-            $fee = Money::of($tenant->businessSettings->withdrawal_fixed_fee, 'USDT');
+            $percent = $tenant->businessSettings->withdrawal_fee_percent;
+            if ($percent === null) {
+                throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
+            }
+            $fee = Money::of((string) BigDecimal::of($money->amount())->multipliedBy($percent)->dividedBy('100', 6, RoundingMode::Ceiling), 'USDT');
             if (($quotedFee === null && ! $fee->isZero()) || ($quotedFee !== null && $quotedFee->compare($fee) !== 0)) {
                 throw new DomainException('WITHDRAWAL_FEE_CHANGED', 'The withdrawal fee has changed. Review the updated fee before confirming.');
             }
             $receive = $money->subtract($fee);
             if (! $receive->isPositive()) {
-                throw new DomainException('WITHDRAWAL_NET_AMOUNT_INVALID', 'Withdrawal amount must be greater than the fixed fee.');
+                throw new DomainException('WITHDRAWAL_NET_AMOUNT_INVALID', 'Withdrawal amount must be greater than the fee.');
             }
             $accounts = LedgerAccount::query()->where('tenant_id', $tenantId)->where('wallet_id', $wallet->id)
                 ->whereIn('account_type', [LedgerAccountType::UserAvailable->value, LedgerAccountType::UserWithdrawalHold->value])

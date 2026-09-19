@@ -25,7 +25,7 @@ final class ScanTrc20Topups extends Command
             return self::FAILURE;
         }
 
-        $address = (string) config('payment.trc20_deposit_address');
+        $address = app(\App\Application\Assets\TronDepositConfiguration::class)->address();
         if ($address === '') {
             $this->error('The shared TRC20 deposit address is not configured.');
 

@@ -26,7 +26,7 @@ final readonly class RecheckAssetDeposit
         }
         $this->audit->record($tenantId, 'ADMIN', $actor->id, 'ASSET_DEPOSIT_VERIFICATION_REQUESTED', 'asset_deposit_order', $id, null, null, $request);
         try {
-            $proofs = $this->reader->transaction(ChainConnection::findOrFail($o->network), strtolower($hash));
+            $proofs = $this->reader->transaction(ChainConnection::findOrFail($o->network), strtolower($hash), false);
         } catch (\Throwable) {
             $proofs = [];
         }

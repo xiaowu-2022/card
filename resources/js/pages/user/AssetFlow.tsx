@@ -1,8 +1,8 @@
-import { exactAmount, withdrawalPercentageFee } from '@/lib/exact-amount';
+import { DepositInstructions } from '@/components/user/DepositInstructions';
+import { exactAmount, meetsTopupMinimum, withdrawalPercentageFee } from '@/lib/exact-amount';
 import { useEffect, useState } from 'react';
 import { Head, Link, useForm, usePage, router } from '@inertiajs/react';
 import { ChevronDown, Check } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
 import { UserPageHeader } from '@/components/user/UserPageHeader';
 import { UserLayout } from '@/layouts/UserLayout';
 import { Button } from '@/components/ui/button';
@@ -105,9 +105,18 @@ export default function AssetFlow({
         setReview(false);
     };
     const submit = () => {
-        if (unavailable) return;
+        if (unavailable || busy || form.processing) return;
         if (rail?.code === 'USDT_TRON') {
-            router.visit(mode === 'deposit' ? '/wallet/top-up' : '/wallet/withdraw');
+            if (mode === 'deposit') {
+                setBusy(true);
+                router.post(
+                    '/wallet/top-ups',
+                    { request_id: form.data.request_id, requested_amount: form.data.amount },
+                    { preserveScroll: true, onFinish: () => setBusy(false) },
+                );
+            } else {
+                router.visit('/wallet/withdraw');
+            }
             return;
         }
         form.post('/assets/orders', {
@@ -131,7 +140,22 @@ export default function AssetFlow({
             <Head title={t(title)} />
             <div className="mx-auto max-w-lg space-y-6">
                 <UserPageHeader title={t(title)} backHref="/dashboard" />
-                {result ? (
+                {result && mode === 'deposit' ? (
+                    <DepositInstructions
+                        asset={result.asset}
+                        amount={result.amount}
+                        network={result.network}
+                        address={result.address}
+                        state={
+                            seconds === 0 && result.state !== 'Completed'
+                                ? 'Top-up expired'
+                                : result.state
+                        }
+                        expiresAt={result.expiresAt}
+                        payable={seconds > 0 && result.state !== 'Completed'}
+                        newHref={`/assets/operate?mode=deposit&asset=${result.asset}`}
+                    />
+                ) : result ? (
                     <section className="space-y-5 rounded-2xl bg-surface p-5">
                         <div className="flex items-center gap-3">
                             <AssetIcon asset={result.asset} />
@@ -147,32 +171,6 @@ export default function AssetFlow({
                             {exactAmount(result.amount)}{' '}
                             <span className="text-base">{result.asset}</span>
                         </p>
-                        {mode === 'deposit' &&
-                            result.expiresAt &&
-                            seconds === 0 &&
-                            result.state !== 'Completed' && (
-                                <p role="alert" className="text-sm text-destructive">
-                                    {t(
-                                        'This deposit order has expired. Create a new order before sending funds.',
-                                    )}
-                                </p>
-                            )}
-                        {mode === 'deposit' &&
-                            result.address &&
-                            seconds > 0 &&
-                            result.state !== 'Completed' && (
-                                <>
-                                    <p className="text-sm">
-                                        {t('Send the exact amount using this network only.')}
-                                    </p>
-                                    <div className="mx-auto w-fit rounded-xl bg-white p-3">
-                                        <QRCodeSVG value={result.address} size={176} />
-                                    </div>
-                                    <p className="break-all rounded-xl bg-muted p-3 font-mono text-sm">
-                                        {result.address}
-                                    </p>
-                                </>
-                            )}
                         {mode === 'withdrawal' && (
                             <p className="break-all text-sm">
                                 {t('Destination address')}: {result.address}
@@ -288,7 +286,7 @@ export default function AssetFlow({
                             >
                                 {t(unavailableMessage)}
                             </p>
-                        ) : rail?.code === 'USDT_TRON' ? (
+                        ) : rail?.code === 'USDT_TRON' && mode === 'withdrawal' ? (
                             <Button className="min-h-12 w-full rounded-full" onClick={submit}>
                                 {t('Continue')}
                             </Button>
@@ -316,6 +314,11 @@ export default function AssetFlow({
                                             spellCheck={false}
                                         />
                                     </label>
+                                )}
+                                {rail?.code === 'USDT_TRON' && mode === 'deposit' && (
+                                    <p className="text-xs text-muted-foreground">
+                                        {t('TRON network (TRC20) · No top-up fee')}
+                                    </p>
                                 )}
                                 {rail?.minimum && mode === 'deposit' && (
                                     <p className="text-xs text-muted-foreground">
@@ -365,8 +368,15 @@ export default function AssetFlow({
                                 <Button
                                     className="min-h-12 w-full rounded-full"
                                     disabled={
+                                        busy ||
                                         form.processing ||
                                         !form.data.amount ||
+                                        (mode === 'deposit' &&
+                                            rail?.code === 'USDT_TRON' &&
+                                            !meetsTopupMinimum(
+                                                form.data.amount,
+                                                rail.minimum ?? '0',
+                                            )) ||
                                         (mode === 'exchange' ? !account.exchange : !rail) ||
                                         (review && !form.data.confirmed) ||
                                         (mode === 'withdrawal' && calculatedFee === null)

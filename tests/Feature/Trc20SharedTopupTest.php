@@ -1,5 +1,7 @@
 <?php
 
+use App\Application\Assets\ConfigureAssetsAction;
+use App\Application\Assets\TronDepositConfiguration;
 use App\Application\Kyc\ApproveKycAction;
 use App\Application\Kyc\SubmitKycApplicationAction;
 use App\Application\Payment\ConfirmPlatformTopupAction;
@@ -9,7 +11,7 @@ use App\Application\Payment\PaymentLedgerReconciliationService;
 use App\Application\Payment\ProcessIncomingTrc20TransferAction;
 use App\Application\Payment\ScanTrc20TopupsAction;
 use App\Application\Payment\VerifyPlatformTopupAction;
-use App\Application\SecurityDeposit\AllocateInitialDepositAction;
+use App\Application\SecurityDeposit\FundSecurityDepositAction;
 use App\Application\SecurityDeposit\RefundSecurityDepositAction;
 use App\Application\Wallet\ActivateUserWalletAction;
 use App\Domain\Admin\Models\AdminUser;
@@ -479,24 +481,26 @@ it('allocates a 0.01 through 0.99 identifier and stores one financial truth', fu
         ->and($order->created_at->diffInMinutes($order->expires_at))->toBe(30.0);
 });
 
-it('credits the wallet before initial automatic guarantee allocation and never automatically re-funds after refund', function (): void {
-    $this->tenant->businessSettings()->update(['required_security_deposit_amount' => '50']);
+it('credits the full wallet amount and never automatically allocates or re-funds a guarantee', function (): void {
+    $this->tenant->businessSettings()->update(['required_security_deposit_amount' => '50', 'security_deposit_refund_wait_days' => 0]);
     $order = createTrc20Topup($this, '100');
     app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($order));
-    $intent = InitialDepositIntent::query()->where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->firstOrFail();
     expect($order->fresh()->status)->toBe(WalletTopupStatus::Credited);
-    expect(LedgerAccount::query()->where('wallet_id', $this->wallet->id)->where('account_type', 'USER_SECURITY_DEPOSIT')->value('balance'))->toBe('0.00000000');
-    $auto = app(AllocateInitialDepositAction::class);
-    $auto->execute($this->tenant->id, $intent->id);
-    $auto->execute($this->tenant->id, $intent->id);
-    expect(LedgerAccount::query()->where('wallet_id', $this->wallet->id)->where('account_type', 'USER_SECURITY_DEPOSIT')->value('balance'))->toBe('50.00000000');
-    expect(LedgerEntry::query()->where('tenant_id', $this->tenant->id)->where('event_type', 'SECURITY_DEPOSIT_FUND')->count())->toBe(1);
+    expect(InitialDepositIntent::where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->count())->toBe(0);
+    $balance = fn ($type) => LedgerAccount::where('wallet_id', $this->wallet->id)->where('account_type', $type)->value('balance');
+    expect($balance('USER_AVAILABLE'))->toBe($order->expected_amount);
+    expect($balance('USER_SECURITY_DEPOSIT'))->toBe('0.00000000');
+    Queue::assertNotPushed(AllocateInitialDeposit::class);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $this->user->id, (string) Str::uuid(), '50');
+    expect($balance('USER_SECURITY_DEPOSIT'))->toBe('50.00000000');
     $refunds = app(RefundSecurityDepositAction::class);
-    $this->tenant->businessSettings()->update(['security_deposit_refund_wait_days' => 0]);
     $refund = $refunds->request($this->tenant->id, $this->user->id, (string) Str::uuid());
     $refunds->settle($this->tenant->id, $this->user->id, $refund->id);
-    $auto->execute($this->tenant->id, $intent->id);
-    expect(LedgerAccount::query()->where('wallet_id', $this->wallet->id)->where('account_type', 'USER_SECURITY_DEPOSIT')->value('balance'))->toBe('0.00000000');
+    $next = createTrc20Topup($this, '100');
+    app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($next, 20, str_repeat('e', 64)));
+    expect($balance('USER_SECURITY_DEPOSIT'))->toBe('0.00000000');
+    expect(InitialDepositIntent::where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->count())->toBe(0);
+    expect(LedgerEntry::where('event_type', 'SECURITY_DEPOSIT_FUND')->count())->toBe(1);
 });
 
 it('keeps allocation idempotent and rejects changed requested amount', function (): void {
@@ -822,4 +826,39 @@ it('fails closed in production and exposes mock mutation only outside production
     }
     expect(collect(Route::getRoutes())->filter(fn ($route) => str_contains($route->uri(), '__mock/topups'))->count())->toBe(1)
         ->and(collect(Route::getRoutes())->filter(fn ($route) => str_starts_with($route->uri(), 'admin/topups'))->flatMap(fn ($route) => $route->methods())->unique()->sort()->values()->all())->toBe(['GET', 'HEAD']);
+});
+
+it('rotates the platform TRON address while crediting old and new orders once', function (): void {
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $action = app(ConfigureAssetsAction::class);
+    $address = 'T'.str_repeat('3', 33);
+    $action->execute($actor, ['kind' => 'batch', 'sections' => [['kind' => 'tron-rail', 'address' => $address]]]);
+    $order = createTrc20Topup($this, '100');
+    expect($order->deposit_address)->toBe($address);
+    $nextAddress = 'T'.str_repeat('4', 33);
+    $action->execute($actor, ['kind' => 'tron-rail', 'address' => $nextAddress]);
+    expect(app(TronDepositConfiguration::class)->address())->toBe($nextAddress);
+    $next = createTrc20Topup($this, '100');
+    expect($next->deposit_address)->toBe($nextAddress)->and($order->fresh()->deposit_address)->toBe($address);
+    $gateway = Mockery::mock(BlockchainGatewayInterface::class);
+    $gateway->shouldReceive('available')->twice()->andReturnTrue();
+    $gateway->shouldReceive('listIncomingUsdtTrc20Transfers')->with($address)->twice()->andReturn([trc20Transfer($order)]);
+    $gateway->shouldReceive('listIncomingUsdtTrc20Transfers')->with($nextAddress)->twice()->andReturn([trc20Transfer($next)]);
+    app()->instance(BlockchainGatewayInterface::class, $gateway);
+    $scan = app(ScanTrc20TopupsAction::class);
+    $scan->execute();
+    expect($order->fresh()->status)->toBe(WalletTopupStatus::Credited);
+    $count = LedgerEntry::count();
+    $scan->execute();
+    expect($next->fresh()->status)->toBe(WalletTopupStatus::Credited)->and(LedgerEntry::count())->toBe($count);
+});
+
+it('enforces the company TRON minimum on new orders while preserving existing instructions', function (): void {
+    $old = createTrc20Topup($this, '10');
+    $this->tenant->businessSettings()->update(['tron_minimum_deposit' => '50']);
+    expect(fn () => createTrc20Topup($this, '49.99'))->toThrow(DomainException::class);
+    $new = createTrc20Topup($this, '50');
+    expect($new->requested_amount)->toBe('50.00000000');
+    app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($old));
+    expect($old->fresh()->status)->toBe(WalletTopupStatus::Credited);
 });

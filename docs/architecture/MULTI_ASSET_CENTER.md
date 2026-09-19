@@ -1,3 +1,63 @@
+## TRON percentage fees (2026-09-19)
+
+USDT/TRON uses `tenant_business_settings.withdrawal_fee_percent`, nullable until
+explicit Platform configuration. Accept decimal strings from 0 (inclusive) to
+100 (exclusive), at most 8 fractional digits. No fixed-fee conversion or fallback.
+New withdrawals compute gross × percent / 100 with ceiling to 6 decimals; net
+must remain positive. The UI uses integer arithmetic and the server rechecks the
+confirmed fee under the Tenant lock. Existing order fee snapshots and idempotent
+replays are preserved; the configuration migration never changes orders or Ledger.
+Company settings rows combine network, enabled controls, minimum and percent.
+
+## Receiving-address rotation (2026-09-19)
+
+Platform may replace receiving addresses even with prior orders. New orders
+snapshot the new address; existing orders are never edited. TRON monitoring uses
+the current address plus distinct immutable TRON order addresses. Each address
+keeps its own checkpoint, with no reset; failures leave that address's checkpoint
+unchanged and do not prevent other addresses from being attempted. Receipt
+normalization accepts configured or order-backed addresses only. Multi-asset
+scanning also recognizes prior order addresses/contracts rather than filtering
+solely by the current receiving rail. Existing exact amount, expiry, finality,
+observation and Ledger idempotency protections remain unchanged. No migration
+replays financial activity. This supersedes receiving-address immutability below.
+
+## Offline receiving configuration (2026-09-19)
+
+Saving receiving rails performs local address validation, including Bitcoin
+Base58Check/Bech32/Bech32m checksums, without RPC or scanner prerequisites.
+Company-enabled deposits may create fixed pending orders while scanning is disabled;
+manual confirmation retains existing permissions, acknowledgement, expiry and Ledger
+idempotency rules. Automated scanning and withdrawal eligibility remain gated on
+configured enabled connections. Saving a rail never starts or resets a scanner.
+
+## Always-on public prices (2026-09-19)
+
+Market refresh and snapshot reads no longer depend on a settings enable switch.
+Refresh always calls the public CoinGecko endpoint without credentials; stored
+keys are never decrypted or transmitted. Admin UI retains rates, freshness and
+manual refresh only. Stale configuration writes normalize to enabled/public.
+Minute scheduling, throttling, precision and stale-price rejection remain unchanged.
+
+## 2026-09-19 approved deposit verification and network scope
+
+This amendment supersedes the mandatory deposit trace checks below. The only
+supported combinations are USDT TRON/TRC20 and Ethereum/ERC20, USDC Ethereum/ERC20,
+native ETH Ethereum, and BTC Bitcoin. Network activation tests public finalized
+block and transaction receipt reads, without requiring debug trace access.
+Deposit scanners/rechecks recognize direct successful ETH transfers and ERC20
+Transfer logs. Contract-only ETH stays pending, never guessed or automatically
+credited; Platform's existing fixed-order manual receipt confirmation remains
+permissioned, acknowledged, audited, idempotent and LedgerWriter-only. Existing
+expiry and duplicate rules remain. Payout verification keeps full evidence checks.
+Root direct ETH event IDs retain the existing :trace:0 identity for deduplication.
+
+Platform asset settings now include the USDT TRON receiving address. The database
+setting overrides the deployment's initial address; existing orders prevent address
+changes. Address configuration and creation share the configuration advisory lock.
+No upstream secrets or scan cursors are changed by this setting. The migration
+adds configuration only and never modifies money or historical orders.
+
 # Multi-asset center (approved 2026-09-16)
 
 Update (2026-09-16): Platform mutations no longer require repeated administrator
@@ -277,3 +337,18 @@ retains its original asset; balances are never added across currencies. Changing
 currency resets pagination; links retain the filter. Existing per-currency
 activity URLs render the same funds view. Queries scope accounts, postings and
 entries to the trusted tenant and user; reads never create wallets or post money.
+
+### Company TRON minimum (2026-09-19)
+
+The company TRON row also configures `tron_minimum_deposit` in USDT, a nonnegative
+8-decimal value. Its initial zero preserves the previous lack of a company minimum.
+New instructions compare the requested amount (before unique-amount reservation)
+under the Tenant lock. User forms display the same company value. Changes never
+invalidate or change existing payment instructions or their incoming settlement.
+
+### Stablecoin cent offsets (2026-09-19)
+
+New USDT/USDC ERC20 requests accept at most two decimals and allocate an offset
+from 0.01 through 0.99, matching TRC20. Never reuse historic exact amounts; fail
+closed after 99 candidates. Existing snapshots remain exact and payable, never
+rounded for display. ETH/BTC allocation retains native precision.

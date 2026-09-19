@@ -1,0 +1,328 @@
+{
+  "tenant": "01a0b521-d645-709c-8933-809bc7bf2f0d",
+  "user": "01a0b521-db4b-71b8-b699-5208fe4d878d",
+  "balances": [
+    {
+      "asset_code": "BTC",
+      "account_type": "USER_AVAILABLE",
+      "balance": "4020.00000000"
+    },
+    {
+      "asset_code": "BTC",
+      "account_type": "USER_SECURITY_DEPOSIT",
+      "balance": "0.00000000"
+    },
+    {
+      "asset_code": "BTC",
+      "account_type": "USER_WITHDRAWAL_HOLD",
+      "balance": "0.00000000"
+    },
+    {
+      "asset_code": "BTC",
+      "account_type": "USER_CARD_ISSUE_HOLD",
+      "balance": "0.00000000"
+    },
+    {
+      "asset_code": "BTC",
+      "account_type": "USER_CARD_FUNDING_HOLD",
+      "balance": "0.00000000"
+    },
+    {
+      "asset_code": "BTC",
+      "account_type": "USER_WEALTH_PRINCIPAL",
+      "balance": "1000.00000000"
+    },
+    {
+      "asset_code": "ETH",
+      "account_type": "USER_WEALTH_PRINCIPAL",
+      "balance": "1000.000000000000000000"
+    },
+    {
+      "asset_code": "ETH",
+      "account_type": "USER_AVAILABLE",
+      "balance": "4020.000000000000000000"
+    },
+    {
+      "asset_code": "ETH",
+      "account_type": "USER_SECURITY_DEPOSIT",
+      "balance": "0.000000000000000000"
+    },
+    {
+      "asset_code": "ETH",
+      "account_type": "USER_WITHDRAWAL_HOLD",
+      "balance": "0.000000000000000000"
+    },
+    {
+      "asset_code": "ETH",
+      "account_type": "USER_CARD_ISSUE_HOLD",
+      "balance": "0.000000000000000000"
+    },
+    {
+      "asset_code": "ETH",
+      "account_type": "USER_CARD_FUNDING_HOLD",
+      "balance": "0.000000000000000000"
+    },
+    {
+      "asset_code": "USDC",
+      "account_type": "USER_AVAILABLE",
+      "balance": "4020.000000"
+    },
+    {
+      "asset_code": "USDC",
+      "account_type": "USER_SECURITY_DEPOSIT",
+      "balance": "0.000000"
+    },
+    {
+      "asset_code": "USDC",
+      "account_type": "USER_WITHDRAWAL_HOLD",
+      "balance": "0.000000"
+    },
+    {
+      "asset_code": "USDC",
+      "account_type": "USER_CARD_ISSUE_HOLD",
+      "balance": "0.000000"
+    },
+    {
+      "asset_code": "USDC",
+      "account_type": "USER_CARD_FUNDING_HOLD",
+      "balance": "0.000000"
+    },
+    {
+      "asset_code": "USDC",
+      "account_type": "USER_WEALTH_PRINCIPAL",
+      "balance": "1000.000000"
+    },
+    {
+      "asset_code": "USDT",
+      "account_type": "USER_AVAILABLE",
+      "balance": "4020.00000000"
+    },
+    {
+      "asset_code": "USDT",
+      "account_type": "USER_SECURITY_DEPOSIT",
+      "balance": "0.00000000"
+    },
+    {
+      "asset_code": "USDT",
+      "account_type": "USER_WITHDRAWAL_HOLD",
+      "balance": "0.00000000"
+    },
+    {
+      "asset_code": "USDT",
+      "account_type": "USER_CARD_ISSUE_HOLD",
+      "balance": "0.00000000"
+    },
+    {
+      "asset_code": "USDT",
+      "account_type": "USER_CARD_FUNDING_HOLD",
+      "balance": "0.00000000"
+    },
+    {
+      "asset_code": "USDT",
+      "account_type": "USER_WEALTH_PRINCIPAL",
+      "balance": "1000.00000000"
+    }
+  ],
+  "orders": [
+    {
+      "id": "003a3b2b-cfd7-4a31-a563-e3f64d0cafc6",
+      "asset": "USDT",
+      "principal": "1000.000000000000000000",
+      "paid": "20.00000000",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "357b5569-08ab-42e3-a854-256346242d42",
+      "asset": "USDC",
+      "principal": "1000.000000000000000000",
+      "paid": "20.000000",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "8908ac7a-adfd-4d4a-88c4-85595dcbac2c",
+      "asset": "ETH",
+      "principal": "1000.000000000000000000",
+      "paid": "20.000000000000000000",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "52c6ba7a-bc7b-4be8-a5f8-541a9dffc2d2",
+      "asset": "BTC",
+      "principal": "1000.000000000000000000",
+      "paid": "20.00000000",
+      "status": "ACTIVE"
+    }
+  ],
+  "wealthSettings": [
+    {
+      "asset": "USDT",
+      "minimum": "1.00000000",
+      "revision": "a3529fc5-1679-4964-84c3-25903ae20075",
+      "products": [
+        {
+          "rate": "6",
+          "months": 1,
+          "enabled": true
+        },
+        {
+          "rate": "8",
+          "months": 3,
+          "enabled": true
+        },
+        {
+          "rate": "12",
+          "months": 6,
+          "enabled": true
+        },
+        {
+          "rate": "15",
+          "months": 12,
+          "enabled": true
+        },
+        {
+          "rate": "16",
+          "months": 24,
+          "enabled": true
+        },
+        {
+          "rate": "17",
+          "months": 36,
+          "enabled": true
+        },
+        {
+          "rate": "18",
+          "months": 60,
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "asset": "USDC",
+      "minimum": "1.000000",
+      "revision": "fe827a50-b896-451b-ae0a-d8407dfb8867",
+      "products": [
+        {
+          "rate": "6",
+          "months": 1,
+          "enabled": true
+        },
+        {
+          "rate": "8",
+          "months": 3,
+          "enabled": true
+        },
+        {
+          "rate": "12",
+          "months": 6,
+          "enabled": true
+        },
+        {
+          "rate": "15",
+          "months": 12,
+          "enabled": true
+        },
+        {
+          "rate": "16",
+          "months": 24,
+          "enabled": true
+        },
+        {
+          "rate": "17",
+          "months": 36,
+          "enabled": true
+        },
+        {
+          "rate": "18",
+          "months": 60,
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "asset": "ETH",
+      "minimum": "1.000000000000000000",
+      "revision": "2c01b5b5-1d0a-42a2-89d0-3ac68c86167b",
+      "products": [
+        {
+          "rate": "6",
+          "months": 1,
+          "enabled": true
+        },
+        {
+          "rate": "8",
+          "months": 3,
+          "enabled": true
+        },
+        {
+          "rate": "12",
+          "months": 6,
+          "enabled": true
+        },
+        {
+          "rate": "15",
+          "months": 12,
+          "enabled": true
+        },
+        {
+          "rate": "16",
+          "months": 24,
+          "enabled": true
+        },
+        {
+          "rate": "17",
+          "months": 36,
+          "enabled": true
+        },
+        {
+          "rate": "18",
+          "months": 60,
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "asset": "BTC",
+      "minimum": "1.00000000",
+      "revision": "85793e33-010f-45a5-a61b-eec2c8c1d46d",
+      "products": [
+        {
+          "rate": "6",
+          "months": 1,
+          "enabled": true
+        },
+        {
+          "rate": "8",
+          "months": 3,
+          "enabled": true
+        },
+        {
+          "rate": "12",
+          "months": 6,
+          "enabled": true
+        },
+        {
+          "rate": "15",
+          "months": 12,
+          "enabled": true
+        },
+        {
+          "rate": "16",
+          "months": 24,
+          "enabled": true
+        },
+        {
+          "rate": "17",
+          "months": 36,
+          "enabled": true
+        },
+        {
+          "rate": "18",
+          "months": 60,
+          "enabled": true
+        }
+      ]
+    }
+  ],
+  "ledgerEntries": 16,
+  "mismatches": []
+}

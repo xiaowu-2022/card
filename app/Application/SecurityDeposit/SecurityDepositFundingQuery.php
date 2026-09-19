@@ -65,7 +65,7 @@ final readonly class SecurityDepositFundingQuery
             'topupAvailable' => $pending === null && ! $state['activationSatisfied']
                 && $tenant->default_asset === 'USDT' && $remaining['asset'] === 'USDT'
                 && (bool) $tenant->businessSettings->allow_wallet_topup && $this->gateway->available()
-                && (string) config('payment.trc20_deposit_address') !== ''
+                && app(\App\Application\Assets\TronDepositConfiguration::class)->address() !== ''
                 && (string) config('payment.trc20_token_contract') !== '',
         ];
     }

@@ -2,19 +2,19 @@
 
 namespace App\Application\Assets;
 
+use App\Application\Tenant\UpdateTenantBusinessSettingsAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Assets\AssetCatalog;
-use App\Domain\Assets\AssetDepositOrder;
 use App\Domain\Assets\AssetRail;
-use App\Domain\Assets\AssetWithdrawalOrder;
 use App\Domain\Assets\ChainConnection;
 use App\Domain\Assets\CompanyRail;
 use App\Domain\Assets\ExchangePolicy;
 use App\Domain\Assets\MarketSettings;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Tenant\Models\Tenant;
+use App\Domain\Withdrawal\Services\WithdrawalAddressProtector;
+use App\Infrastructure\Assets\BitcoinAddress;
 use App\Infrastructure\Assets\ChainReader;
-use App\Infrastructure\Assets\ChainRpc;
 use App\Infrastructure\Assets\PublicChainNodes;
 use App\Support\Errors\DomainException;
 use Brick\Math\BigDecimal;
@@ -43,7 +43,7 @@ final readonly class ConfigureAssetsAction
                 'sections.*.network' => 'sometimes|string',
                 'sections.*.code' => 'sometimes|string',
                 'sections.*.asset' => 'sometimes|string',
-                'sections.*.kind' => $tenant ? 'required|in:company-rail,exchange' : 'required|in:market,network,rail',
+                'sections.*.kind' => $tenant ? 'required|in:company-rail,company-tron,exchange' : 'required|in:market,network,rail,tron-rail',
             ])->validate();
         }
         $sections = $batch ? $input['sections'] : [$input];
@@ -71,19 +71,6 @@ final readonly class ConfigureAssetsAction
         if (! $batch && ($input['kind'] ?? '') === 'network-test') {
             return;
         }
-        foreach ($sections as $index => $section) {
-            if (! $tenant && ($section['kind'] ?? '') === 'rail' && ($section['code'] ?? '') === 'BTC_BITCOIN' && filter_var($section['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
-                $connection = collect($prepared)->first(fn ($c) => $c?->network === 'BITCOIN') ?? ChainConnection::findOrFail('BITCOIN');
-                try {
-                    $proof = app(ChainRpc::class)->call($connection, 'validateaddress', [trim((string) ($section['address'] ?? ''))]);
-                    if (($proof['isvalid'] ?? false) !== true) {
-                        throw new DomainException('ADDRESS_INVALID', 'Enter a valid destination address.');
-                    }
-                } catch (DomainException $e) {
-                    $this->sectionError($e, $batch, $index);
-                }
-            }
-        }
         // Networks must be saved before dependent rails, regardless of client array order.
         uksort($sections, fn ($a, $b) => (($sections[$a]['kind'] ?? '') === 'network' ? 0 : 1) <=> (($sections[$b]['kind'] ?? '') === 'network' ? 0 : 1));
         DB::transaction(function () use ($actor, $sections, $prepared, $tenant, $batch): void {
@@ -110,19 +97,13 @@ final readonly class ConfigureAssetsAction
     private function persist(AdminUser $actor, array $input, ?Tenant $tenant, ?ChainConnection $network): void
     {
         $kind = $input['kind'] ?? '';
-        if ($kind === 'market' && ! $tenant) {
-            $data = Validator::make($input, ['enabled' => 'required|boolean', 'api_key' => 'nullable|string|max:512', 'use_public' => 'sometimes|boolean'])->validate();
-            $settings = MarketSettings::query()->lockForUpdate()->findOrFail(1);
-            if ($data['use_public'] ?? false) {
-                $settings->api_key = null;
-            } elseif (! empty($data['api_key'])) {
-                $settings->api_key = $data['api_key'];
-            }
-            if (array_key_exists('use_public', $data) && ! $data['use_public'] && ! $settings->api_key) {
-                throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
-            }
-            $settings->enabled = $data['enabled'];
-            $settings->save();
+        if ($kind === 'tron-rail' && ! $tenant) {
+            $data = Validator::make($input, ['address' => 'required|string|max:128'])->validate();
+            $address = app(WithdrawalAddressProtector::class)->normalize($data['address']);
+            DB::table('asset_tron_settings')->where('id', 1)->update(['deposit_address' => $address, 'updated_at' => now()]);
+        } elseif ($kind === 'market' && ! $tenant) {
+            // Market data is always enabled and public, including stale client submissions.
+            MarketSettings::query()->whereKey(1)->update(['enabled' => true, 'api_key' => null]);
         } elseif ($kind === 'network' && ! $tenant) {
             $c = ChainConnection::query()->whereKey($network->network)->lockForUpdate()->firstOrFail();
             if ($c->start_height !== null && $c->start_height !== $network->start_height) {
@@ -144,16 +125,16 @@ final readonly class ConfigureAssetsAction
                     throw new DomainException('ADDRESS_INVALID', 'Enter a valid destination address.');
                 }
                 $address = strtolower($address);
-            } elseif (! preg_match('/^(bc1[ac-hj-np-z02-9]{11,87}|[13][1-9A-HJ-NP-Za-km-z]{25,34})$/', $address)) {
+            } elseif (! BitcoinAddress::valid($address)) {
                 throw new DomainException('ADDRESS_INVALID', 'Enter a valid destination address.');
             }
-            if ($rail->deposit_address && $rail->deposit_address !== $address && (AssetDepositOrder::where('rail_code', $rail->code)->exists() || AssetWithdrawalOrder::where('rail_code', $rail->code)->exists())) {
-                throw new DomainException('RAIL_ADDRESS_IMMUTABLE', 'A network address with financial history cannot be changed.');
-            }
-            if ($data['enabled'] && ! ChainConnection::whereKey($rail->network)->where('enabled', true)->whereNotNull('next_height')->exists()) {
-                throw new DomainException('CONFIG_INCOMPLETE', 'Complete the required configuration first.');
+            if ($rail->network === 'BITCOIN' && str_starts_with(strtolower($address), 'bc1')) {
+                $address = strtolower($address);
             }
             $rail->update(['enabled' => $data['enabled'], 'deposit_address' => $address]);
+        } elseif ($kind === 'company-tron' && $tenant) {
+            $data = Validator::make($input, ['minimum' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,8})?$/D'], 'fee_percent' => ['required', 'string', 'regex:/^(?:0|[1-9][0-9]?)(?:\.\d{1,8})?$/D']])->validate();
+            app(UpdateTenantBusinessSettingsAction::class)->execute($tenant, ['withdrawal_fee_percent' => $data['fee_percent'], 'tron_minimum_deposit' => $data['minimum']], $actor);
         } elseif ($kind === 'company-rail' && $tenant) {
             Tenant::whereKey($tenant->id)->lockForUpdate()->firstOrFail();
             $data = Validator::make($input, ['code' => 'required|exists:asset_rails,code', 'deposit_enabled' => 'required|boolean', 'withdrawal_enabled' => 'required|boolean', 'minimum' => 'nullable|string|regex:/^\d{1,12}(?:\.\d{1,18})?$/', 'fee_percent' => ['nullable', 'string', 'regex:/^(?:0|[1-9][0-9]?)(?:\.[0-9]{1,8})?$/D']])->validate();
@@ -221,7 +202,7 @@ final readonly class ConfigureAssetsAction
             $reader = app(ChainReader::class);
             try {
                 $height = $reader->finalHeight($c);
-                // Require complete native-ETH traces, not just a reachable RPC URL.
+                // Verify public block/receipt reads; contract-only ETH deposits use manual confirmation.
                 $reader->block($c, $height);
             } catch (DomainException $e) {
                 throw $e;

@@ -17,7 +17,7 @@ final class AssetRails
         $rail = AssetRail::query()->whereKey($code)->where('enabled', true)->first();
         $company = CompanyRail::query()->where('tenant_id', $tenantId)->where('rail_code', $code)->first();
         $connection = $rail ? ChainConnection::query()->whereKey($rail->network)->first() : null;
-        if (! $rail || ! $connection?->enabled || $connection->start_height === null || $connection->next_height === null || ! $rail->deposit_address || ! $company || ! in_array($operation, ['deposit', 'withdrawal'], true) || ! $company->{$operation.'_enabled'} || ($operation === 'deposit' ? $company->minimum_deposit === null : $company->withdrawal_fee_percent === null)) {
+        if (! $rail || ! $connection || ($operation === 'withdrawal' && (! $connection->enabled || $connection->start_height === null || $connection->next_height === null)) || ! $rail->deposit_address || ! $company || ! in_array($operation, ['deposit', 'withdrawal'], true) || ! $company->{$operation.'_enabled'} || ($operation === 'deposit' ? $company->minimum_deposit === null : $company->withdrawal_fee_percent === null)) {
             throw new DomainException('ASSET_RAIL_UNAVAILABLE', 'This network is not available.', 403);
         }
 

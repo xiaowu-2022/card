@@ -43,7 +43,7 @@ type SettingsData = {
         depositAmount: string;
         depositAsset: string;
         depositRefundWaitDays: number | null;
-        withdrawalFixedFee: string;
+        withdrawalFeePercent: string | null;
     };
     kyc: { enabled: boolean; maxAccountsPerIdentity: number | null; reviewMode: string };
     supportedLocales: string[];
@@ -398,7 +398,7 @@ function BusinessForm({ settings }: { settings: SettingsData }) {
             settings.business.depositRefundWaitDays === null
                 ? ''
                 : String(settings.business.depositRefundWaitDays),
-        withdrawal_fixed_fee: displayMoney(settings.business.withdrawalFixedFee),
+        withdrawal_fee_percent: settings.business.withdrawalFeePercent ?? '',
     });
     return (
         <Card className="max-w-3xl">
@@ -489,19 +489,19 @@ function BusinessForm({ settings }: { settings: SettingsData }) {
                         </dl>
                     )}
                     <FormField
-                        id="withdrawal-fixed-fee"
-                        label={t('Fixed withdrawal fee (USDT)')}
+                        id="withdrawal-fee-percent"
+                        label={t('Withdrawal fee (%)')}
                         description={t(
                             'Deducted from each withdrawal amount. 0 means no fee. Changes apply only to new requests.',
                         )}
-                        error={errorMessage(form.errors.withdrawal_fixed_fee)}
+                        error={errorMessage(form.errors.withdrawal_fee_percent)}
                     >
-                        <MoneyInput
-                            id="withdrawal-fixed-fee"
+                        <Input
+                            id="withdrawal-fee-percent"
                             inputMode="decimal"
-                            value={form.data.withdrawal_fixed_fee}
+                            value={form.data.withdrawal_fee_percent}
                             onChange={(event) =>
-                                form.setData('withdrawal_fixed_fee', event.target.value)
+                                form.setData('withdrawal_fee_percent', event.target.value)
                             }
                             required
                         />

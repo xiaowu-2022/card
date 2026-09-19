@@ -19,7 +19,7 @@ final class UserWithdrawalQuery
         $available = $wallet ? LedgerAccount::query()->where('tenant_id', $tenantId)->where('wallet_id', $wallet->id)->where('account_type', LedgerAccountType::UserAvailable->value)->value('balance') : '0.00000000';
 
         return ['available' => ['amount' => $available ?? '0.00000000', 'asset' => 'USDT'], 'network' => 'TRC20',
-            'fixedFee' => (string) TenantBusinessSetting::query()->where('tenant_id', $tenantId)->soleValue('withdrawal_fixed_fee')];
+            'feePercent' => TenantBusinessSetting::query()->where('tenant_id', $tenantId)->soleValue('withdrawal_fee_percent')];
     }
 
     /** @return array<string,mixed> */

@@ -38,10 +38,12 @@ final readonly class ScanAssetNetwork
                 $rails = AssetRail::query()->where('network', $network)->whereNotNull('deposit_address')->get();
                 foreach ($block['transfers'] as $transfer) {
                     $atAddress = $rails->where('deposit_address', $transfer['address']);
-                    if ($atAddress->isEmpty()) {
+                    $historical = AssetDepositOrder::query()->where('network', $network)->where('address', $transfer['address'])->where('contract', $transfer['contract'])->get();
+                    if ($atAddress->isEmpty() && $historical->isEmpty()) {
                         continue;
                     }
-                    $rail = $atAddress->first(fn ($rail) => $rail->contract === $transfer['contract']);
+                    $rail = $atAddress->first(fn ($rail) => $rail->contract === $transfer['contract'])
+                        ?? $rails->firstWhere('code', $historical->first()?->rail_code);
                     $existing = ChainObservation::query()->where('network', $network)->where('event_id', $transfer['event_id'])->first();
                     if ($existing) {
                         continue;

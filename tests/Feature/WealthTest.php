@@ -14,6 +14,7 @@ use App\Domain\Assets\MarketSnapshot;
 use App\Domain\Ledger\DTOs\LedgerPostingInstruction;
 use App\Domain\Ledger\DTOs\LedgerPostingPlan;
 use App\Domain\Ledger\Models\LedgerAccount;
+use App\Domain\Ledger\Services\LedgerReconciliationService;
 use App\Domain\Ledger\Services\LedgerWriter;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Tenant\Models\Tenant;
@@ -524,4 +525,61 @@ it('opens all funds by default and filters balances and rows without provisionin
     $empty = app(FundsQuery::class)->get($other->tenant_id, $this->user->id);
     expect($empty['rows']->total())->toBe(0);
     expect([DB::table('wallets')->count(), DB::table('ledger_entries')->count()])->toBe($before);
+});
+
+it('accepts every asset and term through monthly recovery with exact final balances', function (string $asset, int $months, string $totalInterest) {
+    $this->travelTo(CarbonImmutable::parse('2024-01-31T08:00:00Z'));
+    $wallet = DB::transaction(fn () => app(WalletProvisioner::class)->provision($this->tenant, $this->user, $asset));
+    $account = LedgerAccount::where('wallet_id', $wallet->id)->where('account_type', 'USER_AVAILABLE')->firstOrFail();
+    if ($asset !== 'USDT') {
+        $clearing = LedgerAccount::where('tenant_id', $this->tenant->id)->where('asset_code', $asset)->where('account_type', 'TENANT_TOPUP_CLEARING')->firstOrFail();
+        app(LedgerWriter::class)->post(new LedgerPostingPlan($this->tenant->id, $asset, 'matrix:'.Str::uuid(), 'TEST_TOPUP', null, null, null, [new LedgerPostingInstruction($clearing->id, Money::of('-2000', $asset)), new LedgerPostingInstruction($account->id, Money::of('2000', $asset))]));
+    }
+    $setting = collect(app(WealthConfiguration::class)->get($this->tenant->id))->firstWhere('asset', $asset);
+    $order = $this->service->deposit($this->tenant->id, $this->user->id, $asset, '1000', $months, $setting['revision'], (string) Str::uuid());
+    $cumulative = Money::of('0', $asset);
+    foreach ($order->schedule as $index => $installment) {
+        $due = CarbonImmutable::parse($installment['due_at']);
+        $this->travelTo($due->subSecond());
+        $this->artisan('wealth:recover')->assertSuccessful();
+        expect($this->service->paid($order))->toBe($cumulative->amount());
+        $this->travelTo($due);
+        $this->artisan('wealth:recover')->assertSuccessful();
+        $cumulative = $cumulative->add(Money::of($installment['amount'], $asset));
+        expect($this->service->paid($order))->toBe($cumulative->amount());
+        $entries = DB::table('ledger_entries')->count();
+        $this->artisan('wealth:recover')->assertSuccessful();
+        expect(DB::table('ledger_entries')->count())->toBe($entries);
+        $base = $index === $months - 1 ? '2000' : '1000';
+        expect($account->fresh()->balance)->toBe(Money::of($base, $asset)->add($cumulative)->amount());
+    }
+    expect($cumulative->amount())->toBe(Money::of($totalInterest, $asset)->amount());
+    expect($order->fresh()->status)->toBe('MATURED');
+    expect(app(LedgerReconciliationService::class)->mismatches())->toBe([]);
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+})->with((function () {
+    $cases = [];
+    foreach (['USDT', 'USDC', 'ETH', 'BTC'] as $asset) {
+        foreach ([1 => '5', 3 => '20', 6 => '60', 12 => '150', 24 => '320', 36 => '510', 60 => '900'] as $months => $interest) {
+            $cases[$asset.' '.$months.' months'] = [$asset, $months, $interest];
+        }
+    }
+
+    return $cases;
+})());
+
+it('returns 980 after two monthly receipts of 10 on a 1000 principal and never pays again', function () {
+    $order = ($this->deposit)(6);
+    $this->travelTo(CarbonImmutable::parse($order->schedule[1]['due_at']));
+    $this->artisan('wealth:recover')->assertSuccessful();
+    expect($this->service->paid($order))->toBe('20.00000000');
+    $before = $this->account->fresh()->balance;
+    $this->service->cancel($this->tenant->id, $this->user->id, $order->id, (string) Str::uuid(), 'local-password', '20');
+    expect(Money::of($this->account->fresh()->balance, 'USDT')->subtract(Money::of($before, 'USDT'))->amount())->toBe('980.00000000');
+    expect($this->account->fresh()->balance)->toBe('2000.00000000');
+    $entries = DB::table('ledger_entries')->count();
+    $this->travelTo($order->matures_at);
+    $this->artisan('wealth:recover')->assertSuccessful();
+    expect(DB::table('ledger_entries')->count())->toBe($entries);
+    expect(app(LedgerReconciliationService::class)->mismatches())->toBe([]);
 });

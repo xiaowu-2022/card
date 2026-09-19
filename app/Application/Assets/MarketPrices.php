@@ -2,7 +2,6 @@
 
 namespace App\Application\Assets;
 
-use App\Domain\Assets\MarketSettings;
 use App\Domain\Assets\MarketSnapshot;
 use App\Infrastructure\Assets\ExactJson;
 use App\Support\Errors\DomainException;
@@ -25,10 +24,6 @@ final class MarketPrices
             return $this->latest() ?? throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'Market prices are unavailable.', 503);
         }
         try {
-            $settings = MarketSettings::query()->find(1);
-            if (! $settings?->enabled) {
-                throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'Market prices are unavailable.', 503);
-            }
             $latest = $this->latest();
             if ($latest && $latest->created_at->greaterThan(now()->subSeconds(60))) {
                 return $latest;
@@ -38,27 +33,23 @@ final class MarketPrices
                 return $latest ?? throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'Market prices are unavailable.', 503);
             }
 
-            return $this->fetch($settings);
+            return $this->fetch();
         } finally {
             $lock->release();
         }
     }
 
-    private function fetch(MarketSettings $settings): MarketSnapshot
+    private function fetch(): MarketSnapshot
     {
         try {
             $http = Http::connectTimeout(5)->timeout(15)->withoutRedirecting()->withUserAgent('ApertureCards/1.0 (platform market rates)')->acceptJson();
             $url = 'https://api.coingecko.com/api/v3/simple/price';
-            if ($settings->api_key) {
-                $http = $http->withHeaders(['x-cg-pro-api-key' => $settings->api_key]);
-                $url = 'https://pro-api.coingecko.com/api/v3/simple/price';
-            }
             $response = $http->get($url, [
                 'ids' => 'tether,usd-coin,ethereum,bitcoin', 'vs_currencies' => 'usd',
                 'include_last_updated_at' => 'true', 'precision' => 'full',
             ]);
             if (! $response->successful()) {
-                Log::warning('assets.market.request_failed', ['service' => $settings->api_key ? 'COINGECKO_PRO' : 'COINGECKO_PUBLIC', 'http_status' => $response->status()]);
+                Log::warning('assets.market.request_failed', ['service' => 'COINGECKO_PUBLIC', 'http_status' => $response->status()]);
                 throw new DomainException('ASSET_PRICES_UNAVAILABLE', match ($response->status()) {
                     401, 403 => 'The price service denied access. Check the service credentials or network access.',
                     429 => 'The price service is rate limited. Please retry after one minute.',
@@ -96,24 +87,19 @@ final class MarketPrices
 
     public function latest(): ?MarketSnapshot
     {
-        if (! MarketSettings::query()->whereKey(1)->where('enabled', true)->exists()) {
-            return null;
-        }
-
         return MarketSnapshot::query()->where('observed_at', '>=', now()->subSeconds(120))->where('observed_at', '<=', now()->addSeconds(5))->latest('observed_at')->first();
     }
 
     /** Administrative visibility retains saved rates; financial callers must use latest(). */
     public function configuration(): array
     {
-        $settings = MarketSettings::query()->findOrFail(1);
         $snapshot = MarketSnapshot::query()->latest('observed_at')->first();
         // Match the second-resolution timestamps bound by latest()'s database query.
         $now = CarbonImmutable::now()->startOfSecond();
 
         return [
-            'enabled' => $settings->enabled,
-            'configured' => filled($settings->api_key),
+            'enabled' => true,
+            'configured' => false,
             'snapshot' => $snapshot ? [
                 'observed_at' => $snapshot->observed_at->toIso8601String(),
                 'fresh' => $snapshot->observed_at->greaterThanOrEqualTo($now->subSeconds(120))
