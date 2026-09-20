@@ -1,3 +1,10 @@
+On 2026-09-20 the user requested English fallback for unconfigured About article
+translations. Prefer the selected configured translation, otherwise use the same
+Tenant/article English version (even if English is not enabled in the picker); if
+English is missing too, show unavailable. This supersedes the no-cross-language
+fallback rule for these articles only. Preserve tenant isolation and plain-text
+rendering. See docs/architecture/TENANT_ARTICLES.md.
+
 On 2026-09-20 the user approved promotion upgrade activation thresholds. Within an
 active annual cycle, only enabled higher-rank/higher-fee levels with target strictly
 greater than the cycle's weighted first activations (direct 1, indirect 0.5) may be

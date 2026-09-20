@@ -53,18 +53,25 @@ it('updates one existing version and audits metadata without copying the body', 
     }
 });
 
-it('uses only the resolved enabled consumer language with no company or language fallback', function (): void {
+it('uses the same company English version when the selected translation is missing', function (): void {
     foreach ([[$this->articleTenant, 'en', 'English A'], [$this->articleOther, 'zh-CN', 'Chinese B'], [$this->articleTenant, 'ms', 'Disabled A']] as [$tenant, $locale, $body]) {
         TenantArticle::query()->create(['tenant_id' => $tenant->id, 'article_key' => 'terms', 'locale' => $locale, 'body' => $body]);
     }
     $this->actingAs($this->articleUser, 'tenant_user')->withHeader('Accept-Language', 'zh-CN');
     $this->get('http://a.localhost/about')->assertOk()->assertInertia(fn (Assert $page) => $page->component('user/About'));
     $this->get('http://a.localhost/about/terms?tenant_id='.$this->articleOther->id.'&locale=en')->assertOk()
-        ->assertInertia(fn (Assert $page) => $page->component('user/AboutArticle')->where('article', ['key' => 'terms', 'locale' => 'zh-CN', 'body' => null]));
+        ->assertInertia(fn (Assert $page) => $page->component('user/AboutArticle')->where('article', ['key' => 'terms', 'locale' => 'en', 'body' => 'English A']));
     $this->withHeader('Accept-Language', 'en')->get('http://a.localhost/about/terms')
         ->assertInertia(fn (Assert $page) => $page->where('article.body', 'English A'));
     $this->articleTenant->locales()->where('locale', 'ms')->update(['enabled' => false]);
     $this->withHeader('Accept-Language', 'ms,en;q=0.5')->get('http://a.localhost/about/terms')
+        ->assertInertia(fn (Assert $page) => $page->where('article.locale', 'en')->where('article.body', 'English A'));
+    TenantArticle::query()->create(['tenant_id' => $this->articleTenant->id, 'article_key' => 'terms', 'locale' => 'zh-CN', 'body' => '中文正文']);
+    $this->withHeader('Accept-Language', 'zh-CN')->get('http://a.localhost/about/terms')
+        ->assertInertia(fn (Assert $page) => $page->where('article.locale', 'zh-CN')->where('article.body', '中文正文'));
+    TenantArticle::query()->where('tenant_id', $this->articleTenant->id)->where('locale', 'zh-CN')->update(['body' => '']);
+    $this->articleTenant->locales()->where('locale', 'en')->update(['enabled' => false]);
+    $this->get('http://a.localhost/about/terms')
         ->assertInertia(fn (Assert $page) => $page->where('article.locale', 'en')->where('article.body', 'English A'));
     $this->get('http://b.localhost/about/terms')->assertRedirect('/login');
 });

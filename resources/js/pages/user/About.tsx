@@ -10,16 +10,18 @@ export default function About() {
         <UserArticleLayout title={t('About us')} backHref="/account/settings">
             <Head title={t('About us')} />
             <nav aria-label={t('About us')} className="user-about-links">
-                {tenantArticles.map((article) => (
-                    <Link
-                        key={article.key}
-                        href={`/about/${article.key}`}
-                        className="user-about-link"
-                    >
-                        <span>{t(article.title)}</span>
-                        <ChevronRight aria-hidden="true" />
-                    </Link>
-                ))}
+                {tenantArticles
+                    .filter((article) => article.key !== 'account-closure')
+                    .map((article) => (
+                        <Link
+                            key={article.key}
+                            href={`/about/${article.key}`}
+                            className="user-about-link"
+                        >
+                            <span>{t(article.title)}</span>
+                            <ChevronRight aria-hidden="true" />
+                        </Link>
+                    ))}
             </nav>
         </UserArticleLayout>
     );

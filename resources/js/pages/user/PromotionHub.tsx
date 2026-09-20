@@ -246,14 +246,6 @@ export default function PromotionHub({
                                 {errorMessage(message)}
                             </p>
                         ))}
-                        {p.cycle && (
-                            <p className="text-sm text-muted-foreground">
-                                {t(
-                                    'Current cycle activation count: {{count}}. Choose a level with a strictly higher target; the highest enabled level is exempt.',
-                                    { count: p.upgradeEligibility.weightedCount },
-                                )}
-                            </p>
-                        )}
                         <section aria-label={t('Promotion level benefits')}>
                             <div
                                 ref={track}

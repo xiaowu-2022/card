@@ -677,8 +677,8 @@ export const adminCatalog: Record<string, string> = {
     'Enter valid article content.': '请输入有效的文章正文。',
     'Manage these three articles for your company only. Each content language is saved separately.':
         '管理本公司的三篇文章，各语言正文分别保存。',
-    'Only enabled customer languages are displayed. Missing translations show an unavailable message, not another language.':
-        '前台仅显示已启用的语言。未填写的语言版本将提示暂未配置，不会混用其他语言。',
+    'Missing translations display the English version. If English is also unconfigured, an unavailable message is shown.':
+        '未配置的语言版本默认显示英文内容；英文也未配置时，提示暂未配置。',
     'This is an account closure information article only. Saving it does not close accounts or move funds.':
         '此处仅设置注销账户的说明文章，保存不会注销账户或处理资金。',
     'Plain text only, up to 50,000 characters. Line breaks are preserved. Saving takes effect immediately; saving empty text removes this language version from view.':

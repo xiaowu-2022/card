@@ -52,3 +52,11 @@ Account closure is an informational article, not a deletion request or a real
 account/card cancellation flow. Article reads/saves never change User, KYC,
 Card, Wallet, Ledger, Security Deposit or Provider state. Legal drafting,
 consent tracking, actual closure, refunds and custom CMS pages remain out of scope.
+
+
+2026-09-20: Missing or blank article translations now display the same tenant and
+article key’s English content, with the returned content locale set to en. This
+explicitly supersedes the no-cross-language fallback rule. English content may
+serve as fallback regardless of whether English is offered in the language picker.
+If English is also missing, retain the unavailable message. Configured selected
+translations retain priority; tenant isolation and escaped plain text are unchanged.

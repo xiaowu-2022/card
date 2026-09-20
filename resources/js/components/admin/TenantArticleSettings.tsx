@@ -73,7 +73,7 @@ export function TenantArticleSettings({
                 </div>
                 <p className="text-sm text-muted-foreground">
                     {t(
-                        'Only enabled customer languages are displayed. Missing translations show an unavailable message, not another language.',
+                        'Missing translations display the English version. If English is also unconfigured, an unavailable message is shown.',
                     )}
                 </p>
                 {selectedArticle === 'account-closure' && (

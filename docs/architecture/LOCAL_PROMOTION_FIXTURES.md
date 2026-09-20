@@ -52,3 +52,17 @@ commission. Today has zero fixture events. Ledger and payment reconciliation pas
 13 related tests pass with 158 assertions. Legacy promotion tests now use an active
 Platform actor for configuration, retaining the separate Tenant operational actor.
 Re-running this exact completed batch returns the report without adding records.
+
+## 2026-09-20: 501 direct first activations for upgrade testing
+
+The user explicitly requested 501 new directly invited activated members for local
+account 202609131303 (Tenant A). `scripts/seed-local-direct-activations.php` is a
+separate, explicitly invoked and target-bound batch; the retired legacy seeder
+remains blocked. It requires local/testing, card_mock/card_ui_test, mock payments
+and active Platform configuration authority. Stable fixture emails and request IDs,
+a session advisory lock and STARTED/COMPLETED audits make resumption idempotent.
+It creates synthetic KYC materials, credits mock top-ups and funds the currently
+configured deposit through existing application actions and LedgerWriter. Normal
+first-activation commissions and automatic annual returns apply. New activations
+use the actual current time; no existing level, period, configuration, historical
+activation or Ledger is rewritten. No real provider calls are made.

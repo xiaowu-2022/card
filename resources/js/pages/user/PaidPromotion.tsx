@@ -150,14 +150,6 @@ export default function PaidPromotion({
                                     : 'Choose a member deposit or an annual agent level.',
                             )}
                         </p>
-                        {p.cycle && (
-                            <p className="text-sm text-muted-foreground">
-                                {t(
-                                    'Current cycle activation count: {{count}}. Choose a level with a strictly higher target; the highest enabled level is exempt.',
-                                    { count: p.upgradeEligibility.weightedCount },
-                                )}
-                            </p>
-                        )}
                         {p.activation.refundPending && (
                             <p className="text-sm text-muted-foreground">
                                 {t('Cancel the pending security deposit refund before continuing.')}
