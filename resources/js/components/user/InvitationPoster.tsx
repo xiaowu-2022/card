@@ -69,7 +69,14 @@ export function InvitationPoster({
             // Center the QR in the background's reserved bottom space.
             // Keep its white quiet zone and sharp modules for reliable scanning.
             ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(qrCanvas, 340, height - 270, 220, 220);
+            ctx.drawImage(qrCanvas, 340, height - 330, 220, 220);
+            ctx.fillStyle = '#e2d7a9';
+            ctx.font = '500 26px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+            ctx.shadowBlur = 6;
+            ctx.fillText(t('Scan with your browser'), 450, height - 78, 600);
             if (!cancelled) setPreview(canvas.toDataURL('image/png'));
         };
         void generate().catch(() => {

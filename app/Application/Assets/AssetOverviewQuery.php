@@ -87,7 +87,6 @@ final readonly class AssetOverviewQuery
                 $asset === 'USDT' => 'Select another currency to exchange to USDT.',
                 ! $assetEligible => 'Exchange is unavailable for this account.',
                 ! $policy?->enabled => 'Exchange is not enabled for this currency.',
-                $snapshot === null => 'Market prices are unavailable.',
                 default => null,
             };
             $assets[] = ['asset' => $asset, 'available' => $available, 'held' => Money::of((string) $held, $asset)->amount(), 'deposit' => $deposit, 'rails' => $options, 'transfer' => $asset === 'USDT' && $eligible, 'exchange' => $exchangeReason === null, 'exchangeUnavailableReason' => $exchangeReason, 'activity' => $activity, 'orders' => $orders->sortByDesc('time')->take(10)->values()->all()];

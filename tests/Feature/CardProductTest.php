@@ -230,3 +230,18 @@ it('rejects company fee overrides and exposes only the platform price', function
     $this->product->forceFill(['opening_fee' => null])->save();
     expect(app(CardProductCatalogQuery::class)->user($this->tenantA->id, null)['products'])->toBe([]);
 });
+
+it('saves and clears the product default balance limit without moving funds', function (): void {
+    $entries = DB::table('ledger_entries')->count();
+    $data = ['name' => $this->product->name, 'provider_product_ref' => $this->product->provider_product_ref,
+        'opening_fee' => '5', 'minimum_initial_load' => '20', 'minimum_reload' => '20', 'status' => 'ACTIVE', 'balance_limit' => '500'];
+    $url = 'http://admin.localhost/platform/card-products/'.$this->product->id;
+    $this->actingAs($this->platformOwner, 'platform_admin')->put($url, $data)->assertRedirect()->assertSessionHasNoErrors();
+    expect($this->product->fresh()->balance_limit)->toBe('500.00000000');
+    foreach (['-1', '1.001', 'abc'] as $invalid) {
+        $this->put($url, [...$data, 'balance_limit' => $invalid])->assertSessionHasErrors('balance_limit');
+    }
+    expect($this->product->fresh()->balance_limit)->toBe('500.00000000');
+    $this->put($url, [...$data, 'balance_limit' => null])->assertRedirect()->assertSessionHasNoErrors();
+    expect($this->product->fresh()->balance_limit)->toBeNull()->and(DB::table('ledger_entries')->count())->toBe($entries);
+});

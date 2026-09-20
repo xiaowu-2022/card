@@ -1,7 +1,11 @@
+import { CardOverflowSpend } from '@/components/admin/CardOverflowSpend';
+import { CardBalanceLimit } from '@/components/admin/CardBalanceLimit';
+import { CardLoadOrders, type CardLoadOrder } from '@/components/admin/CardLoadOrders';
+import type { SharedProps } from '@/types/global';
 import { PlatformCardTransactions } from '@/components/admin/PlatformCardTransactions';
 import { displayMoney } from '@/lib/exact-amount';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -24,6 +28,10 @@ type UserCard = {
     id: string;
     tenantId: string;
     balance: string | null;
+    overflowBalance: string;
+    providerBalance: string | null;
+    balanceLimit: string | null;
+    effectiveBalanceLimit: string | null;
     currency: string;
     balanceUpdatedAt: string | null;
     companyName: string;
@@ -43,16 +51,20 @@ const tone = (status: string): StatusTone =>
 
 export default function Cards({
     orders,
+    loads,
     cards,
     companies,
     filters,
 }: {
     orders: AccountPage<Order>;
+    loads: AccountPage<CardLoadOrder>;
     cards: AccountPage<UserCard>;
     companies: { id: string; name: string }[];
     filters: { company?: string; search?: string; tab?: string };
 }) {
     useAdminTranslation();
+    const canManage =
+        usePage<SharedProps>().props.auth.admin?.permissions.includes('card_product.manage');
     const [tab, setTab] = useState(filters.tab ?? 'orders');
     const [selectedCard, setSelectedCard] = useState<UserCard | null>(null);
     const [refreshing, setRefreshing] = useState<string | null>(null);
@@ -65,12 +77,13 @@ export default function Cards({
                     eyebrow={t('Operations')}
                     title={t('Cards')}
                     description={t(
-                        'Read-only cross-tenant operational visibility. No issue, settlement, release, or balance controls are exposed.',
+                        'Review card orders and balances, and manage individual card balance limits.',
                     )}
                 />
                 <Tabs value={tab} onValueChange={setTab}>
                     <TabsList>
                         <TabsTrigger value="orders">{t('Issue orders')}</TabsTrigger>
+                        <TabsTrigger value="loads">{t('Card reload orders')}</TabsTrigger>
                         <TabsTrigger value="cards">{t('Cards')}</TabsTrigger>
                     </TabsList>
                     <TabsContent value="orders">
@@ -102,6 +115,9 @@ export default function Cards({
                                 },
                             ]}
                         />
+                    </TabsContent>
+                    <TabsContent value="loads">
+                        <CardLoadOrders page={loads} canManage={canManage} />
                     </TabsContent>
                     <TabsContent value="cards">
                         {refreshError && (
@@ -145,6 +161,24 @@ export default function Cards({
                                     ),
                                 },
                                 {
+                                    label: 'Overflow balance',
+                                    render: (row) => `${displayMoney(row.overflowBalance)} USD`,
+                                },
+                                {
+                                    label: 'Provider balance',
+                                    render: (row) =>
+                                        row.providerBalance === null
+                                            ? t('Not available')
+                                            : `${displayMoney(row.providerBalance)} USD`,
+                                },
+                                {
+                                    label: 'Balance limit',
+                                    render: (row) =>
+                                        row.effectiveBalanceLimit === null
+                                            ? t('No limit')
+                                            : `${displayMoney(row.effectiveBalanceLimit)} USD`,
+                                },
+                                {
                                     label: 'Status',
                                     render: (row) => (
                                         <StatusBadge
@@ -157,6 +191,15 @@ export default function Cards({
                                     label: 'Actions',
                                     render: (row) => (
                                         <div className="flex flex-wrap gap-2">
+                                            {canManage && (
+                                                <>
+                                                    <CardOverflowSpend card={row} />
+                                                    <CardBalanceLimit
+                                                        key={`${row.id}:${row.balanceLimit}`}
+                                                        card={row}
+                                                    />
+                                                </>
+                                            )}
                                             <Button
                                                 variant="secondary"
                                                 size="sm"

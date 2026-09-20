@@ -251,3 +251,30 @@ counts and routing evidence. Existing awards
 and snapshots are never changed or clawed back; annual commissions are unchanged.
 No migration or historical replay is required. Invitation-rule copy in all four
 consumer languages describes first funding and removes repeat-reward messaging.
+
+
+## Upgrade eligibility by current-cycle activations (2026-09-20)
+
+For active cycles, enabled targets must have higher rank and fee than the current
+cycle and satisfy `2 * target > 2 * direct + indirect`. Counts come from the same
+immutable first-account-activation relations/time boundaries as automatic returns.
+The maximum enabled rank within the company is exempt only from this count test.
+Disabled levels, lower/equal ranks or prices, and pending returns are never exempt.
+No enabled levels means no purchase choices. Each target is evaluated independently,
+even when configured targets are not monotonic. First purchases and expired-cycle
+purchases retain existing behavior; upgrades preserve the cycle and its progress.
+
+PromotionUpgradeEligibility supplies page choices and quote/confirmation validation.
+Current counts and max enabled rank are re-read during payment under the Tenant lock;
+new activations or a changed maximum rank can invalidate a quoted choice without any
+money movement. Existing revision checks and completed-order idempotency remain.
+Page data includes upgradeEligibility (weightedUnits, weightedCount, highestEnabledRank,
+pending) and per-level selectable/unavailableCode/unavailableReason. Disabled choices
+remain visible with explanations in the membership page and promotion carousel.
+
+Rank limits no longer assume eight levels. Database migration expands only the rank
+upper bounds to the existing integer storage capacity, retaining other checks. Reporting
+and filter options use configured plus historically recorded ranks (including ordinary
+rank zero); the upgrade exception uses enabled configurations only. Configuration batch
+limits match company catalog size. No new level-creation endpoint/UI is introduced.
+No existing orders, cycle snapshots, configuration values or Ledger entries are changed.

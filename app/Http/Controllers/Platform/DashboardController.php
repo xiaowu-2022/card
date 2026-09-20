@@ -17,6 +17,7 @@ final class DashboardController extends Controller
     public function __invoke(Request $request, PlatformFundsFilters $filters, PlatformDailyFundsQuery $query, PlatformListFilters $lists, AuthorizationService $authorization): Response
     {
         $access = [
+            'overflow' => $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'cards.read'),
             'inflow' => $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'wallet_topups.read'),
             'outflow' => $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'withdrawals.read'),
         ];

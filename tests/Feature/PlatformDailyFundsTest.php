@@ -25,7 +25,7 @@ it('defaults to 30 UTC+8 calendar days and all persisted companies without creat
         ->component('platform/Dashboard')->where('filters.start', '2026-08-16')->where('filters.end', '2026-09-14')
         ->where('filters.scope', 'all')->where('filters.companies', [])->has('companies', 2)
         ->has('days', 30)->where('days.0.date', '2026-08-16')->where('days.29.date', '2026-09-14')
-        ->where('totals', ['inflow' => '0.00000000', 'outflow' => '0.00000000', 'net' => '0.00000000'])
+        ->where('totals', ['inflow' => '0.00000000', 'outflow' => '0.00000000', 'overflow' => '0.00000000', 'net' => '0.00000000'])
         ->missing('cardProviderCount'));
     expect(LedgerAccount::query()->count())->toBe($before);
     Http::assertNothingSent();
@@ -54,10 +54,12 @@ it('omits unauthorized money series and net values and rejects company identitie
     $permission = DB::table('permissions')->where('name', 'withdrawals.read')->value('id');
     DB::table('role_permissions')->where('permission_id', $permission)->delete();
     $this->get($url)->assertOk()->assertInertia(fn ($p) => $p
-        ->where('financialAccess', ['inflow' => true, 'outflow' => false])
+        ->where('financialAccess', ['overflow' => true, 'inflow' => true, 'outflow' => false])
         ->has('totals.inflow')->missing('totals.outflow')->missing('totals.net')
         ->has('days.0.inflow')->missing('days.0.outflow')->missing('days.0.net'));
     $permission = DB::table('permissions')->where('name', 'wallet_topups.read')->value('id');
+    DB::table('role_permissions')->where('permission_id', $permission)->delete();
+    $permission = DB::table('permissions')->where('name', 'cards.read')->value('id');
     DB::table('role_permissions')->where('permission_id', $permission)->delete();
     $this->get($url)->assertOk()->assertInertia(fn ($p) => $p->where('totals', [])->where('days', [['date' => '2026-09-13']]));
     $company = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();

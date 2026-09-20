@@ -1,10 +1,12 @@
 <?php
 
+use App\Application\Card\AdminCardLoadsQuery;
 use App\Application\Card\ApplyCardIssueResultAction;
 use App\Application\Card\ArchiveClearedUserCardAction;
 use App\Application\Card\CreateCardIssueAction;
 use App\Application\Card\DTOs\CardManagementInput;
 use App\Application\Card\ManageCardAction;
+use App\Application\Card\PlatformCardTransactionsQuery;
 use App\Application\Card\ProcessCardNotificationAction;
 use App\Application\Card\ReceiveCardNotificationAction;
 use App\Application\Card\RecordCardTransactionsAction;
@@ -24,8 +26,10 @@ use App\Application\CardProduct\UpdateCardProductAction;
 use App\Application\CardProviderDirectory\SaveCardProviderReferenceAction;
 use App\Application\Kyc\ApproveKycAction;
 use App\Application\Kyc\SubmitKycApplicationAction;
+use App\Application\Promotion\PaidPromotionPurchase;
 use App\Application\SecurityDeposit\FundSecurityDepositAction;
 use App\Application\SecurityDeposit\RefundSecurityDepositAction;
+use App\Application\Tenant\PlatformDailyFundsQuery;
 use App\Application\Tenant\UpdateTenantBusinessSettingsAction;
 use App\Application\Wallet\ActivateUserWalletAction;
 use App\Application\Wallet\WalletActivityQuery;
@@ -71,10 +75,13 @@ use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use App\Domain\Wallet\Models\Wallet;
 use App\Infrastructure\Providers\Card\MockCardProvider;
+use App\Jobs\ProcessCardNotification;
 use App\Support\Errors\DomainException;
 use Carbon\CarbonImmutable;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -82,6 +89,8 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
+use Monolog\Handler\TestHandler;
+use Monolog\Logger;
 
 it('prefills only owned card editable fields and confirmed holder changes without leaking private materials', function (): void {
     $this->holderMaterials = ['fields' => [
@@ -122,9 +131,9 @@ it('fails safely when original holder materials are unavailable rather than borr
         ->assertStatus(503)->assertJsonMissingPath('fields');
 });
 
-function managedCardFixture($test, ?Closure $cardRead = null): array
+function managedCardFixture($test, ?Closure $cardRead = null, string $available = '100.00000000'): array
 {
-    phaseTenReadyUser($test);
+    phaseTenReadyUser($test, $available);
     phaseTenIssue($test);
     $card = UserCard::query()->where('tenant_id', $test->tenant->id)->where('user_id', $test->user->id)->firstOrFail();
     $card->forceFill(['provider_status' => 'normal'])->save();
@@ -253,8 +262,8 @@ it('rejects malformed or mismatched card numbers before revealing sensitive info
 
 it('synchronizes verified notifications inline without a queue and deduplicates without changing wallet', function (int $keyBits): void {
     [$card,$provider] = managedCardFixture($this);
-    $handler = new Monolog\Handler\TestHandler;
-    Log::extend('notification_test', fn () => new Monolog\Logger('photonpay', [$handler]));
+    $handler = new TestHandler;
+    Log::extend('notification_test', fn () => new Logger('photonpay', [$handler]));
     config(['logging.channels.photonpay' => ['driver' => 'notification_test']]);
     Log::forgetChannel('photonpay');
     $before = phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance;
@@ -274,7 +283,7 @@ it('synchronizes verified notifications inline without a queue and deduplicates 
     $event = CardProviderEvent::query()->firstOrFail();
     expect(CardProviderEvent::query()->count())->toBe(1)->and($event->tenant_id)->toBe($this->tenant->id);
     expect($event->status)->toBe('PROCESSED')->and($event->attempts)->toBe(1)->and($event->request_id)->toBeNull();
-    Queue::assertNotPushed(App\Jobs\ProcessCardNotification::class);
+    Queue::assertNotPushed(ProcessCardNotification::class);
     $applied = collect($handler->getRecords())->first(fn ($record) => $record->message === 'photonpay.card_refresh.applied');
     expect($applied)->not->toBeNull()
         ->and($applied->context['event_id'])->toBe($event->id)
@@ -295,15 +304,15 @@ it('diagnoses queued and retried notifications without processing them or leakin
         'category' => 'issuing', 'event_type' => 'auth', 'transaction_id' => 'PRIVATE-TX-ID', 'status' => 'PENDING'])->save();
     $before = $card->fresh()->getAttributes();
     $this->withoutMockingConsoleOutput();
-    expect(Illuminate\Support\Facades\Artisan::call('cards:notification-inspect', ['tenant' => $event->tenant_id, 'event' => $event->id]))->toBe(0);
-    expect(Illuminate\Support\Facades\Artisan::output())->toContain('"event_status": "PENDING"', '"attempts": 0')
+    expect(Artisan::call('cards:notification-inspect', ['tenant' => $event->tenant_id, 'event' => $event->id]))->toBe(0);
+    expect(Artisan::output())->toContain('"event_status": "PENDING"', '"attempts": 0')
         ->not->toContain('PRIVATE-TX-ID', $card->provider_card_id);
     expect($card->fresh()->getAttributes())->toBe($before)->and($event->fresh()->attempts)->toBe(0);
-    expect(Illuminate\Support\Facades\Artisan::call('cards:notification-inspect', ['tenant' => (string) Str::uuid(), 'event' => $event->id]))->toBe(1);
-    expect(Illuminate\Support\Facades\Artisan::output())->toContain('Notification not found in the selected company.');
+    expect(Artisan::call('cards:notification-inspect', ['tenant' => (string) Str::uuid(), 'event' => $event->id]))->toBe(1);
+    expect(Artisan::output())->toContain('Notification not found in the selected company.');
     $provider->shouldReceive('getTransaction')->once()->andThrow(new ProviderUnknownResultException('private-error'));
-    $handler = new Monolog\Handler\TestHandler;
-    Log::extend('notification_test', fn () => new Monolog\Logger('photonpay', [$handler]));
+    $handler = new TestHandler;
+    Log::extend('notification_test', fn () => new Logger('photonpay', [$handler]));
     config(['logging.channels.photonpay' => ['driver' => 'notification_test']]);
     Log::forgetChannel('photonpay');
     app(ProcessCardNotificationAction::class)->execute($event->tenant_id, $event->id);
@@ -338,20 +347,20 @@ it('keeps failed inline notification reads for explicit follow-up without dispat
         ->and($card->fresh()->provider_balance)->toBe($before['provider_balance'])
         ->and($card->fresh()->getRawOriginal('provider_balance_synced_at'))->toBe($before['provider_balance_synced_at'])
         ->and(LedgerEntry::query()->count())->toBe($entries);
-    Queue::assertNotPushed(App\Jobs\ProcessCardNotification::class);
+    Queue::assertNotPushed(ProcessCardNotification::class);
 
     // A stale serialized job or old cron entry cannot perform another provider read.
-    (new App\Jobs\ProcessCardNotification($event->tenant_id, $event->id))->handle();
+    (new ProcessCardNotification($event->tenant_id, $event->id))->handle();
     $this->artisan('cards:recover', ['--tenant' => $event->tenant_id])->assertFailed();
     expect($event->fresh()->attempts)->toBe(1)->and($card->fresh()->refresh_generation)->toBe(1);
-    $schedule = app(Illuminate\Console\Scheduling\Schedule::class);
+    $schedule = app(Schedule::class);
     expect(collect($schedule->events())->contains(fn ($entry) => str_contains($entry->command ?? '', 'cards:recover')))->toBeFalse();
 });
 
 it('does not log an applied balance when an outer transaction rolls back', function (): void {
     [$card] = managedCardFixture($this);
-    $handler = new Monolog\Handler\TestHandler;
-    Log::extend('notification_test', fn () => new Monolog\Logger('photonpay', [$handler]));
+    $handler = new TestHandler;
+    Log::extend('notification_test', fn () => new Logger('photonpay', [$handler]));
     config(['logging.channels.photonpay' => ['driver' => 'notification_test']]);
     Log::forgetChannel('photonpay');
     $before = $card->fresh()->getAttributes();
@@ -1399,7 +1408,7 @@ it('exposes only read-only tenant and platform card operations routes', function
     $otherCompany = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
     $this->get('http://admin.localhost/platform/cards?company='.$otherCompany->id)->assertOk()->assertInertia(fn (Assert $page) => $page->has('cards.data', 0)->has('orders.data', 0));
     $uris = collect(Route::getRoutes())->map(fn ($route): string => implode('|', $route->methods()).' '.$route->uri());
-    expect($uris->filter(fn (string $route): bool => preg_match('/cards.*(manual|success|settle|release|balance|reveal|freeze|cancel|reload)/i', $route) === 1)->all())->toBe([]);
+    expect($uris->filter(fn (string $route): bool => $route !== 'PUT platform/tenants/{tenant}/cards/{card}/balance-limit' && preg_match('/cards.*(manual|success|settle|release|balance|reveal|freeze|cancel|reload)/i', $route) === 1)->all())->toBe([]);
 });
 
 it('enforces issue financial state and terminal immutability at the database boundary', function (): void {
@@ -2117,7 +2126,7 @@ it('protects SaaS card transaction reads with company scoping and active cards r
 
 it('uses paid agent eligibility for issuing and loading without a deposit and stops new actions on expiry', function (): void {
     phaseTenReadyUser($this, '3000');
-    $purchase = app(\App\Application\Promotion\PaidPromotionPurchase::class);
+    $purchase = app(PaidPromotionPurchase::class);
     $level = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->where('rank', 1)->value('id');
     $quote = $purchase->quote($this->tenant->id, $this->user->id, $level, (string) Str::uuid());
     $paid = $purchase->confirm($this->tenant->id, $this->user->id, $quote->id);
@@ -2138,4 +2147,246 @@ it('uses paid agent eligibility for issuing and loading without a deposit and st
     $this->holder = phaseTenHolder($this);
     expect(fn () => phaseTenIssue($this))->toThrow(DomainException::class, 'Activate your account');
     expect($card->fresh()->getAttributes())->toBe($before);
+});
+
+it('splits capped recharge into provider and external funding with full wallet debit', function (bool $productDefault): void {
+    [$card, $provider, $action] = managedCardFixture($this, function () use (&$card) {
+        return new ProviderCardDTO($card->provider_card_id, '', $card->masked_pan, $card->last4, 8, 2029, 'USD', 'normal', false, '400.00000000');
+    }, '1000.00000000');
+    $card->product->forceFill(['balance_limit' => $productDefault ? '500' : '450'])->save();
+    if (! $productDefault) {
+        $card->forceFill(['balance_limit' => '500'])->save();
+    }
+    $before = phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance;
+    $provider->shouldReceive('quoteCardLoad')->once()->withArgs(fn ($id, $amount, $request) => $amount === '100.00000000')
+        ->andReturnUsing(fn ($id, $amount, $request) => new ProviderCardQuoteDTO($request, '101.00000000', $amount, '1.00000000'));
+    $provider->shouldReceive('confirmCardLoad')->once()->andReturnUsing(fn ($id, $request) => new ProviderCardFundsDTO(ProviderOperationStatus::Succeeded, $id, $request, 'CAP-TX', '101.00000000', '100.00000000', '1.00000000'));
+    $request = (string) Str::uuid();
+    $order = $action->quote($this->tenant->id, $this->user->id, $card->id, $request, '500');
+    expect($order->status)->toBe('QUOTED')->and($order->amount)->toBe('100.00000000')
+        ->and($order->requested_amount)->toBe('500.00000000')->and($order->overflow_amount)->toBe('400.00000000');
+    expect($action->quote($this->tenant->id, $this->user->id, $card->id, $request, '500')->id)->toBe($order->id);
+    expect(fn () => $action->quote($this->tenant->id, $this->user->id, $card->id, $request, '100'))->toThrow(DomainException::class);
+    expect(fn () => $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '500'))->toThrow(DomainException::class);
+    $result = $action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $order->id);
+    expect($result->status)->toBe('SUCCEEDED')->and(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)
+        ->toBe(Money::of($before, 'USDT')->subtract(Money::of('501', 'USDT'))->amount());
+    $action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $order->id);
+    expect(LedgerEntry::query()->where('reference_id', $order->id)->count())->toBe(2);
+    expect(UserCardManagementAction::order($result))->not->toHaveKeys(['overflowAmount', 'overflow_amount', 'balance_limit_snapshot']);
+    expect(app(AdminCardLoadsQuery::class)->get($this->tenant->id)->items()[0]->overflowAmount)->toBe('400.00000000');
+    $report = app(PlatformDailyFundsQuery::class);
+    $date = now('Asia/Kuala_Lumpur')->toDateString();
+    $filters = ['start' => $date, 'end' => $date, 'scope' => 'selected', 'companies' => [$this->tenant->id]];
+    $summary = $report->execute($filters, ['overflow' => true, 'inflow' => true, 'outflow' => true]);
+    expect($summary['totals']['overflow'])->toBe('400.00000000')
+        ->and($summary['days'][0]['overflow'])->toBe('400.00000000');
+    expect($report->execute($filters, [])['totals'])->toBe([]);
+    $filters['companies'] = [Tenant::query()->where('id', '!=', $this->tenant->id)->firstOrFail()->id];
+    expect($report->execute($filters, ['overflow' => true])['totals']['overflow'])->toBe('0.00000000');
+
+    expect(app(AdminCardLoadsQuery::class)->get(Tenant::query()->where('id', '!=', $this->tenant->id)->firstOrFail()->id)->total())->toBe(0);
+    DB::statement('SET CONSTRAINTS card_management_accounting IMMEDIATE');
+    expect(fn () => DB::transaction(fn () => $order->forceFill(['requested_amount' => '600', 'overflow_amount' => '500'])->save()))->toThrow(QueryException::class);
+})->with([true, false]);
+
+it('funds external reloads atomically without a provider call when capacity is below minimum', function (string $limit): void {
+    [$card, $provider, $action] = managedCardFixture($this, available: '1000.00000000');
+    $card->forceFill(['balance_limit' => $limit])->save();
+    $entries = LedgerEntry::count();
+    $before = phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance;
+    $provider->shouldNotReceive('quoteCardLoad');
+    $provider->shouldNotReceive('confirmCardLoad');
+    $request = (string) Str::uuid();
+    $order = $action->quote($this->tenant->id, $this->user->id, $card->id, $request, '80');
+    expect($order->amount)->toBe('0.00000000')->and($order->manual_funding_amount)->toBe('80.00000000')
+        ->and($order->debit_amount)->toBe('80.00000000')->and(LedgerEntry::count())->toBe($entries);
+    $done = $action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $order->id);
+    expect($done->status)->toBe('SUCCEEDED')->and($done->provider_called_at)->toBeNull()
+        ->and($done->provider_transaction_id)->toBeNull()
+        ->and(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe(Money::of($before, 'USDT')->subtract(Money::of('80', 'USDT'))->amount());
+    $action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $order->id);
+    expect($action->quote($this->tenant->id, $this->user->id, $card->id, $request, '80')->id)->toBe($order->id)
+        ->and(LedgerEntry::count())->toBe($entries + 3)
+        ->and($card->fresh()->overflowBalance())->toBe('80.00000000');
+    $items = app(UserCardTransactionsQuery::class)->get($this->tenant->id, $this->user->id, $card->id, 1);
+    expect($items['items'])->toHaveCount(1);
+    expect($items['items'][0]['amount'])->toBe('80.00000000')->and($items['items'][0]['type'])->toBe('transfer_in');
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+})->with(['0', '20', '30']);
+
+it('expires a capped quote without a hold if the fresh balance leaves insufficient capacity', function (): void {
+    $balance = '400.00000000';
+    [$card, $provider, $action] = managedCardFixture($this, function () use (&$card, &$balance) {
+        return new ProviderCardDTO($card->provider_card_id, '', $card->masked_pan, $card->last4, 8, 2029, 'USD', 'normal', false, $balance);
+    });
+    $card->forceFill(['balance_limit' => '500'])->save();
+    $provider->shouldReceive('quoteCardLoad')->once()->andReturnUsing(fn ($id, $amount, $request) => new ProviderCardQuoteDTO($request, $amount, $amount, '0.00000000'));
+    $provider->shouldNotReceive('confirmCardLoad');
+    $order = $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '500');
+    $balance = '450.00000000';
+    expect($action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $order->id)->status)->toBe('EXPIRED');
+    expect($order->fresh()->status)->toBe('EXPIRED');
+    expect(LedgerEntry::query()->where('reference_id', $order->id)->count())->toBe(0);
+});
+
+it('only permits platform product managers to change a scoped idle card limit without moving funds', function (): void {
+    [$card, $provider, $action] = managedCardFixture($this);
+    $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/cards/'.$card->id.'/balance-limit';
+    $entries = LedgerEntry::query()->count();
+    $this->actingAs($owner, 'platform_admin')->put($url, ['balance_limit' => '500'])->assertRedirect();
+    expect($card->fresh()->balance_limit)->toBe('500.00000000')->and(LedgerEntry::query()->count())->toBe($entries);
+    expect(AuditLog::query()->where('action', 'CARD_BALANCE_LIMIT_UPDATED')->count())->toBe(1);
+    $this->put($url, ['balance_limit' => '-1'])->assertSessionHasErrors('balance_limit');
+    $foreign = Tenant::query()->where('id', '!=', $this->tenant->id)->firstOrFail();
+    $this->put(str_replace($this->tenant->id, $foreign->id, $url), ['balance_limit' => '200'])->assertNotFound();
+    $provider->shouldReceive('quoteCardLoad')->once()->andReturnUsing(fn ($id, $amount, $request) => new ProviderCardQuoteDTO($request, $amount, $amount, '0.00000000'));
+    $order = $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '20');
+    $this->put($url, ['balance_limit' => '100'])->assertSessionHasErrors('balance_limit');
+    expect($card->fresh()->balance_limit)->toBe('500.00000000');
+    $this->travel(61)->seconds();
+    $this->put($url, ['balance_limit' => ''])->assertRedirect()->assertSessionHasNoErrors();
+    expect($card->fresh()->balance_limit)->toBeNull()->and($order->fresh()->status)->toBe('EXPIRED');
+});
+
+it('retains the full recharge hold on timeout and recovers it once without sending again', function (): void {
+    [$card, $provider, $action] = managedCardFixture($this, available: '1000.00000000');
+    $card->forceFill(['balance_limit' => '50'])->save();
+    $before = phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance;
+    $provider->shouldReceive('quoteCardLoad')->once()->andReturnUsing(fn ($id, $amount, $request) => new ProviderCardQuoteDTO($request, '31.00000000', $amount, '1.00000000'));
+    $provider->shouldReceive('confirmCardLoad')->once()->andThrow(new ProviderUnknownResultException('timeout'));
+    $order = $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '500');
+    expect($order->overflow_amount)->toBe('470.00000000');
+    expect($action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $order->id)->status)->toBe('UNKNOWN');
+    expect(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe(Money::of($before, 'USDT')->subtract(Money::of('501', 'USDT'))->amount());
+    $provider->shouldReceive('queryCardFunds')->once()->andReturn(new ProviderCardFundsDTO(ProviderOperationStatus::Failed, $card->provider_card_id, $order->provider_request_id));
+    expect($action->sync($this->tenant->id, $order->id)->status)->toBe('FAILED');
+    expect($action->sync($this->tenant->id, $order->id)->status)->toBe('FAILED');
+    expect(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe($before);
+    expect(LedgerEntry::query()->where('reference_id', $order->id)->count())->toBe(2);
+    DB::statement('SET CONSTRAINTS card_management_accounting IMMEDIATE');
+});
+
+it('refuses capped reload when the current provider balance cannot be read', function (): void {
+    [$card, $provider, $action] = managedCardFixture($this, fn () => throw new ProviderUnknownResultException('unavailable'));
+    $card->forceFill(['balance_limit' => '500', 'provider_balance' => '20'])->save();
+    $provider->shouldNotReceive('quoteCardLoad');
+    $before = LedgerEntry::query()->count();
+    expect(fn () => $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '500'))->toThrow(ProviderUnknownResultException::class);
+    expect(LedgerEntry::query()->count())->toBe($before)->and(CardManagementOrder::query()->count())->toBe(0);
+});
+
+it('denies a platform reader the card limit mutation', function (): void {
+    [$card] = managedCardFixture($this);
+    $auditor = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'card_product.manage')->value('id'))->delete();
+    $this->actingAs($auditor, 'platform_admin')->put('http://admin.localhost/platform/tenants/'.$this->tenant->id.'/cards/'.$card->id.'/balance-limit', ['balance_limit' => '500'])->assertForbidden();
+    expect($card->fresh()->balance_limit)->toBeNull();
+});
+
+it('lets platform void an unsubmitted reload quote once and release the card for a new quote', function (): void {
+    [$card, $provider, $action] = managedCardFixture($this);
+    $provider->shouldReceive('quoteCardLoad')->twice()->andReturnUsing(fn ($id, $amount, $request) => new ProviderCardQuoteDTO($request, $amount, $amount, '0.00000000'));
+    $provider->shouldNotReceive('confirmCardLoad');
+    $order = $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '20');
+    $order->forceFill(['status' => 'QUOTING'])->save();
+    $entries = LedgerEntry::count();
+    $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/cards/'.$card->id.'/loads/'.$order->id.'/void';
+    $owner = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $this->actingAs($owner, 'platform_admin')->post($url)->assertRedirect()->assertSessionHasNoErrors();
+    $this->post($url)->assertRedirect()->assertSessionHasNoErrors();
+    expect($order->fresh()->status)->toBe('EXPIRED')
+        ->and(AuditLog::where('action', 'CARD_LOAD_QUOTE_VOIDED')->count())->toBe(1)
+        ->and(LedgerEntry::count())->toBe($entries);
+    expect($action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $order->id)->status)->toBe('EXPIRED');
+    $next = $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '20');
+    expect($next->status)->toBe('QUOTED');
+    $next->forceFill(['provider_called_at' => now()])->save();
+    $this->post(str_replace($order->id, $next->id, $url))->assertSessionHasErrors('card_load');
+    expect($next->fresh()->status)->toBe('QUOTED')->and(LedgerEntry::count())->toBe($entries);
+});
+
+it('rolls back all external funding accounting when the wallet cannot cover the full recharge', function (): void {
+    [$card, $provider, $action] = managedCardFixture($this);
+    $card->forceFill(['balance_limit' => '0'])->save();
+    $provider->shouldNotReceive('quoteCardLoad');
+    $provider->shouldNotReceive('confirmCardLoad');
+    $quote = $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '1000');
+    $entries = LedgerEntry::count();
+    expect(fn () => $action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $quote->id))->toThrow(DomainException::class);
+    expect($quote->fresh()->status)->toBe('QUOTED')->and($quote->fresh()->hold_entry_id)->toBeNull()
+        ->and(LedgerEntry::count())->toBe($entries);
+});
+
+it('releases the complete recharge including external funding when the provider portion fails', function (): void {
+    [$card, $provider, $action] = managedCardFixture($this, available: '1000.00000000');
+    $card->forceFill(['balance_limit' => '40'])->save();
+    $before = phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance;
+    $provider->shouldReceive('quoteCardLoad')->once()->andReturnUsing(fn ($id, $amount, $request) => new ProviderCardQuoteDTO($request, '21.00000000', '20.00000000', '1.00000000'));
+    $provider->shouldReceive('confirmCardLoad')->once()->andReturnUsing(fn ($id, $request) => new ProviderCardFundsDTO(ProviderOperationStatus::Failed, $id, $request));
+    $quote = $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '100');
+    expect($quote->debit_amount)->toBe('101.00000000')->and($quote->manual_funding_amount)->toBe('80.00000000');
+    $result = $action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $quote->id);
+    expect($result->status)->toBe('FAILED')->and(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe($before);
+    DB::statement('SET CONSTRAINTS card_management_accounting IMMEDIATE');
+});
+
+it('keeps an independent overflow balance across provider refreshes and records idempotent SaaS consumption', function (): void {
+    $balance = '20.00000000';
+    [$card, $provider, $action] = managedCardFixture($this, function () use (&$card, &$balance) {
+        return new ProviderCardDTO($card->provider_card_id, '', $card->masked_pan, $card->last4, 8, 2029, 'USD', 'normal', false, $balance);
+    }, '1000.00000000');
+    $card->forceFill(['balance_limit' => '30'])->save();
+    $order = $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '80');
+    $action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $order->id);
+    expect($card->fresh()->availableBalance())->toBe('100.00000000');
+    app(RefreshManagedCardAction::class)->execute($this->tenant->id, $this->user->id, $card->id);
+    expect($card->fresh()->availableBalance())->toBe('100.00000000');
+    $platform = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $url = "http://admin.localhost/platform/tenants/{$this->tenant->id}/cards/{$card->id}/overflow-spends";
+    $data = ['amount' => '25', 'note' => 'EXT-123', 'request_id' => (string) Str::uuid(), 'confirmed' => true];
+    $this->actingAs($platform, 'platform_admin')->postJson($url, $data)->assertUnprocessable();
+    expect($card->fresh()->overflowBalance())->toBe('80.00000000');
+    $balance = '0.00000000';
+    $this->post($url, $data)->assertRedirect();
+    expect($card->fresh()->overflowBalance())->toBe('55.00000000')->and($card->fresh()->availableBalance())->toBe('55.00000000');
+    $entries = LedgerEntry::count();
+    $this->post($url, $data)->assertRedirect();
+    expect(LedgerEntry::count())->toBe($entries);
+    $this->postJson($url, array_replace($data, ['amount' => '26']))->assertUnprocessable();
+    $this->postJson($url, array_replace($data, ['request_id' => (string) Str::uuid(), 'amount' => '56']))->assertUnprocessable();
+    $items = app(UserCardTransactionsQuery::class)->get($this->tenant->id, $this->user->id, $card->id, 1)['items'];
+    expect($items)->toHaveCount(2)->and(collect($items)->firstWhere('type', 'purchase')['amount'])->toBe('25.00000000');
+    expect(collect($items)->firstWhere('type', 'purchase'))->not->toHaveKeys(['note', 'operator']);
+    $adminItems = app(PlatformCardTransactionsQuery::class)->get($this->tenant->id, $card->id, 1)['items'];
+    expect(collect($adminItems)->firstWhere('type', 'purchase')['operator'])->toBe($platform->email);
+    $this->actingAs($this->owner, 'platform_admin')->postJson($url, array_replace($data, ['request_id' => (string) Str::uuid()]))->assertForbidden();
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+});
+
+it('calculates reload capacity from combined balance and deduplicates the matching provider funding row', function (): void {
+    [$card, $provider, $action] = managedCardFixture($this, available: '1000.00000000');
+    $card->forceFill(['balance_limit' => '30'])->save();
+    $first = $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '80');
+    $action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $first->id);
+    $this->travel(1)->seconds();
+    $card->forceFill(['balance_limit' => '115'])->save();
+    $second = $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '80');
+    expect($second->amount)->toBe('0.00000000');
+    $second->forceFill(['status' => 'EXPIRED'])->save();
+    $card->forceFill(['balance_limit' => '120'])->save();
+    $provider->shouldReceive('quoteCardLoad')->once()->with($card->provider_card_id, '20.00000000', Mockery::any())->andReturnUsing(fn ($id, $amount, $request) => new ProviderCardQuoteDTO($request, '20.00000000', '20.00000000', '0.00000000'));
+    $provider->shouldReceive('confirmCardLoad')->once()->andReturnUsing(fn ($id, $request) => new ProviderCardFundsDTO(ProviderOperationStatus::Succeeded, $id, $request, 'TX-SPLIT-OVERFLOW', '20.00000000', '20.00000000', '0.00000000'));
+    $third = $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '80');
+    expect($third->amount)->toBe('20.00000000')->and($third->manual_funding_amount)->toBe('60.00000000');
+    $action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $third->id);
+    $query = app(UserCardTransactionsQuery::class);
+    $before = $query->get($this->tenant->id, $this->user->id, $card->id, 1)['items'];
+    $ids = app(RecordCardTransactionsAction::class)->execute($card, [new ProviderCardTransactionDTO('TX-SPLIT-OVERFLOW', '20.00000000', 'USD', 'transfer_in', 'completed', now()->format('Y-m-d H:i:s'), null)], CarbonImmutable::now());
+    expect($query->get($this->tenant->id, $this->user->id, $card->id, 1)['items'])->toBe($before);
+    $synced = $query->items($this->tenant->id, $this->user->id, $card->id, $ids);
+    expect($synced[0]['amount'])->toBe('80.00000000')->and(collect($before)->pluck('id')->all())->toContain($synced[0]['id']);
+    expect($card->fresh()->overflowBalance())->toBe('140.00000000');
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
 });

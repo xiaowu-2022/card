@@ -30,10 +30,7 @@ final readonly class ConfigureAssetsAction
     {
         $this->access->platform($actor, 'tenant.manage');
         if (! $tenant && ($input['kind'] ?? '') === 'market-refresh') {
-            $snapshot = app(MarketPrices::class)->refresh();
-            $this->audit->record(null, 'ADMIN', $actor->id, 'ASSET_PRICES_REFRESHED', 'asset_market_snapshot', $snapshot->id);
-
-            return;
+            throw new DomainException('ASSET_PRICES_ON_DEMAND', 'Exchange rates are fetched from OKX when a new quote is requested.', 409);
         }
         $batch = ($input['kind'] ?? '') === 'batch';
         if ($batch) {

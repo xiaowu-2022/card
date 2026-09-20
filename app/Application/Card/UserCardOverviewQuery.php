@@ -12,7 +12,7 @@ final readonly class UserCardOverviewQuery
         $cards = UserCard::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->whereNull('archived_at');
 
         return ['count' => (clone $cards)->count(), 'items' => (clone $cards)->latest('created_at')->limit(2)->get()->map(fn ($card) => [
-            'id' => $card->id, 'last4' => $card->last4, 'balance' => $card->provider_balance,
+            'id' => $card->id, 'last4' => $card->last4, 'balance' => $card->availableBalance(),
             'state' => match ($card->provider_status) {
                 'normal' => 'Normal', 'frozen' => 'Frozen', 'expired' => 'Expired', default => 'Awaiting confirmation'
             },

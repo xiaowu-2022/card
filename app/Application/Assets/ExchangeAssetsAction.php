@@ -34,7 +34,21 @@ final readonly class ExchangeAssetsAction
             throw new DomainException('AMOUNT_INVALID', 'Enter a positive amount.');
         }
 
-        return DB::transaction(function () use ($tenantId, $userId, $asset, $money, $requestId): ExchangeOrder {
+        // Replays reuse their immutable quote and never call the upstream price service.
+        $existing = ExchangeOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('request_id', $requestId)->first();
+        if ($existing) {
+            if ($existing->asset_code !== $asset || $existing->amount !== $money->amount()) {
+                throw new DomainException('IDEMPOTENCY_CONFLICT', 'This request identifier was already used with different details.', 409);
+            }
+
+            return $existing;
+        }
+        $this->access->operational($tenantId, $userId);
+        $this->policy($tenantId, $asset);
+        // No network calls inside a database transaction or automatic transaction retry.
+        $snapshot = $this->prices->refresh();
+
+        return DB::transaction(function () use ($tenantId, $userId, $asset, $money, $requestId, $snapshot): ExchangeOrder {
             AssetAccess::lock('asset-exchange:'.$tenantId.':'.$userId.':'.$requestId);
             $existing = ExchangeOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('request_id', $requestId)->first();
             if ($existing) {
@@ -46,8 +60,7 @@ final readonly class ExchangeAssetsAction
             }
             [$tenant,$user] = $this->access->operational($tenantId, $userId);
             $this->policy($tenantId, $asset);
-            $snapshot = $this->prices->latest();
-            if (! $snapshot) {
+            if ($snapshot->observed_at->lt(now()->subSeconds(120))) {
                 throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'Market prices are unavailable.', 503);
             }
             $rate = $this->prices->rate($snapshot, $asset);

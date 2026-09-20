@@ -12,6 +12,8 @@ import { t, dateTime } from '@/i18n';
 import { exactAmount } from '@/lib/exact-amount';
 
 export type PaidLevel = {
+    selectable?: boolean;
+    unavailableReason?: string | null;
     id: string;
     rank: number;
     fee: string;
@@ -35,6 +37,12 @@ export type PaidClaim = {
     source: 'AUTO';
 };
 export type PaidPromotionData = {
+    upgradeEligibility: {
+        weightedUnits: number;
+        weightedCount: string;
+        highestEnabledRank: number;
+        pending: boolean;
+    };
     activation: AccountActivation;
     paymentAccess: { verified: boolean; walletActive: boolean; canCreateWallet: boolean };
     membershipStatus: 'NONE' | 'ACTIVE' | 'EXPIRED';
@@ -79,7 +87,9 @@ const price = (cell: Cell) =>
 
 export function PaidPromotionMembership({ paid: p }: { paid: PaidPromotionData }) {
     const action =
-        p.rank >= 8
+        p.membershipStatus !== 'EXPIRED' &&
+        p.rank > 0 &&
+        !p.levels.some((level) => level.enabled && level.rank > p.rank)
             ? 'View benefits'
             : p.membershipStatus === 'EXPIRED'
               ? 'Renew level'

@@ -4,6 +4,7 @@ namespace App\Domain\Ledger\Enums;
 
 enum LedgerAccountType: string
 {
+    case UserCardOverflow = 'USER_CARD_OVERFLOW';
     case UserWealthPrincipal = 'USER_WEALTH_PRINCIPAL';
     case TenantWealthInterestClearing = 'TENANT_WEALTH_INTEREST_CLEARING';
     case UserAvailable = 'USER_AVAILABLE';

@@ -7,6 +7,7 @@ use App\Http\Controllers\Platform\AssetsController;
 use App\Http\Controllers\Platform\CardOperationsController;
 use App\Http\Controllers\Platform\CardProductController;
 use App\Http\Controllers\Platform\CardProviderController;
+use App\Http\Controllers\Platform\CompanyConfiguration\InvitationPosterController;
 use App\Http\Controllers\Platform\CompanyConfiguration\OnboardingController;
 use App\Http\Controllers\Platform\CompanyConfiguration\PaidPromotionController;
 use App\Http\Controllers\Platform\CompanyConfiguration\PromotionController;
@@ -28,6 +29,7 @@ use App\Http\Controllers\Platform\TenantManagementController;
 use App\Http\Controllers\Platform\TopupVerificationController;
 use App\Http\Controllers\Platform\TronWithdrawalsController;
 use App\Http\Controllers\Platform\UserOperationsController;
+use App\Http\Controllers\Platform\WealthController;
 use App\Http\Middleware\PlatformCompanyConfiguration;
 use Illuminate\Support\Facades\Route;
 
@@ -59,6 +61,9 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     });
 
     Route::middleware('admin.scope:platform,card_product.read')->get('/card-products', [CardProductController::class, 'index'])->name('card-products.index');
+    Route::middleware('admin.scope:platform,card_product.manage')->post('/tenants/{tenant}/cards/{card}/overflow-spends', [CardOperationsController::class, 'overflowSpend'])->whereUuid(['tenant', 'card'])->name('cards.overflow-spends');
+    Route::middleware('admin.scope:platform,card_product.manage')->post('/tenants/{tenant}/cards/{card}/loads/{order}/void', [CardOperationsController::class, 'voidLoad'])->whereUuid(['tenant', 'card', 'order'])->name('cards.loads.void');
+    Route::middleware('admin.scope:platform,card_product.manage')->put('/tenants/{tenant}/cards/{card}/balance-limit', [CardOperationsController::class, 'updateLimit'])->whereUuid(['tenant', 'card'])->name('cards.balance-limit');
     Route::middleware('admin.scope:platform,cards.read')->get('/cards', CardOperationsController::class)->name('cards.index');
     Route::middleware(['admin.scope:platform,cards.read', 'throttle:120,1'])->get('/tenants/{tenant}/cards/{card}/transactions', [CardOperationsController::class, 'transactions'])->whereUuid(['tenant', 'card'])->name('cards.transactions');
     Route::middleware(['admin.scope:platform,cards.read', 'throttle:30,1'])->post('/tenants/{tenant}/cards/{card}/refresh', [CardOperationsController::class, 'refresh'])->whereUuid(['tenant', 'card'])->name('cards.refresh');
@@ -123,11 +128,11 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::post('/domains', [DomainManagementController::class, 'assign'])->name('domains.assign');
         Route::get('/card-products', [App\Http\Controllers\Platform\CompanyConfiguration\CardProductController::class, 'index'])->name('card-products.index');
         Route::put('/card-products/{cardProduct}', [App\Http\Controllers\Platform\CompanyConfiguration\CardProductController::class, 'update'])->whereUuid('cardProduct')->name('card-products.update');
-        Route::get('/wealth', [App\Http\Controllers\Platform\WealthController::class, 'show']);
-        Route::post('/wealth', [App\Http\Controllers\Platform\WealthController::class, 'save'])->middleware('throttle:10,1');
+        Route::get('/wealth', [WealthController::class, 'show']);
+        Route::post('/wealth', [WealthController::class, 'save'])->middleware('throttle:10,1');
         Route::post('/paid-promotion/levels', [PaidPromotionController::class, 'batch'])->middleware('throttle:10,1');
-        Route::post('/invitation-poster', [\App\Http\Controllers\Platform\CompanyConfiguration\InvitationPosterController::class, 'save'])->middleware('throttle:10,1');
-        Route::get('/invitation-poster/background', [\App\Http\Controllers\Platform\CompanyConfiguration\InvitationPosterController::class, 'platformImage']);
+        Route::post('/invitation-poster', [InvitationPosterController::class, 'save'])->middleware('throttle:10,1');
+        Route::get('/invitation-poster/background', [InvitationPosterController::class, 'platformImage']);
         Route::get('/paid-promotion', [PaidPromotionController::class, 'show']);
         Route::post('/paid-promotion/levels/{level}', [PaidPromotionController::class, 'configure'])->whereUuid('level')->middleware('throttle:10,1');
         Route::get('/promotion', [PaidPromotionController::class, 'show'])->name('promotion');

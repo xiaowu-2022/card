@@ -12,6 +12,7 @@ final class TenantAdminCardQuery
     public function get(string $tenantId): array
     {
         return [
+            'loads' => app(AdminCardLoadsQuery::class)->get($tenantId),
             'cardholders' => ProviderCardholder::query()->where('tenant_id', $tenantId)->with('user:id,tenant_id,email')
                 ->latest('updated_at')->limit(100)->get()->map(fn (ProviderCardholder $holder): array => [
                     'id' => $holder->id,
@@ -37,7 +38,7 @@ final class TenantAdminCardQuery
                     'productName' => $card->product->name,
                     'maskedPan' => $card->masked_pan,
                     'currency' => $card->card_currency,
-                    'balance' => $card->provider_balance,
+                    'balance' => $card->availableBalance(), 'providerBalance' => $card->provider_balance, 'overflowBalance' => $card->overflowBalance(), 'balanceLimit' => $card->balance_limit,
                     'providerStatus' => $card->provider_status,
                 ])->all(),
         ];

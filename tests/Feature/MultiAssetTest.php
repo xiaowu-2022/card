@@ -42,7 +42,7 @@ use App\Infrastructure\Assets\ExactJson;
 use App\Support\Errors\DomainException;
 use Brick\Math\BigDecimal;
 use Illuminate\Foundation\Testing\RefreshDatabaseState;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -51,7 +51,17 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
+function okxTestRates(): array
+{
+    return ['code' => '0', 'data' => array_map(fn ($asset, $rate) => [
+        'instType' => 'SPOT', 'instId' => $asset.'-USDT', 'last' => $rate,
+        'ts' => (string) now()->getTimestampMs(),
+    ], ['USDC', 'ETH', 'BTC'], ['0.998998998998998998', '2002.002002002002002002', '60060.060060060060060060'])];
+}
+
 beforeEach(function () {
+    Http::preventStrayRequests();
+    Http::fake(['www.okx.com/*' => Http::response(okxTestRates())]);
     $this->seed();
     Storage::fake('private');
     Queue::fake();
@@ -507,7 +517,7 @@ it('reports exchange readiness without enabling unconfigured currencies', functi
         ->and($assets['USDC']['exchangeUnavailableReason'])->toBe('Exchange is not enabled for this currency.')
         ->and($assets['USDT']['exchange'])->toBeFalse();
     $this->travel(121)->seconds();
-    expect($read()['ETH']['exchangeUnavailableReason'])->toBe('Market prices are unavailable.');
+    expect($read()['ETH']['exchangeUnavailableReason'])->toBeNull();
     $restricted = collect($query->get($this->tenant->id, $this->user->id, ['transferAvailable' => false])['assets'])->keyBy('asset');
     expect($restricted['ETH']['exchange'])->toBeFalse()
         ->and($restricted['ETH']['exchangeUnavailableReason'])->toBe('Exchange is unavailable for this account.');
@@ -521,10 +531,11 @@ it('keeps internal exchange and user valuations independent of every blockchain 
         $view = app(AssetOverviewQuery::class)->get($this->tenant->id, $this->user->id, ['transferAvailable' => true]);
         expect(collect($view['assets'])->firstWhere('asset', 'ETH')['exchange'])->toBeTrue();
     }
+    Http::assertNothingSent();
     $action = app(ExchangeAssetsAction::class);
     $quote = $action->quote($this->tenant->id, $this->user->id, 'ETH', '0.1', (string) Str::uuid());
     expect($action->confirm($this->tenant->id, $this->user->id, $quote->id)->status)->toBe('COMPLETED');
-    Http::assertNothingSent();
+    Http::assertSentCount(1);
 });
 
 it('allows public market configuration without a key and explicitly removes an old key', function () {
@@ -537,59 +548,61 @@ it('allows public market configuration without a key and explicitly removes an o
     Http::assertNothingSent();
 });
 
-it('fetches one exact public snapshot for repeated platform updates', function () {
-    MarketSettings::findOrFail(1)->update(['enabled' => false, 'api_key' => 'unused-secret']);
-    $this->travel(121)->seconds();
-    $stamp = now()->timestamp;
-    Http::fake(['api.coingecko.com/*' => Http::response('{"tether":{"usd":0.999,"last_updated_at":'.$stamp.'},"usd-coin":{"usd":0.998,"last_updated_at":'.$stamp.'},"ethereum":{"usd":2000.123456789123456789,"last_updated_at":'.$stamp.'},"bitcoin":{"usd":60000,"last_updated_at":'.$stamp.'}}')]);
-    $this->artisan('assets:refresh-prices')->assertSuccessful();
-    $prices = app(MarketPrices::class);
-    $one = $prices->refresh();
-    $two = $prices->refresh();
-    expect($one->id)->toBe($two->id)->and($one->usd_prices['ETH'])->toBe('2000.123456789123456789');
-    Http::assertSentCount(1);
-    Http::assertSent(fn ($r) => ! $r->hasHeader('x-cg-pro-api-key') && $r->hasHeader('User-Agent', 'ApertureCards/1.0 (platform market rates)'));
+it('fetches new OKX prices for each new quote but never on replay or confirmation', function () {
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    $next = okxTestRates();
+    $next['data'][1]['last'] = '2100.123456789123456789';
+    Http::fake(['www.okx.com/*' => Http::sequence()->push(okxTestRates())->push($next)]);
+    ($this->fund)('ETH', '1');
+    $action = app(ExchangeAssetsAction::class);
+    $request = (string) Str::uuid();
+    $first = $action->quote($this->tenant->id, $this->user->id, 'ETH', '0.1', $request);
+    expect($action->quote($this->tenant->id, $this->user->id, 'ETH', '0.1', $request)->id)->toBe($first->id);
+    $second = $action->quote($this->tenant->id, $this->user->id, 'ETH', '0.1', (string) Str::uuid());
+    expect($second->snapshot_id)->not->toBe($first->snapshot_id)
+        ->and($second->receive_amount)->toBe('210.01234567');
+    expect(MarketSnapshot::findOrFail($first->snapshot_id)->provider)->toBe('OKX');
+    expect($action->confirm($this->tenant->id, $this->user->id, $first->id)->receive_amount)->toBe('200.20020020');
+    Http::assertSentCount(2);
+    Http::assertSent(fn ($r) => str_starts_with($r->url(), 'https://www.okx.com/api/v5/market/tickers')
+        && $r['instType'] === 'SPOT' && ! $r->hasHeader('Authorization') && ! $r->hasHeader('OK-ACCESS-KEY'));
 });
 
-it('serializes platform refreshes with the shared cache lock', function () {
-    $prices = app(MarketPrices::class);
-    Http::fake();
-    $lock = Cache::store()->lock('assets:market-refresh', 60);
-    expect($lock->get())->toBeTrue();
-    try {
-        expect($prices->refresh()->id)->toBe($prices->latest()->id);
-        $this->travel(121)->seconds();
-        // Refresh lock lease so the stale-price request overlaps another updater.
-        $lock->release();
-        expect($lock->get())->toBeTrue();
-        expect(fn () => $prices->refresh())->toThrow(DomainException::class);
-        Http::assertNothingSent();
-    } finally {
-        $lock->release();
-    }
+it('disables scheduled and manual price refresh without upstream calls', function () {
+    $this->artisan('assets:refresh-prices')->assertFailed();
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    expect(fn () => app(ConfigureAssetsAction::class)->execute($actor, ['kind' => 'market-refresh']))->toThrow(DomainException::class);
+    Http::assertNothingSent();
 });
 
-it('always uses public prices without stored secrets and backs off failed updates', function () {
-    $this->travel(121)->seconds();
-    MarketSettings::findOrFail(1)->update(['api_key' => 'pro-secret']);
-    Http::fake(['api.coingecko.com/*' => Http::response([], 503)]);
-    $prices = app(MarketPrices::class);
-    expect(fn () => $prices->refresh())->toThrow(DomainException::class);
-    expect(fn () => $prices->refresh())->toThrow(DomainException::class);
-    expect($prices->latest())->toBeNull();
-    Http::assertSentCount(1);
-    Http::assertSent(fn ($r) => str_starts_with($r->url(), 'https://api.coingecko.com/') && ! $r->hasHeader('x-cg-pro-api-key'));
+it('fails a new quote without falling back to saved rates or moving funds', function () {
+    ($this->fund)('ETH', '1');
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(['www.okx.com/*' => Http::response([], 503)]);
+    $entries = LedgerEntry::count();
+    expect(fn () => app(ExchangeAssetsAction::class)->quote($this->tenant->id, $this->user->id, 'ETH', '0.1', (string) Str::uuid()))->toThrow(DomainException::class);
+    expect(ExchangeOrder::count())->toBe(0)->and(LedgerEntry::count())->toBe($entries);
 });
 
-it('does not publish stale public market data', function () {
-    $this->travel(121)->seconds();
-    $stamp = now()->subMinutes(10)->timestamp;
-    $data = array_fill_keys(['tether', 'usd-coin', 'ethereum', 'bitcoin'], ['usd' => '1', 'last_updated_at' => (string) $stamp]);
-    Http::fake(['api.coingecko.com/*' => Http::response($data)]);
+it('rejects invalid OKX data without publishing a snapshot', function (string $invalid) {
+    $data = okxTestRates();
+    match ($invalid) {
+        'stale' => $data['data'][0]['ts'] = (string) now()->subMinutes(10)->getTimestampMs(),
+        'future' => $data['data'][0]['ts'] = (string) now()->addMinutes(10)->getTimestampMs(),
+        'zero' => $data['data'][0]['last'] = '0',
+        'number' => $data['data'][0]['last'] = 1.2,
+        'missing' => array_pop($data['data']),
+        'duplicate' => $data['data'][] = $data['data'][0],
+    };
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(['www.okx.com/*' => Http::response($data)]);
     $count = MarketSnapshot::count();
     expect(fn () => app(MarketPrices::class)->refresh())->toThrow(DomainException::class);
     expect(MarketSnapshot::count())->toBe($count);
-});
+})->with(['stale', 'future', 'zero', 'number', 'missing', 'duplicate']);
 
 it('uses built in public endpoints without leaking stored custom credentials', function () {
     config(['assets.rpc_allowed_hosts' => []]);

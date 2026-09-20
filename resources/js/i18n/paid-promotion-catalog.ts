@@ -1,4 +1,20 @@
 export const paidPromotionCatalog = {
+    'This promotion level is disabled.': [
+        '此推广等级已停用。',
+        'Tahap promosi ini dinyahaktifkan.',
+        'Este nivel de promoción está desactivado.',
+    ],
+    'This level’s target must exceed your current cycle activation count. Choose a higher level.': [
+        '该等级门槛必须高于本周期激活折算数，请选择更高等级。',
+        'Sasaran tahap mesti melebihi bilangan pengaktifan kitaran semasa. Pilih tahap lebih tinggi.',
+        'El objetivo debe superar las activaciones ponderadas del ciclo actual. Elija un nivel superior.',
+    ],
+    'Current cycle activation count: {{count}}. Choose a level with a strictly higher target; the highest enabled level is exempt.':
+        [
+            '本周期激活折算数：{{count}}。升级须选择门槛严格高于该数量的等级，最高启用等级除外。',
+            'Pengaktifan berwajaran kitaran ini: {{count}}. Pilih sasaran lebih tinggi; tahap aktif tertinggi dikecualikan.',
+            'Activaciones ponderadas del ciclo: {{count}}. Elija un objetivo estrictamente superior; el nivel habilitado más alto está exento.',
+        ],
     Commission: ['佣金', 'Komisen', 'Comisiones'],
     'Choose a member deposit or an annual agent level.': [
         '选择缴纳普通会员保证金，或购买代理年费等级。',
@@ -837,13 +853,13 @@ export const paidPromotionCatalog = {
     ],
     'No annual fee': ['免年费', 'Tiada yuran tahunan', 'Sin cuota anual'],
     'Direct activation standard': [
-        '邀请普通会员激活奖励标准',
+        '激活奖励标准',
         'Ganjaran pengaktifan langsung',
         'Recompensa por activación directa',
     ],
     'USDT / event': ['USDT／次', 'USDT / peristiwa', 'USDT / evento'],
     'Annual fee reward rate': [
-        '邀请代理年费奖励比例',
+        '代理年费奖励比例',
         'Kadar komisen yuran tahunan',
         'Comisión por cuota anual',
     ],

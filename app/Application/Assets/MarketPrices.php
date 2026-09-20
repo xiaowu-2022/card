@@ -3,84 +3,67 @@
 namespace App\Application\Assets;
 
 use App\Domain\Assets\MarketSnapshot;
-use App\Infrastructure\Assets\ExactJson;
 use App\Support\Errors\DomainException;
 use Brick\Math\BigDecimal;
 use Brick\Math\Exception\MathException;
 use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 final class MarketPrices
 {
+    /** Fetch a fresh public spot snapshot for a new exchange quote; never called by page reads. */
     public function refresh(): MarketSnapshot
     {
-        // Shared across web workers and scheduler hosts. User reads never call refresh().
-        $cache = Cache::store();
-        $lock = $cache->lock('assets:market-refresh', 60);
-        if (! $lock->get()) {
-            return $this->latest() ?? throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'Market prices are unavailable.', 503);
-        }
         try {
-            $latest = $this->latest();
-            if ($latest && $latest->created_at->greaterThan(now()->subSeconds(60))) {
-                return $latest;
-            }
-            // Includes failed attempts: repeated clicks cannot hammer the upstream service.
-            if (! $cache->add('assets:market-refresh-attempt', true, 60)) {
-                return $latest ?? throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'Market prices are unavailable.', 503);
-            }
-
-            return $this->fetch();
-        } finally {
-            $lock->release();
-        }
-    }
-
-    private function fetch(): MarketSnapshot
-    {
-        try {
-            $http = Http::connectTimeout(5)->timeout(15)->withoutRedirecting()->withUserAgent('ApertureCards/1.0 (platform market rates)')->acceptJson();
-            $url = 'https://api.coingecko.com/api/v3/simple/price';
-            $response = $http->get($url, [
-                'ids' => 'tether,usd-coin,ethereum,bitcoin', 'vs_currencies' => 'usd',
-                'include_last_updated_at' => 'true', 'precision' => 'full',
-            ]);
+            $response = Http::connectTimeout(5)->timeout(15)->withoutRedirecting()
+                ->withUserAgent('ApertureCards/1.0 (exchange quotes)')->acceptJson()
+                ->get('https://www.okx.com/api/v5/market/tickers', ['instType' => 'SPOT']);
             if (! $response->successful()) {
-                Log::warning('assets.market.request_failed', ['service' => 'COINGECKO_PUBLIC', 'http_status' => $response->status()]);
-                throw new DomainException('ASSET_PRICES_UNAVAILABLE', match ($response->status()) {
-                    401, 403 => 'The price service denied access. Check the service credentials or network access.',
-                    429 => 'The price service is rate limited. Please retry after one minute.',
-                    default => 'The price service is temporarily unavailable. Please retry later.',
-                }, 503);
+                throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'Market prices are unavailable. Please try again later.', 503);
             }
-            $data = ExactJson::decode($response->body());
-            $prices = [];
-            $time = now()->timestamp;
-            foreach (['USDT' => 'tether', 'USDC' => 'usd-coin', 'ETH' => 'ethereum', 'BTC' => 'bitcoin'] as $asset => $key) {
-                $raw = $data[$key]['usd'] ?? null;
-                $updated = $data[$key]['last_updated_at'] ?? null;
-                if (! is_string($raw) || ! is_string($updated) || ! ctype_digit($updated)) {
+            $data = $response->json();
+            if (($data['code'] ?? null) !== '0' || ! is_array($data['data'] ?? null)) {
+                throw new \UnexpectedValueException;
+            }
+            $rates = [];
+            $time = now()->getTimestampMs();
+            foreach ($data['data'] as $ticker) {
+                $asset = match ($ticker['instId'] ?? '') {
+                    'USDC-USDT' => 'USDC', 'ETH-USDT' => 'ETH', 'BTC-USDT' => 'BTC', default => null,
+                };
+                if ($asset === null) {
+                    continue;
+                }
+                $raw = $ticker['last'] ?? null;
+                $stamp = $ticker['ts'] ?? null;
+                if (isset($rates[$asset]) || ($ticker['instType'] ?? null) !== 'SPOT' || ! is_string($raw)
+                    || ! preg_match('/^[0-9]+(?:\.[0-9]+)?$/', $raw) || ! is_string($stamp)
+                    || ! preg_match('/^[0-9]{13}$/', $stamp)) {
                     throw new \UnexpectedValueException;
                 }
-                $decimal = BigDecimal::of($raw);
-                if (! $decimal->isPositive() || $decimal->isGreaterThan('999999999999') || (int) $updated > now()->timestamp + 5 || (int) $updated < now()->timestamp - 120) {
+                $price = BigDecimal::of($raw);
+                if (! $price->isPositive() || $price->isGreaterThan('999999999999')
+                    || (int) $stamp > now()->getTimestampMs() + 5000 || (int) $stamp < now()->getTimestampMs() - 120000) {
                     throw new \UnexpectedValueException;
                 }
-                $prices[$asset] = (string) $decimal;
-                $time = min($time, (int) $updated);
+                $rates[$asset] = (string) $price;
+                $time = min($time, (int) $stamp);
+            }
+            if (count($rates) !== 3) {
+                throw new \UnexpectedValueException;
             }
 
-            return MarketSnapshot::query()->create(['provider' => 'COINGECKO', 'usd_prices' => $prices, 'observed_at' => CarbonImmutable::createFromTimestampUTC($time)]);
+            return MarketSnapshot::query()->create(['provider' => 'OKX', 'usd_prices' => [],
+                'usdt_rates' => $rates, 'observed_at' => CarbonImmutable::createFromTimestampMsUTC($time)]);
         } catch (DomainException $e) {
             throw $e;
         } catch (\UnexpectedValueException|MathException $e) {
-            Log::warning('assets.market.invalid_data', ['reason' => 'invalid_or_stale_prices']);
+            Log::warning('assets.market.invalid_data', ['service' => 'OKX_PUBLIC']);
             throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'The price service returned incomplete or outdated rates. No rates were published.', 503);
         } catch (\Throwable) {
-            Log::warning('assets.market.connection_failed');
+            Log::warning('assets.market.connection_failed', ['service' => 'OKX_PUBLIC']);
             throw new DomainException('ASSET_PRICES_UNAVAILABLE', 'Unable to connect to the price service. Check server network access and retry.', 503);
         }
     }
@@ -90,7 +73,7 @@ final class MarketPrices
         return MarketSnapshot::query()->where('observed_at', '>=', now()->subSeconds(120))->where('observed_at', '<=', now()->addSeconds(5))->latest('observed_at')->first();
     }
 
-    /** Administrative visibility retains saved rates; financial callers must use latest(). */
+    /** Administrative visibility retains saved rates; new quotes always fetch their own snapshot. */
     public function configuration(): array
     {
         $snapshot = MarketSnapshot::query()->latest('observed_at')->first();
@@ -111,6 +94,10 @@ final class MarketPrices
 
     public function rate(MarketSnapshot $snapshot, string $asset): BigDecimal
     {
+        if ($snapshot->provider === 'OKX') {
+            return BigDecimal::of($snapshot->usdt_rates[$asset])->toScale(18, RoundingMode::Down);
+        }
+
         return BigDecimal::of($snapshot->usd_prices[$asset])->dividedBy($snapshot->usd_prices['USDT'], 18, RoundingMode::Down);
     }
 }

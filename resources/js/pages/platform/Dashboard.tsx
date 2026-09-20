@@ -15,6 +15,8 @@ import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 
+type ReportKey = FundsKey | 'overflow';
+const reportLabels = { ...fundsLabels, overflow: 'Card reload overflow' };
 type Filters = { start: string; end: string; scope: 'all' | 'selected'; companies: string[] };
 type Company = { id: string; name: string };
 export default function Dashboard({
@@ -26,17 +28,18 @@ export default function Dashboard({
 }: {
     filters: Filters;
     companies: Company[];
-    days: FundsDay[];
-    totals: Partial<Record<FundsKey, string>>;
-    financialAccess: { inflow: boolean; outflow: boolean };
+    days: (FundsDay & { overflow?: string })[];
+    totals: Partial<Record<ReportKey, string>>;
+    financialAccess: { inflow: boolean; outflow: boolean; overflow: boolean };
 }) {
     useAdminTranslation();
     const form = useForm<Filters>(filters);
     const [companyDialog, setCompanyDialog] = useState(false);
     const [search, setSearch] = useState('');
     const series = (['inflow', 'outflow'] as const).filter((key) => financialAccess[key]);
-    const displayedKeys: FundsKey[] = [
+    const displayedKeys: ReportKey[] = [
         ...series,
+        ...(financialAccess.overflow ? ['overflow' as const] : []),
         ...(financialAccess.inflow && financialAccess.outflow ? ['net' as const] : []),
     ];
     const hasNet = financialAccess.inflow && financialAccess.outflow;
@@ -134,13 +137,15 @@ export default function Dashboard({
                         </p>
                     </CardContent>
                 </Card>
-                {series.length === 0 ? (
+                {displayedKeys.length === 0 ? (
                     <p className="rounded-lg border bg-surface p-6 text-muted-foreground">
-                        {t('Financial reporting requires top-up or withdrawal read permission.')}
+                        {t(
+                            'Financial reporting requires top-up, withdrawal or card read permission.',
+                        )}
                     </p>
                 ) : (
                     <>
-                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                             {displayedKeys.map((key) => (
                                 <Card key={key}>
                                     <CardContent className="space-y-3 pt-6">
@@ -150,13 +155,15 @@ export default function Dashboard({
                                                     ? 'Total inflow'
                                                     : key === 'outflow'
                                                       ? 'Total outflow'
-                                                      : 'Period retained funds',
+                                                      : key === 'overflow'
+                                                        ? 'Card reload overflow'
+                                                        : 'Period retained funds',
                                             )}
                                         </p>
                                         <div className="break-words text-2xl font-semibold">
                                             <MoneyDisplay
                                                 amount={totals[key] ?? '0'}
-                                                asset="USDT"
+                                                asset={key === 'overflow' ? 'USD' : 'USDT'}
                                             />
                                         </div>
                                     </CardContent>
@@ -168,7 +175,20 @@ export default function Dashboard({
                                 'Completed top-ups and successful withdrawals only. Retained funds = daily inflow minus outflow; not wallet balance.',
                             )}
                         </p>
-                        <DailyFundsChart key={'flows-' + chartKey} days={days} series={series} />
+                        {financialAccess.overflow && (
+                            <p className="text-sm text-muted-foreground">
+                                {t(
+                                    'Overflow counts successful card reloads by settlement date; it remains in wallets and is excluded from retained funds.',
+                                )}
+                            </p>
+                        )}
+                        {series.length > 0 && (
+                            <DailyFundsChart
+                                key={'flows-' + chartKey}
+                                days={days}
+                                series={series}
+                            />
+                        )}
                         {hasNet && (
                             <DailyFundsChart
                                 key={'net-' + chartKey}
@@ -191,7 +211,8 @@ export default function Dashboard({
                                                     key={key}
                                                     className="whitespace-nowrap p-3 text-right"
                                                 >
-                                                    {t(fundsLabels[key])} {'(USDT)'}
+                                                    {t(reportLabels[key])}{' '}
+                                                    {key === 'overflow' ? '(USD)' : '(USDT)'}
                                                 </th>
                                             ))}
                                         </tr>
@@ -206,7 +227,9 @@ export default function Dashboard({
                                                     <td key={key} className="p-3 text-right">
                                                         <MoneyDisplay
                                                             amount={day[key] ?? '0'}
-                                                            asset="USDT"
+                                                            asset={
+                                                                key === 'overflow' ? 'USD' : 'USDT'
+                                                            }
                                                             hideSymbol
                                                         />
                                                     </td>

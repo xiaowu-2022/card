@@ -2,6 +2,7 @@
 
 namespace App\Application\Promotion;
 
+use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use Carbon\CarbonImmutable;
@@ -13,7 +14,7 @@ final class PromotionReportQuery
 {
     public function cumulative(string $tenant, string $user): string
     {
-        return \App\Domain\Ledger\ValueObjects\Money::of((string) $this->income($tenant, $user)->sum('amount'), 'USDT')->amount();
+        return Money::of((string) $this->income($tenant, $user)->sum('amount'), 'USDT')->amount();
     }
 
     public function income(string $tenant, string $user): Builder
@@ -48,7 +49,7 @@ final class PromotionReportQuery
         $from = $filters['date_from'] ?? $filters['date'] ?? ($daily ? $today->format('Y-m-d') : null);
         $to = $filters['date_to'] ?? $filters['date'] ?? ($daily ? $today->format('Y-m-d') : null);
 
-        return ['dateFrom' => $from, 'dateTo' => $to, 'timezone' => $company->timezone,
+        return ['ranks' => PromotionRanks::forTenant($tenant), 'dateFrom' => $from, 'dateTo' => $to, 'timezone' => $company->timezone,
             'presets' => [1 => $today->format('Y-m-d'), 7 => $today->subDays(6)->format('Y-m-d'), 30 => $today->subDays(29)->format('Y-m-d')],
             'today' => $today->format('Y-m-d')];
     }

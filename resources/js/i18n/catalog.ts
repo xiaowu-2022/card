@@ -1160,7 +1160,22 @@ export const catalog = {
         'Poster tidak dapat dijana. Sila cuba lagi.',
         'No se pudo generar el cartel. Inténtalo de nuevo.',
     ],
+    'The available reload capacity has changed. Please submit a new reload request.': [
+        '可充值额度已变化，请重新提交充值申请。',
+        'Kapasiti tambah nilai telah berubah. Sila hantar permintaan baharu.',
+        'La capacidad de recarga ha cambiado. Envía una nueva solicitud.',
+    ],
+    'This card has no remaining reload capacity.': [
+        '该卡已无可充值额度。',
+        'Kad ini tiada kapasiti tambah nilai lagi.',
+        'Esta tarjeta no tiene capacidad de recarga disponible.',
+    ],
     'Generating poster…': ['正在生成海报…', 'Menjana poster…', 'Generando cartel…'],
+    'Scan with your browser': [
+        '用浏览器扫码',
+        'Imbas dengan pelayar anda',
+        'Escanea con tu navegador',
+    ],
     'Amount to send': ['应转金额', 'Amaun untuk dihantar', 'Importe a enviar'],
     'An active verified USDT wallet is required for TRC20 top-ups.': [
         'TRC20 充值需要已激活并完成身份认证的 USDT 钱包。',

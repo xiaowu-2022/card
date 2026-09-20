@@ -127,7 +127,7 @@ export default function PromotionCommissions({ history: h }: { history: History 
                         <ReportSelect
                             label={t('Source level at event')}
                             value={String(draft.rank)}
-                            options={rankOptions(true)}
+                            options={rankOptions(h.ranks, true)}
                             onChange={(rank) => setDraft({ ...draft, rank })}
                         />
                         <ReportSelect

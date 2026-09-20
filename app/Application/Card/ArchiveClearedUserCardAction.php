@@ -29,6 +29,7 @@ final readonly class ArchiveClearedUserCardAction
                 ->where(fn ($q) => $q->whereNotNull('settlement_entry_id')->orWhere('arrival_amount', '0'))->sum('debit_amount');
             if ($card->provider_status !== 'cancelled' || $card->provider_balance === null
                 || ! Money::of($card->provider_balance, 'USD')->isZero()
+                || ! Money::of($card->overflowBalance(), 'USD')->isZero()
                 || $card->provider_balance_synced_at === null || $card->provider_balance_synced_at->lt(now()->subMinutes(5))
                 || Money::of((string) $returned, 'USD')->compare($expected) < 0
                 || CardManagementOrder::query()->where('tenant_id', $tenantId)->where('card_id', $cardId)

@@ -22,6 +22,7 @@ final class CardProduct extends Model
             'status' => CardProductStatus::class,
             'minimum_initial_load' => 'decimal:8',
             'minimum_reload' => 'decimal:8',
+            'balance_limit' => 'decimal:8',
             'opening_fee' => 'decimal:8',
         ];
     }

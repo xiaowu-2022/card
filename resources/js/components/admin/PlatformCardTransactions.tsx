@@ -129,11 +129,17 @@ export function PlatformCardTransactions({ card, onClose }: { card: Card; onClos
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        {['Type', 'Merchant', 'Amount', 'Status', 'Time'].map(
-                                            (label) => (
-                                                <TableHead key={label}>{t(label)}</TableHead>
-                                            ),
-                                        )}
+                                        {[
+                                            'Type',
+                                            'Merchant',
+                                            'Amount',
+                                            'Status',
+                                            'Time',
+                                            'Operator',
+                                            'Consumption reference or note',
+                                        ].map((label) => (
+                                            <TableHead key={label}>{t(label)}</TableHead>
+                                        ))}
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -186,6 +192,8 @@ export function PlatformCardTransactions({ card, onClose }: { card: Card; onClos
                                                     )}
                                                 </div>
                                             </TableCell>
+                                            <TableCell>{item.operator ?? '—'}</TableCell>
+                                            <TableCell>{item.note ?? '—'}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>

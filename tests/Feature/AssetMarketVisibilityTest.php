@@ -22,12 +22,12 @@ it('keeps saved rates visible to platform settings without making stale or disab
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $this->actingAs($actor, 'platform_admin')->get('http://admin.localhost/platform/settings/assets')
         ->assertOk()->assertInertia(fn ($page) => $page
-            ->where('market.enabled', $enabled)
+            ->where('market.enabled', true)
             ->where('market.snapshot.fresh', $fresh)
             ->where('market.snapshot.observed_at', $snapshot->fresh()->observed_at->toIso8601String())
             ->where('market.snapshot.rates.ETH', (string) app(MarketPrices::class)->rate($snapshot, 'ETH'))
             ->missing('market.snapshot.usd_prices'));
-    expect(app(MarketPrices::class)->latest() !== null)->toBe($enabled && $fresh);
+    expect(app(MarketPrices::class)->latest() !== null)->toBe($fresh);
     Http::assertNothingSent();
 })->with([[0, true, true], [120, true, true], [121, true, false], [0, false, true], [121, false, false]]);
 

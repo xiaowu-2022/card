@@ -45,12 +45,9 @@ export default function PaidPromotion({
     }, []);
     const expired = !!q && q.status === 'QUOTED' && new Date(q.expiresAt).getTime() <= clock;
     const insufficient = !!q && promotionUnits(p.availableBalance) < promotionUnits(q.amount);
-    const available = p.levels.filter(
-        (l) =>
-            l.enabled &&
-            l.rank > p.rank &&
-            (!p.cycle || promotionUnits(l.fee) > promotionUnits(p.cycle.tariff)),
-    );
+    const available = p.levels.filter((l) => l.selectable);
+    const quotedLevel = p.levels.find((level) => level.rank === q?.rank);
+    const quoteUnavailable = q?.status === 'QUOTED' && !quotedLevel?.selectable;
     const ready = p.paymentAccess.verified && p.paymentAccess.walletActive;
     const title = p.activation.qualified ? membershipAction(p) : 'Activate your account';
     return (
@@ -153,6 +150,14 @@ export default function PaidPromotion({
                                     : 'Choose a member deposit or an annual agent level.',
                             )}
                         </p>
+                        {p.cycle && (
+                            <p className="text-sm text-muted-foreground">
+                                {t(
+                                    'Current cycle activation count: {{count}}. Choose a level with a strictly higher target; the highest enabled level is exempt.',
+                                    { count: p.upgradeEligibility.weightedCount },
+                                )}
+                            </p>
+                        )}
                         {p.activation.refundPending && (
                             <p className="text-sm text-muted-foreground">
                                 {t('Cancel the pending security deposit refund before continuing.')}
@@ -166,7 +171,7 @@ export default function PaidPromotion({
                         {!available.length && (
                             <p role="status" className="py-4 text-sm text-muted-foreground">
                                 {t(
-                                    p.rank >= 8
+                                    p.rank > 0 && p.rank >= p.upgradeEligibility.highestEnabledRank
                                         ? 'You have the highest promotion level.'
                                         : 'No promotion levels are currently available.',
                                 )}
@@ -234,7 +239,7 @@ export default function PaidPromotion({
                                         </span>
                                     </label>
                                 )}
-                                {available.map((l) => (
+                                {p.levels.map((l) => (
                                     <div
                                         key={l.id}
                                         className={`rounded-xl border p-4 ${form.data.level_id === l.id ? 'border-emerald-800 bg-emerald-50/50' : 'bg-surface'}`}
@@ -245,6 +250,7 @@ export default function PaidPromotion({
                                                 className="mt-1 size-4 shrink-0 accent-emerald-800"
                                                 name="level"
                                                 value={l.id}
+                                                disabled={!l.selectable}
                                                 checked={form.data.level_id === l.id}
                                                 required
                                                 onChange={() =>
@@ -258,6 +264,11 @@ export default function PaidPromotion({
                                                 <span className="block text-sm font-semibold">
                                                     {promotionLevel(l.rank)}
                                                 </span>
+                                                {!l.selectable && l.unavailableReason && (
+                                                    <span className="block text-xs text-muted-foreground">
+                                                        {t(l.unavailableReason)}
+                                                    </span>
+                                                )}
                                                 <span className="block break-words text-lg font-semibold">
                                                     {promotionMoney(l.fee)}{' '}
                                                     <span className="text-xs font-normal">
@@ -311,7 +322,11 @@ export default function PaidPromotion({
                                         p.pending ||
                                         p.activation.refundPending ||
                                         !ready ||
-                                        !form.data.level_id
+                                        !form.data.level_id ||
+                                        (form.data.level_id !== 'ordinary' &&
+                                            !available.some(
+                                                (level) => level.id === form.data.level_id,
+                                            ))
                                     }
                                 >
                                     {t(
@@ -389,6 +404,14 @@ export default function PaidPromotion({
                                         {t('The payment quote has expired. Review fees again.')}
                                     </p>
                                 )}
+                                {quoteUnavailable && (
+                                    <p role="alert" className="text-sm text-destructive">
+                                        {t(
+                                            quotedLevel?.unavailableReason ??
+                                                'Promotion terms changed. Request a new quote.',
+                                        )}
+                                    </p>
+                                )}
                                 {insufficient && (
                                     <p role="alert" className="text-sm text-destructive">
                                         {t('Your available balance is not enough.')}
@@ -408,6 +431,7 @@ export default function PaidPromotion({
                                     url={`/promotion/quotes/${q.id}/confirm`}
                                     payload={{}}
                                     disabled={
+                                        quoteUnavailable ||
                                         expired ||
                                         insufficient ||
                                         p.pending ||

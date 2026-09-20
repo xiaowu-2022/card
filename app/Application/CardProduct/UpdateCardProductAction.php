@@ -18,6 +18,7 @@ final readonly class UpdateCardProductAction
     public function execute(string $productId, array $data, AdminUser $actor, ?string $requestId = null): CardProduct
     {
         $fee = Validator::make($data, ['opening_fee' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,8})?$/']])->validate()['opening_fee'];
+        Validator::make($data, ['balance_limit' => ['nullable', 'string', 'regex:/^(?:0|[1-9][0-9]{0,9})(?:\.[0-9]{1,2})?$/']])->validate();
         $openingFee = Money::of($fee, 'USDT')->amount();
         $initial = $this->minimum($data['minimum_initial_load'], 'minimum initial load');
         $reload = $this->minimum($data['minimum_reload'], 'minimum reload');
@@ -51,13 +52,14 @@ final readonly class UpdateCardProductAction
             if ($changed) {
                 $this->bins->lockAndValidate($binding, $reference, $connection, $productId);
             }
-            $before = $product->only(['provider', 'card_provider_reference_id', 'provider_product_ref', 'name', 'opening_fee', 'minimum_initial_load', 'minimum_reload', 'status']);
+            $before = $product->only(['provider', 'card_provider_reference_id', 'provider_product_ref', 'name', 'opening_fee', 'balance_limit', 'minimum_initial_load', 'minimum_reload', 'status']);
             $product->forceFill([
                 'provider' => $binding !== $product->card_provider_reference_id ? 'UNCONFIGURED' : $product->provider,
                 'card_provider_reference_id' => $binding,
                 'provider_product_ref' => $reference,
                 'name' => trim($data['name']),
                 'opening_fee' => $openingFee,
+                'balance_limit' => array_key_exists('balance_limit', $data) ? (isset($data['balance_limit']) ? Money::of($data['balance_limit'], 'USD')->amount() : null) : $product->balance_limit,
                 'minimum_initial_load' => $initial->amount(),
                 'minimum_reload' => $reload->amount(),
                 'status' => $data['status'],

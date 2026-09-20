@@ -361,3 +361,28 @@ Minimum 0.01 gives offsets 0.0001–0.0099; 0.001 gives 0.00001–0.00099.
 Configuration must leave two places within chain precision. USDT/USDC remain
 0.01–0.99. All historical address/amount reservations, exact receipt matching,
 full-amount Ledger credit and immutable order/idempotency snapshots are preserved.
+
+
+## 2026-09-19: OKX prices on exchange quote requests
+
+The user explicitly replaced scheduled CoinGecko updates with public OKX SPOT
+prices fetched when generating each new exchange quote. The source is
+`GET https://www.okx.com/api/v5/market/tickers?instType=SPOT`, using `last` for
+USDC-USDT, ETH-USDT and BTC-USDT. This is a read-only public market endpoint;
+no API credentials or trading API are involved. Rates are decimal strings, with
+positive bounds and ticker timestamps no older than 120 seconds (at most 5 seconds
+future skew). Invalid, missing or duplicate pairs and upstream failures reject
+new quotes, even if saved prices exist.
+
+HTTP runs before the quote transaction. Eligibility is checked before fetching and
+again during persistence. Each quote references its own immutable OKX snapshot;
+replays do not fetch, and confirmation uses the saved rate within the existing
+30-second quote expiry. No fee, balance or Ledger rules change. The new JSONB
+`usdt_rates` column stores direct rates; existing historical snapshots are untouched.
+
+The scheduler no longer registers `assets:refresh-prices`; that command and the old
+manual-refresh action refuse to fetch. Platform shows the latest saved reference
+quote without a refresh button. Page reads never fetch upstream. Asset and wealth
+valuation may use a still-fresh saved snapshot; absent/stale prices yield unavailable
+foreign-asset estimates, without preventing users from requesting a new exchange quote.
+Verification uses isolated mocked HTTP and Ledger tests, not live financial exchanges.

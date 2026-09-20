@@ -4,6 +4,8 @@ namespace App\Domain\Card\Models;
 
 use App\Domain\CardProduct\Models\CardProduct;
 use App\Domain\CardProvider\ProviderReference;
+use App\Domain\Ledger\Models\LedgerAccount;
+use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\User\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -36,6 +38,7 @@ final class UserCard extends Model
             'archived_at' => 'immutable_datetime',
             'refresh_generation' => 'integer',
             'provider_balance' => 'decimal:8',
+            'balance_limit' => 'decimal:8',
             'provider_balance_synced_at' => 'immutable_datetime',
         ];
     }
@@ -48,6 +51,25 @@ final class UserCard extends Model
     public function scopeWithoutTestReferences(Builder $query): void
     {
         $query->whereRaw('BTRIM(provider_card_id) !~* ?', [ProviderReference::TEST_PATTERN]);
+    }
+
+    public function overflowBalance(): string
+    {
+        $balance = LedgerAccount::query()->where('tenant_id', $this->tenant_id)
+            ->where('user_id', $this->user_id)->where('card_id', $this->id)->where('account_type', 'USER_CARD_OVERFLOW')->value('balance');
+
+        return Money::of($balance ?? '0', 'USD')->amount();
+    }
+
+    public function availableBalance(): ?string
+    {
+        return $this->provider_balance === null ? null : Money::of($this->provider_balance, 'USD')
+            ->add(Money::of($this->overflowBalance(), 'USD'))->amount();
+    }
+
+    public function effectiveBalanceLimit(): ?string
+    {
+        return $this->balance_limit ?? $this->product->balance_limit;
     }
 
     public function product(): BelongsTo

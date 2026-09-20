@@ -226,3 +226,135 @@ unverified users immediately see a verification dialog when entering Cards, with
 a Verify identity (去实名) link to `/kyc`. Dismissing via Cancel, close, Escape or
 outside click returns to `/dashboard` with history replacement. The intro retains
 its Verify identity button; there is no bottom-of-page KYC banner. Server KYC and card-application gates remain.
+
+### Per-card local balance ceiling (2026-09-19)
+
+User approved a Platform-only, per-card nullable USD balance ceiling. Blank means
+unlimited; zero blocks new loads. Active Platform `card_product.manage` sets it
+from Cards, with exact tenant/card scope and append-only actor/time audit. A
+pending QUOTING/QUOTED/PROCESSING/UNKNOWN operation blocks changes. Lowering the
+ceiling never withdraws money or changes the provider balance. This is a local
+reload policy, not a provider-side spending limit; external refunds/adjustments
+may increase the balance beyond it.
+
+New capped LOAD requests refresh the provider balance, serialize creation using
+the existing ownership locks and outstanding-operation guard, and snapshot:
+requested principal, actual principal, overflow and ceiling. Actual principal is
+min(requested, ceiling minus confirmed balance), rounded down to cents. No room,
+unconfirmed balance, or room below the product minimum fails before a provider
+quote or Ledger hold. Confirmation refreshes again and expires a quote that no
+longer fits. A completed racing operation after the initial read began requires
+a new balance read rather than trusting that stale read.
+
+Provider quotes and fees use actual principal only; the existing Ledger flow
+holds/settles actual debit (arrival plus provider fee). Overflow is an uncharged
+request remainder, not funds held, revenue or a new balance. It stays in the
+wallet and is not automatically sent later. Example: ceiling 500, card balance
+400, request 500 -> actual arrival 100, overflow 400, wallet debit 100 plus quoted
+fee. Consumer orders/balances retain actual amounts. Only Platform/company admin
+reload-order lists expose requested principal and overflow. Snapshots are
+immutable in PostgreSQL; retries use the original requested-amount fingerprint,
+UNKNOWN retains only the actual hold, and failed loads release only that hold.
+Existing orders and Ledger history are untouched. This approval changes load
+sizing, not the exact provider-evidence or Ledger settlement contracts above.
+
+No product-wide default was applied; limits are independently set per existing
+card. No real provider financial tests or automatic balance changes are authorized.
+
+
+## Product default balance limit (2026-09-19)
+
+SaaS create/edit product includes nullable `balance_limit` in USD, nonnegative exact
+cents. Existing and new cards without an individual override dynamically inherit the
+product value on new reload quotes; per-card values take precedence. Clearing the
+single-card input restores product inheritance. Both null means unlimited. Platform
+card listings show the effective limit. Product configuration audit includes the
+before/after limit, and changes never move money, alter confirmed balances, or rewrite
+existing order snapshots. Lowering a limit below an existing balance prevents further
+loads until capacity exists; the provider is not asked to withdraw excess funds.
+
+
+## Platform overflow reporting (2026-09-19)
+
+The platform funds overview includes total and daily card reload overflow (USD),
+scoped by the existing persisted company filters and UTC+8 calendar date boundaries.
+Only SUCCEEDED LOAD orders with a matched same-tenant settlement Ledger entry count;
+the immutable entry creation time supplies the settlement date. Null historical
+splits count as zero. The cards.read permission gates this series independently.
+Overflow is uncharged wallet money, so inflow, outflow and net remain unchanged.
+Reporting only reads orders and Ledger; it never calls providers or moves funds.
+
+
+## Voiding unsubmitted reload quotes (2026-09-19)
+
+Platform card_product.manage may explicitly void a scoped LOAD in QUOTING or
+QUOTED only when no provider_called_at, hold, settlement or release entry exists.
+Lock tenant, user, card and order, then transition to EXPIRED with an append-only
+CARD_LOAD_QUOTE_VOIDED administrator audit. Replays are inert. Late quote responses
+cannot resurrect it; confirmation and voiding serialize on the same card/order.
+PROCESSING/UNKNOWN and any funds-bearing order are never force-cancelled. This
+operation neither calls the provider nor changes Ledger. Platform load tables expose
+a void button only for eligible quotes, with translated status labels.
+
+
+## External-channel recharge funding (2026-09-19, supersedes uncharged overflow)
+
+User explicitly requires all requested recharge principal to be debited, with
+provider arrival and overflow funded through their externally monitored channel
+recorded separately. They declined manual receipt registration and requested local
+success for external funding without a provider recharge response. We do not implement
+or assert delivery by that external monitor, invent provider transaction IDs, or
+increase confirmed card balances locally.
+
+New immutable manual_funding_amount equals overflow_amount and represents charged
+external-channel principal. Existing records receive zero for this new captured
+funded amount: historical uncharged overflow and immutable economics are not rewritten.
+The successful LOAD equation is debit = provider arrival + fee + manual funding;
+RETURN/CANCEL_RETURN still use debit = arrival + fee. Null arithmetic cannot bypass
+validation. Ledger hold/settle/release continue posting the complete debit through
+LedgerWriter and the existing recharge clearing account; the order provides the
+channel allocation. A provider quote/result is checked against debit minus external
+funding. A provider failure releases the complete hold; UNKNOWN remains unresolved.
+
+When automatic capacity is zero or below the provider minimum, the whole requested
+principal is external funding. Quotes remain nonfinancial. Confirmation atomically
+posts hold and settlement and marks local success, with no provider write or invented
+transaction. Replays do not post again; insufficient funds roll back everything.
+The original requested minimum and all eligibility checks remain. Admin displays
+provider arrival, external funding and total wallet debit separately. Historical
+external payments are not replayed; no live financial testing is authorized.
+
+
+## Independent spendable overflow (2026-09-19, latest clarification)
+
+The user confirmed provider balance and transaction responses exclude external-channel
+money. Each card therefore owns one nonnegative USDT USER_CARD_OVERFLOW Ledger account,
+linked immutably to that card, tenant, user and USDT wallet. The displayed USD available
+balance is the confirmed provider balance plus this balance at the approved 1:1 basis.
+An unavailable provider balance remains unavailable, never assumed zero.
+
+A successful LOAD allocates its manual_funding_amount from TENANT_CARD_FUNDING_CLEARING
+to the card account in the same transaction as full wallet settlement, through LedgerWriter.
+The immutable card_overflow_movements row and database deferred evidence validation bind
+this allocation to exactly one successful, settled source order. Failure or UNKNOWN never
+credits overflow. Retries cannot allocate it twice. Migration changes schema only.
+
+Reload capacity uses the combined available balance. Capacity below minimum_reload
+(including negative or zero capacity) makes the entire principal external; exactly the
+minimum remains eligible for provider funding. Fees apply only as actually quoted.
+
+SaaS card_product.manage exposes Record overflow consumption. This is an explicit record
+of an already-completed external spend, not a request to the provider. It refreshes the
+provider balance and requires it to be zero before deducting overflow; it cannot represent
+unconfirmed provider spending or arbitrarily decrement the provider read model. The user
+must acknowledge occurrence and provide a reference/note. Amount, stable request UUID,
+operator identity and server record time are immutable. Insufficient overflow, request
+conflicts, unresolved financial orders and unauthorized/cross-tenant requests fail closed.
+The debit posts back to TENANT_CARD_FUNDING_CLEARING; no wallet debit occurs again.
+
+Consumer histories merge settled external/mixed recharge principal and overflow purchases
+with persisted provider transactions, paginated together. Exact provider transaction IDs
+are deduplicated against mixed recharge orders; amounts alone never match. Recorded
+SaaS operator and notes appear only in the SaaS transaction view. Refreshing provider
+balances/transactions cannot debit, erase or double-credit overflow. Card cancellation is
+blocked while overflow remains; no implicit return or generic adjustment flow is introduced.

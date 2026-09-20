@@ -2,7 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Application\Promotion\PromotionRanks;
+use App\Domain\Tenant\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 final class PromotionDateRequest extends FormRequest
 {
@@ -21,7 +24,7 @@ final class PromotionDateRequest extends FormRequest
             'tab' => ['prohibited'],
             'kind' => ['sometimes', 'in:all,annual,activation,legacy'],
             'activity' => ['sometimes', 'in:all,invitation,activation,annual'],
-            'rank' => ['sometimes', $this->routeIs('user.promotion.commissions') ? 'in:all,unknown,0,1,2,3,4,5,6,7,8' : 'in:all,0,1,2,3,4,5,6,7,8'],
+            'rank' => ['sometimes', Rule::in(array_merge(['all'], $this->routeIs('user.promotion.commissions') ? ['unknown'] : [], PromotionRanks::forTenant(app(TenantContext::class)->id())))],
             'relation' => ['sometimes', 'in:all,direct,indirect,unknown'],
             'date' => ['nullable', 'date_format:Y-m-d'], 'page' => ['sometimes', 'integer', 'min:1', 'max:1000000'],
             'direct_page' => ['sometimes', 'integer', 'min:1', 'max:1000000'], 'account_id' => ['nullable', 'string', 'max:24', 'regex:/^[0-9]+$/'], 'funding' => ['sometimes', 'in:all,funded,unfunded']];

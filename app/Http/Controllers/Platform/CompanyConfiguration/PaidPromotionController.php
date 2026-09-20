@@ -8,6 +8,7 @@ use App\Application\Promotion\PaidPromotionRules;
 use App\Domain\Tenant\Models\Tenant;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 final class PaidPromotionController extends Controller
@@ -23,7 +24,7 @@ final class PaidPromotionController extends Controller
     public function batch(Tenant $tenant, Request $request, ConfigurePaidPromotion $configure)
     {
         $v = $request->validate([
-            'levels' => ['required', 'array', 'min:1', 'max:8'],
+            'levels' => ['required', 'array', 'min:1', 'max:'.DB::table('paid_promotion_levels')->where('tenant_id', $tenant->id)->count()],
             'levels.*.id' => ['required', 'uuid', 'distinct'],
             'levels.*.fee' => ['required', 'string', 'regex:/^[1-9][0-9]{0,11}(?:\.[0-9]{1,8})?$/D'],
             'levels.*.percent' => ['required', 'integer', 'between:0,100'],

@@ -27,7 +27,7 @@ final class LedgerAccount extends Model
     protected static function booted(): void
     {
         self::updating(function (self $account): void {
-            if ($account->isDirty(['tenant_id', 'wallet_id', 'user_id', 'account_type', 'asset_code'])) {
+            if ($account->isDirty(['tenant_id', 'wallet_id', 'user_id', 'card_id', 'account_type', 'asset_code'])) {
                 throw new LogicException('Ledger account identity is immutable.');
             }
         });

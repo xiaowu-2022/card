@@ -24,6 +24,14 @@ final readonly class PaidPromotionQuery
         ])->all();
     }
 
+    private function choices(string $tenant, ?object $cycle): array
+    {
+        $policy = app(PromotionUpgradeEligibility::class);
+        $context = $policy->context($tenant, $cycle);
+
+        return ['upgradeEligibility' => $context, 'levels' => array_map(fn ($level) => $level + $policy->decision($cycle, (object) $level, $context), $this->levels($tenant))];
+    }
+
     /** Benefits and rebate progress only: no team traversal or member details. */
     public function benefits(string $tenant, string $user): array
     {
@@ -34,7 +42,7 @@ final readonly class PaidPromotionQuery
         $claims = DB::table('paid_promotion_rebates')->where('tenant_id', $tenant)->where('user_id', $user);
 
         return [
-            'levels' => $this->levels($tenant), 'rank' => $cycle?->rank ?? 0,
+            ...$this->choices($tenant, $cycle), 'rank' => $cycle?->rank ?? 0,
             'percent' => $cycle?->percent ?? 0, 'reward' => (string) ($cycle?->reward ?? 20),
             'membershipStatus' => $cycle ? 'ACTIVE' : ($previous ? 'EXPIRED' : 'NONE'),
             'previousCycle' => $previous ? ['rank' => $previous->rank, 'endsAt' => $previous->ends_at] : null,
@@ -58,7 +66,7 @@ final readonly class PaidPromotionQuery
         $tables = ['ANNUAL' => [], 'ACTIVATION' => []];
         $totals = ['ANNUAL' => '0', 'ACTIVATION' => '0'];
         foreach (['ANNUAL', 'ACTIVATION'] as $kind) {
-            for ($rank = 0; $rank <= 8; $rank++) {
+            foreach (PromotionRanks::forTenant($tenant) as $rank) {
                 $row = ['rank' => $rank];
                 foreach (['direct' => 1, 'indirect' => 2] as $direction => $relation) {
                     $r = $rows->first(fn ($r) => $r->kind === $kind && $r->source_rank === $rank && $r->relation === $relation);
@@ -89,7 +97,7 @@ final readonly class PaidPromotionQuery
           ) active ON true
           GROUP BY COALESCE(active.rank,0)
           SQL, [$tenant, $user, $tenant, $tenant, $at, $at]))->keyBy('rank');
-        $teamByLevel = collect(range(0, 8))->map(fn ($rank) => [
+        $teamByLevel = collect(PromotionRanks::forTenant($tenant))->map(fn ($rank) => [
             'rank' => $rank, 'direct' => (int) ($team->get($rank)?->direct ?? 0),
             'indirect' => (int) ($team->get($rank)?->indirect ?? 0),
         ])->all();
@@ -102,7 +110,7 @@ final readonly class PaidPromotionQuery
             'membershipStatus' => $cycle ? 'ACTIVE' : ($previous ? 'EXPIRED' : 'NONE'),
             'previousCycle' => $previous ? ['rank' => $previous->rank, 'endsAt' => $previous->ends_at] : null,
             'availableBalance' => Money::of($available ?? '0', 'USDT')->amount(),
-            'levels' => $this->levels($tenant), 'rank' => $cycle?->rank ?? 0, 'percent' => $cycle?->percent ?? 0, 'reward' => (string) ($cycle?->reward ?? 20),
+            ...$this->choices($tenant, $cycle), 'rank' => $cycle?->rank ?? 0, 'percent' => $cycle?->percent ?? 0, 'reward' => (string) ($cycle?->reward ?? 20),
             'cycle' => $cycle ? ['id' => $cycle->id, 'startsAt' => $cycle->starts_at, 'endsAt' => $cycle->ends_at, 'tariff' => $cycle->tariff, 'rebatePolicy' => $cycle->rebate_policy] : null,
             'progress' => $progress, 'pending' => $cycle && DB::table('paid_promotion_rebates')->where('tenant_id', $tenant)->where('user_id', $user)->where('cycle_id', $cycle->id)->where('status', 'PENDING')->exists(),
             'claimsPage' => $claimsPage, 'hasMoreClaims' => $claims->count() > 30,

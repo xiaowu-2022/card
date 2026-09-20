@@ -246,32 +246,21 @@ function AssetSettingsForm(p: Props) {
                                     <div className="flex flex-wrap items-center justify-between gap-3">
                                         <div>
                                             <h2 className="text-sm font-semibold">
-                                                {t('Platform exchange rates')}
+                                                {t('Latest exchange quote')}
                                             </h2>
                                             {p.market.snapshot && (
                                                 <p className="mt-1 text-xs text-muted-foreground">
                                                     {t('Updated at')}:{' '}
                                                     {dateTime(p.market.snapshot.observed_at)}
-                                                    {!p.market.snapshot.fresh && (
-                                                        <span className="ml-2 text-destructive">
-                                                            {t('Rates expired')}
-                                                        </span>
-                                                    )}
                                                 </p>
                                             )}
                                         </div>
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="secondary"
-                                            disabled={form.processing}
-                                            onClick={() =>
-                                                submit([{ kind: 'market' }], 'market-refresh')
-                                            }
-                                        >
-                                            {t('Update platform rates')}
-                                        </Button>
                                     </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        {t(
+                                            'New exchange quotes fetch live OKX rates. Saved rates below are for reference only.',
+                                        )}
+                                    </p>
                                     {p.market.snapshot ? (
                                         <div className="grid gap-2 sm:grid-cols-3">
                                             {Object.entries(p.market.snapshot.rates).map(
@@ -293,9 +282,7 @@ function AssetSettingsForm(p: Props) {
                                         </div>
                                     ) : (
                                         <p className="text-sm text-muted-foreground">
-                                            {t(
-                                                'No rates have been saved yet. Click Update platform rates.',
-                                            )}
+                                            {t('No exchange quotes yet.')}
                                         </p>
                                     )}
                                 </section>

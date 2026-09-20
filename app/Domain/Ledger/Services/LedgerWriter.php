@@ -70,6 +70,12 @@ final readonly class LedgerWriter
                     }
                     if ($balance->isNegative() && ! $account->account_type->permitsNegativeBalance()) {
                         Log::warning('Negative ledger balance attempt blocked.', ['tenant_id' => $plan->tenantId, 'account_id' => $account->id]);
+                        Log::warning('Negative ledger balance attempt blocked.', [
+                            'balance' => $balance,
+                            'account_balance' => $account->balance,
+                            'accounts' => json_encode($accounts),
+                            'tenant_id' => json_encode($plan)
+                        ]);
                         throw new DomainException('LEDGER_NEGATIVE_BALANCE', 'This ledger event would create a prohibited negative balance.');
                     }
                     $newBalances[$account->id] = $balance->amount();

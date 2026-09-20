@@ -1,3 +1,46 @@
+On 2026-09-20 the user approved promotion upgrade activation thresholds. Within an
+active annual cycle, only enabled higher-rank/higher-fee levels with target strictly
+greater than the cycle's weighted first activations (direct 1, indirect 0.5) may be
+purchased; the highest currently enabled rank alone is exempt from this count rule.
+Quote and payment confirmation share the same server rule and recheck current counts
+and configuration under existing tenant locks. First purchase/new cycles are unaffected;
+pending returns still block upgrades. Ranks and report filters are dynamic, including
+historical ranks; never hardcode eight levels or current thresholds. No level-creation
+UI, configuration/data rewrites or live financial testing is authorized by this change.
+See docs/architecture/PAID_PROMOTION.md.
+
+On 2026-09-19 the user clarified external-channel card money is absent from provider
+balance/transactions. Maintain per-card USER_CARD_OVERFLOW Ledger accounts; available
+card balance is provider balance plus overflow balance. Fund overflow atomically with
+successful reload settlement and show full recharge principal in card activity, without
+duplicating exact matched provider rows. Capacity uses the combined available balance;
+if capacity is below the product minimum reload, route the whole request externally.
+Provider refresh never overwrites overflow. Consumer spending uses provider money first;
+SaaS records completed overflow consumption with scoped permission, explicit acknowledgement,
+idempotency, operator/time audit and LedgerWriter. Do not fake provider consumption:
+refresh and require exhausted provider balance before recording overflow consumption.
+Positive overflow blocks card cancellation. Existing Ledger history is immutable.
+See docs/architecture/CARD_MANAGEMENT.md.
+
+On 2026-09-19 the user superseded the uncharged-overflow rule: full requested card
+reload principal plus the provider fee is charged as recharge funding. The capped
+provider portion and externally fulfilled overflow must be recorded separately.
+The user confirmed their external monitoring/channel fulfills overflow and requested
+local success without manual arrival registration or provider recharge confirmation
+for that portion. Zero provider arrival must never call preRecharge/recharge; local
+hold and settlement commit atomically with success. Positive provider portions keep
+exact provider-result validation; failures release the full hold and UNKNOWN stays
+held. Do not fabricate provider transactions or card balances. Existing immutable
+orders and Ledger remain untouched; manual_funding_amount captures funded external
+principal on new orders. See docs/architecture/CARD_MANAGEMENT.md.
+
+On 2026-09-19 the user approved per-card local balance ceilings, managed only by
+Platform. Capped reloads send and debit only actual capacity plus its quoted fee;
+overflow remains uncharged in the wallet and appears only in admin order reporting.
+Never inflate consumer balances or debit the requested overflow. Preserve scoped
+permissions, fresh provider reads, immutable snapshots, idempotency and UNKNOWN
+holds. See docs/architecture/CARD_MANAGEMENT.md.
+
 On 2026-09-19 the user changed new ETH/BTC deposit identification offsets to
 1–99 units at two decimal places beyond the company minimum's effective
 precision (ignore trailing zeros). Existing orders remain immutable; USDT/USDC
@@ -28,6 +71,23 @@ Ledger and chain verification remain unchanged. This supersedes TRON fixed-fee
 configuration rules. Company asset settings use compact rows.
 
 # Virtual Card SaaS Agent Rules
+
+On 2026-09-19 the user required a product default card balance limit in SaaS product
+settings. Existing and new cards dynamically inherit it when their individual limit
+is null; an explicit per-card limit takes precedence. Clearing a card limit restores
+inheritance; clearing the product default means unlimited. Applies to new reload
+quotes using fresh provider balances, with immutable existing quote splits preserved.
+Configuration changes never transfer existing card funds or rewrite orders/Ledger.
+See `docs/architecture/CARD_MANAGEMENT.md`.
+
+On 2026-09-19 the user replaced periodic shared CoinGecko pricing with public OKX
+spot rates fetched for each new internal exchange quote. Disable scheduled/manual
+price refresh; page reads never call upstream. Use direct USDC/ETH/BTC-USDT prices,
+validate freshness and exact decimals, and fail closed without cached-price fallback.
+Idempotent quote replays and confirmation reuse immutable quote economics; preserve
+30-second expiry, ownership, eligibility and atomic Ledger settlement. This overrides
+only earlier scheduled-price/quote-read requirements. No live financial tests.
+See `docs/architecture/MULTI_ASSET_CENTER.md`.
 
 On 2026-09-19 the user approved receiving-address rotation with existing orders.
 New orders use the current address; immutable old orders retain their address,

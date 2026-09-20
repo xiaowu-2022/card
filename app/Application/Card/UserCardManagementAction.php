@@ -6,6 +6,7 @@ use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Card\Models\CardManagementOrder;
 use App\Domain\Card\Services\CardholderGeography;
 use App\Domain\CardProvider\Contracts\CardProviderInterface;
+use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\SecurityDeposit\Services\RefundCardPolicy;
 use App\Support\Errors\DomainException;
 use App\Support\Logging\PhotonPayLog;
@@ -59,7 +60,7 @@ final readonly class UserCardManagementAction
                     throw new DomainException('CARD_REFRESH_UNAVAILABLE', 'The latest card information could not be confirmed.', 503);
                 }
 
-                return ['balance' => $fresh->provider_balance, 'syncedAt' => $fresh->provider_balance_synced_at?->toIso8601String()];
+                return ['balance' => $fresh->availableBalance(), 'syncedAt' => $fresh->provider_balance_synced_at?->toIso8601String()];
             }
             if ($action === 'quote') {
                 return self::order($this->manage->quote($tenantId, $userId, $cardId, $input['request_id'], $input['amount']));
@@ -97,7 +98,7 @@ final readonly class UserCardManagementAction
             'state' => match ($order->status) {
                 'QUOTED' => 'quoted','SUCCEEDED' => 'completed','FAILED' => 'declined','EXPIRED' => 'expired',default => 'confirming'
             },
-            'amount' => $order->amount, 'debit' => $order->debit_amount, 'arrival' => $order->arrival_amount, 'fee' => $order->fee_amount,
+            'amount' => $order->kind === 'LOAD' ? Money::of($order->amount, 'USD')->add(Money::of($order->manual_funding_amount, 'USD'))->amount() : $order->amount, 'debit' => $order->debit_amount, 'arrival' => $order->arrival_amount === null ? null : Money::of($order->arrival_amount, 'USD')->add(Money::of($order->kind === 'LOAD' ? $order->manual_funding_amount : '0', 'USD'))->amount(), 'fee' => $order->fee_amount,
             'expiresAt' => $order->quote_expires_at?->toIso8601String(), 'createdAt' => $order->created_at->toIso8601String()];
     }
 }

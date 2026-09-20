@@ -118,14 +118,6 @@ final readonly class PaidPromotionPurchase
 
     private function assertUpgrade(string $tenant, ?object $cycle, object $level): void
     {
-        if (! $cycle) {
-            return;
-        }
-        if ($level->rank <= $cycle->rank || BigDecimal::of($level->fee)->compareTo($cycle->tariff) <= 0) {
-            throw new DomainException('PROMOTION_UPGRADE_INVALID', 'Only a higher promotion level can be purchased before expiry.');
-        }
-        if (DB::table('paid_promotion_rebates')->where('tenant_id', $tenant)->where('cycle_id', $cycle->id)->where('status', 'PENDING')->exists()) {
-            throw new DomainException('PROMOTION_REBATE_PENDING', 'Annual fee return is processing. Try upgrading shortly.', 409);
-        }
+        app(PromotionUpgradeEligibility::class)->assertAllowed($tenant, $cycle, $level);
     }
 }

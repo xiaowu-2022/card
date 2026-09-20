@@ -5,6 +5,7 @@ import { exactAmount } from '@/lib/exact-amount';
 
 export type ReportFilters = Record<string, string | number | null>;
 export type ReportPeriod = {
+    ranks: number[];
     dateFrom: string | null;
     dateTo: string | null;
     today: string;
@@ -47,13 +48,10 @@ export function visitReport(url: string, filters: ReportFilters, changes: Report
     });
 }
 
-export function rankOptions(unknown = false): [string, string][] {
+export function rankOptions(ranks: number[], unknown = false): [string, string][] {
     return [
         ['all', t('All levels')],
-        ...Array.from({ length: 9 }, (_, rank): [string, string] => [
-            String(rank),
-            promotionLevel(rank),
-        ]),
+        ...ranks.map((rank): [string, string] => [String(rank), promotionLevel(rank)]),
         ...(unknown
             ? [['unknown', t('Historical record · not recorded')] as [string, string]]
             : []),

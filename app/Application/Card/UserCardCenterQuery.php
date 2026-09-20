@@ -102,7 +102,7 @@ final readonly class UserCardCenterQuery
                     'last4' => $card->last4,
                     'expiry' => $card->expiry,
                     'currency' => $card->card_currency,
-                    'balance' => $card->provider_balance,
+                    'balance' => $card->availableBalance(),
                     'syncedAt' => $card->provider_balance_synced_at?->toIso8601String(),
                     'minimumReload' => $card->product->minimum_reload,
                     'refundLocked' => RefundCardPolicy::blocked($tenantId, $userId, $card->id),

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\User;
 
 use App\Application\Promotion\PaidPromotionPurchase;
 use App\Application\Promotion\PaidPromotionQuery;
+use App\Application\Promotion\PromotionRanks;
 use App\Domain\Tenant\TenantContext;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -23,7 +24,7 @@ final class PaidPromotionController extends Controller
 
     public function details(Request $request, TenantContext $context, PaidPromotionQuery $query)
     {
-        $v = $request->validate(['kind' => ['required', Rule::in(['ANNUAL', 'ACTIVATION'])], 'rank' => ['required', 'integer', 'between:0,8'], 'page' => ['nullable', 'integer', 'min:1', 'max:100000']]);
+        $v = $request->validate(['kind' => ['required', Rule::in(['ANNUAL', 'ACTIVATION'])], 'rank' => ['required', 'integer', Rule::in(PromotionRanks::forTenant($context->id()))], 'page' => ['nullable', 'integer', 'min:1', 'max:100000']]);
 
         return Inertia::render('user/PromotionRewardDetails', ['details' => $query->details($context->id(), $request->user('tenant_user')->id, $v['kind'], (int) $v['rank'], (int) ($v['page'] ?? 1))]);
     }

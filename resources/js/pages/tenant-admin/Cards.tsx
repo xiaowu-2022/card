@@ -1,3 +1,5 @@
+import { CardLoadOrders, type CardLoadOrder } from '@/components/admin/CardLoadOrders';
+import type { AccountPage } from '@/components/shared/PlatformAccountTable';
 import { displayMoney } from '@/lib/exact-amount';
 import { useAdminTranslation, t, dateTime, errorMessage } from '@/i18n/admin';
 import { Head } from '@inertiajs/react';
@@ -51,10 +53,12 @@ const tone = (status: string): StatusTone =>
             : 'INFO';
 
 export default function Cards({
+    loads,
     cardholders,
     orders,
     cards,
 }: {
+    loads: AccountPage<CardLoadOrder>;
     cardholders: Holder[];
     orders: Order[];
     cards: UserCard[];
@@ -74,6 +78,7 @@ export default function Cards({
                 <Tabs defaultValue="orders">
                     <TabsList>
                         <TabsTrigger value="orders">{t('Issue orders')}</TabsTrigger>
+                        <TabsTrigger value="loads">{t('Card reload orders')}</TabsTrigger>
                         <TabsTrigger value="cards">{t('Cards')}</TabsTrigger>
                         <TabsTrigger value="cardholders">{t('Cardholders')}</TabsTrigger>
                     </TabsList>
@@ -118,6 +123,9 @@ export default function Cards({
                                 </Table>
                             </CardContent>
                         </Card>
+                    </TabsContent>
+                    <TabsContent value="loads">
+                        <CardLoadOrders page={loads} />
                     </TabsContent>
                     <TabsContent value="cards">
                         <Card>

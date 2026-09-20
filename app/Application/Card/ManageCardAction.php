@@ -11,6 +11,7 @@ use App\Domain\Card\Services\CardholderMaterials;
 use App\Domain\CardProvider\Contracts\CardProviderInterface;
 use App\Domain\CardProvider\DTOs\CardholderUpdateDTO;
 use App\Domain\CardProvider\DTOs\ProviderCardFundsDTO;
+use App\Domain\CardProvider\DTOs\ProviderCardQuoteDTO;
 use App\Domain\CardProvider\Enums\ProviderOperationStatus;
 use App\Domain\CardProvider\Exceptions\ProviderRejectedException;
 use App\Domain\Ledger\ValueObjects\Money;
@@ -18,6 +19,9 @@ use App\Domain\SecurityDeposit\Services\RefundCardPolicy;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use App\Support\Errors\DomainException;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -30,13 +34,29 @@ final readonly class ManageCardAction
     public function quote(string $tenantId, string $userId, string $cardId, string $requestId, string $amount): CardManagementOrder
     {
         $amount = $this->amount($amount);
-        [$order, $send] = $this->prepare($tenantId, $userId, $cardId, $requestId, 'LOAD', $amount);
+        RefundCardPolicy::assertAllowed($tenantId, $userId, $cardId);
+        $card = $this->access->card($tenantId, $userId, $cardId);
+        $existing = $this->existing($tenantId, $userId, $requestId, $this->fingerprint($tenantId, $userId, $cardId, 'LOAD', $amount, []));
+        if ($existing) {
+            return $existing;
+        }
+        $balanceReadAt = null;
+        if ($card->effectiveBalanceLimit() !== null) {
+            $balanceReadAt = now();
+            $this->refresh->execute($tenantId, $userId, $cardId);
+        }
+        [$order, $send] = $this->prepare($tenantId, $userId, $cardId, $requestId, 'LOAD', $amount, balanceReadAt: $balanceReadAt);
         if (! $send) {
             return $order;
         }
+        $amount = $order->amount;
         $started = now();
         try {
-            $quote = $this->providerFor($order)->quoteCardLoad($order->provider_card_id, $amount, $order->provider_request_id);
+            // The manual portion never goes to the provider. A zero automatic portion
+            // still needs an explicit confirmation and atomic local accounting.
+            $quote = Money::of($amount, 'USD')->isZero()
+                ? new ProviderCardQuoteDTO($order->provider_request_id, '0.00000000', '0.00000000', '0.00000000')
+                : $this->providerFor($order)->quoteCardLoad($order->provider_card_id, $amount, $order->provider_request_id);
             if ($quote->requestId !== $order->provider_request_id || Money::of($amount, 'USD')->compare(Money::of($quote->arrivalAmount, 'USD')) !== 0
                 || Money::of($quote->debitAmount, 'USD')->compare(Money::of($quote->arrivalAmount, 'USD')->add(Money::of($quote->feeAmount, 'USD'))) !== 0) {
                 throw new \UnexpectedValueException;
@@ -47,15 +67,14 @@ final readonly class ManageCardAction
                 if ($current->status !== 'QUOTING') {
                     return $current;
                 }
-                // Local confirmation window is deliberately short; it is not an invented provider TTL.
+                $debit = Money::of($quote->debitAmount, 'USD')->add(Money::of($current->manual_funding_amount, 'USD'))->amount();
                 $current->forceFill(['status' => $started->copy()->addSeconds(30)->isFuture() ? 'QUOTED' : 'EXPIRED',
-                    'debit_amount' => $quote->debitAmount, 'arrival_amount' => $quote->arrivalAmount,
+                    'debit_amount' => $debit, 'arrival_amount' => $quote->arrivalAmount,
                     'fee_amount' => $quote->feeAmount, 'quote_expires_at' => $started->copy()->addSeconds(30)])->save();
 
                 return $current;
             });
         } catch (\Throwable) {
-            // preRecharge is only an inquiry; no hold or recharge POST happened.
             return $this->mark($order, 'FAILED');
         }
     }
@@ -63,6 +82,9 @@ final readonly class ManageCardAction
     public function confirmLoad(string $tenantId, string $userId, string $cardId, string $orderId): CardManagementOrder
     {
         $snapshot = CardManagementOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('card_id', $cardId)->whereKey($orderId)->firstOrFail();
+        if ($snapshot->status === 'QUOTED' && $snapshot->balance_limit_snapshot !== null && Money::of($snapshot->amount, 'USD')->isPositive()) {
+            $this->refresh->execute($tenantId, $userId, $cardId);
+        }
         [$order, $send] = DB::transaction(function () use ($snapshot): array {
             $card = $this->access->card($snapshot->tenant_id, $snapshot->user_id, $snapshot->card_id, lock: true);
             RefundCardPolicy::assertAllowed($snapshot->tenant_id, $snapshot->user_id, $snapshot->card_id);
@@ -78,8 +100,24 @@ final readonly class ManageCardAction
 
                 return [$order, false];
             }
+            if ($order->balance_limit_snapshot !== null && Money::of($order->amount, 'USD')->isPositive()
+                && ($card->provider_balance === null || Money::of($card->availableBalance(), 'USD')->add(Money::of($order->amount, 'USD'))->compare(Money::of($order->balance_limit_snapshot, 'USD')) > 0)) {
+                $order->forceFill(['status' => 'EXPIRED'])->save();
+
+                return [$order, false];
+            }
             $this->requireLoadEligibility($order->tenant_id, $order->user_id);
             $this->requireStatus($card, 'LOAD');
+            if (Money::of($order->amount, 'USD')->isZero()) {
+                $hold = $this->ledger->hold($order);
+                $settlement = $this->ledger->settleLoad($order);
+                $order->forceFill(['status' => 'SUCCEEDED', 'hold_entry_id' => $hold, 'settlement_entry_id' => $settlement])->save();
+                app(CardOverflowLedger::class)->fund($order);
+                $this->audit->record($order->tenant_id, 'USER', $order->user_id, 'CARD_MANUAL_FUNDING_ACCEPTED', 'card_management_order', $order->id,
+                    after: ['manual_funding_amount' => $order->manual_funding_amount, 'settlement_mode' => 'EXTERNAL_CHANNEL']);
+
+                return [$order, false];
+            }
             $order->forceFill(['status' => 'PROCESSING', 'provider_called_at' => now(), 'hold_entry_id' => $this->ledger->hold($order)])->save();
 
             return [$order, true];
@@ -230,7 +268,7 @@ final readonly class ManageCardAction
                         && Money::of($result->debitAmount, 'USD')->isPositive()
                         && ! Money::of($result->arrivalAmount, 'USD')->isNegative() && ! Money::of($result->feeAmount, 'USD')->isNegative();
                     if ($order->kind === 'LOAD') {
-                        $valid = $valid && $order->debit_amount === $result->debitAmount && $order->arrival_amount === $result->arrivalAmount && $order->fee_amount === $result->feeAmount;
+                        $valid = $valid && Money::of($order->debit_amount, 'USD')->subtract(Money::of($order->manual_funding_amount, 'USD'))->amount() === $result->debitAmount && $order->arrival_amount === $result->arrivalAmount && $order->fee_amount === $result->feeAmount;
                     }
                 }
                 if (! $valid) {
@@ -238,10 +276,11 @@ final readonly class ManageCardAction
 
                     return $order;
                 }
-                $order->forceFill(['provider_transaction_id' => $result->transactionId, 'debit_amount' => $result->debitAmount,
+                $order->forceFill(['provider_transaction_id' => $result->transactionId, 'debit_amount' => $order->kind === 'LOAD' ? $order->debit_amount : $result->debitAmount,
                     'arrival_amount' => $result->arrivalAmount, 'fee_amount' => $result->feeAmount]);
                 $entry = $order->kind === 'LOAD' ? $this->ledger->settleLoad($order) : $this->ledger->settleReturn($order);
                 $order->forceFill(['status' => 'SUCCEEDED', 'settlement_entry_id' => $entry, 'last_checked_at' => now()])->save();
+                app(CardOverflowLedger::class)->fund($order);
             } elseif ($result->status === ProviderOperationStatus::Failed) {
                 $release = $order->kind === 'LOAD' && $order->hold_entry_id ? $this->ledger->releaseLoad($order) : null;
                 $order->forceFill(['status' => 'FAILED', 'release_entry_id' => $release, 'last_checked_at' => now()])->save();
@@ -263,14 +302,14 @@ final readonly class ManageCardAction
         return $order;
     }
 
-    private function prepare(string $tenantId, string $userId, string $cardId, string $requestId, string $kind, string $amount, #[\SensitiveParameter] array $fields = [], ?string $refundId = null): array
+    private function prepare(string $tenantId, string $userId, string $cardId, string $requestId, string $kind, string $amount, #[\SensitiveParameter] array $fields = [], ?string $refundId = null, ?CarbonInterface $balanceReadAt = null): array
     {
         if (! Str::isUuid($requestId)) {
             throw new DomainException('CARD_OPERATION_INVALID', 'This card operation is invalid.');
         }
         $fingerprint = $this->fingerprint($tenantId, $userId, $cardId, $kind, $amount, $fields);
 
-        return DB::transaction(function () use ($tenantId, $userId, $cardId, $requestId, $kind, $amount, $fields, $fingerprint, $refundId): array {
+        return DB::transaction(function () use ($tenantId, $userId, $cardId, $requestId, $kind, $amount, $fields, $fingerprint, $refundId, $balanceReadAt): array {
             $card = $this->access->card($tenantId, $userId, $cardId, lock: true);
             $refundId === null ? RefundCardPolicy::assertAllowed($tenantId, $userId, $cardId)
                 : RefundCardPolicy::assertWorker($tenantId, $userId, $refundId, $cardId, $kind, $requestId);
@@ -285,11 +324,37 @@ final readonly class ManageCardAction
                 throw new DomainException('CARD_OPERATION_OUTSTANDING', 'Wait for the current card operation to finish.', 409);
             }
             $this->requireStatus($card, $kind);
+            if ($kind === 'CANCEL' && Money::of($card->overflowBalance(), 'USD')->isPositive()) {
+                throw new DomainException('CARD_OVERFLOW_REMAINS', 'The card still has an available balance.', 409);
+            }
             if ($kind === 'LOAD') {
                 $this->requireLoadEligibility($tenantId, $userId);
             }
             if ($kind === 'LOAD' && Money::of($amount, 'USD')->compare(Money::of($card->product->minimum_reload, 'USD')) < 0) {
                 throw new DomainException('CARD_AMOUNT_INVALID', 'The amount is below this card’s minimum reload.');
+            }
+            $requestedAmount = $amount;
+            $limit = $kind === 'LOAD' ? $card->effectiveBalanceLimit() : null;
+            if ($limit !== null) {
+                // Reject a racing operation that completed after our external balance read began.
+                if ($balanceReadAt === null || $card->provider_balance === null ||
+                    CardManagementOrder::query()->where('tenant_id', $tenantId)->where('card_id', $cardId)
+                        ->where('updated_at', '>=', $balanceReadAt)->where('status', 'SUCCEEDED')->exists()) {
+                    throw new DomainException('CARD_REFRESH_UNCONFIRMED', 'The latest card information could not be confirmed.', 409);
+                }
+                $room = Money::of($limit, 'USD')->subtract(Money::of($card->availableBalance(), 'USD'));
+                // Card loads accept cents; never round remaining capacity upwards.
+                $room = Money::of((string) BigDecimal::of($room->amount())->toScale(2, RoundingMode::Down), 'USD');
+                if ($room->compare(Money::of($amount, 'USD')) < 0) {
+                    $amount = $room->amount();
+                }
+                if ($kind === 'LOAD' && Money::of($amount, 'USD')->compare(Money::of($card->product->minimum_reload, 'USD')) < 0) {
+                    $amount = '0';
+                }
+            } else {
+                if ($kind === 'LOAD' && Money::of($amount, 'USD')->compare(Money::of($card->product->minimum_reload, 'USD')) < 0) {
+                    throw new DomainException('CARD_AMOUNT_INVALID', 'The amount is below this card’s minimum reload.');
+                }
             }
             if ($kind === 'RETURN' && ($card->provider_balance === null || Money::of($card->provider_balance, 'USD')->compare(Money::of($amount, 'USD')) < 0)) {
                 throw new DomainException('CARD_RETURN_AMOUNT_INVALID', 'The return amount exceeds the available card balance.', 409);
@@ -301,6 +366,10 @@ final readonly class ManageCardAction
                 'wallet_id' => $wallet->id, 'request_id' => $requestId, 'request_hash' => $fingerprint,
                 'kind' => $kind, 'status' => $kind === 'LOAD' ? 'QUOTING' : 'PROCESSING', 'amount' => $amount,
                 'provider_card_id' => $card->provider_card_id, 'provider_request_id' => $id,
+                'requested_amount' => $kind === 'LOAD' ? $requestedAmount : null,
+                'manual_funding_amount' => $kind === 'LOAD' ? Money::of($requestedAmount, 'USD')->subtract(Money::of($amount, 'USD'))->amount() : '0',
+                'overflow_amount' => $kind === 'LOAD' ? Money::of($requestedAmount, 'USD')->subtract(Money::of($amount, 'USD'))->amount() : null,
+                'balance_limit_snapshot' => $limit,
                 'provider_called_at' => $kind === 'LOAD' ? null : now(),
                 'holder_changes_encrypted' => $kind === 'HOLDER_UPDATE' ? $this->materials->encrypt(json_encode($fields, JSON_THROW_ON_ERROR)) : null])->save();
             $this->audit->record($tenantId, 'USER', $userId, 'CARD_MANAGEMENT_REQUESTED', 'card_management_order', $id, after: ['kind' => $kind]);

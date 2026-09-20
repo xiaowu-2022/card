@@ -689,7 +689,7 @@ export default function Cards(props: Props) {
 
                 <UserCardTransactions
                     key={`${props.cards
-                        .map((card) => card.id)
+                        .map((card) => `${card.id}:${card.balance}:${card.pendingOperationCount}`)
                         .sort()
                         .join(',')}:${props.providerAvailable}:${Boolean(props.demo)}`}
                     cardIds={props.cards.map((card) => card.id)}

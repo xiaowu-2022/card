@@ -2,25 +2,18 @@
 
 namespace App\Console\Commands;
 
-use App\Application\Assets\MarketPrices;
 use Illuminate\Console\Command;
 
 final class RefreshAssetPrices extends Command
 {
     protected $signature = 'assets:refresh-prices';
 
-    protected $description = 'Refresh public read-only price snapshots (never trades or changes balances)';
+    protected $description = 'Disabled: exchange quotes fetch OKX prices on demand';
 
-    public function handle(MarketPrices $prices): int
+    public function handle(): int
     {
-        try {
-            $prices->refresh();
+        $this->error('Scheduled price refresh is disabled. New exchange quotes fetch OKX prices on demand.');
 
-            return self::SUCCESS;
-        } catch (\Throwable) {
-            $this->error('Asset market prices unavailable. Quotes fail closed.');
-
-            return self::FAILURE;
-        }
+        return self::FAILURE;
     }
 }

@@ -36,6 +36,7 @@ type ProductFormData = {
     minimum_initial_load: string;
     minimum_reload: string;
     opening_fee: string;
+    balance_limit: string;
     status: ProductStatus;
 };
 type Product = {
@@ -52,6 +53,7 @@ type Product = {
     cardType: string;
     minimumInitialLoad: string;
     minimumReload: string;
+    balanceLimit: string | null;
     openingFee: string | null;
     status: ProductStatus;
     tenantConfigCount: number;
@@ -63,6 +65,7 @@ const blank: ProductFormData = {
     minimum_initial_load: '20.00000000',
     minimum_reload: '20.00000000',
     opening_fee: '',
+    balance_limit: '',
     status: 'DRAFT',
 };
 
@@ -264,6 +267,10 @@ function ProductEditor({
                   minimum_initial_load: product.minimumInitialLoad,
                   minimum_reload: product.minimumReload,
                   opening_fee: product.openingFee ?? '',
+                  balance_limit:
+                      product.balanceLimit === null
+                          ? ''
+                          : product.balanceLimit.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, ''),
                   status: product.status,
               }
             : blank,
@@ -497,6 +504,23 @@ function ProductFields({
                     value={form.data.minimum_reload}
                     onChange={(event) => form.setData('minimum_reload', event.target.value)}
                 />
+            </FormField>
+            <FormField
+                id={`${prefix}-balance-limit`}
+                label={t('Default balance limit (USD)')}
+                error={errorMessage(form.errors.balance_limit)}
+            >
+                <MoneyInput
+                    id={`${prefix}-balance-limit`}
+                    inputMode="decimal"
+                    value={form.data.balance_limit}
+                    onChange={(event) => form.setData('balance_limit', event.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                    {t(
+                        'Applies to existing and new cards unless individually overridden. Leave empty for no limit.',
+                    )}
+                </p>
             </FormField>
             <FormField
                 id={`${prefix}-status`}

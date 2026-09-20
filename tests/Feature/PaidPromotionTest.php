@@ -13,7 +13,9 @@ use App\Application\Promotion\PaidPromotionQuery;
 use App\Application\Promotion\PaidPromotionRebate;
 use App\Application\Promotion\PromotionMembershipAction;
 use App\Application\Promotion\PromotionQuery;
+use App\Application\Promotion\PromotionRanks;
 use App\Application\Promotion\PromotionReportQuery;
+use App\Application\Promotion\PromotionUpgradeEligibility;
 use App\Application\SecurityDeposit\FundSecurityDepositAction;
 use App\Application\SecurityDeposit\RefundSecurityDepositAction;
 use App\Application\User\PlatformUserQuery;
@@ -1200,4 +1202,93 @@ it('saves promotion tariffs as one final configuration and rolls back stale or i
     $payload[0]['fee'] = '999999999999';
     $this->post($base, ['levels' => $payload])->assertSessionHasErrors();
     expect(DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->orderBy('rank')->get()->toJson())->toBe($saved->toJson());
+});
+
+it('uses strict weighted cycle thresholds and the dynamic highest enabled rank', function (int $units, array $expected) {
+    $policy = app(PromotionUpgradeEligibility::class);
+    $cycle = (object) ['rank' => 1, 'tariff' => '1000'];
+    $targets = [1 => 100, 2 => 200, 3 => 500, 4 => 1000, 5 => 2000, 6 => 5000, 7 => 10000, 8 => 20000];
+    $eligible = [];
+    foreach ($targets as $rank => $target) {
+        $level = (object) ['rank' => $rank, 'target' => $target, 'fee' => (string) ($rank * 1000), 'enabled' => true];
+        if ($policy->decision($cycle, $level, ['weightedUnits' => $units, 'highestEnabledRank' => 8, 'pending' => false])['selectable']) {
+            $eligible[] = $rank;
+        }
+    }
+    expect($eligible)->toBe($expected);
+})->with([[999, [3, 4, 5, 6, 7, 8]], [1000, [4, 5, 6, 7, 8]], [1002, [4, 5, 6, 7, 8]], [2000, [5, 6, 7, 8]], [40000, [8]], [40001, [8]]]);
+
+it('rechecks new activations before upgrade payment and does not debit an ineligible quote', function () {
+    paidWallet($this, $this->user);
+    paidBuy($this, $this->user, 1);
+    paidTarget($this, 2, 2);
+    $child = paidChild($this, $this->user);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
+    $grandchild = paidChild($this, $child);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $grandchild->id, (string) Str::uuid(), '50');
+    $query = app(PaidPromotionQuery::class);
+    expect($query->benefits($this->tenant->id, $this->user->id)['upgradeEligibility']['weightedCount'])->toBe('1.5');
+    $level = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->where('rank', 2)->value('id');
+    $purchase = app(PaidPromotionPurchase::class);
+    $quote = $purchase->quote($this->tenant->id, $this->user->id, $level, (string) Str::uuid());
+    $second = paidChild($this, $this->user);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $second->id, (string) Str::uuid(), '50');
+    $entries = DB::table('ledger_entries')->count();
+    expect(fn () => $purchase->confirm($this->tenant->id, $this->user->id, $quote->id))->toThrow(DomainException::class, 'This level’s target');
+    expect(fn () => $purchase->quote($this->tenant->id, $this->user->id, $level, (string) Str::uuid()))->toThrow(DomainException::class, 'This level’s target');
+    expect(DB::table('ledger_entries')->count())->toBe($entries);
+    $data = $query->execute($this->tenant->id, $this->user->id);
+    expect($data['upgradeEligibility']['weightedCount'])->toBe('2.5')->and(collect($data['levels'])->firstWhere('rank', 2)['selectable'])->toBeFalse();
+    $this->actingAs($this->user, 'tenant_user')->postJson('http://a.localhost/promotion/quotes', ['level_id' => $level, 'request_id' => (string) Str::uuid()])->assertStatus(409);
+    paidTarget($this, 8, 1);
+    $topId = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->where('rank', 8)->value('id');
+    $topQuote = $purchase->quote($this->tenant->id, $this->user->id, $topId, (string) Str::uuid());
+    DB::table('paid_promotion_levels')->insert(['id' => (string) Str::uuid(), 'tenant_id' => $this->tenant->id, 'rank' => 9, 'fee' => '300000', 'percent' => 100, 'reward' => 130, 'target' => 50000, 'revision' => 1, 'enabled' => true, 'created_at' => now(), 'updated_at' => now()]);
+    expect(fn () => $purchase->confirm($this->tenant->id, $this->user->id, $topQuote->id))->toThrow(DomainException::class, 'This level’s target');
+    expect(DB::table('ledger_entries')->count())->toBe($entries);
+
+    $cycle = DB::table('paid_promotion_cycles')->where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->first();
+    $this->travelTo(CarbonImmutable::parse($cycle->ends_at));
+    expect(paidBuy($this, $this->user, 2)->status)->toBe('COMPLETED');
+    expect($query->benefits($this->tenant->id, $this->user->id)['upgradeEligibility']['weightedCount'])->toBe('0');
+});
+
+it('supports ninth level purchases rewards reports and configurable highest enabled level', function () {
+    $id = (string) Str::uuid();
+    DB::table('paid_promotion_levels')->insert(['id' => $id, 'tenant_id' => $this->tenant->id, 'rank' => 9, 'fee' => '300000', 'percent' => 100, 'reward' => 130, 'target' => 50000, 'revision' => 1, 'enabled' => true, 'created_at' => now(), 'updated_at' => now()]);
+    paidWallet($this, $this->user);
+    $order = paidBuy($this, $this->user, 9);
+    $child = paidChild($this, $this->user);
+    paidBuy($this, $child, 9);
+    $query = app(PaidPromotionQuery::class);
+    $data = $query->execute($this->tenant->id, $this->user->id);
+    expect($data['rank'])->toBe(9)->and($data['upgradeEligibility']['highestEnabledRank'])->toBe(9)
+        ->and(collect($data['tables']['ANNUAL'])->firstWhere('rank', 9)['direct']['amount'])->toBe('300000.00000000');
+    expect(PromotionRanks::forTenant($this->tenant->id))->toContain(9);
+    $level = DB::table('paid_promotion_levels')->where('id', $id)->first();
+    app(ConfigurePaidPromotion::class)->execute($this->tenant->id, $this->platform, $id, ['fee' => $level->fee, 'percent' => $level->percent, 'reward' => $level->reward, 'target' => $level->target, 'revision' => $level->revision, 'enabled' => false]);
+    expect($query->benefits($this->tenant->id, $this->user->id)['upgradeEligibility']['highestEnabledRank'])->toBe(8);
+    $entries = DB::table('ledger_entries')->count();
+    app(PaidPromotionPurchase::class)->confirm($this->tenant->id, $this->user->id, $order->id);
+    expect(DB::table('ledger_entries')->count())->toBe($entries);
+    $this->actingAs($this->user, 'tenant_user')->get('http://a.localhost/promotion/commissions?rank=9')->assertOk();
+});
+
+it('keeps highest-rank exceptions scoped to enabled configuration and preserves all other upgrade gates', function () {
+    $policy = app(PromotionUpgradeEligibility::class);
+    $cycle = (object) ['rank' => 1, 'tariff' => '1000'];
+    $level = (object) ['rank' => 7, 'fee' => '100000', 'target' => 1, 'enabled' => true];
+    $context = ['weightedUnits' => 50000, 'highestEnabledRank' => 7, 'pending' => false];
+    expect($policy->decision($cycle, $level, $context)['selectable'])->toBeTrue();
+    expect($policy->decision($cycle, $level, array_replace($context, ['highestEnabledRank' => 9]))['selectable'])->toBeFalse();
+    expect($policy->decision($cycle, $level, array_replace($context, ['pending' => true]))['unavailableCode'])->toBe('PROMOTION_REBATE_PENDING');
+    $level->fee = '1000';
+    expect($policy->decision($cycle, $level, $context)['selectable'])->toBeFalse();
+    $level->fee = '100000';
+    $level->enabled = false;
+    expect($policy->decision($cycle, $level, $context)['selectable'])->toBeFalse();
+    $levels = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->get();
+    app(ConfigurePaidPromotion::class)->batch($this->tenant->id, $this->platform, $levels->map(fn ($l) => ['id' => $l->id, 'revision' => $l->revision, 'fee' => $l->fee, 'percent' => $l->percent, 'reward' => $l->reward, 'target' => $l->target, 'enabled' => false])->all());
+    expect($policy->context($this->tenant->id, null)['highestEnabledRank'])->toBe(0);
+    expect(collect(app(PaidPromotionQuery::class)->benefits($this->tenant->id, $this->user->id)['levels'])->where('selectable', true))->toHaveCount(0);
 });

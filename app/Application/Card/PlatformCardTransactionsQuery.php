@@ -15,7 +15,7 @@ final readonly class PlatformCardTransactionsQuery
         $card = UserCard::query()->where('tenant_id', $tenantId)->whereKey($cardId)->firstOrFail();
 
         return [
-            ...$this->transactions->get($tenantId, $card->user_id, $card->id, $page),
+            ...$this->transactions->get($tenantId, $card->user_id, $card->id, $page, admin: true),
             'timezone' => $tenant->timezone,
         ];
     }

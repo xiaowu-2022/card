@@ -87,6 +87,7 @@ final readonly class CardProductCatalogQuery
             'cardType' => $product->card_type,
             'minimumInitialLoad' => $product->minimum_initial_load,
             'openingFee' => $product->opening_fee,
+            'balanceLimit' => $product->balance_limit,
             'minimumReload' => $product->minimum_reload,
             'status' => $product->status->value,
             'tenantConfigCount' => $product->tenant_configs_count ?? null,

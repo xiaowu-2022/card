@@ -13,7 +13,6 @@ Schedule::command('topups:scan-trc20')->everyMinute()->withoutOverlapping(5)->on
 Schedule::command('promotion:recover')->everyMinute()->withoutOverlapping(30)->onOneServer();
 Schedule::command('deposits:process-refunds')->everyMinute()->withoutOverlapping(30)->onOneServer();
 
-Schedule::command('assets:refresh-prices')->everyMinute()->withoutOverlapping(5)->onOneServer();
 Schedule::command('assets:scan ETHEREUM')->everyMinute()->withoutOverlapping(30)->onOneServer();
 Schedule::command('assets:scan BITCOIN')->everyMinute()->withoutOverlapping(30)->onOneServer();
 

@@ -23,6 +23,7 @@ type Benefits = Pick<
     | 'cycle'
     | 'pending'
     | 'progress'
+    | 'upgradeEligibility'
 > & { hasClaims: boolean };
 type Home = {
     posterBackground: string | null;
@@ -48,6 +49,9 @@ export default function PromotionHub({
 }) {
     useClientTranslation();
     const p = home.paid;
+    const ranks = [...new Set([0, p.rank, ...p.levels.map((level) => level.rank)])].sort(
+        (a, b) => a - b,
+    );
     const { errors } = usePage<SharedProps>().props;
     const track = useRef<HTMLDivElement>(null);
     const shareDock = useRef<HTMLDivElement>(null);
@@ -242,6 +246,14 @@ export default function PromotionHub({
                                 {errorMessage(message)}
                             </p>
                         ))}
+                        {p.cycle && (
+                            <p className="text-sm text-muted-foreground">
+                                {t(
+                                    'Current cycle activation count: {{count}}. Choose a level with a strictly higher target; the highest enabled level is exempt.',
+                                    { count: p.upgradeEligibility.weightedCount },
+                                )}
+                            </p>
+                        )}
                         <section aria-label={t('Promotion level benefits')}>
                             <div
                                 ref={track}
@@ -252,13 +264,16 @@ export default function PromotionHub({
                                     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
                                         e.preventDefault();
                                         select(
-                                            Math.max(
-                                                0,
-                                                Math.min(
-                                                    8,
-                                                    selected + (e.key === 'ArrowRight' ? 1 : -1),
-                                                ),
-                                            ),
+                                            ranks[
+                                                Math.max(
+                                                    0,
+                                                    Math.min(
+                                                        ranks.length - 1,
+                                                        ranks.indexOf(selected) +
+                                                            (e.key === 'ArrowRight' ? 1 : -1),
+                                                    ),
+                                                )
+                                            ]!,
                                         );
                                     }
                                 }}
@@ -285,7 +300,7 @@ export default function PromotionHub({
                                     if (closest) setSelected(Number(closest.dataset.rank));
                                 }}
                             >
-                                {Array.from({ length: 9 }, (_, rank) => {
+                                {ranks.map((rank) => {
                                     const offer = p.levels.find((l) => l.rank === rank);
                                     const current = p.rank === rank;
                                     const fee =
@@ -387,7 +402,10 @@ export default function PromotionHub({
                                                     <Button
                                                         className="w-full"
                                                         disabled={
-                                                            busy || p.pending || !home.canPurchase
+                                                            busy ||
+                                                            p.pending ||
+                                                            !home.canPurchase ||
+                                                            !offer.selectable
                                                         }
                                                         onClick={() => quote(offer.id)}
                                                     >
@@ -401,6 +419,11 @@ export default function PromotionHub({
                                                     </Button>
                                                 )}
                                             </div>
+                                            {offer?.unavailableReason && !current && (
+                                                <p className="px-4 pb-4 text-xs text-muted-foreground">
+                                                    {t(offer.unavailableReason)}
+                                                </p>
+                                            )}
                                         </article>
                                     );
                                 })}
@@ -411,7 +434,9 @@ export default function PromotionHub({
                                     size="icon"
                                     disabled={selected === 0}
                                     aria-label={t('Previous level')}
-                                    onClick={() => select(selected - 1)}
+                                    onClick={() =>
+                                        select(ranks[Math.max(0, ranks.indexOf(selected) - 1)]!)
+                                    }
                                 >
                                     <ChevronLeft className="size-4" />
                                 </Button>
@@ -419,7 +444,7 @@ export default function PromotionHub({
                                     className="flex min-w-0 flex-wrap justify-center gap-0"
                                     aria-label={t('Choose promotion level')}
                                 >
-                                    {Array.from({ length: 9 }, (_, rank) => (
+                                    {ranks.map((rank) => (
                                         <button
                                             key={rank}
                                             className="grid min-h-11 w-6 place-items-center"
@@ -436,9 +461,18 @@ export default function PromotionHub({
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    disabled={selected === 8}
+                                    disabled={selected === ranks[ranks.length - 1]}
                                     aria-label={t('Next level')}
-                                    onClick={() => select(selected + 1)}
+                                    onClick={() =>
+                                        select(
+                                            ranks[
+                                                Math.min(
+                                                    ranks.length - 1,
+                                                    ranks.indexOf(selected) + 1,
+                                                )
+                                            ]!,
+                                        )
+                                    }
                                 >
                                     <ChevronRight className="size-4" />
                                 </Button>

@@ -29,6 +29,18 @@ final class PlatformDailyFundsQuery
                 ->groupByRaw('1')->pluck('amount', 'day');
             $totals[$key] = BigDecimal::zero()->toScale(8);
         }
+        if ($access['overflow'] ?? false) {
+            $companies = Tenant::query()->select('id')->when($filters['scope'] === 'selected', fn ($q) => $q->whereIn('id', $filters['companies']));
+            // Use immutable settlement time, not mutable order update time. Overflow is
+            // an uncharged amount and must never be included in inflow/outflow/net.
+            $daily['overflow'] = DB::table('card_management_orders as o')
+                ->join('ledger_entries as e', fn ($j) => $j->on('e.id', '=', 'o.settlement_entry_id')->on('e.tenant_id', '=', 'o.tenant_id'))
+                ->whereIn('o.tenant_id', $companies)->where('o.kind', 'LOAD')->where('o.status', 'SUCCEEDED')
+                ->where('e.created_at', '>=', $start->utc())->where('e.created_at', '<', $end->addDay()->utc())
+                ->selectRaw('(e.created_at AT TIME ZONE ?)::date::text AS day, SUM(COALESCE(o.overflow_amount, 0))::text AS amount', [PlatformFundsFilters::TIMEZONE])
+                ->groupByRaw('1')->pluck('amount', 'day');
+            $totals['overflow'] = BigDecimal::zero()->toScale(8);
+        }
         $rows = [];
         for ($day = $start; $day->lessThanOrEqualTo($end); $day = $day->addDay()) {
             $row = ['date' => $day->toDateString()];

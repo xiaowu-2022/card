@@ -18,6 +18,7 @@ final readonly class CreateCardProductAction
     public function execute(array $data, AdminUser $actor, ?string $requestId = null): CardProduct
     {
         $fee = Validator::make($data, ['opening_fee' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,8})?$/']])->validate()['opening_fee'];
+        Validator::make($data, ['balance_limit' => ['nullable', 'string', 'regex:/^(?:0|[1-9][0-9]{0,9})(?:\.[0-9]{1,2})?$/']])->validate();
         $openingFee = Money::of($fee, 'USDT')->amount();
         $initial = $this->minimum($data['minimum_initial_load'], 'minimum initial load');
         $reload = $this->minimum($data['minimum_reload'], 'minimum reload');
@@ -33,6 +34,7 @@ final readonly class CreateCardProductAction
                 'provider_product_ref' => trim($data['provider_product_ref'] ?? ''),
                 'name' => trim($data['name']),
                 'opening_fee' => $openingFee,
+                'balance_limit' => isset($data['balance_limit']) ? Money::of($data['balance_limit'], 'USD')->amount() : null,
                 'card_currency' => 'USD',
                 'card_type' => 'REGULAR',
                 'minimum_initial_load' => $initial->amount(),
@@ -45,6 +47,7 @@ final readonly class CreateCardProductAction
                 'provider_product_ref' => $product->provider_product_ref,
                 'name' => $product->name,
                 'opening_fee' => $product->opening_fee,
+                'balance_limit' => $product->balance_limit,
                 'card_currency' => $product->card_currency,
                 'card_type' => $product->card_type,
                 'minimum_initial_load' => $product->minimum_initial_load,

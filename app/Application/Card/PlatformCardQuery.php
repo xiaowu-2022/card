@@ -18,10 +18,11 @@ final class PlatformCardQuery
                     $q->where('u.email', 'ilike', $pattern)->orWhere('u.account_id', 'like', $pattern)->orWhere('u.phone', 'like', $pattern);
                 }))
                 ->select($table.'.*', 't.name as company_name', 'u.email as user_email')
-                ->with('product:id,name')->orderByDesc($table.'.created_at')->orderBy($table.'.id');
+                ->with('product:id,name,balance_limit')->orderByDesc($table.'.created_at')->orderBy($table.'.id');
         };
 
         return [
+            'loads' => app(AdminCardLoadsQuery::class)->get($company, $search),
             'orders' => $scope(CardIssueOrder::query(), 'card_issue_orders')->paginate(20, ['*'], 'orders_page')->withQueryString()->through(fn (CardIssueOrder $order): array => [
                 'id' => $order->id, 'tenantId' => $order->tenant_id, 'companyName' => $order->company_name,
                 'userEmail' => $order->user_email, 'productName' => $order->product->name,
@@ -33,7 +34,7 @@ final class PlatformCardQuery
                 'id' => $card->id, 'tenantId' => $card->tenant_id, 'companyName' => $card->company_name,
                 'userEmail' => $card->user_email, 'productName' => $card->product->name,
                 'maskedPan' => $card->masked_pan, 'currency' => $card->card_currency,
-                'balance' => $card->provider_balance, 'providerStatus' => $card->provider_status,
+                'balance' => $card->availableBalance(), 'providerBalance' => $card->provider_balance, 'overflowBalance' => $card->overflowBalance(), 'balanceLimit' => $card->balance_limit, 'effectiveBalanceLimit' => $card->effectiveBalanceLimit(), 'providerStatus' => $card->provider_status,
                 'balanceUpdatedAt' => $card->provider_balance_synced_at?->toIso8601String(),
             ]),
         ];

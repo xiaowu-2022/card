@@ -12,6 +12,6 @@ final class MarketSnapshot extends AssetRecord
 
     protected function casts(): array
     {
-        return ['usd_prices' => 'array', 'observed_at' => 'immutable_datetime', 'created_at' => 'immutable_datetime'];
+        return ['usd_prices' => 'array', 'usdt_rates' => 'array', 'observed_at' => 'immutable_datetime', 'created_at' => 'immutable_datetime'];
     }
 }

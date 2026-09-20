@@ -132,7 +132,7 @@ export default function PromotionReport({
                     <ReportSelect
                         label={t('Current promotion level')}
                         value={String(draft.rank)}
-                        options={rankOptions()}
+                        options={rankOptions(p.ranks)}
                         onChange={(rank) => setDraft({ ...draft, rank })}
                     />
                     <ReportSelect

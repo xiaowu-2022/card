@@ -17,9 +17,14 @@ export function promotionMoney(amount: string): string {
     const decimals = fraction.replace(/0+$/, '').padEnd(2, '0');
     return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${decimals} USDT`;
 }
-export function membershipAction(p: { rank: number; membershipStatus: string }): string {
-    if (p.rank >= 8) return 'View level benefits';
+export function membershipAction(p: {
+    rank: number;
+    membershipStatus: string;
+    levels: { rank: number; enabled: boolean }[];
+}): string {
     if (p.membershipStatus === 'EXPIRED') return 'Renew promotion membership';
+    if (p.rank > 0 && !p.levels.some((level) => level.enabled && level.rank > p.rank))
+        return 'View level benefits';
     return p.rank > 0 ? 'Upgrade promotion level' : 'Apply for promotion membership';
 }
 

@@ -30,6 +30,8 @@ export type CardTransaction = {
     displayAt: string;
     timeKind: 'completed' | 'recorded';
     merchant: string | null;
+    operator?: string | null;
+    note?: string | null;
 };
 export type CardTransactionPage = { items: CardTransaction[]; page: number; hasMore: boolean };
 

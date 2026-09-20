@@ -2,6 +2,64 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Record overflow consumption': '登记溢出消费',
+    'The card changed during refresh. Please try again.': '刷新期间卡片状态发生变化，请重试。',
+    'Amount (USD)': '消费金额（USD）',
+    'Overflow balance': '溢出余额',
+    'Provider balance': '卡商余额',
+    'Consumption reference or note': '消费凭据编号或备注',
+    'I confirm this consumption has occurred.': '确认此消费已实际发生',
+    'Record only completed external consumption after the provider balance is exhausted. This deducts the overflow balance immediately.':
+        '卡商余额用完后，登记已发生的外部渠道消费。提交后立即扣减溢出余额并记录流水。',
+    'Use the card provider balance first. Refresh after it is exhausted.':
+        '请先使用卡商余额，耗尽并同步后再登记溢出消费。',
+    'The amount exceeds the card overflow balance.': '消费金额超过溢出余额。',
+    'This request was already used with different details.':
+        '此请求已提交，内容不一致，请刷新页面。',
+    'Enter an amount greater than zero.': '请输入大于零的金额。',
+    'Card overflow consumption recorded.': '溢出消费已登记。',
+    'External channel funding': '外部渠道充值（USD）',
+    'Void reload': '作废',
+    'Requesting quote': '获取报价中',
+    'Awaiting confirmation': '待确认',
+    'Voided or expired': '已作废／已过期',
+    'Only unsubmitted reload quotes without a funds hold can be voided.':
+        '仅未提交实际充值且未冻结资金的报价订单可以作废。',
+    'Card reload quote voided. You can submit a new reload.': '充值报价已作废，可以重新申请充值。',
+
+    'Card reload overflow': '卡片充值溢出金额',
+    'Overflow counts successful card reloads by settlement date; it remains in wallets and is excluded from retained funds.':
+        '按成功结算日统计溢出金额；外部渠道充值单独记账，不重复计入入金、出金或存余。',
+    'Financial reporting requires top-up, withdrawal or card read permission.':
+        '资金统计需要充值、提现或卡片查看权限。',
+
+    'Default balance limit (USD)': '默认可用额度上限（USD）',
+    'Applies to existing and new cards unless individually overridden. Leave empty for no limit.':
+        '统一适用于现有和新卡，单卡设置优先；留空表示不限额。',
+    'Leave empty to use the product limit. Excess reload funds remain in the wallet. Lowering the limit does not withdraw existing card funds.':
+        '留空跟随产品上限。超出部分计入外部渠道充值，调低上限不会转出卡内已有资金。',
+
+    'Latest exchange quote': '最近兑换报价',
+    'New exchange quotes fetch live OKX rates. Saved rates below are for reference only.':
+        '兑换时实时获取 OKX 行情，以下历史报价仅供参考。',
+    'No exchange quotes yet.': '暂无兑换报价。',
+    'Exchange rates are fetched from OKX when a new quote is requested.':
+        '创建兑换报价时会实时获取 OKX 汇率。',
+    'Reload requested at': '申请时间',
+    'Balance limit': '可用额度上限',
+    'Maximum card balance (USD)': '卡片最高可用余额（USD）',
+    'Card balance limit updated.': '卡片可用额度上限已更新。',
+    'Leave empty for no limit. Excess reload funds remain in the wallet. Lowering the limit does not withdraw existing card funds.':
+        '留空表示不限额。超出部分计入外部渠道充值，调低上限不会转出卡内已有资金。',
+    'Review card orders and balances, and manage individual card balance limits.':
+        '查看卡片订单与余额，设置单张卡的可用额度上限。',
+    'Card reload orders': '卡片充值订单',
+    'Requested load': '申请充值（USD）',
+    'Actual arrival': '卡商接口到账（USD）',
+    'Actual debit': '实际扣款（USDT）',
+    'Overflow amount': '溢出金额（USD）',
+    'No limit': '不限额',
+    'This card has no remaining reload capacity.': '该卡已无可充值额度。',
     'Invitation poster': '邀请海报',
     'Poster background': '海报背景图',
     'Upload a JPG, PNG or WebP background (up to 8 MB). The invitation QR code is placed inside the bottom of the image.':
@@ -1116,7 +1174,6 @@ export const adminCatalog: Record<string, string> = {
     'Provider Cardholders': '服务商用卡人',
     'Provider and internal settlement timeline. This view is read-only.':
         '服务商处理及内部入账时间线，仅供查看。',
-    'Provider balance': '服务商余额',
     'Provider health': '服务商运行状态',
     'Provider operations': '服务商管理',
     Providers: '服务商',
