@@ -23,9 +23,11 @@ final readonly class PaidPromotionRebate
     public function progress(object $cycle): array
     {
         $counts = DB::table('account_activation_relations as s')->join('account_activations as e', fn ($j) => $j->on('e.id', '=', 's.activation_id')->on('e.tenant_id', '=', 's.tenant_id'))
+            ->leftJoin('activation_count_snapshots as c', fn ($j) => $j->on('c.activation_id', '=', 's.activation_id')->on('c.tenant_id', '=', 's.tenant_id')->on('c.ancestor_user_id', '=', 's.ancestor_user_id'))
+            ->where(fn ($q) => $q->where('e.counting_policy', 'LEGACY')->orWhere('c.eligible', true))
             ->where('s.tenant_id', $cycle->tenant_id)->where('s.ancestor_user_id', $cycle->user_id)
             ->where('e.activated_at', '>=', $cycle->starts_at)->where('e.activated_at', '<', $cycle->ends_at)
-            ->selectRaw('COUNT(*) FILTER (WHERE depth=1) AS direct, COUNT(*) FILTER (WHERE depth>1) AS indirect')->first();
+            ->selectRaw('COUNT(*) FILTER (WHERE s.depth=1) AS direct, COUNT(*) FILTER (WHERE s.depth>1) AS indirect')->first();
         $paid = DB::table('paid_promotion_orders')->where('tenant_id', $cycle->tenant_id)->where('user_id', $cycle->user_id)->where('cycle_id', $cycle->id)->where('status', 'COMPLETED')->sum('settlement_total');
         $returned = DB::table('paid_promotion_rebates')->where('tenant_id', $cycle->tenant_id)->where('user_id', $cycle->user_id)->where('cycle_id', $cycle->id)->where('status', 'APPROVED')->sum('amount');
 

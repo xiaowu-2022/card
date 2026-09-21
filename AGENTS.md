@@ -1,3 +1,11 @@
+On 2026-09-21 the user approved first-activation rank snapshots for annual-return
+and upgrade counts: direct 1, depths 2–5 count 0.5, exclude equal/higher-ranked
+nodes and their branches. Later rank changes never alter captured counts; upgrades
+affect future activations only. Existing activations explicitly retain prior counting.
+This supersedes unlimited-depth counting and the no-history-branch rule only for
+this approved boundary. Both commission flows remain unchanged. See
+docs/architecture/PAID_PROMOTION.md.
+
 On 2026-09-20 the user requested English fallback for unconfigured About article
 translations. Prefer the selected configured translation, otherwise use the same
 Tenant/article English version (even if English is not enabled in the picker); if

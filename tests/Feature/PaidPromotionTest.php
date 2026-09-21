@@ -11,6 +11,7 @@ use App\Application\Promotion\ConsolidateDevelopmentCommission;
 use App\Application\Promotion\PaidPromotionPurchase;
 use App\Application\Promotion\PaidPromotionQuery;
 use App\Application\Promotion\PaidPromotionRebate;
+use App\Application\Promotion\PaidPromotionRules;
 use App\Application\Promotion\PromotionMembershipAction;
 use App\Application\Promotion\PromotionQuery;
 use App\Application\Promotion\PromotionRanks;
@@ -692,7 +693,7 @@ it('automatically returns annual fees once and returns only the later upgrade di
     expect(fn () => DB::transaction(fn () => DB::table('paid_promotion_cycles')->where('id', $cycle->id)->update(['rebate_policy' => 'MANUAL_ALL_FUNDING'])))->toThrow(QueryException::class);
 });
 
-it('counts only first funding including zero-commission indirect activations for automatic rebates', function () {
+it('excludes higher-rank branches from rebate counts while retaining first-funding commission rules', function () {
     paidWallet($this, $this->user);
     paidTarget($this, 1, 2);
     paidBuy($this, $this->user, 1);
@@ -706,12 +707,11 @@ it('counts only first funding including zero-commission indirect activations for
     $refund->settle($this->tenant->id, $leaf->id, $r->id);
     $fund->execute($this->tenant->id, $leaf->id, (string) Str::uuid(), '50');
     $p = app(PaidPromotionQuery::class)->benefits($this->tenant->id, $this->user->id)['progress'];
-    expect($p['indirect'])->toBe(1)->and($p['pending'])->toBeFalse()
+    expect($p['indirect'])->toBe(0)->and($p['direct'])->toBe(0)->and($p['pending'])->toBeFalse()
         ->and(CommissionAward::where('user_id', $this->user->id)->count())->toBe(0);
     $second = paidChild($this, $middle);
     $fund->execute($this->tenant->id, $second->id, (string) Str::uuid(), '50');
-    $claim = DB::table('paid_promotion_rebates')->where('user_id', $this->user->id)->firstOrFail();
-    expect($claim->indirect_count)->toBe(2)->and($claim->direct_count)->toBe(1);
+    expect(DB::table('paid_promotion_rebates')->where('user_id', $this->user->id)->count())->toBe(0);
 });
 
 it('keeps failed automatic returns durable and recovers after expiry without changing funding', function () {
@@ -750,20 +750,20 @@ it('uses automatic returns for purchase upgrade and renewal', function () {
 
 it('shows direct commission income once in USDT valuation and excludes fee returns from income', function () {
     paidWallet($this, $this->user);
-    paidTarget($this, 1, 1);
-    paidBuy($this, $this->user, 1);
+    paidTarget($this, 2, 1);
+    paidBuy($this, $this->user, 2);
     $child = paidChild($this, $this->user);
     paidBuy($this, $child, 1);
     $claim = DB::table('paid_promotion_rebates')->where('user_id', $this->user->id)->firstOrFail();
     app(PaidPromotionRebate::class)->settleAutomatic($this->tenant->id, $claim->id);
     $assets = app(AssetOverviewQuery::class);
     $before = $assets->get($this->tenant->id, $this->user->id, []);
-    expect($before['cumulativeCommission'])->toBe('300.00000000');
+    expect($before['cumulativeCommission'])->toBe('400.00000000');
     $after = $assets->get($this->tenant->id, $this->user->id, []);
     expect($after['cumulativeCommission'])->toBe($before['cumulativeCommission'])->and($after['estimate'])->toBe($before['estimate'])
-        ->and(collect($after['assets'])->firstWhere('asset', 'USDT')['available'])->toBe('500300.00000000')
-        ->and($after['estimate'])->toBe('500300.00000000')
-        ->and(app(PromotionQuery::class)->execute($this->tenant->id, $this->user->id, null)['myCommission'])->toBe('300.00000000');
+        ->and(collect($after['assets'])->firstWhere('asset', 'USDT')['available'])->toBe('500400.00000000')
+        ->and($after['estimate'])->toBe('500400.00000000')
+        ->and(app(PromotionQuery::class)->execute($this->tenant->id, $this->user->id, null)['myCommission'])->toBe('400.00000000');
 });
 
 it('excludes funding before a new period and at its exclusive expiry boundary', function () {
@@ -1073,7 +1073,7 @@ it('converts a 300 deposit plus 700 wallet payment and returns the full 1000 wit
         ->and(DB::table('account_activations')->where('user_id', $child->id)->sole()->id)->toBe($activation->id);
     expect(fn () => app(RefundSecurityDepositAction::class)->request($this->tenant->id, $child->id, (string) Str::uuid()))->toThrow(DomainException::class);
     $grandchild = paidChild($this, $child);
-    paidBuy($this, $grandchild, 1);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $grandchild->id, (string) Str::uuid(), '300');
     $claim = DB::table('paid_promotion_rebates')->where('user_id', $child->id)->firstOrFail();
     expect($claim->amount)->toBe('1000.00000000');
     app(PaidPromotionRebate::class)->settleAutomatic($this->tenant->id, $claim->id);
@@ -1291,4 +1291,84 @@ it('keeps highest-rank exceptions scoped to enabled configuration and preserves 
     app(ConfigurePaidPromotion::class)->batch($this->tenant->id, $this->platform, $levels->map(fn ($l) => ['id' => $l->id, 'revision' => $l->revision, 'fee' => $l->fee, 'percent' => $l->percent, 'reward' => $l->reward, 'target' => $l->target, 'enabled' => false])->all());
     expect($policy->context($this->tenant->id, null)['highestEnabledRank'])->toBe(0);
     expect(collect(app(PaidPromotionQuery::class)->benefits($this->tenant->id, $this->user->id)['levels'])->where('selectable', true))->toHaveCount(0);
+});
+
+it('snapshots five generations without truncating activation commission ancestry', function () {
+    paidWallet($this, $this->user);
+    paidBuy($this, $this->user, 5);
+    $parent = $this->user;
+    $children = [];
+    for ($depth = 1; $depth <= 6; $depth++) {
+        $child = paidChild($this, $parent);
+        $request = (string) Str::uuid();
+        app(FundSecurityDepositAction::class)->execute($this->tenant->id, $child->id, $request, '50');
+        app(FundSecurityDepositAction::class)->execute($this->tenant->id, $child->id, $request, '50');
+        $snapshot = DB::table('activation_count_snapshots')->join('account_activations as a', 'a.id', '=', 'activation_id')
+            ->where('a.user_id', $child->id)->where('ancestor_user_id', $this->user->id)->first();
+        expect($snapshot->depth)->toBe($depth)->and($snapshot->eligible)->toBe($depth <= 5);
+        $children[] = $child;
+        $parent = $child;
+    }
+    $data = app(PaidPromotionQuery::class)->benefits($this->tenant->id, $this->user->id);
+    expect($data['upgradeEligibility']['weightedCount'])->toBe('3');
+    $sixth = DB::table('account_activations')->where('user_id', $children[5]->id)->value('id');
+    expect(DB::table('account_activation_relations')->where('activation_id', $sixth)->count())->toBe(6)
+        ->and(DB::table('paid_promotion_shares')->where('user_id', $this->user->id)->where('depth', 6)->count())->toBe(1);
+});
+
+it('freezes same-rank branch exclusions and applies upgrades only to later activations', function () {
+    paidWallet($this, $this->user);
+    paidBuy($this, $this->user, 5);
+    $four = paidChild($this, $this->user);
+    paidBuy($this, $four, 4);
+    $three = paidChild($this, $four);
+    paidBuy($this, $three, 3);
+    $five = paidChild($this, $three);
+    paidBuy($this, $five, 5);
+    $leaf = paidChild($this, $five);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $leaf->id, (string) Str::uuid(), '50');
+    $query = app(PaidPromotionQuery::class);
+    expect($query->benefits($this->tenant->id, $this->user->id)['upgradeEligibility']['weightedCount'])->toBe('1.5');
+    $before = DB::table('activation_count_snapshots')->orderBy('activation_id')->orderBy('depth')->get()->toJson();
+    paidBuy($this, $this->user, 6);
+    expect($query->benefits($this->tenant->id, $this->user->id)['upgradeEligibility']['weightedCount'])->toBe('1.5')
+        ->and(DB::table('activation_count_snapshots')->orderBy('activation_id')->orderBy('depth')->get()->toJson())->toBe($before);
+    $new = paidChild($this, $five);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $new->id, (string) Str::uuid(), '50');
+    expect($query->benefits($this->tenant->id, $this->user->id)['upgradeEligibility']['weightedCount'])->toBe('2');
+    paidBuy($this, $five, 6);
+    expect($query->benefits($this->tenant->id, $this->user->id)['upgradeEligibility']['weightedCount'])->toBe('2');
+    $blocked = paidChild($this, $five);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $blocked->id, (string) Str::uuid(), '50');
+    expect($query->benefits($this->tenant->id, $this->user->id)['upgradeEligibility']['weightedCount'])->toBe('2');
+    $oldCycle = app(PaidPromotionRules::class)->cycle($this->tenant->id, $this->user->id);
+    $frozen = DB::table('activation_count_snapshots')->orderBy('activation_id')->orderBy('depth')->get()->toJson();
+    $this->travelTo(CarbonImmutable::parse(DB::table('paid_promotion_cycles')->max('ends_at'))->addSecond());
+    expect(app(PaidPromotionRebate::class)->progress($oldCycle)['indirect'])->toBe(2);
+    paidBuy($this, $this->user, 6);
+    expect($query->benefits($this->tenant->id, $this->user->id)['upgradeEligibility']['weightedCount'])->toBe('0');
+    $afterExpiry = paidChild($this, $five);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $afterExpiry->id, (string) Str::uuid(), '50');
+    expect($query->benefits($this->tenant->id, $this->user->id)['upgradeEligibility']['weightedCount'])->toBe('0.5');
+    $newActivation = DB::table('account_activations')->where('user_id', $afterExpiry->id)->value('id');
+    expect(DB::table('activation_count_snapshots')->where('activation_id', '<>', $newActivation)->orderBy('activation_id')->orderBy('depth')->get()->toJson())->toBe($frozen);
+});
+
+it('rejects missing counting snapshots atomically and preserves immutable evidence', function () {
+    paidWallet($this, $this->user);
+    paidBuy($this, $this->user, 1);
+    $child = paidChild($this, $this->user);
+    $entries = DB::table('ledger_entries')->count();
+    DB::unprepared('CREATE FUNCTION test_skip_count_snapshot() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$; CREATE TRIGGER test_skip_count_snapshot BEFORE INSERT ON activation_count_snapshots FOR EACH ROW EXECUTE FUNCTION test_skip_count_snapshot()');
+    try {
+        expect(fn () => DB::transaction(function () use ($child) {
+            app(FundSecurityDepositAction::class)->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
+            DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+        }))->toThrow(QueryException::class);
+    } finally {
+        DB::unprepared('DROP TRIGGER test_skip_count_snapshot ON activation_count_snapshots; DROP FUNCTION test_skip_count_snapshot()');
+    }
+    expect(DB::table('ledger_entries')->count())->toBe($entries);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
+    expect(fn () => DB::transaction(fn () => DB::table('activation_count_snapshots')->where('ancestor_user_id', $this->user->id)->update(['eligible' => false])))->toThrow(QueryException::class);
 });

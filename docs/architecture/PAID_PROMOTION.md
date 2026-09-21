@@ -278,3 +278,27 @@ and filter options use configured plus historically recorded ranks (including or
 rank zero); the upgrade exception uses enabled configurations only. Configuration batch
 limits match company catalog size. No new level-creation endpoint/UI is introduced.
 No existing orders, cycle snapshots, configuration values or Ledger entries are changed.
+
+## 2026-09-21: First-activation five-generation counting snapshots
+
+New activations use FIVE_GENERATION_SNAPSHOT for annual return progress and upgrade
+eligibility only. At the first activation, snapshot the source's effective paid
+rank and each ancestor's rank (ordinary/expired = 0). For an ancestor, include the
+source only at depth <= 5 and when that ancestor's rank is strictly greater than
+every rank below it on the path, including the source. Equal/higher nodes exclude
+themselves and their entire branch. Direct counts 1; depths 2–5 count 0.5.
+Ranks are taken after the qualifying annual purchase creates its paid cycle.
+
+Snapshots never change on subsequent upgrades or expiry. An upgrade changes only
+eligibility of future first activations; it never recovers excluded historical
+counts. Upgrade quotes/payments compare against existing counted progress, not a
+hypothetical target-rank recalculation. The current-cycle time window, highest
+currently enabled rank exception, pending return gate and idempotency remain.
+
+The user explicitly chose to retain all pre-migration activation counting (LEGACY),
+including the 501 direct fixture members. Adding a policy column marks that boundary;
+all future inserts require the new policy. New activation_count_snapshots preserve
+complete scoped ancestry, rank/path evidence, eligibility and exclusion reasons.
+Deferred database guards reject missing/inconsistent snapshots; snapshots and
+activation records remain immutable. Original full activation relations and both
+commission flows are unchanged. No historical money or entitlement is replayed.
