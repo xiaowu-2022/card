@@ -53,7 +53,7 @@ final readonly class ProcessIncomingTrc20TransferAction
             $unambiguousExpired = $candidate->status === WalletTopupStatus::Expired
                 && ! WalletTopupOrder::query()->where('payment_rail', 'TRC20_SHARED')
                     ->where('deposit_address', $destination)->where('expected_amount', $amount)
-                    ->where('created_at', '>', $candidate->created_at)->exists();
+                    ->where('created_at', '>', $candidate->created_at->format('Y-m-d H:i:s.uP'))->exists();
             if ((! $active && ! $unambiguousExpired) || $candidate->matched_tx_hash !== null
                 || $candidate->created_at > $transfer->occurredAt || $candidate->expires_at < $transfer->occurredAt) {
                 return null;
@@ -119,6 +119,9 @@ final readonly class ProcessIncomingTrc20TransferAction
 
     private function candidateSnapshot(IncomingBlockchainTransfer $transfer, string $txHash, string $amount, string $destination): ?WalletTopupOrder
     {
+        // Laravel DateTime bindings omit the offset. Preserve the chain instant
+        // when PostgreSQL uses a non-UTC session timezone.
+        $occurredAt = $transfer->occurredAt->format('Y-m-d H:i:s.uP');
         $matched = WalletTopupOrder::query()->where('network_code', 'TRON')->where('matched_tx_hash', $txHash)
             ->where('matched_transfer_index', $transfer->transferIndex)->first();
         if ($matched) {
@@ -127,8 +130,8 @@ final readonly class ProcessIncomingTrc20TransferAction
         $active = WalletTopupOrder::query()->where('payment_rail', 'TRC20_SHARED')
             ->where('deposit_address', $destination)->where('expected_amount', $amount)
             ->whereIn('status', [WalletTopupStatus::Pending->value, WalletTopupStatus::Processing->value])
-            ->whereNull('matched_tx_hash')->where('created_at', '<=', $transfer->occurredAt)
-            ->where('expires_at', '>=', $transfer->occurredAt)->latest('created_at')->first();
+            ->whereNull('matched_tx_hash')->where('created_at', '<=', $occurredAt)
+            ->where('expires_at', '>=', $occurredAt)->latest('created_at')->first();
         if ($active) {
             return $active;
         }
@@ -136,7 +139,7 @@ final readonly class ProcessIncomingTrc20TransferAction
         return WalletTopupOrder::query()->where('payment_rail', 'TRC20_SHARED')
             ->where('deposit_address', $destination)->where('expected_amount', $amount)
             ->where('status', WalletTopupStatus::Expired->value)->whereNull('matched_tx_hash')
-            ->where('created_at', '<=', $transfer->occurredAt)->where('expires_at', '>=', $transfer->occurredAt)
+            ->where('created_at', '<=', $occurredAt)->where('expires_at', '>=', $occurredAt)
             ->latest('created_at')->first();
     }
 

@@ -101,6 +101,21 @@ Sources checked during implementation:
 - [TRON integration and solidified receipts](https://developers.tron.network/docs/exchangewallet-integrate-with-the-tron-network)
 - [Tether supported protocols](https://tether.to/es/supported-protocols/)
 
+## Receipt timestamp matching across database timezones (2026-09-24)
+
+UTC receipt instants must be bound to PostgreSQL as explicit-offset timestamps
+(`Y-m-d H:i:s.uP`). Laravel's default DateTime query binding drops the offset,
+which makes a UTC receipt timestamp compare as local time in an Asia/Shanghai or
+other non-UTC database session. This can reject an otherwise exact order as
+UNMATCHED. Both active/expired candidate lookup and reservation-expiry boundaries
+now preserve the offset and microseconds. No order timestamp, timezone setting,
+financial identity or Ledger history is rewritten.
+
+The regression reproduced UNMATCHED before the fix with a UTC receipt and a +08
+database session. Tests cover pending and expired exact matching, rejection outside
+the immutable validity interval, precise verified expiration boundaries and the
+full synthetic public receipt-to-credit path under both UTC and +08 sessions.
+
 ## Pending-index recovery acceptance (2026-09-24)
 
 81 related tests / 538 assertions passed, including an initially empty index that

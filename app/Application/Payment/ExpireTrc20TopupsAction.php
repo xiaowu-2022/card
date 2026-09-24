@@ -14,8 +14,8 @@ final class ExpireTrc20TopupsAction
     {
         $ids = WalletTopupOrder::query()->where('payment_rail', 'TRC20_SHARED')
             ->where('status', WalletTopupStatus::Pending->value)->whereNull('matched_tx_hash')
-            ->where('expires_at', '<', $through ?? now())
-            ->when($notBefore, fn ($query) => $query->where('created_at', '>=', $notBefore))
+            ->where('expires_at', '<', ($through ?? now())->format('Y-m-d H:i:s.uP'))
+            ->when($notBefore, fn ($query) => $query->where('created_at', '>=', $notBefore->format('Y-m-d H:i:s.uP')))
             ->when($destination, fn ($query) => $query->where('deposit_address', $destination))
             ->orderBy('expires_at')->limit(500)->get(['id', 'tenant_id']);
         $expired = 0;

@@ -466,6 +466,42 @@ it('retries an insufficiently confirmed scan window and credits a new order exac
         ->and(LedgerEntry::query()->where('event_type', 'WALLET_TOPUP_CREDIT')->count())->toBe(1);
 });
 
+it('matches UTC chain receipt times in a UTC plus eight database session', function (bool $expired): void {
+    $order = createTrc20Topup($this, '700');
+    if ($expired) {
+        $order->status = WalletTopupStatus::Expired;
+        $order->save();
+    }
+    $at = $order->created_at->toDateTimeImmutable()->modify('+1 minute')->setTimezone(new DateTimeZone('UTC'));
+    // PostgreSQL serializes the same stored timestamptz in the deployment timezone.
+    DB::statement("SET LOCAL TIME ZONE 'Asia/Shanghai'");
+    expect(app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($order, 30, overrides: ['occurred_at' => $at])))
+        ->toBe('CREDITED');
+    expect($order->fresh()->status)->toBe(WalletTopupStatus::Credited);
+})->with([false, true]);
+
+it('keeps validity boundaries exact for UTC receipts in a UTC plus eight database session', function (string $offset): void {
+    $order = createTrc20Topup($this);
+    $at = $order->created_at->toDateTimeImmutable()->modify($offset)->setTimezone(new DateTimeZone('UTC'));
+    DB::statement("SET LOCAL TIME ZONE 'Asia/Shanghai'");
+    expect(app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($order, 30, overrides: ['occurred_at' => $at])))
+        ->toBe('UNMATCHED');
+    expect($order->fresh()->status)->toBe(WalletTopupStatus::Pending)->and(LedgerEntry::query()->count())->toBe(0);
+})->with(['-1 second', '+31 minutes']);
+
+it('expires only the UTC verified interval in a UTC plus eight database session', function (): void {
+    $order = createTrc20Topup($this);
+    $start = $order->created_at->toDateTimeImmutable()->modify('-1 second')->setTimezone(new DateTimeZone('UTC'));
+    $before = $order->expires_at->toDateTimeImmutable()->modify('-1 second')->setTimezone(new DateTimeZone('UTC'));
+    $after = $before->modify('+2 seconds');
+    $this->travelTo($order->expires_at->addMinutes(5));
+    DB::statement("SET LOCAL TIME ZONE 'Asia/Shanghai'");
+    $expire = app(ExpireTrc20TopupsAction::class);
+    expect($expire->execute($before, $start, $order->deposit_address))->toBe(0);
+    expect($expire->execute($after, $start, $order->deposit_address))->toBe(1)
+        ->and($order->fresh()->status)->toBe(WalletTopupStatus::Expired);
+});
+
 it('recovers a late indexed transfer behind the cursor without rewinding or duplicate credit', function (): void {
     $order = createTrc20Topup($this, '700');
     $start = $order->created_at->toDateTimeImmutable();
@@ -524,7 +560,7 @@ it('preserves pending orders and the forward cursor when a lookback request fail
         ->and(LedgerEntry::query()->count())->toBe(0);
 });
 
-it('automatically credits a pending 700.01 order from public receipts without scanner configuration', function (): void {
+it('automatically credits a pending 700.01 order from public receipts without scanner configuration', function (string $timezone): void {
     $token = TronGridBlockchainGateway::TOKEN;
     config(['payment.trc20_deposit_address' => $token, 'payment.trc20_token_contract' => $token,
         'payment.trongrid_api_key_encrypted' => null, 'payment.trc20_scan_enabled' => false,
@@ -548,13 +584,14 @@ it('automatically credits a pending 700.01 order from public receipts without sc
         ]),
     ]);
     $this->app->instance(BlockchainGatewayInterface::class, new TronGridBlockchainGateway);
+    DB::statement("SET LOCAL TIME ZONE '{$timezone}'");
     $scan = app(ScanTrc20TopupsAction::class);
     expect($scan->execute()['CREDITED'])->toBe(1)->and($scan->execute()['CREDITED'])->toBe(0);
     expect($order->fresh()->status)->toBe(WalletTopupStatus::Credited)
         ->and($order->fresh()->matched_tx_hash)->toBe($hash)
         ->and(LedgerEntry::query()->where('event_type', 'WALLET_TOPUP_CREDIT')->count())->toBe(1);
     Http::assertNotSent(fn ($request) => $request->hasHeader('TRON-PRO-API-KEY') || $request->hasHeader('Authorization'));
-});
+})->with(['UTC', 'Asia/Shanghai']);
 
 it('routes real-adapter receipt evidence through SaaS verification and the existing ledger credit', function (): void {
     $token = TronGridBlockchainGateway::TOKEN;
