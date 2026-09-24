@@ -1,13 +1,13 @@
 <?php
 
+use App\Domain\Withdrawal\Contracts\BlockchainGatewayInterface;
 use App\Infrastructure\Providers\Blockchain\TronGridBlockchainGateway;
 use App\Support\Errors\DomainException;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
     Http::preventStrayRequests();
-    config(['payment.trongrid_api_key_encrypted' => Crypt::encryptString('test-only-trongrid-key'),
+    config(['payment.trongrid_api_key_encrypted' => 'ignored-legacy-secret',
         'payment.trc20_deposit_address' => TronGridBlockchainGateway::TOKEN,
         'payment.trc20_token_contract' => TronGridBlockchainGateway::TOKEN,
         'payment.trc20_required_confirmations' => 20]);
@@ -36,7 +36,7 @@ it('decodes official USDT receipt logs with exact money and the actual log index
     $transfers = $this->gateway->lookup($this->hash, TronGridBlockchainGateway::TOKEN);
     expect($transfers)->toHaveCount(1)->and($transfers[0]->amount)->toBe('100.01000000')
         ->and($transfers[0]->transferIndex)->toBe(1)->and($transfers[0]->confirmations)->toBe(26);
-    Http::assertSent(fn ($request) => $request->hasHeader('TRON-PRO-API-KEY', 'test-only-trongrid-key'));
+    Http::assertSent(fn ($request) => ! $request->hasHeader('TRON-PRO-API-KEY') && ! $request->hasHeader('Authorization'));
 });
 
 it('does not confirm missing malformed failed or mismatched receipts', function (string $case): void {
@@ -76,8 +76,8 @@ it('fails closed on HTTP limits redirects and timeouts without exposing the key'
     Http::assertSentCount(1);
 })->with([302, 429, 500]);
 
-it('refuses missing encrypted credentials and invalid addresses before HTTP', function (): void {
-    config(['payment.trongrid_api_key_encrypted' => 'plaintext-not-allowed']);
+it('refuses invalid receiving addresses before HTTP', function (): void {
+    config(['payment.trc20_deposit_address' => 'invalid-address']);
     expect($this->gateway->available())->toBeFalse();
     expect(fn () => $this->gateway->lookup($this->hash, TronGridBlockchainGateway::TOKEN))->toThrow(DomainException::class);
     Http::assertNothingSent();
@@ -116,3 +116,18 @@ it('treats transport timeout as unconfirmed without leaking request headers', fu
     Http::fake(['*' => Http::failedConnection()]);
     expect(fn () => $this->gateway->lookup($this->hash, TronGridBlockchainGateway::TOKEN))->toThrow(DomainException::class);
 });
+
+it('reads public receipts without any API key configuration', function (): void {
+    config(['payment.trongrid_api_key_encrypted' => null]);
+    fakeTronReceipt($this, $this->receipt);
+    expect($this->gateway->available())->toBeTrue();
+    expect($this->gateway->lookup($this->hash, TronGridBlockchainGateway::TOKEN))->toHaveCount(1);
+    Http::assertNotSent(fn ($request) => $request->hasHeader('TRON-PRO-API-KEY') || $request->hasHeader('Authorization'));
+});
+
+it('uses the public reader in production despite legacy disabled or mock flags', function (string $driver): void {
+    $this->app->instance('env', 'production');
+    config(['withdrawal.blockchain_driver' => $driver]);
+    $this->app->forgetInstance(BlockchainGatewayInterface::class);
+    expect(app(BlockchainGatewayInterface::class))->toBeInstanceOf(TronGridBlockchainGateway::class);
+})->with(['unavailable', 'mock', 'trongrid']);

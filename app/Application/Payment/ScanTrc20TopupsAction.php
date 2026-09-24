@@ -4,6 +4,7 @@ namespace App\Application\Payment;
 
 use App\Application\Assets\TronDepositConfiguration;
 use App\Domain\Payment\Contracts\Trc20ChainReader;
+use App\Domain\Payment\Models\WalletTopupOrder;
 use App\Domain\Withdrawal\Contracts\BlockchainGatewayInterface;
 use App\Support\Errors\DomainException;
 use DateTimeImmutable;
@@ -45,20 +46,26 @@ final readonly class ScanTrc20TopupsAction
         $cursor = null;
         $to = null;
         if ($this->gateway instanceof Trc20ChainReader) {
-            $raw = (string) config('payment.trc20_scan_start_at');
-            if (! config('payment.trc20_scan_enabled') || ! preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', $raw)) {
-                throw new DomainException('TRC20_SCAN_NOT_ENABLED', 'Configure an explicit UTC start time before enabling live scans.', 503);
-            }
-            $start = new DateTimeImmutable($raw);
-            if ($start->format('Y-m-d\TH:i:s\Z') !== $raw) {
-                throw new DomainException('TRC20_SCAN_START_INVALID', 'Invalid scan start time.');
-            }
             $id = hash('sha256', 'TRON:USDT:'.$address);
-            DB::table('trc20_scan_cursors')->insertOrIgnore(['id' => $id, 'started_at' => $start, 'scanned_through' => $start]);
             $cursor = DB::table('trc20_scan_cursors')->where('id', $id)->first();
-            if (new DateTimeImmutable($cursor->started_at) != $start) {
-                throw new DomainException('TRC20_SCAN_START_LOCKED', 'The persisted scan start time cannot be changed.');
+            if (! $cursor) {
+                // Bootstrap only unfinished orders, never completed/expired history.
+                // Persist once: later configuration or orders must never rewind progress.
+                $oldest = WalletTopupOrder::query()->where('payment_rail', 'TRC20_SHARED')
+                    ->where('network_code', 'TRON')->where('deposit_address', $address)
+                    ->whereIn('status', ['PENDING', 'PROCESSING', 'PAID'])->min('created_at');
+                if ($oldest === null) {
+                    return $counts;
+                }
+                $initial = new DateTimeImmutable($oldest);
+                DB::table('trc20_scan_cursors')->insertOrIgnore([
+                    'id' => $id,
+                    'started_at' => $initial->format('Y-m-d H:i:s.uP'),
+                    'scanned_through' => $initial->format('Y-m-d H:i:s.uP'),
+                ]);
+                $cursor = DB::table('trc20_scan_cursors')->where('id', $id)->first();
             }
+            $start = new DateTimeImmutable($cursor->started_at);
             $from = new DateTimeImmutable($cursor->scanned_through);
             $safe = $this->gateway->confirmedThrough();
             if ($safe <= $from) {

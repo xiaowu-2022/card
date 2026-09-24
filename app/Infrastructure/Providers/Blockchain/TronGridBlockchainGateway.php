@@ -2,6 +2,7 @@
 
 namespace App\Infrastructure\Providers\Blockchain;
 
+use App\Application\Assets\TronDepositConfiguration;
 use App\Domain\Payment\Contracts\Trc20ChainReader;
 use App\Domain\Withdrawal\Contracts\BlockchainGatewayInterface;
 use App\Domain\Withdrawal\DTOs\BlockchainTransferVerification;
@@ -10,7 +11,6 @@ use App\Support\Errors\DomainException;
 use Brick\Math\BigDecimal;
 use Brick\Math\BigInteger;
 use DateTimeImmutable;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Throwable;
 
@@ -28,9 +28,7 @@ final class TronGridBlockchainGateway implements BlockchainGatewayInterface, Trc
     public function available(): bool
     {
         try {
-            return config('payment.trc20_token_contract') === self::TOKEN
-                && $this->addressHex(app(\App\Application\Assets\TronDepositConfiguration::class)->address()) !== null
-                && $this->key() !== '';
+            return $this->addressHex(app(TronDepositConfiguration::class)->address()) !== null;
         } catch (Throwable) {
             return false;
         }
@@ -191,13 +189,6 @@ final class TronGridBlockchainGateway implements BlockchainGatewayInterface, Trc
         return substr($hex, 2, 40);
     }
 
-    private function key(): string
-    {
-        $cipher = (string) config('payment.trongrid_api_key_encrypted');
-
-        return $cipher === '' ? '' : Crypt::decryptString($cipher);
-    }
-
     private function timestamp(mixed $value): DateTimeImmutable
     {
         if (! is_int($value) || $value < 1) {
@@ -213,8 +204,8 @@ final class TronGridBlockchainGateway implements BlockchainGatewayInterface, Trc
             $this->unavailable();
         }
         try {
-            $client = Http::acceptJson()->withHeaders(['TRON-PRO-API-KEY' => $this->key()])
-                ->connectTimeout(3)->timeout(10)->withoutRedirecting();
+            // Public read-only access: never decrypt or forward stored credentials.
+            $client = Http::acceptJson()->connectTimeout(3)->timeout(10)->withoutRedirecting();
             $response = $get ? $client->get(self::BASE.'/'.$path, $data) : $client->post(self::BASE.'/'.$path, $data);
             if (! $response->successful() || strlen($response->body()) > 2097152) {
                 $this->unavailable();

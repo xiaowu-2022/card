@@ -1,3 +1,13 @@
+On 2026-09-24 the user required zero-configuration public TRON deposit scanning.
+Production uses the built-in anonymous mainnet reader and official USDT contract;
+no API key, provider selector, scan toggle or manually configured start is required.
+Initialize each missing address cursor from its earliest unfinished TRC20 order;
+preserve all existing cursor boundaries and never replay completed/expired history.
+Keep exact solidified receipt verification, idempotent Ledger credit and failure-safe
+progress. This supersedes the API-key and explicit-start deployment gates in
+TRC20_LIVE_VERIFICATION.md. Receiving addresses remain SaaS-managed. No live credit
+or historical financial rewrite is implied by implementation/testing.
+
 On 2026-09-24 the user approved Aliyun OCR for mainland China national IDs and
 passports. New KYC submissions must recognize a nonempty document number matching
 the supplied number before approval; failed/unavailable OCR never auto-approves.

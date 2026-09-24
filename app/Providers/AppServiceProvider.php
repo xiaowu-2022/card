@@ -71,7 +71,9 @@ class AppServiceProvider extends ServiceProvider
             return new UnavailablePaymentProvider;
         });
         $this->app->singleton(BlockchainGatewayInterface::class, function (): BlockchainGatewayInterface {
-            if (config('withdrawal.blockchain_driver') === 'trongrid') {
+            // Production incoming verification always uses the built-in public reader.
+            // Legacy deployment flags cannot select a simulator or disable scanning.
+            if (! app()->environment(['local', 'testing']) || config('withdrawal.blockchain_driver') === 'trongrid') {
                 return new TronGridBlockchainGateway;
             }
             if (config('withdrawal.blockchain_driver') === 'mock' && app()->environment(['local', 'testing'])) {

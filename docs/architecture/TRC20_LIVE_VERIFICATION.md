@@ -43,42 +43,46 @@ unique index on actor/request UUID and a short PostgreSQL request lock bind it t
 one company/order/hash before HTTP. Reusing the UUID for different details fails;
 rechecking the same still-confirming transaction is allowed without duplicate credit.
 
-## Automatic progress and deployment gate
+## Public scanning without deployment configuration (2026-09-24)
 
-`trc20_scan_cursors` is shared-address operational progress, not a balance or financial
-state. Its id hashes network/asset/address; immutable configured `started_at` and
-monotonic `scanned_through` are timestamps. Default live scanning is OFF. An operator
-must choose `TRON_TOPUP_SCAN_START_AT` in UTC `YYYY-MM-DDTHH:MM:SSZ` explicitly; the
-cursor refuses changing that start later. The scanner does not settle orders created
-before that boundary. An intentional SaaS check of one historical order is a separate
-explicit action and does not run history in bulk.
+The user superseded the credential and explicit-start deployment gates. Production
+always binds the real public reader, regardless of legacy `BLOCKCHAIN_GATEWAY_DRIVER`
+values. Explicit mock/unavailable selection remains local/testing-only. The fixed
+mainnet endpoint is called anonymously; stored API keys are neither decrypted nor
+sent. The official USDT contract is built in, ignoring environment overrides.
+No endpoint, API key, contract, scan switch or start-time configuration is required.
+SaaS still supplies the actual business receiving address; the existing address
+environment fallback remains supported but is not required when SaaS configured it.
+Withdrawal verification remains unavailable in this reader.
 
-Each scan processes at most five minutes, stopping at a solidified block with the
-required confirmation depth. It advances only after the complete paginated window
-and its processing succeed; failure leaves the checkpoint intact for idempotent
-replay. No HTTP occurs in a database transaction. Concurrent scans are safe through
-Order/event locks and compare-and-update progress. Only orders created after the
-configured start and expired before the verified checkpoint may expire automatically;
-unseen/uncertain reservations remain held. Transaction-indexer lag or upstream data
-omissions still require monitoring and targeted rechecks; offline tests are not proof
-of the provider's live indexing completeness or service availability.
+`trc20_scan_cursors` stores per-address progress. Existing `started_at` and
+`scanned_through` remain authoritative, including previously explicit boundaries.
+For an address with no cursor, the scheduled scanner starts at the earliest
+TRC20_SHARED/TRON order in PENDING, PROCESSING or PAID status at that exact address.
+It preserves timestamp precision and initializes using insert-or-ignore before
+rereading the winning cursor. No unfinished order means no cursor and no upstream
+scan for that address. Completed, cancelled, expired and review history cannot
+bootstrap scans. Old scan flags and environment start times are ignored; they never
+rewind, skip forward or suppress persisted progress. Orders predating an existing
+cursor boundary remain excluded from automatic verification.
 
-Production prerequisites (NOT executed implicitly by implementation):
+Each run processes at most five minutes per address up to the solidified confirmation
+boundary. Existing and rotated order addresses remain eligible. Exact destination,
+contract, amount, receipt event identity, validity interval and confirmation depth
+still govern credit through the existing LedgerWriter path. Duplicate observations
+cannot credit twice. HTTP failure, rate limiting, incomplete pagination or uncertain
+receipts never advance the checkpoint or expire unseen orders. A subsequent scheduled
+run retries the same window; no immediate retry burst is introduced.
 
-- A company/default/Wallet/Deposit asset configuration of USDT. Existing USD Wallets
-  are immutable and are not converted or deleted by this work.
-- Correct shared `TRON_USDT_DEPOSIT_ADDRESS` and official `TRON_USDT_TOKEN_CONTRACT`.
-- `BLOCKCHAIN_GATEWAY_DRIVER=trongrid`; `TRONGRID_API_KEY_ENCRYPTED` must contain a
-  Laravel Crypt-encrypted API key under the deployment APP_KEY. No plaintext key,
-  placeholder production secret or reveal endpoint is provided. Keep APP_KEY stable.
-- Explicit start time, then `TRON_TOPUP_SCAN_ENABLED=true`. Review pending historical
-  orders and chosen start before enabling. Do not reset persisted progress to replay.
-- Run only the selected deployment's `php artisan topups:scan-trc20` every minute
-  initially. Do not blindly start existing general recovery queues/scheduler: they
-  may contain unrelated historical Card/Payment work. Alert on nonzero exit, stalled
-  cursor, pending orders and provider indexing/rate limits.
-- Test a specifically authorized live payment separately, with company/account,
-  amount cap and expected result. Keep private API-key headers out of HTTP telemetry.
+Deployment requires updating application code and rebuilding configuration cache,
+then the existing every-minute scheduler runs `topups:scan-trc20`. There are no new
+migrations or financial data edits. Do not reset existing cursors. The public service
+may rate-limit anonymous requests; errors preserve pending funds and progress.
+Basic anonymous public block/history reads were checked without querying customer
+payments or executing application scans. Offline tests cover anonymous receipt reads,
+automatic pending-order bootstrap, unchanged cursor boundaries, errors, confirmation
+retry and a synthetic 700.01 USDT credit with exactly one Ledger event. This does not
+claim that any production payment was credited or that public availability is guaranteed.
 
 Sources checked during implementation:
 - [TRON incoming history API](https://developers.tron.network/reference/get-trc20-transaction-info-by-account-address)

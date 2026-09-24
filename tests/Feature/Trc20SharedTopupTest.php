@@ -15,6 +15,9 @@ use App\Application\SecurityDeposit\FundSecurityDepositAction;
 use App\Application\SecurityDeposit\RefundSecurityDepositAction;
 use App\Application\Wallet\ActivateUserWalletAction;
 use App\Domain\Admin\Models\AdminUser;
+use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
+use App\Domain\Kyc\DTOs\KycOcrResultDTO;
+use App\Domain\Kyc\Enums\KycOcrOutcome;
 use App\Domain\Ledger\Enums\LedgerAccountType;
 use App\Domain\Ledger\Models\LedgerAccount;
 use App\Domain\Ledger\Models\LedgerEntry;
@@ -74,8 +77,14 @@ function prepareTrc20User(Tenant $tenant, User $user, string $identity): array
         'required_security_deposit_asset' => 'USDT',
         'allow_wallet_topup' => true,
     ]);
+    $ocr = Mockery::mock(KycOcrProviderInterface::class);
+    $ocr->shouldReceive('name')->andReturn('offline-test');
+    $ocr->shouldReceive('extractIdentityDocument')->andReturn(new KycOcrResultDTO(
+        KycOcrOutcome::Success, "TRC20-{$identity}-{$user->id}",
+    ));
+    app()->instance(KycOcrProviderInterface::class, $ocr);
     $application = app(SubmitKycApplicationAction::class)->execute(
-        $tenant->fresh(), $user, 'MY', "TRC20-{$identity}-{$user->id}",
+        $tenant->fresh(), $user, 'CN', "TRC20-{$identity}-{$user->id}",
         kycTestImage("trc20-{$identity}-front.png"), kycTestImage("trc20-{$identity}-back.png"),
     );
     $reviewer = AdminUser::query()->where('email', 'owner@'.($tenant->slug === 'tenant-a' ? 'a' : 'b').'.localhost')->firstOrFail();
@@ -397,7 +406,7 @@ it('checkpoints only a fully verified live scan window and leaves pre-start orde
     $order = createTrc20Topup($this);
     $start = CarbonImmutable::now()->addSecond()->startOfSecond();
     $end = $start->addMinutes(2);
-    config(['payment.trc20_scan_enabled' => true, 'payment.trc20_scan_start_at' => $start->utc()->format('Y-m-d\TH:i:s\Z')]);
+    DB::table('trc20_scan_cursors')->insert(['id' => hash('sha256', 'TRON:USDT:'.config('payment.trc20_deposit_address')), 'started_at' => $start, 'scanned_through' => $start]);
     $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
     $gateway->shouldReceive('available')->andReturn(true);
     $gateway->shouldReceive('confirmedThrough')->andReturn($end);
@@ -408,26 +417,41 @@ it('checkpoints only a fully verified live scan window and leaves pre-start orde
         ->and(new DateTimeImmutable(DB::table('trc20_scan_cursors')->value('scanned_through')))->toEqual($end);
 });
 
-it('does not advance the live scan cursor on upstream uncertainty or enable scanning implicitly', function (): void {
-    $start = CarbonImmutable::now()->subMinute()->startOfSecond();
-    config(['payment.trc20_scan_enabled' => false, 'payment.trc20_scan_start_at' => $start->utc()->format('Y-m-d\TH:i:s\Z')]);
+it('automatically starts at the pending order and preserves progress on upstream uncertainty', function (): void {
+    $order = createTrc20Topup($this);
+    $start = $order->created_at->toDateTimeImmutable();
+    // Old environment flags no longer require operator configuration.
+    config(['payment.trc20_scan_enabled' => false, 'payment.trc20_scan_start_at' => null]);
     $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
     $gateway->shouldReceive('available')->andReturn(true);
-    $gateway->shouldReceive('confirmedThrough')->once()->andReturn($start->addMinute());
-    $gateway->shouldReceive('between')->once()->andThrow(new DomainException('UNAVAILABLE', 'Unavailable', 503));
+    $gateway->shouldReceive('confirmedThrough')->twice()->andReturn(CarbonImmutable::instance($start)->addMinute());
+    $gateway->shouldReceive('between')->twice()->withArgs(fn ($address, $from) => $address === $order->deposit_address && $from == $start)
+        ->andThrow(new DomainException('UNAVAILABLE', 'Unavailable', 503));
     $this->app->instance(BlockchainGatewayInterface::class, $gateway);
     $scan = app(ScanTrc20TopupsAction::class);
     expect(fn () => $scan->execute())->toThrow(DomainException::class);
-    expect(DB::table('trc20_scan_cursors')->count())->toBe(0);
-    config(['payment.trc20_scan_enabled' => true]);
+    config(['payment.trc20_scan_start_at' => '2099-01-01T00:00:00Z']);
     expect(fn () => $scan->execute())->toThrow(DomainException::class);
     expect(new DateTimeImmutable(DB::table('trc20_scan_cursors')->value('scanned_through')))->toEqual($start);
+    expect($order->fresh()->status)->toBe(WalletTopupStatus::Pending)->and(LedgerEntry::query()->count())->toBe(0);
+});
+
+it('does not bootstrap a historical scan when there are no unfinished orders', function (): void {
+    $order = createTrc20Topup($this);
+    app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($order));
+    $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
+    $gateway->shouldReceive('available')->andReturn(true);
+    $gateway->shouldNotReceive('confirmedThrough');
+    $gateway->shouldNotReceive('between');
+    $this->app->instance(BlockchainGatewayInterface::class, $gateway);
+    expect(app(ScanTrc20TopupsAction::class)->execute()['CREDITED'])->toBe(0);
+    expect(DB::table('trc20_scan_cursors')->count())->toBe(0);
 });
 
 it('retries an insufficiently confirmed scan window and credits a new order exactly once', function (): void {
     $start = CarbonImmutable::now()->subMinute()->startOfSecond();
     $end = CarbonImmutable::now()->addMinute();
-    config(['payment.trc20_scan_enabled' => true, 'payment.trc20_scan_start_at' => $start->utc()->format('Y-m-d\TH:i:s\Z')]);
+    DB::table('trc20_scan_cursors')->insert(['id' => hash('sha256', 'TRON:USDT:'.config('payment.trc20_deposit_address')), 'started_at' => $start, 'scanned_through' => $start]);
     $order = createTrc20Topup($this);
     $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
     $gateway->shouldReceive('available')->andReturn(true);
@@ -440,6 +464,38 @@ it('retries an insufficiently confirmed scan window and credits a new order exac
     expect($scan->execute()['CREDITED'])->toBe(1)->and($scan->execute()['CREDITED'])->toBe(0);
     expect($order->fresh()->status)->toBe(WalletTopupStatus::Credited)
         ->and(LedgerEntry::query()->where('event_type', 'WALLET_TOPUP_CREDIT')->count())->toBe(1);
+});
+
+it('automatically credits a pending 700.01 order from public receipts without scanner configuration', function (): void {
+    $token = TronGridBlockchainGateway::TOKEN;
+    config(['payment.trc20_deposit_address' => $token, 'payment.trc20_token_contract' => $token,
+        'payment.trongrid_api_key_encrypted' => null, 'payment.trc20_scan_enabled' => false,
+        'payment.trc20_scan_start_at' => null]);
+    $order = createTrc20Topup($this, '700');
+    $hash = str_repeat('f', 64);
+    $at = $order->created_at->addSecond();
+    $end = $order->created_at->addMinutes(2);
+    $units = BigDecimal::of($order->expected_amount)->multipliedBy('1000000')->toBigInteger()->toBase(16);
+    Http::preventStrayRequests();
+    Http::fake([
+        'api.trongrid.io/v1/accounts/*' => Http::response(['success' => true, 'data' => [['transaction_id' => $hash]], 'meta' => []]),
+        'api.trongrid.io/walletsolidity/getnowblock' => Http::response(['block_header' => ['raw_data' => ['number' => 125]]]),
+        'api.trongrid.io/walletsolidity/getblockbynum' => Http::response(['block_header' => ['raw_data' => ['number' => 106, 'timestamp' => (int) $end->format('Uv')]]]),
+        'api.trongrid.io/walletsolidity/gettransactioninfobyid' => Http::response([
+            'id' => $hash, 'blockNumber' => 100, 'blockTimeStamp' => (int) $at->format('Uv'), 'receipt' => ['result' => 'SUCCESS'],
+            'log' => [['address' => 'a614f803b6fd780986a42c78ec9c7f77e6ded13c', 'topics' => [
+                'ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef', str_repeat('0', 64),
+                str_repeat('0', 24).'a614f803b6fd780986a42c78ec9c7f77e6ded13c',
+            ], 'data' => str_pad($units, 64, '0', STR_PAD_LEFT)]],
+        ]),
+    ]);
+    $this->app->instance(BlockchainGatewayInterface::class, new TronGridBlockchainGateway);
+    $scan = app(ScanTrc20TopupsAction::class);
+    expect($scan->execute()['CREDITED'])->toBe(1)->and($scan->execute()['CREDITED'])->toBe(0);
+    expect($order->fresh()->status)->toBe(WalletTopupStatus::Credited)
+        ->and($order->fresh()->matched_tx_hash)->toBe($hash)
+        ->and(LedgerEntry::query()->where('event_type', 'WALLET_TOPUP_CREDIT')->count())->toBe(1);
+    Http::assertNotSent(fn ($request) => $request->hasHeader('TRON-PRO-API-KEY') || $request->hasHeader('Authorization'));
 });
 
 it('routes real-adapter receipt evidence through SaaS verification and the existing ledger credit', function (): void {
@@ -818,7 +874,7 @@ it('fails closed in production and exposes mock mutation only outside production
     $this->app->forgetInstance(BlockchainGatewayInterface::class);
     $this->app->detectEnvironment(fn (): string => 'production');
     try {
-        expect(app(BlockchainGatewayInterface::class))->toBeInstanceOf(UnavailableBlockchainGateway::class)
+        expect(app(BlockchainGatewayInterface::class))->toBeInstanceOf(TronGridBlockchainGateway::class)
             ->and(app(BlockchainGatewayInterface::class)->available())->toBeFalse();
     } finally {
         $this->app->detectEnvironment(fn (): string => 'testing');
