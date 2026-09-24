@@ -704,12 +704,32 @@ a.user-quick-action:hover .user-quick-action-circle {
     width: min(100%, 562px);
     margin: auto;
     border-radius: 24px;
-    background: #171915;
-    color: white;
+    background:
+        repeating-linear-gradient(115deg, transparent 0 3px, rgb(255 246 220 / 2%) 3px 4px),
+        radial-gradient(ellipse at 5% 0%, rgb(211 183 127 / 24%), transparent 62%),
+        linear-gradient(125deg, #494a43 0%, #363b36 48%, #282e2b 100%);
+    color: #faf7ee;
+    box-shadow:
+        inset 0 0 0 1px rgb(225 204 157 / 36%),
+        inset 0 1px 0 rgb(255 246 218 / 25%),
+        0 8px 20px rgb(40 46 43 / 10%);
     padding: clamp(24px, 4.267cqw, 32px);
 }
+.user-card-visual .user-card-name {
+    color: #f1e3c4;
+}
+.user-card-visual .user-card-mark {
+    color: #dfc58c;
+}
+.user-card-visual .user-card-label {
+    color: #d0cbbf;
+}
 .user-card-visual-frozen {
-    background: #626262;
+    background: linear-gradient(125deg, #626967, #454d4b);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 20%);
+}
+.user-card-visual-frozen :is(.user-card-name, .user-card-mark, .user-card-label) {
+    color: #e0e6e3;
 }
 .user-card-product {
     margin-inline: auto;
@@ -1139,4 +1159,99 @@ a {
     min-height: 44px;
     padding: 8px;
     font-size: 16px;
+}
+
+/* Transfer receipt: one status, a clear amount, and compact account details. */
+.transfer-receipt {
+    width: 100%;
+    max-width: 480px;
+    margin-inline: auto;
+}
+.transfer-receipt-summary {
+    padding: 12px 0 28px;
+    text-align: center;
+}
+.transfer-receipt-icon {
+    display: grid;
+    place-items: center;
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 16px;
+    border-radius: 50%;
+    background: #e5f3eb;
+    color: var(--success);
+}
+.transfer-receipt-icon svg {
+    width: 34px;
+    height: 34px;
+    stroke-width: 2;
+}
+.transfer-receipt-summary h2 {
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+.transfer-receipt-amount {
+    margin-top: 10px;
+    font-size: clamp(28px, 6.4vw, 40px);
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.035em;
+    overflow-wrap: anywhere;
+}
+.transfer-receipt-details {
+    padding: 4px 20px;
+    border: 1px solid var(--user-border);
+    border-radius: var(--user-radius-md);
+    background: var(--user-surface);
+}
+.transfer-receipt-details > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    align-items: baseline;
+    gap: 8px 16px;
+    padding-block: 16px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+.transfer-receipt-details > div + div {
+    border-top: 1px solid var(--user-border);
+}
+.transfer-receipt-details dt {
+    color: var(--user-text-secondary);
+}
+.transfer-receipt-details dd {
+    min-width: 0;
+    text-align: right;
+    overflow-wrap: anywhere;
+    font-weight: 500;
+}
+.transfer-receipt-details .transfer-receipt-reference {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+}
+.transfer-receipt-reference dd {
+    text-align: left;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--user-text-secondary);
+    font-family: var(--font-mono);
+}
+.transfer-receipt-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 24px;
+}
+.user-theme .user-main .transfer-receipt-actions > a {
+    height: auto;
+    min-height: 48px;
+    min-width: 0;
+    border-radius: 999px;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.5;
+    text-align: center;
+    white-space: normal;
 }

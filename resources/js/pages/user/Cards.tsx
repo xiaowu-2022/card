@@ -730,10 +730,13 @@ export default function Cards(props: Props) {
                                         className={`user-card-visual${card.state === 'Frozen' ? ' user-card-visual-frozen' : ''}`}
                                     >
                                         <div className="flex items-start justify-between">
-                                            <p className="font-semibold">
+                                            <p className="user-card-name font-semibold">
                                                 {cardDisplayName(card.productName)}
                                             </p>
-                                            <CreditCard className="size-5 text-white/70" />
+                                            <CreditCard
+                                                className="user-card-mark size-5"
+                                                aria-hidden="true"
+                                            />
                                         </div>
                                         <p
                                             className={
@@ -749,7 +752,7 @@ export default function Cards(props: Props) {
                                         </p>
                                         <div className="mt-5 flex items-end justify-between gap-4 text-sm">
                                             <div>
-                                                <p className="text-white/60">{t('Balance')}</p>
+                                                <p className="user-card-label">{t('Balance')}</p>
                                                 <p className="mt-1 text-lg font-semibold">
                                                     {card.balance ? (
                                                         <MoneyDisplay
@@ -763,7 +766,7 @@ export default function Cards(props: Props) {
                                                 </p>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-white/60">{t('Expiry')}</p>
+                                                <p className="user-card-label">{t('Expiry')}</p>
                                                 <p className="mt-1">{card.expiry ?? '—'}</p>
                                             </div>
                                         </div>

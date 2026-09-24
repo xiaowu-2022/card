@@ -9,7 +9,13 @@ import { useLocaleSync } from '@/i18n/useLocaleSync';
 import { userThemeStyle } from '@/lib/user-theme';
 import type { SharedProps } from '@/types/global';
 
-export function UserLayout({ children }: { children: ReactNode }) {
+export function UserLayout({
+    children,
+    handledSuccessMessage,
+}: {
+    children: ReactNode;
+    handledSuccessMessage?: string;
+}) {
     useLocaleSync();
     useClientTranslation();
     const page = usePage<SharedProps>();
@@ -87,7 +93,7 @@ export function UserLayout({ children }: { children: ReactNode }) {
                 <main
                     className={`user-main min-w-0 ${overview && navigationHome ? 'user-main-overview' : ''}`}
                 >
-                    {flash.success && (
+                    {flash.success && flash.success !== handledSuccessMessage && (
                         <div
                             className="mb-5 rounded-[var(--user-radius-sm)] border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"
                             role="status"

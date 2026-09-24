@@ -75,41 +75,47 @@ export default function Transfer({
         }
     }, [receipt, storageKey]);
     return (
-        <UserLayout>
+        <UserLayout handledSuccessMessage={receipt ? 'Transfer completed.' : undefined}>
             <Head title={t('Transfer')} />
             <div className="space-y-6">
                 <UserPageHeader title={t('Transfer')} backHref="/dashboard" />
                 {receipt ? (
-                    <section className="space-y-5">
-                        <CheckCircle2 className="size-12 text-success" />
-                        <h2 className="text-2xl font-semibold">{t('Transfer completed.')}</h2>
-                        <p className="text-3xl">
-                            <MoneyDisplay amount={receipt.amount} asset={receipt.asset} />
-                        </p>
-                        <dl className="space-y-3 text-sm">
+                    <section className="transfer-receipt" aria-labelledby="transfer-result-title">
+                        <div className="transfer-receipt-summary" role="status">
+                            <span className="transfer-receipt-icon">
+                                <CheckCircle2 aria-hidden="true" />
+                            </span>
+                            <h2 id="transfer-result-title">{t('Transfer completed.')}</h2>
+                            <p className="transfer-receipt-amount">
+                                <MoneyDisplay amount={receipt.amount} asset={receipt.asset} />
+                            </p>
+                        </div>
+                        <dl className="transfer-receipt-details">
                             <div>
                                 <dt>{t('Sender account ID')}</dt>
-                                <dd className="font-mono">{receipt.senderAccountId}</dd>
+                                <dd className="tabular-nums">{receipt.senderAccountId}</dd>
                             </div>
                             <div>
                                 <dt>{t('Recipient account ID')}</dt>
-                                <dd className="font-mono">{receipt.recipientAccountId}</dd>
+                                <dd className="tabular-nums">{receipt.recipientAccountId}</dd>
                             </div>
                             <div>
                                 <dt>{t('Time')}</dt>
                                 <dd>{dateTime(receipt.createdAt)}</dd>
                             </div>
-                            <div>
+                            <div className="transfer-receipt-reference">
                                 <dt>{t('Transfer reference')}</dt>
-                                <dd className="break-all font-mono">{receipt.id}</dd>
+                                <dd>{receipt.id}</dd>
                             </div>
                         </dl>
-                        <Button asChild>
-                            <Link href="/wallet/transfer">{t('New transfer')}</Link>
-                        </Button>
-                        <Button asChild variant="secondary">
-                            <Link href="/dashboard">{t('Back to home')}</Link>
-                        </Button>
+                        <div className="transfer-receipt-actions">
+                            <Button asChild>
+                                <Link href="/wallet/transfer">{t('New transfer')}</Link>
+                            </Button>
+                            <Button asChild variant="secondary">
+                                <Link href="/dashboard">{t('Back to home')}</Link>
+                            </Button>
+                        </div>
                     </section>
                 ) : !transferAvailable || !available ? (
                     <p role="status">
