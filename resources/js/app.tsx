@@ -6,7 +6,6 @@ import type { ComponentType } from 'react';
 import { configureClientLocale } from '@/i18n';
 
 const pages = import.meta.glob<ComponentType>('./pages/**/*.tsx', {
-    eager: true,
     import: 'default',
 });
 
@@ -15,7 +14,7 @@ void createInertiaApp({
     resolve: (name) => {
         const page = pages[`./pages/${name}.tsx`];
         if (!page) throw new Error(`Inertia page not found: ${name}`);
-        return page;
+        return page();
     },
     setup({ el, App, props }) {
         const locale = props.initialPage.props.i18n as
