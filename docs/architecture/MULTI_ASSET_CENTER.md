@@ -129,7 +129,12 @@ The Assets homepage omits the My cards summary and empty-card promotion; card
 balances and operations remain accessible through the bottom Cards navigation.
 
 The asset center shows original balances and indicative total in USDT, not a
-withdrawable total. Fiat and card USD balances are excluded. Missing quotes hide
+withdrawable total. As approved on 2026-09-24, include all unarchived owned card
+USD balances at the existing 1:1 USD/USDT basis: locally confirmed provider balance
+plus the card’s USER_CARD_OVERFLOW balance exactly once. Frozen cards retain their
+value. Read only tenant/user-scoped saved records, without provider synchronization,
+market requests or Ledger writes. If any included card balance is unknown, the total
+estimate is unavailable rather than a partial sum. Archived cards are excluded. Missing quotes hide
 only estimation/exchange, never original balances. USDT balances (including deposit,
 commission and existing holds) contribute at 1:1 without external prices. Zero
 non-USDT balances do not require quotes; an empty portfolio displays zero. Only a

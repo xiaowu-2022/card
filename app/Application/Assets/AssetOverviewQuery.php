@@ -12,6 +12,7 @@ use App\Domain\Assets\ChainConnection;
 use App\Domain\Assets\CompanyRail;
 use App\Domain\Assets\ExchangeOrder;
 use App\Domain\Assets\ExchangePolicy;
+use App\Domain\Card\Models\UserCard;
 use App\Domain\Ledger\Models\LedgerAccount;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Tenant\Models\TenantBusinessSetting;
@@ -34,6 +35,19 @@ final readonly class AssetOverviewQuery
         $total = BigDecimal::of('0');
         $valuationAvailable = true;
         $usesMarketPrices = false;
+        // Match card display balances, using confirmed local data and the existing USD/USDT 1:1 convention.
+        $overflow = $accounts->filter(fn ($account) => $account->account_type->value === 'USER_CARD_OVERFLOW'
+            && $account->asset_code === 'USDT')->keyBy('card_id');
+        $cards = UserCard::query()->where('tenant_id', $tenantId)->where('user_id', $userId)
+            ->whereNull('archived_at')->get(['id', 'card_currency', 'provider_balance']);
+        foreach ($cards as $card) {
+            if ($card->provider_balance === null || $card->card_currency !== 'USD') {
+                $valuationAvailable = false;
+
+                continue;
+            }
+            $total = $total->plus($card->provider_balance)->plus($overflow->get($card->id)?->balance ?? '0');
+        }
         $assets = [];
         $rails = AssetRail::query()->where('enabled', true)->get();
         $connections = ChainConnection::query()->where('enabled', true)->whereNotNull('next_height')->get()->keyBy('network');

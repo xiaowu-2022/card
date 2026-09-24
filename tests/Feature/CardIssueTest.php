@@ -1,5 +1,6 @@
 <?php
 
+use App\Application\Assets\AssetOverviewQuery;
 use App\Application\Card\ActivatePhysicalCardAction;
 use App\Application\Card\AdminCardLoadsQuery;
 use App\Application\Card\ApplyCardIssueResultAction;
@@ -61,6 +62,9 @@ use App\Domain\CardProvider\Enums\ProviderCardholderReviewStatus;
 use App\Domain\CardProvider\Enums\ProviderOperationStatus;
 use App\Domain\CardProvider\Exceptions\ProviderRejectedException;
 use App\Domain\CardProvider\Exceptions\ProviderUnknownResultException;
+use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
+use App\Domain\Kyc\DTOs\KycOcrResultDTO;
+use App\Domain\Kyc\Enums\KycOcrOutcome;
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Ledger\DTOs\LedgerPostingInstruction;
 use App\Domain\Ledger\DTOs\LedgerPostingPlan;
@@ -882,10 +886,16 @@ function phaseTenReadyUser($test, string $available = '100.00000000', ProviderCa
         ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
     });
     $test->tenant->refresh();
+    $ocr = Mockery::mock(KycOcrProviderInterface::class);
+    $ocr->shouldReceive('name')->andReturn('TEST');
+    $ocr->shouldReceive('extractIdentityDocument')->andReturn(new KycOcrResultDTO(
+        KycOcrOutcome::Success, 'PHASE-TEN-'.$test->user->id,
+    ));
+    app()->instance(KycOcrProviderInterface::class, $ocr);
     $application = app(SubmitKycApplicationAction::class)->execute(
         $test->tenant,
         $test->user,
-        'MY',
+        'CN',
         'PHASE-TEN-'.$test->user->id,
         kycTestImage('phase-ten-front.png'),
         kycTestImage('phase-ten-back.png'),
@@ -2553,4 +2563,30 @@ it('allows password verified platform card reveal with scoped no store and safe 
         ->assertExactJson(['pan' => '411111111111'.$card->last4, 'cvv' => '987', 'expiry' => '08/29'])
         ->assertHeader('Cache-Control', 'no-store, private');
     expect(json_encode(AuditLog::where('action', 'CARD_CVV_VIEWED')->get()))->not->toContain('411111111111', '987');
+});
+
+it('includes confirmed card balances and overflow once in assets without provider reads', function (): void {
+    [$card, $provider, $action] = managedCardFixture($this, available: '200');
+    $card->forceFill(['balance_limit' => '20'])->save();
+    $order = $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '80');
+    $action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $order->id);
+    $provider->shouldNotReceive('getCard');
+    Http::fake();
+    $entries = LedgerEntry::count();
+    $query = app(AssetOverviewQuery::class);
+    $wallet = phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance;
+    $expected = Money::of($wallet, 'USDT')->add(Money::of('110', 'USDT'))->amount(); // 10 deposit + 20 provider + 80 overflow.
+    expect($query->get($this->tenant->id, $this->user->id, [])['estimate'])->toBe($expected);
+    $card->forceFill(['provider_status' => 'frozen'])->save();
+    expect($query->get($this->tenant->id, $this->user->id, [])['estimate'])->toBe($expected);
+    $other = Tenant::where('slug', 'tenant-b')->firstOrFail();
+    $otherUser = User::where('tenant_id', $other->id)->firstOrFail();
+    expect($query->get($other->id, $otherUser->id, [])['estimate'])->toBe('0.00000000');
+    expect(fn () => $query->get($other->id, $this->user->id, []))->toThrow(ModelNotFoundException::class);
+    $card->forceFill(['provider_balance' => null])->save();
+    expect($query->get($this->tenant->id, $this->user->id, [])['estimate'])->toBeNull();
+    $card->forceFill(['archived_at' => now()])->save();
+    expect($query->get($this->tenant->id, $this->user->id, [])['estimate'])->toBe(Money::of($wallet, 'USDT')->add(Money::of('10', 'USDT'))->amount());
+    expect(LedgerEntry::count())->toBe($entries);
+    Http::assertNothingSent();
 });
