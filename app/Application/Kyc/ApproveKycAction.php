@@ -4,10 +4,12 @@ namespace App\Application\Kyc;
 
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Audit\Services\AuditLogger;
+use App\Domain\Kyc\Enums\KycOcrStatus;
 use App\Domain\Kyc\Enums\KycReviewStatus;
 use App\Domain\Kyc\Models\IdentityRecord;
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Kyc\Services\IdentityHashGenerator;
+use App\Domain\Kyc\Services\KycDataCipher;
 use App\Domain\Tenant\Enums\KycReviewMode;
 use App\Domain\Tenant\Models\PlatformKycSetting;
 use App\Domain\Tenant\Models\Tenant;
@@ -39,6 +41,10 @@ final readonly class ApproveKycAction
                 $application = KycApplication::query()->where('tenant_id', $tenantId)->whereKey($applicationId)->lockForUpdate()->firstOrFail();
                 if ($application->review_status !== KycReviewStatus::Pending) {
                     throw new DomainException('KYC_ALREADY_REVIEWED', 'This application has already been reviewed.', 409);
+                }
+                $evidence = $application->ocr_result_encrypted ? json_decode(app(KycDataCipher::class)->decrypt($application->ocr_result_encrypted), true) : [];
+                if ($application->ocr_status !== KycOcrStatus::Succeeded || ($evidence['candidate_identity_match'] ?? null) !== 'MATCH') {
+                    throw new DomainException('KYC_OCR_REQUIRED', 'Document recognition must succeed and match before approval.', 409);
                 }
                 $settings = PlatformKycSetting::current(true);
                 if ($reviewer === null && (! $settings->enabled || $settings->review_mode !== KycReviewMode::Automatic)) {

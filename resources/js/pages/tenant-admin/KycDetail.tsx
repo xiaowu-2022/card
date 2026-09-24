@@ -204,28 +204,34 @@ export default function KycDetail({
                                         </form>
                                     ) : (
                                         <div className="flex flex-wrap gap-3">
-                                            {(['front', 'back'] as const).map((side) => (
-                                                <form
-                                                    key={side}
-                                                    method="post"
-                                                    target="_blank"
-                                                    action={`/admin/kyc/${application.id}/documents/${side}/access`}
-                                                >
-                                                    <input
-                                                        type="hidden"
-                                                        name="_token"
-                                                        value={csrf}
-                                                    />
-                                                    <Button>
-                                                        <Eye className="mr-2 size-4" />
-                                                        {t(
-                                                            side === 'front'
-                                                                ? 'View ID front'
-                                                                : 'View ID back',
-                                                        )}
-                                                    </Button>
-                                                </form>
-                                            ))}
+                                            {(['front', 'back'] as const)
+                                                .filter(
+                                                    (side) =>
+                                                        application.documentType !== 'PASSPORT' ||
+                                                        side === 'front',
+                                                )
+                                                .map((side) => (
+                                                    <form
+                                                        key={side}
+                                                        method="post"
+                                                        target="_blank"
+                                                        action={`/admin/kyc/${application.id}/documents/${side}/access`}
+                                                    >
+                                                        <input
+                                                            type="hidden"
+                                                            name="_token"
+                                                            value={csrf}
+                                                        />
+                                                        <Button>
+                                                            <Eye className="mr-2 size-4" />
+                                                            {t(
+                                                                side === 'front'
+                                                                    ? 'View ID front'
+                                                                    : 'View ID back',
+                                                            )}
+                                                        </Button>
+                                                    </form>
+                                                ))}
                                         </div>
                                     )}
                                 </CardContent>

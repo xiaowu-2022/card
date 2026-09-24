@@ -4,6 +4,7 @@ namespace App\Http\Controllers\User;
 
 use App\Application\Kyc\SubmitKycApplicationAction;
 use App\Application\Kyc\UserKycQuery;
+use App\Domain\Kyc\Enums\KycDocumentType;
 use App\Domain\Tenant\Enums\TenantStatus;
 use App\Domain\Tenant\Models\PlatformKycSetting;
 use App\Domain\Tenant\TenantContext;
@@ -39,7 +40,7 @@ final class KycController extends Controller
         /** @var User $user */
         $user = Auth::guard('tenant_user')->user();
         $validated = $request->validated();
-        $application = $action->execute($context->tenant(), $user, $validated['document_country'], $validated['identity_number'], $validated['front'], $validated['back'], $request->attributes->get('request_id'));
+        $application = $action->execute($context->tenant(), $user, $validated['document_country'], $validated['identity_number'], $validated['front'], $validated['back'] ?? null, $request->attributes->get('request_id'), KycDocumentType::from($validated['document_type']));
 
         return redirect($request->query('from') === 'account-security' ? '/kyc?from=account-security' : '/kyc')->with('success', $application->automatically_approved ? 'Your identity verification is complete.' : 'Your identity documents were submitted for review.');
     }

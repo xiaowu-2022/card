@@ -32,6 +32,7 @@ final class KycDocumentController extends Controller
     {
         $application = KycApplication::query()->where('tenant_id', $context->id())->whereKey($kyc)->firstOrFail();
         $key = $side === 'front' ? $application->front_object_key : $application->back_object_key;
+        abort_unless(is_string($key) && $key !== '', 404);
         $disk = Storage::disk((string) config('kyc.document_disk'));
         try {
             $contents = $disk->get($key);

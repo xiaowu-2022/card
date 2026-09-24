@@ -30,6 +30,7 @@ use App\Infrastructure\Providers\Card\PhotonPayCardResponseNormalizer;
 use App\Infrastructure\Providers\Card\UnavailableCardProvider;
 use App\Infrastructure\Providers\Domain\DnsDomainVerificationService;
 use App\Infrastructure\Providers\Domain\LocalDomainVerificationService;
+use App\Infrastructure\Providers\Kyc\AliyunKycOcrProvider;
 use App\Infrastructure\Providers\Kyc\MockKycOcrProvider;
 use App\Infrastructure\Providers\Kyc\UnavailableKycOcrProvider;
 use App\Infrastructure\Providers\Payment\MockPaymentProvider;
@@ -114,6 +115,9 @@ class AppServiceProvider extends ServiceProvider
             return new UnavailableCardProvider;
         });
         $this->app->bind(KycOcrProviderInterface::class, function (): KycOcrProviderInterface {
+            if (config('kyc.ocr_driver') === 'aliyun') {
+                return new AliyunKycOcrProvider;
+            }
             if (config('kyc.ocr_driver') === 'mock' && app()->environment(['local', 'testing'])) {
                 return new MockKycOcrProvider((string) config('kyc.mock_ocr_mode'));
             }

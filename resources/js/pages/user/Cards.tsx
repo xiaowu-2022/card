@@ -314,13 +314,6 @@ function ProductIssue({
                                     </p>
                                 )}
                                 <div className="mb-4 space-y-3">
-                                    <p className="text-sm text-muted-foreground">
-                                        {t(
-                                            formFactor === 'physical_card'
-                                                ? 'Physical card'
-                                                : 'Virtual card',
-                                        )}
-                                    </p>
                                     {formFactor === 'physical_card' && (
                                         <label className="block">
                                             {t('Name on card (FIRST/LAST)')}

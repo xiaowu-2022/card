@@ -62,12 +62,20 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb, backHref }: Props) 
     const countries = useCardGeography<Country[]>('countries');
     const countryItems = countryOptions(countries.data ?? [], i18n.language);
     const form = useForm<{
+        document_type: string;
         document_country: string;
         identity_number: string;
         front: File | null;
         back: File | null;
         form?: string;
-    }>({ document_country: 'MY', identity_number: '', front: null, back: null, form: undefined });
+    }>({
+        document_type: 'NATIONAL_ID',
+        document_country: 'CN',
+        identity_number: '',
+        front: null,
+        back: null,
+        form: undefined,
+    });
     const state = content[kyc.status];
     return (
         <UserLayout>
@@ -113,6 +121,32 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb, backHref }: Props) 
                                 }}
                             >
                                 <FormField
+                                    id="document-type"
+                                    label={t('Document type')}
+                                    error={errorMessage(form.errors.document_type)}
+                                >
+                                    <select
+                                        id="document-type"
+                                        className="w-full rounded-lg border p-3"
+                                        value={form.data.document_type}
+                                        disabled={form.processing}
+                                        onChange={(event) =>
+                                            form.setData((data) => ({
+                                                ...data,
+                                                document_type: event.target.value,
+                                                document_country: 'CN',
+                                                front: null,
+                                                back: null,
+                                            }))
+                                        }
+                                    >
+                                        <option value="NATIONAL_ID">
+                                            {t('Mainland China identity card')}
+                                        </option>
+                                        <option value="PASSPORT">{t('Passport')}</option>
+                                    </select>
+                                </FormField>
+                                <FormField
                                     id="document-country"
                                     label={t('Document country')}
                                     error={errorMessage(form.errors.document_country)}
@@ -121,7 +155,11 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb, backHref }: Props) 
                                         id="document-country"
                                         label={t('Document country')}
                                         value={form.data.document_country}
-                                        options={countryItems}
+                                        options={
+                                            form.data.document_type === 'NATIONAL_ID'
+                                                ? countryItems.filter((item) => item.value === 'CN')
+                                                : countryItems
+                                        }
                                         placeholder={t('Please select')}
                                         searchLabel={t('Search options')}
                                         emptyLabel={t('No matching options')}
@@ -149,12 +187,13 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb, backHref }: Props) 
                                     id="identity-number"
                                     label={t('Identity number')}
                                     description={t(
-                                        'Enter the number exactly as shown on your national identity document.',
+                                        'Enter the document number exactly as shown in the uploaded image.',
                                     )}
                                     error={errorMessage(form.errors.identity_number)}
                                 >
                                     <Input
                                         id="identity-number"
+                                        required
                                         value={form.data.identity_number}
                                         onChange={(event) =>
                                             form.setData('identity_number', event.target.value)
@@ -165,7 +204,11 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb, backHref }: Props) 
                                 <div className="grid gap-5 sm:grid-cols-2">
                                     <FormField
                                         id="id-front"
-                                        label={t('ID front')}
+                                        label={t(
+                                            form.data.document_type === 'PASSPORT'
+                                                ? 'Passport information page'
+                                                : 'ID front',
+                                        )}
                                         description={t('JPEG, PNG or WEBP · max {{value1}} MB', {
                                             value1: maxDocumentMb,
                                         })}
@@ -173,6 +216,8 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb, backHref }: Props) 
                                     >
                                         <Input
                                             id="id-front"
+                                            key={form.data.document_type}
+                                            required
                                             type="file"
                                             accept="image/jpeg,image/png,image/webp"
                                             onChange={(event) =>
@@ -183,26 +228,32 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb, backHref }: Props) 
                                             }
                                         />
                                     </FormField>
-                                    <FormField
-                                        id="id-back"
-                                        label={t('ID back')}
-                                        description={t('JPEG, PNG or WEBP · max {{value1}} MB', {
-                                            value1: maxDocumentMb,
-                                        })}
-                                        error={errorMessage(form.errors.back)}
-                                    >
-                                        <Input
+                                    {form.data.document_type === 'NATIONAL_ID' && (
+                                        <FormField
                                             id="id-back"
-                                            type="file"
-                                            accept="image/jpeg,image/png,image/webp"
-                                            onChange={(event) =>
-                                                form.setData(
-                                                    'back',
-                                                    event.target.files?.[0] ?? null,
-                                                )
-                                            }
-                                        />
-                                    </FormField>
+                                            label={t('ID back')}
+                                            description={t(
+                                                'JPEG, PNG or WEBP · max {{value1}} MB',
+                                                {
+                                                    value1: maxDocumentMb,
+                                                },
+                                            )}
+                                            error={errorMessage(form.errors.back)}
+                                        >
+                                            <Input
+                                                id="id-back"
+                                                required
+                                                type="file"
+                                                accept="image/jpeg,image/png,image/webp"
+                                                onChange={(event) =>
+                                                    form.setData(
+                                                        'back',
+                                                        event.target.files?.[0] ?? null,
+                                                    )
+                                                }
+                                            />
+                                        </FormField>
+                                    )}
                                 </div>
                                 <Button
                                     className="w-full sm:w-auto"

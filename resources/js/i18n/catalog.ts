@@ -181,6 +181,42 @@ export const catalog = {
         'Nombor telefon anda menerima kod pengesahan pembelian. Pastikan ia boleh menerima SMS.',
         'Tu móvil recibe códigos de verificación de compras. Asegúrate de que pueda recibir SMS.',
     ],
+    'Mainland China identity card': [
+        '中国大陆身份证',
+        'Mainland China identity card',
+        'Mainland China identity card',
+    ],
+    'Passport information page': [
+        '护照资料页',
+        'Passport information page',
+        'Passport information page',
+    ],
+    'Enter the document number exactly as shown in the uploaded image.': [
+        '请填写与上传证件图片完全一致的证件号码。',
+        'Enter the document number exactly as shown in the uploaded image.',
+        'Enter the document number exactly as shown in the uploaded image.',
+    ],
+    'Upload both sides of a mainland China identity card.': [
+        '请上传中国大陆身份证正反面。',
+        'Upload both sides of a mainland China identity card.',
+        'Upload both sides of a mainland China identity card.',
+    ],
+    'Document recognition is temporarily unavailable. Please try again later.': [
+        '证件识别服务暂不可用，请稍后重试。',
+        'Document recognition is temporarily unavailable. Please try again later.',
+        'Document recognition is temporarily unavailable. Please try again later.',
+    ],
+    'The document number could not be recognized or does not match. Please upload a clear document image.':
+        [
+            '未识别到证件号码或号码与填写内容不一致，请上传清晰的证件图片。',
+            'The document number could not be recognized or does not match. Please upload a clear document image.',
+            'The document number could not be recognized or does not match. Please upload a clear document image.',
+        ],
+    'Document recognition must succeed and match before approval.': [
+        '证件号码识别成功且匹配后才能通过认证。',
+        'Document recognition must succeed and match before approval.',
+        'Document recognition must succeed and match before approval.',
+    ],
     'Card number': ['卡号', 'Nombor kad', 'Número de tarjeta'],
     'Copy card number': ['复制卡号', 'Salin nombor kad', 'Copiar número de tarjeta'],
     'Copy CVV': ['复制 CVV', 'Salin CVV', 'Copiar CVV'],

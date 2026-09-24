@@ -1,3 +1,11 @@
+On 2026-09-24 the user approved Aliyun OCR for mainland China national IDs and
+passports. New KYC submissions must recognize a nonempty document number matching
+the supplied number before approval; failed/unavailable OCR never auto-approves.
+Passport uses a single information page, national ID requires both sides and CN.
+This supersedes submission-only automatic approval and national-ID-only scope.
+No historical re-verification, live identity submission, or credential reuse is implied.
+See docs/architecture/ALIYUN_KYC_OCR.md.
+
 On 2026-09-24 the user requested complete outbound PhotonPay diagnostic evidence.
 Business request payloads and exact responses may be retained only in a dedicated
 encrypted rotating log. No Authorization, Token, signing secrets or PIN retention;

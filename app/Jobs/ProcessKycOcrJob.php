@@ -53,7 +53,7 @@ final class ProcessKycOcrJob implements ShouldQueue
                     $application->document_type,
                     $application->document_country,
                     (string) $disk->get($application->front_object_key),
-                    (string) $disk->get($application->back_object_key),
+                    $application->back_object_key ? (string) $disk->get($application->back_object_key) : '',
                 ));
             } catch (Throwable) {
                 throw new \RuntimeException('KYC OCR processing failed.');
