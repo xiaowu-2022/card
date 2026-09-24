@@ -749,13 +749,27 @@ export default function Cards(props: Props) {
                                                     </svg>
                                                     <span>Spec Pay</span>
                                                 </p>
+                                            </div>
+                                            {card.state !== 'Normal' && (
+                                                <p className="user-card-state">
+                                                    {t(card.state ?? 'Awaiting confirmation')}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <div className="user-card-chip-row">
+                                            <img
+                                                src="/images/cards/gold-chip.svg"
+                                                alt=""
+                                                aria-hidden="true"
+                                                width="106"
+                                                height="84"
+                                            />
+                                            <div>
                                                 <p className="user-card-name">
                                                     {cardDisplayName(card.productName)}
                                                 </p>
+                                                <p className="user-card-edition">SPEC U CARD</p>
                                             </div>
-                                            <p className="user-card-state">
-                                                {t(card.state ?? 'Awaiting confirmation')}
-                                            </p>
                                         </div>
                                         <p className="user-card-number font-mono">
                                             {card.maskedPan}

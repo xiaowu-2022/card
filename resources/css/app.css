@@ -706,16 +706,17 @@ a.user-quick-action:hover .user-quick-action-circle {
     aspect-ratio: 1.586;
     margin: auto;
     border-radius: 22px;
-    background: #181b1e url('/images/cards/spec-pay-world.svg') center / 100% 100% no-repeat;
-    color: #f3f1e9;
+    background: #111312 url('/images/cards/spec-pay-gold-background.jpg') center / 100% 100%
+        no-repeat;
+    color: #ecd5a3;
     box-shadow:
-        inset 0 0 0 1px rgb(197 179 141 / 35%),
+        inset 0 0 0 1px rgb(244 218 160 / 22%),
         inset 0 1px 0 rgb(239 225 196 / 18%),
-        0 8px 20px rgb(40 46 43 / 12%);
+        0 5px 18px rgb(92 70 25 / 20%);
     padding: clamp(22px, 4.267cqw, 32px);
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 12px;
 }
 .user-card-face-header {
     display: flex;
@@ -727,7 +728,7 @@ a.user-quick-action:hover .user-quick-action-circle {
     display: flex;
     align-items: center;
     gap: 9px;
-    color: #fff;
+    color: #f5e5be;
     font-size: clamp(22px, 4.4cqw, 30px);
     font-weight: 650;
     letter-spacing: -0.045em;
@@ -739,28 +740,46 @@ a.user-quick-action:hover .user-quick-action-circle {
     height: 29px;
     flex-shrink: 0;
 }
+.user-card-chip-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: auto;
+}
+.user-card-chip-row > img {
+    width: clamp(42px, 9cqw, 58px);
+    height: auto;
+    flex-shrink: 0;
+}
 .user-card-name {
-    margin-top: 5px;
-    color: #f0f2f3;
-    font-size: 11px;
+    color: #ead3a0;
+    font-size: clamp(15px, 3cqw, 21px);
+    font-weight: 600;
+    line-height: 1.3;
+}
+.user-card-edition {
+    margin-top: 4px;
+    color: #cab788;
+    font-size: 7px;
+    letter-spacing: 0.38em;
 }
 .user-card-state {
     padding: 4px 9px;
     border-radius: 999px;
-    background: #30322f;
-    color: white;
+    background: #292922;
+    color: #efdfb6;
     font-size: 11px;
     line-height: 1.5;
     text-align: center;
     max-width: 45%;
 }
 .user-card-number {
-    margin-top: auto;
+    margin-top: 0;
     font-size: clamp(20px, 4cqw, 28px);
     font-weight: 600;
     letter-spacing: 0.09em;
     line-height: 1.4;
-    color: #f3f1e9;
+    color: #ecd5a3;
     text-shadow: 0 1px 1px rgb(0 0 0 / 70%);
     overflow-wrap: anywhere;
 }
@@ -771,7 +790,7 @@ a.user-quick-action:hover .user-quick-action-circle {
     align-items: end;
 }
 .user-card-label {
-    color: #c6c1b5;
+    color: #d5c9ad;
     font-size: 11px;
 }
 .user-card-expiry {

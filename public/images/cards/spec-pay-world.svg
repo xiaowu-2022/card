@@ -1,12 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 632" fill="none">
   <defs>
-    <linearGradient id="surface" x1="0" y1="0" x2="1000" y2="632" gradientUnits="userSpaceOnUse"><stop stop-color="#25282b"/><stop offset=".5" stop-color="#151719"/><stop offset="1" stop-color="#202326"/></linearGradient>
+    <linearGradient id="surface" x1="0" y1="0" x2="1000" y2="632" gradientUnits="userSpaceOnUse"><stop stop-color="#20211e"/><stop offset=".5" stop-color="#090c0b"/><stop offset="1" stop-color="#111614"/></linearGradient>
     <pattern id="dots" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="2" cy="3" r="1.7" fill="#b9a071"/><circle cx="6.5" cy="7" r="1" fill="#ddc99e" opacity=".65"/></pattern>
     <linearGradient id="fade" x1="0" y1="100" x2="0" y2="590" gradientUnits="userSpaceOnUse"><stop stop-color="#000" stop-opacity="0"/><stop offset=".6" stop-color="#111315" stop-opacity=".2"/><stop offset="1" stop-color="#111315" stop-opacity=".92"/></linearGradient>
     <pattern id="grain" width="4" height="4" patternUnits="userSpaceOnUse"><path d="M0 1h4" stroke="#fff" stroke-opacity=".017"/></pattern>
+    <radialGradient id="halo"><stop stop-color="#ffedb5" stop-opacity=".7"/><stop offset=".2" stop-color="#e8b759" stop-opacity=".23"/><stop offset="1" stop-color="#e8b759" stop-opacity="0"/></radialGradient>
+    <linearGradient id="arc" x1="710" y1="470" x2="970" y2="30" gradientUnits="userSpaceOnUse"><stop stop-color="#cf9a42" stop-opacity="0"/><stop offset=".35" stop-color="#cf9a42" stop-opacity=".24"/><stop offset=".73" stop-color="#fff2c5"/><stop offset="1" stop-color="#bb8e41" stop-opacity=".15"/></linearGradient>
   </defs>
   <path fill="url(#surface)" d="M0 0h1000v632H0z"/>
-  <g fill="url(#dots)" opacity=".65" transform="translate(160 72) scale(.86)">
+  <g fill="url(#dots)" opacity=".65" transform="translate(480 36) scale(.55)">
     <path d="m65 91 28-19 29 6 19-22 44-9 24 19 30-7 36 23 37 2 11 22-32 11-18 20-27 1-12 22-19 8-5 33-20 12-13 34-19-7-8-22-20-19-7-28-20-5-8-24-18-16-20-10-17-10Z"/>
     <path d="m206 215 27 18 14 19 29 10 2 15-18-2-19-22-20-11Z"/>
     <path d="m267 265 31-9 38 13 13 22 34 13-7 36-18 21-8 37-18 20-13 32-16 23-12-13 4-33-14-30-12-27-23-18-6-25 10-32Z"/>
@@ -23,5 +25,9 @@
     <path d="m564 349 6-17 6 4-1 23-7 10Z"/>
   </g>
   <path fill="url(#fade)" d="M0 0h1000v632H0z"/>
+  <path d="M685 632C658 356 772 111 989 4" stroke="url(#arc)" stroke-width="13" opacity=".09"/>
+  <path d="M685 632C658 356 772 111 989 4" stroke="url(#arc)" stroke-width="3"/>
+  <ellipse cx="786" cy="218" rx="76" ry="126" transform="rotate(29 786 218)" fill="url(#halo)"/>
+  <path d="M10 0H698L90 632H0V0Z" fill="#fff" opacity=".018"/>
   <path fill="url(#grain)" d="M0 0h1000v632H0z"/>
 </svg>
