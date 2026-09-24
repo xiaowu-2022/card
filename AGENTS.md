@@ -1,3 +1,10 @@
+On 2026-09-24 the user reported a still-pending TRC20 payment missed behind the
+scan cursor. Automatic scans must recheck unfinished orders within their immutable
+validity windows and existing cursor start, even when forward scanning is caught up.
+Use exact receipt evidence and tenant/order-scoped processing; never rewind cursors,
+force credit, or automatically revisit completed/expired orders. Public-index empty
+responses do not remove the need for pending-order recovery. See TRC20_LIVE_VERIFICATION.md.
+
 On 2026-09-24 the user required zero-configuration public TRON deposit scanning.
 Production uses the built-in anonymous mainnet reader and official USDT contract;
 no API key, provider selector, scan toggle or manually configured start is required.

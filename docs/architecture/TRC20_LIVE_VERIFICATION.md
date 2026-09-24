@@ -66,8 +66,19 @@ bootstrap scans. Old scan flags and environment start times are ignored; they ne
 rewind, skip forward or suppress persisted progress. Orders predating an existing
 cursor boundary remain excluded from automatic verification.
 
-Each run processes at most five minutes per address up to the solidified confirmation
-boundary. Existing and rotated order addresses remain eligible. Exact destination,
+The forward scan processes at most five minutes per address up to the solidified
+confirmation boundary. Before moving forward (also when already caught up), it
+rechecks each unfinished order's previously scanned validity interval at that address.
+Only PENDING/PROCESSING/PAID orders created on or after the existing cursor start are
+eligible; the read interval ends at min(cursor, confirmed boundary, order expiry).
+Each observation is processed with that order's immutable tenant/order scope. A
+successful empty public-index response can temporarily omit a real transfer, so the
+forward cursor alone must not prevent this pending-order recovery. Rechecks never
+rewind cursors or select completed/expired/review/cancelled history. Failure stops
+that address before forward progress or expiration; completed credits remain
+idempotent. Existing expiration rules still apply after successful verification.
+
+Existing and rotated order addresses remain eligible. Exact destination,
 contract, amount, receipt event identity, validity interval and confirmation depth
 still govern credit through the existing LedgerWriter path. Duplicate observations
 cannot credit twice. HTTP failure, rate limiting, incomplete pagination or uncertain
@@ -78,8 +89,9 @@ Deployment requires updating application code and rebuilding configuration cache
 then the existing every-minute scheduler runs `topups:scan-trc20`. There are no new
 migrations or financial data edits. Do not reset existing cursors. The public service
 may rate-limit anonymous requests; errors preserve pending funds and progress.
-Basic anonymous public block/history reads were checked without querying customer
-payments or executing application scans. Offline tests cover anonymous receipt reads,
+Initial anonymous block/history connectivity was checked read-only. During the
+user-reported missed-payment investigation, the selected public receipt and history
+window were also read without executing an application scan or changing money. Offline tests cover anonymous receipt reads,
 automatic pending-order bootstrap, unchanged cursor boundaries, errors, confirmation
 retry and a synthetic 700.01 USDT credit with exactly one Ledger event. This does not
 claim that any production payment was credited or that public availability is guaranteed.
@@ -89,7 +101,13 @@ Sources checked during implementation:
 - [TRON integration and solidified receipts](https://developers.tron.network/docs/exchangewallet-integrate-with-the-tron-network)
 - [Tether supported protocols](https://tether.to/es/supported-protocols/)
 
-## Offline acceptance
+## Pending-index recovery acceptance (2026-09-24)
+
+81 related tests / 538 assertions passed, including an initially empty index that
+later exposes a transfer behind the cursor, caught-up cursor recovery bounded by
+order expiry, duplicate-credit prevention and unchanged progress on recheck failure.
+
+## Historical offline acceptance (2026-09-13)
 
 141 related backend tests / 603 assertions, 18 architecture checks and 36 frontend catalog/behavior tests
 passed on 2026-09-13. Coverage includes real-adapter HTTP fakes through final Ledger

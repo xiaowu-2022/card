@@ -39,6 +39,38 @@ final readonly class ScanTrc20TopupsAction
         return $total;
     }
 
+    /**
+     * Public transaction indexes can lag behind solidified receipts. A successful
+     * empty index response is not proof that an unfinished order received nothing.
+     * Revisit only that order's already-scanned validity interval, without rewinding
+     * the forward cursor or replaying completed/pre-boundary orders.
+     *
+     * @param  array<string,int>  $counts
+     * @return array<string,int>
+     */
+    private function recheckPending(string $address, DateTimeImmutable $start, DateTimeImmutable $through, array $counts): array
+    {
+        $orders = WalletTopupOrder::query()->where('payment_rail', 'TRC20_SHARED')
+            ->where('network_code', 'TRON')->where('deposit_address', $address)
+            ->whereIn('status', ['PENDING', 'PROCESSING', 'PAID'])
+            ->where('created_at', '>=', $start->format('Y-m-d H:i:s.uP'))
+            ->where('created_at', '<', $through->format('Y-m-d H:i:s.uP'))
+            ->lazyById(100);
+        foreach ($orders as $order) {
+            $from = $order->created_at->toDateTimeImmutable();
+            $to = min($through, $order->expires_at->toDateTimeImmutable());
+            if ($to <= $from) {
+                continue;
+            }
+            foreach ($this->gateway->between($address, $from, $to) as $transfer) {
+                $result = $this->process->execute($transfer, $order->tenant_id, $order->id, $start);
+                $counts[$result] = ($counts[$result] ?? 0) + 1;
+            }
+        }
+
+        return $counts;
+    }
+
     private function scanAddress(string $address): array
     {
         $counts = ['CREDITED' => 0, 'PAID' => 0, 'CONFIRMING' => 0, 'UNMATCHED' => 0];
@@ -68,6 +100,7 @@ final readonly class ScanTrc20TopupsAction
             $start = new DateTimeImmutable($cursor->started_at);
             $from = new DateTimeImmutable($cursor->scanned_through);
             $safe = $this->gateway->confirmedThrough();
+            $counts = $this->recheckPending($address, $start, min($from, $safe), $counts);
             if ($safe <= $from) {
                 return $counts;
             }
