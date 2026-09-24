@@ -702,34 +702,98 @@ a.user-quick-action:hover .user-quick-action-circle {
 }
 .user-card-visual {
     width: min(100%, 562px);
+    min-height: 228px;
+    aspect-ratio: 1.586;
     margin: auto;
-    border-radius: 24px;
-    background:
-        repeating-linear-gradient(115deg, transparent 0 3px, rgb(255 246 220 / 2%) 3px 4px),
-        radial-gradient(ellipse at 5% 0%, rgb(211 183 127 / 24%), transparent 62%),
-        linear-gradient(125deg, #494a43 0%, #363b36 48%, #282e2b 100%);
-    color: #faf7ee;
+    border-radius: 22px;
+    background: #181b1e url('/images/cards/spec-pay-world.svg') center / 100% 100% no-repeat;
+    color: #f3f1e9;
     box-shadow:
-        inset 0 0 0 1px rgb(225 204 157 / 36%),
-        inset 0 1px 0 rgb(255 246 218 / 25%),
-        0 8px 20px rgb(40 46 43 / 10%);
-    padding: clamp(24px, 4.267cqw, 32px);
+        inset 0 0 0 1px rgb(197 179 141 / 35%),
+        inset 0 1px 0 rgb(239 225 196 / 18%),
+        0 8px 20px rgb(40 46 43 / 12%);
+    padding: clamp(22px, 4.267cqw, 32px);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
 }
-.user-card-visual .user-card-name {
-    color: #f1e3c4;
+.user-card-face-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
 }
-.user-card-visual .user-card-mark {
-    color: #dfc58c;
+.user-card-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: #fff;
+    font-size: clamp(22px, 4.4cqw, 30px);
+    font-weight: 650;
+    letter-spacing: -0.045em;
+    line-height: 1.2;
+    text-shadow: 0 1px 2px rgb(0 0 0 / 20%);
 }
-.user-card-visual .user-card-label {
-    color: #d0cbbf;
+.user-card-brand svg {
+    width: 23px;
+    height: 29px;
+    flex-shrink: 0;
+}
+.user-card-name {
+    margin-top: 5px;
+    color: #f0f2f3;
+    font-size: 11px;
+}
+.user-card-state {
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: #30322f;
+    color: white;
+    font-size: 11px;
+    line-height: 1.5;
+    text-align: center;
+    max-width: 45%;
+}
+.user-card-number {
+    margin-top: auto;
+    font-size: clamp(20px, 4cqw, 28px);
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    line-height: 1.4;
+    color: #f3f1e9;
+    text-shadow: 0 1px 1px rgb(0 0 0 / 70%);
+    overflow-wrap: anywhere;
+}
+.user-card-face-footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 16px;
+    align-items: end;
+}
+.user-card-label {
+    color: #c6c1b5;
+    font-size: 11px;
+}
+.user-card-expiry {
+    text-align: left;
+}
+.user-card-network {
+    width: clamp(70px, 15cqw, 105px);
+    height: auto;
+    align-self: end;
+}
+.user-card-face-footer > div {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 .user-card-visual-frozen {
-    background: linear-gradient(125deg, #626967, #454d4b);
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 20%);
+    background-blend-mode: luminosity;
+    background-color: #596168;
 }
-.user-card-visual-frozen :is(.user-card-name, .user-card-mark, .user-card-label) {
-    color: #e0e6e3;
+.user-card-visual-frozen .user-card-state {
+    background: #eef1f3;
+    color: #303b43;
+    box-shadow: 0 0 0 1px #87929a;
 }
 .user-card-product {
     margin-inline: auto;

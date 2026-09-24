@@ -729,28 +729,38 @@ export default function Cards(props: Props) {
                                     <div
                                         className={`user-card-visual${card.state === 'Frozen' ? ' user-card-visual-frozen' : ''}`}
                                     >
-                                        <div className="flex items-start justify-between">
-                                            <p className="user-card-name font-semibold">
-                                                {cardDisplayName(card.productName)}
+                                        <div className="user-card-face-header">
+                                            <div>
+                                                <p className="user-card-brand">
+                                                    <svg viewBox="0 0 50 64" aria-hidden="true">
+                                                        <path
+                                                            d="M0 26 24 10 49 26 25 44Z"
+                                                            fill="currentColor"
+                                                        />
+                                                        <path
+                                                            d="M0 32 24 49 49 31V44L24 62 0 45Z"
+                                                            fill="currentColor"
+                                                            opacity=".65"
+                                                        />
+                                                        <path
+                                                            d="M24 0 48 16 25 33 12 24 24 16 36 16Z"
+                                                            fill="currentColor"
+                                                        />
+                                                    </svg>
+                                                    <span>Spec Pay</span>
+                                                </p>
+                                                <p className="user-card-name">
+                                                    {cardDisplayName(card.productName)}
+                                                </p>
+                                            </div>
+                                            <p className="user-card-state">
+                                                {t(card.state ?? 'Awaiting confirmation')}
                                             </p>
-                                            <CreditCard
-                                                className="user-card-mark size-5"
-                                                aria-hidden="true"
-                                            />
                                         </div>
-                                        <p
-                                            className={
-                                                card.state === 'Frozen'
-                                                    ? 'mt-2 inline-flex rounded-full bg-white/15 px-3 py-1 text-sm font-semibold text-white'
-                                                    : 'mt-2 text-xs text-white/80'
-                                            }
-                                        >
-                                            {t(card.state ?? 'Awaiting confirmation')}
-                                        </p>
-                                        <p className="mt-5 font-mono text-lg tracking-wider">
+                                        <p className="user-card-number font-mono">
                                             {card.maskedPan}
                                         </p>
-                                        <div className="mt-5 flex items-end justify-between gap-4 text-sm">
+                                        <div className="user-card-face-footer text-sm">
                                             <div>
                                                 <p className="user-card-label">{t('Balance')}</p>
                                                 <p className="mt-1 text-lg font-semibold">
@@ -765,10 +775,17 @@ export default function Cards(props: Props) {
                                                     )}
                                                 </p>
                                             </div>
-                                            <div className="text-right">
+                                            <div className="user-card-expiry">
                                                 <p className="user-card-label">{t('Expiry')}</p>
                                                 <p className="mt-1">{card.expiry ?? '—'}</p>
                                             </div>
+                                            <img
+                                                className="user-card-network"
+                                                src="/images/cards/mastercard.svg"
+                                                alt="Mastercard"
+                                                width="160"
+                                                height="100"
+                                            />
                                         </div>
                                     </div>
                                     <p className="px-4 pt-3 text-sm">
