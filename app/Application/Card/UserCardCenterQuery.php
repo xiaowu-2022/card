@@ -54,6 +54,11 @@ final readonly class UserCardCenterQuery
                 ->with('cardProviderReference')->get()->contains(fn ($product) => app(CardProductProviderRouter::class)->forProduct($product)->available());
         }
 
+        // Existing cards use the same tenant display name as the application catalog,
+        // including disabled products that still have issued cards.
+        $displayNames = TenantCardProductConfig::query()->where('tenant_id', $tenantId)
+            ->pluck('display_name', 'card_product_id');
+
         return $this->catalog->user($tenantId, $userId) + [
             'refundPending' => RefundCardPolicy::blocked($tenantId, $userId),
             'providerAvailable' => $providerAvailable,
@@ -82,7 +87,7 @@ final readonly class UserCardCenterQuery
             'issueOrders' => CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)
                 ->with('product')->latest('created_at')->limit(10)->get()->map(fn (CardIssueOrder $order): array => [
                     'id' => $order->id,
-                    'productName' => $order->product->name,
+                    'productName' => $displayNames->get($order->card_product_id) ?: $order->product->name,
                     'openingFee' => $order->opening_fee,
                     'initialLoadAmount' => $order->initial_load_amount,
                     'state' => match ($order->status->value) {
@@ -97,7 +102,7 @@ final readonly class UserCardCenterQuery
                 ->whereNull('archived_at')
                 ->with('product')->latest('created_at')->get()->map(fn (UserCard $card): array => [
                     'id' => $card->id,
-                    'productName' => $card->product->name,
+                    'productName' => $displayNames->get($card->card_product_id) ?: $card->product->name,
                     'maskedPan' => $card->masked_pan,
                     'activationStatus' => DB::table('card_activation_attempts')->where('card_id', $card->id)->latest('created_at')->value('status'),
                     'formFactor' => $card->form_factor, 'produceStatus' => $card->produce_status, 'trackingNumber' => $card->tracking_number,
