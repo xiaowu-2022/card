@@ -5,6 +5,7 @@ namespace App\Application\Card;
 use App\Application\CardProduct\CardProductCatalogQuery;
 use App\Domain\Card\Models\CardIssueOrder;
 use App\Domain\Card\Models\CardManagementOrder;
+use App\Domain\Card\Models\CardRecipientApplication;
 use App\Domain\Card\Models\ProviderCardholder;
 use App\Domain\Card\Models\UserCard;
 use App\Domain\CardProduct\Models\CardProduct;
@@ -18,6 +19,7 @@ use App\Domain\Ledger\Models\LedgerAccount;
 use App\Domain\SecurityDeposit\Services\RefundCardPolicy;
 use App\Domain\Wallet\Models\Wallet;
 use App\Infrastructure\Providers\Card\LocalCardSimulation;
+use Illuminate\Support\Facades\DB;
 
 final readonly class UserCardCenterQuery
 {
@@ -62,6 +64,8 @@ final readonly class UserCardCenterQuery
                 'id' => $cardholder->id,
                 'requestId' => $cardholder->request_id,
                 'productId' => $cardholder->card_product_id,
+                'formFactor' => $cardholder->form_factor,
+                'recipient' => CardRecipientApplication::where('cardholder_application_id', $cardholder->id)->latest('created_at')->first()?->only(['id', 'status']),
                 'canSync' => $cardholder->provider_cardholder_id !== null && $cardholder->status->value !== 'SUBMITTING',
                 'state' => match ($cardholder->status->value) {
                     'SUBMITTING' => 'submitting',
@@ -95,8 +99,10 @@ final readonly class UserCardCenterQuery
                     'id' => $card->id,
                     'productName' => $card->product->name,
                     'maskedPan' => $card->masked_pan,
+                    'activationStatus' => DB::table('card_activation_attempts')->where('card_id', $card->id)->latest('created_at')->value('status'),
+                    'formFactor' => $card->form_factor, 'produceStatus' => $card->produce_status, 'trackingNumber' => $card->tracking_number,
                     'state' => match ($card->provider_status) {
-                        'normal' => 'Normal', 'frozen' => 'Frozen', 'expired' => 'Expired', default => 'Awaiting confirmation'
+                        'unactivated' => 'Awaiting activation', 'cancelled' => 'Cancelled', 'normal' => 'Normal', 'frozen' => 'Frozen', 'expired' => 'Expired', default => 'Awaiting confirmation'
                     },
                     'pendingOperationCount' => (int) ($pendingOperations[$card->id] ?? 0),
                     'last4' => $card->last4,
@@ -111,6 +117,7 @@ final readonly class UserCardCenterQuery
                         ? (RefundCardPolicy::blocked($tenantId, $userId, $card->id) ? ['transactions'] : match ($card->provider_status) {
                             'normal' => ['reveal', 'transactions', 'holder', 'load', 'return', 'freeze', 'cancel'],
                             'frozen' => ['reveal', 'transactions', 'holder', 'return', 'unfreeze', 'cancel'],
+                            'unactivated' => $card->form_factor === 'physical_card' ? ['transactions', 'activate'] : ['transactions'],
                             'expired' => ['transactions', 'cancel'], default => ['transactions'],
                         }) : [],
                 ])->all(),

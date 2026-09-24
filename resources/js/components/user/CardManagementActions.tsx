@@ -620,7 +620,11 @@ export function CardManagementActions({
                 }}
             >
                 <DialogContent
-                    className="max-h-[88dvh] overflow-y-auto sm:max-w-xl"
+                    className={
+                        active === 'history'
+                            ? 'max-h-[88dvh] overflow-hidden sm:max-w-lg'
+                            : 'max-h-[88dvh] overflow-y-auto sm:max-w-xl'
+                    }
                     closeLabel={t('Close')}
                     aria-describedby={undefined}
                 >
@@ -634,10 +638,14 @@ export function CardManagementActions({
                         </DialogTitle>
                     </DialogHeader>
                     {active === 'transactions' ? (
-                        <UserCardTransactions cardIds={[card.id]} available singleCard />
+                        <UserCardTransactions cardIds={[card.id]} singleCard />
                     ) : (
                         <form
-                            className="space-y-5"
+                            className={
+                                active === 'history'
+                                    ? 'max-h-[calc(88dvh-7rem)] overflow-y-auto pr-2'
+                                    : 'space-y-5'
+                            }
                             onSubmit={(event) => {
                                 event.preventDefault();
                                 if (
@@ -655,69 +663,51 @@ export function CardManagementActions({
                         >
                             {active === 'history' ? (
                                 <>
-                                    <Button
-                                        type="button"
-                                        variant="secondary"
-                                        disabled={busy}
-                                        onClick={() => void run('history')}
-                                    >
-                                        {t('Load operation history')}
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        disabled={busy}
-                                        onClick={() => void run('refresh')}
-                                    >
-                                        {t('Refresh card balance')}
-                                    </Button>
+                                    {!busy && !history.length && !error && (
+                                        <p className="py-4 text-sm text-muted-foreground">
+                                            {t('No records yet.')}
+                                        </p>
+                                    )}
                                     <div className="divide-y">
                                         {history.map((item) => (
-                                            <div key={item.id} className="space-y-2 py-3 text-sm">
-                                                <p>
-                                                    {t(
-                                                        labels[
-                                                            item.kind === 'holder_update'
-                                                                ? 'holder'
-                                                                : item.kind === 'cancel_return'
-                                                                  ? 'return'
-                                                                  : item.kind
-                                                        ] ?? 'Card management',
-                                                    )}{' '}
-                                                    ·{' '}
-                                                    {t(
-                                                        states[item.state] ??
-                                                            'Awaiting confirmation',
-                                                    )}
-                                                </p>
-                                                <p className="text-muted-foreground">
-                                                    {dateTime(item.createdAt)}
-                                                </p>
-                                                {item.arrival && (
-                                                    <p>
-                                                        {t('Card operation amount')}:{' '}
-                                                        {systemMoney(item.arrival)}
+                                            <div
+                                                key={item.id}
+                                                className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-5 py-3.5 text-sm"
+                                            >
+                                                <div className="min-w-0 space-y-1.5">
+                                                    <p className="font-medium">
+                                                        {t(
+                                                            labels[
+                                                                item.kind === 'holder_update'
+                                                                    ? 'holder'
+                                                                    : item.kind === 'cancel_return'
+                                                                      ? 'return'
+                                                                      : item.kind
+                                                            ] ?? 'Card management',
+                                                        )}
                                                     </p>
-                                                )}
-                                                {['confirming', 'quoted'].includes(item.state) && (
-                                                    <Button
-                                                        type="button"
-                                                        size="sm"
-                                                        disabled={busy}
-                                                        onClick={() => {
-                                                            if (item.state === 'quoted') {
-                                                                setActive('load');
-                                                                setOrder(item);
-                                                            } else void run('sync', item);
-                                                        }}
+                                                    <p className="text-xs leading-5 text-muted-foreground">
+                                                        {dateTime(item.createdAt)}
+                                                    </p>
+                                                </div>
+                                                <div className="space-y-1.5 text-right">
+                                                    {item.arrival && (
+                                                        <p
+                                                            className="font-semibold tabular-nums"
+                                                            aria-label={t('Card operation amount')}
+                                                        >
+                                                            {systemMoney(item.arrival)}
+                                                        </p>
+                                                    )}
+                                                    <p
+                                                        className={`text-xs leading-5 ${item.state === 'completed' ? 'text-emerald-700' : 'text-muted-foreground'}`}
                                                     >
                                                         {t(
-                                                            item.state === 'quoted'
-                                                                ? 'Review quote'
-                                                                : 'Check result',
+                                                            states[item.state] ??
+                                                                'Awaiting confirmation',
                                                         )}
-                                                    </Button>
-                                                )}
+                                                    </p>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>

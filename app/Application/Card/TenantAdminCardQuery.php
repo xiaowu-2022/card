@@ -39,7 +39,7 @@ final class TenantAdminCardQuery
                     'maskedPan' => $card->masked_pan,
                     'currency' => $card->card_currency,
                     'balance' => $card->availableBalance(), 'providerBalance' => $card->provider_balance, 'overflowBalance' => $card->overflowBalance(), 'balanceLimit' => $card->balance_limit,
-                    'providerStatus' => $card->provider_status,
+                    'providerStatus' => $card->provider_status, 'formFactor' => $card->form_factor, 'produceStatus' => $card->produce_status, 'trackingNumber' => $card->tracking_number,
                 ])->all(),
         ];
     }

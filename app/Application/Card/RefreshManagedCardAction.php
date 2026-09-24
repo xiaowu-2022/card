@@ -2,6 +2,7 @@
 
 namespace App\Application\Card;
 
+use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Card\Models\UserCard;
 use App\Domain\CardProvider\Contracts\CardProviderInterface;
 use App\Infrastructure\Providers\Card\LocalCardSimulation;
@@ -39,7 +40,7 @@ final readonly class RefreshManagedCardAction
             'previous_balance' => $snapshot->provider_balance, 'refresh_generation' => (int) $snapshot->refresh_generation]);
         $result = app(CardProductProviderRouter::class)->forCard($snapshot)->getCard($snapshot->provider_card_id);
         PhotonPayLog::write('card_refresh.stage', ['stage' => 'card_validation', 'provider_balance' => $result->providerBalance]);
-        if (($result->isTest && ! LocalCardSimulation::allowsCard($result->providerCardId)) || $result->providerCardId !== $snapshot->provider_card_id || $result->assetCode !== 'USD' || $result->providerBalance === null || $result->last4 !== $snapshot->last4) {
+        if (($result->isTest && ! LocalCardSimulation::allowsCard($result->providerCardId)) || $result->providerCardId !== $snapshot->provider_card_id || $result->assetCode !== 'USD' || $result->providerBalance === null || $result->last4 !== $snapshot->last4 || $result->formFactor !== $snapshot->form_factor) {
             throw new DomainException('CARD_REFRESH_UNCONFIRMED', 'The latest card information could not be confirmed.', 503);
         }
 
@@ -55,7 +56,14 @@ final readonly class RefreshManagedCardAction
             }
             $previousBalance = $card->provider_balance;
             $card->forceFill(['provider_balance' => $result->providerBalance, 'provider_status' => $result->status,
+                'produce_status' => $result->produceStatus, 'tracking_number' => $result->trackingNumber,
                 'provider_balance_synced_at' => now()])->save();
+            if ($card->form_factor === 'physical_card' && $result->status === 'normal') {
+                $confirmed = DB::table('card_activation_attempts')->where('card_id', $card->id)->whereIn('status', ['PROCESSING', 'UNKNOWN'])->update(['status' => 'SUCCEEDED', 'updated_at' => now()]);
+                if ($confirmed) {
+                    app(AuditLogger::class)->record($tenantId, 'SYSTEM', null, 'CARD_ACTIVATION_CONFIRMED', 'user_card', $cardId);
+                }
+            }
             if ($transaction !== null) {
                 app(RecordCardTransactionsAction::class)->execute($card, [$transaction], $startedAt);
             }

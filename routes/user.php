@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Platform\CompanyConfiguration\InvitationPosterController;
 use App\Http\Controllers\Public\LandingController;
 use App\Http\Controllers\User\AboutController;
 use App\Http\Controllers\User\AccountController;
@@ -7,6 +8,7 @@ use App\Http\Controllers\User\AssetsController;
 use App\Http\Controllers\User\CardholderTestMaterialsController;
 use App\Http\Controllers\User\CardIssueController;
 use App\Http\Controllers\User\CardManagementController;
+use App\Http\Controllers\User\CardRecipientController;
 use App\Http\Controllers\User\CardsController;
 use App\Http\Controllers\User\CardSetupController;
 use App\Http\Controllers\User\CardTransactionsController;
@@ -17,6 +19,7 @@ use App\Http\Controllers\User\KycController;
 use App\Http\Controllers\User\MockPaymentController;
 use App\Http\Controllers\User\MockTrc20TopupController;
 use App\Http\Controllers\User\PaidPromotionController;
+use App\Http\Controllers\User\PhysicalCardActivationController;
 use App\Http\Controllers\User\PromotionController;
 use App\Http\Controllers\User\RegistrationController;
 use App\Http\Controllers\User\SecurityDepositController;
@@ -102,6 +105,10 @@ Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operat
         ->whereUuid('card')->middleware(ThrottleCardTransactionReads::class)->name('user.cards.transactions');
     Route::post('/cards/cardholder/test-materials/save', [CardholderTestMaterialsController::class, 'store'])->middleware('throttle:5,1')->name('user.cards.test-materials.save');
     Route::post('/cards/cardholder/test-materials/{product}', [CardholderTestMaterialsController::class, 'read'])->whereUuid('product')->middleware('throttle:5,1')->name('user.cards.test-materials.read');
+    Route::post('/cards/{card}/activation/sync', [PhysicalCardActivationController::class, 'sync'])->whereUuid('card')->middleware('throttle:cards');
+    Route::post('/cards/{card}/activate', [PhysicalCardActivationController::class, 'store'])->whereUuid('card')->middleware('throttle:cards');
+    Route::post('/cards/recipients/{recipient}/inspect', [CardRecipientController::class, 'inspect'])->whereUuid('recipient')->middleware('throttle:cards');
+    Route::post('/cards/recipients', [CardRecipientController::class, 'store'])->middleware('throttle:cards');
     Route::post('/cards/cardholder', [CardSetupController::class, 'store'])->middleware('throttle:cards')->name('user.cards.cardholder.store');
     Route::post('/cards/cardholder/{application}/details', [CardSetupController::class, 'details'])->whereUuid('application')->middleware('throttle:cards')->name('user.cards.cardholder.details');
     Route::post('/cards/cardholder/{application}/sync', [CardSetupController::class, 'sync'])->whereUuid('application')->middleware('throttle:cards')->name('user.cards.cardholder.sync');
@@ -113,7 +120,7 @@ Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operat
     Route::get('/promotion/rewards', [PaidPromotionController::class, 'details'])->name('user.promotion.rewards');
     Route::post('/promotion/quotes', [PaidPromotionController::class, 'quote'])->middleware('throttle:10,1');
     Route::post('/promotion/quotes/{order}/confirm', [PaidPromotionController::class, 'confirm'])->whereUuid('order')->middleware('throttle:5,1');
-    Route::get('/promotion/poster-background', [\App\Http\Controllers\Platform\CompanyConfiguration\InvitationPosterController::class, 'userImage']);
+    Route::get('/promotion/poster-background', [InvitationPosterController::class, 'userImage']);
     Route::get('/promotion', [PromotionController::class, 'show'])->name('user.promotion');
     Route::get('/promotion/commissions', [PromotionController::class, 'commissions'])->name('user.promotion.commissions');
     Route::get('/promotion/{section}', [PromotionController::class, 'show'])->whereIn('section', ['team', 'daily', 'direct', 'invitations', 'rules'])->name('user.promotion.section');

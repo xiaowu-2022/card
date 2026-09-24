@@ -1,5 +1,6 @@
 # Card merchant reporting
 
+> 2026-09-24：多账号后台配置、凭据轮换、强制账号/目录 BIN 及永久全局占用以 [PHOTONPAY_ACCOUNTS.md](PHOTONPAY_ACCOUNTS.md) 为准；下文的旧可空绑定、手工 BIN 或归档释放规则不再适用于新增配置。
 Approved 2026-09-14: the selected PhotonPay merchant displays API account balance
 and cumulative card count instead of editable reference balance. This is a narrow
 read-only extension to CARD_PRODUCT_PROVIDER_BINDINGS.md, not a runtime conversion.

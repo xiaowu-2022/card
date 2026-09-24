@@ -24,7 +24,7 @@ final class UserCard extends Model
         self::updating(function (self $card): void {
             if ($card->isDirty([
                 'tenant_id', 'user_id', 'card_product_id', 'card_issue_order_id', 'provider_cardholder_id',
-                'provider', 'provider_card_id', 'card_currency',
+                'provider', 'provider_card_id', 'card_currency', 'form_factor',
             ])) {
                 throw new LogicException('User Card identity is immutable.');
             }

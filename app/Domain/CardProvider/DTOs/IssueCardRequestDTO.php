@@ -10,5 +10,7 @@ final readonly class IssueCardRequestDTO
         public string $cardCurrency,
         public string $initialLoadAmount,
         public string $idempotencyKey,
+        public string $formFactor = 'virtual_card',
+        public ?string $recipientId = null,
     ) {}
 }

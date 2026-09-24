@@ -358,3 +358,10 @@ are deduplicated against mixed recharge orders; amounts alone never match. Recor
 SaaS operator and notes appear only in the SaaS transaction view. Refreshing provider
 balances/transactions cannot debit, erase or double-credit overflow. Card cancellation is
 blocked while overflow remains; no implicit return or generic adjustment flow is introduced.
+
+## Physical-card extension (2026-09-24)
+
+The approved [PhotonPay physical-card contract](PHOTONPAY_PHYSICAL_CARDS.md) extends
+virtual-only issuing to capability-gated USD recharge physical cards, per-application
+encrypted recipients and receipt activation. Existing Ledger and notification contracts
+remain in force; persisted form factors must match all authoritative provider reads.

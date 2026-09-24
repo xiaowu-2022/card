@@ -5,6 +5,7 @@ namespace App\Application\CardProduct;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\CardProduct\Models\CardProduct;
+use App\Domain\CardProviderDirectory\Models\CardProviderReference;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Support\Errors\DomainException;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +38,7 @@ final readonly class CreateCardProductAction
                 'balance_limit' => isset($data['balance_limit']) ? Money::of($data['balance_limit'], 'USD')->amount() : null,
                 'card_currency' => 'USD',
                 'card_type' => 'REGULAR',
+                'supported_form_factors' => collect(CardProviderReference::find($data['card_provider_reference_id'] ?? null)?->bin_catalog ?? [])->firstWhere('bin', trim($data['provider_product_ref'] ?? ''))['formFactors'] ?? ['virtual_card'],
                 'minimum_initial_load' => $initial->amount(),
                 'minimum_reload' => $reload->amount(),
                 'status' => $data['status'],

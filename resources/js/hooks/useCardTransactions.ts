@@ -7,7 +7,7 @@ import {
 
 type View = { items: CardTransaction[]; loading: boolean; failed: number; hasMore: boolean };
 
-export function useCardTransactions(cardIds: string[], available: boolean) {
+export function useCardTransactions(cardIds: string[]) {
     const cardKey = [...cardIds].sort().join(',');
     const [view, setView] = useState<View>({
         items: [],
@@ -25,7 +25,6 @@ export function useCardTransactions(cardIds: string[], available: boolean) {
             ? cardKey.split(',').map((id) => ({
                   id,
                   local: { page: 1, more: true, failed: false },
-                  sync: { page: 1, more: available, failed: false },
               }))
             : [];
         const controller = new AbortController();
@@ -36,9 +35,9 @@ export function useCardTransactions(cardIds: string[], available: boolean) {
                 setView({
                     items,
                     loading: busy,
-                    failed: cards.filter((card) => card.local.failed || card.sync.failed).length,
+                    failed: cards.filter((card) => card.local.failed).length,
                     hasMore: cards.some((card) =>
-                        [card.local, card.sync].some((source) => source.more && !source.failed),
+                        [card.local].some((source) => source.more && !source.failed),
                     ),
                 });
         };
@@ -46,7 +45,7 @@ export function useCardTransactions(cardIds: string[], available: boolean) {
             if (busy || controller.signal.aborted) return;
             busy = true;
             const queue = cards.filter((card) =>
-                [card.local, card.sync].some((source) =>
+                [card.local].some((source) =>
                     failedOnly ? source.failed : source.more && !source.failed,
                 ),
             );
@@ -55,35 +54,16 @@ export function useCardTransactions(cardIds: string[], available: boolean) {
                 Array.from({ length: Math.min(3, queue.length) }, async () => {
                     while (queue.length && !controller.signal.aborted) {
                         const card = queue.shift()!;
-                        for (const kind of ['local', 'sync'] as const) {
+                        for (const kind of ['local'] as const) {
                             const source = card[kind];
                             if (failedOnly ? !source.failed : !source.more || source.failed)
                                 continue;
                             try {
-                                const token = document.cookie
-                                    .split('; ')
-                                    .find((value) => value.startsWith('XSRF-TOKEN='))
-                                    ?.slice(11);
                                 const response = await fetch(
-                                    kind === 'sync'
-                                        ? `/cards/${card.id}/transactions/sync`
-                                        : `/cards/${card.id}/transactions?page=${source.page}`,
+                                    `/cards/${card.id}/transactions?page=${source.page}`,
                                     {
-                                        method: kind === 'sync' ? 'POST' : 'GET',
-                                        headers: {
-                                            Accept: 'application/json',
-                                            ...(kind === 'sync'
-                                                ? {
-                                                      'Content-Type': 'application/json',
-                                                      'X-XSRF-TOKEN': decodeURIComponent(
-                                                          token ?? '',
-                                                      ),
-                                                  }
-                                                : {}),
-                                        },
-                                        ...(kind === 'sync'
-                                            ? { body: JSON.stringify({ page: source.page }) }
-                                            : {}),
+                                        method: 'GET',
+                                        headers: { Accept: 'application/json' },
                                         credentials: 'same-origin',
                                         cache: 'no-store',
                                         signal: AbortSignal.any([
@@ -127,7 +107,7 @@ export function useCardTransactions(cardIds: string[], available: boolean) {
         return () => {
             controller.abort();
         };
-    }, [cardKey, available]);
+    }, [cardKey]);
 
     return {
         ...view,

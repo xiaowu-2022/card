@@ -1,4 +1,8 @@
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import {
+    PhotonPayAccountForm,
+    type PhotonPayConfiguration,
+} from '@/components/shared/PhotonPayAccountForm';
 import { useState } from 'react';
 import { useAdminTranslation, t, dateTime, errorMessage } from '@/i18n/admin';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -20,6 +24,7 @@ import {
 import type { SharedProps } from '@/types/global';
 
 type Reference = {
+    photonpay: PhotonPayConfiguration | null;
     id: string;
     name: string;
     referenceBalance: string | null;
@@ -249,12 +254,21 @@ export default function CardProviders({ providers }: { providers: AccountPage<Re
                             {editing === 'new' ? t('Add card provider') : t('Edit card provider')}
                         </DialogTitle>
                     </DialogHeader>
-                    {editing !== null && (
-                        <ReferenceForm
-                            key={editing === 'new' ? 'new' : editing.id}
-                            record={editing === 'new' ? null : editing}
-                            close={() => setEditing(null)}
-                        />
+                    {editing !== null && editing !== 'new' && editing.localMock ? (
+                        <ReferenceForm record={editing} close={() => setEditing(null)} />
+                    ) : (
+                        editing !== null && (
+                            <PhotonPayAccountForm
+                                key={editing === 'new' ? 'new' : editing.id}
+                                record={
+                                    editing === 'new'
+                                        ? null
+                                        : (providers.data.find((item) => item.id === editing.id) ??
+                                          editing)
+                                }
+                                close={() => setEditing(null)}
+                            />
+                        )
                     )}
                 </DialogContent>
             </Dialog>

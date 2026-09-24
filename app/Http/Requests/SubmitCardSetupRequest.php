@@ -20,6 +20,8 @@ final class SubmitCardSetupRequest extends FormRequest
         return [
             'request_id' => ['required', 'uuid'],
             'card_product_id' => ['required', 'uuid'],
+            'form_factor' => ['sometimes', 'in:virtual_card,physical_card'],
+            'cardholder_name_abbreviation' => ['required_if:form_factor,physical_card', 'nullable', 'string', 'max:26', 'regex:/^[A-Z ]+\/[A-Z ]+$/D'],
             'legal_first_name' => ['required', 'string', 'max:40', 'regex:/^[\pL ]+$/u'],
             'legal_last_name' => ['required', 'string', 'max:40', 'regex:/^[\pL ]+$/u'],
             'date_of_birth' => ['required', 'date_format:Y-m-d', 'before:today'],

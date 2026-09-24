@@ -110,3 +110,12 @@ it('uses verified card-detail currency only when the trade row omits it and stil
     $body['data'][0]['cardId'] = 'XR-OTHER';
     expect(fn () => $normalizer->page($body, 'XR-OWNED', 1, 20, 'USD'))->toThrow(ProviderUnknownResultException::class);
 });
+
+it('queries physical transactions using the saved form and refuses virtual rows', function (): void {
+    $provider = $this->transactionProvider->forFormFactor('physical_card');
+    Http::fakeSequence()->push(photonTransactionBody([photonTransactionRow(['cardFormFactor' => 'physical_card'])]))
+        ->push(photonTransactionBody([photonTransactionRow()]));
+    expect($provider->getTransactionPage('XR-OWNED', 1, 20)->items)->toHaveCount(1);
+    Http::assertSent(fn (Request $r) => $r['cardFormFactor'] === 'physical_card');
+    expect(fn () => $provider->getTransactionPage('XR-OWNED', 1, 20))->toThrow(ProviderUnknownResultException::class);
+});

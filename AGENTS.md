@@ -1,3 +1,37 @@
+On 2026-09-24 the user superseded permanent BIN reservations: deleting/archiving a
+card product releases its BIN when no unarchived product still uses it. Inactive but
+unarchived products still reserve BINs. Preserve archived products, cards, orders,
+provider bindings and Ledger. Rebuild claims from unarchived products only; keep
+existing active duplicates flagged and reject new duplicates atomically across accounts.
+
+On 2026-09-24 the user reaffirmed platform-record-only consumer card history.
+Opening, paginating or retrying the list must never auto-sync PhotonPay; local reads
+and empty states are independent of provider availability. Existing verified callback
+processing remains unchanged. See docs/architecture/CARD_TRANSACTION_READS.md.
+
+On 2026-09-24 the user approved multiple SaaS-managed PhotonPay production/sandbox
+accounts, mandatory explicit account/catalog BIN selection for new products, and
+permanent globally unique BIN claims across environments and archived products.
+Preserve historical duplicates, identities and Ledger; no automatic rebinding.
+Credentials may rotate within a used account's immutable environment/USD/member/Matrix
+identity; encrypted secrets never echo. Account-scoped keys/resources/deduplication
+replace global callback fallback. Pause blocks new holder/recipient/issue/load only;
+confirmed reads and UNKNOWN recovery remain. Only offline tests and necessary read-only
+checks are authorized for this change, no issuing transactions. See
+`docs/architecture/PHOTONPAY_ACCOUNTS.md` for migration and deployment requirements.
+
+On 2026-09-24 the user approved PhotonPay physical-card issuing and receipt activation
+alongside virtual cards for capability-confirmed USD recharge BINs. Per-application
+recipients and order shipping snapshots are encrypted and tenant/user/product/merchant
+scoped; no address book or new shipping fee. Persist exact form factors; UNKNOWN
+recipient/activation submissions never auto-repeat. PIN remains transient and never
+enters logs, storage, audit or session. Existing Ledger and inline verified-notification
+rules remain. This supersedes virtual-only restrictions for this extension only.
+Direct sandbox acceptance is authorized for BIN 53493435 / USD 20 using the prior
+sandbox holder and a synthetic recipient, retaining any created card. No production
+issuing, manual identity rewrites or historical callback replay. See
+docs/architecture/PHOTONPAY_PHYSICAL_CARDS.md and docs/testing/PHOTONPAY_PHYSICAL_20260924.md.
+
 On 2026-09-21 the user approved first-activation rank snapshots for annual-return
 and upgrade counts: direct 1, depths 2–5 count 0.5, exclude equal/higher-ranked
 nodes and their branches. Later rank changes never alter captured counts; upgrades

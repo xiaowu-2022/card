@@ -29,7 +29,7 @@ final class PhotonPayMerchantReport
             $connection = json_decode(Crypt::decryptString($encryptedConnection), true, 512, JSON_THROW_ON_ERROR);
             $base = $connection['base_url'] ?? '';
             $sandbox = $base === 'https://x-api.sandbox.photontech.cc';
-            if ((! $sandbox && $base !== 'https://x-api.photonpay.com') || ($sandbox && ! app()->environment('local', 'testing'))
+            if ((! $sandbox && $base !== 'https://x-api.photonpay.com')
                 || ! is_string($connection['app_id'] ?? null) || empty($connection['app_id'])
                 || ! is_string($connection['app_secret'] ?? null) || empty($connection['app_secret'])) {
                 throw new RuntimeException('Reporting configuration unavailable.');
@@ -67,7 +67,7 @@ final class PhotonPayMerchantReport
                         $headers = ['X-PD-TOKEN' => Crypt::decryptString($token), 'Accept' => 'application/json'];
                         if ($bins) {
                             $rows = $this->decode(Http::connectTimeout(5)->timeout(12)->withoutRedirecting()->withHeaders($headers)
-                                ->get($base.'/vcc/openApi/v4/getCardBin', ['cardCurrency' => 'USD', 'cardType' => 'recharge', 'cardFormFactor' => 'virtual_card']))['data'] ?? null;
+                                ->get($base.'/vcc/openApi/v4/getCardBin', array_filter(['cardCurrency' => 'USD', 'cardType' => 'recharge', 'memberId' => $connection['member_id'] ?? null, 'matrixAccount' => $connection['matrix_account'] ?? null])))['data'] ?? null;
                             if (! is_array($rows) || ! array_is_list($rows)) {
                                 throw new RuntimeException('BIN catalog unavailable.');
                             }
@@ -84,11 +84,11 @@ final class PhotonPayMerchantReport
                                 }
                                 if (in_array('USD', array_map('trim', explode(',', $row['cardCurrency'])), true)
                                     && in_array('recharge', array_map('trim', explode(',', $row['cardType'])), true)
-                                    && in_array('virtual_card', array_map('trim', explode(',', $row['cardFormFactor'])), true)) {
+                                    && array_intersect(['virtual_card', 'physical_card'], array_map('trim', explode(',', $row['cardFormFactor'])))) {
                                     if (! preg_match('/^[A-Za-z0-9 -]{1,32}$/D', $row['cardScheme'])) {
                                         throw new RuntimeException('BIN card scheme invalid.');
                                     }
-                                    $option = ['bin' => $row['cardBin'], 'scheme' => $row['cardScheme']];
+                                    $option = ['bin' => $row['cardBin'], 'scheme' => $row['cardScheme'], 'formFactors' => array_values(array_intersect(['virtual_card', 'physical_card'], array_map('trim', explode(',', $row['cardFormFactor']))))];
                                     if (isset($options[$row['cardBin']]) && $options[$row['cardBin']] !== $option) {
                                         throw new RuntimeException('BIN card scheme ambiguous.');
                                     }
@@ -99,13 +99,16 @@ final class PhotonPayMerchantReport
                             return ['bins' => array_values($options)];
                         }
                         $account = $this->decode(Http::connectTimeout(5)->timeout(12)->withoutRedirecting()->withHeaders($headers)
-                            ->get($base.'/wallet/openApi/v4/account/single', ['currency' => 'USD', 'accountType' => 'FT10001']))['data'] ?? [];
+                            ->get($base.'/wallet/openApi/v4/account/single', array_filter(['currency' => 'USD', 'accountType' => 'FT10001', 'memberId' => $connection['member_id'] ?? null, 'matrixAccount' => $connection['matrix_account'] ?? null])))['data'] ?? [];
                         $amount = $account['realTimeBalance'] ?? null;
                         $member = $account['memberId'] ?? null;
                         if (($account['currency'] ?? null) !== 'USD' || ($account['accountType'] ?? null) !== 'FT10001'
                             || ! is_string($amount) || ! preg_match('/^-?\d{1,12}(?:\.\d{1,8})?$/D', $amount)
                             || ! is_string($member) || ! preg_match('/^[A-Za-z0-9_-]{1,80}$/D', $member)) {
                             throw new RuntimeException('Reporting account response unavailable.');
+                        }
+                        if ((isset($connection['member_id']) && $member !== $connection['member_id']) || (isset($connection['account_id']) && ($account['accountNo'] ?? null) !== $connection['account_id'])) {
+                            throw new RuntimeException('Reporting account mismatch.');
                         }
                         $balance = (string) BigDecimal::of($amount)->toScale(8);
                         // Pin the card query to the same merchant as the authoritative account.

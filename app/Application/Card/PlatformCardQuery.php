@@ -34,7 +34,7 @@ final class PlatformCardQuery
                 'id' => $card->id, 'tenantId' => $card->tenant_id, 'companyName' => $card->company_name,
                 'userEmail' => $card->user_email, 'productName' => $card->product->name,
                 'maskedPan' => $card->masked_pan, 'currency' => $card->card_currency,
-                'balance' => $card->availableBalance(), 'providerBalance' => $card->provider_balance, 'overflowBalance' => $card->overflowBalance(), 'balanceLimit' => $card->balance_limit, 'effectiveBalanceLimit' => $card->effectiveBalanceLimit(), 'providerStatus' => $card->provider_status,
+                'balance' => $card->availableBalance(), 'providerBalance' => $card->provider_balance, 'overflowBalance' => $card->overflowBalance(), 'balanceLimit' => $card->balance_limit, 'effectiveBalanceLimit' => $card->effectiveBalanceLimit(), 'providerStatus' => $card->provider_status, 'formFactor' => $card->form_factor, 'produceStatus' => $card->produce_status, 'trackingNumber' => $card->tracking_number,
                 'balanceUpdatedAt' => $card->provider_balance_synced_at?->toIso8601String(),
             ]),
         ];

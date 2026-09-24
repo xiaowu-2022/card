@@ -14,10 +14,10 @@ final class CardProviderReference extends Model
 
     protected $guarded = ['*'];
 
-    protected $hidden = ['photonpay_reporting_encrypted', 'photonpay_issuing_encrypted'];
+    protected $hidden = ['photonpay_reporting_encrypted', 'photonpay_issuing_encrypted', 'photonpay_webhook_key_encrypted'];
 
     protected function casts(): array
     {
-        return ['reference_balance' => 'decimal:8', 'version' => 'integer'];
+        return ['photonpay_identity' => 'array', 'photonpay_enabled' => 'boolean', 'photonpay_checked_at' => 'immutable_datetime', 'bin_catalog' => 'array', 'reference_balance' => 'decimal:8', 'version' => 'integer'];
     }
 }

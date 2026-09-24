@@ -23,7 +23,7 @@ final class ProviderCardholder extends Model
     protected static function booted(): void
     {
         self::updating(function (self $cardholder): void {
-            if ($cardholder->isDirty(['tenant_id', 'user_id', 'provider', 'request_id', 'card_product_id'])) {
+            if ($cardholder->isDirty(['tenant_id', 'user_id', 'provider', 'request_id', 'card_product_id', 'form_factor'])) {
                 throw new LogicException('Provider cardholder ownership is immutable.');
             }
         });

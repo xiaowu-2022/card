@@ -22,6 +22,7 @@ final class CardProviderReferenceQuery
                         ->where('card_provider_reference_id', $record->id)->select('id'))->count();
 
                 return [
+                    'photonpay' => app(PhotonPayAccounts::class)->publicConfiguration($record),
                     'id' => $record->id, 'name' => $record->name,
                     'referenceBalance' => $connected ? $report['balance'] : $record->reference_balance,
                     'asset' => $connected ? $report['asset'] : $record->asset_code, 'version' => $record->version,

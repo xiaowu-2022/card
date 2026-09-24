@@ -8,6 +8,7 @@ import { UserEmptyState } from '@/components/user/UserEmptyState';
 import { UserStatusBanner } from '@/components/user/UserStatusBanner';
 import { IdentityVerificationDialog } from '@/components/user/IdentityVerificationDialog';
 import { UserCardTransactions } from '@/components/user/UserCardTransactions';
+import { CardRecipientForm, PhysicalCardActivation } from '@/components/user/PhysicalCardForms';
 import { CardManagementActions } from '@/components/user/CardManagementActions';
 import { CardholderMaterialsForm } from '@/components/user/CardholderMaterialsForm';
 import {
@@ -39,6 +40,8 @@ import { UserLayout } from '@/layouts/UserLayout';
 import type { SharedProps } from '@/types/global';
 
 type Product = {
+    supportedFormFactors?: string[];
+    bin?: string;
     id: string;
     name: string;
     cardType: string;
@@ -51,6 +54,8 @@ type Product = {
     guidance: string;
 };
 type Cardholder = {
+    formFactor?: string;
+    recipient?: { id: string; status: string } | null;
     id: string | null;
     requestId: string | null;
     productId: string | null;
@@ -69,6 +74,10 @@ type IssueOrder = {
     requestedAt: string;
 };
 type UserCard = {
+    activationStatus?: string | null;
+    formFactor?: string;
+    produceStatus?: string | null;
+    trackingNumber?: string | null;
     state?: string;
     pendingOperationCount?: number;
     refundLocked?: boolean;
@@ -111,6 +120,7 @@ function moneyFromMinor(value: bigint): string {
 
 function ProductIssue({
     product,
+    selectedFormFactor,
     availableBalance,
     open,
     onClose,
@@ -119,6 +129,7 @@ function ProductIssue({
     application,
 }: {
     product: Product;
+    selectedFormFactor: string;
     availableBalance: string | null;
     open: boolean;
     onClose: () => void;
@@ -131,6 +142,19 @@ function ProductIssue({
     const [reviewing, setReviewing] = useState(false);
     const titleRef = useRef<HTMLHeadingElement>(null);
     const materialsForm = useCardholderMaterialsForm(product.id);
+    const supportedForms = product.supportedFormFactors ?? ['virtual_card'];
+    const formFactor =
+        application?.formFactor ??
+        (supportedForms.includes(selectedFormFactor)
+            ? selectedFormFactor
+            : (supportedForms[0] ?? 'virtual_card'));
+    useEffect(() => {
+        if (!application && materialsForm.data.form_factor !== formFactor)
+            materialsForm.setData('form_factor', formFactor);
+    }, [application, formFactor, materialsForm.data.form_factor, materialsForm.setData]);
+    const [recipientId, setRecipientId] = useState('');
+    const [recipientSummary, setRecipientSummary] = useState('');
+    const confirmedRecipientId = recipientId;
     const [editingMaterials, setEditingMaterials] = useState(false);
     const [loadingMaterials, setLoadingMaterials] = useState(false);
     const [materialReadError, setMaterialReadError] = useState('');
@@ -169,7 +193,13 @@ function ProductIssue({
         try {
             const fields = await loadCardholderApplicationFields(application.id);
             if (generation !== materialReadGeneration.current) return;
-            materialsForm.setData((data) => ({ ...data, ...fields, front: null, back: null }));
+            materialsForm.setData((data) => ({
+                ...data,
+                ...fields,
+                form_factor: application.formFactor ?? 'virtual_card',
+                front: null,
+                back: null,
+            }));
             materialsForm.clearErrors();
         } catch {
             if (generation === materialReadGeneration.current) {
@@ -206,7 +236,10 @@ function ProductIssue({
         product.openingFee,
     ]);
     const canSubmit =
-        ready && product.readyForSetup && Boolean(calculation?.enough && calculation.meetsMinimum);
+        ready &&
+        product.readyForSetup &&
+        (formFactor !== 'physical_card' || Boolean(confirmedRecipientId)) &&
+        Boolean(calculation?.enough && calculation.meetsMinimum);
     const formError = (form.errors as Record<string, string>).form;
 
     return (
@@ -280,6 +313,44 @@ function ProductIssue({
                                         )}
                                     </p>
                                 )}
+                                <div className="mb-4 space-y-3">
+                                    <p className="text-sm text-muted-foreground">
+                                        {t(
+                                            formFactor === 'physical_card'
+                                                ? 'Physical card'
+                                                : 'Virtual card',
+                                        )}
+                                    </p>
+                                    {formFactor === 'physical_card' && (
+                                        <label className="block">
+                                            {t('Name on card (FIRST/LAST)')}
+                                            <Input
+                                                value={
+                                                    materialsForm.data.cardholder_name_abbreviation
+                                                }
+                                                maxLength={26}
+                                                onChange={(e) =>
+                                                    materialsForm.setData(
+                                                        'cardholder_name_abbreviation',
+                                                        e.target.value.toUpperCase(),
+                                                    )
+                                                }
+                                            />
+                                        </label>
+                                    )}
+                                </div>
+                                {materialsForm.errors.form_factor && (
+                                    <p role="alert">
+                                        {errorMessage(materialsForm.errors.form_factor)}
+                                    </p>
+                                )}
+                                {materialsForm.errors.cardholder_name_abbreviation && (
+                                    <p role="alert">
+                                        {errorMessage(
+                                            materialsForm.errors.cardholder_name_abbreviation,
+                                        )}
+                                    </p>
+                                )}
                                 <CardholderMaterialsForm
                                     form={materialsForm}
                                     updateRequestId={application?.requestId ?? undefined}
@@ -327,6 +398,24 @@ function ProductIssue({
                             </p>
                             <Card className="user-card-product overflow-hidden border-0">
                                 <CardContent className="p-0">
+                                    <p className="p-4">
+                                        {t(
+                                            formFactor === 'physical_card'
+                                                ? 'Physical card'
+                                                : 'Virtual card',
+                                        )}
+                                    </p>
+                                    {formFactor === 'physical_card' && application?.id && (
+                                        <CardRecipientForm
+                                            applicationId={application.id}
+                                            saved={application.recipient}
+                                            onReady={(id, summary) => {
+                                                setRecipientId(id);
+                                                setRecipientSummary(summary);
+                                            }}
+                                        />
+                                    )}
+
                                     <div className="bg-slate-950 p-6 text-white sm:p-7">
                                         <div className="flex items-start justify-between gap-4">
                                             <div>
@@ -482,8 +571,19 @@ function ProductIssue({
                                     <AlertDialogContent>
                                         <div className="space-y-2">
                                             <AlertDialogTitle>
-                                                {t('Confirm card opening')}
+                                                {t('Confirm card opening')} —{' '}
+                                                {t(
+                                                    formFactor === 'physical_card'
+                                                        ? 'Physical card'
+                                                        : 'Virtual card',
+                                                )}
                                             </AlertDialogTitle>
+                                            {formFactor === 'physical_card' && (
+                                                <p className="text-sm">
+                                                    {recipientSummary ||
+                                                        t('Recipient saved for this application.')}
+                                                </p>
+                                            )}
                                             <AlertDialogDescription>
                                                 {t(
                                                     'An opening fee of ${{fee}} and initial balance of ${{amount}} will be reserved separately while your card is created. Do not create another request while it is pending.',
@@ -508,6 +608,11 @@ function ProductIssue({
                                                     form.transform((data) => ({
                                                         ...data,
                                                         cardholder_application_id: application?.id,
+                                                        form_factor: formFactor,
+                                                        recipient_application_id:
+                                                            formFactor === 'physical_card'
+                                                                ? confirmedRecipientId
+                                                                : null,
                                                     }));
                                                     form.post('/cards/issues', {
                                                         onSuccess: () => {
@@ -544,6 +649,7 @@ export default function Cards(props: Props) {
     );
     const firstProduct = props.products[0];
     const [choosingCard, setChoosingCard] = useState(false);
+    const [selectedForms, setSelectedForms] = useState<Record<string, string>>({});
     const [verificationPromptOpen, setVerificationPromptOpen] = useState(
         !props.kycApproved && !props.demo,
     );
@@ -669,6 +775,36 @@ export default function Cards(props: Props) {
                                             </div>
                                         </div>
                                     </div>
+                                    <p className="px-4 pt-3 text-sm">
+                                        {t(
+                                            card.formFactor === 'physical_card'
+                                                ? 'Physical card'
+                                                : 'Virtual card',
+                                        )}
+                                        {card.produceStatus && (
+                                            <>
+                                                {' '}
+                                                ·{' '}
+                                                {t(
+                                                    card.produceStatus === 'produced'
+                                                        ? 'Card produced'
+                                                        : 'Card production pending',
+                                                )}
+                                            </>
+                                        )}
+                                        {card.trackingNumber && (
+                                            <>
+                                                {' '}
+                                                · {t('Tracking number')}: {card.trackingNumber}
+                                            </>
+                                        )}
+                                    </p>
+                                    {!props.demo && card.management?.includes('activate') && (
+                                        <PhysicalCardActivation
+                                            cardId={card.id}
+                                            status={card.activationStatus}
+                                        />
+                                    )}
                                     {!props.demo && (
                                         <CardManagementActions
                                             card={card}
@@ -691,9 +827,8 @@ export default function Cards(props: Props) {
                     key={`${props.cards
                         .map((card) => `${card.id}:${card.balance}:${card.pendingOperationCount}`)
                         .sort()
-                        .join(',')}:${props.providerAvailable}:${Boolean(props.demo)}`}
+                        .join(',')}:${Boolean(props.demo)}`}
                     cardIds={props.cards.map((card) => card.id)}
-                    available={props.providerAvailable && !props.demo}
                 />
 
                 <div id="card-setup" className="scroll-mt-6" />
@@ -797,9 +932,49 @@ export default function Cards(props: Props) {
                                                     />
                                                 </div>
                                                 <p className="mt-6 text-sm text-white/70">
-                                                    {option.cardCurrency}
+                                                    {option.cardCurrency} · BIN {option.bin}
                                                 </p>
                                             </div>
+                                            <fieldset className="mt-4 flex flex-wrap items-center gap-3">
+                                                <legend className="mb-2 text-sm">
+                                                    {t('Card type')}
+                                                </legend>
+                                                {(
+                                                    option.supportedFormFactors ?? ['virtual_card']
+                                                ).map((factor) => (
+                                                    <label
+                                                        key={factor}
+                                                        className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+                                                    >
+                                                        <input
+                                                            type="radio"
+                                                            name={`card-form-${option.id}`}
+                                                            value={factor}
+                                                            disabled={Boolean(activeApplication)}
+                                                            checked={
+                                                                (activeApplication?.productId ===
+                                                                option.id
+                                                                    ? activeApplication.formFactor
+                                                                    : (selectedForms[option.id] ??
+                                                                      option
+                                                                          .supportedFormFactors?.[0] ??
+                                                                      'virtual_card')) === factor
+                                                            }
+                                                            onChange={() =>
+                                                                setSelectedForms((current) => ({
+                                                                    ...current,
+                                                                    [option.id]: factor,
+                                                                }))
+                                                            }
+                                                        />
+                                                        {t(
+                                                            factor === 'physical_card'
+                                                                ? 'Physical card'
+                                                                : 'Virtual card',
+                                                        )}
+                                                    </label>
+                                                ))}
+                                            </fieldset>
                                             <dl className="my-4 divide-y text-sm">
                                                 <div className="flex flex-wrap justify-between gap-2 py-3">
                                                     <dt className="text-muted-foreground">
@@ -859,6 +1034,11 @@ export default function Cards(props: Props) {
                                 <ProductIssue
                                     key={product.id}
                                     product={product}
+                                    selectedFormFactor={
+                                        selectedForms[product.id] ??
+                                        product.supportedFormFactors?.[0] ??
+                                        'virtual_card'
+                                    }
                                     availableBalance={props.availableBalance}
                                     open={applicationProductId === product.id}
                                     onClose={() => setApplicationProductId(null)}

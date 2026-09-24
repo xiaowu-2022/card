@@ -1,14 +1,15 @@
 <?php
 
+use App\Application\Card\ActivatePhysicalCardAction;
 use App\Application\Card\AdminCardLoadsQuery;
 use App\Application\Card\ApplyCardIssueResultAction;
 use App\Application\Card\ArchiveClearedUserCardAction;
 use App\Application\Card\CreateCardIssueAction;
+use App\Application\Card\CreateCardRecipientAction;
 use App\Application\Card\DTOs\CardManagementInput;
 use App\Application\Card\ManageCardAction;
 use App\Application\Card\PlatformCardTransactionsQuery;
 use App\Application\Card\ProcessCardNotificationAction;
-use App\Application\Card\ReceiveCardNotificationAction;
 use App\Application\Card\RecordCardTransactionsAction;
 use App\Application\Card\RefreshManagedCardAction;
 use App\Application\Card\SubmitProviderCardholderAction;
@@ -21,7 +22,6 @@ use App\Application\Card\UserCardManagementAction;
 use App\Application\Card\UserCardOverviewQuery;
 use App\Application\Card\UserCardTransactionsQuery;
 use App\Application\CardProduct\CardProductCatalogQuery;
-use App\Application\CardProduct\CreateCardProductAction;
 use App\Application\CardProduct\UpdateCardProductAction;
 use App\Application\CardProviderDirectory\SaveCardProviderReferenceAction;
 use App\Application\Kyc\ApproveKycAction;
@@ -75,12 +75,16 @@ use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use App\Domain\Wallet\Models\Wallet;
 use App\Infrastructure\Providers\Card\MockCardProvider;
+use App\Infrastructure\Providers\Card\PhotonPayCardProvider;
+use App\Infrastructure\Providers\Card\PhotonPayCardResponseNormalizer;
+use App\Infrastructure\Providers\Card\UnavailableCardProvider;
 use App\Jobs\ProcessCardNotification;
 use App\Support\Errors\DomainException;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -260,40 +264,17 @@ it('rejects malformed or mismatched card numbers before revealing sensitive info
     ])->assertStatus(503)->assertJsonMissingPath('pan')->assertJsonMissingPath('cvv');
 })->with(['masked' => ['************1234'], 'too short' => ['1234'], 'wrong card' => ['4111111111119999']]);
 
-it('synchronizes verified notifications inline without a queue and deduplicates without changing wallet', function (int $keyBits): void {
-    [$card,$provider] = managedCardFixture($this);
-    $handler = new TestHandler;
-    Log::extend('notification_test', fn () => new Logger('photonpay', [$handler]));
-    config(['logging.channels.photonpay' => ['driver' => 'notification_test']]);
-    Log::forgetChannel('photonpay');
+it('rejects legacy callbacks whose products have no saved account even with the global key', function (int $keyBits): void {
+    [$card] = managedCardFixture($this);
     $before = phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance;
-    $provider->shouldReceive('getTransaction')->once()->with($card->provider_card_id, 'TX-CONSUMPTION')->andReturn(new ProviderCardTransactionDTO('TX-CONSUMPTION', '3.00000000', 'USD', 'purchase', 'completed', '2026-09-11T12:00:00', 'A shop'));
     $key = openssl_pkey_new(['private_key_bits' => $keyBits]);
     config(['card-provider.photonpay.webhook_public_key' => openssl_pkey_get_details($key)['key']]);
-    $body = json_encode(['cardId' => $card->provider_card_id, 'transactionId' => 'TX-CONSUMPTION', 'requestId' => '', 'cardholderId' => '', 'cardBalance' => '99999', 'tenant_id' => (string) Str::uuid()]);
+    $body = json_encode(['cardId' => $card->provider_card_id]);
     openssl_sign($body, $signature, $key, OPENSSL_ALGO_MD5);
-    $receive = app(ReceiveCardNotificationAction::class);
-    expect(fn () => $receive->execute($body, 'invalid', 'issuing', 'auth'))->toThrow(DomainException::class);
-    $this->call('POST', 'http://unknown-callback-host.example/webhooks/card-provider', [], [], [], [
+    $this->call('POST', 'http://callback.example/webhooks/card-provider', [], [], [], [
         'CONTENT_TYPE' => 'application/json', 'HTTP_X_PD_SIGN' => base64_encode($signature),
-        'HTTP_X_PD_NOTIFICATION_CATAGORY' => 'issuing', 'HTTP_X_PD_NOTIFICATION_TYPE' => 'auth',
-    ], $body)->assertOk()->assertExactJson(['roger' => true]);
-    $receive->execute($body, base64_encode($signature), 'issuing', 'auth');
-    $receive->execute($body, base64_encode($signature), 'issuing', 'auth');
-    $event = CardProviderEvent::query()->firstOrFail();
-    expect(CardProviderEvent::query()->count())->toBe(1)->and($event->tenant_id)->toBe($this->tenant->id);
-    expect($event->status)->toBe('PROCESSED')->and($event->attempts)->toBe(1)->and($event->request_id)->toBeNull();
-    Queue::assertNotPushed(ProcessCardNotification::class);
-    $applied = collect($handler->getRecords())->first(fn ($record) => $record->message === 'photonpay.card_refresh.applied');
-    expect($applied)->not->toBeNull()
-        ->and($applied->context['event_id'])->toBe($event->id)
-        ->and($applied->context['resource_id'])->toBe($card->id)
-        ->and($applied->context['stored_balance'])->toBe('20.00000000')
-        ->and($applied->context['synced_epoch'])->toBeInt();
-    expect($event->fresh()->status)->toBe('PROCESSED')->and($card->fresh()->provider_balance)->toBe('20.00000000')
-        ->and(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe($before)
-        ->and(CardTransaction::query()->count())->toBe(1);
-    app(ProcessCardNotificationAction::class)->execute($event->tenant_id, $event->id);
+        'HTTP_X_PD_NOTIFICATION_CATAGORY' => 'issuing', 'HTTP_X_PD_NOTIFICATION_TYPE' => 'auth'], $body)->assertNotFound();
+    expect(CardProviderEvent::count())->toBe(0)->and(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe($before);
 })->with([1024, 2048]);
 
 it('diagnoses queued and retried notifications without processing them or leaking identifiers', function (): void {
@@ -334,15 +315,9 @@ it('keeps failed inline notification reads for explicit follow-up without dispat
     [$card] = managedCardFixture($this, fn () => throw new ProviderUnknownResultException('private-provider-error'));
     $before = $card->fresh()->getAttributes();
     $entries = LedgerEntry::query()->count();
-    $key = openssl_pkey_new(['private_key_bits' => 2048]);
-    config(['card-provider.photonpay.webhook_public_key' => openssl_pkey_get_details($key)['key']]);
-    $body = json_encode(['cardId' => $card->provider_card_id, 'cardBalance' => '99999']);
-    openssl_sign($body, $signature, $key, OPENSSL_ALGO_MD5);
-    $this->call('POST', 'http://callback.example/webhooks/card-provider', [], [], [], [
-        'CONTENT_TYPE' => 'application/json', 'HTTP_X_PD_SIGN' => base64_encode($signature),
-        'HTTP_X_PD_NOTIFICATION_CATAGORY' => 'issuing', 'HTTP_X_PD_NOTIFICATION_TYPE' => 'auth',
-    ], $body)->assertOk()->assertExactJson(['roger' => true]);
-    $event = CardProviderEvent::query()->where('card_id', $card->id)->sole();
+    $event = storedCardNotificationFixture($card, 'card_id');
+    app(ProcessCardNotificationAction::class)->execute($event->tenant_id, $event->id);
+    $event->refresh();
     expect($event->status)->toBe('RETRY')->and($event->attempts)->toBe(1)
         ->and($card->fresh()->provider_balance)->toBe($before['provider_balance'])
         ->and($card->fresh()->getRawOriginal('provider_balance_synced_at'))->toBe($before['provider_balance_synced_at'])
@@ -378,12 +353,8 @@ it('retries holder notifications when the provider lookup preserves stale ready 
     [$card, $provider] = managedCardFixture($this);
     $this->holder->forceFill(['synced_at' => now()->subMinute()])->save();
     $provider->shouldReceive('getCardholder')->once()->andThrow(new ProviderUnknownResultException('Unconfirmed'));
-    $key = openssl_pkey_new(['private_key_bits' => 2048]);
-    config(['card-provider.photonpay.webhook_public_key' => openssl_pkey_get_details($key)['key']]);
-    $body = json_encode(['cardholderId' => $this->holder->provider_cardholder_id]);
-    openssl_sign($body, $signature, $key, OPENSSL_ALGO_MD5);
-    app(ReceiveCardNotificationAction::class)->execute($body, base64_encode($signature), 'issuing', 'cardholder_status_update');
-    $event = CardProviderEvent::query()->where('tenant_id', $this->tenant->id)->firstOrFail();
+    $event = storedCardNotificationFixture($this->holder, 'cardholder_id');
+    app(ProcessCardNotificationAction::class)->execute($event->tenant_id, $event->id);
     expect($event->fresh()->status)->toBe('RETRY')->and($event->fresh()->attempts)->toBe(1)->and($event->fresh()->processed_at)->toBeNull();
     $provider->shouldReceive('getCardholder')->once()->andReturn(new ProviderCardholderDTO($this->holder->provider_cardholder_id, ProviderCardholderReviewStatus::Ready, 'normal', 'passed'));
     app(ProcessCardNotificationAction::class)->execute($event->tenant_id, $event->id);
@@ -673,9 +644,9 @@ beforeEach(function (): void {
 it('blocks unconfigured product setup and issue before uploads provider calls or holds', function (): void {
     phaseTenReadyUser($this);
     $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
-    $product = app(CreateCardProductAction::class)->execute([
+    $product = legacyCardProductFixture([
         'name' => 'No API', 'minimum_initial_load' => '20', 'opening_fee' => '5.00000000', 'minimum_reload' => '20', 'status' => 'ACTIVE',
-    ], $owner);
+    ]);
     $config = TenantCardProductConfig::query()->where('tenant_id', $this->tenant->id)->where('card_product_id', $this->product->id)->sole()->replicate();
     $config->card_product_id = $product->id;
     $config->save();
@@ -733,10 +704,10 @@ function localSimulationReadyCard($test, bool $merchant = false): UserCard
         $reference = app(SaveCardProviderReferenceAction::class)->execute(null,
             ['request_id' => (string) Str::uuid(), 'name' => 'test', 'reference_balance' => '0'], $platform);
         expect($reference->runtime_driver)->toBe('LOCAL_MOCK');
-        $product = app(CreateCardProductAction::class)->execute([
+        $product = legacyCardProductFixture([
             'name' => 'Test merchant product', 'card_provider_reference_id' => $reference->id, 'provider_product_ref' => '123456',
             'minimum_initial_load' => '20', 'opening_fee' => '5.00000000', 'minimum_reload' => '20', 'status' => 'ACTIVE',
-        ], $platform);
+        ]);
         $config = TenantCardProductConfig::query()->where('tenant_id', $test->tenant->id)->where('card_product_id', $test->product->id)->sole()->replicate();
         $config->card_product_id = $product->id;
         $config->save();
@@ -827,16 +798,7 @@ it('runs the local simulator through card management ledger reveal and authentic
         ])->assertStatus(503)->assertJsonMissingPath('pan')->assertJsonMissingPath('cvv'); // The simulator deliberately returns a non-PAN placeholder.
         $tx = $provider->simulatePurchase($card->provider_card_id, 'local-purchase', '3.25');
         $walletBeforeNotification = phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance;
-        $key = openssl_pkey_new(['private_key_bits' => 2048]);
-        config(['card-provider.photonpay.webhook_public_key' => openssl_pkey_get_details($key)['key']]);
-        $body = json_encode(['cardId' => $card->provider_card_id, 'transactionId' => $tx, 'cardBalance' => '999', 'tenant_id' => (string) Str::uuid()]);
-        openssl_sign($body, $signature, $key, OPENSSL_ALGO_MD5);
-        $receive = app(ReceiveCardNotificationAction::class);
-        expect(fn () => $receive->execute($body, 'bad-signature', 'issuing', 'auth'))->toThrow(DomainException::class);
-        for ($i = 0; $i < 2; $i++) {
-            $receive->execute($body, base64_encode($signature), 'issuing', 'auth');
-        }
-        $event = CardProviderEvent::query()->where('card_id', $card->id)->sole();
+        $event = storedCardNotificationFixture($card, 'card_id', $tx);
         for ($i = 0; $i < 2; $i++) {
             app(ProcessCardNotificationAction::class)->execute($event->tenant_id, $event->id);
         }
@@ -2389,4 +2351,191 @@ it('calculates reload capacity from combined balance and deduplicates the matchi
     expect($synced[0]['amount'])->toBe('80.00000000')->and(collect($before)->pluck('id')->all())->toContain($synced[0]['id']);
     expect($card->fresh()->overflowBalance())->toBe('140.00000000');
     DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+});
+
+// Physical-card fixtures use fake HTTP only; no external card or wallet is touched.
+function physicalCardFixture($test): array
+{
+    $test->product->forceFill(['provider_product_ref' => '53493435'])->save();
+    phaseTenReadyUser($test);
+    $test->product->forceFill(['supported_form_factors' => ['virtual_card', 'physical_card']])->save();
+    $holder = $test->holder->replicate();
+    $holder->forceFill(['form_factor' => 'physical_card', 'request_id' => (string) Str::uuid(), 'provider_cardholder_id' => 'CH-PHYSICAL-OWNED'])->save();
+    $test->holder = $holder;
+    $key = openssl_pkey_new(['private_key_bits' => 2048]);
+    openssl_pkey_export($key, $private);
+    app()->instance(CardProviderInterface::class, new PhotonPayCardProvider(
+        'https://x-api.photonpay.com', 'test-app', 'test-secret', $private, 'USD-ACCOUNT', null, null, 10, new PhotonPayCardResponseNormalizer));
+    Http::preventStrayRequests();
+
+    return ['request_id' => (string) Str::uuid(), 'cardholder_application_id' => $holder->id,
+        'recipientFirstName' => 'Sandbox', 'recipientLastName' => 'Test', 'mobilePrefix' => '1', 'mobile' => '2025550100',
+        'country' => 'US', 'state' => 'NY', 'city' => 'New York', 'addressLine1' => '1 Test Street', 'postalCode' => '10001'];
+}
+
+function fakePhysicalHttp(string $status = 'unactivated'): void
+{
+    Http::fake([
+        '*addRecipient' => Http::response(['code' => '0000', 'data' => ['recipientId' => 'RI-PHYSICAL', 'recipientStatus' => 'Normal']]),
+        '*pagingRecipient*' => Http::response(['code' => '0000', 'data' => [['recipientId' => 'RI-PHYSICAL', 'recipientStatus' => 'Normal']]]),
+        '*getCardBin*' => Http::response(['code' => '0000', 'data' => [['cardBin' => CardProduct::where('provider', 'PHOTONPAY')->firstOrFail()->provider_product_ref, 'cardScheme' => 'MasterCard', 'cardType' => 'recharge', 'cardCurrency' => 'USD', 'cardFormFactor' => 'physical_card,virtual_card']]]),
+        '*openCard' => function ($r) {
+            return Http::response(['code' => '0000', 'data' => ['status' => 'succeed', 'requestId' => $r['requestId'], 'cardDetail' => [
+                'cardId' => 'XR-PHYSICAL', 'cardType' => 'recharge', 'cardFormFactor' => 'physical_card', 'cardCurrency' => 'USD', 'maskCardNo' => '**** 1234', 'cardStatus' => 'unactivated', 'cardBalance' => '20']]]);
+        },
+        '*getCardDetail*' => Http::response(['code' => '0000', 'data' => ['cardId' => 'XR-PHYSICAL', 'cardType' => 'recharge', 'cardFormFactor' => 'physical_card', 'cardCurrency' => 'USD', 'maskCardNo' => '**** 1234', 'cardStatus' => $status, 'cardBalance' => '20', 'produceStatus' => 'produced']]),
+        '*activateCard' => Http::response(['code' => '0000']),
+    ]);
+}
+
+it('scopes and snapshots physical recipients and refuses identity rewrites', function () {
+    $input = physicalCardFixture($this);
+    fakePhysicalHttp();
+    $action = app(CreateCardRecipientAction::class);
+    $recipient = $action->execute($this->tenant->id, $this->user->id, $input);
+    expect($recipient->status)->toBe('READY')->and($recipient->materials_encrypted)->not->toContain('Test Street');
+    expect($action->execute($this->tenant->id, $this->user->id, $input)->id)->toBe($recipient->id);
+    Http::assertSentCount(2);
+    expect(fn () => $action->execute($this->tenant->id, $this->user->id, [...$input, 'city' => 'Other']))->toThrow(DomainException::class);
+    $order = app(CreateCardIssueAction::class)->execute($this->tenant->id, $this->user->id, (string) Str::uuid(), $this->product->id, '20', $this->holder->id, null, 'physical_card', $recipient->id);
+    expect($order->status)->toBe(CardIssueStatus::Succeeded)->and($order->recipient_snapshot_encrypted)->toBe($recipient->materials_encrypted);
+    $card = UserCard::where('card_issue_order_id', $order->id)->sole();
+    expect($card->form_factor)->toBe('physical_card')->and($card->provider_status)->toBe('unactivated');
+    expect(fn () => DB::transaction(fn () => DB::table('user_cards')->where('id', $card->id)->update(['form_factor' => 'virtual_card'])))->toThrow(QueryException::class);
+    expect(fn () => DB::transaction(fn () => DB::table('card_issue_orders')->where('id', $order->id)->update(['provider_recipient_id' => 'RI-FOREIGN'])))->toThrow(QueryException::class);
+    expect(fn () => DB::transaction(fn () => DB::table('card_recipient_applications')->where('id', $recipient->id)->update(['materials_encrypted' => 'changed'])))->toThrow(QueryException::class);
+});
+
+it('retains unknown recipient creation and blocks a new UUID without another upstream submission', function () {
+    $input = physicalCardFixture($this);
+    Http::fake(['*addRecipient' => Http::response(['code' => 'system-error'], 503)]);
+    $action = app(CreateCardRecipientAction::class);
+    $r = $action->execute($this->tenant->id, $this->user->id, $input);
+    expect($r->status)->toBe('UNKNOWN');
+    expect($action->execute($this->tenant->id, $this->user->id, $input)->id)->toBe($r->id);
+    expect(fn () => $action->execute($this->tenant->id, $this->user->id, [...$input, 'request_id' => (string) Str::uuid()]))->toThrow(DomainException::class);
+    Http::assertSentCount(1);
+});
+
+it('blocks physical issue without an owned ready recipient before financial holds', function () {
+    physicalCardFixture($this);
+    fakePhysicalHttp();
+    $entries = LedgerEntry::count();
+    expect(fn () => app(CreateCardIssueAction::class)->execute($this->tenant->id, $this->user->id, (string) Str::uuid(), $this->product->id, '20', $this->holder->id, null, 'physical_card', (string) Str::uuid()))->toThrow(DomainException::class);
+    expect(LedgerEntry::count())->toBe($entries);
+    Http::assertNothingSent();
+});
+
+it('never resends an accepted but unconfirmed physical activation and completes by authoritative read', function () {
+    $input = physicalCardFixture($this);
+    fakePhysicalHttp();
+    $r = app(CreateCardRecipientAction::class)->execute($this->tenant->id, $this->user->id, $input);
+    $order = app(CreateCardIssueAction::class)->execute($this->tenant->id, $this->user->id, (string) Str::uuid(), $this->product->id, '20', $this->holder->id, null, 'physical_card', $r->id);
+    $card = UserCard::where('card_issue_order_id', $order->id)->sole();
+    $action = app(ActivatePhysicalCardAction::class);
+    expect($action->execute($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '05/29', '246810', '246810'))->toBe('UNKNOWN');
+    expect($action->execute($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '05/29', '135790', '135790'))->toBe('UNKNOWN');
+    expect(Http::recorded(fn ($r) => str_ends_with($r->url(), '/activateCard'))->count())->toBe(1);
+    $saved = json_encode(DB::table('card_activation_attempts')->first());
+    expect($saved)->not->toContain('246810')->not->toContain('135790');
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    fakePhysicalHttp('normal');
+    app(RefreshManagedCardAction::class)->execute($this->tenant->id, $this->user->id, $card->id);
+    expect(DB::table('card_activation_attempts')->where('card_id', $card->id)->value('status'))->toBe('SUCCEEDED');
+});
+
+it('validates recipient fields and rejects upstream references without calling the provider', function () {
+    physicalCardFixture($this);
+    $this->actingAs($this->user, 'tenant_user')->postJson('http://a.localhost/cards/recipients', [
+        'request_id' => (string) Str::uuid(), 'cardholder_application_id' => $this->holder->id, 'recipientId' => 'RI-FOREIGN',
+    ])->assertUnprocessable()->assertJsonValidationErrors(['recipientFirstName', 'addressLine1', 'recipientId']);
+    Http::assertNothingSent();
+});
+
+it('requires sensitive authentication for activation and never flashes PIN inputs', function () {
+    physicalCardFixture($this);
+    $pin = '76543210';
+    $response = $this->actingAs($this->user, 'tenant_user')->postJson('http://a.localhost/cards/'.Str::uuid().'/activate', [
+        'request_id' => (string) Str::uuid(), 'pin' => $pin, 'pin_confirmation' => $pin, 'expiration_date' => '05/29',
+    ]);
+    $response->assertUnprocessable()->assertJsonValidationErrors(['current_password', 'confirmed']);
+    expect($response->getContent())->not->toContain($pin);
+    expect(json_encode(session()->all()))->not->toContain($pin);
+    Http::assertNothingSent();
+});
+
+it('keeps physical issue holds on uncertain results and releases explicit rejection', function (string $outcome) {
+    $input = physicalCardFixture($this);
+    fakePhysicalHttp();
+    $r = app(CreateCardRecipientAction::class)->execute($this->tenant->id, $this->user->id, $input);
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(['*getCardBin*' => Http::response(['code' => '0000', 'data' => [['cardBin' => '53493435', 'cardScheme' => 'MasterCard', 'cardType' => 'recharge', 'cardCurrency' => 'USD', 'cardFormFactor' => 'physical_card']]]),
+        '*openCard' => $outcome === 'rejected' ? Http::response(['code' => 'VCC1010', 'message' => 'rejected']) : Http::failedConnection()]);
+    $order = app(CreateCardIssueAction::class)->execute($this->tenant->id, $this->user->id, (string) Str::uuid(), $this->product->id, '20', $this->holder->id, null, 'physical_card', $r->id);
+    expect($order->status->value)->toBe($outcome === 'rejected' ? 'FAILED' : 'UNKNOWN');
+    expect(phaseTenAccount($this, LedgerAccountType::UserCardFundingHold)->balance)->toBe($outcome === 'rejected' ? '0.00000000' : '20.00000000');
+    expect(UserCard::where('card_issue_order_id', $order->id)->exists())->toBeFalse();
+})->with(['rejected', 'timeout']);
+
+it('preserves physical activation timeout and explicit rejection without a repeated upstream call', function (string $outcome) {
+    $input = physicalCardFixture($this);
+    fakePhysicalHttp();
+    $r = app(CreateCardRecipientAction::class)->execute($this->tenant->id, $this->user->id, $input);
+    $order = app(CreateCardIssueAction::class)->execute($this->tenant->id, $this->user->id, (string) Str::uuid(), $this->product->id, '20', $this->holder->id, null, 'physical_card', $r->id);
+    $card = UserCard::where('card_issue_order_id', $order->id)->sole();
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(['*getCardDetail*' => Http::response(['code' => '0000', 'data' => ['cardId' => 'XR-PHYSICAL', 'cardType' => 'recharge', 'cardFormFactor' => 'physical_card', 'cardCurrency' => 'USD', 'maskCardNo' => '**** 1234', 'cardStatus' => 'unactivated', 'cardBalance' => '20']]),
+        '*activateCard' => $outcome === 'rejected' ? Http::response(['code' => 'VCC1010', 'message' => 'rejected']) : Http::failedConnection()]);
+    $action = app(ActivatePhysicalCardAction::class);
+    $request = (string) Str::uuid();
+    $expected = $outcome === 'rejected' ? 'FAILED' : 'UNKNOWN';
+    expect($action->execute($this->tenant->id, $this->user->id, $card->id, $request, '05/29', '234567', '234567'))->toBe($expected);
+    expect($action->execute($this->tenant->id, $this->user->id, $card->id, $request, '05/29', '234567', '234567'))->toBe($expected);
+    expect(Http::recorded(fn ($r) => str_ends_with($r->url(), '/activateCard'))->count())->toBe(1);
+    expect($card->fresh()->provider_status)->toBe('unactivated');
+})->with(['rejected', 'timeout']);
+
+it('rejects foreign physical holder ownership and recipient merchant identity changes', function () {
+    $input = physicalCardFixture($this);
+    fakePhysicalHttp();
+    $r = app(CreateCardRecipientAction::class)->execute($this->tenant->id, $this->user->id, $input);
+    $this->actingAs($this->user, 'tenant_user')->postJson('http://a.localhost/cards/recipients', [...$input, 'request_id' => (string) Str::uuid(), 'cardholder_application_id' => (string) Str::uuid()])->assertNotFound();
+    expect(fn () => DB::transaction(fn () => DB::table('card_recipient_applications')->where('id', $r->id)->update(['card_provider_reference_id' => (string) Str::uuid()])))->toThrow(QueryException::class);
+    expect(fn () => DB::transaction(fn () => DB::table('card_recipient_applications')->where('id', $r->id)->update(['user_id' => (string) Str::uuid()])))->toThrow(QueryException::class);
+    expect(fn () => DB::transaction(fn () => DB::table('card_recipient_applications')->where('id', $r->id)->update(['tenant_id' => (string) Str::uuid()])))->toThrow(QueryException::class);
+});
+
+it('refreshes physical cards from verified notification records without changing Ledger', function () {
+    $input = physicalCardFixture($this);
+    fakePhysicalHttp();
+    $r = app(CreateCardRecipientAction::class)->execute($this->tenant->id, $this->user->id, $input);
+    $order = app(CreateCardIssueAction::class)->execute($this->tenant->id, $this->user->id, (string) Str::uuid(), $this->product->id, '20', $this->holder->id, null, 'physical_card', $r->id);
+    $card = UserCard::where('card_issue_order_id', $order->id)->sole();
+    $event = new CardProviderEvent;
+    $event->forceFill(['tenant_id' => $this->tenant->id, 'user_id' => $this->user->id, 'card_id' => $card->id, 'event_digest' => hash('sha256', 'physical-notification'), 'category' => 'issuing_card', 'event_type' => 'activate', 'status' => 'PENDING'])->save();
+    $entries = LedgerEntry::count();
+    Http::swap(new Factory);
+    fakePhysicalHttp('normal');
+    app(ProcessCardNotificationAction::class)->execute($this->tenant->id, $event->id);
+    expect($event->fresh()->status)->toBe('PROCESSED')->and($card->fresh()->provider_status)->toBe('normal')->and(LedgerEntry::count())->toBe($entries);
+});
+
+it('reads platform operation history without provider availability and preserves ownership and mutation guards', function (): void {
+    [$card,$provider,$manage] = managedCardFixture($this);
+    $provider->shouldReceive('quoteCardLoad')->once()->andReturnUsing(fn ($id, $amount, $request) => new ProviderCardQuoteDTO($request, '21.00000000', '20.00000000', '1.00000000'));
+    $order = $manage->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '20');
+    app()->instance(CardProviderInterface::class, new UnavailableCardProvider);
+    Http::preventStrayRequests();
+    $entries = LedgerEntry::count();
+    $url = 'http://a.localhost/cards/'.$card->id.'/management';
+    $this->actingAs($this->user, 'tenant_user')->postJson($url, ['action' => 'history'])
+        ->assertOk()->assertJsonPath('orders.0.id', $order->id)->assertJsonPath('orders.0.state', 'quoted');
+    $this->postJson($url, ['action' => 'refresh'])->assertStatus(503);
+    $other = User::where('tenant_id', '!=', $this->tenant->id)->firstOrFail();
+    $this->actingAs($other, 'tenant_user')->postJson('http://b.localhost/cards/'.$card->id.'/management', ['action' => 'history'])->assertNotFound();
+    expect(LedgerEntry::count())->toBe($entries)->and($order->fresh()->status)->toBe('QUOTED');
+    Http::assertNothingSent();
 });

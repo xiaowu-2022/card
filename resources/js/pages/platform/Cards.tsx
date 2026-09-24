@@ -38,6 +38,9 @@ type UserCard = {
     userEmail: string;
     productName: string;
     maskedPan: string;
+    formFactor: string;
+    produceStatus: string | null;
+    trackingNumber: string | null;
     providerStatus: string;
 };
 const tone = (status: string): StatusTone =>
@@ -140,7 +143,30 @@ export default function Cards({
                                 {
                                     label: 'Card',
                                     render: (row) => (
-                                        <span className="font-mono">{row.maskedPan}</span>
+                                        <span className="font-mono">
+                                            {row.maskedPan}
+                                            <span className="block text-xs font-sans">
+                                                {t(
+                                                    row.formFactor === 'physical_card'
+                                                        ? 'Physical card'
+                                                        : 'Virtual card',
+                                                )}
+                                            </span>
+                                            {row.produceStatus && (
+                                                <span className="block text-xs">
+                                                    {t(
+                                                        row.produceStatus === 'produced'
+                                                            ? 'Card produced'
+                                                            : 'Card production pending',
+                                                    )}
+                                                </span>
+                                            )}
+                                            {row.trackingNumber && (
+                                                <span className="block text-xs">
+                                                    {t('Tracking number')}: {row.trackingNumber}
+                                                </span>
+                                            )}
+                                        </span>
                                     ),
                                 },
                                 {

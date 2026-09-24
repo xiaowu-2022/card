@@ -21,10 +21,10 @@ final class LiveCardReferenceGuard
 
             return;
         }
-        if ($router->isSandbox($product)) {
+        if ($router->isPhotonPayAccount($product)) {
             foreach ($references as $reference) {
                 if (ProviderReference::isTest($reference)) {
-                    throw new DomainException('CARD_TEST_REFERENCE', 'Mock identities cannot be used by the sandbox provider.', 409);
+                    throw new DomainException('CARD_TEST_REFERENCE', 'Mock identities cannot be used by PhotonPay.', 409);
                 }
             }
 

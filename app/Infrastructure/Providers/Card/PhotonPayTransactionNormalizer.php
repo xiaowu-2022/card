@@ -30,7 +30,7 @@ final class PhotonPayTransactionNormalizer
     }
 
     /** @param array<string, mixed> $response */
-    public function page(array $response, string $cardId, int $page, int $size, ?string $verifiedCardCurrency = null): ProviderTransactionPageDTO
+    public function page(array $response, string $cardId, int $page, int $size, ?string $verifiedCardCurrency = null, string $expectedFormFactor = 'virtual_card'): ProviderTransactionPageDTO
     {
         $rows = $response['data'] ?? null;
         $total = $this->integer($response['total'] ?? null);
@@ -43,7 +43,7 @@ final class PhotonPayTransactionNormalizer
         $seen = [];
         foreach ($rows as $row) {
             if (! is_array($row) || ($row['cardId'] ?? null) !== $cardId || ($row['cardType'] ?? null) !== 'recharge'
-                || ($row['cardCurrency'] ?? $verifiedCardCurrency) !== 'USD' || ($row['cardFormFactor'] ?? null) !== 'virtual_card') {
+                || ($row['cardCurrency'] ?? $verifiedCardCurrency) !== 'USD' || ($row['cardFormFactor'] ?? null) !== $expectedFormFactor) {
                 throw new ProviderUnknownResultException('Provider transaction ownership is inconsistent.');
             }
             $id = $this->text($row['transactionId'] ?? null);

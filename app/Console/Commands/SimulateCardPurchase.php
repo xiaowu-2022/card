@@ -2,19 +2,22 @@
 
 namespace App\Console\Commands;
 
-use App\Application\Card\ReceiveCardNotificationAction;
+use App\Application\Card\ProcessCardNotificationAction;
+use App\Domain\Card\Models\CardProviderEvent;
 use App\Domain\Card\Models\UserCard;
 use App\Domain\CardProvider\Contracts\CardProviderInterface;
 use App\Infrastructure\Providers\Card\LocalCardSimulation;
 use App\Infrastructure\Providers\Card\LocalMockCardProvider;
+use App\Infrastructure\Providers\Card\PhotonPayNotificationVerifier;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final class SimulateCardPurchase extends Command
 {
     protected $signature = 'cards:mock-purchase {card : Local application card UUID} {amount : Exact USD decimal} {request : Stable UUID; reuse for duplicate delivery}';
 
-    protected $description = 'Simulate an isolated local card purchase and verified notification (never live cards)';
+    protected $description = 'Simulate an isolated local card purchase and signed local inbox event (never live callbacks)';
 
     public function handle(): int
     {
@@ -23,25 +26,35 @@ final class SimulateCardPurchase extends Command
 
             return self::FAILURE;
         }
-        $card = UserCard::query()->whereKey($this->argument('card'))->firstOrFail();
+        $card = UserCard::whereKey($this->argument('card'))->firstOrFail();
         $provider = app(CardProviderInterface::class);
-        if (! $provider instanceof LocalMockCardProvider) {
+        if (! $provider instanceof LocalMockCardProvider || ! str_starts_with($card->provider_card_id, 'MOCK-LOCAL-')) {
             return self::FAILURE;
         }
         $transaction = $provider->simulatePurchase($card->provider_card_id, $this->argument('request'), $this->argument('amount'));
-        // Ephemeral local signer exercises the real verification path; never bypass the verifier.
         $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
         $body = json_encode(['cardId' => $card->provider_card_id, 'transactionId' => $transaction], JSON_THROW_ON_ERROR);
         openssl_sign($body, $signature, $key, OPENSSL_ALGO_MD5);
-        $originalKey = config('card-provider.photonpay.webhook_public_key');
-        $originalQueue = config('queue.default');
-        try {
-            config(['card-provider.photonpay.webhook_public_key' => openssl_pkey_get_details($key)['key'], 'queue.default' => 'sync']);
-            app(ReceiveCardNotificationAction::class)->execute($body, base64_encode($signature), 'issuing', 'auth');
-        } finally {
-            config(['card-provider.photonpay.webhook_public_key' => $originalKey, 'queue.default' => $originalQueue]);
+        // This isolated synthetic event has a known local resource. It is not a remote callback,
+        // does not modify any account key and never relaxes the public webhook account resolver.
+        $facts = app(PhotonPayNotificationVerifier::class)->verify($body, base64_encode($signature), 'issuing', 'auth', openssl_pkey_get_details($key)['key']);
+        $event = DB::transaction(function () use ($card, $facts): CardProviderEvent {
+            UserCard::whereKey($card->id)->lockForUpdate()->firstOrFail();
+            $digest = hash('sha256', 'local-simulation:'.$card->id.':'.$facts['digest']);
+            $event = CardProviderEvent::where('event_digest', $digest)->first();
+            if (! $event) {
+                $event = new CardProviderEvent;
+                $event->forceFill(['tenant_id' => $card->tenant_id, 'user_id' => $card->user_id, 'card_id' => $card->id,
+                    'card_provider_reference_id' => $card->product->card_provider_reference_id,
+                    'event_digest' => $digest, 'category' => 'issuing', 'event_type' => 'auth', 'transaction_id' => $facts['transactionId'], 'status' => 'PENDING'])->save();
+            }
+
+            return $event;
+        });
+        if ($event->status !== 'PROCESSED') {
+            app(ProcessCardNotificationAction::class)->execute($event->tenant_id, $event->id);
         }
-        $this->info('Local simulation recorded; notification submitted. No real provider request was sent.');
+        $this->info('Local simulation recorded. No real callback or provider request was sent.');
 
         return self::SUCCESS;
     }

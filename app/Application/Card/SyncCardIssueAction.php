@@ -24,7 +24,7 @@ final readonly class SyncCardIssueAction
             return $order;
         }
         LiveCardReferenceGuard::forProduct($order->product, $order->provider_product_ref, $order->provider_card_id, $order->cardholder?->provider_cardholder_id);
-        $provider = app(CardProductProviderRouter::class)->forProduct($order->product);
+        $provider = app(CardProductProviderRouter::class)->forProduct($order->product, $order->form_factor);
         if (! $provider->available() || $order->provider !== $provider->name()) {
             throw new DomainException('CARD_PROVIDER_UNAVAILABLE', 'Card status cannot be refreshed right now.', 503);
         }

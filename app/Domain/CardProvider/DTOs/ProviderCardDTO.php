@@ -15,5 +15,8 @@ final readonly class ProviderCardDTO
         public string $status,
         public bool $isTest,
         public ?string $providerBalance = null,
+        public string $formFactor = 'virtual_card',
+        public ?string $produceStatus = null,
+        public ?string $trackingNumber = null,
     ) {}
 }

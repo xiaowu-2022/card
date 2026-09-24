@@ -8,11 +8,11 @@ use App\Support\Logging\PhotonPayLog;
 final class PhotonPayNotificationVerifier
 {
     /** Only signature-verified, allowlisted identifiers leave this boundary. */
-    public function verify(#[\SensitiveParameter] string $body, string $signature, string $category, string $type): array
+    public function verify(#[\SensitiveParameter] string $body, string $signature, string $category, string $type, ?string $accountPublicKey = null): array
     {
         $diagnostics = ['body_bytes' => strlen($body), 'category' => $category,
             'notification_type_ref' => PhotonPayLog::reference($type)];
-        $key = str_replace('\\n', "\n", (string) config('card-provider.photonpay.webhook_public_key'));
+        $key = str_replace('\\n', "\n", ($accountPublicKey ?? (string) config('card-provider.photonpay.webhook_public_key')));
         $public = @openssl_pkey_get_public($key);
         $details = $public ? openssl_pkey_get_details($public) : false;
         // PhotonPay notification keys can be RSA-1024. This is separate from

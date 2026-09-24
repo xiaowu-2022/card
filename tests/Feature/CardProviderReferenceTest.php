@@ -1,7 +1,6 @@
 <?php
 
 use App\Application\Card\CardProductProviderRouter;
-use App\Application\CardProduct\CreateCardProductAction;
 use App\Application\CardProviderDirectory\SaveCardProviderReferenceAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\CardProvider\Contracts\CardProviderInterface;
@@ -92,10 +91,10 @@ it('registers only the selected local test merchant and retains its runtime afte
         expect($record->fresh()->runtime_driver)->toBe('LOCAL_MOCK');
         $created = $action->execute(null, [...$data, 'request_id' => (string) Str::uuid(), 'name' => 'TEST'], $this->owner);
         expect($created->runtime_driver)->toBe('LOCAL_MOCK');
-        $product = app(CreateCardProductAction::class)->execute([
+        $product = legacyCardProductFixture([
             'name' => 'Test', 'card_provider_reference_id' => $created->id,
             'minimum_initial_load' => '20', 'opening_fee' => '5.00000000', 'minimum_reload' => '20', 'status' => 'ACTIVE',
-        ], $this->owner);
+        ]);
         expect(app(CardProductProviderRouter::class)->forProduct($product)->available())->toBeTrue();
         foreach (['production', 'staging'] as $environment) {
             app()->detectEnvironment(fn () => $environment);

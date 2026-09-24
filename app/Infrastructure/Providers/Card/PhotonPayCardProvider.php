@@ -3,6 +3,7 @@
 namespace App\Infrastructure\Providers\Card;
 
 use App\Domain\CardProvider\Contracts\CardProviderInterface;
+use App\Domain\CardProvider\Contracts\PhysicalCardProviderInterface;
 use App\Domain\CardProvider\DTOs\CardholderRequestDTO;
 use App\Domain\CardProvider\DTOs\IssueCardRequestDTO;
 use App\Domain\CardProvider\DTOs\ProviderBalanceDTO;
@@ -28,9 +29,10 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use JsonException;
 
-final class PhotonPayCardProvider implements CardProviderInterface
+final class PhotonPayCardProvider implements CardProviderInterface, PhysicalCardProviderInterface
 {
     use PhotonPayCardManagement;
+    use PhotonPayPhysicalCards;
 
     private ?string $accessToken = null;
 
@@ -47,6 +49,8 @@ final class PhotonPayCardProvider implements CardProviderInterface
         private readonly int $timeoutSeconds,
         private readonly PhotonPayCardResponseNormalizer $cards,
         private readonly bool $tokenAuthentication = false,
+        private readonly string $formFactor = 'virtual_card',
+        private readonly string $tokenNamespace = '',
     ) {}
 
     public function name(): string
@@ -154,7 +158,7 @@ final class PhotonPayCardProvider implements CardProviderInterface
         $this->assertLiveReference($providerProductReference);
         $data = $this->get('/vcc/openApi/v4/getCardBin', [
             'cardType' => 'recharge',
-            'cardFormFactor' => 'virtual_card',
+            'cardFormFactor' => $this->formFactor,
             'cardCurrency' => $cardCurrency,
         ]);
 
@@ -172,7 +176,7 @@ final class PhotonPayCardProvider implements CardProviderInterface
             $factors = array_map('trim', explode(',', strtolower($row['cardFormFactor'])));
 
             $eligible = in_array(strtoupper($cardCurrency), $currencies, true)
-                && in_array('recharge', $types, true) && in_array('virtual_card', $factors, true);
+                && in_array('recharge', $types, true) && in_array($this->formFactor, $factors, true);
             if ($eligible && in_array($row['cardScheme'] ?? null, ['Discover', 'MasterCard'], true)) {
                 $this->selectedScheme = $row['cardScheme'];
             }
@@ -184,6 +188,9 @@ final class PhotonPayCardProvider implements CardProviderInterface
     public function issueCard(IssueCardRequestDTO $request): ProviderOperationDTO
     {
         $this->assertLiveReference($request->holderReference);
+        if ($request->formFactor !== $this->formFactor || ($this->formFactor === 'physical_card' && ! $request->recipientId)) {
+            throw new ProviderRejectedException('Card form or recipient is invalid.');
+        }
         if (! $this->productAvailable($request->providerProductReference, $request->cardCurrency)) {
             throw new ProviderRejectedException('The configured card product is not available from the provider.');
         }
@@ -195,8 +202,9 @@ final class PhotonPayCardProvider implements CardProviderInterface
             'cardScheme' => $this->selectedScheme,
             'cardCurrency' => $request->cardCurrency,
             'cardType' => 'recharge',
-            'cardFormFactor' => 'virtual_card',
+            'cardFormFactor' => $this->formFactor,
             'cardholderId' => $request->holderReference,
+            'recipientId' => $request->recipientId,
             'requestId' => $request->idempotencyKey,
             'arrivalAmount' => (string) BigDecimal::of($request->initialLoadAmount)->toScale(2),
         ], fn (mixed $value): bool => $value !== null && $value !== ''));
@@ -209,7 +217,7 @@ final class PhotonPayCardProvider implements CardProviderInterface
             return new ProviderOperationDTO($request->idempotencyKey, ProviderOperationStatus::Failed);
         }
         $detail = is_array($data['cardDetail'] ?? null) ? $data['cardDetail'] : $data;
-        $card = $this->cards->normalize($detail);
+        $card = $this->cards->normalize($detail, expectedFormFactor: $this->formFactor);
         $cardId = is_array($detail) && is_string($detail['cardId'] ?? null) ? $detail['cardId'] : null;
         $operationStatus = in_array($status, ['succeed', 'succeeded', 'success'], true)
             ? ($card ? ProviderOperationStatus::Succeeded : ProviderOperationStatus::Unknown)
@@ -244,7 +252,7 @@ final class PhotonPayCardProvider implements CardProviderInterface
             return new ProviderOperationDTO($providerOperationId, ProviderOperationStatus::Processing);
         }
         $detail = is_array($data['cardDetail'] ?? null) ? $data['cardDetail'] : [];
-        $card = $this->cards->normalize($detail);
+        $card = $this->cards->normalize($detail, expectedFormFactor: $this->formFactor);
         if (! $card) {
             return new ProviderOperationDTO($providerOperationId, ProviderOperationStatus::Unknown);
         }
@@ -256,7 +264,7 @@ final class PhotonPayCardProvider implements CardProviderInterface
     {
         $this->assertLiveReference($providerCardId);
         $data = $this->get('/vcc/openApi/v4/getCardDetail', ['cardId' => $providerCardId]);
-        $card = $this->cards->normalize($data);
+        $card = $this->cards->normalize($data, expectedFormFactor: $this->formFactor);
         if (! $card || ! hash_equals($providerCardId, $card->providerCardId) || ! is_string($data['cardStatus'] ?? null) || $data['cardStatus'] === '') {
             throw new ProviderUnknownResultException('Provider Card details are not safely available.');
         }
@@ -332,7 +340,7 @@ final class PhotonPayCardProvider implements CardProviderInterface
                 $response = Http::timeout($this->timeoutSeconds)->withHeaders($this->authorizationHeaders())
                     ->get($this->url('/vcc/openApi/v4/pagingVccTradeOrder'), array_filter([
                         'memberId' => $this->memberId, 'matrixAccount' => $this->matrixAccount,
-                        'cardId' => $providerCardId, 'cardType' => 'recharge', 'cardFormFactor' => 'virtual_card',
+                        'cardId' => $providerCardId, 'cardType' => 'recharge', 'cardFormFactor' => $this->formFactor,
                         'pageIndex' => $page, 'pageSize' => $pageSize,
                     ], fn (mixed $value): bool => $value !== null && $value !== ''));
                 $trace->response($response);
@@ -345,7 +353,7 @@ final class PhotonPayCardProvider implements CardProviderInterface
                     $verifiedCurrency = $this->getCard($providerCardId)->assetCode;
                 }
 
-                return $normalizer->page($decoded, $providerCardId, $page, $pageSize, $verifiedCurrency);
+                return $normalizer->page($decoded, $providerCardId, $page, $pageSize, $verifiedCurrency, $this->formFactor);
             } catch (ConnectionException|JsonException $failure) {
                 $trace->failedBecause($failure);
                 throw new ProviderUnknownResultException('Provider transactions could not be confirmed.');
@@ -363,6 +371,7 @@ final class PhotonPayCardProvider implements CardProviderInterface
             'mobile' => $request->mobile,
             'mobilePrefix' => $request->mobilePrefix,
             'dateOfBirth' => $request->dateOfBirth,
+            'cardholderNameAbbreviation' => $request->cardholderNameAbbreviation,
             'firstName' => $request->firstName,
             'lastName' => $request->lastName,
             'certType' => $request->identityDocument->type,
@@ -453,7 +462,7 @@ final class PhotonPayCardProvider implements CardProviderInterface
             if ($this->accessToken === null) {
                 $this->accessToken = PhotonPayLog::run('token', ['method' => 'POST', 'endpoint' => '/oauth2/token/accessToken', 'connection_ref' => PhotonPayLog::reference($this->baseUrl."\0".$this->appId)], function (PhotonPayLog $trace): string {
                     $cache = Cache::store(app()->environment('testing') ? 'array' : 'file');
-                    $key = 'photonpay-issuing-token:'.hash('sha256', $this->baseUrl."\0".$this->appId."\0".$this->appSecret);
+                    $key = 'photonpay-issuing-token:'.hash('sha256', $this->baseUrl."\0".$this->appId."\0".$this->appSecret."\0".$this->tokenNamespace);
                     $encrypted = $cache->lock($key.':lock', 30)->block(5, function () use ($cache, $key, $trace): string {
                         $saved = $cache->get($key);
                         if (is_string($saved)) {

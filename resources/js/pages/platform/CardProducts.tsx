@@ -1,5 +1,5 @@
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import type { InertiaFormProps } from '@inertiajs/react';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -47,6 +47,7 @@ type Product = {
     routingLocked: boolean;
     localMock: boolean;
     sandboxApiConfigured: boolean;
+    accountApiConfigured: boolean;
     providerProductRef: string;
     name: string;
     cardCurrency: string;
@@ -74,7 +75,13 @@ type CardProvider = {
     name: string;
     apiBins: boolean;
     bins: { bin: string; scheme: string }[] | null;
-    usedBins: { productId: string; bin: string }[];
+    selectable: boolean;
+    usedBins: {
+        productId: string | null;
+        bin: string;
+        merchantName: string | null;
+        conflicted: boolean;
+    }[];
 };
 
 export default function CardProducts({
@@ -104,6 +111,25 @@ export default function CardProducts({
                         ) : undefined
                     }
                 />
+                {canManage && (
+                    <div className="flex flex-wrap gap-2">
+                        {cardProviders
+                            .filter((merchant) => merchant.apiBins)
+                            .map((merchant) => (
+                                <Button
+                                    key={merchant.id}
+                                    variant="secondary"
+                                    onClick={() =>
+                                        router.post(
+                                            `/platform/card-products/merchants/${merchant.id}/refresh-catalog`,
+                                        )
+                                    }
+                                >
+                                    {merchant.name} · {t('Refresh card types')}
+                                </Button>
+                            ))}
+                    </div>
+                )}
                 <div className="overflow-x-auto rounded-xl border bg-surface">
                     <Table className="min-w-[960px]">
                         <TableHeader>
@@ -159,9 +185,11 @@ export default function CardProducts({
                                                     {t(
                                                         product.sandboxApiConfigured
                                                             ? 'Sandbox API configured'
-                                                            : product.localMock
-                                                              ? 'Mock (local only)'
-                                                              : 'API not configured',
+                                                            : product.accountApiConfigured
+                                                              ? 'PhotonPay API · Production'
+                                                              : product.localMock
+                                                                ? 'Mock (local only)'
+                                                                : 'API not configured',
                                                     )}
                                                 </div>
                                             )}
@@ -227,6 +255,18 @@ export default function CardProducts({
                                                 >
                                                     {t('Edit')}
                                                 </Button>
+                                                {product.cardProviderReferenceId && (
+                                                    <Button
+                                                        variant="secondary"
+                                                        onClick={() =>
+                                                            router.post(
+                                                                `/platform/card-products/${product.id}/refresh-forms`,
+                                                            )
+                                                        }
+                                                    >
+                                                        {t('Refresh card types')}
+                                                    </Button>
+                                                )}
                                             </TableCell>
                                         )}
                                     </TableRow>
@@ -285,12 +325,11 @@ function ProductEditor({
     const invalidBin =
         !unchangedRouting &&
         !product?.routingLocked &&
-        selectedProvider?.apiBins &&
-        (!selectedProvider.bins?.some((option) => option.bin === form.data.provider_product_ref) ||
-            selectedProvider.usedBins.some(
-                (item) =>
-                    item.bin === form.data.provider_product_ref && item.productId !== product?.id,
-            ));
+        (!selectedProvider?.selectable ||
+            !selectedProvider.bins?.some(
+                (option) => option.bin === form.data.provider_product_ref,
+            ) ||
+            selectedProvider.usedBins.some((item) => item.bin === form.data.provider_product_ref));
     return (
         <Dialog
             open
@@ -333,6 +372,7 @@ function ProductEditor({
                             cardProviders={cardProviders}
                             locked={product?.routingLocked}
                             legacy={product?.provider === 'PHOTONPAY'}
+                            originalBin={unchangedRouting ? product?.providerProductRef : undefined}
                         />
                     </fieldset>
                     <div className="mt-6 flex justify-end gap-2">
@@ -360,12 +400,14 @@ function ProductFields({
     cardProviders,
     locked = false,
     legacy = false,
+    originalBin,
 }: {
     form: InertiaFormProps<ProductFormData>;
     prefix: string;
     cardProviders: CardProvider[];
     locked?: boolean;
     legacy?: boolean;
+    originalBin?: string;
 }) {
     useAdminTranslation();
     const selected = cardProviders.find(
@@ -405,11 +447,15 @@ function ProductFields({
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="none">
+                        <SelectItem value="none" disabled>
                             {t(legacy ? 'Legacy API (preserved)' : 'No card provider selected')}
                         </SelectItem>
                         {cardProviders.map((provider) => (
-                            <SelectItem key={provider.id} value={provider.id}>
+                            <SelectItem
+                                key={provider.id}
+                                value={provider.id}
+                                disabled={!provider.selectable}
+                            >
                                 {provider.name}
                             </SelectItem>
                         ))}
@@ -434,12 +480,14 @@ function ProductFields({
                             <SelectContent>
                                 {(selected.bins ?? []).map(({ bin, scheme }) => {
                                     const used = selected.usedBins.some(
-                                        (item) => item.bin === bin && item.productId !== prefix,
+                                        (item) => item.bin === bin && bin !== originalBin,
                                     );
                                     return (
                                         <SelectItem key={bin} value={bin} disabled={used}>
                                             {bin} · {scheme}
-                                            {used ? ` · ${t('Already used')}` : ''}
+                                            {used
+                                                ? ` · ${t('Already used')} · ${selected.usedBins.find((item) => item.bin === bin)?.merchantName ?? '—'}`
+                                                : ''}
                                         </SelectItem>
                                     );
                                 })}
@@ -458,7 +506,7 @@ function ProductFields({
                 ) : (
                     <Input
                         id={`${prefix}-ref`}
-                        disabled={locked}
+                        disabled
                         value={form.data.provider_product_ref}
                         onChange={(event) =>
                             form.setData('provider_product_ref', event.target.value)

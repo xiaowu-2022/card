@@ -12,7 +12,7 @@ use App\Domain\CardProviderDirectory\Models\CardProviderReference;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
-use App\Infrastructure\Providers\Card\PhotonPayMerchantReport;
+use Illuminate\Support\Facades\DB;
 
 final readonly class CardProductCatalogQuery
 {
@@ -31,17 +31,17 @@ final readonly class CardProductCatalogQuery
                 'cardProviderName' => $product->cardProviderReference?->name,
                 'routingLocked' => (bool) $product->routing_locked,
                 'localMock' => $this->router->isLocalMock($product),
+                'accountApiConfigured' => $this->router->isPhotonPayAccount($product) && $this->router->forProduct($product)->available(),
                 'sandboxApiConfigured' => $this->router->isSandbox($product) && $this->router->forProduct($product)->available(),
             ])->all(),
-            'cardProviders' => CardProviderReference::query()->orderBy('name')->get(['id', 'name', 'photonpay_reporting_encrypted'])
+            'cardProviders' => CardProviderReference::query()->orderBy('name')->get()
                 ->map(fn ($provider): array => ['id' => $provider->id, 'name' => $provider->name,
                     'apiBins' => $provider->photonpay_reporting_encrypted !== null,
                     'bins' => $provider->photonpay_reporting_encrypted !== null
-                        ? app(PhotonPayMerchantReport::class)->bins($provider->photonpay_reporting_encrypted) : null,
-                    'usedBins' => CardProduct::query()->where('card_provider_reference_id', $provider->id)
-                        ->whereNull('archived_at')
-                        ->where('provider_product_ref', '!=', '')->get(['id', 'provider_product_ref'])
-                        ->map(fn ($product): array => ['productId' => $product->id, 'bin' => $product->provider_product_ref])->all(),
+                        ? $provider->bin_catalog : null,
+                    'selectable' => $provider->photonpay_enabled && $provider->photonpay_check_status === 'VERIFIED' && ! $provider->photonpay_migration_error,
+                    'usedBins' => DB::table('card_bin_claims as b')->leftJoin('platform_card_provider_references as m', 'm.id', '=', 'b.card_provider_reference_id')
+                        ->get(['b.bin', 'b.card_product_id', 'm.name', 'b.conflicted'])->map(fn ($c): array => ['bin' => $c->bin, 'productId' => $c->card_product_id, 'merchantName' => $c->name, 'conflicted' => (bool) $c->conflicted])->all(),
                 ])->all(),
         ];
     }
@@ -84,6 +84,8 @@ final readonly class CardProductCatalogQuery
             'providerProductRef' => $product->provider_product_ref,
             'name' => $product->name,
             'cardCurrency' => $product->card_currency,
+            'bin' => $product->provider_product_ref,
+            'supportedFormFactors' => $product->supported_form_factors,
             'cardType' => $product->card_type,
             'minimumInitialLoad' => $product->minimum_initial_load,
             'openingFee' => $product->opening_fee,
@@ -141,6 +143,8 @@ final readonly class CardProductCatalogQuery
             'name' => $config->display_name ?: $product->name,
             'cardType' => 'Mastercard U Card',
             'cardCurrency' => $product->card_currency,
+            'bin' => $product->provider_product_ref,
+            'supportedFormFactors' => $product->supported_form_factors,
             'openingFee' => $opening->amount(),
             'minimumInitialLoad' => $initial->amount(),
             'minimumReload' => $product->minimum_reload,

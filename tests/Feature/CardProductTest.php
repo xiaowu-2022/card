@@ -1,11 +1,9 @@
 <?php
 
-use App\Application\Card\CardProductProviderRouter;
 use App\Application\CardProduct\ArchiveCardProductsAction;
 use App\Application\CardProduct\CardProductCatalogQuery;
 use App\Application\CardProduct\ConfigureTenantCardProductAction;
 use App\Application\CardProduct\UpdateCardProductAction;
-use App\Application\CardProviderDirectory\SaveCardProviderReferenceAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\CardProduct\Enums\CardProductStatus;
 use App\Domain\CardProduct\Enums\TenantCardProductStatus;
@@ -63,10 +61,12 @@ it('rejects company administrators archiving platform products', function (): vo
     expect($this->product->fresh()->archived_at)->toBeNull();
 });
 
-it('lets platform create and edit unconfigured products with fixed USD regular shape', function (): void {
+it('lets platform create and edit account-bound products with fixed USD regular shape', function (): void {
+    [$account] = photonAccountFixture($this->platformOwner, 'DEMO-MILLE-PLUS-0001');
+    $account->forceFill(['bin_catalog' => [['bin' => 'DEMO-MILLE-PLUS-0001'], ['bin' => 'DEMO-MILLE-PLUS-0002']]])->save();
     $beforeEntries = DB::table('ledger_entries')->count();
     $this->actingAs($this->platformOwner, 'platform_admin')->post('http://admin.localhost/platform/card-products', [
-        'name' => 'Mille Card Plus',
+        'name' => 'Mille Card Plus', 'card_provider_reference_id' => $account->id,
         'provider_product_ref' => 'DEMO-MILLE-PLUS-0001',
         'minimum_initial_load' => '20.00000000',
         'opening_fee' => '5.00000000', 'minimum_reload' => '25.50000000',
@@ -96,29 +96,14 @@ it('lets platform create and edit unconfigured products with fixed USD regular s
         ->and($created->fresh()->status)->toBe(CardProductStatus::Inactive);
 });
 
-it('binds directory merchants with optional BIN and never enables a provider fallback', function (): void {
-    $this->withoutVite();
-    config(['inertia.ssr.enabled' => false]);
+it('rejects missing accounts and optional or arbitrary BIN inputs', function (): void {
     Http::preventStrayRequests();
-    $merchant = app(SaveCardProviderReferenceAction::class)->execute(null, [
-        'request_id' => (string) Str::uuid(), 'name' => 'Merchant A', 'reference_balance' => '1000.01',
-    ], $this->platformOwner);
-    $base = ['name' => 'Unintegrated', 'minimum_initial_load' => '20', 'opening_fee' => '5.00000000', 'minimum_reload' => '20', 'status' => 'ACTIVE'];
-    $before = DB::table('ledger_entries')->count();
+    $base = ['name' => 'Unconfigured', 'minimum_initial_load' => '20', 'opening_fee' => '5', 'minimum_reload' => '20', 'status' => 'ACTIVE'];
     $this->actingAs($this->platformOwner, 'platform_admin');
-    $this->post('http://admin.localhost/platform/card-products', $base + ['card_provider_reference_id' => $merchant->id])->assertSessionHasNoErrors()->assertRedirect();
-    $created = CardProduct::query()->where('name', 'Unintegrated')->sole();
-    expect($created->card_provider_reference_id)->toBe($merchant->id)->and($created->provider_product_ref)->toBe('')
-        ->and($created->provider)->toBe('UNCONFIGURED')
-        ->and(app(CardProductProviderRouter::class)->forProduct($created)->available())->toBeFalse();
-    $this->put('http://admin.localhost/platform/card-products/'.$created->id, $base + ['provider_product_ref' => '123456'])->assertSessionHasNoErrors();
-    expect($created->fresh()->card_provider_reference_id)->toBe($merchant->id);
-    $this->postJson('http://admin.localhost/platform/card-products', $base + ['card_provider_reference_id' => $merchant->id, 'provider_product_ref' => '123456'])->assertUnprocessable();
-    $this->post('http://admin.localhost/platform/card-products', $base + ['provider_product_ref' => '123456'])->assertSessionHasNoErrors();
-    $this->postJson('http://admin.localhost/platform/card-products', $base + ['card_provider_reference_id' => (string) Str::uuid()])->assertUnprocessable();
-    $this->get('http://admin.localhost/platform/card-products')->assertOk()->assertInertia(fn (Assert $page) => $page
-        ->where('cardProviders.0.name', 'Merchant A')->missing('cardProviders.0.reference_balance'));
-    expect(DB::table('ledger_entries')->count())->toBe($before);
+    $this->post('http://admin.localhost/platform/card-products', $base)->assertSessionHasErrors(['card_provider_reference_id', 'provider_product_ref']);
+    [$account] = photonAccountFixture($this->platformOwner);
+    $this->post('http://admin.localhost/platform/card-products', $base + ['card_provider_reference_id' => $account->id, 'provider_product_ref' => '123456'])->assertSessionHasErrors('provider_product_ref');
+    expect(CardProduct::where('name', 'Unconfigured')->count())->toBe(0);
     Http::assertNothingSent();
 });
 

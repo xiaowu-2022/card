@@ -108,6 +108,7 @@ final readonly class ManageCardAction
             }
             $this->requireLoadEligibility($order->tenant_id, $order->user_id);
             $this->requireStatus($card, 'LOAD');
+            app(CardProductProviderRouter::class)->assertNewBusiness($card->product);
             if (Money::of($order->amount, 'USD')->isZero()) {
                 $hold = $this->ledger->hold($order);
                 $settlement = $this->ledger->settleLoad($order);
@@ -328,6 +329,7 @@ final readonly class ManageCardAction
                 throw new DomainException('CARD_OVERFLOW_REMAINS', 'The card still has an available balance.', 409);
             }
             if ($kind === 'LOAD') {
+                app(CardProductProviderRouter::class)->assertNewBusiness($card->product);
                 $this->requireLoadEligibility($tenantId, $userId);
             }
             if ($kind === 'LOAD' && Money::of($amount, 'USD')->compare(Money::of($card->product->minimum_reload, 'USD')) < 0) {

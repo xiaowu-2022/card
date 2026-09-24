@@ -141,3 +141,7 @@ confirmed that the holder was added and displayed the separate issue-confirmatio
 step. No card issuance was submitted during this test. The complete encrypted
 snapshot remains available for subsequent tests; the earlier zero-document snapshot
 is historical only. Sandbox acceptance is not production identity verification.
+
+Physical applications now include a persisted card form and validated card-face name.
+See [physical cards and recipients](PHOTONPAY_PHYSICAL_CARDS.md) for the approved
+2026-09-24 extension, encrypted shipping snapshot and activation/PIN rules.

@@ -14,6 +14,7 @@ const materialTextFields = [
     'residential_country_code',
     'residential_postal_code',
     'document_type',
+    'cardholder_name_abbreviation',
 ] as const;
 
 export async function loadCardholderApplicationFields(applicationId: string) {
@@ -46,6 +47,8 @@ export function useCardholderMaterialsForm(productId: string) {
     return useForm({
         request_id: crypto.randomUUID(),
         card_product_id: productId,
+        form_factor: 'virtual_card',
+        cardholder_name_abbreviation: '',
         legal_first_name: '',
         legal_last_name: '',
         date_of_birth: '',

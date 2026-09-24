@@ -70,6 +70,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware('admin.scope:platform,users.read')->get('/users', UserOperationsController::class)->name('users.index');
     Route::middleware('admin.scope:platform,provider_operation.read')->get('/card-providers', CardProviderController::class)->name('card-providers.index');
     Route::middleware(['admin.scope:platform,card_provider_reference.manage', 'throttle:30,1'])->group(function (): void {
+        Route::post('/card-providers/{reference}/check', [CardProviderController::class, 'check'])->whereUuid('reference')->name('card-providers.check');
         Route::post('/card-providers', [CardProviderController::class, 'store'])->name('card-providers.store');
         Route::put('/card-providers/{reference}', [CardProviderController::class, 'update'])->whereUuid('reference')->name('card-providers.update');
     });
@@ -86,6 +87,8 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware(['admin.scope:platform,wallet_topups.verify', 'throttle:5,1'])->post('/tenants/{tenant}/topups/{topup}/verify', [TopupVerificationController::class, 'verify'])->whereUuid(['tenant', 'topup'])->name('topups.verify');
     Route::middleware(['admin.scope:platform,wallet_topups.confirm', 'throttle:5,1'])->post('/tenants/{tenant}/topups/{topup}/confirm', [TopupVerificationController::class, 'confirm'])->whereUuid(['tenant', 'topup'])->name('topups.confirm');
     Route::middleware('admin.scope:platform,card_product.manage')->group(function (): void {
+        Route::post('/card-products/merchants/{merchant}/refresh-catalog', [CardProductController::class, 'refreshMerchant'])->whereUuid('merchant')->middleware('throttle:5,1');
+        Route::post('/card-products/{cardProduct}/refresh-forms', [CardProductController::class, 'refreshForms'])->whereUuid('cardProduct')->middleware('throttle:5,1');
         Route::post('/card-products', [CardProductController::class, 'store'])->name('card-products.store');
         Route::put('/card-products/{cardProduct}', [CardProductController::class, 'update'])->whereUuid('cardProduct')->name('card-products.update');
     });

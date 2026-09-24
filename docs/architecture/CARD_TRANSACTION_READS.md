@@ -1,5 +1,11 @@
 # Read-only Card transaction extension
 
+2026-09-24 clarification: the consumer all-card and single-card history reads only
+persisted platform records. Opening the view, pagination and retry issue GET requests
+only; they never automatically call the separate provider sync endpoint. Provider
+availability does not gate the local list or its empty state. Verified callback
+processing and existing explicit synchronization capabilities remain separate.
+
 2026-09-11 authorized extension: [Card management](CARD_MANAGEMENT.md) supersedes historical Phase 10 exclusions only for the existing PhotonPay regular virtual USD product. It adds scoped management orders, a verified notification inbox, and safe transaction read models; all Ledger, tenant and sensitive-data safety rules remain in force.
 
 This document governs the **read-only** all-owned-card history below the cards.
@@ -114,3 +120,9 @@ The dialog uses GET only, cancels obsolete requests on close/card/page changes,
 validates returned card/page IDs and offers explicit error retry. No provider sync,
 background scan, balance refresh, financial operation, new permission or migration
 is introduced. Existing user sync and notification recording retain their contracts.
+
+The consumer card operation-history dialog likewise reads only scoped persisted
+`card_management_orders`. It does not require an available provider connection or
+validate live provider identities. Tenant/user activity, ownership and existing
+refund restrictions remain. Balance-refresh and provider-result buttons are not
+part of this read-only dialog; mutation/synchronization endpoints keep their guards.

@@ -15,7 +15,7 @@ final class SensitiveDataRedactor
             $normalized = $this->normalizeKey((string) $key);
             $redacted[$key] = preg_match(self::SENSITIVE_KEY_PATTERN, $normalized) === 1
                 || in_array($normalized, ['photonpay_issuing_encrypted', 'photonpay_reporting_encrypted', 'address', 'reset_contact', 'password_reset_binding', 'ip_hash', 'trongrid_api_key_encrypted'], true)
-                || in_array($normalized, ['credential', 'new_contact', 'destination_hash', 'session_hash', 'credential_hash', 'contact_change_binding', 'support_message', 'support_image', 'image_object_key', 'image_hash', 'test_email', 'recipient_hash', 'smtp_transcript', 'smtp_debug', 'holder_changes_encrypted'], true)
+                || in_array($normalized, ['pin', 'pin_confirmation', 'pin_confirm', 'recipient_first_name', 'recipient_last_name', 'address_line1', 'address_line2', 'address_line3', 'postal_code', 'mobile_prefix', 'cardholder_name_abbreviation', 'recipient_snapshot_encrypted', 'credential', 'new_contact', 'destination_hash', 'session_hash', 'credential_hash', 'contact_change_binding', 'support_message', 'support_image', 'image_object_key', 'image_hash', 'test_email', 'recipient_hash', 'smtp_transcript', 'smtp_debug', 'holder_changes_encrypted'], true)
                 ? '[REDACTED]'
                 : $this->redactValue($value);
         }

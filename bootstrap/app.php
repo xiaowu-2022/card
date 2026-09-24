@@ -49,6 +49,8 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->dontFlash([
+            'app_secret', 'private_key', 'webhook_public_key',
+            'pin', 'pin_confirmation', 'pinConfirm', 'recipientFirstName', 'recipientLastName', 'addressLine1', 'addressLine2', 'addressLine3', 'country', 'state', 'city', 'postalCode', 'mobilePrefix', 'cardholder_name_abbreviation',
             'sections', // Batched asset configuration can contain replace-only credentials.
             'new_contact', 'phone', 'code', 'otp', 'address', 'credential', 'api_key',
             'reset_contact',

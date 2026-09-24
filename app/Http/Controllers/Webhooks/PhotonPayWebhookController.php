@@ -19,7 +19,7 @@ final class PhotonPayWebhookController extends Controller
             (string) $request->header('X-PD-NOTIFICATION-CATAGORY'), (string) $request->header('X-PD-NOTIFICATION-TYPE'));
         try {
             $action->execute($request->getContent(), (string) $request->header('X-PD-SIGN'),
-                (string) $request->header('X-PD-NOTIFICATION-CATAGORY'), (string) $request->header('X-PD-NOTIFICATION-TYPE'));
+                (string) $request->header('X-PD-NOTIFICATION-CATAGORY'), (string) $request->header('X-PD-NOTIFICATION-TYPE'), $request->route('account'));
 
             PhotonPayLog::write('webhook.acknowledged', ['http_status' => 200]);
 

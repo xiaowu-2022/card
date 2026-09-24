@@ -1,3 +1,4 @@
+import { physicalCardCatalog } from './physical-card-catalog';
 import { paidPromotionCatalog } from './paid-promotion-catalog';
 import { clientPolishCatalog } from './client-polish-catalog';
 import { assetsCatalog } from './assets-catalog';
@@ -8,6 +9,102 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    'PhotonPay App Secret is required.': [
+        '请填写 PhotonPay App Secret。',
+        'App Secret PhotonPay diperlukan.',
+        'Se requiere App Secret de PhotonPay.',
+    ],
+    'Enter a valid RSA signing private key of at least 2048 bits (PEM or Base64).': [
+        '商户签名私钥格式不正确：请填写至少 2048 位的 RSA 私钥，支持完整 PEM 或 Base64 内容。',
+        'Masukkan kunci peribadi RSA sekurang-kurangnya 2048 bit (PEM atau Base64).',
+        'Introduzca una clave privada RSA válida de al menos 2048 bits (PEM o Base64).',
+    ],
+    'Enter a valid PhotonPay RSA webhook public key of at least 1024 bits (PEM or Base64).': [
+        '回调验签公钥格式不正确：请填写至少 1024 位的 RSA 公钥，支持完整 PEM 或 Base64 内容。',
+        'Masukkan kunci awam RSA PhotonPay sekurang-kurangnya 1024 bit (PEM atau Base64).',
+        'Introduzca una clave pública RSA de PhotonPay válida de al menos 1024 bits (PEM o Base64).',
+    ],
+    'Connection failed': ['连接失败', 'Sambungan gagal', 'Conexión fallida'],
+    'Save changes before checking the connection.': [
+        '请先保存修改，再检查连接。',
+        'Simpan perubahan sebelum menyemak sambungan.',
+        'Guarda los cambios antes de comprobar la conexión.',
+    ],
+    'PhotonPay connection or account ownership could not be verified.': [
+        'PhotonPay 连接或账户归属验证失败，请重试并核对已保存的账号配置。',
+        'Sambungan PhotonPay atau pemilikan akaun tidak dapat disahkan.',
+        'No se pudo verificar la conexión o la titularidad de la cuenta PhotonPay.',
+    ],
+    'Save and check connection': [
+        '保存并检查连接',
+        'Simpan dan semak sambungan',
+        'Guardar y comprobar conexión',
+    ],
+    'Connection checks save your changes first.': [
+        '点击检查将先保存当前修改，再验证连接并刷新 BIN。',
+        'Semakan sambungan akan menyimpan perubahan dahulu.',
+        'La comprobación guardará primero los cambios.',
+    ],
+    'This BIN is already used by an existing product.': [
+        '此 BIN 已被未删除的产品使用。',
+        'BIN ini telah digunakan oleh produk sedia ada.',
+        'Este BIN ya está en uso por un producto existente.',
+    ],
+    'Connection verified': ['连接已验证', 'Sambungan disahkan', 'Conexión verificada'],
+    'Not checked': ['未检查', 'Belum disemak', 'Sin comprobar'],
+    'Legacy account configuration requires review.': [
+        '旧账号配置需要核对。',
+        'Konfigurasi akaun lama perlu disemak.',
+        'La configuración anterior requiere revisión.',
+    ],
+    Environment: ['环境', 'Persekitaran', 'Entorno'],
+    Sandbox: ['沙箱', 'Kotak pasir', 'Pruebas'],
+    Production: ['正式环境', 'Pengeluaran', 'Producción'],
+    'USD account': ['USD 账户', 'Akaun USD', 'Cuenta USD'],
+    'Member ID': ['会员 ID', 'ID ahli', 'ID de miembro'],
+    'Matrix account (optional)': [
+        'Matrix 账户（选填）',
+        'Akaun Matrix (pilihan)',
+        'Cuenta Matrix (opcional)',
+    ],
+    'Leave credentials blank to retain the saved values.': [
+        '编辑时凭据留空表示保留原值。',
+        'Biarkan kelayakan kosong untuk mengekalkan nilai sedia ada.',
+        'Deje las credenciales vacías para conservar los valores guardados.',
+    ],
+    'Merchant signing private key': [
+        '商户签名私钥',
+        'Kunci peribadi tandatangan pedagang',
+        'Clave privada de firma del comercio',
+    ],
+    'PhotonPay webhook public key': [
+        'PhotonPay 回调验签公钥',
+        'Kunci awam webhook PhotonPay',
+        'Clave pública de webhook PhotonPay',
+    ],
+    'Accept new card business': [
+        '允许新增开卡及充值业务',
+        'Terima urusan kad baharu',
+        'Aceptar nuevas operaciones de tarjetas',
+    ],
+    'Configuration complete': ['配置完整', 'Konfigurasi lengkap', 'Configuración completa'],
+    'Configuration incomplete': [
+        '配置不完整',
+        'Konfigurasi tidak lengkap',
+        'Configuración incompleta',
+    ],
+    'Callback URL': ['回调地址', 'URL panggilan balik', 'URL de callback'],
+    'Connection checks verify account ownership and BIN access, not issuing or request signing.': [
+        '连接检查验证账户归属和 BIN 查询，不代表开卡及请求签名已实测成功。',
+        'Semakan mengesahkan pemilikan akaun dan akses BIN, bukan pengeluaran kad atau tandatangan permintaan.',
+        'La comprobación verifica la titularidad y acceso a BIN, no la emisión ni la firma de solicitudes.',
+    ],
+    'Check connection and refresh BINs': [
+        '检查连接并刷新 BIN',
+        'Semak sambungan dan segarkan BIN',
+        'Comprobar conexión y actualizar BIN',
+    ],
+    ...physicalCardCatalog,
     'Only email registration and sign in are available.': [
         '仅支持邮箱注册和登录。',
         'Pendaftaran dan log masuk hanya melalui e-mel.',

@@ -10,3 +10,5 @@ Route::post('/payments/{provider}', PaymentWebhookController::class)
     ->name('webhooks.payments');
 
 Route::post('/card-provider', PhotonPayWebhookController::class)->middleware('throttle:300,1')->name('webhooks.photonpay');
+
+Route::post('/card-provider/{account}', PhotonPayWebhookController::class)->whereUuid('account')->middleware('throttle:300,1')->name('webhooks.photonpay.account');

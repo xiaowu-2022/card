@@ -18,6 +18,7 @@ final class CardProduct extends Model
     protected function casts(): array
     {
         return [
+            'supported_form_factors' => 'array',
             'archived_at' => 'immutable_datetime',
             'status' => CardProductStatus::class,
             'minimum_initial_load' => 'decimal:8',

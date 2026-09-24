@@ -1,5 +1,6 @@
 # Card product provider bindings
 
+> 2026-09-24：多账号后台配置、凭据轮换、强制账号/目录 BIN 及永久全局占用以 [PHOTONPAY_ACCOUNTS.md](PHOTONPAY_ACCOUNTS.md) 为准；下文的旧可空绑定、手工 BIN 或归档释放规则不再适用于新增配置。
 Approved 2026-09-13: products accept a card merchant selected from the platform directory, with name, optional Card BIN range, existing minimum amounts and status. No provider credentials or new API integration is implemented by this change.
 
 ## Configuration and persistence

@@ -116,6 +116,7 @@ function loadTs(path, overrides = {}) {
 }
 const promotionCatalog = loadTs('resources/js/i18n/promotion-catalog.ts');
 const { catalog } = loadTs('resources/js/i18n/catalog.ts', {
+    './physical-card-catalog': loadTs('resources/js/i18n/physical-card-catalog.ts'),
     './paid-promotion-catalog': loadTs('resources/js/i18n/paid-promotion-catalog.ts'),
     './assets-catalog': loadTs('resources/js/i18n/assets-catalog.ts'),
     './promotion-catalog': promotionCatalog,
@@ -731,7 +732,7 @@ test('unissued ready applications can edit through private prefill but uncertain
     assert.ok(page.includes("t('Edit card application information')"));
     assert.ok(page.includes('updateRequestId={application?.requestId ?? undefined}'));
     assert.ok(page.includes('materialReadGeneration.current++'));
-    assert.ok(page.includes('front: null, back: null'));
+    assert.match(page, /front: null,\s*back: null/);
     assert.ok(hook.includes('materialTextFields.map'));
     assert.ok(hook.includes("cache: 'no-store'"));
     assert.ok(!hook.includes('localStorage'));
@@ -1645,51 +1646,43 @@ test('consumer copy hides infrastructure sources in all four locales without dro
     assert.match(i18n.clientI18n.t('Card cancellation is permanent. Remaining card funds return only after issuer confirmation, minus any issuer fees. This does not refund your security deposit.', { lng: 'zh-CN' }), /无法恢复.*手续费.*保证金/);
 });
 
-test('transaction sync retains stored rows on failure and retries the same remote page independently of local pagination', async () => {
+test('transaction history only reads saved pages and retries local failures without upstream sync', async () => {
     const lib = loadTs('resources/js/lib/card-transactions.ts', { './exact-amount': loadTs('resources/js/lib/exact-amount.ts') });
-    let state;
-    let cleanup;
-    let remoteFail = true;
+    let state, cleanup;
+    let failSecondPage = true;
     const calls = [];
-    const row = { id: 'a'.repeat(64), cardId: 'card-a', last4: '1234', amount: '1.23000000', currency: 'USD', type: 'purchase', state: 'pending', displayAt: '2026-09-15T00:00:00+00:00', timeKind: 'recorded', merchant: null };
+    const row = { id: 'a'.repeat(64), cardId: 'card-a', last4: '1234', amount: '1.23000000', currency: 'USD', type: 'purchase', state: 'completed', displayAt: '2026-09-15T00:00:00+00:00', timeKind: 'recorded', merchant: null };
     const originalFetch = globalThis.fetch;
-    const originalDocument = globalThis.document;
-    globalThis.document = { cookie: 'XSRF-TOKEN=csrf-test' };
     globalThis.fetch = async (url, options) => {
         calls.push({ url, options });
-        if (options.method === 'POST' && remoteFail) return { ok: false };
-        const page = options.method === 'POST' ? JSON.parse(options.body).page : Number(new URL(url, 'http://localhost').searchParams.get('page'));
-        return { ok: true, json: async () => ({ page, hasMore: options.method === 'GET' && page === 1, items: [{ ...row, id: page === 2 ? 'b'.repeat(64) : row.id, state: options.method === 'POST' ? 'completed' : 'pending' }] }) };
+        assert.equal(options.method, 'GET');
+        assert.doesNotMatch(url, /sync/);
+        const page = Number(new URL(url, 'http://localhost').searchParams.get('page'));
+        if (page === 2 && failSecondPage) return { ok: false };
+        return { ok: true, json: async () => ({ page, hasMore: page === 1, items: [{ ...row, id: page === 2 ? 'b'.repeat(64) : row.id }] }) };
     };
     try {
         const { useCardTransactions } = loadTs('resources/js/hooks/useCardTransactions.ts', {
             react: { useState: () => [undefined, (next) => { state = next; }], useRef: (current) => ({ current }), useEffect: (run) => { cleanup = run(); } },
             '@/lib/card-transactions': lib,
         });
-        const hook = useCardTransactions(['card-a'], true);
+        const hook = useCardTransactions(['card-a']);
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(state.failed, 0);
+        assert.equal(state.items.length, 1);
+        hook.loadMore();
         await new Promise((resolve) => setImmediate(resolve));
         assert.equal(state.failed, 1);
         assert.equal(state.items.length, 1);
-        assert.equal(state.items[0].amount, '1.23000000');
-        hook.loadMore();
-        await new Promise((resolve) => setImmediate(resolve));
-        assert.equal(state.items.length, 2);
-        assert.equal(state.failed, 1);
-        remoteFail = false;
+        failSecondPage = false;
         hook.retry();
         await new Promise((resolve) => setImmediate(resolve));
         assert.equal(state.failed, 0);
         assert.equal(state.items.length, 2);
-        assert.equal(state.items[0].state, 'completed');
-        assert.deepEqual(calls.filter((call) => call.options.method === 'POST').map((call) => JSON.parse(call.options.body).page), [1, 1]);
-        assert.equal(calls[1].options.headers['X-XSRF-TOKEN'], 'csrf-test');
-    } finally {
-        cleanup?.();
-        globalThis.fetch = originalFetch;
-        globalThis.document = originalDocument;
-    }
+        assert.equal(state.hasMore, false);
+        assert.deepEqual(calls.map(call => call.url), ['/cards/card-a/transactions?page=1', '/cards/card-a/transactions?page=2', '/cards/card-a/transactions?page=2']);
+    } finally { cleanup?.(); globalThis.fetch = originalFetch; }
 });
-
 
 test('system transaction times cross company midnight without guessing unzoned times', () => {
     const previousDocument = globalThis.document;

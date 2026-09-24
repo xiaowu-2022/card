@@ -38,6 +38,9 @@ type UserCard = {
     userEmail: string;
     productName: string;
     maskedPan: string;
+    formFactor: string;
+    produceStatus: string | null;
+    trackingNumber: string | null;
     currency: string;
     balance: string | null;
     providerStatus: string;
@@ -150,6 +153,28 @@ export default function Cards({
                                                 <TableCell>{card.productName}</TableCell>
                                                 <TableCell className="font-mono">
                                                     {card.maskedPan}
+                                                    <span className="block text-xs font-sans">
+                                                        {t(
+                                                            card.formFactor === 'physical_card'
+                                                                ? 'Physical card'
+                                                                : 'Virtual card',
+                                                        )}
+                                                    </span>
+                                                    {card.produceStatus && (
+                                                        <span className="block text-xs">
+                                                            {t(
+                                                                card.produceStatus === 'produced'
+                                                                    ? 'Card produced'
+                                                                    : 'Card production pending',
+                                                            )}
+                                                        </span>
+                                                    )}
+                                                    {card.trackingNumber && (
+                                                        <span className="block text-xs">
+                                                            {t('Tracking number')}:{' '}
+                                                            {card.trackingNumber}
+                                                        </span>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell>
                                                     {card.balance === null

@@ -5,6 +5,7 @@ namespace App\Application\CardProduct;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\CardProduct\Models\CardProduct;
+use App\Domain\CardProviderDirectory\Models\CardProviderReference;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Support\Errors\DomainException;
 use Illuminate\Support\Facades\DB;
@@ -30,6 +31,12 @@ final readonly class UpdateCardProductAction
         $requestedBinding = array_key_exists('card_provider_reference_id', $data) ? $data['card_provider_reference_id'] : $snapshot->card_provider_reference_id;
         $requestedBin = trim($data['provider_product_ref'] ?? '');
         $changed = $requestedBinding !== $snapshot->card_provider_reference_id || $requestedBin !== $snapshot->provider_product_ref;
+        if ($changed && (DB::table('provider_cardholders')->where('card_product_id', $productId)->exists()
+            || DB::table('card_issue_orders')->where('card_product_id', $productId)->exists()
+            || DB::table('user_cards')->where('card_product_id', $productId)->exists()
+            || DB::table('card_recipient_applications')->where('card_product_id', $productId)->exists())) {
+            throw new DomainException('CARD_PRODUCT_ROUTING_LOCKED', 'This product has card history. Create a new product to change its card provider or BIN.', 409);
+        }
         $connection = $changed ? $this->bins->prepare($requestedBinding, $requestedBin) : null;
 
         return DB::transaction(function () use ($productId, $data, $openingFee, $initial, $reload, $actor, $requestId, $snapshot, $changed, $connection): CardProduct {
@@ -57,6 +64,8 @@ final readonly class UpdateCardProductAction
                 'provider' => $binding !== $product->card_provider_reference_id ? 'UNCONFIGURED' : $product->provider,
                 'card_provider_reference_id' => $binding,
                 'provider_product_ref' => $reference,
+                'supported_form_factors' => $changed ? (collect(CardProviderReference::find($binding)?->bin_catalog ?? [])->firstWhere('bin', $reference)['formFactors'] ?? ['virtual_card']) : $product->supported_form_factors,
+                'form_factors_synced_at' => $changed ? null : $product->form_factors_synced_at,
                 'name' => trim($data['name']),
                 'opening_fee' => $openingFee,
                 'balance_limit' => array_key_exists('balance_limit', $data) ? (isset($data['balance_limit']) ? Money::of($data['balance_limit'], 'USD')->amount() : null) : $product->balance_limit,

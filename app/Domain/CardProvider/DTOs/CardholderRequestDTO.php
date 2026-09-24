@@ -19,5 +19,6 @@ final readonly class CardholderRequestDTO
         public string $residentialPostalCode,
         public ProviderIdentityDocumentDTO $identityDocument,
         public ?string $providerCardholderId = null,
+        public ?string $cardholderNameAbbreviation = null,
     ) {}
 }

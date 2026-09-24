@@ -55,8 +55,13 @@ final readonly class SubmitProviderCardholderAction
         }
         $product = CardProduct::query()->whereKey($data['card_product_id'])->firstOrFail();
         $provider = $this->router->forProduct($product);
+        $this->router->assertNewBusiness($product);
         $this->router->assertConfigured($product);
         LiveCardReferenceGuard::forProduct($product, $this->router->productReference($product));
+        $formFactor = $data['form_factor'] ?? 'virtual_card';
+        if (! in_array($formFactor, $product->supported_form_factors, true)) {
+            throw new DomainException('CARD_FORM_UNAVAILABLE', 'This card type is not available.', 409);
+        }
         $fields = [];
         foreach (['legal_first_name', 'legal_last_name', 'date_of_birth', 'email', 'nationality_country_code',
             'residential_address', 'residential_city', 'residential_state', 'residential_country_code',
@@ -78,6 +83,10 @@ final readonly class SubmitProviderCardholderAction
         if ($identityNumber !== null && $identityNumber !== '' && (mb_strlen($identityNumber) < 3 || mb_strlen($identityNumber) > 64)) {
             throw new DomainException('CARD_SETUP_INVALID', 'Enter valid cardholder details.');
         }
+        $fields['cardholder_name_abbreviation'] = $formFactor === 'physical_card' ? ($data['cardholder_name_abbreviation'] ?? '') : null;
+        if ($formFactor === 'physical_card' && (! is_string($fields['cardholder_name_abbreviation']) || strlen($fields['cardholder_name_abbreviation']) > 26 || ! preg_match('/^[A-Z]+(?: [A-Z]+)*\/[A-Z]+(?: [A-Z]+)*$/D', $fields['cardholder_name_abbreviation']))) {
+            throw new DomainException('CARD_SETUP_INVALID', 'Enter the uppercase cardholder name as FIRST/LAST.');
+        }
         $fields['identity_number'] = $identityNumber === '' ? null : $identityNumber;
         if (! in_array($fields['document_type'], ['id_card', 'passport', 'resident_permit'], true)) {
             throw new DomainException('CARD_SETUP_INVALID', 'Enter valid cardholder details.');
@@ -88,7 +97,7 @@ final readonly class SubmitProviderCardholderAction
         [$back, $backMime] = $fields['document_type'] === 'passport' && ! ($data['back'] ?? null)
             ? [null, null] : $this->image($data['back'] ?? null);
         $fingerprint = $this->materials->fingerprint($tenantId, $userId, $data['card_product_id'], json_encode([
-            $fields, hash('sha256', $front), $back === null ? null : hash('sha256', $back),
+            $formFactor, $fields, hash('sha256', $front), $back === null ? null : hash('sha256', $back),
         ], JSON_THROW_ON_ERROR));
         $disk = Storage::disk('private');
         $base = 'card-materials/'.$tenantId.'/'.$userId.'/'.Str::uuid();
@@ -106,16 +115,20 @@ final readonly class SubmitProviderCardholderAction
                 $keys[$side] = $key;
             }
             $encrypted = $this->materials->encrypt(json_encode(['fields' => $fields, 'documents' => $keys], JSON_THROW_ON_ERROR));
-            $prepared = DB::transaction(function () use ($tenantId, $userId, $data, $fingerprint, $encrypted): array {
+            $prepared = DB::transaction(function () use ($tenantId, $userId, $data, $fingerprint, $encrypted, $formFactor): array {
                 Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
                 User::query()->where('tenant_id', $tenantId)->whereKey($userId)->lockForUpdate()->firstOrFail();
                 RefundCardPolicy::assertAllowed($tenantId, $userId);
                 $this->assertOwner($tenantId, $userId);
+                $currentProduct = CardProduct::whereKey($data['card_product_id'])->lockForUpdate()->firstOrFail();
+                if (! in_array($formFactor, $currentProduct->supported_form_factors, true)) {
+                    throw new DomainException('CARD_FORM_UNAVAILABLE', 'This card type is not available.', 409);
+                }
                 $holder = ProviderCardholder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)
                     ->where('request_id', $data['request_id'])->lockForUpdate()->first();
                 if ($holder) {
                     LiveCardReferenceGuard::forProduct(CardProduct::findOrFail($holder->card_product_id), $holder->provider_cardholder_id);
-                    if ($holder->card_product_id !== $data['card_product_id']) {
+                    if ($holder->card_product_id !== $data['card_product_id'] || $holder->form_factor !== $formFactor) {
                         throw new DomainException('IDEMPOTENCY_CONFLICT', 'This request was already used with different details.', 409);
                     }
                     if (hash_equals($holder->request_hash, $fingerprint)) {
@@ -140,6 +153,7 @@ final readonly class SubmitProviderCardholderAction
                     $config = TenantCardProductConfig::query()->where('tenant_id', $tenantId)->where('card_product_id', $data['card_product_id'])->first();
                     $product = CardProduct::query()->whereKey($data['card_product_id'])->lockForUpdate()->first();
                     if ($product) {
+                        $this->router->assertNewBusiness($product);
                         $this->router->assertConfigured($product);
                     }
                     if (! $config || $config->status !== TenantCardProductStatus::Active || ! $product || $product->status !== CardProductStatus::Active) {
@@ -149,7 +163,7 @@ final readonly class SubmitProviderCardholderAction
                         throw new DomainException('CARD_LIMIT_REACHED', 'You have reached the maximum number of Cards for this product.', 409);
                     }
                     $holder = new ProviderCardholder;
-                    $holder->forceFill(['tenant_id' => $tenantId, 'user_id' => $userId, 'provider' => 'PHOTONPAY',
+                    $holder->forceFill(['form_factor' => $formFactor, 'tenant_id' => $tenantId, 'user_id' => $userId, 'provider' => 'PHOTONPAY',
                         'request_id' => $data['request_id'], 'card_product_id' => $data['card_product_id']]);
                 }
                 $update = $holder->exists;
@@ -185,6 +199,7 @@ final readonly class SubmitProviderCardholderAction
             $fields['residential_state'], $fields['residential_country_code'], $fields['residential_postal_code'],
             new ProviderIdentityDocumentDTO($fields['document_type'], $fields['document_country'], $fields['identity_number'], $front, $frontMime, $back, $backMime),
             $prepared['update'] ? $holder->provider_cardholder_id : null,
+            $fields['cardholder_name_abbreviation'],
         );
         try {
             $result = $prepared['update'] ? $provider->updateCardholder($request) : $provider->createCardholder($request);

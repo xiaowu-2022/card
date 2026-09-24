@@ -159,7 +159,7 @@ trait PhotonPayCardManagement
     {
         $this->assertLiveReference($cardId);
         $response = $this->managementCall('GET', '/vcc/openApi/v4/pagingVccTradeOrder', array_filter([
-            'cardId' => $cardId, 'cardType' => 'recharge', 'cardFormFactor' => 'virtual_card',
+            'cardId' => $cardId, 'cardType' => 'recharge', 'cardFormFactor' => $this->formFactor,
             'memberId' => $this->memberId, 'matrixAccount' => $this->matrixAccount,
             'pageIndex' => 1, 'pageSize' => 20,
         ] + $filters, fn ($value) => $value !== null), envelope: true);
@@ -173,7 +173,7 @@ trait PhotonPayCardManagement
     {
         $cardCurrency = $row['cardCurrency'] ?? $this->getCard($cardId)->assetCode;
         $this->managementRequire(($row['cardId'] ?? null) === $cardId && $cardCurrency === 'USD'
-            && ($row['cardType'] ?? null) === 'recharge' && ($row['cardFormFactor'] ?? null) === 'virtual_card'
+            && ($row['cardType'] ?? null) === 'recharge' && ($row['cardFormFactor'] ?? null) === $this->formFactor
             && ($this->memberId === null || ($row['memberId'] ?? null) === $this->memberId)
             && ($row['matrixAccount'] ?? '') === ($this->matrixAccount ?? ''));
     }

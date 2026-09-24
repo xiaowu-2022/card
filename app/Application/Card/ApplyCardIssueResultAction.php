@@ -33,7 +33,7 @@ final readonly class ApplyCardIssueResultAction
             if ($order->status === CardIssueStatus::Succeeded || $order->status === CardIssueStatus::Failed) {
                 return $order;
             }
-            if (! hash_equals($order->provider_request_id, $result->providerOperationId)) {
+            if ($card->formFactor !== $order->form_factor || ! hash_equals($order->provider_request_id, $result->providerOperationId)) {
                 return $this->markUnknownLocked($order);
             }
             if ($card->providerBalance !== null) {
@@ -97,6 +97,9 @@ final readonly class ApplyCardIssueResultAction
                     'provider' => 'PHOTONPAY',
                     'provider_card_id' => $card->providerCardId,
                     'card_currency' => 'USD',
+                    'form_factor' => $order->form_factor,
+                    'produce_status' => $card->produceStatus,
+                    'tracking_number' => $card->trackingNumber,
                     'masked_pan' => $card->maskedPan,
                     'last4' => $card->last4,
                     'expiry' => $expiry,

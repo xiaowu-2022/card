@@ -26,6 +26,8 @@ final class CardIssueController extends Controller
             $request->input('initial_load_amount'),
             $request->string('cardholder_application_id')->toString(),
             $request->attributes->get('request_id'),
+            $request->input('form_factor', 'virtual_card'),
+            $request->input('recipient_application_id'),
         );
 
         return back()->with('success', 'Card request submitted.');

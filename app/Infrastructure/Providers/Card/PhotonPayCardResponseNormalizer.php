@@ -9,7 +9,7 @@ use Brick\Math\RoundingMode;
 final class PhotonPayCardResponseNormalizer
 {
     /** @param array<string,mixed> $data */
-    public function normalize(array $data, bool $isTest = false): ?ProviderCardDTO
+    public function normalize(array $data, bool $isTest = false, string $expectedFormFactor = 'virtual_card'): ?ProviderCardDTO
     {
         $cardId = $this->string($data['cardId'] ?? null);
         $currency = strtoupper($this->string($data['cardCurrency'] ?? null) ?? '');
@@ -18,8 +18,8 @@ final class PhotonPayCardResponseNormalizer
         $rawPan = $this->string($data['cardNo'] ?? null);
         $providerMask = $this->string($data['maskCardNo'] ?? null);
         $last4 = $this->last4($providerMask ?: $rawPan);
-        if ($cardId === null || $last4 === null || $currency !== 'USD' || $cardType !== 'recharge'
-            || ($formFactor !== '' && $formFactor !== 'virtual_card')) {
+        if (($expectedFormFactor === 'physical_card' && $this->string($data['cardStatus'] ?? null) === null) || $cardId === null || $last4 === null || $currency !== 'USD' || $cardType !== 'recharge'
+            || (! in_array($expectedFormFactor, ['virtual_card', 'physical_card'], true) || ($formFactor !== $expectedFormFactor && ! ($formFactor === '' && $expectedFormFactor === 'virtual_card')))) {
             return null;
         }
 
@@ -46,6 +46,9 @@ final class PhotonPayCardResponseNormalizer
             strtolower($this->string($data['cardStatus'] ?? null) ?? 'normal'),
             $isTest,
             $balance,
+            $expectedFormFactor,
+            in_array($data['produceStatus'] ?? null, ['pending', 'produced'], true) ? $data['produceStatus'] : null,
+            isset($data['trackingNumber']) && is_string($data['trackingNumber']) && preg_match('/^[A-Za-z0-9-]{1,100}$/D', $data['trackingNumber']) ? $data['trackingNumber'] : null,
         );
     }
 
