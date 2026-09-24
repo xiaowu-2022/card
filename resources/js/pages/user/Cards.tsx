@@ -802,30 +802,28 @@ export default function Cards(props: Props) {
                                             />
                                         </div>
                                     </div>
-                                    <p className="px-4 pt-3 text-sm">
-                                        {t(
-                                            card.formFactor === 'physical_card'
-                                                ? 'Physical card'
-                                                : 'Virtual card',
-                                        )}
-                                        {card.produceStatus && (
-                                            <>
-                                                {' '}
-                                                ·{' '}
-                                                {t(
-                                                    card.produceStatus === 'produced'
-                                                        ? 'Card produced'
-                                                        : 'Card production pending',
-                                                )}
-                                            </>
-                                        )}
-                                        {card.trackingNumber && (
-                                            <>
-                                                {' '}
-                                                · {t('Tracking number')}: {card.trackingNumber}
-                                            </>
-                                        )}
-                                    </p>
+                                    {card.formFactor === 'physical_card' && (
+                                        <p className="px-4 pt-3 text-sm">
+                                            {t('Physical card')}
+                                            {card.produceStatus && (
+                                                <>
+                                                    {' '}
+                                                    ·{' '}
+                                                    {t(
+                                                        card.produceStatus === 'produced'
+                                                            ? 'Card produced'
+                                                            : 'Card production pending',
+                                                    )}
+                                                </>
+                                            )}
+                                            {card.trackingNumber && (
+                                                <>
+                                                    {' '}
+                                                    · {t('Tracking number')}: {card.trackingNumber}
+                                                </>
+                                            )}
+                                        </p>
+                                    )}
                                     {!props.demo && card.management?.includes('activate') && (
                                         <PhysicalCardActivation
                                             cardId={card.id}
