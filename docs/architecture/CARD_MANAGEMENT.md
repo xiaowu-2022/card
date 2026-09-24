@@ -365,3 +365,12 @@ The approved [PhotonPay physical-card contract](PHOTONPAY_PHYSICAL_CARDS.md) ext
 virtual-only issuing to capability-gated USD recharge physical cards, per-application
 encrypted recipients and receipt activation. Existing Ledger and notification contracts
 remain in force; persisted form factors must match all authoritative provider reads.
+
+### 2026-09-24 SaaS 查看卡信息
+
+Platform 卡片列表增加查看卡号、有效期、CVV。独立 POST 路由要求活跃 Platform
+会员、card_product.manage、当前管理员密码和 10 次/分钟限流；按路由公司查卡，
+按卡绑定账号读取，仅正常/冻结卡可查看，校验完整卡号尾号、CVV 和有效期。
+成功仅审计 CARD_CVV_VIEWED 及管理员/卡片/时间，不含卡信息。响应 no-store，
+不使用 Inertia 页面属性、会话或浏览器持久存储；关闭、切后台、30 秒后清空。
+getCvv 响应排除在完整加密诊断日志之外，避免持久化可直接支付的敏感卡信息。

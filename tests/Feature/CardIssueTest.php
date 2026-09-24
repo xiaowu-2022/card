@@ -2539,3 +2539,18 @@ it('reads platform operation history without provider availability and preserves
     expect(LedgerEntry::count())->toBe($entries)->and($order->fresh()->status)->toBe('QUOTED');
     Http::assertNothingSent();
 });
+
+it('allows password verified platform card reveal with scoped no store and safe audit', function (): void {
+    [$card, $provider] = managedCardFixture($this);
+    $provider->shouldReceive('revealCard')->once()->andReturn(new ProviderSensitiveCardDTO('411111111111'.$card->last4, '987', false, '08/29'));
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $this->actingAs($actor, 'platform_admin');
+    $url = 'http://admin.localhost/platform/tenants/'.$card->tenant_id.'/cards/'.$card->id.'/reveal';
+    $this->postJson($url, ['password' => 'incorrect'])->assertForbidden();
+    $other = Tenant::where('id', '<>', $card->tenant_id)->firstOrFail();
+    $this->postJson('http://admin.localhost/platform/tenants/'.$other->id.'/cards/'.$card->id.'/reveal', ['password' => 'local-password'])->assertNotFound();
+    $this->postJson($url, ['password' => 'local-password'])->assertOk()
+        ->assertExactJson(['pan' => '411111111111'.$card->last4, 'cvv' => '987', 'expiry' => '08/29'])
+        ->assertHeader('Cache-Control', 'no-store, private');
+    expect(json_encode(AuditLog::where('action', 'CARD_CVV_VIEWED')->get()))->not->toContain('411111111111', '987');
+});

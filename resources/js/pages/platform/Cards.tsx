@@ -1,3 +1,4 @@
+import { AdminCardReveal } from '@/components/admin/AdminCardReveal';
 import { CardOverflowSpend } from '@/components/admin/CardOverflowSpend';
 import { CardBalanceLimit } from '@/components/admin/CardBalanceLimit';
 import { CardLoadOrders, type CardLoadOrder } from '@/components/admin/CardLoadOrders';
@@ -219,6 +220,7 @@ export default function Cards({
                                         <div className="flex flex-wrap gap-2">
                                             {canManage && (
                                                 <>
+                                                    <AdminCardReveal card={row} />
                                                     <CardOverflowSpend card={row} />
                                                     <CardBalanceLimit
                                                         key={`${row.id}:${row.balanceLimit}`}

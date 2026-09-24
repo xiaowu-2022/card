@@ -102,7 +102,7 @@ final class PhotonPayLog
     {
         $this->context['http_status'] = $response->status();
         // Authentication replies contain tokens; activation replies may echo PIN.
-        if (! str_contains($this->context['endpoint'] ?? '', '/oauth2/') && ! str_contains($this->context['endpoint'] ?? '', 'activateCard')) {
+        if (! str_contains($this->context['endpoint'] ?? '', '/oauth2/') && ! str_contains($this->context['endpoint'] ?? '', 'activateCard') && ! str_contains($this->context['endpoint'] ?? '', 'getCvv')) {
             PhotonPayRequestPayloadLog::write($this->context, 'response', $response->body());
         }
 

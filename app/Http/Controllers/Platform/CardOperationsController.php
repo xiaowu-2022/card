@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Platform;
 
+use App\Application\Card\CardProductProviderRouter;
 use App\Application\Card\PlatformCardQuery;
 use App\Application\Card\PlatformCardTransactionsQuery;
 use App\Application\Card\RecordCardOverflowSpend;
@@ -19,12 +20,35 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 final class CardOperationsController extends Controller
 {
+    public function reveal(Request $request, Tenant $tenant, string $card): JsonResponse
+    {
+        $data = $request->validate(['password' => ['required', 'string']]);
+        $actor = $request->user('platform_admin')->fresh();
+        abort_unless(Hash::check($data['password'], $actor->password), 403);
+        $owned = UserCard::query()->where('tenant_id', $tenant->id)->whereKey($card)->firstOrFail();
+        abort_unless(in_array($owned->provider_status, ['normal', 'frozen'], true), 409);
+        try {
+            $details = app(CardProductProviderRouter::class)->forCard($owned)->revealCard($owned->provider_card_id);
+        } catch (\Throwable) {
+            return response()->json(['message' => 'Card details could not be loaded. Please try again later.'], 503, ['Cache-Control' => 'no-store, private']);
+        }
+        abort_unless(preg_match('/^[0-9]{12,19}$/D', $details->displayPan)
+            && substr($details->displayPan, -4) === $owned->last4
+            && preg_match('/^[0-9]{3,4}$/D', $details->displayCvv)
+            && is_string($details->expiry) && preg_match('/^(0[1-9]|1[0-2])\/[0-9]{2}$/D', $details->expiry), 503);
+        app(AuditLogger::class)->record($tenant->id, 'ADMIN', $actor->id, 'CARD_CVV_VIEWED', 'user_card', $owned->id);
+
+        return response()->json(['pan' => $details->displayPan, 'expiry' => $details->expiry, 'cvv' => $details->displayCvv], 200,
+            ['Cache-Control' => 'no-store, private', 'Pragma' => 'no-cache']);
+    }
+
     public function overflowSpend(Request $request, Tenant $tenant, string $card): RedirectResponse
     {
         $data = $request->validate([
