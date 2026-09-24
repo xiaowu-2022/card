@@ -1,3 +1,9 @@
+On 2026-09-24 the user requested complete outbound PhotonPay diagnostic evidence.
+Business request payloads and exact responses may be retained only in a dedicated
+encrypted rotating log. No Authorization, Token, signing secrets or PIN retention;
+activation responses are omitted to prevent PIN echo, uploads use file metadata/hash.
+This extends callback-only diagnostics to the issuing adapter, without replaying requests.
+
 On 2026-09-24 the user superseded permanent BIN reservations: deleting/archiving a
 card product releases its BIN when no unarchived product still uses it. Inactive but
 unarchived products still reserve BINs. Preserve archived products, cards, orders,

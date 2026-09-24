@@ -231,3 +231,25 @@ the needed key. No decryption endpoint, database migration, replay or new funds
 operation is introduced. Tests use synthetic secrets only and verify lossless byte
 recovery, precision, authentication/tamper rejection, plaintext exclusion, key failure,
 size limits, logging failure isolation and correlation with rejected HTTP callbacks.
+
+## 2026-09-24 主动接口诊断
+
+用户要求完整业务参数以排查渠道拒绝。PhotonPayCardProvider 的 POST/GET
+在发起前保存业务参数，收到响应后在业务校验前保存原始响应字节（包含 msg、
+未知字段及错误响应），通过 span_id 与普通日志关联。独立 AES-256-GCM 密文
+写入 `storage/logs/photonpay-requests-YYYY-MM-DD.log`，0600 权限、每日轮换、
+7 日活动文件保留。不得公开下载、自动解密或转发到普通日志平台。
+
+配置独立 32 字节 `PHOTONPAY_REQUEST_LOG_ENCRYPTION_KEY=base64:...`，没有
+有效密钥时只记录 `request.payload_unavailable`，不降级为明文、不影响业务结果。
+单报文上限 2 MiB，超过上限明确记录未捕获原因。发布后更新 config:cache 并
+重载 PHP 进程。不会追溯恢复旧请求，也不会重放任何业务接口。
+
+不捕获 HTTP 认证头、Token 响应或私钥。激活请求删除 pin/pinConfirm，激活
+响应不保存原文以防上游回显 PIN；现有安全状态摘要保留。证件上传记录 MIME、
+大小、面别及 SHA-256，不复制图片。此接入范围是发卡适配器，后台独立连接检查
+和商户报表尚不生成该完整报文日志，不能将本变更宣称为所有 HTTP 客户端全覆盖。
+
+离线授权解密使用独立密钥与 Laravel Encrypter 的 aes-256-gcm 模式，对
+`encrypted_envelope` 解密后解析 JSON，`body_base64` 解码得到业务请求或原始响应。
+不要将解密后的个人资料粘贴到公开工单或普通日志。

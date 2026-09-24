@@ -85,9 +85,27 @@ final class PhotonPayLog
         }
     }
 
+    public function requestPayload(#[\SensitiveParameter] array $payload): void
+    {
+        // Activation PIN must never be persisted, even inside encrypted diagnostics.
+        if (str_contains($this->context['endpoint'] ?? '', 'activateCard')) {
+            unset($payload['pin'], $payload['PIN'], $payload['confirmPin'], $payload['pinConfirm']);
+        }
+        try {
+            PhotonPayRequestPayloadLog::write($this->context, 'request', json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+        } catch (Throwable) {
+            self::write('request.payload_unavailable', ['reason' => 'payload_log_failed'], true);
+        }
+    }
+
     public function response(Response $response): Response
     {
         $this->context['http_status'] = $response->status();
+        // Authentication replies contain tokens; activation replies may echo PIN.
+        if (! str_contains($this->context['endpoint'] ?? '', '/oauth2/') && ! str_contains($this->context['endpoint'] ?? '', 'activateCard')) {
+            PhotonPayRequestPayloadLog::write($this->context, 'response', $response->body());
+        }
+
         try {
             $body = $response->body();
             if (strlen($body) > 2097152) {

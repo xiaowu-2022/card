@@ -393,6 +393,7 @@ final class PhotonPayCardProvider implements CardProviderInterface, PhysicalCard
     {
         return PhotonPayLog::run('request', ['method' => 'POST', 'endpoint' => '/file/apiUpload/issuing_cardholder_identity_certificate', 'connection_ref' => PhotonPayLog::reference($this->baseUrl."\0".$this->appId)], function (PhotonPayLog $trace) use ($contents, $mimeType, $side): string {
             $this->assertAvailable();
+            $trace->requestPayload(['file' => ['side' => $side, 'mime_type' => $mimeType, 'bytes' => strlen($contents), 'sha256' => hash('sha256', $contents)]]);
             try {
                 $response = Http::timeout($this->timeoutSeconds)
                     ->withHeaders($this->authorizationHeaders())
@@ -414,6 +415,7 @@ final class PhotonPayCardProvider implements CardProviderInterface, PhysicalCard
     {
         return PhotonPayLog::run('request', ['method' => 'POST', 'endpoint' => $path, 'provider_request_ref' => PhotonPayLog::reference(isset($payload['requestId']) && is_string($payload['requestId']) ? $payload['requestId'] : null), 'connection_ref' => PhotonPayLog::reference($this->baseUrl."\0".$this->appId)], function (PhotonPayLog $trace) use ($path, $payload): array {
             $this->assertAvailable();
+            $trace->requestPayload($payload);
             try {
                 $json = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
                 $response = Http::timeout($this->timeoutSeconds)
@@ -436,6 +438,7 @@ final class PhotonPayCardProvider implements CardProviderInterface, PhysicalCard
     {
         return PhotonPayLog::run('request', ['method' => 'GET', 'endpoint' => $path, 'provider_request_ref' => PhotonPayLog::reference(isset($query['requestId']) && is_string($query['requestId']) ? $query['requestId'] : null), 'connection_ref' => PhotonPayLog::reference($this->baseUrl."\0".$this->appId)], function (PhotonPayLog $trace) use ($path, $query): array {
             $this->assertAvailable();
+            $trace->requestPayload($query);
             try {
                 $response = Http::timeout($this->timeoutSeconds)
                     ->withHeaders($this->authorizationHeaders())

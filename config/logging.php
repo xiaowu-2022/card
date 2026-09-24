@@ -54,6 +54,16 @@ return [
 
     'channels' => [
 
+        'photonpay_requests' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/photonpay-requests.log'),
+            'level' => 'info',
+            'days' => 7,
+            'permission' => 0600,
+            'locking' => true,
+            'formatter' => JsonFormatter::class,
+        ],
+
         'photonpay_webhooks' => [
             'driver' => 'daily',
             'tap' => [RedactSensitiveLogContext::class],

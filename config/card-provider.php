@@ -10,6 +10,7 @@ return [
         'app_id' => env('PHOTONPAY_APP_ID'),
         'app_secret' => env('PHOTONPAY_APP_SECRET'),
         'private_key' => env('PHOTONPAY_PRIVATE_KEY'),
+        'request_log_key' => env('PHOTONPAY_REQUEST_LOG_ENCRYPTION_KEY'),
         'webhook_log_key' => env('PHOTONPAY_WEBHOOK_LOG_ENCRYPTION_KEY'),
         'webhook_public_key' => env('PHOTONPAY_WEBHOOK_PUBLIC_KEY'),
         'account_id_usd' => env('PHOTONPAY_USD_ACCOUNT_ID'),
