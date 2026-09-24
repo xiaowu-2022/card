@@ -40,7 +40,7 @@ final class SubmitCardSetupRequest extends FormRequest
             'residential_country_code' => ['required', 'string', Rule::in($geography->countryCodes())],
             'residential_postal_code' => ['required', 'string', 'max:10', 'regex:/^[A-Za-z0-9 -]+$/'],
             'email' => ['required', 'email:rfc', 'max:40'],
-            'mobile' => ['bail', 'nullable', 'string', 'max:24', 'regex:/^[0-9 ()-]{4,24}$/', function (string $attribute, mixed $value, Closure $fail) use ($geography): void {
+            'mobile' => ['bail', 'required', 'string', 'max:24', 'regex:/^[0-9 ()-]{4,24}$/', function (string $attribute, mixed $value, Closure $fail) use ($geography): void {
                 $country = $this->input('mobile_country_code');
                 if (! is_string($country)) {
                     $fail('Select a calling code and enter a valid mobile number.');
@@ -53,7 +53,7 @@ final class SubmitCardSetupRequest extends FormRequest
                     $fail('Select a calling code and enter a valid mobile number.');
                 }
             }],
-            'mobile_country_code' => ['required_with:mobile', 'nullable', 'string', Rule::in($geography->countryCodes())],
+            'mobile_country_code' => ['required', 'string', Rule::in($geography->countryCodes())],
             'mobile_prefix' => ['prohibited'],
             'document_type' => ['required', 'in:id_card,passport,resident_permit'],
             'document_country' => ['prohibited'],
@@ -73,6 +73,9 @@ final class SubmitCardSetupRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'email.required' => 'This field is required.',
+            'mobile.required' => 'This field is required.',
+            'mobile_country_code.required' => 'Select a calling code and enter a valid mobile number.',
             'email.email' => 'Enter a valid email address.',
             'email.max' => 'Email must be at most 40 characters.',
             'mobile.regex' => 'Select a calling code and enter a valid mobile number.',

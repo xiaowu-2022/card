@@ -81,3 +81,12 @@ it('uses the same manual fallback and strict parent checks for application and e
         expect($errors->has('residential_state'))->toBeTrue()->and($errors->has('residential_city'))->toBeTrue();
     }
 });
+
+it('requires email mobile and calling country for card applications', function (): void {
+    $request = SubmitCardSetupRequest::create('/cards/cardholder', 'POST', []);
+    $validator = \Illuminate\Support\Facades\Validator::make([], $request->rules());
+    expect($validator->fails())->toBeTrue();
+    foreach (['email', 'mobile', 'mobile_country_code'] as $field) {
+        expect($validator->errors()->has($field))->toBeTrue();
+    }
+});

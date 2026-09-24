@@ -54,7 +54,7 @@ export function cardholderFieldError(
         return;
     }
     const value = data[field].trim();
-    if (!value) return field === 'mobile' ? undefined : required;
+    if (!value) return required;
     const length = [...value].length;
     switch (field) {
         case 'legal_first_name':

@@ -176,6 +176,11 @@ export const catalog = {
         'Lihat maklumat kad',
         'Ver información de la tarjeta',
     ],
+    'Your mobile number receives purchase verification codes. Please ensure it can receive SMS.': [
+        '手机号用于接收消费验证码，请确保能接收到短信。',
+        'Nombor telefon anda menerima kod pengesahan pembelian. Pastikan ia boleh menerima SMS.',
+        'Tu móvil recibe códigos de verificación de compras. Asegúrate de que pueda recibir SMS.',
+    ],
     'Card number': ['卡号', 'Nombor kad', 'Número de tarjeta'],
     'Copy card number': ['复制卡号', 'Salin nombor kad', 'Copiar número de tarjeta'],
     'Copy CVV': ['复制 CVV', 'Salin CVV', 'Copiar CVV'],

@@ -231,6 +231,7 @@ export function CardholderMaterialsForm({
                             </div>
                             <Input
                                 id="holder-mobile"
+                                required
                                 type="tel"
                                 inputMode="tel"
                                 className="min-w-0 border-0"
@@ -241,8 +242,8 @@ export function CardholderMaterialsForm({
                                 }
                                 aria-describedby={
                                     errors.mobile || errors.mobile_country_code
-                                        ? 'holder-mobile-error'
-                                        : undefined
+                                        ? 'holder-mobile-error holder-mobile-hint'
+                                        : 'holder-mobile-hint'
                                 }
                                 onBlur={() => validate('mobile')}
                                 onChange={(event) => {
@@ -255,6 +256,11 @@ export function CardholderMaterialsForm({
                                 }}
                             />
                         </div>
+                        <p id="holder-mobile-hint" className="mt-2 text-xs text-muted-foreground">
+                            {t(
+                                'Your mobile number receives purchase verification codes. Please ensure it can receive SMS.',
+                            )}
+                        </p>
                     </FormField>
                     {choice('nationality_country_code', 'Nationality', countryItems)}
                     {input('date_of_birth', 'Date of birth', 'date')}

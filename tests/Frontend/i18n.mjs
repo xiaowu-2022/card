@@ -1082,7 +1082,7 @@ test('cardholder phone validation follows the selected prefix and accepts format
             holderContext,
         ).mobile,
     );
-    for (const mobile of ['1111', '1380013800', '11111111111', 'call13800138000', '+8613800138000'])
+    for (const mobile of ['', '   ', '1111', '1380013800', '11111111111', 'call13800138000', '+8613800138000'])
         assert.ok(
             holderValidation.cardholderErrors({ ...holderData, mobile }, holderContext).mobile,
             mobile,
