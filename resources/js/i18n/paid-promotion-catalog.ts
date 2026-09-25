@@ -1,4 +1,35 @@
 export const paidPromotionCatalog = {
+    'Team members': ['团队成员', 'Ahli pasukan', 'Miembros del equipo'],
+    '{{count}} team members': [
+        '共 {{count}} 位团队成员',
+        '{{count}} ahli pasukan',
+        '{{count}} miembros del equipo',
+    ],
+    'Their team': ['他的团队', 'Pasukannya', 'Su equipo'],
+    'Loading team…': ['正在加载团队…', 'Memuatkan pasukan…', 'Cargando equipo…'],
+    'Unable to load this team.': [
+        '团队加载失败，请重试。',
+        'Pasukan tidak dapat dimuatkan. Cuba lagi.',
+        'No se pudo cargar el equipo. Inténtalo de nuevo.',
+    ],
+    'No team members yet.': [
+        '暂无团队成员',
+        'Belum ada ahli pasukan.',
+        'Aún no hay miembros en el equipo.',
+    ],
+    'Team counts exclude this member and use current levels. Commissions are your lifetime income from their descendants, grouped by the source level at the time. Teams may overlap; do not add these summaries together.':
+        [
+            '人数不含该成员本人，按当前等级统计；佣金为其下级累计给你带来的收入，按产生时的来源等级归属。不同团队可能重叠，请勿将各成员的团队统计直接相加。',
+            'Bilangan tidak termasuk ahli ini dan menggunakan tahap semasa. Komisen ialah pendapatan terkumpul anda daripada ahli bawahannya mengikut tahap sumber ketika itu. Pasukan mungkin bertindih; jangan jumlahkan ringkasan ini.',
+            'El recuento excluye a este miembro y usa los niveles actuales. Las comisiones son tus ingresos acumulados de sus descendientes, agrupados por el nivel de origen en ese momento. Los equipos pueden solaparse; no sumes estos resúmenes.',
+        ],
+    'Feature introduction': ['功能介绍', 'Pengenalan fungsi', 'Introducción a las funciones'],
+    'Invitation introduction': [
+        '邀请介绍',
+        'Pengenalan jemputan',
+        'Introducción a las invitaciones',
+    ],
+    'Reward introduction': ['奖励介绍', 'Pengenalan ganjaran', 'Introducción a las recompensas'],
     'This promotion level is disabled.': [
         '此推广等级已停用。',
         'Tahap promosi ini dinyahaktifkan.',
@@ -341,7 +372,6 @@ export const paidPromotionCatalog = {
     'Upgrade level': ['升级等级', 'Naik taraf', 'Mejorar nivel'],
     'Renew level': ['续费等级', 'Perbaharui', 'Renovar nivel'],
     'View benefits': ['查看权益', 'Lihat manfaat', 'Ver beneficios'],
-    'Team members': ['团队人数', 'Ahli pasukan', 'Miembros del equipo'],
     'Direct members': ['直推\n人数', 'Ahli langsung', 'Miembros directos'],
     'Indirect members': ['间推\n人数', 'Ahli tidak langsung', 'Miembros indirectos'],
     'Amounts in USDT': ['金额单位：USDT', 'Amaun dalam USDT', 'Importes en USDT'],

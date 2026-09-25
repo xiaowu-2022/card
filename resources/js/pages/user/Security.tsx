@@ -4,7 +4,6 @@ import { useState } from 'react';
 import {
     ChevronDown,
     Mail,
-    Smartphone,
     LockKeyhole,
     UserRoundPen,
     MonitorX,
@@ -27,7 +26,6 @@ import { UserLayout } from '@/layouts/UserLayout';
 type Information = {
     canEdit: boolean;
     email: string | null;
-    phone: string | null;
     challenge: ContactChallenge | null;
 };
 
@@ -40,19 +38,15 @@ export default function Security({
 }) {
     useClientTranslation();
     const { auth } = usePage<SharedProps>().props;
-    const [expanded, setExpanded] = useState<string | null>(information.challenge?.channel ?? null);
+    const [expanded, setExpanded] = useState<string | null>(
+        information.challenge?.channel === 'EMAIL' ? 'EMAIL' : null,
+    );
     const items: { id: string; title: string; value: string; icon: LucideIcon }[] = [
         {
             id: 'name',
             title: t('Display name'),
             value: auth.user?.displayName || t('Account user'),
             icon: UserRoundPen,
-        },
-        {
-            id: 'PHONE',
-            title: t('Phone number'),
-            value: information.phone || t('Not linked'),
-            icon: Smartphone,
         },
         {
             id: 'EMAIL',
@@ -113,7 +107,7 @@ export default function Security({
                                 className="px-5 pb-6 sm:px-6"
                             >
                                 {id === 'name' && <NameForm name={auth.user?.displayName ?? ''} />}
-                                {(id === 'PHONE' || id === 'EMAIL') && (
+                                {id === 'EMAIL' && (
                                     <ContactForm channel={id} challenge={information.challenge} />
                                 )}
                                 {id === 'password' && <PasswordForm />}

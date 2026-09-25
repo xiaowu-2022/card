@@ -1,7 +1,7 @@
 import * as Popover from '@radix-ui/react-popover';
 import { Command } from 'cmdk';
 import { Check, ChevronDown, Search } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 export type SearchOption = { value: string; label: string; keywords?: string[] };
@@ -19,6 +19,10 @@ export function SearchSelect({
     invalid,
     onValueChange,
     compact = false,
+    searchValue,
+    onSearchChange,
+    onOpenChange,
+    footer,
 }: {
     id: string;
     label: string;
@@ -30,12 +34,23 @@ export function SearchSelect({
     disabled?: boolean;
     invalid?: boolean;
     compact?: boolean;
+    searchValue?: string;
+    onSearchChange?: (value: string) => void;
+    onOpenChange?: (open: boolean) => void;
+    footer?: ReactNode;
     onValueChange: (value: string) => void;
 }) {
     const [open, setOpen] = useState(false);
     const selected = options.find((option) => option.value === value);
     return (
-        <Popover.Root open={open} onOpenChange={setOpen} modal>
+        <Popover.Root
+            open={open}
+            onOpenChange={(next) => {
+                setOpen(next);
+                onOpenChange?.(next);
+            }}
+            modal
+        >
             <Popover.Trigger asChild>
                 <button
                     id={id}
@@ -70,10 +85,12 @@ export function SearchSelect({
                     aria-label={label}
                     className="z-[60] w-[var(--radix-popover-trigger-width)] min-w-[240px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border bg-white text-foreground shadow-xl"
                 >
-                    <Command label={label}>
+                    <Command label={label} shouldFilter={!onSearchChange}>
                         <div className="flex items-center gap-2 border-b px-3">
                             <Search className="size-4 shrink-0 text-muted-foreground" />
                             <Command.Input
+                                value={searchValue}
+                                onValueChange={onSearchChange}
                                 aria-label={searchLabel}
                                 placeholder={searchLabel}
                                 className="h-11 w-full min-w-0 bg-transparent text-sm outline-none"
@@ -111,6 +128,7 @@ export function SearchSelect({
                                 </Command.Item>
                             ))}
                         </Command.List>
+                        {footer}
                     </Command>
                 </Popover.Content>
             </Popover.Portal>

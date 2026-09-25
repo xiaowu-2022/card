@@ -19,6 +19,7 @@ use App\Http\Controllers\User\KycController;
 use App\Http\Controllers\User\MockPaymentController;
 use App\Http\Controllers\User\MockTrc20TopupController;
 use App\Http\Controllers\User\PaidPromotionController;
+use App\Http\Controllers\User\PartnerReportController;
 use App\Http\Controllers\User\PhysicalCardActivationController;
 use App\Http\Controllers\User\PromotionController;
 use App\Http\Controllers\User\RegistrationController;
@@ -122,6 +123,8 @@ Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operat
     Route::post('/promotion/quotes/{order}/confirm', [PaidPromotionController::class, 'confirm'])->whereUuid('order')->middleware('throttle:5,1');
     Route::get('/promotion/poster-background', [InvitationPosterController::class, 'userImage']);
     Route::get('/promotion', [PromotionController::class, 'show'])->name('user.promotion');
+    Route::get('/promotion/stock', PartnerReportController::class)->middleware('throttle:60,1')->name('promotion.stock');
+    Route::get('/promotion/members/{member}/team-summary', [PromotionController::class, 'memberTeam'])->whereUuid('member')->middleware('throttle:60,1')->name('user.promotion.member-team');
     Route::get('/promotion/commissions', [PromotionController::class, 'commissions'])->name('user.promotion.commissions');
     Route::get('/promotion/{section}', [PromotionController::class, 'show'])->whereIn('section', ['team', 'daily', 'direct', 'invitations', 'rules'])->name('user.promotion.section');
     Route::get('/about', [AboutController::class, 'index'])->name('user.about');

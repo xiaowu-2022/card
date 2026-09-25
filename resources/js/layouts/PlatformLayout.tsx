@@ -39,6 +39,7 @@ const groups = [
     {
         label: 'Operations',
         items: [
+            { label: 'Partners', href: '/platform/partners', icon: Users, permission: 'partners.manage' },
             { label: 'Users', href: '/platform/users', icon: Users, permission: 'users.read' },
             { label: 'KYC', href: '/platform/kyc', icon: FileCheck2, permission: 'kyc.read' },
             {

@@ -2,6 +2,7 @@
 
 namespace App\Application\Assets;
 
+use App\Application\Partners\FeeValuation;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Assets\AssetWithdrawalOrder;
 use App\Domain\Assets\WithdrawalFee;
@@ -159,7 +160,9 @@ final readonly class WithdrawAssetsAction
         $net = Money::of($o->amount, $o->asset_code)->subtract(Money::of($o->fee_amount, $o->asset_code));
         $matches = array_values(array_filter($proofs, fn ($p) => $p['address'] === $o->address && $p['contract'] === $o->contract && BigDecimal::of($p['amount'])->isEqualTo($net->amount()) && $p['occurred_at']->greaterThanOrEqualTo($o->created_at)));
 
-        return DB::transaction(function () use ($tenantId, $id, $actor, $matches, $net, $requestId) {
+        $feeQuote = count($matches) === 1 ? app(FeeValuation::class)->quote($o->asset_code, $o->fee_amount) : null;
+
+        return DB::transaction(function () use ($tenantId, $id, $actor, $matches, $net, $requestId, $feeQuote) {
             $o = AssetWithdrawalOrder::query()->where('tenant_id', $tenantId)->whereKey($id)->lockForUpdate()->firstOrFail();
             if ($o->status === 'COMPLETED') {
                 return $o;
@@ -180,6 +183,7 @@ final readonly class WithdrawAssetsAction
             }
             $entry = $this->post($o, 'settle', $instructions);
             $o->update(['status' => 'COMPLETED', 'chain_event_id' => $matches[0]['event_id'], 'ledger_entry_id' => $entry->id]);
+            app(FeeValuation::class)->record($o, $feeQuote);
             $this->audit->record($tenantId, 'ADMIN', $actor->id, 'ASSET_WITHDRAWAL_COMPLETED', 'asset_withdrawal_order', $id, null, ['amount' => $o->amount, 'asset' => $o->asset_code], $requestId);
 
             return $o->refresh();

@@ -972,7 +972,8 @@
     color: #839488;
     padding: 5px 0;
 }
-.report-member-breakdown .report-entry-detail {
+.report-member-breakdown .report-entry-detail,
+.member-detail-panels .report-entry-detail {
     margin: 4px 0 8px;
 }
 .report-notes {
@@ -1026,6 +1027,9 @@
 }
 @media (max-width: 639px) {
     .report-filter-dialog {
+        /* Reset DialogContent's individual Tailwind translate, not only transform. */
+        --tw-translate-x: 0px;
+        --tw-translate-y: 0px;
         top: auto;
         bottom: 0;
         left: 0;
@@ -1036,4 +1040,139 @@
         border-radius: 22px 22px 0 0;
         padding: 24px 20px calc(20px + env(safe-area-inset-bottom));
     }
+}
+
+/* Academy topics are informational posters; detail pages will be introduced later. */
+.academy-page {
+    width: 100%;
+    max-width: 720px;
+    margin-inline: auto;
+}
+.academy-posters {
+    display: grid;
+    gap: 18px;
+    padding: 6px 0 24px;
+}
+.academy-poster {
+    position: relative;
+    display: flex;
+    align-items: center;
+    aspect-ratio: 3 / 1;
+    min-height: 118px;
+    isolation: isolate;
+    overflow: hidden;
+    border: 1px solid rgba(92, 125, 104, 0.1);
+    border-radius: 22px;
+    box-shadow:
+        0 7px 20px -12px rgba(56, 82, 60, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    background: linear-gradient(115deg, #faf9f0 0%, #f3f6eb 48%, #dceee3 100%);
+}
+.academy-poster-invitations {
+    background: linear-gradient(115deg, #f4f9ef 0%, #e8f2e6 50%, #d4e8d9 100%);
+}
+.academy-poster-rewards {
+    background: linear-gradient(115deg, #fcf9f0 0%, #f8f0df 48%, #efdfb9 100%);
+    border-color: rgba(159, 132, 74, 0.12);
+}
+.academy-poster-copy {
+    position: relative;
+    z-index: 1;
+    width: 56%;
+    padding: clamp(16px, 4vw, 34px);
+    padding-right: 4px;
+    color: #294c3c;
+}
+.academy-poster-number {
+    display: block;
+    margin-bottom: 8px;
+    font-size: clamp(10px, 2.4vw, 13px);
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    opacity: 0.5;
+}
+.promotion-page .academy-poster h2 {
+    margin: 0;
+    font-size: clamp(19px, 4.7vw, 30px);
+    font-weight: 600;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
+}
+.academy-poster-rewards .academy-poster-copy {
+    color: #745b2c;
+}
+.academy-poster > img {
+    position: absolute;
+    right: -2%;
+    width: 53%;
+    height: 112%;
+    object-fit: contain;
+    pointer-events: none;
+}
+
+.report-member-relation {
+    color: #819087;
+    font-size: 10px;
+}
+.member-detail-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 24px;
+}
+.member-detail-toggles button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 44px;
+    font-size: 11px;
+    color: #718678;
+}
+.member-detail-toggles button[aria-expanded='true'] svg {
+    transform: rotate(180deg);
+}
+.member-team-panel {
+    margin: 4px 0 12px;
+    padding: 12px 8px;
+    border-radius: 10px;
+    background: #f7f9f7;
+    font-size: 12px;
+    color: #405a48;
+    min-width: 0;
+}
+.member-team-panel[hidden] {
+    display: none;
+}
+.member-team-total {
+    margin: 0 4px 12px;
+    font-size: 11px;
+}
+.member-team-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+}
+.member-team-table th,
+.member-team-table td {
+    padding: 12px 3px;
+    border-bottom: 1px solid #e3ebe5;
+    overflow-wrap: anywhere;
+    text-align: right;
+    font-size: 11px;
+    font-weight: 400;
+}
+.member-team-table thead th {
+    color: #758679;
+    line-height: 1.5;
+    white-space: pre-line;
+}
+.member-team-table th:first-child {
+    text-align: left;
+}
+.member-team-note {
+    margin: 12px 4px 0;
+    color: #839488;
+    font-size: 10px;
+    line-height: 1.7;
 }

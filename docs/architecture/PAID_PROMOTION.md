@@ -310,3 +310,31 @@ platform account ID in direct-member reports. Join profiles by both tenant and
 user; retain the existing direct inviter scope and pagination. Apply ContactMasker
 on the server before serialization; never return the full member email. Render
 nicknames as plain text and omit absent values. Commission/deposit rules do not change.
+
+### All-team member list and member subtree summaries (2026-09-25)
+
+The approved Team members page at `/promotion/direct` now lists all descendants,
+excluding the viewer. Account ID, current-rank and deposit filters, the result
+count and 20-row pagination share the same tenant-scoped recursive subtree.
+Nickname and server-masked email visibility extends to these indirect members;
+full email addresses never enter consumer report responses. Relationship badges
+are relative to the viewer. Existing per-member income remains that member's own
+source contribution to the viewer, not an aggregate of the member's descendants.
+
+`GET /promotion/members/{member}/team-summary` accepts a promotion-member UUID.
+The authenticated viewer and resolved tenant are authoritative; only the viewer's
+own descendants can be targets (otherwise 404). The response is private/no-store
+and contains `totalMembers` plus `rows` of dynamic rank, direct/indirect integer
+counts and annual/activation USDT decimal strings. It contains no descendant
+identity details or the target's personal earnings. Counts exclude the target and
+are relative to that target, with all deeper descendants classified as indirect.
+Current effective ranks govern people; original event source ranks govern the
+viewer's already-posted commissions. Reuse the existing deduplicated income read
+projection and exclude unclassified legacy income from the two typed columns.
+
+The independent Their team accordion loads on first expansion with inline loading,
+retry and same-page caching. Pagination/filter changes remount the member controls
+and discard cached summaries. Totals are lifetime, independent of list filters;
+overlapping subtrees must not be added together. No subtree means an empty state;
+otherwise all configured/historical ranks are present with zero values as needed.
+No provider calls, new tables, money operations or promotion policy changes occur.

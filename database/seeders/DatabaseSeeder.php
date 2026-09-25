@@ -40,7 +40,7 @@ final class DatabaseSeeder extends Seeder
         }
 
         $permissions = collect([
-            'promotion_refunds.review', 'tenant.read', 'tenant.manage', 'users.read', 'users.suspend', 'wallet_topups.verify', 'wallet_topups.confirm',
+            'partners.manage', 'promotion_refunds.review', 'tenant.read', 'tenant.manage', 'users.read', 'users.suspend', 'wallet_topups.verify', 'wallet_topups.confirm',
             'kyc.read', 'kyc.review', 'kyc.document.view', 'wallet.read', 'ledger.read', 'wallet_topups.read', 'withdrawals.read', 'withdrawals.review',
             'cards.read', 'cards.reveal_sensitive', 'card_load.process',
             'provider_operation.read', 'provider_operation.retry', 'provider_credentials.manage',

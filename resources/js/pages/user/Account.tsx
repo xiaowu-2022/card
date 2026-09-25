@@ -8,7 +8,6 @@ import {
     Users,
     MessageSquare,
     ArrowUpRight,
-    Info,
     ChartNoAxesCombined,
 } from 'lucide-react';
 import { promotionLevel } from '@/lib/paid-promotion';
@@ -43,7 +42,6 @@ export default function Account({
         { title: t('U Card Academy'), icon: BookOpen, href: '/promotion/rules' },
         { title: t('Invitation data'), icon: ChartNoAxesCombined, href: '/promotion/invitations' },
         { title: t('Customer support'), icon: MessageSquare, href: '/support' },
-        { title: t('About us'), icon: Info, href: '/about' },
     ];
     return (
         <UserLayout>

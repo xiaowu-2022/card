@@ -1,3 +1,4 @@
+import { partnerCatalog } from './partner-catalog';
 import { physicalCardCatalog } from './physical-card-catalog';
 import { paidPromotionCatalog } from './paid-promotion-catalog';
 import { clientPolishCatalog } from './client-polish-catalog';
@@ -9,6 +10,7 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    ...partnerCatalog,
     'PhotonPay App Secret is required.': [
         '请填写 PhotonPay App Secret。',
         'App Secret PhotonPay diperlukan.',

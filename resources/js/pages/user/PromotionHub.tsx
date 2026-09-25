@@ -1,3 +1,4 @@
+import { AcademyPosters } from '@/components/user/AcademyPosters';
 import { InvitationPoster } from '@/components/user/InvitationPoster';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
@@ -129,76 +130,16 @@ export default function PromotionHub({
             setSharing(false);
         }
     };
-    const rules = [
-        [
-            'Invitation relationship',
-            'Friends who register through your link or invitation code join your team. Direct invitees and indirect descendants are counted separately.',
-        ],
-        [
-            'Activation commission',
-            'Each account activates once through a member deposit or agent purchase. Only first activation through a deposit earns activation commission; direct agent purchases earn annual fee commission only.',
-        ],
-        [
-            'Reward differentials',
-            'The direct inviter earns their activation standard; higher ancestors earn only the positive uncovered difference. Ordinary members earn 20 USDT for direct activations only. The payer’s own level does not reduce their direct inviter’s reward.',
-        ],
-        [
-            'Annual fee commission',
-            'Annual fee commission uses the wallet payment only. Direct agents earn their own rate regardless of the payer’s level. Indirect agents must be at or above the payer’s purchased level and earn only the uncovered rate difference. Ineligible ancestors do not consume a rate share.',
-        ],
-        [
-            'Membership validity',
-            'Membership lasts one year with manual renewal after expiry. An active membership can only be upgraded: pay the tariff difference and keep the original expiry. After expiry, ordinary member rewards apply; past commissions remain.',
-        ],
-        [
-            'Annual fee rebate conditions',
-            'Count each account once at its first deposit or agent activation within the paid year: direct as 1 and indirect as 0.5. Renewals, upgrades and repeat deposits do not count again. Eligible annual fee returns include converted deposits and are credited automatically to USDT. Upgrades keep progress and expiry.',
-        ],
-    ];
     return (
         <UserLayout>
             <Head title={t(title)} />
             <div
-                className="promotion-page promotion-hub"
+                className={`promotion-page promotion-hub${section === 'rules' ? ' academy-page' : ''}`}
                 style={section === 'overview' ? { paddingBottom: shareDockHeight + 16 } : undefined}
             >
-                <UserPageHeader
-                    title={t(title)}
-                    backHref={section === 'rules' ? '/promotion' : '/account'}
-                />
+                <UserPageHeader title={t(title)} backHref="/account" />
                 {section === 'rules' ? (
-                    <>
-                        <a
-                            href="/images/promotion/invitation-rules.jpg"
-                            target="_blank"
-                            rel="noreferrer"
-                            className="block"
-                        >
-                            <img
-                                src="/images/promotion/invitation-rules.jpg"
-                                alt={t('U Card Academy')}
-                                width={1024}
-                                height={1536}
-                                className="h-auto w-full rounded-lg"
-                            />
-                        </a>
-                        <div className="space-y-6">
-                            {rules.map(([heading = '', body = '']) => (
-                                <section key={heading} className="border-b pb-5">
-                                    <h2>{t(heading)}</h2>
-                                    <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                                        {t(body)}
-                                    </p>
-                                </section>
-                            ))}
-                        </div>
-                        <Link
-                            href="/promotion/membership#rebate-history"
-                            className="min-h-11 py-3 text-sm underline"
-                        >
-                            {t('Fee rebate history')}
-                        </Link>
-                    </>
+                    <AcademyPosters />
                 ) : (
                     <>
                         <div ref={shareDock} className="promotion-share-dock">

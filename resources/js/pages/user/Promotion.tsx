@@ -178,7 +178,7 @@ export default function PromotionPage({
     const title = {
         invitations: 'Invitation data',
         daily: 'Daily data',
-        direct: 'Direct invitees',
+        direct: 'Team members',
     }[section];
     const resultsRef = useRef<HTMLDivElement>(null);
     const [search, setSearch] = useState(p.filters.accountId);
@@ -242,7 +242,7 @@ export default function PromotionPage({
                                 { href: '/promotion/daily', label: 'Daily data', icon: ListFilter },
                                 {
                                     href: '/promotion/direct',
-                                    label: 'Direct invitees',
+                                    label: 'Team members',
                                     icon: UserRoundPlus,
                                 },
                                 {

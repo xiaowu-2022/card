@@ -21,6 +21,7 @@ use App\Http\Controllers\Platform\DomainManagementController;
 use App\Http\Controllers\Platform\FinancialOperationsController;
 use App\Http\Controllers\Platform\KycSettingsController;
 use App\Http\Controllers\Platform\NotificationProfilesController;
+use App\Http\Controllers\Platform\PartnerController;
 use App\Http\Controllers\Platform\PlatformAuthController;
 use App\Http\Controllers\Platform\PlatformDomainController;
 use App\Http\Controllers\Platform\TenantInvitationController;
@@ -34,6 +35,14 @@ use App\Http\Middleware\PlatformCompanyConfiguration;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('platform')->name('platform.')->group(function (): void {
+    Route::middleware('admin.scope:platform,partners.manage')->group(function (): void {
+        Route::get('/tenants/{tenant}/partner-candidates', [PartnerController::class, 'candidates'])->whereUuid('tenant')->middleware('throttle:120,1');
+        Route::get('/partners', [PartnerController::class, 'index'])->name('partners');
+        Route::post('/tenants/{tenant}/partners', [PartnerController::class, 'configure'])->whereUuid('tenant');
+        Route::post('/tenants/{tenant}/partners/{partner}/journal', [PartnerController::class, 'journal'])->whereUuid(['tenant', 'partner']);
+        Route::post('/tenants/{tenant}/fee-valuations/{valuation}', [PartnerController::class, 'valueFee'])->whereUuid(['tenant', 'valuation']);
+    });
+
     Route::middleware('admin.scope:platform,tenant.manage')->group(function (): void {
         Route::get('/settings/assets', [AssetsController::class, 'settings'])->name('assets.settings');
         Route::post('/settings/assets', [AssetsController::class, 'save'])->middleware('throttle:10,1')->name('assets.settings.save');

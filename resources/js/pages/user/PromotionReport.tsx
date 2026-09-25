@@ -1,5 +1,6 @@
+import { MemberTeamDetails } from '@/components/user/MemberTeamDetails';
 import { useEffect, useState } from 'react';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { ChevronDown, ChevronRight, UserPlus, ReceiptText, ShieldCheck } from 'lucide-react';
 import { UserLayout } from '@/layouts/UserLayout';
 import { UserPageHeader } from '@/components/user/UserPageHeader';
@@ -21,7 +22,6 @@ import {
     reportRank,
     relationLabel,
     visitReport,
-    incomeLabels,
     type ReportPeriod,
     type ReportFilters,
     type IncomeTotals,
@@ -42,6 +42,7 @@ type Movement = {
     purchaseKind: string | null;
 };
 type Member = {
+    relation: 'direct' | 'indirect';
     displayName: string | null;
     maskedEmail: string | null;
     id: string;
@@ -75,13 +76,15 @@ const purchaseLabels: Record<string, string> = {
 export default function PromotionReport({
     report: p,
     section,
+    canViewStock = false,
 }: {
     report: Report;
     section: 'daily' | 'direct';
+    canViewStock?: boolean;
 }) {
     useClientTranslation();
     const daily = section === 'daily';
-    const title = daily ? 'Daily data' : 'Direct invitees';
+    const title = daily ? 'Daily data' : 'Team members';
     const url = `/promotion/${section}`;
     const filters = {
         ...p.filters,
@@ -126,8 +129,9 @@ export default function PromotionReport({
                             key,
                             t(label),
                         ]),
+                        ...(canViewStock ? [['stock', t('Stock data')] as [string, string]] : []),
                     ]}
-                    onChange={(activity) => setDraft({ ...draft, activity })}
+                    onChange={(activity) => activity === 'stock' ? router.get('/promotion/stock') : setDraft({ ...draft, activity })}
                 />
             ) : (
                 <>
@@ -200,7 +204,7 @@ export default function PromotionReport({
                         />
                         <div className="report-toolbar">
                             <p className="report-caption">
-                                {t('{{count}} direct members', { count: p.total ?? 0 })}
+                                {t('{{count}} team members', { count: p.total ?? 0 })}
                             </p>
                             {panel}
                         </div>
@@ -330,9 +334,17 @@ export default function PromotionReport({
                               </details>
                           ))
                         : (p.items as Member[]).map((row) => (
-                              <article className="report-member" key={row.id}>
+                              <article
+                                  className="report-member"
+                                  key={`${row.id}:${p.page}:${JSON.stringify(p.filters)}`}
+                              >
                                   <div className="report-member-top">
-                                      <h2 className="report-account">{row.accountId}</h2>
+                                      <div>
+                                          <h2 className="report-account">{row.accountId}</h2>
+                                          <span className="report-member-relation">
+                                              {relationLabel(row.relation)}
+                                          </span>
+                                      </div>
                                       <span className="report-rank">
                                           {promotionLevel(row.rank)}
                                       </span>
@@ -374,28 +386,7 @@ export default function PromotionReport({
                                           <ChevronRight size={14} aria-hidden="true" />
                                       </strong>
                                   </Link>
-                                  <details className="report-member-breakdown">
-                                      <summary>
-                                          <span>{t('Income breakdown')}</span>
-                                          <ChevronDown size={13} aria-hidden="true" />
-                                      </summary>
-                                      <dl className="report-entry-detail">
-                                          <div>
-                                              <dt>{t('Total')}</dt>
-                                              <dd>{fullMoney(row.totals.total)}</dd>
-                                          </div>
-                                          {Object.entries(incomeLabels).map(([key, label]) => (
-                                              <div key={key}>
-                                                  <dt>{t(label)}</dt>
-                                                  <dd>
-                                                      {fullMoney(
-                                                          row.totals[key as keyof IncomeTotals],
-                                                      )}
-                                                  </dd>
-                                              </div>
-                                          ))}
-                                      </dl>
-                                  </details>
+                                  <MemberTeamDetails memberId={row.id} totals={row.totals} />
                                   <p className="report-caption">
                                       {t('Joined at')}: {dateTime(row.joinedAt)}
                                   </p>

@@ -21,13 +21,13 @@ final class PromotionReportQuery
         return Money::of((string) $this->income($tenant, $user)->sum('amount'), 'USDT')->amount();
     }
 
-    public function income(string $tenant, string $user): Builder
+    public function income(string $tenant, ?string $user): Builder
     {
         $paid = DB::table('paid_promotion_shares as s')
             ->join('paid_promotion_events as e', fn ($j) => $j->on('e.id', '=', 's.event_id')->on('e.tenant_id', '=', 's.tenant_id'))
             ->join('ledger_entries as l', fn ($j) => $j->on('l.id', '=', 's.ledger_entry_id')->on('l.tenant_id', '=', 's.tenant_id'))
             ->join('users as u', fn ($j) => $j->on('u.id', '=', 'e.user_id')->on('u.tenant_id', '=', 'e.tenant_id'))
-            ->where('s.tenant_id', $tenant)->where('s.user_id', $user)->where('s.amount', '>', 0)
+            ->where('s.tenant_id', $tenant)->when($user !== null, fn ($q) => $q->where('s.user_id', $user))->where('s.amount', '>', 0)
             ->selectRaw('s.id, LOWER(e.kind) AS kind, s.amount, e.user_id AS source_user_id, u.account_id AS source_account_id,
                 e.source_rank, s.rank AS beneficiary_rank, s.depth, e.amount AS source_amount, s.rate, s.standard, s.covered,
                 e.source_id, l.posted_at AS occurred_at, e.occurred_at AS business_at');
@@ -35,7 +35,7 @@ final class PromotionReportQuery
             ->join('promotion_funding_events as f', fn ($j) => $j->on('f.id', '=', 'a.funding_event_id')->on('f.tenant_id', '=', 'a.tenant_id'))
             ->join('ledger_entries as l', fn ($j) => $j->on('l.id', '=', 'a.ledger_entry_id')->on('l.tenant_id', '=', 'a.tenant_id'))
             ->join('users as u', fn ($j) => $j->on('u.id', '=', 'f.user_id')->on('u.tenant_id', '=', 'f.tenant_id'))
-            ->where('a.tenant_id', $tenant)->where('a.user_id', $user)
+            ->where('a.tenant_id', $tenant)->when($user !== null, fn ($q) => $q->where('a.user_id', $user))
             ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('paid_promotion_shares as s')->whereColumn('s.id', 'a.id')->whereColumn('s.tenant_id', 'a.tenant_id'))
             ->selectRaw("a.id, 'legacy' AS kind, a.amount, f.user_id AS source_user_id, u.account_id AS source_account_id,
                 NULL::integer AS source_rank, NULL::integer AS beneficiary_rank, NULL::integer AS depth,
@@ -173,13 +173,13 @@ final class PromotionReportQuery
             COALESCE(SUM(amount) FILTER (WHERE kind='annual'),0)::text AS annual,
             COALESCE(SUM(amount) FILTER (WHERE kind='activation'),0)::text AS activation,
             COALESCE(SUM(amount) FILTER (WHERE kind='legacy'),0)::text AS legacy")->groupBy('source_user_id');
-        $query = DB::table('promotion_members as m')->join('promotion_members as parent', fn ($j) => $j->on('parent.id', '=', 'm.inviter_id')->on('parent.tenant_id', '=', 'm.tenant_id'))
+        $query = DB::table('promotion_members as m')->joinSub($this->team($tenant, $user), 't', 't.id', '=', 'm.id')
             ->join('users as u', fn ($j) => $j->on('u.id', '=', 'm.user_id')->on('u.tenant_id', '=', 'm.tenant_id'))
             ->leftJoin('user_profiles as profile', fn ($j) => $j->on('profile.user_id', '=', 'u.id')->on('profile.tenant_id', '=', 'u.tenant_id'))
             ->leftJoinSub($cycles, 'c', 'c.user_id', '=', 'm.user_id')
             ->leftJoinSub($income, 'i', 'i.source_user_id', '=', 'm.user_id')
             ->leftJoin('ledger_accounts as d', fn ($j) => $j->on('d.user_id', '=', 'm.user_id')->on('d.tenant_id', '=', 'm.tenant_id')->where('d.account_type', 'USER_SECURITY_DEPOSIT')->where('d.asset_code', 'USDT'))
-            ->where('m.tenant_id', $tenant)->where('parent.user_id', $user);
+            ->where('m.tenant_id', $tenant);
         if (! empty($filters['account_id'])) {
             $query->where('u.account_id', 'like', '%'.$filters['account_id'].'%');
         }
@@ -192,15 +192,42 @@ final class PromotionReportQuery
         };
         $total = (clone $query)->count();
         $page = (int) ($filters['page'] ?? $filters['direct_page'] ?? 1);
-        $rows = $query->selectRaw("m.id,u.account_id,u.email,profile.display_name,COALESCE(c.rank,0) AS rank,c.ends_at,m.created_at,
+        $rows = $query->selectRaw("m.id,t.depth,u.account_id,u.email,profile.display_name,COALESCE(c.rank,0) AS rank,c.ends_at,m.created_at,
             COALESCE(d.balance,0)::text AS deposit_amount,COALESCE(i.total,'0') AS total,COALESCE(i.annual,'0') AS annual,
             COALESCE(i.activation,'0') AS activation,COALESCE(i.legacy,'0') AS legacy")
             ->orderByDesc('m.created_at')->orderBy('m.id')->offset(($page - 1) * 20)->limit(21)->get();
 
         return $context + ['filters' => $filters, 'total' => $total, 'page' => $page, 'hasMore' => $rows->count() > 20,
             'items' => $rows->take(20)->map(fn ($r) => ['id' => $r->id, 'accountId' => $r->account_id, 'rank' => $r->rank, 'endsAt' => $r->ends_at,
-                'displayName' => $r->display_name, 'maskedEmail' => $r->email ? $this->masker->mask(RegistrationChannel::Email, $r->email) : null,
+                'relation' => $r->depth === 1 ? 'direct' : 'indirect', 'displayName' => $r->display_name, 'maskedEmail' => $r->email ? $this->masker->mask(RegistrationChannel::Email, $r->email) : null,
                 'joinedAt' => $r->created_at, 'depositAmount' => $r->deposit_amount,
                 'totals' => ['total' => $r->total, 'annual' => $r->annual, 'activation' => $r->activation, 'legacy' => $r->legacy]])->all()];
+    }
+
+    /** A member's descendants, with commissions belonging only to the authenticated viewer. */
+    public function memberTeam(string $tenant, string $viewer, string $member): array
+    {
+        User::query()->where('tenant_id', $tenant)->whereKey($viewer)->firstOrFail();
+        $target = $this->team($tenant, $viewer)->where('id', $member)->first();
+        abort_if($target === null, 404);
+        $team = $this->team($tenant, $target->user_id);
+        $at = CarbonImmutable::now();
+        $cycles = DB::table('paid_promotion_cycles')->where('tenant_id', $tenant)->where('starts_at', '<=', $at)->where('ends_at', '>', $at)
+            ->selectRaw('DISTINCT ON (user_id) user_id,rank')->orderBy('user_id')->orderByDesc('starts_at');
+        $people = DB::query()->fromSub(clone $team, 't')->leftJoinSub($cycles, 'c', 'c.user_id', '=', 't.user_id')
+            ->selectRaw('COALESCE(c.rank,0) AS rank,COUNT(*) FILTER (WHERE t.depth=1) AS direct,COUNT(*) FILTER (WHERE t.depth>1) AS indirect')
+            ->groupByRaw('COALESCE(c.rank,0)')->get()->keyBy('rank');
+        $income = $this->income($tenant, $viewer)->joinSub(clone $team, 't', 't.user_id', '=', 'income.source_user_id')
+            ->whereIn('income.kind', ['annual', 'activation'])
+            ->selectRaw("income.source_rank AS rank,COALESCE(SUM(income.amount) FILTER (WHERE income.kind='annual'),0)::text AS annual,
+                COALESCE(SUM(income.amount) FILTER (WHERE income.kind='activation'),0)::text AS activation")
+            ->groupBy('income.source_rank')->get()->keyBy('rank');
+        $rows = collect(PromotionRanks::forTenant($tenant))->map(fn ($rank) => [
+            'rank' => $rank, 'direct' => (int) ($people->get($rank)?->direct ?? 0), 'indirect' => (int) ($people->get($rank)?->indirect ?? 0),
+            'annual' => Money::of($income->get($rank)?->annual ?? '0', 'USDT')->amount(),
+            'activation' => Money::of($income->get($rank)?->activation ?? '0', 'USDT')->amount(),
+        ])->all();
+
+        return ['totalMembers' => array_sum(array_column($rows, 'direct')) + array_sum(array_column($rows, 'indirect')), 'rows' => $rows];
     }
 }
