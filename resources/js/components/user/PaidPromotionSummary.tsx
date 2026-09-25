@@ -276,7 +276,7 @@ export function PaidPromotionSummary({ paid: p }: { paid: PaidPromotionData }) {
                                                                             {t(
                                                                                 annual
                                                                                     ? '{{count}} paid orders'
-                                                                                    : '{{count}} funding events',
+                                                                                    : '{{count}} ordinary member activations',
                                                                                 {
                                                                                     count: cell.count,
                                                                                 },

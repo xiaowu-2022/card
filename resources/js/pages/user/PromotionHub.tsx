@@ -63,7 +63,7 @@ export default function PromotionHub({
     const [shareState, setShareState] = useState<'idle' | 'copied' | 'shared' | 'failed'>('idle');
     const [sharing, setSharing] = useState(false);
     const link = `${window.location.origin}/register?invite=${encodeURIComponent(home.invitationCode)}`;
-    const title = section === 'rules' ? 'Invitation rules' : 'Promotion center';
+    const title = section === 'rules' ? 'U Card Academy' : 'Promotion center';
     const select = (rank: number, behavior: ScrollBehavior = 'smooth') => {
         const node = track.current;
         const card = node?.querySelector<HTMLElement>(`[data-rank="${rank}"]`);
@@ -176,7 +176,7 @@ export default function PromotionHub({
                         >
                             <img
                                 src="/images/promotion/invitation-rules.jpg"
-                                alt={t('Invitation rules')}
+                                alt={t('U Card Academy')}
                                 width={1024}
                                 height={1536}
                                 className="h-auto w-full rounded-lg"
@@ -500,7 +500,7 @@ export default function PromotionHub({
                                 },
                                 {
                                     href: '/promotion/rules',
-                                    label: 'Invitation rules',
+                                    label: 'U Card Academy',
                                     Icon: BookOpen,
                                 },
                             ].map(({ href, label, Icon }) => (

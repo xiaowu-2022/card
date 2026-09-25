@@ -4,7 +4,9 @@ namespace App\Application\Promotion;
 
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Tenant\Models\Tenant;
+use App\Domain\User\Enums\RegistrationChannel;
 use App\Domain\User\Models\User;
+use App\Domain\User\Services\ContactMasker;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
@@ -12,6 +14,8 @@ use Illuminate\Support\Facades\DB;
 /** Read-only projections; income is deduplicated by its immutable award identity. */
 final class PromotionReportQuery
 {
+    public function __construct(private readonly ContactMasker $masker) {}
+
     public function cumulative(string $tenant, string $user): string
     {
         return Money::of((string) $this->income($tenant, $user)->sum('amount'), 'USDT')->amount();
@@ -171,6 +175,7 @@ final class PromotionReportQuery
             COALESCE(SUM(amount) FILTER (WHERE kind='legacy'),0)::text AS legacy")->groupBy('source_user_id');
         $query = DB::table('promotion_members as m')->join('promotion_members as parent', fn ($j) => $j->on('parent.id', '=', 'm.inviter_id')->on('parent.tenant_id', '=', 'm.tenant_id'))
             ->join('users as u', fn ($j) => $j->on('u.id', '=', 'm.user_id')->on('u.tenant_id', '=', 'm.tenant_id'))
+            ->leftJoin('user_profiles as profile', fn ($j) => $j->on('profile.user_id', '=', 'u.id')->on('profile.tenant_id', '=', 'u.tenant_id'))
             ->leftJoinSub($cycles, 'c', 'c.user_id', '=', 'm.user_id')
             ->leftJoinSub($income, 'i', 'i.source_user_id', '=', 'm.user_id')
             ->leftJoin('ledger_accounts as d', fn ($j) => $j->on('d.user_id', '=', 'm.user_id')->on('d.tenant_id', '=', 'm.tenant_id')->where('d.account_type', 'USER_SECURITY_DEPOSIT')->where('d.asset_code', 'USDT'))
@@ -187,13 +192,14 @@ final class PromotionReportQuery
         };
         $total = (clone $query)->count();
         $page = (int) ($filters['page'] ?? $filters['direct_page'] ?? 1);
-        $rows = $query->selectRaw("m.id,u.account_id,COALESCE(c.rank,0) AS rank,c.ends_at,m.created_at,
+        $rows = $query->selectRaw("m.id,u.account_id,u.email,profile.display_name,COALESCE(c.rank,0) AS rank,c.ends_at,m.created_at,
             COALESCE(d.balance,0)::text AS deposit_amount,COALESCE(i.total,'0') AS total,COALESCE(i.annual,'0') AS annual,
             COALESCE(i.activation,'0') AS activation,COALESCE(i.legacy,'0') AS legacy")
             ->orderByDesc('m.created_at')->orderBy('m.id')->offset(($page - 1) * 20)->limit(21)->get();
 
         return $context + ['filters' => $filters, 'total' => $total, 'page' => $page, 'hasMore' => $rows->count() > 20,
             'items' => $rows->take(20)->map(fn ($r) => ['id' => $r->id, 'accountId' => $r->account_id, 'rank' => $r->rank, 'endsAt' => $r->ends_at,
+                'displayName' => $r->display_name, 'maskedEmail' => $r->email ? $this->masker->mask(RegistrationChannel::Email, $r->email) : null,
                 'joinedAt' => $r->created_at, 'depositAmount' => $r->deposit_amount,
                 'totals' => ['total' => $r->total, 'annual' => $r->annual, 'activation' => $r->activation, 'legacy' => $r->legacy]])->all()];
     }

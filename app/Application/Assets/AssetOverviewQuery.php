@@ -8,7 +8,6 @@ use App\Domain\Assets\AssetCatalog;
 use App\Domain\Assets\AssetDepositOrder;
 use App\Domain\Assets\AssetRail;
 use App\Domain\Assets\AssetWithdrawalOrder;
-use App\Domain\Assets\ChainConnection;
 use App\Domain\Assets\CompanyRail;
 use App\Domain\Assets\ExchangeOrder;
 use App\Domain\Assets\ExchangePolicy;
@@ -50,7 +49,6 @@ final readonly class AssetOverviewQuery
         }
         $assets = [];
         $rails = AssetRail::query()->where('enabled', true)->get();
-        $connections = ChainConnection::query()->where('enabled', true)->whereNotNull('next_height')->get()->keyBy('network');
         $company = CompanyRail::query()->where('tenant_id', $tenantId)->get()->keyBy('rail_code');
         $policies = ExchangePolicy::query()->where('tenant_id', $tenantId)->get()->keyBy('asset_code');
         foreach (AssetCatalog::ASSETS as $asset) {
@@ -84,7 +82,7 @@ final readonly class AssetOverviewQuery
                 if (! $settings || ! $rail->deposit_address) {
                     continue;
                 }
-                $options[] = ['code' => $rail->code, 'network' => $rail->network, 'deposit' => $assetEligible && $settings->deposit_enabled && $settings->minimum_deposit !== null, 'withdrawal' => $assetEligible && $connections->has($rail->network) && $settings->withdrawal_enabled && $settings->withdrawal_fee_percent !== null, 'feePercent' => $settings->withdrawal_fee_percent, 'minimum' => $settings->minimum_deposit === null ? null : Money::of($settings->minimum_deposit, $asset)->amount()];
+                $options[] = ['code' => $rail->code, 'network' => $rail->network, 'deposit' => $assetEligible && $settings->deposit_enabled && $settings->minimum_deposit !== null, 'withdrawal' => $assetEligible && $settings->withdrawal_enabled && $settings->withdrawal_fee_percent !== null, 'feePercent' => $settings->withdrawal_fee_percent, 'minimum' => $settings->minimum_deposit === null ? null : Money::of($settings->minimum_deposit, $asset)->amount()];
             }
             $policy = $policies->get($asset);
             $activity = DB::table('ledger_postings as p')->join('ledger_accounts as a', 'a.id', '=', 'p.ledger_account_id')->join('ledger_entries as e', 'e.id', '=', 'p.ledger_entry_id')->where('a.tenant_id', $tenantId)->where('p.tenant_id', $tenantId)->where('e.tenant_id', $tenantId)->where('a.user_id', $userId)->where('a.asset_code', $asset)->where('a.account_type', 'USER_AVAILABLE')->orderByDesc('e.posted_at')->orderByDesc('p.id')->limit(5)->get(['p.id', 'p.delta', 'e.posted_at', 'e.event_type'])->map(fn ($p) => ['id' => $p->id, 'amount' => Money::of($p->delta, $asset)->amount(), 'time' => $p->posted_at, 'kind' => AssetActivityLabel::for($p->event_type, $p->delta)])->all();

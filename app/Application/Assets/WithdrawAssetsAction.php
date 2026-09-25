@@ -4,7 +4,6 @@ namespace App\Application\Assets;
 
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Assets\AssetWithdrawalOrder;
-use App\Domain\Assets\ChainConnection;
 use App\Domain\Assets\WithdrawalFee;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Ledger\DTOs\LedgerPostingInstruction;
@@ -16,6 +15,7 @@ use App\Domain\Wallet\Models\Wallet;
 use App\Domain\Withdrawal\Services\WithdrawalAddressProtector;
 use App\Infrastructure\Assets\ChainReader;
 use App\Infrastructure\Assets\ChainRpc;
+use App\Infrastructure\Assets\PublicChainNodes;
 use App\Support\Errors\DomainException;
 use Brick\Math\BigDecimal;
 use Illuminate\Support\Facades\DB;
@@ -152,7 +152,7 @@ final readonly class WithdrawAssetsAction
             return $o;
         }
         try {
-            $proofs = $this->reader->transaction(ChainConnection::query()->findOrFail($o->network), $o->submitted_tx_hash);
+            $proofs = $this->reader->transaction(PublicChainNodes::withdrawalConnection($o->network), $o->submitted_tx_hash);
         } catch (\Throwable) {
             $proofs = [];
         }

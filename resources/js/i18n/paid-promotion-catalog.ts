@@ -428,10 +428,10 @@ export const paidPromotionCatalog = {
         '{{count}} pesanan berbayar',
         '{{count}} órdenes pagadas',
     ],
-    '{{count}} funding events': [
-        '{{count}} 次保证金缴纳',
-        '{{count}} kali pendanaan deposit',
-        '{{count}} aportaciones de garantía',
+    '{{count}} ordinary member activations': [
+        '{{count}}次激活普通会员',
+        '{{count}} pengaktifan ahli biasa',
+        '{{count}} activaciones de miembros ordinarios',
     ],
     'Levels reflect the paid order or deposit payer at the time of the event. Order counts and funding counts are separate, not team headcounts.':
         [
@@ -770,7 +770,7 @@ export const paidPromotionCatalog = {
     ],
     'My invitations': ['我的邀请', 'Jemputan saya', 'Mis invitaciones'],
     'Invitation data': ['邀请数据', 'Data jemputan', 'Datos de invitaciones'],
-    'Invitation rules': ['邀请规则', 'Peraturan jemputan', 'Reglas de invitación'],
+    'U Card Academy': ['U卡学院', 'Akademi Kad U', 'Academia U Card'],
     'Direct commission income': [
         '直属佣金收入',
         'Pendapatan komisen langsung',

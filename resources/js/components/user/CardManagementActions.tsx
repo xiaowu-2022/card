@@ -525,7 +525,7 @@ export function CardManagementActions({
         'return',
         'transactions',
     ];
-    const moreActions = ['freeze', 'unfreeze', 'holder', 'cancel'].filter(
+    const moreActions = ['unfreeze', 'holder'].filter(
         (action) => capabilities.includes(action) && !actions.includes(action),
     );
     const visibleActions = card.refundLocked
@@ -584,7 +584,6 @@ export function CardManagementActions({
                             {moreActions.map((action) => (
                                 <DropdownMenuItem
                                     key={action}
-                                    className={action === 'cancel' ? 'text-red-700' : undefined}
                                     onSelect={() => open(action)}
                                 >
                                     {t(labels[action] ?? 'Card management')}

@@ -42,6 +42,8 @@ type Movement = {
     purchaseKind: string | null;
 };
 type Member = {
+    displayName: string | null;
+    maskedEmail: string | null;
     id: string;
     accountId: string;
     rank: number;
@@ -335,6 +337,16 @@ export default function PromotionReport({
                                           {promotionLevel(row.rank)}
                                       </span>
                                   </div>
+                                  {(row.displayName || row.maskedEmail) && (
+                                      <div className="mt-1 space-y-1 text-sm text-muted-foreground">
+                                          {row.displayName && (
+                                              <p className="break-words">{row.displayName}</p>
+                                          )}
+                                          {row.maskedEmail && (
+                                              <p className="break-all">{row.maskedEmail}</p>
+                                          )}
+                                      </div>
+                                  )}
                                   <div className="report-member-meta">
                                       <span>
                                           {t('Security deposit')}{' '}
@@ -382,10 +394,6 @@ export default function PromotionReport({
                                                   </dd>
                                               </div>
                                           ))}
-                                          <div>
-                                              <dt>{t('Security deposit')}</dt>
-                                              <dd>{fullMoney(row.depositAmount)}</dd>
-                                          </div>
                                       </dl>
                                   </details>
                                   <p className="report-caption">

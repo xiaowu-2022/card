@@ -302,3 +302,11 @@ complete scoped ancestry, rank/path evidence, eligibility and exclusion reasons.
 Deferred database guards reject missing/inconsistent snapshots; snapshots and
 activation records remain immutable. Original full activation relations and both
 commission flows are unchanged. No historical money or entitlement is replayed.
+
+### Direct member identity display (2026-09-25)
+
+The user approved showing current profile nicknames and masked email beside the
+platform account ID in direct-member reports. Join profiles by both tenant and
+user; retain the existing direct inviter scope and pagination. Apply ContactMasker
+on the server before serialization; never return the full member email. Render
+nicknames as plain text and omit absent values. Commission/deposit rules do not change.

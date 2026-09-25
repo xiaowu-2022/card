@@ -7,6 +7,7 @@ use App\Domain\Assets\AssetRail;
 use App\Domain\Assets\ChainConnection;
 use App\Domain\Assets\CompanyRail;
 use App\Domain\Ledger\ValueObjects\Money;
+use App\Infrastructure\Assets\PublicChainNodes;
 use App\Support\Errors\DomainException;
 use Brick\Math\BigDecimal;
 
@@ -17,11 +18,11 @@ final class AssetRails
         $rail = AssetRail::query()->whereKey($code)->where('enabled', true)->first();
         $company = CompanyRail::query()->where('tenant_id', $tenantId)->where('rail_code', $code)->first();
         $connection = $rail ? ChainConnection::query()->whereKey($rail->network)->first() : null;
-        if (! $rail || ! $connection || ($operation === 'withdrawal' && (! $connection->enabled || $connection->start_height === null || $connection->next_height === null)) || ! $rail->deposit_address || ! $company || ! in_array($operation, ['deposit', 'withdrawal'], true) || ! $company->{$operation.'_enabled'} || ($operation === 'deposit' ? $company->minimum_deposit === null : $company->withdrawal_fee_percent === null)) {
+        if (! $rail || ! $connection || ! $rail->deposit_address || ! $company || ! in_array($operation, ['deposit', 'withdrawal'], true) || ! $company->{$operation.'_enabled'} || ($operation === 'deposit' ? $company->minimum_deposit === null : $company->withdrawal_fee_percent === null)) {
             throw new DomainException('ASSET_RAIL_UNAVAILABLE', 'This network is not available.', 403);
         }
 
-        return [$rail, $company, $connection];
+        return [$rail, $company, $operation === 'withdrawal' ? PublicChainNodes::withdrawalConnection($rail->network) : $connection];
     }
 
     public function amount(string $amount, string $asset): Money

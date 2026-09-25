@@ -391,3 +391,15 @@ quote without a refresh button. Page reads never fetch upstream. Asset and wealt
 valuation may use a still-fresh saved snapshot; absent/stale prices yield unavailable
 foreign-asset estimates, without preventing users from requesting a new exchange quote.
 Verification uses isolated mocked HTTP and Ledger tests, not live financial exchanges.
+
+## Public withdrawal connections (2026-09-25)
+
+User-approved zero-configuration public withdrawal reads supersede the connection
+and scan-boundary eligibility gate for withdrawals. Enabled global/company rails
+with an explicit fee remain required. Withdrawal availability and submission do
+not depend on deposit scanner enablement/start/next heights. Address queries and
+payout proofs use the built-in public endpoint with no stored credentials and at
+least the configured confirmation count (minimum six). Exact receipt, finality,
+review, UNKNOWN and Ledger rules remain unchanged; unavailable public evidence
+never completes a payout. Page reads make no network calls. Deposit scanner state,
+checkpoints and history are not initialized or reset by this change.
