@@ -610,7 +610,8 @@ it('aggregates all matching income before pagination and batches member reportin
     $queries = count(DB::getQueryLog());
     DB::disableQueryLog();
     expect($members['items'])->toHaveCount(20)->and($members['total'])->toBe(51)->and($members['hasMore'])->toBeTrue()
-        ->and($queries)->toBeLessThanOrEqual(5)
+        // Includes constant-size subject identity, team counts and unfiltered lifetime income queries.
+        ->and($queries)->toBeLessThanOrEqual(11)
         ->and($query->members($this->tenant->id, $this->user->id, ['page' => 2])['items'])->toHaveCount(20)
         ->and($query->members($this->tenant->id, $this->user->id, ['funding' => 'unfunded'])['total'])->toBe(20);
 });

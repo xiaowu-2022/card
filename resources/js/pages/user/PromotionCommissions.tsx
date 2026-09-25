@@ -1,3 +1,5 @@
+import { useTeamReturnHref } from '@/hooks/useTeamReturnHref';
+import { TeamViewingContext, type TeamSubject } from '@/components/user/TeamViewingContext';
 import { useEffect, useState } from 'react';
 import { Head } from '@inertiajs/react';
 import { ArrowDownLeft, ChevronDown, ReceiptText } from 'lucide-react';
@@ -28,6 +30,8 @@ import {
 } from '@/lib/promotion-report';
 import '../../../css/promotion.css';
 type History = ReportPeriod & {
+    subject?: TeamSubject;
+    breadcrumbs?: TeamSubject[];
     filters: ReportFilters;
     page: number;
     hasMore: boolean;
@@ -50,6 +54,7 @@ type History = ReportPeriod & {
 };
 export default function PromotionCommissions({ history: h }: { history: History }) {
     useClientTranslation();
+    const returnHref = useTeamReturnHref();
     const url = '/promotion/commissions';
     const filters = { ...h.filters, date_from: h.dateFrom, date_to: h.dateTo };
     const filter = (values: ReportFilters) => visitReport(url, filters, { ...values, page: 1 });
@@ -72,7 +77,21 @@ export default function PromotionCommissions({ history: h }: { history: History 
         <UserLayout>
             <Head title={t('Commission details')} />
             <div className="promotion-page promotion-report-page">
-                <UserPageHeader title={t('Commission details')} backHref="/promotion/invitations" />
+                <UserPageHeader
+                    title={t('Commission details')}
+                    backHref={
+                        h.filters.source_member || h.subject?.id
+                            ? returnHref(h.subject?.id)
+                            : '/promotion/invitations'
+                    }
+                />
+                {h.subject && (
+                    <TeamViewingContext
+                        subject={h.subject}
+                        breadcrumbs={h.breadcrumbs}
+                        returnHref={returnHref}
+                    />
+                )}
                 <ReportSummary totals={h.totals} title={t('Commission income')} />
                 <div className="report-toolbar">
                     <ReportDateButton
@@ -210,7 +229,13 @@ export default function PromotionCommissions({ history: h }: { history: History 
                                         <dd>{relationLabel(row.relation ?? 'unknown')}</dd>
                                     </div>
                                     <div>
-                                        <dt>{t('My level at settlement')}</dt>
+                                        <dt>
+                                            {t(
+                                                h.subject?.id
+                                                    ? 'Beneficiary level at settlement'
+                                                    : 'My level at settlement',
+                                            )}
+                                        </dt>
                                         <dd>{reportRank(row.beneficiaryRank)}</dd>
                                     </div>
                                     <div>

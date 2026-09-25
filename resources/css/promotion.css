@@ -619,6 +619,12 @@
 .promotion-report-page {
     gap: 16px;
 }
+.promotion-report-page.team-member-page {
+    gap: 8px;
+}
+.team-member-page .report-member:first-child {
+    padding-top: 4px;
+}
 .report-tabs {
     display: flex;
     border-bottom: 1px solid #e4ebe6;
@@ -904,78 +910,6 @@
     color: #88958d;
     line-height: 1.65;
 }
-.report-member {
-    padding: 18px 0;
-}
-.report-member:first-child {
-    padding-top: 0;
-}
-.report-member-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-}
-.promotion-report-page .report-member-top h2 {
-    font-size: 15px;
-    color: #203c2d;
-}
-.report-rank {
-    font-size: 10px;
-    color: #54745f;
-    background: #eff4f0;
-    padding: 3px 7px;
-    border-radius: 5px;
-}
-.report-member-meta {
-    margin-top: 8px;
-    color: #819087;
-    font-size: 11px;
-}
-.report-member-meta strong {
-    color: #4d6255;
-    font-weight: 500;
-    margin-left: 6px;
-}
-.report-member-income {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin: 12px 0 5px;
-    background: #f2f6f3;
-    border-radius: 8px;
-    padding: 10px;
-    font-size: 11px;
-    color: #597360;
-}
-.report-member-income strong {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-weight: 600;
-    color: #224e37;
-    font-size: 13px;
-    overflow-wrap: anywhere;
-    font-variant-numeric: tabular-nums;
-}
-.report-member-income svg {
-    flex-shrink: 0;
-}
-.report-member-breakdown > summary {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    list-style: none;
-    cursor: pointer;
-    font-size: 10px;
-    color: #839488;
-    padding: 5px 0;
-}
-.report-member-breakdown .report-entry-detail,
-.member-detail-panels .report-entry-detail {
-    margin: 4px 0 8px;
-}
 .report-notes {
     border-top: 1px solid #e9eeeb;
     padding-top: 16px;
@@ -1115,22 +1049,6 @@
     color: #819087;
     font-size: 10px;
 }
-.member-detail-toggles {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 24px;
-}
-.member-detail-toggles button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    min-height: 44px;
-    font-size: 11px;
-    color: #718678;
-}
-.member-detail-toggles button[aria-expanded='true'] svg {
-    transform: rotate(180deg);
-}
 .member-team-panel {
     margin: 4px 0 12px;
     padding: 12px 8px;
@@ -1175,4 +1093,432 @@
     color: #839488;
     font-size: 10px;
     line-height: 1.7;
+}
+
+/* Compact team context and always side-by-side member summaries. */
+.team-viewing-context {
+    padding: 0 0 16px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid #e5ebe7;
+    min-width: 0;
+}
+.team-breadcrumbs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0 6px;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+.team-breadcrumbs a {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.team-breadcrumbs a,
+.team-breadcrumbs [aria-current='page'],
+.team-breadcrumb-item > [aria-hidden='true'] {
+    display: block;
+    padding: 12px 0;
+    line-height: 20px;
+    min-height: 44px;
+    min-width: 0;
+    max-width: 100%;
+}
+.team-breadcrumb-item {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+    max-width: 100%;
+}
+.team-breadcrumb-item > [aria-hidden='true'] {
+    flex-shrink: 0;
+    color: #627267;
+}
+.team-viewing-summary {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px 16px;
+    overflow-wrap: anywhere;
+}
+.team-viewing-summary > div {
+    min-width: 0;
+    max-width: 100%;
+}
+.team-viewing-summary p {
+    color: #627267;
+    font-size: 12px;
+}
+.team-viewing-summary strong {
+    font-size: 15px;
+}
+.member-search-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+.member-list-toolbar {
+    flex-wrap: wrap;
+    gap: 4px 12px;
+}
+.member-list-toolbar .report-caption {
+    flex: 1 1 140px;
+    min-width: 0;
+}
+.user-theme .user-main .member-sort {
+    margin-left: auto;
+    min-height: 44px;
+    max-width: 100%;
+    border: 0;
+    border-radius: 4px;
+    padding: 8px 4px;
+    background: transparent;
+    box-shadow: none;
+    color: #627267;
+    font-size: 12px;
+    cursor: pointer;
+}
+.member-sort:focus-visible {
+    outline: 2px solid #3f9473;
+    outline-offset: 2px;
+}
+.member-search-toolbar form {
+    flex: 1;
+    min-width: 0;
+    gap: 8px;
+}
+.member-search-toolbar form input {
+    min-height: 44px;
+    height: 44px;
+    padding: 8px 12px;
+    font-size: 14px;
+}
+.member-search-toolbar form button {
+    min-width: 44px;
+    min-height: 44px;
+    height: auto;
+    padding: 10px 12px;
+    font-size: 14px;
+    border-radius: 10px;
+}
+.member-search-toolbar .report-tool {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+}
+.member-search-toolbar .report-tool > span:not(.report-filter-count) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}
+.member-search-toolbar + .report-toolbar {
+    margin: 0;
+}
+.member-search-toolbar + .report-toolbar .report-caption {
+    font-size: 12px;
+    color: #627267;
+}
+.report-member {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(112px, 0.9fr);
+    align-items: start;
+    gap: 12px;
+    padding: 18px 0;
+}
+.report-member > * {
+    min-width: 0;
+}
+.report-member-person {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    min-height: 44px;
+    max-width: 100%;
+    border-radius: 6px;
+}
+.report-member-account-line {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.report-member-account-line svg {
+    flex-shrink: 0;
+    color: #627267;
+}
+.promotion-report-page .report-member-person h2 {
+    font-size: 14px;
+    font-weight: 650;
+    color: #203c2d;
+    overflow-wrap: anywhere;
+    min-width: 0;
+}
+.report-member-person p,
+.report-member-email {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #627267;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.report-member-email {
+    margin-top: 5px;
+}
+.report-member-financial {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: right;
+}
+.member-status {
+    display: inline-block;
+    max-width: 100%;
+    width: fit-content;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #365f4b;
+    background: #edf4ef;
+    border-radius: 5px;
+    padding: 3px 7px;
+    overflow-wrap: anywhere;
+}
+.report-member-financial .member-status {
+    align-self: flex-end;
+}
+.member-status-inactive {
+    color: #68716c;
+    background: #f0f2f1;
+}
+.member-commission-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 2px 5px;
+}
+.member-commission-summary > span {
+    flex-basis: 100%;
+    font-size: 12px;
+    color: #627267;
+}
+.member-commission-summary strong {
+    font-size: 20px;
+    font-weight: 650;
+    color: #193b31;
+    line-height: 1.3;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+    min-width: 0;
+    max-width: 100%;
+}
+.member-commission-summary small {
+    font-size: 12px;
+    color: #627267;
+}
+.member-data-button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    align-self: flex-end;
+    gap: 6px;
+    min-height: 44px;
+    width: fit-content;
+    max-width: 100%;
+    padding: 10px 12px;
+    background: white;
+    color: #365f4b;
+    border: 1px solid #dce5df;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+.member-data-button svg,
+.member-commission-link svg {
+    flex-shrink: 0;
+}
+.member-data-button:hover {
+    background: #f5f8f6;
+    border-color: #b8cdbf;
+}
+.member-data-button:active {
+    background: #eaf1ed;
+}
+.member-data-button:focus-visible,
+.report-member-person:focus-visible,
+.member-commission-link:focus-visible {
+    outline: 2px solid #3f9473;
+    outline-offset: 3px;
+}
+.member-data-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    height: min(85dvh, 680px);
+    max-height: 85dvh;
+    max-width: 640px;
+    min-width: 0;
+    overflow: hidden;
+    background: white;
+    color: #243a2d;
+}
+.member-data-header {
+    flex-shrink: 0;
+    padding: 20px 60px 12px 20px;
+    overflow-wrap: anywhere;
+}
+.member-data-header h2 {
+    font-size: 16px;
+}
+.member-data-header p {
+    font-size: 12px;
+    margin-top: 5px;
+    color: #627267;
+}
+.member-data-tabs {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+.member-data-tab-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    margin: 0 20px 12px;
+    flex-shrink: 0;
+    background: #f0f3f1;
+}
+.member-data-tab-list button {
+    min-height: 44px;
+    font-size: 14px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+.member-data-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 20px 24px;
+}
+.member-data-identity {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    padding: 4px 0 16px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #e5ebe7;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #627267;
+    overflow-wrap: anywhere;
+}
+.member-data-identity > * {
+    max-width: 100%;
+}
+.member-data-identity strong {
+    font-size: 14px;
+    color: #243a2d;
+}
+.member-income-breakdown {
+    margin: 0;
+}
+.member-income-breakdown > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: 10px;
+    padding: 12px 0;
+    font-size: 14px;
+}
+.member-income-breakdown dt {
+    color: #627267;
+}
+.member-income-breakdown dd {
+    margin: 0;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+.member-income-breakdown .member-income-total {
+    border-bottom: 1px solid #e5ebe7;
+    font-weight: 650;
+}
+.member-commission-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    min-height: 48px;
+    padding: 10px 12px;
+    border: 1px solid #cbdad1;
+    border-radius: 9px;
+    color: #193b31;
+    font-size: 14px;
+    margin-top: 16px;
+}
+.member-data-dialog .member-team-panel {
+    padding: 0;
+    margin: 0;
+    background: none;
+}
+.member-data-dialog .member-team-table th,
+.member-data-dialog .member-team-table td {
+    font-size: 12px;
+}
+.member-data-dialog .member-team-note {
+    font-size: 12px;
+}
+.member-data-dialog [role='alert'] button {
+    min-height: 44px;
+    padding: 8px 16px;
+    border: 1px solid #cbdad1;
+    border-radius: 8px;
+    margin-top: 8px;
+}
+@media (max-width: 639px) {
+    .member-data-dialog {
+        --tw-translate-x: 0px;
+        --tw-translate-y: 0px;
+        translate: none;
+        transform: none;
+        top: auto;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        max-width: none;
+        border-radius: 20px 20px 0 0;
+    }
+    .member-data-scroll {
+        padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    }
+}
+
+.report-member-identity {
+    display: flex;
+    flex-direction: column;
+    align-self: stretch;
+}
+.report-member-team-count {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: auto;
+    padding: 12px 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #627267;
+    overflow-wrap: anywhere;
+}
+.report-member-team-count svg {
+    flex-shrink: 0;
+    color: #557c66;
 }

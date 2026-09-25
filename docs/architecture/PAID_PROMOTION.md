@@ -338,3 +338,104 @@ and discard cached summaries. Totals are lifetime, independent of list filters;
 overlapping subtrees must not be added together. No subtree means an empty state;
 otherwise all configured/historical ranks are present with zero values as needed.
 No provider calls, new tables, money operations or promotion policy changes occur.
+
+## Team browsing and descendant income visibility (2026-09-25)
+
+`/promotion/direct` lists direct referrals when account search is empty. A nonempty
+account search automatically covers all current descendants; clearing it restores
+the direct list. There is no range toggle, and old `scope` parameters are ignored. `subject` is an optional promotion-member UUID: omission uses
+the authenticated user; a supplied member must be their same-tenant descendant.
+The server resolves its user identity, bounded ancestor breadcrumbs and lifetime
+commission totals. Rank/deposit filters and 20-row pagination apply within that automatic search
+range; row relationships are relative to the viewing subject. `memberCounts`
+returns unfiltered direct and total descendant counts. The toolbar displays both
+counts, with a separate matching count when searching or filtering.
+
+The explicitly approved visibility extension permits an ancestor to read a
+subordinate's posted commission income. This supersedes viewer-only reporting for
+these team-browsing contexts. `/promotion/commissions` and the member team-summary
+endpoint accept the same `subject`; source/team targets must additionally be
+strict descendants of that subject. `source_member` pins commission history to an
+exact source member, independently of its existing account search. Invalid/self/
+outside-subtree/cross-tenant targets return 404. No wallet operations, complete
+emails, invitation mutations or financial postings are introduced. Existing
+queries retain award deduplication and historical source-rank grouping.
+
+A row's income is its contribution to the current subject. Its expanded team
+counts exclude the row itself and use current ranks; team commissions come from
+that row's descendants and benefit the subject. The subject's headline lifetime
+income is not filtered. Nested teams overlap and must not be summed. Legacy
+commissions remain separate from annual/activation columns.
+
+Account/nickname links navigate to a fresh direct scope. URLs retain context,
+filters and page for browser history. Subject/filter/page changes discard member
+summary caches; team summaries remain lazy, abortable and retryable. Cards keep
+identity on the left and a status badge, readable commission amount and one
+44px-or-taller "View member data" button on the right, including 320px phones.
+The list no longer displays relationship, deposit amounts, joining time or expiry.
+Account/nickname links remain a separate, clearly indicated team drilldown target.
+
+The single data button replaces the earlier inline income/team accordions. It
+opens a bottom dialog on phones and a centered dialog on desktop, defaulting to
+Income breakdown on every opening. Its header names the source member and income
+beneficiary. Full nickname, masked email, status, joining time and expiry appear
+inside the scrollable content. Team statistics fetches only when its tab is first
+selected; reopening reuses same-page results. Commission records navigate with
+the exact subject/source pair. Header/tabs/close remain fixed, content scrolls
+within 85dvh, and closing restores trigger focus without lengthening the list.
+The mobile dialog resets both CSS transform and individual translate properties.
+All consumer copy supports English, Chinese, Malay and Spanish.
+
+### Current member status in the list and detail dialog
+
+Each member DTO includes `membershipStatus`: `agent`, `ordinary` or `inactive`.
+A currently effective paid cycle takes precedence and displays its rank. Otherwise
+ordinary membership uses the same exact deposit-satisfaction predicate as
+`AccountActivationStatus`: supported USDT assets and current balance >= current
+company requirement (including the existing zero-requirement behavior). An
+insufficient deposit is inactive even if a first-activation record exists. Paid
+expiry and completed refunds therefore affect display on the next read. Policy
+is loaded once and applied to already-batched balances/cycles, never by calling
+individual eligibility queries for every row.
+
+This is a presentation classification, not a new rank or business state. Existing
+rank/funding filters, rank-zero team counts, historical source-rank commissions,
+activation facts, Ledger and operational eligibility rules are unchanged. The
+list API remains tenant/subtree scoped, and no new tables or financial writes are
+introduced.
+
+Acceptance: isolated qualification tests cover unfunded, satisfied, insufficient,
+active-agent, expired-agent and refunded accounts while checking money/activation
+snapshots stay unchanged during reads. Offline browser fixtures cover four
+languages at 320/375/479/480/768/1440px, 44px controls, large amounts, full detail
+identity, bottom-dialog placement, lazy/cache/retry/empty states, focus restore,
+search/drilldown/pagination and exact commission navigation.
+
+Each member card also shows `teamSize` in its lower-left corner: all current
+same-tenant descendants of that member, excluding the member, including both
+direct/indirect and inactive accounts. Leaf members display zero. It is independent
+of the list's account/rank/deposit filters and matches the team-summary headcount.
+One recursive aggregate starts from the visible page's (at most 20) authorized
+member IDs; it does not eagerly fetch grade summaries or issue per-member queries.
+
+Team breadcrumbs align separators, ancestor links and the current member label
+vertically, wrapping long names within the viewport. Ancestor links provide return
+navigation with 44px touch targets; the redundant separate parent link is omitted.
+The page-header back arrow remains available.
+
+The member-list sort control supports registration time (`users.created_at`) and
+contributed commission, each ascending or descending. Default is newest registered
+first. Commission uses the same posted, deduplicated, subject-beneficiary income
+as the row summary, ordered numerically with zero for missing income. Sorting
+happens before pagination over the authorized searched/filtered subtree, with
+registration descending then member ID breaking commission ties, and member ID
+breaking registration ties. Changing sort resets page to one while preserving
+subject, search and filters; URLs/history/pagination retain the selected order.
+
+Ancestor breadcrumb and header-return links restore the last list state visited
+for that node, including search, rank/deposit filters, sort and page. A per-tab
+session cache is scoped by tenant and authenticated viewer and stores only these
+allowlisted presentation fields for up to 100 nodes. It survives a descendant-page
+refresh and is also used when returning from commission details. Fresh downward
+navigation still uses the node's default direct list. Return URLs are rebuilt on
+the fixed local route, and server subtree authorization remains mandatory.

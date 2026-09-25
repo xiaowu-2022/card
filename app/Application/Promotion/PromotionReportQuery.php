@@ -10,6 +10,7 @@ use App\Domain\User\Services\ContactMasker;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /** Read-only projections; income is deduplicated by its immutable award identity. */
 final class PromotionReportQuery
@@ -78,11 +79,56 @@ final class PromotionReportQuery
         return (array) $row;
     }
 
+    /** Resolve the beneficiary independently of the authenticated viewer. Never trust a user ID from the client. */
+    private function viewingContext(string $tenant, string $viewer, ?string $subject): array
+    {
+        User::query()->where('tenant_id', $tenant)->whereKey($viewer)->firstOrFail();
+        $beneficiary = $viewer;
+        $breadcrumbs = [];
+        if ($subject !== null) {
+            abort_unless(Str::isUuid($subject), 404);
+            $target = $this->team($tenant, $viewer)->where('id', $subject)->first();
+            abort_if($target === null, 404);
+            $beneficiary = $target->user_id;
+            $breadcrumbs = DB::select('WITH RECURSIVE ancestors AS (
+                SELECT id,inviter_id,user_id,0 AS distance,ARRAY[id] AS visited FROM promotion_members WHERE tenant_id=? AND id=?
+                UNION ALL SELECT m.id,m.inviter_id,m.user_id,a.distance+1,a.visited || m.id
+                FROM promotion_members m JOIN ancestors a ON a.inviter_id=m.id
+                WHERE m.tenant_id=? AND a.user_id<>? AND NOT m.id=ANY(a.visited)
+            ) SELECT a.id,u.account_id AS "accountId",p.display_name AS "displayName"
+              FROM ancestors a JOIN users u ON u.id=a.user_id AND u.tenant_id=?
+              LEFT JOIN user_profiles p ON p.user_id=u.id AND p.tenant_id=u.tenant_id
+              WHERE a.user_id<>? ORDER BY a.distance DESC', [$tenant, $subject, $tenant, $viewer, $tenant, $viewer]);
+        }
+        $identity = DB::table('users as u')
+            ->leftJoin('user_profiles as p', fn ($j) => $j->on('p.user_id', '=', 'u.id')->on('p.tenant_id', '=', 'u.tenant_id'))
+            ->where('u.tenant_id', $tenant)->where('u.id', $beneficiary)
+            ->select('u.account_id', 'p.display_name')->first();
+
+        return ['user' => $beneficiary, 'subject' => ['id' => $subject, 'accountId' => $identity->account_id,
+            'displayName' => $identity->display_name], 'breadcrumbs' => $breadcrumbs];
+    }
+
+    private function descendant(string $tenant, string $subjectUser, string $member): object
+    {
+        abort_unless(Str::isUuid($member), 404);
+        $target = $this->team($tenant, $subjectUser)->where('id', $member)->first();
+        abort_if($target === null, 404);
+
+        return $target;
+    }
+
     public function commissions(string $tenant, string $user, array $filters): array
     {
+        $view = $this->viewingContext($tenant, $user, $filters['subject'] ?? null);
+        $user = $view['user'];
         $context = $this->context($tenant, $user, $filters);
         $page = (int) ($filters['page'] ?? 1);
         $query = $this->period($this->income($tenant, $user), $context);
+        if (! empty($filters['source_member'])) {
+            $source = $this->descendant($tenant, $user, $filters['source_member']);
+            $query->where('source_user_id', $source->user_id);
+        }
         if (($filters['kind'] ?? 'all') !== 'all') {
             $query->where('kind', $filters['kind']);
         }
@@ -108,7 +154,7 @@ final class PromotionReportQuery
             'occurredAt' => $r->occurred_at, 'businessAt' => $r->business_at,
         ])->all();
 
-        return $context + ['filters' => $filters, 'totals' => $totals, 'items' => $items, 'page' => $page, 'hasMore' => $rows->count() > 30];
+        return $context + ['subject' => $view['subject'], 'breadcrumbs' => $view['breadcrumbs'], 'filters' => $filters, 'totals' => $totals, 'items' => $items, 'page' => $page, 'hasMore' => $rows->count() > 30];
     }
 
     private function team(string $tenant, string $user): Builder
@@ -165,7 +211,18 @@ final class PromotionReportQuery
 
     public function members(string $tenant, string $user, array $filters): array
     {
+        $view = $this->viewingContext($tenant, $user, $filters['subject'] ?? null);
+        $user = $view['user'];
+        unset($filters['scope']);
+        $search = trim((string) ($filters['account_id'] ?? ''));
+        $team = $this->team($tenant, $user);
+        $counts = DB::query()->fromSub(clone $team, 't')
+            ->selectRaw('COUNT(*) FILTER (WHERE depth=1) AS direct,COUNT(*) AS total')->first();
         $context = $this->context($tenant, $user, []);
+        $policy = DB::table('tenants as tenant')->join('tenant_business_settings as settings', 'settings.tenant_id', '=', 'tenant.id')
+            ->where('tenant.id', $tenant)->select('tenant.default_asset', 'settings.required_security_deposit_asset', 'settings.required_security_deposit_amount')->first();
+        $depositSupported = $policy !== null && $policy->default_asset === 'USDT' && $policy->required_security_deposit_asset === 'USDT';
+        $depositRequired = Money::of($policy?->required_security_deposit_amount ?? '0', 'USDT');
         $at = CarbonImmutable::now();
         $cycles = DB::table('paid_promotion_cycles')->where('tenant_id', $tenant)->where('starts_at', '<=', $at)->where('ends_at', '>', $at)
             ->selectRaw('DISTINCT ON (user_id) user_id,rank,ends_at')->orderBy('user_id')->orderByDesc('starts_at');
@@ -173,15 +230,18 @@ final class PromotionReportQuery
             COALESCE(SUM(amount) FILTER (WHERE kind='annual'),0)::text AS annual,
             COALESCE(SUM(amount) FILTER (WHERE kind='activation'),0)::text AS activation,
             COALESCE(SUM(amount) FILTER (WHERE kind='legacy'),0)::text AS legacy")->groupBy('source_user_id');
-        $query = DB::table('promotion_members as m')->joinSub($this->team($tenant, $user), 't', 't.id', '=', 'm.id')
+        $query = DB::table('promotion_members as m')->joinSub($team, 't', 't.id', '=', 'm.id')
             ->join('users as u', fn ($j) => $j->on('u.id', '=', 'm.user_id')->on('u.tenant_id', '=', 'm.tenant_id'))
             ->leftJoin('user_profiles as profile', fn ($j) => $j->on('profile.user_id', '=', 'u.id')->on('profile.tenant_id', '=', 'u.tenant_id'))
             ->leftJoinSub($cycles, 'c', 'c.user_id', '=', 'm.user_id')
             ->leftJoinSub($income, 'i', 'i.source_user_id', '=', 'm.user_id')
             ->leftJoin('ledger_accounts as d', fn ($j) => $j->on('d.user_id', '=', 'm.user_id')->on('d.tenant_id', '=', 'm.tenant_id')->where('d.account_type', 'USER_SECURITY_DEPOSIT')->where('d.asset_code', 'USDT'))
             ->where('m.tenant_id', $tenant);
-        if (! empty($filters['account_id'])) {
-            $query->where('u.account_id', 'like', '%'.$filters['account_id'].'%');
+        if ($search === '') {
+            $query->where('t.depth', 1);
+        }
+        if ($search !== '') {
+            $query->where('u.account_id', 'like', '%'.$search.'%');
         }
         if (($filters['rank'] ?? 'all') !== 'all') {
             $query->whereRaw('COALESCE(c.rank,0)=?', [(int) $filters['rank']]);
@@ -192,24 +252,50 @@ final class PromotionReportQuery
         };
         $total = (clone $query)->count();
         $page = (int) ($filters['page'] ?? $filters['direct_page'] ?? 1);
+        // Sort the complete scoped result before pagination; income totals are text DTOs,
+        // so explicitly restore numeric ordering rather than lexicographic ordering.
+        match ($filters['sort'] ?? 'registered_desc') {
+            'commission_desc' => $query->orderByRaw('COALESCE(i.total::numeric,0) DESC')->orderByDesc('u.created_at'),
+            'commission_asc' => $query->orderByRaw('COALESCE(i.total::numeric,0) ASC')->orderByDesc('u.created_at'),
+            'registered_asc' => $query->orderBy('u.created_at'),
+            default => $query->orderByDesc('u.created_at'),
+        };
         $rows = $query->selectRaw("m.id,t.depth,u.account_id,u.email,profile.display_name,COALESCE(c.rank,0) AS rank,c.ends_at,m.created_at,
             COALESCE(d.balance,0)::text AS deposit_amount,COALESCE(i.total,'0') AS total,COALESCE(i.annual,'0') AS annual,
             COALESCE(i.activation,'0') AS activation,COALESCE(i.legacy,'0') AS legacy")
-            ->orderByDesc('m.created_at')->orderBy('m.id')->offset(($page - 1) * 20)->limit(21)->get();
+            ->orderBy('m.id')->offset(($page - 1) * 20)->limit(21)->get();
 
-        return $context + ['filters' => $filters, 'total' => $total, 'page' => $page, 'hasMore' => $rows->count() > 20,
+        // One recursive aggregate for the visible page, independent of its search/rank filters.
+        $roots = $rows->take(20)->pluck('id')->all();
+        $teamCounts = collect();
+        if ($roots !== []) {
+            $placeholders = implode(',', array_fill(0, count($roots), '?'));
+            $teamCounts = collect(DB::select("WITH RECURSIVE member_teams AS (
+                SELECT inviter_id AS root_id,id FROM promotion_members
+                WHERE tenant_id=? AND inviter_id IN ($placeholders)
+                UNION SELECT t.root_id,m.id FROM promotion_members m
+                JOIN member_teams t ON m.inviter_id=t.id
+                WHERE m.tenant_id=? AND m.id<>t.root_id
+            ) SELECT root_id,COUNT(*) AS total FROM member_teams GROUP BY root_id", [$tenant, ...$roots, $tenant]))->keyBy('root_id');
+        }
+
+        return $context + ['subject' => $view['subject'], 'breadcrumbs' => $view['breadcrumbs'],
+            'memberCounts' => ['direct' => (int) $counts->direct, 'total' => (int) $counts->total],
+            'subjectTotals' => $this->totals($this->income($tenant, $user)), 'filters' => $filters, 'total' => $total, 'page' => $page, 'hasMore' => $rows->count() > 20,
             'items' => $rows->take(20)->map(fn ($r) => ['id' => $r->id, 'accountId' => $r->account_id, 'rank' => $r->rank, 'endsAt' => $r->ends_at,
                 'relation' => $r->depth === 1 ? 'direct' : 'indirect', 'displayName' => $r->display_name, 'maskedEmail' => $r->email ? $this->masker->mask(RegistrationChannel::Email, $r->email) : null,
                 'joinedAt' => $r->created_at, 'depositAmount' => $r->deposit_amount,
+                'teamSize' => (int) ($teamCounts->get($r->id)?->total ?? 0),
+                'membershipStatus' => $r->ends_at !== null ? 'agent' : (AccountActivationStatus::depositSatisfied($depositSupported, Money::of($r->deposit_amount, 'USDT'), $depositRequired) ? 'ordinary' : 'inactive'),
                 'totals' => ['total' => $r->total, 'annual' => $r->annual, 'activation' => $r->activation, 'legacy' => $r->legacy]])->all()];
     }
 
-    /** A member's descendants, with commissions belonging only to the authenticated viewer. */
-    public function memberTeam(string $tenant, string $viewer, string $member): array
+    /** A member's descendants, with commissions belonging to the authorized viewing subject. */
+    public function memberTeam(string $tenant, string $viewer, string $member, ?string $subject = null): array
     {
-        User::query()->where('tenant_id', $tenant)->whereKey($viewer)->firstOrFail();
-        $target = $this->team($tenant, $viewer)->where('id', $member)->first();
-        abort_if($target === null, 404);
+        $view = $this->viewingContext($tenant, $viewer, $subject);
+        $viewer = $view['user'];
+        $target = $this->descendant($tenant, $viewer, $member);
         $team = $this->team($tenant, $target->user_id);
         $at = CarbonImmutable::now();
         $cycles = DB::table('paid_promotion_cycles')->where('tenant_id', $tenant)->where('starts_at', '<=', $at)->where('ends_at', '>', $at)

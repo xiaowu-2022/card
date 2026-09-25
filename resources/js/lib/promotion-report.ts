@@ -37,6 +37,7 @@ export function visitReport(url: string, filters: ReportFilters, changes: Report
     const next = { ...filters, ...changes };
     delete next.date;
     delete next.direct_page;
+    delete next.scope;
     const query = Object.fromEntries(
         Object.entries(next).filter(
             ([, value]) => value !== null && value !== '' && value !== 'all',
@@ -56,4 +57,14 @@ export function rankOptions(ranks: number[], unknown = false): [string, string][
             ? [['unknown', t('Historical record · not recorded')] as [string, string]]
             : []),
     ];
+}
+
+export const teamHref = (id?: string | null) =>
+    id ? `/promotion/direct?subject=${encodeURIComponent(id)}` : '/promotion/direct';
+
+export type MembershipStatus = 'agent' | 'ordinary' | 'inactive';
+export function memberStatusLabel(status: MembershipStatus, rank: number) {
+    return status === 'agent'
+        ? promotionLevel(rank)
+        : t(status === 'ordinary' ? 'Ordinary member' : 'Not activated');
 }

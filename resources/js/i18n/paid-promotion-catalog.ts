@@ -1,4 +1,97 @@
 export const paidPromotionCatalog = {
+    'Member sorting': ['成员排序', 'Susunan ahli', 'Orden de miembros'],
+    'Registration: newest first': [
+        '注册时间：由新到旧',
+        'Pendaftaran: terkini dahulu',
+        'Registro: más recientes',
+    ],
+    'Registration: oldest first': [
+        '注册时间：由旧到新',
+        'Pendaftaran: terawal dahulu',
+        'Registro: más antiguos',
+    ],
+    'Commission: highest first': [
+        '贡献佣金：由高到低',
+        'Komisen: tertinggi dahulu',
+        'Comisión: mayor primero',
+    ],
+    'Commission: lowest first': [
+        '贡献佣金：由低到高',
+        'Komisen: terendah dahulu',
+        'Comisión: menor primero',
+    ],
+    'Team: {{count}} members': [
+        '团队共 {{count}} 人',
+        'Pasukan: {{count}} ahli',
+        'Equipo: {{count}} miembros',
+    ],
+    'Not activated': ['未激活', 'Belum diaktifkan', 'Sin activar'],
+    'View member data': ['查看数据', 'Lihat data', 'Ver datos'],
+    'Member data': ['成员数据', 'Data ahli', 'Datos del miembro'],
+    'Member information': ['成员信息', 'Maklumat ahli', 'Información del miembro'],
+    'Team statistics': ['团队统计', 'Statistik pasukan', 'Estadísticas del equipo'],
+    'Commission beneficiary: {{account}}': [
+        '佣金受益账号：{{account}}',
+        'Akaun penerima komisen: {{account}}',
+        'Cuenta beneficiaria: {{account}}',
+    ],
+    'View commission records': [
+        '查看佣金记录',
+        'Lihat rekod komisen',
+        'Ver registros de comisiones',
+    ],
+    'View data for {{account}}': [
+        '查看 {{account}} 的数据',
+        'Lihat data {{account}}',
+        'Ver datos de {{account}}',
+    ],
+    'Open team of {{account}}': [
+        '查看 {{account}} 的下级成员',
+        'Lihat ahli bawahan {{account}}',
+        'Ver descendientes de {{account}}',
+    ],
+
+    '{{direct}} direct members, {{total}} members in total': [
+        '{{direct}} 位直属，全部 {{total}} 位成员',
+        '{{direct}} ahli langsung, {{total}} ahli keseluruhan',
+        '{{direct}} miembros directos, {{total}} miembros en total',
+    ],
+    '{{count}} matching members': [
+        '找到 {{count}} 位成员',
+        '{{count}} ahli sepadan',
+        '{{count}} miembros encontrados',
+    ],
+    'Beneficiary level at settlement': [
+        '收佣账号结算时等级',
+        'Tahap penerima semasa penyelesaian',
+        'Nivel del beneficiario al liquidar',
+    ],
+    'Team path': ['团队路径', 'Laluan pasukan', 'Ruta del equipo'],
+    'My team': ['我的团队', 'Pasukan saya', 'Mi equipo'],
+    'Viewing {{account}}': ['正在查看 {{account}}', 'Melihat {{account}}', 'Viendo {{account}}'],
+    'Member cumulative commission': [
+        '该账号累计佣金',
+        'Komisen terkumpul akaun ini',
+        'Comisión acumulada de esta cuenta',
+    ],
+    'Back to parent team': ['返回上一级', 'Kembali ke pasukan induk', 'Volver al nivel anterior'],
+    'Member range': ['成员范围', 'Skop ahli', 'Alcance de miembros'],
+    'Direct referrals only': ['直属', 'Rujukan langsung', 'Referidos directos'],
+    'All descendants': ['全部下级', 'Semua ahli bawahan', 'Todos los descendientes'],
+    'Commission contributed': ['贡献佣金', 'Sumbangan komisen', 'Comisión aportada'],
+    'Member levels are currently effective. Income belongs to the account being viewed, including historical rewards.':
+        [
+            '成员等级为当前有效等级；收入属于当前查看账号，包含历史奖励。',
+            'Tahap ahli ialah tahap semasa. Pendapatan milik akaun yang dilihat, termasuk ganjaran terdahulu.',
+            'Los niveles son los vigentes. Los ingresos pertenecen a la cuenta consultada e incluyen recompensas históricas.',
+        ],
+    'Team counts exclude this member and use current levels. Commissions belong to {{account}} from these descendants, grouped by the source level at the time. Teams may overlap; do not add these summaries together.':
+        [
+            '人数不含该成员本人，按当前等级统计；佣金为这些下级给 {{account}} 带来的累计收入，按产生时的来源等级归属。不同团队可能重叠，请勿直接相加。',
+            'Bilangan tidak termasuk ahli ini dan menggunakan tahap semasa. Komisen daripada ahli bawahan ini milik {{account}}, mengikut tahap sumber ketika itu. Pasukan mungkin bertindih; jangan jumlahkan ringkasan ini.',
+            'El recuento excluye a este miembro y usa los niveles actuales. Las comisiones de estos descendientes pertenecen a {{account}}, agrupadas por el nivel de origen en ese momento. Los equipos pueden solaparse; no sumes los resúmenes.',
+        ],
+
     'Team members': ['团队成员', 'Ahli pasukan', 'Miembros del equipo'],
     '{{count}} team members': [
         '共 {{count}} 位团队成员',

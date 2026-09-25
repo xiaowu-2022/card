@@ -11,6 +11,12 @@ final readonly class AccountActivationStatus
 {
     public function __construct(private PaidPromotionRules $rules) {}
 
+    /** Shared exact, read-only qualification check for individual and batched projections. */
+    public static function depositSatisfied(bool $supported, Money $deposit, Money $required): bool
+    {
+        return $supported && $deposit->compare($required) >= 0;
+    }
+
     public function get(string $tenant, string $user): array
     {
         $company = Tenant::query()->whereKey($tenant)->firstOrFail();
@@ -21,7 +27,7 @@ final readonly class AccountActivationStatus
         $deposit = Money::of(DB::table('ledger_accounts')->where('tenant_id', $tenant)->where('user_id', $user)->where('asset_code', 'USDT')->where('account_type', 'USER_SECURITY_DEPOSIT')->value('balance') ?? '0', 'USDT');
         $remaining = $required->subtract($deposit);
         $supported = $company->default_asset === 'USDT' && $settings->required_security_deposit_asset === 'USDT';
-        $ordinary = $supported && $deposit->compare($required) >= 0;
+        $ordinary = self::depositSatisfied($supported, $deposit, $required);
 
         return ['qualified' => $supported && ($cycle !== null || $ordinary), 'agent' => $cycle !== null,
             'rank' => $cycle?->rank ?? 0, 'endsAt' => $cycle?->ends_at,

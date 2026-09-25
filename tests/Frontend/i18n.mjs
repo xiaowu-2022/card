@@ -118,6 +118,7 @@ const promotionCatalog = loadTs('resources/js/i18n/promotion-catalog.ts');
 const { catalog } = loadTs('resources/js/i18n/catalog.ts', {
     './physical-card-catalog': loadTs('resources/js/i18n/physical-card-catalog.ts'),
     './paid-promotion-catalog': loadTs('resources/js/i18n/paid-promotion-catalog.ts'),
+    './partner-catalog': loadTs('resources/js/i18n/partner-catalog.ts'),
     './assets-catalog': loadTs('resources/js/i18n/assets-catalog.ts'),
     './promotion-catalog': promotionCatalog,
     './transfer-catalog': loadTs('resources/js/i18n/transfer-catalog.ts'),
@@ -1757,6 +1758,10 @@ test('promotion reports keep income, transfers and member contributions distinct
     overrides['@/lib/promotion-report'] = loadTs('resources/js/lib/promotion-report.ts', overrides);
     overrides['@/components/ui/dialog'] = { Dialog: ({children}) => children, DialogTrigger: ({children}) => children, DialogContent: () => null, DialogTitle: 'h2', DialogDescription: 'p' };
     overrides['@/components/user/PromotionReportControls'] = loadTs('resources/js/components/user/PromotionReportControls.tsx', overrides);
+    overrides['@/components/ui/tabs'] = { Tabs: 'div', TabsList: 'div', TabsTrigger: 'button', TabsContent: 'div' };
+    overrides['@/components/user/MemberTeamDetails'] = loadTs('resources/js/components/user/MemberTeamDetails.tsx', overrides);
+    overrides['@/components/user/TeamViewingContext'] = loadTs('resources/js/components/user/TeamViewingContext.tsx', overrides);
+    overrides['@/hooks/useTeamReturnHref'] = loadTs('resources/js/hooks/useTeamReturnHref.ts', overrides);
     const Report = loadTs('resources/js/pages/user/PromotionReport.tsx', overrides).default;
     const Commissions = loadTs('resources/js/pages/user/PromotionCommissions.tsx', overrides).default;
     const p = {
@@ -1768,7 +1773,7 @@ test('promotion reports keep income, transfers and member contributions distinct
         direct: [{ id: 'member', accountId: '202607303070', levelId: null, joinedAt: '2026-07-30T09:03:00Z', depositAmount: '0.00000000', myCommission: '0.00000000' }],
         assignableLevels: [], canAssign: false, directTotal: 1, filters: { accountId: '', funding: 'all' }, directPage: 1, page: 1, hasMore: false, hasMoreDirect: false, details: [],
     };
-    const period = { dateFrom: null, dateTo: null, today: '2026-09-16', timezone: p.timezone, presets: {1:'2026-09-16',7:'2026-09-10',30:'2026-08-18'} };
+    const period = { ranks: [0, 1, 6, 9], dateFrom: null, dateTo: null, today: '2026-09-16', timezone: p.timezone, presets: {1:'2026-09-16',7:'2026-09-10',30:'2026-08-18'} };
     const totals = { total: '123456789012.12000001', annual: '123456789012.12000000', activation: '0.00000001', legacy: '0' };
     const history = { ...period, filters: {}, tab: 'income', totals, page: 1, hasMore: false, items: [
         { id: 'annual', kind: 'annual', amount: '123456789012.12000000', sourceAccountId: '202609134788', sourceRank: 1, beneficiaryRank: 6, relation: 'direct', sourceAmount: '154320986265.15', rate: '80', standard: 80, covered: 0, occurredAt: '2026-09-13T09:49:00Z' },
@@ -1790,11 +1795,14 @@ test('promotion reports keep income, transfers and member contributions distinct
             assert.ok(daily.includes('2026-09-16'));
             assert.ok(daily.includes(i18n.t('Annual fee orders')));
             const direct = renderToStaticMarkup(React.createElement(Report, { section: 'direct', report: {
-                ...period, filters: {}, total: 1, page: 1, hasMore: false, items: [{ id: 'member', accountId: '202609134788', rank: 0, endsAt: null, depositAmount: '0', joinedAt: '2026-09-13T09:49:00Z', totals }],
+                ...period, filters: {}, total: 1, page: 1, hasMore: false, items: [{ id: 'member', accountId: '202609134788', rank: 0, membershipStatus: 'inactive', teamSize: 4, endsAt: null, depositAmount: '0', joinedAt: '2026-09-13T09:49:00Z', totals }],
             } }));
-            assert.ok(direct.includes(i18n.t('Deposit not funded')));
-            assert.ok(direct.includes('/promotion/commissions?account_id=202609134788'));
-            assert.ok(direct.includes(i18n.t('Annual fee commission')));
+            assert.ok(direct.includes(i18n.t('Not activated')));
+            assert.ok(direct.includes(i18n.t('View member data')));
+            assert.ok(direct.includes(i18n.t('Team: {{count}} members', { count: 4 })));
+            assert.ok(!direct.includes(i18n.t('Deposit not funded')));
+            assert.ok(!direct.includes('/promotion/commissions?source_member=member'));
+            assert.ok(!direct.includes('member-detail-toggles'));
             const rows = renderToStaticMarkup(React.createElement(Commissions, { history }));
             assert.ok(rows.includes('+123,456,789,012.12 USDT'));
             assert.ok(rows.includes('&lt;0.01 USDT'));

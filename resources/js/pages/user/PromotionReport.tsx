@@ -1,11 +1,13 @@
-import { MemberTeamDetails } from '@/components/user/MemberTeamDetails';
+import { teamHref } from '@/lib/promotion-report';
+import { useTeamReturnHref } from '@/hooks/useTeamReturnHref';
+import { TeamViewingContext, type TeamSubject } from '@/components/user/TeamViewingContext';
+import { MemberTeamDetails, type MemberData } from '@/components/user/MemberTeamDetails';
 import { useEffect, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
-import { ChevronDown, ChevronRight, UserPlus, ReceiptText, ShieldCheck } from 'lucide-react';
+import { ChevronDown, ChevronRight, UserPlus, ReceiptText, ShieldCheck, Users } from 'lucide-react';
 import { UserLayout } from '@/layouts/UserLayout';
 import { UserPageHeader } from '@/components/user/UserPageHeader';
 import { t, dateTime, useClientTranslation } from '@/i18n';
-import { promotionLevel } from '@/lib/paid-promotion';
 import {
     ReportDateButton,
     ReportFilterPanel,
@@ -18,6 +20,7 @@ import {
 import {
     rankOptions,
     reportMoney,
+    memberStatusLabel,
     fullMoney,
     reportRank,
     relationLabel,
@@ -41,19 +44,16 @@ type Movement = {
     firstFunding: boolean;
     purchaseKind: string | null;
 };
-type Member = {
+type Member = MemberData & {
     relation: 'direct' | 'indirect';
-    displayName: string | null;
-    maskedEmail: string | null;
-    id: string;
-    accountId: string;
-    rank: number;
-    endsAt: string | null;
-    joinedAt: string;
     depositAmount: string;
-    totals: IncomeTotals;
+    teamSize: number;
 };
 type Report = ReportPeriod & {
+    subject?: TeamSubject;
+    breadcrumbs?: TeamSubject[];
+    subjectTotals?: IncomeTotals;
+    memberCounts?: { direct: number; total: number };
     filters: ReportFilters;
     page: number;
     hasMore: boolean;
@@ -84,6 +84,7 @@ export default function PromotionReport({
 }) {
     useClientTranslation();
     const daily = section === 'daily';
+    const returnHref = useTeamReturnHref(daily ? undefined : p.filters);
     const title = daily ? 'Daily data' : 'Team members';
     const url = `/promotion/${section}`;
     const filters = {
@@ -131,7 +132,11 @@ export default function PromotionReport({
                         ]),
                         ...(canViewStock ? [['stock', t('Stock data')] as [string, string]] : []),
                     ]}
-                    onChange={(activity) => activity === 'stock' ? router.get('/promotion/stock') : setDraft({ ...draft, activity })}
+                    onChange={(activity) =>
+                        activity === 'stock'
+                            ? router.get('/promotion/stock')
+                            : setDraft({ ...draft, activity })
+                    }
                 />
             ) : (
                 <>
@@ -158,8 +163,21 @@ export default function PromotionReport({
     return (
         <UserLayout>
             <Head title={t(title)} />
-            <div className="promotion-page promotion-report-page">
-                <UserPageHeader title={t(title)} backHref="/promotion/invitations" />
+            <div
+                className={`promotion-page promotion-report-page ${daily ? '' : 'team-member-page'}`}
+            >
+                <UserPageHeader
+                    title={t(title)}
+                    backHref={
+                        !daily && p.subject?.id
+                            ? returnHref(
+                                  p.breadcrumbs && p.breadcrumbs.length > 1
+                                      ? p.breadcrumbs[p.breadcrumbs.length - 2]?.id
+                                      : null,
+                              )
+                            : '/promotion/invitations'
+                    }
+                />
                 {daily ? (
                     <>
                         <div className="report-toolbar">
@@ -198,15 +216,52 @@ export default function PromotionReport({
                     </>
                 ) : (
                     <>
-                        <ReportAccountSearch
-                            value={String(p.filters.account_id ?? '')}
-                            onSearch={(account_id) => filter({ account_id })}
-                        />
-                        <div className="report-toolbar">
-                            <p className="report-caption">
-                                {t('{{count}} team members', { count: p.total ?? 0 })}
-                            </p>
+                        {p.subject && (
+                            <TeamViewingContext
+                                subject={p.subject}
+                                breadcrumbs={p.breadcrumbs}
+                                totals={p.subjectTotals}
+                                returnHref={returnHref}
+                            />
+                        )}
+                        <div className="member-search-toolbar">
+                            <ReportAccountSearch
+                                value={String(p.filters.account_id ?? '')}
+                                onSearch={(account_id) => filter({ account_id })}
+                            />
                             {panel}
+                        </div>
+                        <div className="report-toolbar member-list-toolbar">
+                            <p className="report-caption">
+                                {t('{{direct}} direct members, {{total}} members in total', {
+                                    direct: p.memberCounts?.direct ?? 0,
+                                    total: p.memberCounts?.total ?? 0,
+                                })}
+                                {(p.filters.account_id || active.length > 0) && (
+                                    <span className="block">
+                                        {t('{{count}} matching members', { count: p.total ?? 0 })}
+                                    </span>
+                                )}
+                            </p>
+                            <select
+                                className="member-sort"
+                                aria-label={t('Member sorting')}
+                                value={String(p.filters.sort ?? 'registered_desc')}
+                                onChange={(event) => filter({ sort: event.target.value })}
+                            >
+                                <option value="registered_desc">
+                                    {t('Registration: newest first')}
+                                </option>
+                                <option value="registered_asc">
+                                    {t('Registration: oldest first')}
+                                </option>
+                                <option value="commission_desc">
+                                    {t('Commission: highest first')}
+                                </option>
+                                <option value="commission_asc">
+                                    {t('Commission: lowest first')}
+                                </option>
+                            </select>
                         </div>
                     </>
                 )}
@@ -230,7 +285,16 @@ export default function PromotionReport({
                 {!p.items.length && (
                     <div className="report-empty" role="status">
                         <ReceiptText size={26} strokeWidth={1.4} aria-hidden="true" />
-                        <p>{t('No matching records.')}</p>
+                        <p>
+                            {t(
+                                !daily &&
+                                    !p.filters.account_id &&
+                                    rank === 'all' &&
+                                    funding === 'all'
+                                    ? 'No team members yet.'
+                                    : 'No matching records.',
+                            )}
+                        </p>
                     </div>
                 )}
                 <div className="report-entries">
@@ -338,58 +402,58 @@ export default function PromotionReport({
                                   className="report-member"
                                   key={`${row.id}:${p.page}:${JSON.stringify(p.filters)}`}
                               >
-                                  <div className="report-member-top">
-                                      <div>
-                                          <h2 className="report-account">{row.accountId}</h2>
-                                          <span className="report-member-relation">
-                                              {relationLabel(row.relation)}
-                                          </span>
-                                      </div>
-                                      <span className="report-rank">
-                                          {promotionLevel(row.rank)}
-                                      </span>
-                                  </div>
-                                  {(row.displayName || row.maskedEmail) && (
-                                      <div className="mt-1 space-y-1 text-sm text-muted-foreground">
-                                          {row.displayName && (
-                                              <p className="break-words">{row.displayName}</p>
-                                          )}
-                                          {row.maskedEmail && (
-                                              <p className="break-all">{row.maskedEmail}</p>
-                                          )}
-                                      </div>
-                                  )}
-                                  <div className="report-member-meta">
-                                      <span>
-                                          {t('Security deposit')}{' '}
-                                          <strong>
-                                              {/^0(?:\.0+)?$/.test(row.depositAmount)
-                                                  ? t('Deposit not funded')
-                                                  : reportMoney(row.depositAmount)}
-                                          </strong>
-                                      </span>
-                                  </div>
-                                  {row.endsAt && (
-                                      <p className="report-caption">
-                                          {t('Valid until {{time}}', {
-                                              time: dateTime(row.endsAt),
+                                  <div className="report-member-identity">
+                                      <Link
+                                          className="report-member-person"
+                                          href={teamHref(row.id)}
+                                          aria-label={t('Open team of {{account}}', {
+                                              account: row.accountId,
                                           })}
+                                      >
+                                          {row.displayName && (
+                                              <p title={row.displayName}>{row.displayName}</p>
+                                          )}
+                                          <span className="report-member-account-line">
+                                              <h2 className="report-account">{row.accountId}</h2>
+                                              <ChevronRight size={16} aria-hidden="true" />
+                                          </span>
+                                      </Link>
+                                      {row.maskedEmail && (
+                                          <p
+                                              className="report-member-email"
+                                              title={row.maskedEmail}
+                                          >
+                                              {row.maskedEmail}
+                                          </p>
+                                      )}
+                                      <p className="report-member-team-count">
+                                          <Users size={16} aria-hidden="true" />
+                                          <span>
+                                              {t('Team: {{count}} members', {
+                                                  count: row.teamSize,
+                                              })}
+                                          </span>
                                       </p>
-                                  )}
-                                  <Link
-                                      className="report-member-income"
-                                      href={`/promotion/commissions?account_id=${encodeURIComponent(row.accountId)}`}
-                                  >
-                                      <span>{t('Commission from this member')}</span>
-                                      <strong>
-                                          {reportMoney(row.totals.total)}
-                                          <ChevronRight size={14} aria-hidden="true" />
-                                      </strong>
-                                  </Link>
-                                  <MemberTeamDetails memberId={row.id} totals={row.totals} />
-                                  <p className="report-caption">
-                                      {t('Joined at')}: {dateTime(row.joinedAt)}
-                                  </p>
+                                  </div>
+                                  <div className="report-member-financial">
+                                      <span
+                                          className={`member-status member-status-${row.membershipStatus}`}
+                                      >
+                                          {memberStatusLabel(row.membershipStatus, row.rank)}
+                                      </span>
+                                      <div className="member-commission-summary">
+                                          <span>{t('Commission contributed')}</span>
+                                          <strong>
+                                              {reportMoney(row.totals.total).replace(' USDT', '')}
+                                          </strong>
+                                          <small>USDT</small>
+                                      </div>
+                                      <MemberTeamDetails
+                                          member={row}
+                                          subject={p.subject?.id ?? null}
+                                          beneficiary={p.subject?.accountId ?? ''}
+                                      />
+                                  </div>
                               </article>
                           ))}
                 </div>
@@ -404,7 +468,7 @@ export default function PromotionReport({
                         {t(
                             daily
                                 ? 'Income uses posting time; team activity uses event time. Activity filters do not change period totals.'
-                                : 'Member levels are currently effective. Income is the commission you earned from this member, including historical rewards.',
+                                : 'Member levels are currently effective. Income belongs to the account being viewed, including historical rewards.',
                         )}
                     </p>
                     <p>{t('Dates and times follow the company timezone.')}</p>
