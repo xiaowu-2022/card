@@ -809,6 +809,56 @@ a.user-quick-action:hover .user-quick-action-circle {
     background-blend-mode: luminosity;
     background-color: #596168;
 }
+.user-card-product-preview-wrap {
+    container-type: inline-size;
+    width: min(100%, 320px);
+    margin-inline: auto;
+}
+.user-card-visual.user-card-product-preview {
+    min-height: 0;
+    border-radius: 16px;
+    padding: clamp(14px, 6cqw, 20px);
+    gap: 12px;
+}
+.user-card-product-preview .user-card-brand {
+    font-size: clamp(18px, 7cqw, 23px);
+    gap: 6px;
+}
+.user-card-product-preview .user-card-brand svg {
+    width: 18px;
+    height: 23px;
+}
+.user-card-product-preview .user-card-chip-row {
+    gap: 10px;
+}
+.user-card-product-preview .user-card-chip-row > img {
+    width: clamp(30px, 13cqw, 42px);
+}
+.user-card-product-preview .user-card-chip-row > div {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.user-card-product-preview .user-card-name {
+    font-size: clamp(13px, 5cqw, 16px);
+}
+.user-card-preview-footer {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: auto;
+    font-size: 11px;
+    color: #d5c9ad;
+}
+.user-card-preview-footer p {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.user-card-preview-footer img {
+    flex-shrink: 0;
+    width: clamp(48px, 20cqw, 64px);
+    height: auto;
+}
 .user-card-visual-frozen .user-card-state {
     background: #eef1f3;
     color: #303b43;

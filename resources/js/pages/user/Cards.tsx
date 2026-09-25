@@ -1,9 +1,10 @@
 import { displayMoney } from '@/lib/exact-amount';
 import { t, useClientTranslation, errorMessage } from '@/i18n';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { CheckCircle2, CreditCard, LoaderCircle, Plus, RefreshCw } from 'lucide-react';
+import { CheckCircle2, LoaderCircle, Plus, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MoneyDisplay } from '@/components/user/UserMoney';
+import { CardProductPreview } from '@/components/user/CardProductPreview';
 import { UserEmptyState } from '@/components/user/UserEmptyState';
 import { UserStatusBanner } from '@/components/user/UserStatusBanner';
 import { IdentityVerificationDialog } from '@/components/user/IdentityVerificationDialog';
@@ -409,24 +410,11 @@ function ProductIssue({
                                         />
                                     )}
 
-                                    <div className="bg-slate-950 p-6 text-white sm:p-7">
-                                        <div className="flex items-start justify-between gap-4">
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">
-                                                    {t('Mastercard U Card')}
-                                                </p>
-                                                <h2 className="mt-2 text-2xl font-semibold">
-                                                    {cardDisplayName(product.name)}
-                                                </h2>
-                                            </div>
-                                            <CreditCard className="size-7 text-white/75" />
-                                        </div>
-                                        <p className="mt-10 text-sm text-white/70">
-                                            {t('Mastercard U Card · balance in {{currency}}', {
-                                                currency: product.cardCurrency,
-                                            })}
-                                        </p>
-                                    </div>
+                                    <CardProductPreview
+                                        name={product.name}
+                                        currency={product.cardCurrency}
+                                        bin={product.bin}
+                                    />
                                     <div className="space-y-5 p-5 sm:p-6">
                                         <dl className="divide-y border-y text-sm">
                                             <div className="flex justify-between gap-4 py-3">
@@ -941,25 +929,11 @@ export default function Cards(props: Props) {
                                             key={option.id}
                                             className="rounded-2xl border bg-surface p-4 sm:p-5"
                                         >
-                                            <div className="rounded-2xl bg-slate-950 p-5 text-white">
-                                                <div className="flex items-start justify-between gap-4">
-                                                    <div>
-                                                        <p className="text-xs text-white/60">
-                                                            {t('Mastercard U Card')}
-                                                        </p>
-                                                        <h3 className="mt-2 text-xl font-semibold">
-                                                            {cardDisplayName(option.name)}
-                                                        </h3>
-                                                    </div>
-                                                    <CreditCard
-                                                        className="size-6 shrink-0 text-white/70"
-                                                        aria-hidden="true"
-                                                    />
-                                                </div>
-                                                <p className="mt-6 text-sm text-white/70">
-                                                    {option.cardCurrency} · BIN {option.bin}
-                                                </p>
-                                            </div>
+                                            <CardProductPreview
+                                                name={option.name}
+                                                currency={option.cardCurrency}
+                                                bin={option.bin}
+                                            />
                                             <fieldset className="mt-4 flex flex-wrap items-center gap-3">
                                                 <legend className="mb-2 text-sm">
                                                     {t('Card type')}

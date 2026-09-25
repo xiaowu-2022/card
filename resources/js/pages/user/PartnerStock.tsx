@@ -13,6 +13,7 @@ export default function PartnerStock({ report }: { report: StockReport }) {
                 <UserPageHeader title={t('Stock data')} backHref="/promotion/daily" />
                 <PartnerStockReport
                     report={report}
+                    showShare={false}
                     onPage={(page) =>
                         router.get('/promotion/stock', { page }, { preserveScroll: true })
                     }

@@ -70,10 +70,12 @@ export function PartnerStockReport({
     report: r,
     onPage,
     onReverse,
+    showShare = true,
 }: {
     report: StockReport;
     onPage: (page: number) => void;
     onReverse?: (row: JournalRow) => void;
+    showShare?: boolean;
 }) {
     const unavailable = t('Incomplete valuation');
     const value = (v: string | null | undefined) => (v == null ? unavailable : fullMoney(v));
@@ -87,23 +89,27 @@ export function PartnerStockReport({
             <section className="stock-hero">
                 <h2>{t('Current total stock')}</h2>
                 <strong>{value(r.stock)}</strong>
-                <div className="stock-split">
-                    <span>
-                        {t('Partner share')}:{' '}
-                        {r.sharePercent.includes('.')
-                            ? r.sharePercent.replace(/\.?0+$/, '')
-                            : r.sharePercent}
-                        %
-                    </span>
-                    <span>
-                        {t('Reference share')}: {value(r.share)}
-                    </span>
-                </div>
-                <p>
-                    {t(
-                        'Reference only. No settlement or transfer is created. Advances do not reduce stock or the reference share.',
-                    )}
-                </p>
+                {showShare && (
+                    <>
+                        <div className="stock-split">
+                            <span>
+                                {t('Partner share')}:{' '}
+                                {r.sharePercent.includes('.')
+                                    ? r.sharePercent.replace(/\.?0+$/, '')
+                                    : r.sharePercent}
+                                %
+                            </span>
+                            <span>
+                                {t('Reference share')}: {value(r.share)}
+                            </span>
+                        </div>
+                        <p>
+                            {t(
+                                'Reference only. No settlement or transfer is created. Advances do not reduce stock or the reference share.',
+                            )}
+                        </p>
+                    </>
+                )}
             </section>
             {r.missingRates > 0 && (
                 <p className="stock-warning" role="status">
