@@ -76,7 +76,10 @@ export function dateTime(value: string): string {
     }).format(date);
 }
 
-export function errorMessage(message?: string): string | undefined {
+export function errorMessage(
+    message?: string,
+    fallback = 'Unable to complete this request. Check your information and current status.',
+): string | undefined {
     if (!message) return undefined;
     if (clientI18n.exists(message)) return t(message);
     // Translate Laravel validation templates without echoing user-supplied values.
@@ -92,5 +95,5 @@ export function errorMessage(message?: string): string | undefined {
     if (/^The selected .+ is invalid\.$/.test(message)) return t('The selected value is invalid.');
     if (/^The .+ field format is invalid\.$/.test(message)) return t('The format is invalid.');
     // Never display an untranslated/unrecognized server or provider error in the UI.
-    return t('Unable to complete this request. Check your information and current status.');
+    return t(fallback);
 }

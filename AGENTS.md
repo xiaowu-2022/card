@@ -1,3 +1,11 @@
+On 2026-09-26 the user superseded the React/Capacitor consumer migration choice
+with uni-app (Vue 3 + TypeScript) and HBuilderX cloud packaging. Keep Laravel,
+existing financial services and React/Inertia administrative surfaces. Each company
+gets a separate configured app from shared source; company scope remains server-owned
+by active hostname, never by caller-supplied tenant IDs. Do not replace the existing
+H5 until feature parity and release checks pass. The current uni-app foundation is
+not a complete consumer migration or signed app. See docs/architecture/CONSUMER_UNI_APP.md.
+
 On 2026-09-26 the user added support unread badges and a combined inbox+support
 badge on the bottom Me navigation. Keep support text separate; acknowledge only
 rendered support sequences with an authenticated tenant/user-scoped POST. GET stays

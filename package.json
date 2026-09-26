@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "client": "node scripts/client/index.mjs",
+    "client:typecheck": "npm --prefix mobile/uni-app run typecheck",
+    "test:client": "node --test tests/Frontend/consumer-*.mjs",
     "build": "vite build",
     "dev": "vite",
     "typecheck": "tsc --noEmit",

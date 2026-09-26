@@ -47,7 +47,7 @@ export const academyRegistration = [
         items: [
             {
                 title: 'Convert your deposit toward the annual fee',
-                body: 'An ordinary member can open the promotion center to choose an available agent level. The confirmation page applies eligible security-deposit funds up to the amount due, then charges the remainder from the USDT wallet. For example, with a 300 USDT deposit and a 500 USDT annual fee, 300 is converted and 200 is paid from the wallet. Check the actual split before confirming.',
+                body: 'An ordinary member can open the promotion center to choose an available agent level. The confirmation page applies eligible security-deposit funds up to the amount due, then charges the remainder from the USDT wallet. For example, with a 300 USDT deposit and a 5000 USDT annual fee, 300 is converted and 4700 is paid from the wallet. Check the actual split before confirming.',
             },
             {
                 title: 'New benefits apply after the upgrade takes effect',

@@ -21,6 +21,16 @@
 /storage/*.key
 /storage/pail
 /vendor
+/dist
+/mobile/uni-app/node_modules
+/mobile/uni-app/dist
+/mobile/uni-app/unpackage
+/mobile/uni-app/src/generated
+/mobile/uni-app/src/manifest.json
+*.keystore
+*.jks
+*.p12
+*.mobileprovision
 _ide_helper.php
 Homestead.json
 Homestead.yaml

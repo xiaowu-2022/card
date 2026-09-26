@@ -1,0 +1,12 @@
+{
+  "pages": [
+    { "path": "pages/login/index" },
+    { "path": "pages/assets/index" },
+    { "path": "pages/cards/index" },
+    { "path": "pages/account/index" },
+    { "path": "pages/messages/index" },
+    { "path": "pages/messages/detail" },
+    { "path": "pages/support/index" }
+  ],
+  "globalStyle": { "navigationStyle": "custom", "backgroundColor": "#ffffff", "navigationBarTextStyle": "black" }
+}

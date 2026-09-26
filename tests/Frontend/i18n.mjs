@@ -2000,3 +2000,26 @@ test('inbox business templates have complete translations and preserve parameter
         }
     }
 });
+
+test('KYC submission errors retain specific reasons and safe actionable fallback in every locale', () => {
+    const sources = [
+        'app/Application/Kyc/SubmitKycApplicationAction.php',
+        'app/Application/Kyc/ApproveKycAction.php',
+        'app/Domain/Kyc/Services/IdentityNumberNormalizer.php',
+    ];
+    const messages = sources.flatMap((path) => [...readFileSync(path, 'utf8').matchAll(/new DomainException\('[A-Z_]+', '([^']+)'/g)].map((match) => match[1]));
+    messages.push('A new submission is not available for this application.');
+    const fallback = 'We could not complete identity verification. Refresh the status below. If the problem continues, contact support.';
+    for (const locale of locales) {
+        i18n.clientI18n.changeLanguage(locale);
+        for (const message of messages) {
+            assert.ok(catalog[message], `Missing KYC error: ${message}`);
+            assert.equal(i18n.errorMessage(message, fallback), i18n.t(message));
+            if (locale !== 'en') assert.notEqual(i18n.errorMessage(message, fallback), message);
+        }
+        assert.equal(i18n.errorMessage('PRIVATE upstream response', fallback), i18n.t(fallback));
+        assert.equal(i18n.errorMessage(undefined, fallback), undefined);
+        assert.doesNotMatch(i18n.errorMessage('PRIVATE upstream response', fallback), /PRIVATE/);
+    }
+    i18n.clientI18n.changeLanguage('en');
+});

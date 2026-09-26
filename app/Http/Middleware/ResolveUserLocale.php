@@ -26,7 +26,8 @@ final readonly class ResolveUserLocale
             ->whereIn('locale', config('tenancy.supported_locales'))->get();
         $enabled = $locales->pluck('locale')->all();
         $default = $locales->firstWhere('is_default', true)?->locale ?? $enabled[0] ?? 'en';
-        $user = Auth::guard('tenant_user')->user();
+        $user = $request->attributes->get('consumer_mode') === 'mobile'
+            ? $request->attributes->get('consumer_user') : Auth::guard('tenant_user')->user();
         $preference = $user instanceof User && $user->tenant_id === $tenant->id
             ? UserPreference::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->value('locale')
             : null;

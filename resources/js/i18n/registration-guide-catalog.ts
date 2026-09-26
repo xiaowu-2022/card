@@ -115,11 +115,11 @@ export const registrationGuideCatalog = {
         'Gunakan deposit untuk yuran tahunan',
         'Descontar la garantía de la cuota anual',
     ],
-    'An ordinary member can open the promotion center to choose an available agent level. The confirmation page applies eligible security-deposit funds up to the amount due, then charges the remainder from the USDT wallet. For example, with a 300 USDT deposit and a 500 USDT annual fee, 300 is converted and 200 is paid from the wallet. Check the actual split before confirming.':
+    'An ordinary member can open the promotion center to choose an available agent level. The confirmation page applies eligible security-deposit funds up to the amount due, then charges the remainder from the USDT wallet. For example, with a 300 USDT deposit and a 5000 USDT annual fee, 300 is converted and 4700 is paid from the wallet. Check the actual split before confirming.':
         [
-            '普通会员后续可在推广中心选择可购买的代理级别。确认页会将符合条件的保证金用于抵扣年费，最高不超过本次应付金额，剩余部分从 USDT 钱包支付。例如已有 300 USDT 保证金、所选年费为 500 USDT，则抵扣 300 USDT，再补缴 200 USDT。请核对页面显示的实际抵扣与支付金额后确认。',
-            'Ahli biasa boleh memilih tahap ejen yang tersedia di pusat promosi. Halaman pengesahan menggunakan deposit layak sehingga amaun perlu dibayar, kemudian mengenakan baki kepada dompet USDT. Contohnya, deposit 300 USDT untuk yuran 500 USDT ditukar sebanyak 300, dengan baki 200 dibayar melalui dompet. Semak pecahan sebenar sebelum mengesahkan.',
-            'Un miembro ordinario puede elegir un nivel disponible en el centro de promoción. La confirmación aplica la garantía válida hasta el importe debido y cobra el resto en USDT. Por ejemplo, con 300 USDT de garantía y una cuota de 500, se convierten 300 y se pagan 200 desde la billetera. Comprueba el desglose antes de confirmar.',
+            '普通会员后续可在推广中心选择可购买的代理级别。确认页会将符合条件的保证金用于抵扣年费，最高不超过本次应付金额，剩余部分从 USDT 钱包支付。例如已有 300 USDT 保证金、所选年费为 5000 USDT，则抵扣 300 USDT，再补缴 4700 USDT。请核对页面显示的实际抵扣与支付金额后确认。',
+            'Ahli biasa boleh memilih tahap ejen yang tersedia di pusat promosi. Halaman pengesahan menggunakan deposit layak sehingga amaun perlu dibayar, kemudian mengenakan baki kepada dompet USDT. Contohnya, deposit 300 USDT untuk yuran 5000 USDT ditukar sebanyak 300, dengan baki 4700 dibayar melalui dompet. Semak pecahan sebenar sebelum mengesahkan.',
+            'Un miembro ordinario puede elegir un nivel disponible en el centro de promoción. La confirmación aplica la garantía válida hasta el importe debido y cobra el resto en USDT. Por ejemplo, con 300 USDT de garantía y una cuota de 5000, se convierten 300 y se pagan 4700 desde la billetera. Comprueba el desglose antes de confirmar.',
         ],
     'New benefits apply after the upgrade takes effect': [
         '升级生效后享受新的推荐权益',

@@ -1,5 +1,5 @@
 import { t, useClientTranslation, errorMessage } from '@/i18n';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import { UserPageHeader } from '@/components/user/UserPageHeader';
 import { UserStatusBanner } from '@/components/user/UserStatusBanner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -102,10 +102,28 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb, backHref }: Props) 
                         </CardHeader>
                         <CardContent>
                             {form.errors.form && (
-                                <Alert className="mb-5 border-red-200 bg-red-50">
+                                <Alert className="mb-5 border-red-200 bg-red-50 text-destructive">
                                     <AlertDescription>
-                                        {errorMessage(form.errors.form)}
+                                        {errorMessage(
+                                            form.errors.form,
+                                            'We could not complete identity verification. Refresh the status below. If the problem continues, contact support.',
+                                        )}
                                     </AlertDescription>
+                                    <div className="mt-3 flex flex-wrap gap-4">
+                                        <button
+                                            type="button"
+                                            className="underline underline-offset-4"
+                                            onClick={() => router.reload()}
+                                        >
+                                            {t('Refresh status')}
+                                        </button>
+                                        <Link
+                                            href="/support"
+                                            className="underline underline-offset-4"
+                                        >
+                                            {t('Online support')}
+                                        </Link>
+                                    </div>
                                 </Alert>
                             )}
                             <form

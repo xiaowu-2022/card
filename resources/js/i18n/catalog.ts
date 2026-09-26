@@ -219,24 +219,24 @@ export const catalog = {
     ],
     'Upload both sides of a mainland China identity card.': [
         '请上传中国大陆身份证正反面。',
-        'Upload both sides of a mainland China identity card.',
-        'Upload both sides of a mainland China identity card.',
+        'Muat naik bahagian hadapan dan belakang kad pengenalan tanah besar China.',
+        'Sube el anverso y el reverso del documento de identidad de China continental.',
     ],
     'Document recognition is temporarily unavailable. Please try again later.': [
         '证件识别服务暂不可用，请稍后重试。',
-        'Document recognition is temporarily unavailable. Please try again later.',
-        'Document recognition is temporarily unavailable. Please try again later.',
+        'Perkhidmatan pengecaman dokumen tidak tersedia buat sementara waktu. Cuba lagi kemudian.',
+        'El reconocimiento de documentos no está disponible temporalmente. Inténtalo más tarde.',
     ],
     'The document number could not be recognized or does not match. Please upload a clear document image.':
         [
             '未识别到证件号码或号码与填写内容不一致，请上传清晰的证件图片。',
-            'The document number could not be recognized or does not match. Please upload a clear document image.',
-            'The document number could not be recognized or does not match. Please upload a clear document image.',
+            'Nombor dokumen tidak dapat dikenal pasti atau tidak sepadan. Muat naik foto dokumen yang jelas dan semak nombor yang dimasukkan.',
+            'No se pudo reconocer el número del documento o no coincide. Sube una foto nítida y comprueba el número introducido.',
         ],
     'Document recognition must succeed and match before approval.': [
         '证件号码识别成功且匹配后才能通过认证。',
-        'Document recognition must succeed and match before approval.',
-        'Document recognition must succeed and match before approval.',
+        'Nombor dokumen mesti dikenal pasti dan sepadan sebelum kelulusan. Semak nombor dan muat naik foto yang jelas.',
+        'El número del documento debe reconocerse y coincidir antes de aprobarse. Comprueba el número y sube una foto nítida.',
     ],
     'Card number': ['卡号', 'Nombor kad', 'Número de tarjeta'],
     'Copy card number': ['复制卡号', 'Salin nombor kad', 'Copiar número de tarjeta'],
@@ -2355,6 +2355,42 @@ export const catalog = {
         'Pilih kod negara yang sah.',
         'Selecciona un código de país válido.',
     ],
+    'Enter a valid identity number.': [
+        '证件号码格式不正确，请按证件照片上的号码重新填写。',
+        'Format nombor dokumen tidak sah. Masukkan semula nombor seperti pada foto dokumen.',
+        'El formato del número de documento no es válido. Escríbelo tal como aparece en la foto.',
+    ],
+    'Identity verification submission is not currently available.': [
+        '当前无法提交身份认证，请联系在线客服确认账户状态及认证服务是否可用。',
+        'Pengesahan identiti tidak boleh dihantar sekarang. Hubungi sokongan untuk menyemak status akaun dan ketersediaan perkhidmatan.',
+        'No puedes enviar la verificación ahora. Contacta con soporte para comprobar el estado de la cuenta y del servicio.',
+    ],
+    'A new submission is not available for this application.': [
+        '当前认证申请不能重新提交。请先刷新状态；如需更换证件资料，请联系在线客服。',
+        'Permohonan ini tidak boleh dihantar semula. Muat semula status; hubungi sokongan jika perlu menukar dokumen.',
+        'Esta solicitud no admite un nuevo envío. Actualiza el estado; contacta con soporte si necesitas cambiar los documentos.',
+    ],
+    'This identity has reached the Tenant account limit.': [
+        '该证件已达到可认证账户数量上限，无法用于此账户认证。如有疑问，请联系在线客服。',
+        'Dokumen ini telah mencapai had akaun yang boleh disahkan dan tidak boleh digunakan untuk akaun ini. Hubungi sokongan jika ada pertanyaan.',
+        'Este documento ha alcanzado el límite de cuentas verificadas y no puede usarse para esta cuenta. Contacta con soporte si tienes dudas.',
+    ],
+    'This user already has a verified identity.': [
+        '此账户已完成身份认证，无需重复提交。请刷新状态查看认证结果。',
+        'Akaun ini sudah disahkan. Tidak perlu menghantar semula; muat semula status untuk melihat hasilnya.',
+        'Esta cuenta ya está verificada. No hace falta reenviar los documentos; actualiza el estado para ver el resultado.',
+    ],
+    'This application has already been reviewed.': [
+        '此认证申请已有审核结果，请刷新状态查看；如有疑问，请联系在线客服。',
+        'Permohonan ini sudah disemak. Muat semula status untuk melihat keputusan; hubungi sokongan jika ada pertanyaan.',
+        'Esta solicitud ya tiene un resultado. Actualiza el estado para verlo; contacta con soporte si tienes dudas.',
+    ],
+    'We could not complete identity verification. Refresh the status below. If the problem continues, contact support.':
+        [
+            '此次身份认证未能完成。请点击下方“刷新状态”查看最新认证状态；若仍无法完成，请联系在线客服。',
+            'Pengesahan identiti tidak dapat diselesaikan. Muat semula status di bawah. Jika masalah berterusan, hubungi sokongan.',
+            'No se pudo completar la verificación. Actualiza el estado abajo. Si el problema continúa, contacta con soporte.',
+        ],
     'The documents could not be stored. Please try again.': [
         '证件上传失败，请重新上传。',
         'Dokumen gagal disimpan. Sila muat naik semula.',

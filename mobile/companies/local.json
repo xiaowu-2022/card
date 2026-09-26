@@ -1,0 +1,10 @@
+{
+  "name": "Card Development",
+  "appId": "dev.card.consumer",
+  "dcloudAppId": "",
+  "tenantSlug": "tenant-a",
+  "apiOrigin": "http://a.localhost:8000",
+  "version": "0.1.0",
+  "buildNumber": 1,
+  "developmentOnly": true
+}

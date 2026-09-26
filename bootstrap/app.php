@@ -23,6 +23,8 @@ use Symfony\Component\HttpFoundation\Response;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         using: function (): void {
+            Route::prefix('api/v1')->middleware(['web', 'tenant', 'user.session-scope', \App\Http\Middleware\ConsumerApiContext::class.':web', 'user.locale'])->group(base_path('routes/consumer-api.php'));
+            Route::prefix('api/mobile/v1')->middleware(['api', 'tenant', \App\Http\Middleware\ConsumerApiContext::class.':mobile', 'user.locale'])->group(base_path('routes/consumer-api.php'));
             Route::middleware('web')->group(base_path('routes/public.php'));
             Route::middleware(['web', 'tenant', 'user.session-scope', 'user.locale', 'inertia'])->group(base_path('routes/user.php'));
             Route::middleware(['web', 'tenant', 'user.session-scope', 'admin.locale', 'inertia'])->group(base_path('routes/admin.php'));

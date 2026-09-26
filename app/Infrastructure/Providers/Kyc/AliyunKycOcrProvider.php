@@ -16,6 +16,12 @@ use Illuminate\Support\Str;
 
 final class AliyunKycOcrProvider implements KycOcrProviderInterface
 {
+    // Exact OCR API content errors; generic parameter/algorithm errors are not image evidence.
+    private const IMAGE_REJECTION_CODES = [
+        'unmatchedImageType', 'unsupportedImageFormat', 'illegalImageContent',
+        'exceededImageContent', 'illegalImageSize', 'ExceededImageSize', 'ExceededFaceBackCount',
+    ];
+
     public function name(): string
     {
         return 'aliyun';
@@ -60,6 +66,7 @@ final class AliyunKycOcrProvider implements KycOcrProviderInterface
         $status = null;
         $code = null;
         $requestId = null;
+        $imageRejected = false;
         try {
             $key = (string) config('kyc.aliyun.access_key_id');
             $secret = (string) config('kyc.aliyun.access_key_secret');
@@ -94,6 +101,8 @@ final class AliyunKycOcrProvider implements KycOcrProviderInterface
             $code = $this->safeErrorCode($body['Code'] ?? null);
             $phase = 'upstream';
             if (! $response->successful() || isset($body['Code'])) {
+                $imageRejected = in_array($code, self::IMAGE_REJECTION_CODES, true)
+                    && ($response->successful() || in_array($status, [400, 413, 415, 416], true));
                 throw new \RuntimeException;
             }
             $phase = 'response_data';
@@ -125,6 +134,10 @@ final class AliyunKycOcrProvider implements KycOcrProviderInterface
             } catch (\Throwable) {
                 // Logging failures must not leak the original exception or approve the submission.
             }
+            if ($imageRejected) {
+                // Missing recognized fields produce Failed for either side, never an approval.
+                return [];
+            }
             throw new \RuntimeException('OCR unavailable.');
         }
     }
@@ -136,7 +149,7 @@ final class AliyunKycOcrProvider implements KycOcrProviderInterface
         }
 
         // Do not use an alphanumeric regex: upstream fields could still echo a credential or ID.
-        return is_string($code) && in_array($code, [
+        return is_string($code) && in_array($code, [...self::IMAGE_REJECTION_CODES,
             'noPermission', 'NoPermission', 'Forbidden', 'Forbidden.RAM', 'Forbidden.SubUser',
             'InvalidAccessKeyId', 'InvalidAccessKeyId.NotFound', 'InvalidAccessKeyId.Inactive',
             'SignatureDoesNotMatch', 'SignatureNonceUsed', 'InvalidTimeStamp.Expired',
@@ -145,6 +158,8 @@ final class AliyunKycOcrProvider implements KycOcrProviderInterface
             'Throttling', 'Throttling.User', 'Throttling.Api', 'Throttling.System',
             'InvalidParameter', 'InvalidParameter.Image', 'InvalidImage', 'InvalidImageSize',
             'MissingParameter', 'InvalidURL', 'InternalError', 'InternalError.Algo',
+            'algorithmError', 'AlgorithmTimeout', 'ServiceTimeout', 'ServiceUnavailable',
+            'ocrServiceNotOpen', 'OcrServiceExpired', 'illegalSignature', 'invalidStsToken',
         ], true) ? $code : 'UNRECOGNIZED';
     }
 }

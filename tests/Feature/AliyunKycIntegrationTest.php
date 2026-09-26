@@ -137,3 +137,79 @@ it('does not approve or expose an upstream exception when diagnostic logging fai
     }
     expect(IdentityRecord::count())->toBe(0);
 });
+
+it('reports documented image rejections as unrecognized documents without storing identity data', function (string $code, int $status): void {
+    Log::spy();
+    Http::fake(['*' => Http::response(['Code' => $code, 'Message' => 'PRIVATE upstream image detail'], $status)]);
+    try {
+        app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', '11010519491231002X', kycTestImage('front.jpg'), kycTestImage('back.jpg'));
+        $this->fail('Expected document rejection');
+    } catch (DomainException $error) {
+        expect($error->errorCode)->toBe('KYC_OCR_MISMATCH')->and($error->httpStatus)->toBe(422)
+            ->and($error->getMessage())->toBe('The document number could not be recognized or does not match. Please upload a clear document image.');
+    }
+    Http::assertSentCount(1);
+    Log::shouldHaveReceived('warning')->once()->withArgs(fn ($message, $context) => $message === 'Aliyun KYC OCR failed'
+        && $context['provider_code'] === $code && ! str_contains(json_encode($context), 'PRIVATE'));
+    expect(IdentityRecord::count())->toBe(0)->and(KycApplication::count())->toBe(0)->and(Storage::disk('private')->allFiles())->toBe([]);
+})->with([
+    ['unmatchedImageType', 400], ['unmatchedImageType', 200],
+    ['unsupportedImageFormat', 415], ['illegalImageContent', 400],
+    ['exceededImageContent', 413], ['illegalImageSize', 416],
+    ['ExceededImageSize', 400], ['ExceededFaceBackCount', 400],
+]);
+
+it('rejects an unrecognizable identity card back even when the front number matches', function (): void {
+    Http::fake(['*' => Http::sequence()
+        ->push(['Data' => json_encode(['data' => ['face' => ['data' => ['idNumber' => '11010519491231002X']]]])])
+        ->push(['Code' => 'unmatchedImageType', 'Message' => 'PRIVATE'], 400)]);
+    try {
+        app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', '11010519491231002X', kycTestImage('front.jpg'), kycTestImage('back.jpg'));
+        $this->fail('Expected back image rejection');
+    } catch (DomainException $error) {
+        expect($error->errorCode)->toBe('KYC_OCR_MISMATCH');
+    }
+    Http::assertSentCount(2);
+    expect(IdentityRecord::count())->toBe(0)->and(KycApplication::count())->toBe(0)->and(Storage::disk('private')->allFiles())->toBe([]);
+});
+
+it('keeps service and ambiguous failures distinct from image rejections', function (string $code, int $status): void {
+    Http::fake(['*' => Http::response(['Code' => $code, 'Message' => 'PRIVATE'], $status)]);
+    try {
+        app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', 'E12345678', kycTestImage(), null, documentType: KycDocumentType::Passport);
+        $this->fail('Expected unavailable service');
+    } catch (DomainException $error) {
+        expect($error->errorCode)->toBe('KYC_OCR_UNAVAILABLE')->and($error->httpStatus)->toBe(503)
+            ->and($error->getMessage())->not->toContain('PRIVATE');
+    }
+    expect(IdentityRecord::count())->toBe(0)->and(KycApplication::count())->toBe(0);
+})->with([
+    ['algorithmError', 503], ['AlgorithmTimeout', 503], ['ServiceTimeout', 504],
+    ['ocrServiceNotOpen', 401], ['OcrServiceExpired', 401], ['noPermission', 403],
+    ['Throttling.User', 400], ['InvalidParameter', 400], ['InternalError.Algo', 400],
+    ['unknown-image-error', 400], ['unmatchedImageType', 503], ['unmatchedImageType', 403],
+]);
+
+it('reports an empty recognized document as an image problem', function (): void {
+    Http::fake(['*' => Http::response(['Data' => json_encode(['data' => []])])]);
+    try {
+        app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', '11010519491231002X', kycTestImage('front.jpg'), kycTestImage('back.jpg'));
+        $this->fail('Expected missing number rejection');
+    } catch (DomainException $error) {
+        expect($error->errorCode)->toBe('KYC_OCR_MISMATCH');
+    }
+    expect(IdentityRecord::count())->toBe(0)->and(KycApplication::count())->toBe(0);
+});
+
+it('preserves passport image rejection even when diagnostic logging is unavailable', function (string $country): void {
+    Log::shouldReceive('warning')->once()->andThrow(new RuntimeException('PRIVATE log error'));
+    Http::fake(['*' => Http::response(['Code' => 'unmatchedImageType', 'Message' => 'PRIVATE'], 400)]);
+    try {
+        app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, $country, 'E12345678', kycTestImage(), null, documentType: KycDocumentType::Passport);
+        $this->fail('Expected passport rejection');
+    } catch (DomainException $error) {
+        expect($error->errorCode)->toBe('KYC_OCR_MISMATCH')->and($error->getPrevious())->toBeNull()
+            ->and($error->getMessage())->not->toContain('PRIVATE');
+    }
+    expect(IdentityRecord::count())->toBe(0)->and(KycApplication::count())->toBe(0)->and(Storage::disk('private')->allFiles())->toBe([]);
+})->with(['CN', 'MY']);
