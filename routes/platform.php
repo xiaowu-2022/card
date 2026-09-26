@@ -35,6 +35,13 @@ use App\Http\Middleware\PlatformCompanyConfiguration;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('platform')->name('platform.')->group(function (): void {
+    Route::get('/notifications', [\App\Http\Controllers\Platform\InboxController::class, 'index'])->middleware('admin.scope:platform,notifications.read')->name('notifications');
+    Route::middleware('admin.scope:platform,notifications.send')->group(function (): void {
+        Route::get('/tenants/{tenant}/notifications/candidates', [\App\Http\Controllers\Platform\InboxController::class, 'candidates'])->whereUuid('tenant')->middleware('throttle:60,1');
+        Route::post('/tenants/{tenant}/notifications/preview', [\App\Http\Controllers\Platform\InboxController::class, 'preview'])->whereUuid('tenant')->middleware('throttle:20,1');
+        Route::post('/tenants/{tenant}/notifications', [\App\Http\Controllers\Platform\InboxController::class, 'send'])->whereUuid('tenant')->middleware('throttle:10,1');
+    });
+
     Route::middleware('admin.scope:platform,partners.manage')->group(function (): void {
         Route::get('/tenants/{tenant}/partner-candidates', [PartnerController::class, 'candidates'])->whereUuid('tenant')->middleware('throttle:120,1');
         Route::get('/partners', [PartnerController::class, 'index'])->name('partners');

@@ -1,4 +1,5 @@
 export const transferCatalog = {
+    Currency: ['币种', 'Mata wang', 'Moneda'],
     Time: ['时间', 'Masa', 'Hora'],
     Transfer: ['转账', 'Pindahan', 'Transferir'],
     'Transfer sent': ['转账支出', 'Pindahan keluar', 'Transferencia enviada'],
@@ -21,15 +22,15 @@ export const transferCatalog = {
         'Kedua-dua akaun memerlukan dompet aktif dan disahkan dalam mata wang yang sama.',
         'Ambas cuentas necesitan billeteras activas y verificadas en la misma moneda.',
     ],
-    'Enter a valid account ID and an amount with up to two decimal places.': [
-        '请输入有效的账号 ID 和金额，金额最多保留两位小数。',
-        'Masukkan ID akaun yang sah dan jumlah sehingga dua tempat perpuluhan.',
-        'Introduce un ID válido y un importe con hasta dos decimales.',
+    'Enter a valid account ID and an amount within the selected currency precision.': [
+        '请输入有效的账号 ID 和符合所选币种精度的金额。',
+        'Masukkan ID akaun yang sah dan jumlah mengikut ketepatan mata wang dipilih.',
+        'Introduce un ID válido y un importe con la precisión de la moneda seleccionada.',
     ],
     'Enter a positive transfer amount.': [
-        '请输入大于零的转账金额，最多保留两位小数。',
-        'Masukkan jumlah pindahan positif, sehingga dua tempat perpuluhan.',
-        'Introduce un importe positivo con hasta dos decimales.',
+        '请输入大于零且符合所选币种精度的转账金额。',
+        'Masukkan jumlah pindahan positif mengikut ketepatan mata wang dipilih.',
+        'Introduce un importe positivo con la precisión de la moneda seleccionada.',
     ],
     'This transfer request was already used with different details.': [
         '此转账请求已使用，且与当前填写内容不同，请先核对原转账记录。',

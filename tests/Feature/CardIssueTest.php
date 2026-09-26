@@ -168,6 +168,7 @@ it('manages card reload with quoted fee exact hold and one settlement', function
         ->and(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe(Money::of($before, 'USDT')->subtract(Money::of('21', 'USDT'))->amount());
     expect($action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $order->id)->status)->toBe('SUCCEEDED');
     expect(LedgerEntry::query()->where('reference_id', $order->id)->count())->toBe(2);
+    expect(DB::table('inbox_events')->where('event_key', 'card_load_success:'.$order->id)->count())->toBe(1);
     $activity = app(WalletActivityQuery::class)->get($this->tenant->id, $this->user->id);
     $rows = collect($activity)->where('reference', $order->id)->values();
     expect($rows)->toHaveCount(1)
@@ -196,6 +197,7 @@ it('confirms reload without a second password or checkbox and replays without an
     expect(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe($before);
     $input = ['action' => 'confirm', 'order_id' => $quote['id']];
     $this->postJson($url, $input)->assertOk()->assertJsonPath('state', $unknown ? 'confirming' : 'completed');
+    expect(DB::table('inbox_events')->where('event_key', 'like', 'card_load_%:'.$quote['id'])->count())->toBe($unknown ? 0 : 1);
     $entries = LedgerEntry::query()->count();
     $this->postJson($url, $input)->assertOk()->assertJsonPath('state', $unknown ? 'confirming' : 'completed');
     expect(LedgerEntry::query()->count())->toBe($entries)
@@ -241,6 +243,7 @@ it('releases a reload hold only on a definitive rejection', function (): void {
     $provider->shouldReceive('confirmCardLoad')->once()->andThrow(new ProviderRejectedException('Declined'));
     $order = $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '20');
     $result = $action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $order->id);
+    expect(DB::table('inbox_events')->where('event_key', 'card_load_failed:'.$order->id)->count())->toBe(1);
     expect($result->status)->toBe('FAILED')->and($result->release_entry_id)->not->toBeNull()
         ->and(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe($before);
     $row = collect(app(WalletActivityQuery::class)->get($this->tenant->id, $this->user->id))->firstWhere('reference', $order->id);

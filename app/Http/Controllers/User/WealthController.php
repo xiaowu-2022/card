@@ -39,6 +39,16 @@ final class WealthController extends Controller
         return redirect('/wealth/orders/'.$order->id);
     }
 
+    public function redeem(Request $request, TenantContext $context, WealthService $service, string $order)
+    {
+        $d = $request->validate(['request_id' => 'required|uuid', 'current_password' => 'required|string|max:1024',
+            'confirmed' => 'required|accepted', 'tenant_id' => 'prohibited', 'user_id' => 'prohibited',
+            'wallet_id' => 'prohibited', 'amount' => 'prohibited', 'asset' => 'prohibited', 'rate' => 'prohibited']);
+        $service->redeem($context->id(), $request->user('tenant_user')->id, $order, $d['request_id'], $d['current_password']);
+
+        return back();
+    }
+
     public function cancel(Request $request, TenantContext $context, WealthService $service, string $order)
     {
         $d = $request->validate(['request_id' => 'required|uuid', 'current_password' => 'required|string|max:1024', 'confirmed' => 'required|accepted', 'expected_paid' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,18})?$/D'], 'tenant_id' => 'prohibited', 'user_id' => 'prohibited', 'wallet_id' => 'prohibited']);

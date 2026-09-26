@@ -74,6 +74,11 @@ final readonly class PaidPromotionRewards
             DB::table('paid_promotion_shares')->insert(['id' => $shareId, 'tenant_id' => $tenant, 'user_id' => $ancestor->user_id, 'event_id' => $id,
                 'cycle_id' => $cycle?->id, 'revision' => $cycle?->revision, 'standard' => $standard, 'covered' => $covered,
                 'depth' => $ancestor->depth, 'rank' => $cycle?->rank ?? 0, 'rate' => (string) $difference, 'amount' => (string) $reward, 'ledger_entry_id' => $entry?->id, 'created_at' => $time]);
+            if ($entry) {
+                app(\App\Application\Inbox\InboxWriter::class)->record($tenant, $ancestor->user_id, 'commission:'.$shareId,
+                    $kind === 'ACTIVATION' ? 'commission_activation' : 'commission_annual',
+                    ['amount' => (string) $reward, 'asset' => 'USDT'], '/promotion/commissions', $time);
+            }
         }
         if ($activationEligible) {
             foreach ($ancestors as $ancestor) {

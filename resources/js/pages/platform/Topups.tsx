@@ -23,6 +23,7 @@ type Order = {
     accountId: string;
     userEmail: string;
     createdAt: string;
+    creditedAt: string | null;
     reference: string;
     amount: string;
     asset: string;
@@ -151,6 +152,10 @@ export default function Topups({ companies, filters, orders }: Props) {
                         ),
                     },
                     { label: 'Created', render: (order) => dateTime(order.createdAt) },
+                    {
+                        label: 'Arrival time',
+                        render: (order) => (order.creditedAt ? dateTime(order.creditedAt) : '—'),
+                    },
                     {
                         label: 'Operator',
                         render: (order) =>

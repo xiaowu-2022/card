@@ -1,8 +1,8 @@
 import { ArrowUpFromLine, CalendarDays, Check, Clock3, Minus } from 'lucide-react';
-import { wealthState } from '@/lib/wealth-display';
+import { wealthState, wealthDate } from '@/lib/wealth-display';
 import { useRef, useState } from 'react';
-import { Head, useForm, router } from '@inertiajs/react';
-import { t, useClientTranslation, errorMessage, dateTime } from '@/i18n';
+import { Head, Link, useForm, router } from '@inertiajs/react';
+import { t, useClientTranslation, errorMessage } from '@/i18n';
 import { UserLayout } from '@/layouts/UserLayout';
 import { UserPageHeader } from '@/components/user/UserPageHeader';
 import { Input } from '@/components/ui/input';
@@ -27,7 +27,7 @@ export default function WealthOrder({
     };
 }) {
     useClientTranslation();
-    const [review, setReview] = useState(startWithdrawal && order.canCancel);
+    const [review, setReview] = useState(startWithdrawal && (order.canCancel || order.canRedeem));
     const pageRef = useRef<HTMLDivElement>(null);
     const closeReview = () => {
         setReview(false);
@@ -88,8 +88,8 @@ export default function WealthOrder({
                                         rate: exactAmount(order.rate),
                                     }),
                                 ],
-                                ['Deposit date', dateTime(order.startedAt)],
-                                ['Maturity date', dateTime(order.maturesAt)],
+                                ['Deposit date', wealthDate(order.startedAt, order.timezone)],
+                                ['Maturity date', wealthDate(order.maturesAt, order.timezone)],
                             ] as [string, string][]
                         ).map(([label, value]) => (
                             <div
@@ -106,17 +106,67 @@ export default function WealthOrder({
                     {order.closedAt && (
                         <div className="mt-4 rounded-xl bg-muted p-3">
                             <p className="break-words text-sm font-medium">
-                                {t('Principal returned: {{amount}}', {
-                                    amount: `${exactAmount(order.returnAmount)} ${order.asset}`,
-                                })}
+                                {t(
+                                    order.displayStatus === 'RENEWED'
+                                        ? 'Principal renewed: {{amount}}'
+                                        : 'Principal returned: {{amount}}',
+                                    {
+                                        amount: `${exactAmount(order.returnAmount)} ${order.asset}`,
+                                    },
+                                )}
                             </p>
                             <p className="mt-1 text-xs text-muted-foreground">
-                                {dateTime(order.closedAt)}
+                                {wealthDate(order.closedAt, order.timezone)}
                             </p>
                         </div>
                     )}
                 </section>
-                {order.canCancel && (
+                {order.maturityPolicy === 'AUTO_RETURN' && (
+                    <p className="text-sm text-muted-foreground">
+                        {t(
+                            'Principal returns automatically at maturity. No automatic renewal or compound interest.',
+                        )}
+                    </p>
+                )}
+                {order.maturityPolicy === 'MANUAL_REDEEM_RENEW' && (
+                    <section className="space-y-2 rounded-xl bg-muted p-4 text-sm">
+                        <p>
+                            {t('Redeem before')}: {order.redeemBeforeLocal} ({order.timezone})
+                        </p>
+                        <p>
+                            {t(
+                                'Redeem principal on the maturity day before midnight in the order timezone. Otherwise, the same principal renews for the same term and rate. Paid interest stays in your wallet.',
+                            )}
+                        </p>
+                        <p>
+                            {t(
+                                'No extra interest accrues during the redemption window. Processing delays do not shift the next term.',
+                            )}
+                        </p>
+                        {order.displayStatus === 'RENEWAL_PENDING' && (
+                            <p role="status">
+                                {t(
+                                    'Renewal is pending. Your principal remains in wealth; recovery will use the scheduled start time.',
+                                )}
+                            </p>
+                        )}
+                    </section>
+                )}
+                {(order.previousOrderId || order.nextOrderId) && (
+                    <nav className="flex flex-wrap gap-4 text-sm underline">
+                        {order.previousOrderId && (
+                            <Link href={`/wealth/orders/${order.previousOrderId}`}>
+                                {t('Previous wealth term')}
+                            </Link>
+                        )}
+                        {order.nextOrderId && (
+                            <Link href={`/wealth/orders/${order.nextOrderId}`}>
+                                {t('Next wealth term')}
+                            </Link>
+                        )}
+                    </nav>
+                )}
+                {(order.canCancel || order.canRedeem) && (
                     <Button
                         data-wealth-withdraw
                         variant="secondary"
@@ -126,11 +176,13 @@ export default function WealthOrder({
                         }}
                     >
                         <ArrowUpFromLine className="size-4 shrink-0" aria-hidden="true" />
-                        {t('Withdraw entire deposit early')}
+                        {order.canRedeem
+                            ? t('Redeem to {{asset}} wallet', { asset: order.asset })
+                            : t('Withdraw entire deposit early')}
                     </Button>
                 )}
                 <Dialog
-                    open={order.canCancel && review}
+                    open={(order.canCancel || order.canRedeem) && review}
                     onOpenChange={(open) => {
                         if (!open && !form.processing) closeReview();
                     }}
@@ -154,7 +206,11 @@ export default function WealthOrder({
                     >
                         <DialogHeader>
                             <DialogTitle className="pr-10">
-                                {t('Confirm early withdrawal')}
+                                {t(
+                                    order.canRedeem
+                                        ? 'Confirm maturity redemption'
+                                        : 'Confirm early withdrawal',
+                                )}
                             </DialogTitle>
                             <DialogDescription className="break-words">
                                 {t('Deposit principal')}: {exactAmount(order.principal)}{' '}
@@ -166,21 +222,36 @@ export default function WealthOrder({
                             onSubmit={(e) => {
                                 e.preventDefault();
                                 if (form.processing || !form.data.confirmed) return;
-                                form.transform((data) => ({ ...data, expected_paid: order.paid }));
-                                form.post(`/wealth/orders/${order.id}/cancel`, {
-                                    onSuccess: () => setReview(false),
-                                    onError: () => {
-                                        setReview(false);
-                                        router.reload({ only: ['order'] });
+                                form.transform((data) =>
+                                    order.canRedeem
+                                        ? {
+                                              request_id: data.request_id,
+                                              current_password: data.current_password,
+                                              confirmed: data.confirmed,
+                                          }
+                                        : { ...data, expected_paid: order.paid },
+                                );
+                                form.post(
+                                    `/wealth/orders/${order.id}/${order.canRedeem ? 'redeem' : 'cancel'}`,
+                                    {
+                                        onSuccess: () => setReview(false),
+                                        onError: () => {
+                                            setReview(false);
+                                            router.reload({ only: ['order'] });
+                                        },
+                                        onFinish: () => form.reset('current_password', 'confirmed'),
                                     },
-                                    onFinish: () => form.reset('current_password', 'confirmed'),
-                                });
+                                );
                             }}
                         >
                             <p>
-                                {t('Interest recovered: {{amount}}', {
-                                    amount: `${exactAmount(order.paid)} ${order.asset}`,
-                                })}
+                                {order.canRedeem
+                                    ? t(
+                                          'Your full principal returns to the original currency wallet. Paid interest is not recovered.',
+                                      )
+                                    : t('Interest recovered: {{amount}}', {
+                                          amount: `${exactAmount(order.paid)} ${order.asset}`,
+                                      })}
                             </p>
                             <p className="font-semibold">
                                 {t('Amount returned now: {{amount}}', {
@@ -210,14 +281,21 @@ export default function WealthOrder({
                                     onChange={(e) => form.setData('confirmed', e.target.checked)}
                                 />
                                 {t(
-                                    'I confirm cancellation of the entire deposit and recovery of all paid interest.',
+                                    order.canRedeem
+                                        ? 'I confirm full principal redemption to my original currency wallet.'
+                                        : 'I confirm cancellation of the entire deposit and recovery of all paid interest.',
                                 )}
                             </label>
                             <Button
+                                type="submit"
                                 className="w-full"
                                 disabled={form.processing || !form.data.confirmed}
                             >
-                                {t('Confirm early withdrawal')}
+                                {t(
+                                    order.canRedeem
+                                        ? 'Confirm maturity redemption'
+                                        : 'Confirm early withdrawal',
+                                )}
                             </Button>
                         </form>
                     </DialogContent>
@@ -244,7 +322,7 @@ export default function WealthOrder({
                                     <div className="min-w-0 flex-1">
                                         <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
                                             <p className="text-sm font-medium tabular-nums">
-                                                {dateTime(row.dueAt)}
+                                                {wealthDate(row.dueAt, order.timezone)}
                                             </p>
                                             <p className="break-all text-sm font-semibold tabular-nums">
                                                 {exactAmount(row.amount)}{' '}
@@ -266,7 +344,7 @@ export default function WealthOrder({
                                         </p>
                                         {row.settledAt && (
                                             <p className="mt-1 text-xs text-muted-foreground">
-                                                {dateTime(row.settledAt)}
+                                                {wealthDate(row.settledAt, order.timezone)}
                                             </p>
                                         )}
                                     </div>

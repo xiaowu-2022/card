@@ -118,6 +118,20 @@ export function DepositInstructions({
                                     {t('Copy amount')}
                                 </Button>
                             </div>
+                            <div className="space-y-1 rounded-xl bg-muted p-3 text-sm leading-6">
+                                <p>
+                                    {t(
+                                        'After depositing to the address above 👆, your deposit succeeds after 3 network confirmations!',
+                                    )}
+                                </p>
+                                <p>
+                                    <Link href="/support" className="underline underline-offset-4">
+                                        {t(
+                                            'If your deposit has not arrived after 5 minutes, please contact customer support.',
+                                        )}
+                                    </Link>
+                                </p>
+                            </div>
                             {children}
                         </>
                     ) : null}

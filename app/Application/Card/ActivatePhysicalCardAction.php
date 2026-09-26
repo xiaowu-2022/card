@@ -58,7 +58,12 @@ final class ActivatePhysicalCardAction
             } catch (\Throwable) {
                 $status = 'UNKNOWN';
             }
-            DB::table('card_activation_attempts')->where('id', $attempt['id'])->where('status', 'PROCESSING')->update(['status' => $status, 'updated_at' => now()]);
+            DB::transaction(function () use ($attempt, $tenantId, $userId, $status) {
+                $changed = DB::table('card_activation_attempts')->where('tenant_id', $tenantId)->where('id', $attempt['id'])->where('status', 'PROCESSING')->update(['status' => $status, 'updated_at' => now()]);
+                if ($changed && $status === 'FAILED') {
+                    app(\App\Application\Inbox\InboxWriter::class)->record($tenantId, $userId, 'card_activation_failed:'.$attempt['id'], 'card_activation_failed', [], '/cards');
+                }
+            });
             app(AuditLogger::class)->record($tenantId, 'USER', $userId, 'CARD_ACTIVATION_RETURNED', 'user_card', $cardId, null, ['status' => $status]);
             try {
                 app(RefreshManagedCardAction::class)->execute($tenantId, $userId, $cardId);

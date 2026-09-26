@@ -51,3 +51,25 @@ KYC, cards, commissions or user lifecycle state.
   last sender; this is not a read receipt. No new restricted-user safe routes.
 - New migrations add tables and permission grants; no existing data is rewritten.
   Tests use the isolated database, never send test conversations to live customers.
+
+## Consumer unread badges (2026-09-26)
+
+Support replies now have a per-conversation `user_read_sequence`. Only administrator
+messages beyond that cursor count as unread; user messages and message retries do not.
+`POST /support/read` acknowledges the highest sequence delivered to the visible chat
+page, under a scoped conversation lock. GET remains read-only. Older acknowledgements
+cannot move the cursor backwards, and a concurrent reply beyond the submitted sequence
+stays unread. Marking read does not change conversation timestamps or financial data.
+
+The shared authenticated unread endpoint returns `count` (inbox) and `supportCount`.
+The support tile/header badge shows support only; the message tile/bell shows inbox only;
+the bottom navigation's Me icon displays their sum. Zero is hidden, totals over 99 show
+`99+`. The existing visible-page 30-second/focus refresh is shared, and successful support
+read acknowledgement refreshes badges immediately. Chat polling continues every five
+seconds; hidden pages do not acknowledge messages. No support text is copied into inbox.
+
+Migration `2026_09_26_130000_add_support_read_cursor.php` initializes existing
+conversations at their current last sequence because historical read evidence did not
+exist. New support replies count from rollout. Verification: SupportChat + Inbox feature
+suites pass (26 tests/219 assertions); the offline browser harness verifies support=4,
+inbox=3, Me=7, then support reading leaves Me=3, plus four-language/responsive checks.

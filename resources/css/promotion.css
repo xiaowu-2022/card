@@ -976,7 +976,7 @@
     }
 }
 
-/* Academy topics are informational posters; detail pages will be introduced later. */
+/* Academy topic covers and the feature guide entry. */
 .academy-page {
     width: 100%;
     max-width: 720px;
@@ -1010,12 +1010,32 @@
     border-color: rgba(159, 132, 74, 0.12);
 }
 .academy-poster-copy {
-    position: relative;
+    position: static;
     z-index: 1;
     width: 56%;
     padding: clamp(16px, 4vw, 34px);
     padding-right: 4px;
     color: #294c3c;
+}
+.academy-poster-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 12px;
+}
+.academy-poster-link::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 22px;
+}
+.academy-poster-link:focus-visible {
+    outline: none;
+}
+.academy-poster-link:focus-visible::after {
+    outline: 2px solid var(--user-primary);
+    outline-offset: -3px;
 }
 .academy-poster-number {
     display: block;

@@ -11,6 +11,8 @@ use App\Domain\Ledger\DTOs\LedgerPostingPlan;
 use App\Domain\Ledger\Models\LedgerAccount;
 use App\Domain\Ledger\Services\LedgerWriter;
 use App\Domain\Ledger\ValueObjects\Money;
+use App\Domain\Tenant\Models\Tenant;
+use App\Domain\User\Models\User;
 use App\Domain\Wallet\Models\Wallet;
 use App\Domain\Wealth\WealthMath;
 use App\Domain\Wealth\WealthOrder;
@@ -59,7 +61,7 @@ final class WealthService
             $start = CarbonImmutable::now('UTC')->startOfSecond();
             $schedule = WealthMath::schedule($money->amount(), $asset, $product['rate'], $months, $start, $tenant->timezone);
             $entry = $this->post($wallet, $id, 'deposit', 'WEALTH_DEPOSIT', ['USER_AVAILABLE' => '-'.$money->amount(), 'USER_WEALTH_PRINCIPAL' => $money->amount()]);
-            $order = WealthOrder::create(['id' => $id, 'tenant_id' => $tenantId, 'user_id' => $userId, 'wallet_id' => $wallet->id, 'asset_code' => $asset, 'principal' => $money->amount(), 'months' => $months, 'annual_rate' => $product['rate'], 'config_revision' => $revision, 'timezone' => $tenant->timezone, 'schedule' => $schedule, 'started_at' => $start, 'matures_at' => $schedule[$months - 1]['due_at'], 'request_id' => $requestId, 'status' => 'ACTIVE', 'deposit_entry_id' => $entry]);
+            $order = WealthOrder::create(['id' => $id, 'tenant_id' => $tenantId, 'user_id' => $userId, 'wallet_id' => $wallet->id, 'asset_code' => $asset, 'principal' => $money->amount(), 'months' => $months, 'annual_rate' => $product['rate'], 'config_revision' => $revision, 'timezone' => $tenant->timezone, 'schedule' => $schedule, 'started_at' => $start, 'matures_at' => $schedule[$months - 1]['due_at'], 'request_id' => $requestId, 'status' => 'ACTIVE', 'maturity_policy' => WealthOrder::MANUAL_RENEW, 'redeem_before' => CarbonImmutable::parse($schedule[$months - 1]['due_at'])->setTimezone($tenant->timezone)->startOfDay()->addDay()->utc(), 'deposit_entry_id' => $entry]);
             foreach ($schedule as $row) {
                 DB::table('wealth_installments')->insert(['id' => (string) Str::uuid(), 'tenant_id' => $tenantId, 'order_id' => $id, 'month' => $row['month'], 'due_at' => $row['due_at'], 'amount' => $row['amount']]);
             }
@@ -102,6 +104,10 @@ final class WealthService
             }
             $wallet = $this->wallet($order);
             if (now()->greaterThanOrEqualTo($order->matures_at)) {
+                if ($order->maturity_policy === WealthOrder::MANUAL_RENEW) {
+                    throw new DomainException('WEALTH_REDEEM_REQUIRED', 'This deposit has matured. Review its redemption or renewal status.', 409);
+                }
+
                 return $this->settleLocked($order, $wallet);
             }
             $paid = $this->paid($order);
@@ -122,17 +128,26 @@ final class WealthService
         $read = WealthOrder::where('tenant_id', $tenantId)->whereKey($id)->firstOrFail();
 
         return DB::transaction(function () use ($tenantId, $id, $read) {
-            app(AssetAccess::class)->settlementOwners($tenantId, $read->user_id);
+            [$tenant, $user] = app(AssetAccess::class)->settlementOwners($tenantId, $read->user_id);
             $order = WealthOrder::where('tenant_id', $tenantId)->whereKey($id)->lockForUpdate()->firstOrFail();
             if ($order->status !== 'ACTIVE') {
                 return $order;
             }
 
-            return $this->settleLocked($order, $this->wallet($order));
+            $wallet = $this->wallet($order);
+            if ($order->maturity_policy === WealthOrder::MANUAL_RENEW && now()->greaterThanOrEqualTo($order->redeem_before)) {
+                $this->assertRenewalEligibility($tenant, $user, $order);
+                $this->interestLocked($order, $wallet);
+                $this->renewLocked($order, $wallet);
+
+                return $order;
+            }
+
+            return $this->settleLocked($order, $wallet);
         }, 3);
     }
 
-    private function settleLocked(WealthOrder $order, Wallet $wallet): WealthOrder
+    private function interestLocked(WealthOrder $order, Wallet $wallet): void
     {
         $due = DB::table('wealth_installments')->where('tenant_id', $order->tenant_id)->where('order_id', $order->id)->whereNull('settled_at')->where('due_at', '<=', now())->orderBy('month')->get();
         foreach ($due as $row) {
@@ -142,13 +157,85 @@ final class WealthService
                 $this->audit($order, 'SYSTEM', 'WEALTH_INTEREST', $entry);
             }
         }
-        if (now()->greaterThanOrEqualTo($order->matures_at)) {
+    }
+
+    private function settleLocked(WealthOrder $order, Wallet $wallet): WealthOrder
+    {
+        $this->interestLocked($order, $wallet);
+        if ($order->maturity_policy === null && now()->greaterThanOrEqualTo($order->matures_at)) {
             $entry = $this->post($wallet, $order->id, 'close', 'WEALTH_MATURITY', ['USER_WEALTH_PRINCIPAL' => '-'.$order->principal, 'USER_AVAILABLE' => $order->principal]);
             $order->update(['status' => 'MATURED', 'closed_at' => now()->startOfSecond(), 'returned' => $order->principal, 'clawback' => '0', 'close_entry_id' => $entry]);
             $this->audit($order, 'SYSTEM', 'WEALTH_MATURITY', $entry);
         }
 
         return $order;
+    }
+
+    public function redeem(string $tenantId, string $userId, string $id, string $requestId, string $password): WealthOrder
+    {
+        AssetAccess::requestId($requestId);
+
+        return DB::transaction(function () use ($tenantId, $userId, $id, $requestId, $password) {
+            [$tenant, $user] = app(AssetAccess::class)->settlementOwners($tenantId, $userId);
+            $order = WealthOrder::where('tenant_id', $tenantId)->where('user_id', $userId)->whereKey($id)->lockForUpdate()->firstOrFail();
+            if (! Hash::check($password, $user->password_hash)) {
+                throw new DomainException('WEALTH_PASSWORD_INVALID', 'The current password is incorrect.');
+            }
+            if ($order->close_reason === 'REDEEMED' && $order->redeem_request_id === $requestId) {
+                return $order;
+            }
+            if (WealthOrder::where('tenant_id', $tenantId)->where('user_id', $userId)->where('redeem_request_id', $requestId)->exists()) {
+                throw new DomainException('WEALTH_REQUEST_CONFLICT', 'This wealth request was already used with different details.', 409);
+            }
+            // Evaluate the window after ownership/order locks, not at HTTP arrival time.
+            $at = CarbonImmutable::now('UTC');
+            if ($order->status !== 'ACTIVE' || $order->maturity_policy !== WealthOrder::MANUAL_RENEW
+                || $at->lessThan($order->matures_at) || $at->greaterThanOrEqualTo($order->redeem_before)) {
+                throw new DomainException('WEALTH_REDEMPTION_CLOSED', 'Redemption is available only from maturity until the displayed deadline.', 409);
+            }
+            $this->assertRenewalEligibility($tenant, $user, $order);
+            $wallet = $this->wallet($order);
+            $this->interestLocked($order, $wallet);
+            $entry = $this->post($wallet, $id, 'close', 'WEALTH_MATURITY', ['USER_WEALTH_PRINCIPAL' => '-'.$order->principal, 'USER_AVAILABLE' => $order->principal]);
+            $order->update(['status' => 'MATURED', 'close_reason' => 'REDEEMED', 'redeem_request_id' => $requestId,
+                'closed_at' => $at->startOfSecond(), 'returned' => $order->principal, 'clawback' => '0', 'close_entry_id' => $entry]);
+            $this->audit($order, 'USER', 'WEALTH_REDEEM', $entry);
+
+            return $order;
+        }, 3);
+    }
+
+    private function assertRenewalEligibility(Tenant $tenant, User $user, WealthOrder $order): void
+    {
+        if ($tenant->status->value !== 'ACTIVE' || $user->status->value !== 'ACTIVE'
+            || app(KycStatusService::class)->forUser($order->tenant_id, $order->user_id)->value !== 'APPROVED') {
+            throw new DomainException('WEALTH_UNAVAILABLE', 'An active verified wallet is required.', 403);
+        }
+    }
+
+    private function renewLocked(WealthOrder $order, Wallet $wallet): void
+    {
+        $entry = $this->post($wallet, $order->id, 'close', 'WEALTH_MATURITY', ['USER_WEALTH_PRINCIPAL' => '-'.$order->principal, 'USER_AVAILABLE' => $order->principal]);
+        $order->update(['status' => 'MATURED', 'close_reason' => 'RENEWED', 'closed_at' => now()->startOfSecond(),
+            'returned' => $order->principal, 'clawback' => '0', 'close_entry_id' => $entry]);
+        $this->audit($order, 'SYSTEM', 'WEALTH_RENEW', $entry);
+        $id = (string) Str::uuid();
+        $start = $order->redeem_before;
+        $schedule = WealthMath::schedule($order->principal, $order->asset_code, $order->annual_rate, $order->months, $start, $order->timezone);
+        $deposit = $this->post($wallet, $id, 'deposit', 'WEALTH_DEPOSIT', ['USER_AVAILABLE' => '-'.$order->principal, 'USER_WEALTH_PRINCIPAL' => $order->principal]);
+        $next = WealthOrder::create(['id' => $id, 'tenant_id' => $order->tenant_id, 'user_id' => $order->user_id,
+            'wallet_id' => $wallet->id, 'asset_code' => $order->asset_code, 'principal' => $order->principal,
+            'months' => $order->months, 'annual_rate' => $order->annual_rate, 'config_revision' => $order->config_revision,
+            'timezone' => $order->timezone, 'schedule' => $schedule, 'started_at' => $start,
+            'matures_at' => $schedule[$order->months - 1]['due_at'], 'request_id' => $id, 'status' => 'ACTIVE',
+            'maturity_policy' => WealthOrder::MANUAL_RENEW, 'previous_order_id' => $order->id,
+            'redeem_before' => CarbonImmutable::parse($schedule[$order->months - 1]['due_at'])->setTimezone($order->timezone)->startOfDay()->addDay()->utc(),
+            'deposit_entry_id' => $deposit]);
+        foreach ($schedule as $row) {
+            DB::table('wealth_installments')->insert(['id' => (string) Str::uuid(), 'tenant_id' => $order->tenant_id,
+                'order_id' => $id, 'month' => $row['month'], 'due_at' => $row['due_at'], 'amount' => $row['amount']]);
+        }
+        $this->audit($next, 'SYSTEM', 'WEALTH_RENEW_DEPOSIT', $deposit);
     }
 
     private function wallet(WealthOrder $order): Wallet

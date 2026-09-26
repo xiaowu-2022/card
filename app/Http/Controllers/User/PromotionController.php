@@ -4,6 +4,7 @@ namespace App\Http\Controllers\User;
 
 use App\Application\Partners\PartnerReport;
 use App\Application\Promotion\PromotionQuery;
+use App\Application\Promotion\PaidPromotionQuery;
 use App\Application\Promotion\PromotionReportQuery;
 use App\Domain\Tenant\TenantContext;
 use App\Http\Controllers\Controller;
@@ -18,6 +19,17 @@ final class PromotionController extends Controller
 {
     public function show(PromotionDateRequest $request, TenantContext $context, PromotionQuery $query, string $section = 'overview'): Response|HttpResponse
     {
+        if ($section === 'features') {
+            return Inertia::render('user/AcademyFeatures');
+        }
+        if ($section === 'registration') {
+            return Inertia::render('user/AcademyRegistration');
+        }
+        if ($section === 'reward-guide') {
+            return Inertia::render('user/AcademyRewards', [
+                'levels' => app(PaidPromotionQuery::class)->levels($context->id()),
+            ]);
+        }
         if ($section === 'team') {
             return redirect('/promotion/invitations');
         }

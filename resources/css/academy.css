@@ -1,0 +1,183 @@
+.academy-reader {
+    max-width: 720px;
+    margin-inline: auto;
+    padding-bottom: 32px;
+    color: var(--user-ink, #253b32);
+    overflow-wrap: anywhere;
+}
+.academy-reader-hero {
+    padding: 28px 0 24px;
+}
+.academy-reader-eyebrow {
+    color: var(--user-primary);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+}
+.academy-reader-hero h2 {
+    margin: 14px 0;
+    font-size: clamp(26px, 5vw, 36px);
+    font-weight: 600;
+    line-height: 1.45;
+    text-wrap: balance;
+}
+.academy-reader-hero > p:last-child,
+.academy-reader-section > header p {
+    color: #718078;
+    font-size: 14px;
+    line-height: 1.85;
+}
+.academy-reader-toc {
+    padding: 20px;
+    border-radius: 16px;
+    background: #f3f7f3;
+}
+.academy-reader-toc > p {
+    margin: 0 0 10px;
+    font-size: 12px;
+    color: #718078;
+}
+.academy-reader-toc a {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 44px;
+    font-size: 15px;
+}
+.academy-reader-toc a span:first-child {
+    color: var(--user-primary);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+.academy-reader-toc a svg {
+    margin-left: auto;
+    color: #718078;
+}
+.academy-reader-toc a:focus-visible {
+    outline: 2px solid var(--user-primary);
+    outline-offset: 3px;
+    border-radius: 4px;
+}
+.academy-reader-note {
+    margin: 24px 0 0;
+    border-left: 2px solid #c9dace;
+    padding-left: 14px;
+    color: #718078;
+    font-size: 12px;
+    line-height: 1.9;
+}
+.academy-reader-section {
+    padding-top: 36px;
+    scroll-margin-top: 24px;
+}
+.academy-reader-section + .academy-reader-section {
+    margin-top: 32px;
+    border-top: 1px solid #e4ebe5;
+}
+.academy-reader-section > header {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    margin-bottom: 28px;
+}
+.academy-reader-index {
+    flex-shrink: 0;
+    white-space: nowrap;
+    font-size: 30px;
+    font-weight: 300;
+    line-height: 1.3;
+    color: var(--user-primary);
+}
+.academy-reader-section h2 {
+    margin: 0 0 6px;
+    font-size: 23px;
+    font-weight: 600;
+}
+.academy-reader-section > header p {
+    margin: 0;
+}
+.academy-reader-topic + .academy-reader-topic {
+    margin-top: 26px;
+}
+.academy-reader-topic h3 {
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+    margin: 0 0 10px;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.6;
+}
+.academy-reader-topic h3 span {
+    color: var(--user-primary);
+    font-size: 12px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+}
+.academy-reader-topic p {
+    margin: 0;
+    color: #526159;
+    font-size: 15px;
+    line-height: 2;
+}
+.academy-benefits {
+    margin-top: 28px;
+    border: 1px solid #e4ebe5;
+    border-radius: 16px;
+    overflow: hidden;
+}
+.academy-benefits > h3 {
+    margin: 0;
+    padding: 16px 20px;
+    background: #f3f7f3;
+    font-size: 15px;
+    font-weight: 600;
+}
+.academy-benefit-row {
+    padding: 20px;
+}
+.academy-benefit-row + .academy-benefit-row {
+    border-top: 1px solid #e4ebe5;
+}
+.academy-benefit-row h4 {
+    margin: 0 0 14px;
+    font-size: 16px;
+    font-weight: 600;
+}
+.academy-benefit-row dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin: 0;
+}
+.academy-benefit-row dt {
+    color: #718078;
+    font-size: 12px;
+    line-height: 1.6;
+}
+.academy-benefit-row dd {
+    margin: 4px 0 0;
+    font-size: 16px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+}
+.academy-reward-example {
+    padding: 18px;
+    border-left: 2px solid #c9dace;
+    background: #f7f9f5;
+    border-radius: 0 12px 12px 0;
+}
+.academy-progress-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 32px;
+    padding: 18px 0;
+    border-top: 1px solid #e4ebe5;
+    color: var(--user-primary);
+    font-size: 15px;
+}
+.academy-progress-link:focus-visible {
+    outline: 2px solid var(--user-primary);
+    outline-offset: 3px;
+}

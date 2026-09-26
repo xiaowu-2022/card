@@ -63,6 +63,12 @@ Route::middleware('tenant.surface:user-auth')->group(function (): void {
     });
 
     Route::middleware(['user.authenticated', 'tenant.surface:user-restricted'])->group(function (): void {
+        Route::post('/support/read', [SupportController::class, 'read'])->middleware('throttle:120,1');
+        Route::get('/messages', [\App\Http\Controllers\User\InboxController::class, 'index'])->name('user.messages');
+        Route::get('/messages/unread-count', [\App\Http\Controllers\User\InboxController::class, 'unread'])->middleware('throttle:120,1');
+        Route::post('/messages/read-all', [\App\Http\Controllers\User\InboxController::class, 'readAll'])->middleware('throttle:30,1');
+        Route::get('/messages/{message}', [\App\Http\Controllers\User\InboxController::class, 'show'])->whereUuid('message');
+        Route::post('/messages/{message}/read', [\App\Http\Controllers\User\InboxController::class, 'read'])->whereUuid('message')->middleware('throttle:120,1');
         Route::get('/account/restricted', [AccountController::class, 'restricted'])->name('user.account.restricted');
         Route::get('/account/security', [AccountController::class, 'security'])->name('user.account.security');
         Route::get('/kyc', [KycController::class, 'show'])->name('user.kyc');
@@ -88,6 +94,7 @@ Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operat
     Route::get('/wealth/assets/{asset}', [WealthController::class, 'asset'])->whereIn('asset', ['USDT', 'USDC', 'ETH', 'BTC'])->name('user.wealth.asset');
     Route::get('/wealth/orders/{order}', [WealthController::class, 'show'])->whereUuid('order')->name('user.wealth.order');
     Route::post('/wealth/orders', [WealthController::class, 'store'])->middleware('throttle:10,1');
+    Route::post('/wealth/orders/{order}/redeem', [WealthController::class, 'redeem'])->whereUuid('order')->middleware('throttle:5,1');
     Route::post('/wealth/orders/{order}/cancel', [WealthController::class, 'cancel'])->whereUuid('order')->middleware('throttle:5,1');
     Route::get('/assets/operate', [AssetsController::class, 'show'])->name('user.assets.operate');
     Route::post('/assets/orders', [AssetsController::class, 'store'])->middleware('throttle:10,1')->name('user.assets.store');
@@ -126,7 +133,7 @@ Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operat
     Route::get('/promotion/stock', PartnerReportController::class)->middleware('throttle:60,1')->name('promotion.stock');
     Route::get('/promotion/members/{member}/team-summary', [PromotionController::class, 'memberTeam'])->whereUuid('member')->middleware('throttle:60,1')->name('user.promotion.member-team');
     Route::get('/promotion/commissions', [PromotionController::class, 'commissions'])->name('user.promotion.commissions');
-    Route::get('/promotion/{section}', [PromotionController::class, 'show'])->whereIn('section', ['team', 'daily', 'direct', 'invitations', 'rules'])->name('user.promotion.section');
+    Route::get('/promotion/{section}', [PromotionController::class, 'show'])->whereIn('section', ['team', 'daily', 'direct', 'invitations', 'rules', 'features', 'reward-guide', 'registration'])->name('user.promotion.section');
     Route::get('/about', [AboutController::class, 'index'])->name('user.about');
     Route::get('/about/{article}', [AboutController::class, 'show'])->whereIn('article', ['terms', 'privacy', 'account-closure'])->name('user.about.article');
     Route::post('/kyc/applications', [KycController::class, 'store'])->name('user.kyc.applications.store');

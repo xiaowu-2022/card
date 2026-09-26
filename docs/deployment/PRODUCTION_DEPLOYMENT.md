@@ -185,3 +185,12 @@ storage/logs/photonpay-日期.log；保持PHP运行用户可写，日志不公�
 4. 核对已有报告/发卡账号身份。迁移错误需先人工查明，不能用新的账号覆盖；未绑定历史产品只有同一账号身份确认后的专用映射可切换，本次迁移不自动切换。
 5. 在新后台补齐各账号公钥，执行只读连接检查并保存 BIN。迁移后的账号最初未检查，在检查成功前保持不可用；已有资金和未知结果不变。检查不代表开卡/签名验收成功。
 6. 配置各账号独立回调地址；旧地址只有可唯一定位资源账号时继续接收。清理配置缓存并重载对应 PHP 进程；不重放旧通知、不运行恢复轮询、不做正式或沙箱开卡验收。
+
+### In-app messages (2026-09-26)
+
+Apply the inbox migration before enabling the new code and rebuild assets. The existing
+minute scheduler now runs `messages:recover` (bounded 500-event batches); use
+`php artisan messages:recover --tenant=<uuid>` to retry only a company's pending
+messages. This command does not replay financial or provider operations. The migration
+adds `notifications.read`/`notifications.send` to Platform Owner/Admin and does not send
+messages or backfill historical orders. See [inbox architecture and recovery](../architecture/INBOX_MESSAGES.md).

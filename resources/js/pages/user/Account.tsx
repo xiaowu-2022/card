@@ -1,6 +1,8 @@
+import { UnreadBadge } from '@/components/user/MessageBell';
 import { t, useClientTranslation } from '@/i18n';
 import { Head, Link, usePage } from '@inertiajs/react';
 import {
+    Bell,
     ChevronRight,
     BookOpen,
     Settings,
@@ -39,9 +41,10 @@ export default function Account({
     const items = [
         { title: t('Account and security'), icon: ShieldCheck, href: '/account/security' },
         { title: t('Promotion center'), icon: Users, href: '/promotion' },
-        { title: t('U Card Academy'), icon: BookOpen, href: '/promotion/rules' },
         { title: t('Invitation data'), icon: ChartNoAxesCombined, href: '/promotion/invitations' },
+        { title: t('U Card Academy'), icon: BookOpen, href: '/promotion/rules' },
         { title: t('Customer support'), icon: MessageSquare, href: '/support' },
+        { title: t('Messages'), icon: Bell, href: '/messages' },
     ];
     return (
         <UserLayout>
@@ -87,8 +90,10 @@ export default function Account({
                     <div className="user-menu-grid">
                         {items.map(({ title, icon: Icon, href }) => (
                             <Link key={href} href={href} className="user-menu-item">
-                                <span className="user-menu-icon">
+                                <span className="user-menu-icon relative">
                                     <Icon aria-hidden="true" />
+                                    {href === '/messages' && <UnreadBadge />}
+                                    {href === '/support' && <UnreadBadge kind="support" />}
                                 </span>
                                 <span className="user-menu-label">{title}</span>
                             </Link>

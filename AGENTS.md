@@ -1,3 +1,38 @@
+On 2026-09-26 the user added support unread badges and a combined inbox+support
+badge on the bottom Me navigation. Keep support text separate; acknowledge only
+rendered support sequences with an authenticated tenant/user-scoped POST. GET stays
+read-only, concurrent new replies remain unread, and read cursors never regress.
+See `docs/architecture/SUPPORT_CHAT.md`.
+
+On 2026-09-26 the user approved tenant-scoped in-app messages for newly confirmed
+business outcomes and explicitly confirmed SaaS notifications. Capture immutable
+outbox intents in the business transaction; deliver/recover independently with
+recipient-scoped deduplication. Platform notifications.read/send, company selection,
+preview and immutable recipient snapshots are mandatory; no repeat password.
+Reads remain tenant/user scoped, GET never marks read, and read-all preserves concurrent
+arrivals. Only safe four-language templates/native amounts; no historical backfill,
+email/SMS/push, live broadcasts or financial/provider replay. See
+`docs/architecture/INBOX_MESSAGES.md`.
+
+On 2026-09-26 the user approved manual maturity redemption and automatic renewal
+only for future wealth purchases. Existing orders retain automatic principal return.
+New contracts allow full principal redemption from maturity until next local midnight
+in the snapshotted company timezone. Unredeemed principal renews with the original
+amount, term and rate; interest stays in the original wallet. Product disablement or
+new minimums do not block contract renewal. Account/wallet failures retry safely and
+catch up from scheduled midnight, without interest for the redemption window.
+Preserve atomic LedgerWriter accounting, immutable linked cycles, explicit authenticated
+redemption and scoped recovery; no live financial tests or historical money rewrites.
+See docs/architecture/WEALTH_MANAGEMENT.md.
+
+On 2026-09-25 the user approved selecting USDT, USDC, ETH or BTC for same-company
+wallet transfers. Validate the selected asset and its native Ledger precision,
+show exact currency amounts, and bind currency into immutable retry intent.
+Preserve existing verified active-wallet gates, scoped recipients, password and
+confirmation, atomic LedgerWriter settlement and receipts. No FX, live financial
+tests, historical money rewrites or automatic wallet activation is authorized.
+See docs/architecture/WALLET_TRANSFERS.md.
+
 On 2026-09-24 the user reported a still-pending TRC20 payment missed behind the
 scan cursor. Automatic scans must recheck unfinished orders within their immutable
 validity windows and existing cursor start, even when forward scanning is caught up.

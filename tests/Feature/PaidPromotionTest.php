@@ -67,7 +67,11 @@ afterEach(function () {
 
 function paidWallet($test, User $user, string $amount = '500000'): void
 {
-    $application = app(SubmitKycApplicationAction::class)->execute($test->tenant, $user, 'MY', 'PAID-'.$user->id, kycTestImage(), kycTestImage());
+    $ocr = Mockery::mock(\App\Domain\Kyc\Contracts\KycOcrProviderInterface::class);
+    $ocr->shouldReceive('name')->andReturn('TEST');
+    $ocr->shouldReceive('extractIdentityDocument')->andReturn(new \App\Domain\Kyc\DTOs\KycOcrResultDTO(\App\Domain\Kyc\Enums\KycOcrOutcome::Success, 'PAID-'.$user->id));
+    app()->instance(\App\Domain\Kyc\Contracts\KycOcrProviderInterface::class, $ocr);
+    $application = app(SubmitKycApplicationAction::class)->execute($test->tenant, $user, 'CN', 'PAID-'.$user->id, kycTestImage(), kycTestImage());
     app(ApproveKycAction::class)->execute($test->tenant->id, $application->id, $test->admin);
     $wallet = app(ActivateUserWalletAction::class)->execute($test->tenant->id, $user->id)->wallet;
     $available = LedgerAccount::where('tenant_id', $test->tenant->id)->where('wallet_id', $wallet->id)->where('account_type', 'USER_AVAILABLE')->firstOrFail();

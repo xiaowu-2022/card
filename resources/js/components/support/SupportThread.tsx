@@ -1,3 +1,4 @@
+import { useSupportRead } from './useSupportRead';
 import { router, useForm } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { ImagePlus, MessageSquare, Send, X } from 'lucide-react';
@@ -49,6 +50,7 @@ export function SupportThread({
     const followLatest = useRef(true);
     const disconnected = useSupportPolling('chat', !form.processing && chat.before === 0);
     const lastId = chat.messages.at(-1)?.id;
+    useSupportRead(chat.messages.at(-1)?.sequence ?? 0, !admin);
     useEffect(() => {
         if (!form.data.support_image) {
             setPreview(null);

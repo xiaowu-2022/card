@@ -8,7 +8,7 @@ const app = manifest['resources/js/app.tsx'];
 const css = new Set([manifest['resources/css/app.css'].file, ...(app.css ?? [])]);
 const company = { id: '00000000-0000-4000-8000-000000000001', name: 'Wealth test company' };
 const settings = ['USDT','USDC','ETH','BTC'].map(asset => ({ asset, minimum: '1', revision: '00000000-0000-4000-8000-000000000002', available: '1200.123456', principal: '1000', net:'6.66666666', interest: '6.66666666', products: [1,3,6,12,24,36,60].map((months,i) => ({ months, rate: ['6','8','12','15','16','17','18'][i], enabled: true })) }));
-const order = { id: '00000000-0000-4000-8000-000000000003', asset:'USDT', principal:'1000', rate:'8', months:3, status:'ACTIVE',displayStatus:'ACTIVE', startedAt:'2099-01-31T04:00:00Z', maturesAt:'2099-04-30T04:00:00Z', paid:'6.66666666', returnAmount:'993.33333334', clawback:null, closedAt:null, canCancel:true, timezone:'Asia/Kuala_Lumpur', schedule:[1,2,3].map(month => ({month,dueAt:`2099-0${month+1}-28T04:00:00Z`,amount:month===3?'6.66666667':'6.66666666',settledAt:month===1?'2099-02-28T04:00:00Z':null})) };
+const order = { maturityPolicy:'MANUAL_REDEEM_RENEW',redeemBefore:'2099-04-30T16:00:00Z',redeemBeforeLocal:'2099-05-01 00:00:00',canRedeem:false,previousOrderId:null,nextOrderId:null, id: '00000000-0000-4000-8000-000000000003', asset:'USDT', principal:'1000', rate:'8', months:3, status:'ACTIVE',displayStatus:'ACTIVE', startedAt:'2099-01-31T04:00:00Z', maturesAt:'2099-04-30T04:00:00Z', paid:'6.66666666', returnAmount:'993.33333334', clawback:null, closedAt:null, canCancel:true, timezone:'Asia/Kuala_Lumpur', schedule:[1,2,3].map(month => ({month,dueAt:`2099-0${month+1}-28T04:00:00Z`,amount:month===3?'6.66666667':'6.66666666',settledAt:month===1?'2099-02-28T04:00:00Z':null})) };
 const overview = {nextInterest:{dueAt:'2026-10-18T00:00:00Z',overdue:false,amounts:[{asset:'USDT',amount:'6.66666666'}]},principalEstimate:'4000',netEstimate:'24',updatedAt:'2026-09-18T00:00:00Z',timezone:'Asia/Kuala_Lumpur',assets:settings.map(s=>({...s,annualRateMin:'6',annualRateMax:'18',charts:{6:{maximum:'6.66666666',ratios:['1','1','1','1','1','-0.5']},12:{maximum:'6.66666666',ratios:['1','1','1','1','1','1','1','1','1','1','1','-0.5']}},paid:'6.66666666',recovered:'0.66666666',net:'6',count:1,value:'1000',share:'25',months:Array.from({length:12},(_,i)=>({month:`2026-${String(i+1).padStart(2,'0')}`,paid:'6.66666666',recovered:i===11?'10':'0',net:i===11?'-3.33333334':'6.66666666',paidRatio:'0.66666666',recoveredRatio:i===11?'1':'0',netRatio:i===11?'-0.33333333':'0.66666666'}))}))};
 let locale='zh-CN';
 let variant='normal';
@@ -37,11 +37,19 @@ const server=createServer(async(req,res)=>{
   }
   if(variant==='expired') { overviewPage.principalEstimate=null;overviewPage.netEstimate=null;overviewPage.updatedAt=null;overviewPage.assets.forEach(a=>{a.share=null;a.value=null;}); }
   if(variant==='long') overviewPage.assets.forEach(a=>{a.available='123456789012.123456789012345678';a.principal='0.000000000000000001';a.net='0.000000000000000001';});
+  const shownOrder=structuredClone(order);
+  if (['redeemable','renewal_pending','renewed','redeemed'].includes(variant)) {
+    shownOrder.canCancel=false; shownOrder.canRedeem=variant==='redeemable';
+    shownOrder.displayStatus={redeemable:'REDEEMABLE',renewal_pending:'RENEWAL_PENDING',renewed:'RENEWED',redeemed:'REDEEMED'}[variant];
+    shownOrder.returnAmount=shownOrder.principal;shownOrder.paid='20';
+    if(['renewed','redeemed'].includes(variant)) {shownOrder.status='MATURED';shownOrder.closedAt=shownOrder.redeemBefore;shownOrder.schedule.forEach(row=>row.settledAt=row.dueAt);}
+    if(variant==='renewed') shownOrder.nextOrderId='00000000-0000-4000-8000-000000000004';
+  }
   const page={component:history?'user/AssetHistory':admin?'platform/WealthSettings':detail?'user/WealthOrder':home?'user/WealthOverview':'user/Wealth',url:req.url,version:'wealth-preview',props:{
     errors:{},flash:{success:null},tenant:{...company,branding:{brandName:'Spec Pay',primaryColor:'#39ad8d',logoUrl:null},locales:['zh-CN','en','ms','es']},
     auth:{user:{id:'preview',status:'ACTIVE',displayStatus:'ACTIVE',displayName:'Preview'},admin:{id:'admin',name:'Preview admin',permissions:['tenant.manage','tenant_settings.manage'],scope:readOnly?'TENANT':'PLATFORM'}},
     i18n:{locale,timezone:'Asia/Kuala_Lumpur',enabledLocales:admin?['zh-CN','en']:['zh-CN','en','ms','es'],surface:admin?(readOnly?'tenant-admin':'platform'):'user'},
-    ...(history?{selectedAsset:parsedUrl.searchParams.get('asset')??(req.url.startsWith('/funds')?'ALL':'USDT'),balances:['USDT','USDC','ETH','BTC'].map(asset=>({asset,available:'1200.123456'})),rows:{data:activityRows,next_page_url:null,prev_page_url:null}}:admin?{company,settings,readOnly}:detail?{order,startWithdrawal:view==='withdraw'}:home?overviewPage:{settings,view,selectedAsset:parsedUrl.pathname.split('/').at(-1),orders:{data:[order],prev_page_url:null,next_page_url:null}})
+    ...(history?{selectedAsset:parsedUrl.searchParams.get('asset')??(req.url.startsWith('/funds')?'ALL':'USDT'),balances:['USDT','USDC','ETH','BTC'].map(asset=>({asset,available:'1200.123456'})),rows:{data:activityRows,next_page_url:null,prev_page_url:null}}:admin?{company,settings,readOnly}:detail?{order:shownOrder,startWithdrawal:view==='withdraw'}:home?overviewPage:{settings,view,selectedAsset:parsedUrl.pathname.split('/').at(-1),orders:{data:[shownOrder],prev_page_url:null,next_page_url:null}})
   }};
   if(req.headers['x-inertia']){res.writeHead(200,{'Content-Type':'application/json','X-Inertia':'true'}).end(JSON.stringify(page));return;}
   const json=JSON.stringify(page).replaceAll('<', '\\u003c');
@@ -109,6 +117,33 @@ try {
    const dimensions=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,width:innerWidth}));assert.ok(dimensions.scroll<=dimensions.width,JSON.stringify(dimensions));
    assert.ok(!(await page.locator('main').innerText()).includes('{{'));
    if(locale==='zh-CN')await page.screenshot({path:`/tmp/card-wealth-browser/${width}-cancel.png`,fullPage:true});
+   await page.keyboard.press('Escape');
+   variant='redeemable';
+   await page.goto(origin+'/wealth/orders/'+order.id+'?view=withdraw');
+   await page.locator('#wealth-password').waitFor();
+   const redemption=page.locator('[role=dialog]');
+   assert.ok((await redemption.innerText()).includes('1000 USDT'));
+   assert.ok(!(await redemption.innerText()).includes('993.33333334'));
+   await page.locator('#wealth-password').fill('offline-password');
+   await redemption.locator('input[type=checkbox]').check();
+   if(locale==='zh-CN')await page.screenshot({path:`/tmp/card-wealth-browser/${width}-redeem.png`,fullPage:true});
+   await redemption.locator('button[type=submit]').click();
+   await page.waitForURL('**/wealth/orders/'+order.id);
+   assert.equal(requests.at(-1).url, '/wealth/orders/'+order.id+'/redeem');
+   assert.equal(requests.at(-1).body.confirmed,true);
+   await page.locator('[data-wealth-withdraw]').click();await page.locator('#wealth-password').waitFor();
+   assert.equal(await page.locator('#wealth-password').inputValue(),'');
+   for(variant of ['renewal_pending','renewed','redeemed']) {
+     await page.goto(origin+'/wealth/orders/'+order.id);
+     await page.locator('main').waitFor();
+     assert.equal(await page.locator('[data-wealth-withdraw]').count(),0);
+     if(variant==='renewed') {
+       await page.locator('a[href="/wealth/orders/00000000-0000-4000-8000-000000000004"]').waitFor();
+       if(locale==='zh-CN')await page.screenshot({path:`/tmp/card-wealth-browser/${width}-renewed.png`,fullPage:true});
+     }
+     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+   }
+   variant='normal';
    assert.deepEqual(errors,[]);await page.close();
   }
   locale='zh-CN';
@@ -130,5 +165,5 @@ try {
    await page.close();
   }
  }
- console.log('Wealth browser checks passed: 3 widths, 4 consumer locales, deposit review and cancellation preview, SaaS/company configuration. All requests used offline fixtures.');
+ console.log('Wealth browser checks passed: 3 widths, 4 consumer locales, deposit review, cancellation, maturity redemption and renewal states, SaaS/company configuration. All requests used offline fixtures.');
 } finally {await browser.close();await new Promise(r=>server.close(r));}

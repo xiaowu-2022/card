@@ -21,7 +21,7 @@ final class WalletTransferController extends Controller
 
     public function store(TransferWalletBalanceRequest $request, TenantContext $context, TransferWalletBalanceAction $action): RedirectResponse
     {
-        $transfer = $action->execute($context->id(), $request->user('tenant_user')->id, $request->validated('recipient_account_id'), $request->validated('amount'), $request->validated('request_id'));
+        $transfer = $action->execute($context->id(), $request->user('tenant_user')->id, $request->validated('recipient_account_id'), $request->validated('amount'), $request->validated('request_id'), $request->validated('asset'));
 
         return redirect('/wallet/transfers/'.$transfer->id)->with('success', 'Transfer completed.');
     }

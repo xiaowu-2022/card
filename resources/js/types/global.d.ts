@@ -16,6 +16,8 @@ export interface SharedProps extends InertiaPageProps {
         timezone: string;
         surface?: 'user' | 'tenant-admin' | 'platform';
     };
+    unreadMessages?: number;
+    unreadSupport?: number;
     requestId: string;
     tenant: TenantSharedProps | null;
     auth: {

@@ -30,3 +30,25 @@ ocr:RecognizeChinesePassport。配置独立 RAM 凭据后执行 config:cache 并
 - https://help.aliyun.com/zh/ocr/developer-reference/api-ocr-api-2021-07-07-recognizeidcard
 - https://help.aliyun.com/zh/ocr/developer-reference/api-ocr-api-2021-07-07-recognizepassport
 - https://help.aliyun.com/zh/ocr/developer-reference/api-ocr-api-2021-07-07-recognizechinesepassport
+
+
+## 2026-09-26 安全故障诊断
+
+当网页显示 KYC_OCR_UNAVAILABLE 时，CLI 配置检查只能证明该 CLI 进程读到了
+非空配置，不能证明 AccessKey 有效、RAM 已授权、产品已开通或 PHP-FPM 已重载。
+适配器现在将失败写入现有应用日志，消息为 `Aliyun KYC OCR failed`，字段仅包含：
+固定 action/phase、HTTP 状态、严格白名单 provider_code、UUID 格式
+provider_request_id，以及可提取时的 cURL 数字 transport_code。未知错误码为
+UNRECOGNIZED，不保存原始值。Message、响应体、图片、证件号码、密钥、Authorization
+及完整异常链不记录，也不向浏览器暴露。日志写入失败仍拒绝认证，不附原异常。
+
+phase=configuration 表示运行进程缺少配置；transport 表示发请求时异常，常见
+cURL 6/7/28/35/60 分别指 DNS、连接、超时、TLS 或证书问题；upstream 表示非成功
+HTTP 或阿里云 Code 响应；response_json/response_data 表示返回格式无法解析。
+权限、签名、服务开通等具体根因仍必须以线上诊断证据为准。
+
+本补丁仅需同步 `app/Infrastructure/Providers/Kyc/AliyunKycOcrProvider.php` 并
+重载网站 PHP-FPM。无迁移、前端构建或配置新增要求。正常用户提交遇到失败后，
+在服务器项目根目录查看匹配该消息的日志即可；不得自动重放历史证件或日志。
+本地 HTTP 伪造测试覆盖正常识别、403/200 错误、超时、缺配置、异常返回及敏感信息
+过滤，不用真实证件或凭据发起线上请求。

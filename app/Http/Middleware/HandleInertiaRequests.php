@@ -40,6 +40,10 @@ final class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
+            'unreadSupport' => $user instanceof User && $tenant && $user->tenant_id === $tenant->id
+                ? app(\App\Application\Support\SupportUnread::class)->count($tenant->id, $user->id) : 0,
+            'unreadMessages' => $user instanceof User && $tenant && $user->tenant_id === $tenant->id
+                ? app(\App\Application\Inbox\InboxQuery::class)->unread($tenant->id, $user->id) : 0,
             'requestId' => $request->attributes->get('request_id'),
             'i18n' => [
                 'surface' => $request->attributes->get('locale_surface', 'user'),

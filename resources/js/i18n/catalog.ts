@@ -1,3 +1,7 @@
+import { inboxCatalog } from './inbox-catalog';
+import { academyCatalog } from './academy-catalog';
+import { registrationGuideCatalog } from './registration-guide-catalog';
+import { rewardsCatalog } from './rewards-catalog';
 import { partnerCatalog } from './partner-catalog';
 import { physicalCardCatalog } from './physical-card-catalog';
 import { paidPromotionCatalog } from './paid-promotion-catalog';
@@ -10,6 +14,21 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    ...inboxCatalog,
+    'After depositing to the address above 👆, your deposit succeeds after 3 network confirmations!':
+        [
+            '对上述地址👆充值后，经过3次网络确认，充值成功！',
+            'Selepas mendeposit ke alamat di atas 👆, deposit anda berjaya selepas 3 pengesahan rangkaian!',
+            'Tras depositar en la dirección anterior 👆, ¡tu depósito se completa después de 3 confirmaciones de red!',
+        ],
+    'If your deposit has not arrived after 5 minutes, please contact customer support.': [
+        '如超过5分钟未到账，请联系客服',
+        'Jika deposit belum diterima selepas 5 minit, sila hubungi khidmat pelanggan.',
+        'Si tu depósito no ha llegado después de 5 minutos, contacta con atención al cliente.',
+    ],
+    ...academyCatalog,
+    ...registrationGuideCatalog,
+    ...rewardsCatalog,
     ...partnerCatalog,
     'PhotonPay App Secret is required.': [
         '请填写 PhotonPay App Secret。',

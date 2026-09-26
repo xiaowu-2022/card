@@ -1,4 +1,3 @@
-import { systemMoney } from '@/lib/system-money';
 import { useEffect, useState } from 'react';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { CheckCircle2 } from 'lucide-react';
@@ -9,10 +8,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FormField } from '@/components/ui/form-field';
-import { MoneyDisplay } from '@/components/user/UserMoney';
+import {
+    Select,
+    SelectTrigger,
+    SelectValue,
+    SelectContent,
+    SelectItem,
+} from '@/components/ui/select';
 import type { SharedProps } from '@/types/global';
 
-type Draft = { request_id: string; recipient_account_id: string; amount: string };
+const scales: Record<string, number> = { USDT: 8, USDC: 6, ETH: 18, BTC: 8 };
+const amountPattern = (asset: string) =>
+    `(?:0|[1-9][0-9]{0,11})(?:\\.[0-9]{1,${scales[asset] ?? 8}})?`;
+const exactAmount = (amount: string) =>
+    amount.includes('.') ? amount.replace(/0+$/, '').replace(/\.$/, '') : amount;
+type Draft = { request_id: string; recipient_account_id: string; amount: string; asset: string };
+type Asset = { asset: string; amount: string; scale: number; available: boolean };
 type Receipt = {
     id: string;
     requestId: string;
@@ -33,7 +44,9 @@ function readDraft(key: string): Draft | null {
             typeof draft.recipient_account_id === 'string' &&
             /^\d{12}$/.test(draft.recipient_account_id) &&
             typeof draft.amount === 'string' &&
-            /^(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/.test(draft.amount)
+            typeof draft.asset === 'string' &&
+            Object.hasOwn(scales, draft.asset) &&
+            new RegExp(`^${amountPattern(draft.asset)}$`).test(draft.amount)
             ? (draft as Draft)
             : null;
     } catch {
@@ -43,12 +56,12 @@ function readDraft(key: string): Draft | null {
 
 export default function Transfer({
     accountId,
-    available,
+    assets,
     transferAvailable,
     receipt,
 }: {
     accountId: string;
-    available: { amount: string; asset: string } | null;
+    assets: Asset[];
     transferAvailable: boolean;
     receipt: Receipt | null;
 }) {
@@ -62,10 +75,12 @@ export default function Transfer({
         request_id: draft?.request_id ?? crypto.randomUUID(),
         recipient_account_id: draft?.recipient_account_id ?? '',
         amount: draft?.amount ?? '',
+        asset: draft?.asset ?? 'USDT',
         current_password: '',
         confirmed: false,
         form: '',
     });
+    const selected = assets.find((asset) => asset.asset === form.data.asset);
     useEffect(() => {
         try {
             if (receipt && receipt.requestId === readDraft(storageKey)?.request_id)
@@ -86,8 +101,8 @@ export default function Transfer({
                                 <CheckCircle2 aria-hidden="true" />
                             </span>
                             <h2 id="transfer-result-title">{t('Transfer completed.')}</h2>
-                            <p className="transfer-receipt-amount">
-                                <MoneyDisplay amount={receipt.amount} asset={receipt.asset} />
+                            <p className="transfer-receipt-amount break-all">
+                                {exactAmount(receipt.amount)} {receipt.asset}
                             </p>
                         </div>
                         <dl className="transfer-receipt-details">
@@ -117,7 +132,7 @@ export default function Transfer({
                             </Button>
                         </div>
                     </section>
-                ) : !transferAvailable || !available ? (
+                ) : !transferAvailable ? (
                     <p role="status">
                         {t('Both accounts need active verified wallets in the same currency.')}
                     </p>
@@ -129,7 +144,9 @@ export default function Transfer({
                             if (form.processing) return;
                             if (!reviewing) {
                                 if (
-                                    !/^(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/.test(form.data.amount) ||
+                                    !new RegExp(`^${amountPattern(form.data.asset)}$`).test(
+                                        form.data.amount,
+                                    ) ||
                                     !/[1-9]/.test(form.data.amount)
                                 ) {
                                     form.setError('amount', 'Enter a positive transfer amount.');
@@ -154,6 +171,7 @@ export default function Transfer({
                                         request_id: form.data.request_id,
                                         recipient_account_id: form.data.recipient_account_id,
                                         amount: form.data.amount,
+                                        asset: form.data.asset,
                                     }),
                                 );
                             } catch {
@@ -175,12 +193,42 @@ export default function Transfer({
                             <p className="text-sm text-muted-foreground">
                                 {t('Available balance')}
                             </p>
-                            <p className="text-3xl font-semibold">
-                                <MoneyDisplay {...available} />
+                            <p className="text-3xl font-semibold break-all">
+                                {exactAmount(selected?.amount ?? '0')} {form.data.asset}
                             </p>
                         </div>
                         {!reviewing ? (
                             <>
+                                <FormField
+                                    id="transfer-asset"
+                                    label={t('Currency')}
+                                    error={errorMessage(form.errors.asset)}
+                                >
+                                    <Select
+                                        value={form.data.asset}
+                                        onValueChange={(asset) => {
+                                            form.setData((data) => ({
+                                                ...data,
+                                                asset,
+                                                amount: '',
+                                                current_password: '',
+                                                confirmed: false,
+                                            }));
+                                            form.clearErrors();
+                                        }}
+                                    >
+                                        <SelectTrigger id="transfer-asset">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {assets.map((asset) => (
+                                                <SelectItem key={asset.asset} value={asset.asset}>
+                                                    {asset.asset}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </FormField>
                                 <FormField
                                     id="recipient-account-id"
                                     label={t('Recipient account ID')}
@@ -205,18 +253,27 @@ export default function Transfer({
                                     id="transfer-amount"
                                     label={t('Transfer amount')}
                                     error={errorMessage(form.errors.amount)}
-                                    description="$"
+                                    description={form.data.asset}
                                 >
                                     <Input
                                         id="transfer-amount"
                                         inputMode="decimal"
-                                        pattern="(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,2})?"
+                                        pattern={amountPattern(form.data.asset)}
                                         required
                                         value={form.data.amount}
                                         onChange={(e) => form.setData('amount', e.target.value)}
                                     />
                                 </FormField>
-                                <Button type="submit">{t('Review transfer')}</Button>
+                                {!selected?.available && (
+                                    <p role="status">
+                                        {t(
+                                            'Both accounts need active verified wallets in the same currency.',
+                                        )}
+                                    </p>
+                                )}
+                                <Button type="submit" disabled={!selected?.available}>
+                                    {t('Review transfer')}
+                                </Button>
                             </>
                         ) : (
                             <>
@@ -228,8 +285,9 @@ export default function Transfer({
                                             {form.data.recipient_account_id}
                                         </span>
                                     </p>
-                                    <p>
-                                        {t('Transfer amount')}: {systemMoney(form.data.amount)}
+                                    <p className="break-all">
+                                        {t('Transfer amount')}: {exactAmount(form.data.amount)}{' '}
+                                        {form.data.asset}
                                     </p>
                                     <p className="text-sm">
                                         {t(

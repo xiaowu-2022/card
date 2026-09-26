@@ -1,5 +1,6 @@
 <?php
 
+use App\Application\Assets\AssetAccess;
 use App\Application\Assets\AssetOverviewQuery;
 use App\Application\Assets\FundsQuery;
 use App\Application\Kyc\ApproveKycAction;
@@ -11,6 +12,9 @@ use App\Application\Wealth\WealthService;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Assets\MarketSettings;
 use App\Domain\Assets\MarketSnapshot;
+use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
+use App\Domain\Kyc\DTOs\KycOcrResultDTO;
+use App\Domain\Kyc\Enums\KycOcrOutcome;
 use App\Domain\Ledger\DTOs\LedgerPostingInstruction;
 use App\Domain\Ledger\DTOs\LedgerPostingPlan;
 use App\Domain\Ledger\Models\LedgerAccount;
@@ -20,6 +24,7 @@ use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use App\Domain\Wallet\Services\WalletProvisioner;
+use App\Domain\Wealth\WealthMath;
 use App\Domain\Wealth\WealthOrder;
 use App\Support\Errors\DomainException;
 use Carbon\CarbonImmutable;
@@ -36,11 +41,16 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 beforeEach(function () {
     $this->seed();
     Http::preventStrayRequests();
+    config(['inertia.ssr.enabled' => false]);
     $this->tenant = Tenant::where('slug', 'tenant-a')->firstOrFail();
     $this->user = User::where('tenant_id', $this->tenant->id)->firstOrFail();
     $this->admin = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     Storage::fake('private');
-    $application = app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'MY', 'WEALTH-'.$this->user->id, kycTestImage('front.png'), kycTestImage('back.png'));
+    $ocr = Mockery::mock(KycOcrProviderInterface::class);
+    $ocr->shouldReceive('name')->andReturn('TEST');
+    $ocr->shouldReceive('extractIdentityDocument')->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, 'WEALTH-'.$this->user->id));
+    app()->instance(KycOcrProviderInterface::class, $ocr);
+    $application = app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', 'WEALTH-'.$this->user->id, kycTestImage('front.png'), kycTestImage('back.png'));
     $reviewer = AdminUser::where('email', 'owner@a.localhost')->firstOrFail();
     app(ApproveKycAction::class)->execute($this->tenant->id, $application->id, $reviewer);
     $this->wallet = DB::transaction(fn () => app(WalletProvisioner::class)->provision($this->tenant, $this->user, 'USDT'));
@@ -57,16 +67,23 @@ beforeEach(function () {
     app(WealthConfiguration::class)->save($this->admin, $this->tenant->id, ['settings' => $settings]);
     $this->revision = app(WealthConfiguration::class)->get($this->tenant->id)[0]['revision'];
     $this->service = app(WealthService::class);
+    $this->redeem = fn ($order, $id = null) => $this->service->redeem($this->tenant->id, $this->user->id, $order->id, $id ?? (string) Str::uuid(), 'local-password');
     $this->deposit = fn ($months = 3, $id = null) => $this->service->deposit($this->tenant->id, $this->user->id, 'USDT', '1000', $months, $this->revision, $id ?? (string) Str::uuid());
 });
 
-it('settles months and returns all principal once at maturity', function () {
+it('settles months and returns all principal only after manual maturity redemption', function () {
     $order = ($this->deposit)();
     expect($this->account->fresh()->balance)->toBe('1000.00000000');
     $this->travelTo($order->matures_at);
     $this->service->settle($this->tenant->id, $order->id);
-    $this->service->settle($this->tenant->id, $order->id);
+    expect($order->fresh()->status)->toBe('ACTIVE')->and($this->account->fresh()->balance)->toBe('1020.00000000');
+    $request = (string) Str::uuid();
+    ($this->redeem)($order, $request);
+    ($this->redeem)($order, $request);
     expect($order->fresh()->status)->toBe('MATURED')->and($this->account->fresh()->balance)->toBe('2020.00000000');
+    expect(DB::table('inbox_events')->where('event_key', 'wealth_deposit:'.$order->id)->count())->toBe(1);
+    expect(DB::table('inbox_events')->where('event_key', 'wealth_return:'.$order->id)->count())->toBe(1);
+    expect(DB::table('inbox_events')->where('template', 'wealth_interest')->count())->toBe(3);
     DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
 });
 
@@ -99,7 +116,7 @@ it('locks configuration snapshots and scopes reads and rejects mismatched replay
     expect(fn () => ($this->deposit)())->toThrow(DomainException::class);
     expect(fn () => app(WealthQuery::class)->detail($this->tenant->id, (string) Str::uuid(), $order->id))->toThrow(ModelNotFoundException::class);
     $this->travelTo($order->matures_at);
-    $this->service->settle($this->tenant->id, $order->id);
+    ($this->redeem)($order);
     expect($this->account->fresh()->balance)->toBe('2020.00000000');
 });
 
@@ -126,14 +143,14 @@ it('supports each currency without activation or promotion side effects', functi
     $before = $account->fresh()->balance;
     $order = $this->service->deposit($this->tenant->id, $this->user->id, $asset, '1000', 1, $setting['revision'], (string) Str::uuid());
     $this->travelTo($order->matures_at);
-    $this->service->settle($this->tenant->id, $order->id);
+    ($this->redeem)($order);
     expect($account->fresh()->balance)->toBe(Money::of($before, $asset)->add(Money::of('5', $asset))->amount());
     expect(DB::table('ledger_entries')->whereIn('event_type', ['COMMISSION_EARN', 'PROMOTION_ANNUAL_COMMISSION'])->count())->toBe(0);
     DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
 })->with(['USDT', 'USDC', 'ETH', 'BTC']);
 
-it('keeps automatic obligations after suspension but retries a disabled wallet', function () {
-    $order = ($this->deposit)();
+it('keeps legacy automatic obligations after suspension but retries a disabled wallet', function () {
+    $order = legacyWealthOrder($this);
     $this->user->update(['status' => 'SUSPENDED']);
     $this->wallet->update(['status' => 'SUSPENDED']);
     $this->travelTo($order->matures_at);
@@ -241,13 +258,13 @@ it('serializes cancellation against monthly interest without overpaying', functi
     DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
 });
 
-it('serializes duplicate maturity recovery and cancellation at the deadline', function () {
+it('serializes duplicate maturity recovery and manual redemption at maturity', function () {
     $order = ($this->deposit)();
     $this->travelTo($order->matures_at);
     $results = raceWealthOperations([
         fn () => $this->service->settle($this->tenant->id, $order->id),
         fn () => $this->service->settle($this->tenant->id, $order->id),
-        fn () => $this->service->cancel($this->tenant->id, $this->user->id, $order->id, (string) Str::uuid(), 'local-password', '0'),
+        fn () => ($this->redeem)($order),
     ]);
     foreach ($results as $result) {
         expect($result)->toBeIn(['completed', 'rejected']);
@@ -270,11 +287,11 @@ it('counts wealth principal once in total assets and adds only paid interest', f
 it('rejects unlinked financial entries and rolls failed settlement back for recovery', function () {
     $order = ($this->deposit)();
     $this->travelTo($order->matures_at);
-    DB::unprepared("CREATE OR REPLACE FUNCTION test_wealth_audit_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='WEALTH_MATURITY' THEN RAISE EXCEPTION 'test rollback'; END IF; RETURN NEW; END $$; CREATE TRIGGER test_wealth_audit_failure BEFORE INSERT ON audit_logs FOR EACH ROW EXECUTE FUNCTION test_wealth_audit_failure()");
-    expect(fn () => $this->service->settle($this->tenant->id, $order->id))->toThrow(QueryException::class);
+    DB::unprepared("CREATE OR REPLACE FUNCTION test_wealth_audit_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='WEALTH_REDEEM' THEN RAISE EXCEPTION 'test rollback'; END IF; RETURN NEW; END $$; CREATE TRIGGER test_wealth_audit_failure BEFORE INSERT ON audit_logs FOR EACH ROW EXECUTE FUNCTION test_wealth_audit_failure()");
+    expect(fn () => ($this->redeem)($order))->toThrow(QueryException::class);
     expect($this->service->paid($order))->toBe('0.00000000')->and($this->account->fresh()->balance)->toBe('1000.00000000');
     DB::unprepared('DROP TRIGGER test_wealth_audit_failure ON audit_logs; DROP FUNCTION test_wealth_audit_failure()');
-    $this->artisan('wealth:recover')->assertSuccessful();
+    ($this->redeem)($order);
     expect($order->fresh()->status)->toBe('MATURED');
     expect(fn () => DB::transaction(function () use ($order) {
         app(LedgerWriter::class)->post(new LedgerPostingPlan($this->tenant->id, 'USDT', 'wealth_unlinked:'.Str::uuid(), 'WEALTH_INTEREST', 'WEALTH_ORDER', $order->id, null, [new LedgerPostingInstruction($this->clearing->id, Money::of('-1', 'USDT')), new LedgerPostingInstruction($this->account->id, Money::of('1', 'USDT'))]));
@@ -303,7 +320,7 @@ it('settles tiny zero-interest installments without creating zero ledger posting
     $revision = app(WealthConfiguration::class)->get($this->tenant->id)[1]['revision'];
     $order = $this->service->deposit($this->tenant->id, $this->user->id, 'USDC', '0.000001', 60, $revision, (string) Str::uuid());
     $this->travelTo($order->matures_at);
-    $this->service->settle($this->tenant->id, $order->id);
+    ($this->redeem)($order);
     expect($order->fresh()->status)->toBe('MATURED')->and($account->fresh()->balance)->toBe('0.000001');
     expect(DB::table('wealth_installments')->where('order_id', $order->id)->whereNotNull('settled_at')->count())->toBe(60);
     expect(DB::table('ledger_entries')->where('reference_id', $order->id)->count())->toBe(2);
@@ -391,7 +408,7 @@ it('keeps disabled product history and excludes returned principal at maturity',
     $query = app(WealthOverview::class);
     expect(BigDecimalForWealth($query->get($this->tenant->id, $this->user->id)['principalEstimate']))->toBe('1000');
     $this->travelTo($order->matures_at);
-    $this->service->settle($this->tenant->id, $order->id);
+    ($this->redeem)($order);
     $result = $query->get($this->tenant->id, $this->user->id);
     expect(BigDecimalForWealth($result['principalEstimate']))->toBe('0')->and(BigDecimalForWealth($result['netEstimate']))->toBe('5')->and($result['assets'][0]['count'])->toBe(0)->and(count($result['assets']))->toBe(4);
     $page = app(WealthQuery::class)->page($this->tenant->id, $this->user->id);
@@ -451,17 +468,17 @@ it('shows the earliest unpaid interest and aggregates matching installments with
     expect($next['dueAt'])->toBe(CarbonImmutable::parse($first->schedule[1]['due_at'])->toIso8601String());
 });
 
-it('separates scoped wallet views and excludes cancelled or due deposits from withdrawal', function () {
+it('separates scoped wallet views and includes matured redeemable deposits in withdrawal', function () {
     $first = ($this->deposit)(1);
     $second = ($this->deposit)(3);
     $query = app(WealthQuery::class);
     expect($query->page($this->tenant->id, $this->user->id, 'USDT', 'withdraw')['orders']->total())->toBe(2);
     $this->travelTo($first->matures_at);
     $withdraw = $query->page($this->tenant->id, $this->user->id, 'USDT', 'withdraw');
-    expect($withdraw['orders']->total())->toBe(1)->and($withdraw['orders']->items()[0]['id'])->toBe($second->id)
+    expect($withdraw['orders']->total())->toBe(2)
         ->and($withdraw['orders']->url(2))->toContain('view=withdraw');
     $this->service->cancel($this->tenant->id, $this->user->id, $second->id, (string) Str::uuid(), 'local-password', '0');
-    expect($query->page($this->tenant->id, $this->user->id, 'USDT', 'withdraw')['orders']->total())->toBe(0)
+    expect($query->page($this->tenant->id, $this->user->id, 'USDT', 'withdraw')['orders']->total())->toBe(1)
         ->and($query->page($this->tenant->id, $this->user->id, 'USDT', 'details')['orders']->total())->toBe(2)
         ->and($query->page($this->tenant->id, $this->user->id, 'ETH', 'details')['orders']->total())->toBe(0);
     $other = User::where('tenant_id', '!=', $this->tenant->id)->firstOrFail();
@@ -481,12 +498,12 @@ it('reports maturity display states and net income consistently with the overvie
     expect($query->detail($this->tenant->id, $this->user->id, $first->id)['displayStatus'])->toBe('ACTIVE');
     $this->travelTo($first->matures_at);
     $due = $query->detail($this->tenant->id, $this->user->id, $first->id);
-    expect($due['displayStatus'])->toBe('AWAITING_SETTLEMENT')->and($due['status'])->toBe('ACTIVE')->and($due['canCancel'])->toBeFalse();
-    $this->service->settle($this->tenant->id, $first->id);
+    expect($due['displayStatus'])->toBe('REDEEMABLE')->and($due['status'])->toBe('ACTIVE')->and($due['canCancel'])->toBeFalse();
+    ($this->redeem)($first);
     $this->service->settle($this->tenant->id, $second->id);
     $paid = $this->service->paid($second);
     $this->service->cancel($this->tenant->id, $this->user->id, $second->id, (string) Str::uuid(), 'local-password', $paid);
-    expect($query->detail($this->tenant->id, $this->user->id, $first->id)['displayStatus'])->toBe('MATURED')
+    expect($query->detail($this->tenant->id, $this->user->id, $first->id)['displayStatus'])->toBe('REDEEMED')
         ->and($query->detail($this->tenant->id, $this->user->id, $second->id)['displayStatus'])->toBe('CANCELLED');
     $page = $query->page($this->tenant->id, $this->user->id, 'USDT', 'details');
     $overview = app(WealthOverview::class)->get($this->tenant->id, $this->user->id);
@@ -550,6 +567,9 @@ it('accepts every asset and term through monthly recovery with exact final balan
         $entries = DB::table('ledger_entries')->count();
         $this->artisan('wealth:recover')->assertSuccessful();
         expect(DB::table('ledger_entries')->count())->toBe($entries);
+        if ($index === $months - 1) {
+            ($this->redeem)($order);
+        }
         $base = $index === $months - 1 ? '2000' : '1000';
         expect($account->fresh()->balance)->toBe(Money::of($base, $asset)->add($cumulative)->amount());
     }
@@ -582,4 +602,233 @@ it('returns 980 after two monthly receipts of 10 on a 1000 principal and never p
     $this->artisan('wealth:recover')->assertSuccessful();
     expect(DB::table('ledger_entries')->count())->toBe($entries);
     expect(app(LedgerReconciliationService::class)->mismatches())->toBe([]);
+});
+
+// Insert a synthetic pre-policy contract, never mutate an existing contract or Ledger.
+function legacyWealthOrder($test): WealthOrder
+{
+    return DB::transaction(function () use ($test) {
+        $id = (string) Str::uuid();
+        $start = CarbonImmutable::now('UTC')->startOfSecond();
+        $schedule = WealthMath::schedule('1000', 'USDT', '8', 3, $start, $test->tenant->timezone);
+        DB::table('ledger_accounts')->insertOrIgnore(['id' => (string) Str::uuid(), 'tenant_id' => $test->tenant->id,
+            'user_id' => $test->user->id, 'wallet_id' => $test->wallet->id, 'asset_code' => 'USDT',
+            'account_type' => 'USER_WEALTH_PRINCIPAL', 'balance' => '0', 'status' => 'ACTIVE', 'created_at' => now(), 'updated_at' => now()]);
+        $principal = app(AssetAccess::class)->account($test->wallet, 'USER_WEALTH_PRINCIPAL');
+        $entry = app(LedgerWriter::class)->post(new LedgerPostingPlan($test->tenant->id, 'USDT', 'wealth:'.$id.':deposit', 'WEALTH_DEPOSIT', 'WEALTH_ORDER', $id, null, [
+            new LedgerPostingInstruction($test->account->id, Money::of('-1000', 'USDT')),
+            new LedgerPostingInstruction($principal->id, Money::of('1000', 'USDT')),
+        ]));
+        $order = WealthOrder::create(['id' => $id, 'tenant_id' => $test->tenant->id, 'user_id' => $test->user->id,
+            'wallet_id' => $test->wallet->id, 'asset_code' => 'USDT', 'principal' => '1000', 'months' => 3,
+            'annual_rate' => '8', 'config_revision' => $test->revision, 'timezone' => $test->tenant->timezone,
+            'schedule' => $schedule, 'started_at' => $start, 'matures_at' => $schedule[2]['due_at'],
+            'request_id' => (string) Str::uuid(), 'deposit_entry_id' => $entry->id, 'status' => 'ACTIVE', 'maturity_policy' => null]);
+        foreach ($schedule as $row) {
+            DB::table('wealth_installments')->insert(['id' => (string) Str::uuid(), 'tenant_id' => $test->tenant->id,
+                'order_id' => $id, 'month' => $row['month'], 'due_at' => $row['due_at'], 'amount' => $row['amount']]);
+        }
+
+        return $order;
+    });
+}
+
+it('renews atomically at local midnight with original economics despite changed or disabled products', function () {
+    $this->travelTo(CarbonImmutable::parse('2024-01-31T10:23:00Z'));
+    $order = ($this->deposit)(1);
+    expect($order->matures_at->toIso8601String())->toBe('2024-02-29T10:23:00+00:00')
+        ->and($order->redeem_before->toIso8601String())->toBe('2024-02-29T16:00:00+00:00');
+    $settings = app(WealthConfiguration::class)->get($this->tenant->id);
+    $settings[0]['minimum'] = '2000';
+    $settings[0]['products'][0]['enabled'] = false;
+    $settings[0]['products'][0]['rate'] = '99';
+    app(WealthConfiguration::class)->save($this->admin, $this->tenant->id, ['settings' => $settings]);
+    $this->travelTo($order->redeem_before);
+    $this->artisan('wealth:recover')->assertSuccessful();
+    $this->artisan('wealth:recover')->assertSuccessful();
+    $next = WealthOrder::where('previous_order_id', $order->id)->sole();
+    expect($order->fresh()->close_reason)->toBe('RENEWED')->and($next->months)->toBe(1)
+        ->and(BigDecimalForWealth($next->principal))->toBe('1000')->and(BigDecimalForWealth($next->annual_rate))->toBe('6')
+        ->and($next->started_at->equalTo($order->redeem_before))->toBeTrue()->and($this->account->fresh()->balance)->toBe('1005.00000000');
+    expect(app(WealthQuery::class)->detail($this->tenant->id, $this->user->id, $order->id)['nextOrderId'])->toBe($next->id);
+    expect(app(LedgerReconciliationService::class)->mismatches())->toBe([]);
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+});
+
+it('enforces redemption window boundaries and prevents cancellation bypass', function (string $boundary, bool $allowed) {
+    $order = ($this->deposit)(1);
+    $when = match ($boundary) {
+        'before' => $order->matures_at->subSecond(), 'maturity' => $order->matures_at,
+        'last' => $order->redeem_before->subSecond(), default => $order->redeem_before
+    };
+    $this->travelTo($when);
+    if ($allowed) {
+        ($this->redeem)($order);
+        expect($order->fresh()->close_reason)->toBe('REDEEMED')->and($this->account->fresh()->balance)->toBe('2005.00000000');
+    } else {
+        expect(fn () => ($this->redeem)($order))->toThrow(DomainException::class);
+        expect($order->fresh()->status)->toBe('ACTIVE');
+    }
+    if ($boundary !== 'before') {
+        expect(fn () => $this->service->cancel($this->tenant->id, $this->user->id, $order->id, (string) Str::uuid(), 'local-password', '0'))->toThrow(DomainException::class);
+    }
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+})->with([['before', false], ['maturity', true], ['last', true], ['midnight', false]]);
+
+it('snapshots the company timezone and keeps DST midnight boundaries', function () {
+    $this->tenant->update(['timezone' => 'America/New_York']);
+    $this->travelTo(CarbonImmutable::parse('2024-02-10 00:00:00', 'America/New_York'));
+    $order = ($this->deposit)(1);
+    expect($order->redeem_before->diffInHours($order->matures_at, true))->toBe(23.0);
+    $this->tenant->update(['timezone' => 'Asia/Tokyo']);
+    $this->travelTo($order->redeem_before);
+    $this->service->settle($this->tenant->id, $order->id);
+    $next = WealthOrder::where('previous_order_id', $order->id)->sole();
+    expect($next->timezone)->toBe('America/New_York')->and($next->started_at->equalTo($order->redeem_before))->toBeTrue();
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+});
+
+it('keeps blocked renewal principal and catches up multiple periods from scheduled midnight', function () {
+    $this->travelTo(CarbonImmutable::parse('2025-01-01T04:00:00Z'));
+    $order = ($this->deposit)(1);
+    $this->user->update(['status' => 'SUSPENDED']);
+    $this->travelTo(CarbonImmutable::parse('2025-05-15T04:00:00Z'));
+    $this->artisan('wealth:recover')->assertFailed();
+    expect($order->fresh()->status)->toBe('ACTIVE')->and($this->account->fresh()->balance)->toBe('1000.00000000');
+    $this->user->update(['status' => 'ACTIVE']);
+    $this->artisan('wealth:recover')->assertSuccessful();
+    expect(WealthOrder::count())->toBe(5)->and(WealthOrder::where('status', 'ACTIVE')->count())->toBe(1)
+        ->and($this->account->fresh()->balance)->toBe('1020.00000000');
+    $count = DB::table('ledger_entries')->count();
+    $this->artisan('wealth:recover')->assertSuccessful();
+    expect(DB::table('ledger_entries')->count())->toBe($count);
+    foreach (WealthOrder::whereNotNull('previous_order_id')->get() as $next) {
+        $previous = WealthOrder::findOrFail($next->previous_order_id);
+        expect($next->started_at->equalTo($previous->redeem_before))->toBeTrue();
+    }
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+});
+
+it('rolls renewal principal interest and the successor back together on failure', function () {
+    $order = ($this->deposit)(1);
+    $this->travelTo($order->redeem_before);
+    DB::unprepared("CREATE FUNCTION test_renewal_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='WEALTH_RENEW_DEPOSIT' THEN RAISE EXCEPTION 'test'; END IF; RETURN NEW; END $$; CREATE TRIGGER test_renewal_failure BEFORE INSERT ON audit_logs FOR EACH ROW EXECUTE FUNCTION test_renewal_failure()");
+    expect(fn () => $this->service->settle($this->tenant->id, $order->id))->toThrow(QueryException::class);
+    expect($order->fresh()->status)->toBe('ACTIVE')->and(WealthOrder::count())->toBe(1)
+        ->and($this->account->fresh()->balance)->toBe('1000.00000000')->and($this->service->paid($order))->toBe('0.00000000');
+    DB::unprepared('DROP TRIGGER test_renewal_failure ON audit_logs; DROP FUNCTION test_renewal_failure()');
+    $this->service->settle($this->tenant->id, $order->id);
+    expect(WealthOrder::count())->toBe(2);
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+});
+
+it('serializes duplicate renewal against redemption at midnight across database sessions', function () {
+    $order = ($this->deposit)(1);
+    $this->travelTo($order->redeem_before);
+    $results = raceWealthOperations([
+        fn () => $this->service->settle($this->tenant->id, $order->id),
+        fn () => $this->service->settle($this->tenant->id, $order->id),
+        fn () => ($this->redeem)($order),
+    ]);
+    expect($results)->toBe(['completed', 'completed', 'rejected'])
+        ->and(WealthOrder::where('previous_order_id', $order->id)->count())->toBe(1)
+        ->and($this->account->fresh()->balance)->toBe('1005.00000000');
+});
+
+it('requires password confirmation and scoped redemption without client money overrides', function () {
+    $order = ($this->deposit)(1);
+    $this->travelTo($order->matures_at);
+    $payload = ['request_id' => (string) Str::uuid(), 'current_password' => 'local-password', 'confirmed' => true];
+    $url = 'http://a.localhost/wealth/orders/'.$order->id.'/redeem';
+    $this->actingAs($this->user, 'tenant_user');
+    foreach (['confirmed' => false, 'amount' => '1', 'asset' => 'BTC', 'wallet_id' => $this->wallet->id] as $key => $value) {
+        $this->postJson($url, [...$payload, $key => $value])->assertUnprocessable()->assertJsonValidationErrors($key);
+    }
+    expect(fn () => $this->service->redeem($this->tenant->id, $this->user->id, $order->id, $payload['request_id'], 'wrong'))->toThrow(DomainException::class);
+    $other = User::where('tenant_id', '!=', $this->tenant->id)->firstOrFail();
+    expect(fn () => $this->service->redeem($other->tenant_id, $other->id, $order->id, $payload['request_id'], 'local-password'))->toThrow(ModelNotFoundException::class);
+    $this->post($url, $payload)->assertRedirect();
+    $this->travel(61)->seconds();
+    $this->post($url, $payload)->assertRedirect();
+    expect($order->fresh()->redeem_request_id)->toBe($payload['request_id']);
+    expect(DB::table('audit_logs')->where('resource_id', $order->id)->where('action', 'WEALTH_REDEEM')->count())->toBe(1);
+});
+
+it('only claws back the current cycle interest on an early withdrawal of a renewal', function () {
+    $order = ($this->deposit)(3);
+    $this->travelTo($order->redeem_before);
+    $this->artisan('wealth:recover')->assertSuccessful();
+    $next = WealthOrder::where('previous_order_id', $order->id)->sole();
+    $this->travelTo(CarbonImmutable::parse($next->schedule[0]['due_at']));
+    $this->service->settle($this->tenant->id, $next->id);
+    $this->service->cancel($this->tenant->id, $this->user->id, $next->id, (string) Str::uuid(), 'local-password', $this->service->paid($next));
+    expect($this->account->fresh()->balance)->toBe('2020.00000000')->and(BigDecimalForWealth($next->fresh()->clawback))->toBe('6.66666666');
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+});
+
+it('preserves exact principal through renewal and redemption for every asset', function (string $asset, string $principal) {
+    $wallet = DB::transaction(fn () => app(WalletProvisioner::class)->provision($this->tenant, $this->user, $asset));
+    $account = LedgerAccount::where('wallet_id', $wallet->id)->where('account_type', 'USER_AVAILABLE')->firstOrFail();
+    if ($asset !== 'USDT') {
+        $clearing = LedgerAccount::where('tenant_id', $this->tenant->id)->where('asset_code', $asset)->where('account_type', 'TENANT_TOPUP_CLEARING')->firstOrFail();
+        app(LedgerWriter::class)->post(new LedgerPostingPlan($this->tenant->id, $asset, 'renewal_exact:'.Str::uuid(), 'TEST_TOPUP', null, null, null, [
+            new LedgerPostingInstruction($clearing->id, Money::of('-2', $asset)), new LedgerPostingInstruction($account->id, Money::of('2', $asset)),
+        ]));
+    }
+    $before = Money::of($account->fresh()->balance, $asset);
+    $settings = collect(app(WealthConfiguration::class)->get($this->tenant->id))->firstWhere('asset', $asset);
+    $order = $this->service->deposit($this->tenant->id, $this->user->id, $asset, $principal, 1, $settings['revision'], (string) Str::uuid());
+    $this->travelTo($order->redeem_before);
+    $this->service->settle($this->tenant->id, $order->id);
+    $next = WealthOrder::where('previous_order_id', $order->id)->sole();
+    expect(Money::of($next->principal, $asset)->amount())->toBe(Money::of($principal, $asset)->amount());
+    $this->travelTo($next->matures_at);
+    ($this->redeem)($next);
+    expect($account->fresh()->balance)->toBe($before->add(Money::of($this->service->paid($order), $asset))->add(Money::of($this->service->paid($next), $asset))->amount());
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+})->with([['USDT', '1.00000001'], ['USDC', '1.000001'], ['ETH', '1.000000000000000001'], ['BTC', '1.00000001']]);
+
+it('keeps renewal pending for disabled wallets or ledger accounts and retries without reactivation', function (string $kind) {
+    $order = ($this->deposit)(1);
+    $target = $kind === 'wallet' ? $this->wallet : $this->account;
+    $blockedStatus = $kind === 'wallet' ? 'SUSPENDED' : 'CLOSED';
+    $target->forceFill(['status' => $blockedStatus])->save();
+    $this->travelTo($order->redeem_before);
+    expect(fn () => $this->service->settle($this->tenant->id, $order->id))->toThrow(DomainException::class);
+    expect($order->fresh()->status)->toBe('ACTIVE')->and(WealthOrder::count())->toBe(1)
+        ->and($target->fresh()->status->value)->toBe($blockedStatus);
+    $target->forceFill(['status' => 'ACTIVE'])->save();
+    $this->service->settle($this->tenant->id, $order->id);
+    expect(WealthOrder::where('previous_order_id', $order->id)->count())->toBe(1);
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+})->with(['wallet', 'account']);
+
+it('protects renewal metadata and rejects an unlinked renewed terminal state', function () {
+    $order = ($this->deposit)(1);
+    foreach (['maturity_policy' => null, 'redeem_before' => $order->redeem_before->addDay(), 'previous_order_id' => $order->id] as $key => $value) {
+        expect(fn () => DB::transaction(fn () => DB::table('wealth_orders')->where('id', $order->id)->update([$key => $value])))->toThrow(QueryException::class);
+    }
+    $this->travelTo($order->redeem_before);
+    expect(fn () => DB::transaction(function () use ($order) {
+        $principal = LedgerAccount::where('wallet_id', $this->wallet->id)->where('account_type', 'USER_WEALTH_PRINCIPAL')->sole();
+        $entry = app(LedgerWriter::class)->post(new LedgerPostingPlan($this->tenant->id, 'USDT', 'wealth:'.$order->id.':close', 'WEALTH_MATURITY', 'WEALTH_ORDER', $order->id, null, [
+            new LedgerPostingInstruction($principal->id, Money::of('-1000', 'USDT')), new LedgerPostingInstruction($this->account->id, Money::of('1000', 'USDT')),
+        ]));
+        $order->update(['status' => 'MATURED', 'close_reason' => 'RENEWED', 'closed_at' => now(), 'returned' => '1000', 'clawback' => '0', 'close_entry_id' => $entry->id]);
+        DB::statement('SET CONSTRAINTS wealth_renewal_evidence IMMEDIATE');
+    }))->toThrow(QueryException::class);
+    expect($order->fresh()->status)->toBe('ACTIVE')->and($this->account->fresh()->balance)->toBe('1000.00000000');
+});
+
+it('announces new redemption windows once without settling wealth money', function () {
+    $order = ($this->deposit)(1);
+    $this->travelTo($order->matures_at);
+    $balance = $this->account->fresh()->balance;
+    $entries = DB::table('ledger_entries')->count();
+    $this->artisan('messages:recover', ['--tenant' => $this->tenant->id])->assertSuccessful();
+    $this->artisan('messages:recover', ['--tenant' => $this->tenant->id])->assertSuccessful();
+    expect(DB::table('inbox_events')->where('event_key', 'wealth_mature:'.$order->id)->count())->toBe(1);
+    expect($this->account->fresh()->balance)->toBe($balance);
+    expect(DB::table('ledger_entries')->count())->toBe($entries);
+    expect($order->fresh()->status)->toBe('ACTIVE');
 });

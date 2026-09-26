@@ -12,15 +12,16 @@ try {
         const request = route.request(), path = new URL(request.url()).pathname;
         if (path === '/wallet/transfers' && request.method() === 'POST') {
             const data = request.postDataJSON();
-            requests.push({ requestId: data.request_id, amount: data.amount, recipient: data.recipient_account_id });
+            requests.push({ requestId: data.request_id, amount: data.amount, asset: data.asset, recipient: data.recipient_account_id });
             assert.equal(data.confirmed, true);
             assert.equal(data.amount, '10.25');
+            assert.equal(data.asset, 'USDT');
             assert.equal(data.recipient_account_id, '202609119999');
             const response = structuredClone(fixture);
             if (requests.length === 1) response.props.errors = { form: 'Your available balance is insufficient for this transfer.' };
             else {
                 response.props.errors = {};
-                response.props.receipt = { id: '00000000-0000-4000-8000-000000000123', requestId: data.request_id, amount: '10.25000000', asset: fixture.props.available.asset, sent: true, senderAccountId: fixture.props.accountId, recipientAccountId: data.recipient_account_id, createdAt: '2026-09-11T12:00:00Z' };
+                response.props.receipt = { id: '00000000-0000-4000-8000-000000000123', requestId: data.request_id, amount: '10.25000000', asset: data.asset, sent: true, senderAccountId: fixture.props.accountId, recipientAccountId: data.recipient_account_id, createdAt: '2026-09-11T12:00:00Z' };
             }
             return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'X-Inertia': 'true' }, body: JSON.stringify(response) });
         }
@@ -36,7 +37,7 @@ try {
     await page.locator('input[type=password]').fill('123456');
     await page.getByRole('button', { name: /^(登录|Sign in)$/ }).click();
     await page.waitForURL('**/dashboard');
-    assert.equal(await page.locator('.user-quick-actions .user-quick-action').count(), 4);
+    await page.locator('a[href="/wallet/transfer"]').first().waitFor();
     const loaded = page.waitForResponse(response => new URL(response.url()).pathname === '/wallet/transfer' && response.request().headers()['x-inertia']);
     await page.locator('a[href="/wallet/transfer"]').first().click();
     fixture = await (await loaded).json();
@@ -49,8 +50,14 @@ try {
         }
     }
     await inspect('form');
+    for (const asset of ['USDC', 'ETH', 'BTC', 'USDT']) {
+        await page.locator('#transfer-asset').click();
+        await page.getByRole('option', { name: asset, exact: true }).click();
+        assert.ok((await page.locator('form').innerText()).includes(asset));
+        assert.equal(await page.locator('#transfer-amount').getAttribute('pattern'), `(?:0|[1-9][0-9]{0,11})(?:\\.[0-9]{1,${asset === 'ETH' ? 18 : asset === 'USDC' ? 6 : 8}})?`);
+    }
     await page.locator('#recipient-account-id').fill('202609119999');
-    await page.locator('#transfer-amount').fill('1.001');
+    await page.locator('#transfer-amount').fill('1.000000001');
     await page.getByRole('button', { name: /^(核对转账|Review transfer)$/ }).click();
     assert.equal(requests.length, 0);
     assert.equal(await page.locator('#transfer-password').count(), 0);

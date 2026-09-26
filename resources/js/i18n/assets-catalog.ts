@@ -1,4 +1,70 @@
 export const assetsCatalog = {
+    'Available for redemption': ['到期可赎回', 'Boleh ditebus', 'Disponible para rescate'],
+    'Renewal pending': ['续购处理中', 'Pembaharuan menunggu', 'Renovación pendiente'],
+    'Redeemed to wallet': ['已赎回至钱包', 'Ditebus ke dompet', 'Rescatado a la billetera'],
+    'Renewed for next term': [
+        '已续购下一周期',
+        'Diperbaharui untuk tempoh seterusnya',
+        'Renovado para el siguiente plazo',
+    ],
+    'Redeem before': ['赎回截止时间（不含）', 'Tebus sebelum', 'Rescatar antes de'],
+    'Redeem to {{asset}} wallet': [
+        '赎回至 {{asset}} 钱包',
+        'Tebus ke dompet {{asset}}',
+        'Rescatar a la billetera {{asset}}',
+    ],
+    'Confirm maturity redemption': [
+        '确认到期赎回',
+        'Sahkan penebusan matang',
+        'Confirmar rescate al vencimiento',
+    ],
+    'Your full principal returns to the original currency wallet. Paid interest is not recovered.':
+        [
+            '本金全额返回原币种钱包，已发利息不扣回。',
+            'Seluruh prinsipal dipulangkan ke dompet mata wang asal. Faedah dibayar tidak ditarik balik.',
+            'El capital completo vuelve a la billetera de la moneda original. No se recuperan los intereses pagados.',
+        ],
+    'I confirm full principal redemption to my original currency wallet.': [
+        '我确认将全部本金赎回至原币种钱包。',
+        'Saya mengesahkan penebusan penuh prinsipal ke dompet mata wang asal saya.',
+        'Confirmo el rescate de todo el capital a mi billetera de la moneda original.',
+    ],
+    'Principal renewed: {{amount}}': [
+        '已续购本金：{{amount}}',
+        'Prinsipal diperbaharui: {{amount}}',
+        'Capital renovado: {{amount}}',
+    ],
+    'Previous wealth term': ['查看上一周期', 'Tempoh sebelumnya', 'Plazo anterior'],
+    'Next wealth term': ['查看下一周期', 'Tempoh seterusnya', 'Plazo siguiente'],
+    'Redeem principal on the maturity day before midnight in the order timezone. Otherwise, the same principal renews for the same term and rate. Paid interest stays in your wallet.':
+        [
+            '到期时刻起至订单时区当天结束前可手动赎回本金；逾期以原本金、原期限和原利率自动续购，已发利息留在钱包。',
+            'Tebus prinsipal dari waktu matang hingga sebelum tengah malam dalam zon waktu pesanan. Jika tidak, prinsipal yang sama diperbaharui dengan tempoh dan kadar asal. Faedah dibayar kekal dalam dompet.',
+            'Rescata el capital desde el vencimiento hasta antes de medianoche en la zona horaria de la orden. De lo contrario, se renueva el mismo capital con el plazo y la tasa originales. Los intereses pagados permanecen en la billetera.',
+        ],
+    'No extra interest accrues during the redemption window. Processing delays do not shift the next term.':
+        [
+            '赎回等待期间不额外计息，处理延迟不顺延下一周期。',
+            'Tiada faedah tambahan semasa tempoh penebusan. Kelewatan pemprosesan tidak mengubah tempoh seterusnya.',
+            'No se generan intereses adicionales durante la ventana de rescate. Los retrasos no desplazan el siguiente plazo.',
+        ],
+    'Renewal is pending. Your principal remains in wealth; recovery will use the scheduled start time.':
+        [
+            '续购待处理，本金仍保留在理财账户，恢复后按原定时间接续。',
+            'Pembaharuan menunggu. Prinsipal kekal dalam simpanan; pemulihan menggunakan masa mula berjadual.',
+            'La renovación está pendiente. El capital sigue invertido; la recuperación usará el inicio programado.',
+        ],
+    'This deposit has matured. Review its redemption or renewal status.': [
+        '该理财已到期，请查看赎回或续购状态。',
+        'Deposit telah matang. Semak status penebusan atau pembaharuan.',
+        'El depósito ha vencido. Revisa su estado de rescate o renovación.',
+    ],
+    'Redemption is available only from maturity until the displayed deadline.': [
+        '仅可在实际到期时刻至所示截止时间前赎回。',
+        'Penebusan hanya tersedia dari waktu matang hingga sebelum tarikh akhir dipaparkan.',
+        'El rescate solo está disponible desde el vencimiento hasta antes del límite indicado.',
+    ],
+
     'Funds activity': ['资金明细', 'Butiran dana', 'Movimientos de fondos'],
     '{{asset}} funds account': [
         '{{asset}} 资金账户',

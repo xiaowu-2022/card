@@ -31,6 +31,7 @@ final class PlatformTopupQuery
                 'manualConfirmedAt' => $order->manual_confirmed_at?->toIso8601String(),
                 'manualConfirmedBy' => $order->manual_confirmed_by === null ? null : ['id' => $order->manual_confirmed_by, 'name' => $order->confirmer_name],
                 'createdAt' => $order->created_at->toIso8601String(),
+                'creditedAt' => $order->credited_at?->toIso8601String(),
             ]);
     }
 }

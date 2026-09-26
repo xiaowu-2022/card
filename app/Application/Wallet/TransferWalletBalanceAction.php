@@ -2,6 +2,7 @@
 
 namespace App\Application\Wallet;
 
+use App\Domain\Assets\AssetCatalog;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Kyc\Enums\KycUserStatus;
 use App\Domain\Kyc\Services\KycStatusService;
@@ -25,17 +26,18 @@ final readonly class TransferWalletBalanceAction
 {
     public function __construct(private LedgerWriter $ledger, private KycStatusService $kyc, private AuditLogger $audit) {}
 
-    public function execute(string $tenantId, string $senderId, string $recipientAccountId, string $amount, string $requestId): WalletTransfer
+    public function execute(string $tenantId, string $senderId, string $recipientAccountId, string $amount, string $requestId, string $asset = 'USDT'): WalletTransfer
     {
+        AssetCatalog::assert($asset);
         if (! Str::isUuid($requestId) || ! preg_match('/^[0-9]{12}$/D', $recipientAccountId)
-            || ! preg_match('/^(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,2})?$/D', $amount)) {
-            throw new DomainException('WALLET_TRANSFER_INVALID', 'Enter a valid account ID and an amount with up to two decimal places.');
+            || ! preg_match('/^(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,'.Money::scale($asset).'})?$/D', $amount)) {
+            throw new DomainException('WALLET_TRANSFER_INVALID', 'Enter a valid account ID and an amount within the selected currency precision.');
         }
 
-        return DB::transaction(function () use ($tenantId, $senderId, $recipientAccountId, $amount, $requestId): WalletTransfer {
+        return DB::transaction(function () use ($tenantId, $senderId, $recipientAccountId, $amount, $requestId, $asset): WalletTransfer {
             // Tenant -> Users -> Wallets -> LedgerWriter accounts. No external work.
             $tenant = Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
-            $money = Money::of($amount, $tenant->default_asset);
+            $money = Money::of($amount, $asset);
             if (! $money->isPositive()) {
                 throw new DomainException('WALLET_TRANSFER_INVALID', 'Enter a positive transfer amount.');
             }
@@ -81,7 +83,7 @@ final readonly class TransferWalletBalanceAction
             }
             $transfer = WalletTransfer::query()->create(['id' => $id, 'tenant_id' => $tenantId, 'sender_user_id' => $senderId,
                 'recipient_user_id' => $recipient->id, 'sender_wallet_id' => $senderWallet->id, 'recipient_wallet_id' => $recipientWallet->id,
-                'recipient_account_id' => $recipientAccountId, 'amount' => $money->amount(), 'asset_code' => $money->assetCode,
+                'recipient_account_id' => $recipientAccountId, 'asset_code' => $money->assetCode, 'amount' => $money->amount(),
                 'request_id' => $requestId, 'ledger_entry_id' => $entry->id]);
             $this->audit->record($tenantId, 'USER', $senderId, 'WALLET_TRANSFER_COMPLETED', 'wallet_transfer', $id, null,
                 ['amount' => $money->amount(), 'asset' => $money->assetCode, 'recipient_user_id' => $recipient->id]);

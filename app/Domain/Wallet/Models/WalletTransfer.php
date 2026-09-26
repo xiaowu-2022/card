@@ -2,6 +2,7 @@
 
 namespace App\Domain\Wallet\Models;
 
+use App\Domain\Ledger\ValueObjects\AssetAmountCast;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use LogicException;
@@ -16,7 +17,7 @@ final class WalletTransfer extends Model
 
     protected function casts(): array
     {
-        return ['created_at' => 'immutable_datetime', 'amount' => 'decimal:8'];
+        return ['created_at' => 'immutable_datetime', 'amount' => AssetAmountCast::class];
     }
 
     protected static function booted(): void

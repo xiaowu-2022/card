@@ -183,8 +183,12 @@ function phaseSevenSetup($test, string $available = '250.00000000'): void
     app(UpdateTenantBusinessSettingsAction::class)->execute($test->tenant, [
         'required_security_deposit_amount' => '0', 'required_security_deposit_asset' => 'USDT', 'allow_wallet_topup' => true, 'allow_withdrawal' => true,
     ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
+    $ocr = Mockery::mock(\App\Domain\Kyc\Contracts\KycOcrProviderInterface::class);
+    $ocr->shouldReceive('name')->andReturn('TEST');
+    $ocr->shouldReceive('extractIdentityDocument')->andReturn(new \App\Domain\Kyc\DTOs\KycOcrResultDTO(\App\Domain\Kyc\Enums\KycOcrOutcome::Success, 'WITHDRAWAL-'.$test->user->id));
+    app()->instance(\App\Domain\Kyc\Contracts\KycOcrProviderInterface::class, $ocr);
     $application = app(SubmitKycApplicationAction::class)->execute(
-        $test->tenant, $test->user, 'MY', 'WITHDRAWAL-'.$test->user->id,
+        $test->tenant, $test->user, 'CN', 'WITHDRAWAL-'.$test->user->id,
         kycTestImage('withdraw-front.png'), kycTestImage('withdraw-back.png'),
     );
     app(ApproveKycAction::class)->execute($test->tenant->id, $application->id, $test->owner);

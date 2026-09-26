@@ -52,6 +52,18 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  inbox:
+    build: .
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+    environment: *local-app-environment
+    command: ["sh", "-c", "while true; do php artisan messages:recover; sleep 60; done"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   node:
     image: node:22-alpine
     working_dir: /app

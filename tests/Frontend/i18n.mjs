@@ -119,6 +119,10 @@ const { catalog } = loadTs('resources/js/i18n/catalog.ts', {
     './physical-card-catalog': loadTs('resources/js/i18n/physical-card-catalog.ts'),
     './paid-promotion-catalog': loadTs('resources/js/i18n/paid-promotion-catalog.ts'),
     './partner-catalog': loadTs('resources/js/i18n/partner-catalog.ts'),
+    './inbox-catalog': loadTs('resources/js/i18n/inbox-catalog.ts'),
+    './academy-catalog': loadTs('resources/js/i18n/academy-catalog.ts'),
+    './registration-guide-catalog': loadTs('resources/js/i18n/registration-guide-catalog.ts'),
+    './rewards-catalog': loadTs('resources/js/i18n/rewards-catalog.ts'),
     './assets-catalog': loadTs('resources/js/i18n/assets-catalog.ts'),
     './promotion-catalog': promotionCatalog,
     './transfer-catalog': loadTs('resources/js/i18n/transfer-catalog.ts'),
@@ -644,9 +648,9 @@ test('consumer header language and support icons share responsive sizing and str
     const layout = readFileSync('resources/js/layouts/UserLayout.tsx', 'utf8');
     const language = readFileSync('resources/js/components/user/LanguageSwitcher.tsx', 'utf8');
     const css = readFileSync('resources/css/app.css', 'utf8');
-    assert.ok(layout.includes('className="user-header-action"'));
+    assert.match(layout, /className="user-header-action(?: relative)?"/);
     assert.match(language, /variant === 'icon'\s*\? 'user-header-action'/);
-    assert.ok(layout.includes('<MessageSquare strokeWidth={2.2}'));
+    assert.match(layout, /<MessageSquare\s+strokeWidth=\{2\.2\}/);
     assert.ok(language.includes('<Globe2 strokeWidth={2.2}'));
     assert.match(css, /\.user-header-action \{[^}]*width: clamp\(44px, 9\.6cqw, 72px\);[^}]*height: clamp\(44px, 9\.6cqw, 72px\);/);
     assert.match(css, /\.user-header-action svg \{[^}]*width: clamp\(24px, 5\.867cqw, 44px\);[^}]*height: clamp\(24px, 5\.867cqw, 44px\);/);
@@ -1977,4 +1981,22 @@ test('assets show the activation entry above accounts only when qualification is
             assert.ok(!active.includes(i18n.t('Wealth management')));
         }
     } finally { void i18n.clientI18n.changeLanguage(previous); }
+});
+
+
+test('inbox business templates have complete translations and preserve parameters', () => {
+    const { inboxTemplates } = loadTs('resources/js/lib/inbox-templates.ts');
+    const { inboxCatalog } = loadTs('resources/js/i18n/inbox-catalog.ts');
+    const php = readFileSync('app/Application/Inbox/InboxTemplates.php', 'utf8');
+    const placeholders = value => [...value.matchAll(/{{([a-z]+)}}/g)].map(m => m[1]).sort();
+    for (const [key, copy] of Object.entries(inboxTemplates)) {
+        assert.ok(php.includes(`'${key}'`), key);
+        for (const english of copy) {
+            assert.equal(inboxCatalog[english]?.length, 3, english);
+            for (const translated of inboxCatalog[english]) {
+                assert.ok(translated.length > 0);
+                assert.deepEqual(placeholders(translated), placeholders(english));
+            }
+        }
+    }
 });

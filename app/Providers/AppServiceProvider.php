@@ -133,6 +133,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        \App\Domain\Audit\Models\AuditLog::created(fn ($log) => app(\App\Application\Inbox\CaptureInboxEvent::class)->audit($log));
+        \App\Domain\Card\Models\CardManagementOrder::saved(fn ($order) => app(\App\Application\Inbox\CaptureInboxEvent::class)->card($order));
+
         Auth::provider('tenant-eloquent', fn ($app, array $config): TenantUserProvider => new TenantUserProvider(
             $app['hash'],
             $config['model'],

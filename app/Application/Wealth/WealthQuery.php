@@ -25,7 +25,8 @@ final class WealthQuery
 
         $orders = WealthOrder::where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', $selectedAsset);
         if ($view === 'withdraw') {
-            $orders->where('status', 'ACTIVE')->where('matures_at', '>', now());
+            $orders->where('status', 'ACTIVE')->where(fn ($q) => $q->where('matures_at', '>', now())
+                ->orWhere(fn ($q) => $q->where('maturity_policy', WealthOrder::MANUAL_RENEW)->where('matures_at', '<=', now())->where('redeem_before', '>', now())));
         }
 
         return ['view' => $view, 'selectedAsset' => $selectedAsset, 'settings' => $settings, 'orders' => $orders->latest()->orderByDesc('id')->paginate(20)->appends(['view' => $view])->through(fn ($o) => $this->dto($o))];
@@ -41,7 +42,17 @@ final class WealthQuery
     private function dto(WealthOrder $order): array
     {
         $paid = app(WealthService::class)->paid($order);
+        $at = now();
+        $mature = $at->greaterThanOrEqualTo($order->matures_at);
+        $canRedeem = $order->status === 'ACTIVE' && $order->maturity_policy === WealthOrder::MANUAL_RENEW
+            && $mature && $at->lessThan($order->redeem_before);
+        $display = $order->close_reason ?? ($order->status === 'ACTIVE' && $mature
+            ? ($order->maturity_policy === null ? 'AWAITING_SETTLEMENT' : ($canRedeem ? 'REDEEMABLE' : 'RENEWAL_PENDING')) : $order->status);
+        $nextId = WealthOrder::where('tenant_id', $order->tenant_id)->where('user_id', $order->user_id)->where('previous_order_id', $order->id)->value('id');
 
-        return ['id' => $order->id, 'asset' => $order->asset_code, 'principal' => Money::of($order->principal, $order->asset_code)->amount(), 'rate' => $order->annual_rate, 'months' => $order->months, 'status' => $order->status, 'displayStatus' => $order->status === 'ACTIVE' && now()->greaterThanOrEqualTo($order->matures_at) ? 'AWAITING_SETTLEMENT' : $order->status, 'startedAt' => $order->started_at->toIso8601String(), 'maturesAt' => $order->matures_at->toIso8601String(), 'timezone' => $order->timezone, 'paid' => $paid, 'returnAmount' => Money::of($order->returned ?? (string) BigDecimal::of($order->principal)->minus($paid), $order->asset_code)->amount(), 'clawback' => $order->clawback === null ? null : Money::of($order->clawback, $order->asset_code)->amount(), 'closedAt' => $order->closed_at?->toIso8601String(), 'canCancel' => $order->status === 'ACTIVE' && now()->lessThan($order->matures_at)];
+        return ['id' => $order->id, 'asset' => $order->asset_code, 'principal' => Money::of($order->principal, $order->asset_code)->amount(), 'rate' => $order->annual_rate, 'months' => $order->months, 'status' => $order->status, 'displayStatus' => $display, 'maturityPolicy' => $order->maturity_policy ?? 'AUTO_RETURN',
+            'canRedeem' => $canRedeem, 'redeemBefore' => $order->redeem_before?->toIso8601String(),
+            'redeemBeforeLocal' => $order->redeem_before?->setTimezone($order->timezone)->format('Y-m-d H:i:s'),
+            'previousOrderId' => $order->previous_order_id, 'nextOrderId' => $nextId, 'startedAt' => $order->started_at->toIso8601String(), 'maturesAt' => $order->matures_at->toIso8601String(), 'timezone' => $order->timezone, 'paid' => $paid, 'returnAmount' => Money::of($order->returned ?? ($mature ? $order->principal : (string) BigDecimal::of($order->principal)->minus($paid)), $order->asset_code)->amount(), 'clawback' => $order->clawback === null ? null : Money::of($order->clawback, $order->asset_code)->amount(), 'closedAt' => $order->closed_at?->toIso8601String(), 'canCancel' => $order->status === 'ACTIVE' && now()->lessThan($order->matures_at)];
     }
 }

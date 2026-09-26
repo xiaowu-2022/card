@@ -216,3 +216,21 @@ it('does not expose private images to guests or suspended administrators', funct
     $this->agent->update(['status' => 'SUSPENDED']);
     $this->actingAs($this->agent, 'tenant_admin')->get('http://a.localhost/admin/support/images/'.$message->id)->assertForbidden();
 });
+
+it('counts only unread support replies and acknowledges the displayed sequence without swallowing arrivals', function () {
+    $id = $this->action->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'Question');
+    $this->action->admin($this->company->id, $this->agent->id, $id, (string) Str::uuid(), 'First reply');
+    $this->actingAs($this->customer, 'tenant_user');
+    $this->getJson('http://a.localhost/messages/unread-count')->assertJson(['count' => 0, 'supportCount' => 1]);
+    $this->get('http://a.localhost/support')->assertOk()->assertInertia(fn ($p) => $p->where('unreadSupport', 1));
+    $this->action->admin($this->company->id, $this->agent->id, $id, (string) Str::uuid(), 'Concurrent reply');
+    $this->postJson('http://a.localhost/support/read', ['through' => 2])->assertNoContent();
+    $this->postJson('http://a.localhost/support/read', ['through' => 1])->assertNoContent();
+    $this->getJson('http://a.localhost/messages/unread-count')->assertJson(['supportCount' => 1]);
+    $this->postJson('http://a.localhost/support/read', ['through' => 999])->assertUnprocessable();
+    $this->postJson('http://a.localhost/support/read', ['through' => 3])->assertNoContent();
+    $this->getJson('http://a.localhost/messages/unread-count')->assertJson(['supportCount' => 0]);
+    $other = User::where('tenant_id', '!=', $this->company->id)->firstOrFail();
+    $this->actingAs($other, 'tenant_user')->postJson('http://b.localhost/support/read', ['through' => 3, 'user_id' => $this->customer->id])->assertUnprocessable();
+    expect(DB::table('support_conversations')->where('id', $id)->value('user_read_sequence'))->toBe(3);
+});

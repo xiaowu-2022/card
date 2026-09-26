@@ -8,6 +8,9 @@ use App\Application\Wallet\TransferWalletBalanceAction;
 use App\Application\Wallet\UserWalletQuery;
 use App\Application\Wallet\WalletTransferQuery;
 use App\Domain\Admin\Models\AdminUser;
+use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
+use App\Domain\Kyc\DTOs\KycOcrResultDTO;
+use App\Domain\Kyc\Enums\KycOcrOutcome;
 use App\Domain\Ledger\DTOs\LedgerPostingInstruction;
 use App\Domain\Ledger\DTOs\LedgerPostingPlan;
 use App\Domain\Ledger\Models\LedgerAccount;
@@ -16,6 +19,7 @@ use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use App\Domain\Wallet\Models\WalletTransfer;
+use App\Domain\Wallet\Services\WalletProvisioner;
 use App\Support\Errors\DomainException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
@@ -27,7 +31,6 @@ use Illuminate\Support\Str;
 
 beforeEach(function (): void {
     $this->seed();
-    legacyUsdAccountingFixtures();
     Storage::fake('private');
     Queue::fake();
     Http::preventStrayRequests();
@@ -39,24 +42,33 @@ beforeEach(function (): void {
     $this->recipient->refresh();
     $admin = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
     foreach ([$this->sender, $this->recipient] as $user) {
-        $application = app(SubmitKycApplicationAction::class)->execute($this->tenant, $user, 'MY', 'TRANSFER-'.$user->id, kycTestImage('front.png'), kycTestImage('back.png'));
+        $ocr = Mockery::mock(KycOcrProviderInterface::class);
+        $ocr->shouldReceive('name')->andReturn('TEST');
+        $ocr->shouldReceive('extractIdentityDocument')->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, 'TRANSFER-'.$user->id));
+        app()->instance(KycOcrProviderInterface::class, $ocr);
+        $application = app(SubmitKycApplicationAction::class)->execute($this->tenant, $user, 'CN', 'TRANSFER-'.$user->id, kycTestImage('front.png'), kycTestImage('back.png'));
         app(ApproveKycAction::class)->execute($this->tenant->id, $application->id, $admin);
         app(ActivateUserWalletAction::class)->execute($this->tenant->id, $user->id);
     }
     $this->senderAccount = LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('user_id', $this->sender->id)->where('account_type', 'USER_AVAILABLE')->firstOrFail();
     $this->recipientAccount = LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('user_id', $this->recipient->id)->where('account_type', 'USER_AVAILABLE')->firstOrFail();
-    $clearing = LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('asset_code', 'USD')->where('account_type', 'TENANT_TOPUP_CLEARING')->firstOrFail();
-    app(LedgerWriter::class)->post(new LedgerPostingPlan($this->tenant->id, 'USD', 'transfer_test:'.Str::uuid(), 'TEST_TOPUP', null, null, null, [
-        new LedgerPostingInstruction($clearing->id, Money::of('-100', 'USD')),
-        new LedgerPostingInstruction($this->senderAccount->id, Money::of('100', 'USD')),
+    $clearing = LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('asset_code', 'USDT')->where('account_type', 'TENANT_TOPUP_CLEARING')->firstOrFail();
+    app(LedgerWriter::class)->post(new LedgerPostingPlan($this->tenant->id, 'USDT', 'transfer_test:'.Str::uuid(), 'TEST_TOPUP', null, null, null, [
+        new LedgerPostingInstruction($clearing->id, Money::of('-100', 'USDT')),
+        new LedgerPostingInstruction($this->senderAccount->id, Money::of('100', 'USDT')),
     ]));
     $this->action = app(TransferWalletBalanceAction::class);
-    $this->payload = ['request_id' => (string) Str::uuid(), 'recipient_account_id' => $this->recipient->account_id, 'amount' => '10.25', 'current_password' => 'local-password', 'confirmed' => true];
+    $this->payload = ['asset' => 'USDT', 'request_id' => (string) Str::uuid(), 'recipient_account_id' => $this->recipient->account_id, 'amount' => '10.25', 'current_password' => 'local-password', 'confirmed' => true];
 });
 
 it('atomically transfers the exact amount, exposes both activity directions and preserves company totals', function (): void {
     $book = app(CompanyFundBookQuery::class)->execute($this->tenant->id, null, 1);
     $receipt = $this->action->execute($this->tenant->id, $this->sender->id, $this->recipient->account_id, '10.25', $this->payload['request_id']);
+    $events = DB::table('inbox_events')->where('event_key', 'like', '%:'.$receipt->id)->get()->keyBy('template');
+    expect($events)->toHaveCount(2);
+    expect($events['transfer_sent']->user_id)->toBe($this->sender->id);
+    expect($events['transfer_received']->user_id)->toBe($this->recipient->id);
+    expect(json_decode($events['transfer_received']->parameters, true))->toMatchArray(['amount' => '10.250000000000000000', 'asset' => 'USDT']);
     DB::statement('SET CONSTRAINTS wallet_transfer_evidence, wallet_transfer_entry_evidence IMMEDIATE');
     expect($receipt->amount)->toBe('10.25000000')->and($this->senderAccount->fresh()->balance)->toBe('89.75000000')->and($this->recipientAccount->fresh()->balance)->toBe('10.25000000');
     foreach ([$this->sender->id => '-10.25000000', $this->recipient->id => '10.25000000'] as $userId => $amount) {
@@ -82,7 +94,7 @@ it('reuses the receipt for identical requests and rejects changed intent', funct
 it('rejects insufficient funds and malformed amounts without posting money', function (string $amount): void {
     expect(fn () => $this->action->execute($this->tenant->id, $this->sender->id, $this->recipient->account_id, $amount, (string) Str::uuid()))->toThrow(DomainException::class);
     expect(WalletTransfer::query()->count())->toBe(0)->and($this->senderAccount->fresh()->balance)->toBe('100.00000000')->and($this->recipientAccount->fresh()->balance)->toBe('0.00000000');
-})->with(['100.01', '0', '-1', '1.001', '1e1', '01', '1000000000000', 'NaN']);
+})->with(['100.01', '0', '-1', '1.000000001', '1e1', '01', '1000000000000', 'NaN']);
 
 it('denies self, unknown and other-company recipients without disclosing contact data', function (): void {
     $other = User::query()->where('tenant_id', '<>', $this->tenant->id)->firstOrFail();
@@ -112,8 +124,8 @@ it('requires password, explicit confirmation and trusted ownership inputs at the
     $this->actingAs($this->sender, 'tenant_user')->postJson('http://a.localhost/wallet/transfers', [...$this->payload, $field => $value])->assertUnprocessable()->assertJsonValidationErrors($field);
     expect(WalletTransfer::query()->count())->toBe(0);
 })->with([
-    ['current_password', 'wrong'], ['confirmed', false], ['amount', 10], ['amount', '1.001'], ['recipient_account_id', 'bad'],
-    ['tenant_id', 'untrusted'], ['recipient_user_id', 'untrusted'], ['wallet_id', 'untrusted'], ['asset_code', 'USD'], ['fee', '0'], ['request_id', 'bad'],
+    ['current_password', 'wrong'], ['confirmed', false], ['amount', 10], ['amount', '1.000000001'], ['recipient_account_id', 'bad'],
+    ['tenant_id', 'untrusted'], ['recipient_user_id', 'untrusted'], ['wallet_id', 'untrusted'], ['asset_code', 'USDT'], ['fee', '0'], ['asset', 'USD'], ['asset', 'DOGE'], ['asset', null], ['asset', ['ETH']], ['request_id', 'bad'],
 ]);
 
 it('returns a scoped receipt after password-confirmed HTTP submission and safely handles replay', function (): void {
@@ -153,9 +165,9 @@ it('protects receipts from update and deletion at database level', function (): 
 it('rejects wallet-transfer ledger entries without an exact receipt', function (): void {
     expect(fn () => DB::transaction(function (): void {
         $id = (string) Str::uuid();
-        app(LedgerWriter::class)->post(new LedgerPostingPlan($this->tenant->id, 'USD', 'wallet_transfer:'.$id, 'WALLET_TRANSFER', 'WALLET_TRANSFER', $id, null, [
-            new LedgerPostingInstruction($this->senderAccount->id, Money::of('-10', 'USD')),
-            new LedgerPostingInstruction($this->recipientAccount->id, Money::of('10', 'USD')),
+        app(LedgerWriter::class)->post(new LedgerPostingPlan($this->tenant->id, 'USDT', 'wallet_transfer:'.$id, 'WALLET_TRANSFER', 'WALLET_TRANSFER', $id, null, [
+            new LedgerPostingInstruction($this->senderAccount->id, Money::of('-10', 'USDT')),
+            new LedgerPostingInstruction($this->recipientAccount->id, Money::of('10', 'USDT')),
         ]));
         DB::statement('SET CONSTRAINTS wallet_transfer_entry_evidence IMMEDIATE');
     }))->toThrow(QueryException::class);
@@ -165,13 +177,13 @@ it('rejects wallet-transfer ledger entries without an exact receipt', function (
 it('rejects receipts with missing reference type or mismatched posting amounts', function (?string $referenceType, string $receiptAmount): void {
     expect(fn () => DB::transaction(function () use ($referenceType, $receiptAmount): void {
         $id = (string) Str::uuid();
-        $entry = app(LedgerWriter::class)->post(new LedgerPostingPlan($this->tenant->id, 'USD', 'wallet_transfer:'.$id, 'WALLET_TRANSFER', $referenceType, $id, null, [
-            new LedgerPostingInstruction($this->senderAccount->id, Money::of('-10', 'USD')),
-            new LedgerPostingInstruction($this->recipientAccount->id, Money::of('10', 'USD')),
+        $entry = app(LedgerWriter::class)->post(new LedgerPostingPlan($this->tenant->id, 'USDT', 'wallet_transfer:'.$id, 'WALLET_TRANSFER', $referenceType, $id, null, [
+            new LedgerPostingInstruction($this->senderAccount->id, Money::of('-10', 'USDT')),
+            new LedgerPostingInstruction($this->recipientAccount->id, Money::of('10', 'USDT')),
         ]));
         WalletTransfer::query()->create(['id' => $id, 'tenant_id' => $this->tenant->id, 'sender_user_id' => $this->sender->id,
             'recipient_user_id' => $this->recipient->id, 'sender_wallet_id' => $this->senderAccount->wallet_id, 'recipient_wallet_id' => $this->recipientAccount->wallet_id,
-            'recipient_account_id' => $this->recipient->account_id, 'request_id' => (string) Str::uuid(), 'asset_code' => 'USD', 'amount' => $receiptAmount, 'ledger_entry_id' => $entry->id]);
+            'recipient_account_id' => $this->recipient->account_id, 'request_id' => (string) Str::uuid(), 'asset_code' => 'USDT', 'amount' => $receiptAmount, 'ledger_entry_id' => $entry->id]);
         DB::statement('SET CONSTRAINTS wallet_transfer_evidence, wallet_transfer_entry_evidence IMMEDIATE');
     }))->toThrow($referenceType === null ? DomainException::class : QueryException::class);
     expect($this->senderAccount->fresh()->balance)->toBe('100.00000000')->and(WalletTransfer::query()->count())->toBe(0);
@@ -182,4 +194,44 @@ it('does not allow administrator sessions to act as wallet senders', function ()
     $admin = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
     $this->actingAs($admin, 'tenant_admin')->post('http://a.localhost/wallet/transfers', $this->payload)->assertRedirect();
     expect(WalletTransfer::query()->count())->toBe(0);
+});
+
+it('transfers exact native precision and preserves the other wallets for each supported asset', function (string $asset, string $amount): void {
+    foreach ([$this->sender, $this->recipient] as $user) {
+        app(WalletProvisioner::class)->provision($this->tenant, $user, $asset);
+    }
+    $account = fn ($user) => LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('user_id', $user->id)->where('asset_code', $asset)->where('account_type', 'USER_AVAILABLE')->firstOrFail();
+    $sender = $account($this->sender);
+    $recipient = $account($this->recipient);
+    if ($asset !== 'USDT') {
+        $clearing = LedgerAccount::query()->where('tenant_id', $this->tenant->id)->where('asset_code', $asset)->where('account_type', 'TENANT_TOPUP_CLEARING')->firstOrFail();
+        app(LedgerWriter::class)->post(new LedgerPostingPlan($this->tenant->id, $asset, 'test_asset:'.Str::uuid(), 'TEST_TOPUP', null, null, null, [
+            new LedgerPostingInstruction($clearing->id, Money::of('-1', $asset)),
+            new LedgerPostingInstruction($sender->id, Money::of('1', $asset)),
+        ]));
+    }
+    $before = Money::of($sender->fresh()->balance, $asset);
+    $payload = [...$this->payload, 'asset' => $asset, 'amount' => $amount];
+    $this->actingAs($this->sender, 'tenant_user')->post('http://a.localhost/wallet/transfers', $payload)->assertRedirect();
+    $receipt = WalletTransfer::query()->sole();
+    DB::statement('SET CONSTRAINTS wallet_transfer_evidence, wallet_transfer_entry_evidence IMMEDIATE');
+    expect($receipt->asset_code)->toBe($asset)->and($receipt->amount)->toBe(Money::of($amount, $asset)->amount())
+        ->and($sender->fresh()->balance)->toBe($before->subtract(Money::of($amount, $asset))->amount())
+        ->and($recipient->fresh()->balance)->toBe(Money::of($amount, $asset)->amount());
+    $this->post('http://a.localhost/wallet/transfers', $payload)->assertRedirect('/wallet/transfers/'.$receipt->id);
+    expect(fn () => $this->action->execute($this->tenant->id, $this->sender->id, $this->recipient->account_id, $amount, $payload['request_id'], $asset === 'ETH' ? 'BTC' : 'ETH'))->toThrow(DomainException::class);
+    $view = app(WalletTransferQuery::class)->get($this->tenant->id, $this->sender->id, $receipt->id);
+    expect(array_column($view['assets'], 'asset'))->toBe(['USDT', 'USDC', 'ETH', 'BTC'])
+        ->and($view['receipt']['amount'])->toBe($receipt->amount);
+    if ($asset !== 'USDT') {
+        expect($this->senderAccount->fresh()->balance)->toBe('100.00000000');
+    }
+})->with([['USDT', '0.00000001'], ['USDC', '0.000001'], ['ETH', '0.000000000000000001'], ['BTC', '0.00000001']]);
+
+it('rejects excess precision and unavailable selected wallets without falling back to USDT', function (): void {
+    foreach (['USDC' => '0.0000001', 'ETH' => '0.0000000000000000001', 'BTC' => '0.000000001'] as $asset => $amount) {
+        $this->actingAs($this->sender, 'tenant_user')->postJson('http://a.localhost/wallet/transfers', [...$this->payload, 'asset' => $asset, 'amount' => $amount])->assertUnprocessable()->assertJsonValidationErrors('amount');
+        expect(fn () => $this->action->execute($this->tenant->id, $this->sender->id, $this->recipient->account_id, '1', (string) Str::uuid(), $asset))->toThrow(DomainException::class);
+    }
+    expect(WalletTransfer::query()->count())->toBe(0)->and($this->senderAccount->fresh()->balance)->toBe('100.00000000');
 });

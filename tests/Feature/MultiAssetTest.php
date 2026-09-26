@@ -60,6 +60,7 @@ function okxTestRates(): array
 }
 
 beforeEach(function () {
+    config(['inertia.ssr.enabled' => false]);
     Http::preventStrayRequests();
     Http::fake(['www.okx.com/*' => Http::response(okxTestRates())]);
     $this->seed();
@@ -67,7 +68,11 @@ beforeEach(function () {
     Queue::fake();
     $this->tenant = Tenant::where('slug', 'tenant-a')->firstOrFail();
     $this->user = User::where('tenant_id', $this->tenant->id)->firstOrFail();
-    $app = app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'MY', 'ASSET-'.$this->user->id, kycTestImage(), kycTestImage());
+    $ocr = Mockery::mock(\App\Domain\Kyc\Contracts\KycOcrProviderInterface::class);
+    $ocr->shouldReceive('name')->andReturn('TEST');
+    $ocr->shouldReceive('extractIdentityDocument')->andReturn(new \App\Domain\Kyc\DTOs\KycOcrResultDTO(\App\Domain\Kyc\Enums\KycOcrOutcome::Success, 'ASSET-'.$this->user->id));
+    app()->instance(\App\Domain\Kyc\Contracts\KycOcrProviderInterface::class, $ocr);
+    $app = app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', 'ASSET-'.$this->user->id, kycTestImage(), kycTestImage());
     app(ApproveKycAction::class)->execute($this->tenant->id, $app->id, AdminUser::where('email', 'owner@a.localhost')->firstOrFail());
     app(ActivateUserWalletAction::class)->execute($this->tenant->id, $this->user->id);
     ChainConnection::where('network', 'ETHEREUM')->update(['enabled' => true, 'start_height' => 100, 'next_height' => 100]);

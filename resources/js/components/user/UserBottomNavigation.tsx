@@ -1,3 +1,4 @@
+import { UnreadBadge } from './MessageBell';
 import { t, useClientTranslation } from '@/i18n';
 import { Link } from '@inertiajs/react';
 import { cn } from '@/lib/utils';
@@ -27,8 +28,9 @@ export function UserBottomNavigation({ currentUrl }: { currentUrl: string }) {
                 );
                 const content = (
                     <>
-                        <span className="user-bottom-navigation-icon">
+                        <span className="user-bottom-navigation-icon relative">
                             <Icon strokeWidth={2.5} aria-hidden="true" />
+                            {href === '/account' && <UnreadBadge kind="total" />}
                         </span>
                         <span>{t(label)}</span>
                     </>

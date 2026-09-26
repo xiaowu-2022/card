@@ -1,3 +1,60 @@
+# Wealth maturity redemption and renewal — approved 2026-09-26
+
+This section supersedes the automatic maturity-return/no-renewal rule below **only for
+future purchases and their renewal descendants**. Existing orders keep the original
+contract. Migration adds nullable policy metadata without updating existing business
+rows: null means legacy automatic return; new purchases explicitly snapshot
+MANUAL_REDEEM_RENEW and the exclusive redemption cutoff at the next midnight in their
+saved company timezone. Later timezone/configuration changes never move these dates.
+
+At maturity all due monthly interest is paid, but principal remains in wealth. The
+owner may redeem the full principal from actual maturity until (excluding) the cutoff,
+with password, acknowledgement and a stable UUID. POST /wealth/orders/{id}/redeem is
+scoped to Tenant/User/order and the original currency wallet. It never claws back paid
+interest. The cancellation endpoint rejects matured new-policy orders; before maturity
+its existing whole-order interest-recovery contract still applies.
+
+After the cutoff, wealth:recover atomically closes the old order through WEALTH_MATURITY
+and funds a linked new order through WEALTH_DEPOSIT, both using LedgerWriter within
+one outer transaction. No intermediate available balance is externally spendable.
+Principal, months, APR, wallet, currency, timezone and original config revision are
+inherited; no fresh product enablement/minimum/rate gate applies. Monthly paid interest
+is never reinvested. The child starts at the prior cutoff, not processing time; the
+redemption window earns no additional interest. Every cycle has its own installments
+and subsequent early cancellation recovers only that cycle's paid interest.
+
+Stored terminal status remains MATURED with immutable REDEEMED/RENEWED close_reason;
+previous_order_id uniquely links one successor with matching contract/ownership. A
+deferred database guard requires both sides of every renewal and existing Ledger
+and interest-evidence guards remain active. Redemption UUIDs are unique per tenant/user.
+Closed records, contract policy and economics are immutable. USER redemption and
+SYSTEM rollover audits identify actual server operation times and corresponding entries.
+
+Account eligibility is rechecked for renewal/redemption. Disabled wallets/accounts are
+never reactivated. A failed cycle rolls back fully, preserves principal and is logged
+for retry. Recovery catches up from original scheduled dates, one transaction per cycle,
+at most 12 cycles per chain and 1000 processed orders per invocation; subsequent minute
+runs continue remaining work. Already elapsed historical redemption windows are not
+reopened. Monthly obligations and legacy maturity returns retain their original behavior.
+
+DTOs expose maturityPolicy, canRedeem, redeemBefore (UTC), redeemBeforeLocal, saved
+timezone and scoped previousOrderId/nextOrderId. Read-only display states are REDEEMABLE,
+RENEWAL_PENDING, REDEEMED and RENEWED alongside existing states. Withdraw lists include
+both future active cancellations and matured orders within the redemption window.
+Principal totals still come from USER_WEALTH_PRINCIPAL and include pending renewals once.
+All four consumer locales describe the purchase rules and distinguish withdrawal from
+maturity redemption, with full-amount previews and linked cycle history.
+
+Deployment: pause application writers and the scheduler during the schema/application
+switch, apply 2026_09_26_000100_add_wealth_maturity_renewal.php, deploy the matching code,
+and resume the existing every-minute schedule. The database default is set only after
+the nullable column is added so old rows stay null. Never run recovery manually against
+live funds for acceptance. Monitor command failure counts, sanitized warning records,
+and ACTIVE new-policy orders whose redeem_before has passed. Test only card_ui_test and
+offline browser fixtures; rollback is a forward change preserving new contracts.
+
+---
+
 # Wealth management — approved 2026-09-18
 
 ## Contract

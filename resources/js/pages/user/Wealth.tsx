@@ -1,8 +1,8 @@
 import { ChevronRight } from 'lucide-react';
-import { wealthState } from '@/lib/wealth-display';
+import { wealthState, wealthDate } from '@/lib/wealth-display';
 import { useRef, useState } from 'react';
 import { Head, Link, useForm, router } from '@inertiajs/react';
-import { t, useClientTranslation, errorMessage, dateTime } from '@/i18n';
+import { t, useClientTranslation, errorMessage } from '@/i18n';
 import { UserLayout } from '@/layouts/UserLayout';
 import { UserPageHeader } from '@/components/user/UserPageHeader';
 import { Button } from '@/components/ui/button';
@@ -42,6 +42,12 @@ export type WealthOrderData = {
     clawback: string | null;
     closedAt: string | null;
     canCancel: boolean;
+    canRedeem: boolean;
+    maturityPolicy: 'AUTO_RETURN' | 'MANUAL_REDEEM_RENEW';
+    redeemBefore: string | null;
+    redeemBeforeLocal: string | null;
+    previousOrderId: string | null;
+    nextOrderId: string | null;
     timezone: string;
 };
 export function WealthNotice() {
@@ -311,7 +317,12 @@ export default function Wealth({
                         >
                             <p className="text-sm">
                                 {t(
-                                    'Principal returns automatically at maturity. No automatic renewal or compound interest.',
+                                    'Redeem principal on the maturity day before midnight in the order timezone. Otherwise, the same principal renews for the same term and rate. Paid interest stays in your wallet.',
+                                )}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                                {t(
+                                    'No extra interest accrues during the redemption window. Processing delays do not shift the next term.',
                                 )}
                             </p>
                             <WealthNotice />
@@ -401,8 +412,15 @@ export default function Wealth({
                                             })}
                                         </p>
                                         <p className="text-xs text-muted-foreground">
-                                            {t('Maturity date')}: {dateTime(o.maturesAt)}
+                                            {t('Maturity date')}:{' '}
+                                            {wealthDate(o.maturesAt, o.timezone)}
                                         </p>
+                                        {o.redeemBeforeLocal && (
+                                            <p className="text-xs text-muted-foreground">
+                                                {t('Redeem before')}: {o.redeemBeforeLocal} (
+                                                {o.timezone})
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="flex flex-wrap items-end justify-between gap-3 border-t pt-3">
                                         <div className="min-w-0">

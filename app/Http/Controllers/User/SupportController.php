@@ -5,6 +5,7 @@ namespace App\Http\Controllers\User;
 use App\Application\Support\SendSupportMessageAction;
 use App\Application\Support\SupportChatQuery;
 use App\Application\Support\SupportImageStorage;
+use App\Application\Support\SupportUnread;
 use App\Domain\Tenant\TenantContext;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SendSupportMessageRequest;
@@ -20,6 +21,14 @@ final class SupportController extends Controller
         $request->validate(['before' => ['nullable', 'integer', 'min:0', 'max:2147483647']]);
 
         return Inertia::render('user/Support', ['chat' => $query->user($context->id(), $request->user('tenant_user')->id, $request->integer('before'))])->toResponse($request)->header('Cache-Control', 'private, no-store');
+    }
+
+    public function read(Request $request, TenantContext $context, SupportUnread $unread): Response
+    {
+        $data = $request->validate(['through' => 'required|integer|min:1|max:2147483647']);
+        $unread->read($context->id(), $request->user('tenant_user')->id, $data['through']);
+
+        return response()->noContent();
     }
 
     public function store(SendSupportMessageRequest $request, TenantContext $context, SendSupportMessageAction $action): RedirectResponse
