@@ -62,7 +62,7 @@ final class ConsumerController extends Controller
             'restricted' => $tenant->status !== TenantStatus::Active || ($authenticated && $user->status !== UserStatus::Active),
             'unread' => ['messages' => $authenticated ? $inbox->unread($tenant->id, $user->id) : 0,
                 'support' => $authenticated ? $support->count($tenant->id, $user->id) : 0],
-            'csrfToken' => $request->hasSession() ? $request->session()->token() : null,
+            'csrfToken' => $request->attributes->get('consumer_mode') === 'web' && $request->hasSession() ? $request->session()->token() : null,
         ]);
     }
 

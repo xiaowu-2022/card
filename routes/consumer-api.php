@@ -4,7 +4,11 @@ use App\Http\Controllers\Api\ConsumerController;
 use App\Http\Middleware\RequireConsumerApiUser;
 use Illuminate\Support\Facades\Route;
 
-Route::get('bootstrap', [ConsumerController::class, 'bootstrap'])->middleware('throttle:120,1');
+Route::get('bootstrap', [ConsumerController::class, 'bootstrap'])->middleware(['throttle:120,1', \App\Http\Middleware\ConsumerFlowSession::class]);
+Route::prefix('client')->middleware([
+    \App\Http\Middleware\ConsumerFlowSession::class,
+    \App\Http\Middleware\ConsumerPageResponse::class,
+])->group(base_path('routes/consumer-client.php'));
 Route::post('login', [ConsumerController::class, 'login'])->middleware('throttle:20,1');
 Route::middleware(RequireConsumerApiUser::class)->group(function (): void {
     Route::post('logout', [ConsumerController::class, 'logout']);

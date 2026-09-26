@@ -84,7 +84,7 @@ final class AliyunKycOcrProvider implements KycOcrProviderInterface
                 'x-acs-content-sha256' => hash('sha256', $contents)];
             $headers['Authorization'] = (new AliyunAcs3Signer)->authorization('POST', '/', [], $headers, $key, $secret, $contents);
             $phase = 'transport';
-            $response = Http::connectTimeout(5)->timeout(20)->withoutRedirecting()->withHeaders($headers)
+            $response = Http::connectTimeout(10)->timeout(120)->withoutRedirecting()->withHeaders($headers)
                 ->withBody($contents, 'application/octet-stream')->post('https://'.$host.'/');
             $status = $response->status();
             $phase = 'response_size';

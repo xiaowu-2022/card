@@ -120,7 +120,7 @@ final class RegistrationController extends Controller
         return redirect("/register/challenges/{$challenge}")->with('success', 'Contact verified. Create your password to finish.');
     }
 
-    public function complete(CompleteRegistrationRequest $request, string $challenge, TenantContext $context, CompleteInvitedRegistrationAction $action): RedirectResponse
+    public function complete(CompleteRegistrationRequest $request, string $challenge, TenantContext $context, CompleteInvitedRegistrationAction $action): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $this->assertSessionOwnsChallenge($request, $challenge);
         $user = $action->execute(
@@ -131,6 +131,14 @@ final class RegistrationController extends Controller
             $request->string('locale')->toString() ?: null,
             $request->attributes->get('request_id'),
         );
+        if ($request->attributes->get('consumer_mode') === 'mobile') {
+            $request->session()->forget(['registration.challenge_ids', 'promotion.invitation.'.$context->id()]);
+            $request->session()->regenerate(true);
+
+            return response()->json(app(\App\Application\User\IssueConsumerDeviceToken::class)->execute(
+                $context->id(), $user->id, $request->string('password')->toString(), 'uni-app',
+            ) + ['redirect' => '/dashboard'], 201);
+        }
         Auth::guard('tenant_user')->login($user);
         $request->session()->put('tenant_user_session_version', $user->fresh()->session_version);
         $request->session()->regenerate();

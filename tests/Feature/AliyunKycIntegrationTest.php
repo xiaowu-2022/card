@@ -7,13 +7,16 @@ use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Tenant\Models\PlatformKycSetting;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
+use App\Http\Requests\SubmitKycApplicationRequest;
 use App\Support\Errors\DomainException;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Psr7\Request;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 
 beforeEach(function (): void {
     $this->seed();
@@ -213,3 +216,29 @@ it('preserves passport image rejection even when diagnostic logging is unavailab
     }
     expect(IdentityRecord::count())->toBe(0)->and(KycApplication::count())->toBe(0)->and(Storage::disk('private')->allFiles())->toBe([]);
 })->with(['CN', 'MY']);
+
+it('enforces the restored ten MiB boundary on every document side before OCR', function (string $type, string $side, int $bytes, bool $rejected): void {
+    $request = new SubmitKycApplicationRequest;
+    $request->merge(['document_type' => $type]);
+    $image = kycTestImage('boundary.png');
+    $contents = file_get_contents($image->getRealPath());
+    $file = UploadedFile::fake()->createWithContent('boundary.png', str_pad($contents, $bytes, "\0"));
+    $validator = Validator::make([$side => $file], [$side => $request->rules()[$side]]);
+    expect($validator->fails())->toBe($rejected);
+    Http::assertNothingSent();
+})->with([
+    ['NATIONAL_ID', 'front', 1048576, false],
+    ['NATIONAL_ID', 'front', 10485760, false],
+    ['NATIONAL_ID', 'back', 10485760, false],
+    ['PASSPORT', 'front', 10485760, false],
+    ['PASSPORT', 'front', 10485761, true],
+]);
+
+it('allows time for document upload and OCR without retrying the request', function (): void {
+    Http::fake(function ($request, array $options) {
+        expect($options['connect_timeout'])->toBe(10)->and($options['timeout'])->toBe(120);
+        return Http::response(['Data' => json_encode(['data' => ['passportNumber' => 'E12345678']])]);
+    });
+    app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', 'E12345678', kycTestImage(), null, documentType: KycDocumentType::Passport);
+    Http::assertSentCount(1);
+});

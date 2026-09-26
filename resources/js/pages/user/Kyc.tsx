@@ -76,6 +76,17 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb, backHref }: Props) 
         back: null,
         form: undefined,
     });
+    function selectDocument(side: 'front' | 'back', input: HTMLInputElement) {
+        const file = input.files?.[0] ?? null;
+        if (file && file.size > maxDocumentMb * 1024 * 1024) {
+            input.value = '';
+            form.setData(side, null);
+            form.setError(side, t('JPEG, PNG or WEBP · max {{value1}} MB', { value1: maxDocumentMb }));
+            return;
+        }
+        form.clearErrors(side);
+        form.setData(side, file);
+    }
     const state = content[kyc.status];
     return (
         <UserLayout>
@@ -230,7 +241,7 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb, backHref }: Props) 
                                         description={t('JPEG, PNG or WEBP · max {{value1}} MB', {
                                             value1: maxDocumentMb,
                                         })}
-                                        error={errorMessage(form.errors.front)}
+                                        error={errorMessage(form.errors.front, form.errors.front)}
                                     >
                                         <Input
                                             id="id-front"
@@ -239,10 +250,7 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb, backHref }: Props) 
                                             type="file"
                                             accept="image/jpeg,image/png,image/webp"
                                             onChange={(event) =>
-                                                form.setData(
-                                                    'front',
-                                                    event.target.files?.[0] ?? null,
-                                                )
+                                                selectDocument('front', event.target)
                                             }
                                         />
                                     </FormField>
@@ -256,7 +264,7 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb, backHref }: Props) 
                                                     value1: maxDocumentMb,
                                                 },
                                             )}
-                                            error={errorMessage(form.errors.back)}
+                                            error={errorMessage(form.errors.back, form.errors.back)}
                                         >
                                             <Input
                                                 id="id-back"
@@ -264,10 +272,7 @@ export default function Kyc({ kyc, canSubmit, maxDocumentMb, backHref }: Props) 
                                                 type="file"
                                                 accept="image/jpeg,image/png,image/webp"
                                                 onChange={(event) =>
-                                                    form.setData(
-                                                        'back',
-                                                        event.target.files?.[0] ?? null,
-                                                    )
+                                                    selectDocument('back', event.target)
                                                 }
                                             />
                                         </FormField>

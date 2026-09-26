@@ -18,7 +18,8 @@ final class UserLocaleController
             'locale' => ['required', 'string', 'max:16'],
             'tenant_id' => ['prohibited'], 'user_id' => ['prohibited'],
         ]);
-        $user = Auth::guard('tenant_user')->user();
+        $user = $request->attributes->get('consumer_mode') === 'mobile'
+            ? $request->attributes->get('consumer_user') : Auth::guard('tenant_user')->user();
         $update->execute($context->tenant(), $user instanceof User ? $user : null, $data['locale']);
 
         return response()->json(['locale' => $data['locale']])->cookie(

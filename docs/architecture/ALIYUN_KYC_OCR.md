@@ -83,3 +83,19 @@ HTTP 或阿里云 Code 响应；response_json/response_data 表示返回格式�
 
 验证：新增四语言提交错误覆盖测试通过，前端生产构建通过。
 完整 i18n 测试为 69 通过、8 失败；失败涉及已有卡片/推广测试与文案，非本次 KYC 变更。
+
+## 2026-09-26 Restore 10 MB images and extend OCR timeouts
+
+The user revoked the 1 MiB restriction. Restore KYC_DOCUMENT_MAX_MB (default 10 MiB)
+and the adapter's 10 MiB cap. Each OCR call now has a 10-second connection timeout
+and a 120-second total timeout, including upload and response. No automatic retries,
+identity replay or changes to existing applications. Two sequential ID-side calls may
+take about 240 seconds; the uni-app KYC upload timeout is 300 seconds.
+
+Deploy backend and rebuilt frontend, refresh config:cache and reload PHP-FPM.
+If KYC_DOCUMENT_MAX_MB was changed to 1, restore it to 10. PHP upload_max_filesize
+must be at least 10M and post_max_size at least 24M. Nginx client_max_body_size
+must be at least 24m; fastcgi_read_timeout should be 300s. If PHP-FPM
+request_terminate_timeout is enabled, allow at least 300s. Check proxy/CDN limits
+as well. docker/php/uploads.ini is updated; deployed panel settings require separate
+configuration. Application HTTP timeouts cannot override an earlier gateway timeout.

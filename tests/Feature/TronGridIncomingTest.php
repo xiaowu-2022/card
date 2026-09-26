@@ -3,7 +3,11 @@
 use App\Domain\Withdrawal\Contracts\BlockchainGatewayInterface;
 use App\Infrastructure\Providers\Blockchain\TronGridBlockchainGateway;
 use App\Support\Errors\DomainException;
+use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Psr7\Request;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 beforeEach(function (): void {
     Http::preventStrayRequests();
@@ -131,3 +135,63 @@ it('uses the public reader in production despite legacy disabled or mock flags',
     $this->app->forgetInstance(BlockchainGatewayInterface::class);
     expect(app(BlockchainGatewayInterface::class))->toBeInstanceOf(TronGridBlockchainGateway::class);
 })->with(['unavailable', 'mock', 'trongrid']);
+
+it('records only safe request failure metadata for discovery', function (mixed $body, int $status, string $phase): void {
+    Log::spy();
+    Http::fake(['*' => Http::response($body, $status, ['X-Private' => 'PRIVATE'])]);
+    expect(fn () => $this->gateway->between(TronGridBlockchainGateway::TOKEN, new DateTimeImmutable('-1 minute'), new DateTimeImmutable))
+        ->toThrow(DomainException::class, 'Blockchain verification is temporarily unavailable.');
+    Log::shouldHaveReceived('warning')->once()->withArgs(function ($message, $context) use ($status, $phase): bool {
+        expect($message)->toBe('TRC20 public reader request failed')
+            ->and(array_keys($context))->toBe(['endpoint', 'phase', 'http_status', 'elapsed_ms', 'transport_errno'])
+            ->and($context['endpoint'])->toBe('account_transfers')->and($context['phase'])->toBe($phase)
+            ->and($context['http_status'])->toBe($status)->and($context['transport_errno'])->toBeNull()
+            ->and($context['elapsed_ms'])->toBeInt()->toBeGreaterThanOrEqual(0)
+            ->and(json_encode($context))->not->toContain('PRIVATE', TronGridBlockchainGateway::TOKEN);
+
+        return true;
+    });
+    Http::assertSentCount(1);
+})->with([
+    ['PRIVATE throttling response', 429, 'http_status'],
+    ['PRIVATE forbidden response', 403, 'http_status'],
+    ['PRIVATE server response', 503, 'http_status'],
+    ['PRIVATE redirect', 302, 'http_status'],
+    ['<html>PRIVATE</html>', 200, 'response_json'],
+    ['null', 200, 'response_json'],
+    [['Error' => 'PRIVATE'], 200, 'upstream_error'],
+    [['error' => 'PRIVATE'], 200, 'upstream_error'],
+    [str_repeat('x', 2097153), 200, 'response_size'],
+]);
+
+it('records transport errno without recording the exception text or receipt hash', function (): void {
+    Log::spy();
+    $attempts = 0;
+    Http::fake(function () use (&$attempts): never {
+        $attempts++;
+        $cause = new ConnectException('cURL error 28: PRIVATE', new Request('POST', 'https://example.invalid/private'));
+        throw new ConnectionException('PRIVATE', 0, $cause);
+    });
+    expect(fn () => $this->gateway->lookup($this->hash, TronGridBlockchainGateway::TOKEN))->toThrow(DomainException::class);
+    Log::shouldHaveReceived('warning')->once()->withArgs(function ($message, $context): bool {
+        expect($context['endpoint'])->toBe('transaction_receipt')->and($context['phase'])->toBe('transport')
+            ->and($context['http_status'])->toBeNull()->and($context['transport_errno'])->toBe(28)
+            ->and(json_encode($context))->not->toContain('PRIVATE', $this->hash);
+
+        return true;
+    });
+    expect($attempts)->toBe(1);
+});
+
+it('keeps failed reads closed and sanitized when diagnostic logging fails', function (): void {
+    Log::shouldReceive('warning')->once()->andThrow(new RuntimeException('PRIVATE log failure'));
+    Http::fake(['*' => Http::response('PRIVATE', 429)]);
+    try {
+        $this->gateway->lookup($this->hash, TronGridBlockchainGateway::TOKEN);
+        $this->fail('Expected closed read');
+    } catch (DomainException $error) {
+        expect($error->httpStatus)->toBe(503)->and($error->getPrevious())->toBeNull()
+            ->and($error->getMessage())->not->toContain('PRIVATE');
+    }
+    Http::assertSentCount(1);
+});

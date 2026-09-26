@@ -11,7 +11,10 @@ use App\Support\Errors\DomainException;
 use Brick\Math\BigDecimal;
 use Brick\Math\BigInteger;
 use DateTimeImmutable;
+use GuzzleHttp\Exception\ConnectException;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /** Read-only mainnet USDT. Never signs, posts Ledger or falls back to Mock. */
@@ -203,21 +206,61 @@ final class TronGridBlockchainGateway implements BlockchainGatewayInterface, Trc
         if (! $this->available()) {
             $this->unavailable();
         }
+        $started = hrtime(true);
+        $phase = 'transport';
+        $status = null;
         try {
             // Public read-only access: never decrypt or forward stored credentials.
             $client = Http::acceptJson()->connectTimeout(3)->timeout(10)->withoutRedirecting();
             $response = $get ? $client->get(self::BASE.'/'.$path, $data) : $client->post(self::BASE.'/'.$path, $data);
-            if (! $response->successful() || strlen($response->body()) > 2097152) {
+            $status = $response->status();
+            $phase = 'http_status';
+            if (! $response->successful()) {
                 $this->unavailable();
             }
+            $phase = 'response_size';
+            if (strlen($response->body()) > 2097152) {
+                $this->unavailable();
+            }
+            $phase = 'response_json';
             $json = json_decode($response->body(), true, 64, JSON_THROW_ON_ERROR | JSON_BIGINT_AS_STRING);
-            if (! is_array($json) || isset($json['Error']) || isset($json['error'])) {
+            if (! is_array($json)) {
+                $this->unavailable();
+            }
+            $phase = 'upstream_error';
+            if (isset($json['Error']) || isset($json['error'])) {
                 $this->unavailable();
             }
 
             return $json;
-        } catch (Throwable) {
+        } catch (Throwable $error) {
             // Never include request headers, upstream bodies or credentials in exceptions/logs.
+            $endpoint = match ($path) {
+                'walletsolidity/getnowblock' => 'solid_head',
+                'walletsolidity/getblockbynum' => 'solid_block',
+                'walletsolidity/gettransactioninfobyid' => 'transaction_receipt',
+                default => str_starts_with($path, 'v1/accounts/') ? 'account_transfers' : 'unknown',
+            };
+            $errno = null;
+            if ($phase === 'transport') {
+                for ($cause = $error; $cause !== null; $cause = $cause->getPrevious()) {
+                    if (($cause instanceof ConnectException || $cause instanceof ConnectionException)
+                        && preg_match('/\bcURL error ([0-9]{1,3}):/', $cause->getMessage(), $match) === 1) {
+                        $value = (int) $match[1];
+                        $errno = $value > 0 && $value <= 100 ? $value : null;
+                        break;
+                    }
+                }
+            }
+            try {
+                Log::warning('TRC20 public reader request failed', [
+                    'endpoint' => $endpoint, 'phase' => $phase, 'http_status' => $status,
+                    'elapsed_ms' => (int) ((hrtime(true) - $started) / 1000000),
+                    'transport_errno' => $errno,
+                ]);
+            } catch (Throwable) {
+                // A logging failure must not replace the safe error or permit settlement.
+            }
             $this->unavailable();
         }
     }

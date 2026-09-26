@@ -105,6 +105,7 @@ final class AccountController extends Controller
         $user = Auth::guard('tenant_user')->user();
         $version = $action->execute($context->id(), $user->id, $request->string('current_password')->toString(), $request->string('password')->toString(), $request->attributes->get('request_id'));
         $user->session_version = $version;
+        $request->attributes->get('consumer_token')?->forceFill(['session_version' => $version])->save();
         $request->session()->put('tenant_user_session_version', $version);
         $request->session()->regenerate();
 
@@ -118,6 +119,7 @@ final class AccountController extends Controller
         $user = Auth::guard('tenant_user')->user();
         $version = $action->execute($context->id(), $user->id, $data['current_password']);
         $user->session_version = $version;
+        $request->attributes->get('consumer_token')?->forceFill(['session_version' => $version])->save();
         $request->session()->put('tenant_user_session_version', $version);
         $request->session()->regenerate();
 

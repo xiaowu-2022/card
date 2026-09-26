@@ -133,3 +133,43 @@ checkpoint replay with timestamp precision. No real transfers, live receipts, ex
 financial settlements or general background workers were executed. The isolated
 `card_mock` database received only the new permission/checkpoint and request-index migrations; its
 existing USD Wallet and balances were not altered.
+
+## Public-reader failure diagnostics (2026-09-26)
+
+A reported top-up was transferred at 13:58:06 (+08) and first detected, confirmed
+and credited at 14:16:06. Production logs show discovery-request failures every
+minute from 14:00 through 14:15. A later read-only check of the order's five-minute
+window returned HTTP 200, `success=true` and one record in 0.73 seconds. This proves
+current availability, not the historical HTTP status or a specific throttling cause.
+The old exception deliberately discarded those details; they cannot be recovered
+from its stack trace. A scheduler wrapper's successful exit is not proof that each
+child command succeeded.
+
+Failed HTTP requests now emit `TRC20 public reader request failed` with only:
+- Fixed endpoint category (`solid_head`, `solid_block`, `transaction_receipt`,
+  `account_transfers`, `unknown`), never an address-bearing URL.
+- Local failure phase (`transport`, `http_status`, `response_size`, `response_json`,
+  `upstream_error`), numeric HTTP status if available, monotonic elapsed milliseconds.
+- Bounded numeric cURL errno extracted from a recognized connection exception's
+  `cURL error N:` prefix, when available; the rest of its message is discarded.
+
+No response body, headers, error messages, request parameters, addresses, transaction
+hashes or exception chains are logged by this diagnostic. Logger failure cannot
+permit credit or replace the safe domain error. These diagnostics cover the request
+boundary; successful HTTP responses rejected by later receipt/pagination validation
+still fail closed through the existing validation path.
+
+This change does not alter retries, confirmation depth, scan windows/cursors,
+settlement, provider configuration or financial records. Deploy the updated gateway
+PHP file through the normal code-release process; no migration, frontend build or
+configuration change is needed. Restart a persistent scheduler worker if used.
+To inspect new failures on the server, read (do not manually run a financial scan):
+
+```sh
+grep -n 'TRC20 public reader request failed' storage/logs/laravel*.log | tail -30
+```
+
+Offline HTTP fakes cover HTTP failures, transport errors, invalid/oversized JSON,
+upstream errors, redaction and logger failure, alongside the existing receipt and
+shared-top-up regression suites. This adds evidence for future failures; it does
+not establish that the historical latency issue has been resolved.
