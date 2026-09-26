@@ -97,11 +97,6 @@ export function UserLayout({
                             </div>
                         </header>
                     )}
-                    {!navigationHome && auth.user && (
-                        <div className="flex justify-end px-4 pt-2">
-                            <MessageBell />
-                        </div>
-                    )}
                     <main
                         className={`user-main min-w-0 ${overview && navigationHome ? 'user-main-overview' : ''}`}
                     >

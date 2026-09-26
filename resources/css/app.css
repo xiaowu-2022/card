@@ -1388,3 +1388,13 @@ a {
     text-align: center;
     white-space: normal;
 }
+
+/* The bell occupies the same title-row slot as other secondary-page actions. */
+.user-page-header-bell {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+}
+.user-theme .wealth-currency-header .user-page-header-with-bell > div:first-child {
+    grid-template-columns: 36px minmax(0, 1fr) 44px;
+}

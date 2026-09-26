@@ -19,61 +19,65 @@ export default function Messages({ messages, filter }: { messages: MessagePage; 
         <UserLayout>
             <Head title={t('Messages')} />
             <UserPageHeader title={t('Messages')} backHref="/account" />
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-                {(['all', 'unread', 'business', 'platform'] as const).map((key) => (
-                    <Link
-                        key={key}
-                        href={`/messages?filter=${key}`}
-                        onNetworkError={() => {
-                            setFailed(true);
-                            return false;
+            <div className="mb-4 mt-5 space-y-2">
+                <div className="grid grid-cols-4 gap-1">
+                    {(['all', 'unread', 'business', 'platform'] as const).map((key) => (
+                        <Link
+                            key={key}
+                            href={`/messages?filter=${key}`}
+                            onNetworkError={() => {
+                                setFailed(true);
+                                return false;
+                            }}
+                            onHttpException={() => {
+                                setFailed(true);
+                                return false;
+                            }}
+                            aria-current={filter === key ? 'page' : undefined}
+                            className={`flex min-h-11 items-center justify-center rounded-full px-2 py-2 text-center text-sm ${filter === key ? 'bg-[var(--user-primary-soft)] text-[var(--user-primary)]' : 'text-muted-foreground'}`}
+                        >
+                            {t(
+                                {
+                                    all: 'All',
+                                    unread: 'Unread',
+                                    business: 'Business notifications',
+                                    platform: 'Platform notifications',
+                                }[key],
+                            )}
+                        </Link>
+                    ))}
+                </div>
+                <div className="flex justify-end">
+                    <Button
+                        variant="ghost"
+                        disabled={busy}
+                        className="ml-auto"
+                        onClick={() => {
+                            setBusy(true);
+                            setFailed(false);
+                            router.post(
+                                '/messages/read-all',
+                                {},
+                                {
+                                    preserveScroll: true,
+                                    onSuccess: () => window.dispatchEvent(new Event('inbox-read')),
+                                    onError: () => setFailed(true),
+                                    onNetworkError: () => {
+                                        setFailed(true);
+                                        return false;
+                                    },
+                                    onHttpException: () => {
+                                        setFailed(true);
+                                        return false;
+                                    },
+                                    onFinish: () => setBusy(false),
+                                },
+                            );
                         }}
-                        onHttpException={() => {
-                            setFailed(true);
-                            return false;
-                        }}
-                        aria-current={filter === key ? 'page' : undefined}
-                        className={`rounded-full px-3 py-2 text-sm ${filter === key ? 'bg-[var(--user-primary-soft)] text-[var(--user-primary)]' : 'text-muted-foreground'}`}
                     >
-                        {t(
-                            {
-                                all: 'All',
-                                unread: 'Unread',
-                                business: 'Business notifications',
-                                platform: 'Platform notifications',
-                            }[key],
-                        )}
-                    </Link>
-                ))}
-                <Button
-                    variant="ghost"
-                    disabled={busy}
-                    className="ml-auto"
-                    onClick={() => {
-                        setBusy(true);
-                        setFailed(false);
-                        router.post(
-                            '/messages/read-all',
-                            {},
-                            {
-                                preserveScroll: true,
-                                onSuccess: () => window.dispatchEvent(new Event('inbox-read')),
-                                onError: () => setFailed(true),
-                                onNetworkError: () => {
-                                    setFailed(true);
-                                    return false;
-                                },
-                                onHttpException: () => {
-                                    setFailed(true);
-                                    return false;
-                                },
-                                onFinish: () => setBusy(false),
-                            },
-                        );
-                    }}
-                >
-                    {t('Mark all as read')}
-                </Button>
+                        {t('Mark all as read')}
+                    </Button>
+                </div>
             </div>
             {failed && (
                 <p role="alert" className="text-sm text-destructive">
