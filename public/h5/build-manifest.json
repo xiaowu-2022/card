@@ -10,6 +10,6 @@
   "mode": "release",
   "company": "specpay",
   "platform": "h5",
-  "h5Base": "/h5/",
-  "builtAt": "2026-09-28T12:54:41.894Z"
+  "h5Base": "./",
+  "builtAt": "2026-09-28T13:30:08.465Z"
 }

@@ -7,7 +7,7 @@ import ts from 'typescript';
 
 function client(platform, base = '/') {
     const cache = new Map();
-    const window = { location: { origin: 'https://alternate.example.org' } };
+    const window = { location: { origin: 'https://alternate.example.org', href: 'https://alternate.example.org/' } };
     function load(path) {
         if (path.endsWith('company.json')) return { apiOrigin: 'https://primary.example.org' };
         if (cache.has(path)) return cache.get(path);
@@ -17,7 +17,7 @@ function client(platform, base = '/') {
         const compiled = ts.transpileModule(source, {
             compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
         }).outputText;
-        runInNewContext(compiled, { exports, window, require: (id) => load(resolve(dirname(path), id + (id.endsWith('.json') ? '' : '.ts'))) });
+        runInNewContext(compiled, { exports, window, URL, require: (id) => load(resolve(dirname(path), id + (id.endsWith('.json') ? '' : '.ts'))) });
         return exports;
     }
     const sourceDir = resolve('mobile/uni-app/src/lib');
@@ -54,4 +54,14 @@ test('native App retains its configured domain even when a browser-like global e
     assert.equal(c.api.photoUrl('/storage/image.png'), 'https://primary.example.org/storage/image.png');
     assert.equal(c.navigation.internalUrl('https://primary.example.org/login'), '/pages/login/index');
     assert.throws(() => c.navigation.internalUrl('https://alternate.example.org/login'));
+});
+
+test('one relative build follows root, renamed directories and explicit index entry points', () => {
+    const c = client('h5', './');
+    for (const [entry, base] of [['/', '/'], ['/client/', '/client/'], ['/another/nested/index.html', '/another/nested/']]) {
+        c.window.location.href = c.window.location.origin + entry + '#/pages/login/index';
+        assert.equal(c.origin.webBase(), base);
+        assert.equal(c.origin.staticAsset('icons/Bell.svg'), base + 'static/icons/Bell.svg');
+        assert.equal(new URL(c.origin.invitationUrl('test')).pathname, base);
+    }
 });

@@ -52,9 +52,9 @@ try {
         const mode = flags['--mode'] ?? 'debug';
         const platform = flags['--platform'] ?? (command === 'prepare' ? 'app' : 'h5');
         if (!['h5', 'app'].includes(platform)) throw new Error('Platform must be h5 or app.');
-        const h5Base = flags['--base'] ?? '/';
-        if (!/^\/(?:[a-zA-Z0-9_-]+\/)*$/.test(h5Base) || (flags['--base'] && platform !== 'h5'))
-            throw new Error('Use --base / or /directory/ with platform h5.');
+        const h5Base = flags['--base'] ?? './';
+        if ((h5Base !== './' && !/^\/(?:[a-zA-Z0-9_-]+\/)*$/.test(h5Base)) || (flags['--base'] && platform !== 'h5'))
+            throw new Error('Use --base ./, / or /directory/ with platform h5.');
         const config = readCompany(root, company, mode, platform);
         const generated = resolve(project, 'src/generated');
         mkdirSync(generated, { recursive: true });

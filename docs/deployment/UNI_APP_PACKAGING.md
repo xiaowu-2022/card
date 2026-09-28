@@ -35,19 +35,22 @@ npm run client -- build --company specpay --mode release --platform h5
 
 ### 项目内 `public/h5` 部署
 
-按用户要求，部署产物放在 `public/h5`，迁移项目时一并带上，访问
-`https://<当前公司域名>/h5/`（带末尾斜杠）。公司标识仍为 `tenant-a`。
-服务器站点根目录保持 Laravel 的 `public`，`/api/v1` 继续由 Laravel 处理。
-根路径仍为原 H5，本步骤不切换原站入口。
+按用户要求，部署产物存放在 `public/h5`，迁移项目时一并带上。此目录只是产物位置，
+不限定浏览器访问路径。同一份默认相对路径构建可部署在域名根目录、`/h5/`、`/client/`
+或其他目录，部署时指定静态站点 root/alias 即可，不需要重新编译。目录 URL 应带末尾
+斜杠（如 `/client/`），也支持 `/client/index.html`。公司标识仍为 `tenant-a`。
+`/api/v1` 必须继续交由同域 Laravel 处理，回调和后台保持原后端路由。本次只放置文件，
+未修改服务器入口或切换原 H5。
 
 ```sh
-npm run client -- build --company specpay --mode release --platform h5 --base /h5/
+npm run client -- build --company specpay --mode release --platform h5
 ```
 
 把 `dist/clients/specpay/release/h5/` 内的产物同步到 `public/h5/`，先复制资源、
-最后替换 index.html，保留前一版哈希资源直到旧会话过期。H5 邀请链接使用当前
-域名的 `/h5/#/pages/screen/index?path=...`，无需给注册页单独配置伪静态。
-图片、图标和懒加载脚本使用 `/h5/` 前缀，API 仍是根路径 `/api/v1/`。
+最后替换 index.html，保留前一版哈希资源直到旧会话过期。默认 `--base ./`，资源和
+邀请链接自动跟随当前部署目录，邀请链接使用目录下的 hash 注册路由，无需单独配置
+注册页伪静态。API 始终使用根路径 `/api/v1/`。只有明确需要固定 URL 前缀时才传
+`--base /指定目录/`。
 
 ```sh
 npm run client:typecheck

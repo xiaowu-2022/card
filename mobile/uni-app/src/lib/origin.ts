@@ -7,7 +7,9 @@ export function companyOrigin(): string {
 }
 
 export function webBase(): string {
-    return import.meta.env.UNI_PLATFORM === 'h5' ? import.meta.env.BASE_URL : '/';
+    return import.meta.env.UNI_PLATFORM === 'h5'
+        ? new URL(import.meta.env.BASE_URL, window.location.href).pathname
+        : '/';
 }
 
 export function staticAsset(path: string): string {
