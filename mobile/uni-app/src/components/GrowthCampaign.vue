@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import { onHide, onShow } from '@dcloudio/uni-app';
 import { t } from '../lib/i18n';
 import { go } from '../lib/navigation';
+import { staticAsset } from '../lib/origin';
 import UiIcon from './UiIcon.vue';
 const active = ref(0),
     paused = ref(false),
@@ -53,7 +54,7 @@ function choose(index: number) {
             ><swiper-item v-for="(slide, index) in slides" :key="slide.image"
                 ><view class="campaign-slide" @click="go(slide.href)"
                     ><image
-                        :src="'/static/images/marketing/growth/' + slide.image + '-banner.jpg'"
+                        :src="staticAsset('images/marketing/growth/' + slide.image + '-banner.jpg')"
                         class="campaign-image"
                         mode="aspectFill"
                         :aria-label="t(slide.title)" /><view

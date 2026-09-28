@@ -6,7 +6,7 @@ import UiIcon from '../components/UiIcon.vue';
 import FormErrors from '../components/FormErrors.vue';
 import AnnualRebateProgress from '../components/AnnualRebateProgress.vue';
 import InvitationPoster from '../components/InvitationPoster.vue';
-import { company } from '../lib/api';
+import { invitationUrl } from '../lib/origin';
 import { useAction, requestId } from '../lib/client';
 import { t, dateTime, locale } from '../lib/i18n';
 import { go } from '../lib/navigation';
@@ -47,12 +47,7 @@ const home = computed(() => props.page.home),
     intents = new Map<string, string>(),
     shareState = ref(''),
     sharing = ref(false);
-const link = computed(
-    () =>
-        company.apiOrigin.replace(/\/$/, '') +
-        '/register?invite=' +
-        encodeURIComponent(home.value.invitationCode),
-);
+const link = computed(() => invitationUrl(home.value.invitationCode));
 const offers = computed(() =>
     ranks.value.map((rank) => {
         const offer = p.value.levels.find((l) => l.rank === rank),

@@ -13,3 +13,11 @@ test('rejects traversal, unsafe names, secrets and invalid versions', () => {
     assert.throws(() => readCompany(process.cwd(), '../../etc/passwd'));
     for (const change of [{ name: '<script>' }, { privateKey: 'secret' }, { appId: 'bad;command' }, { version: '1.0' }, { buildNumber: -1 }]) assert.throws(() => validateCompany({ ...profile, ...change }));
 });
+test('allows H5 releases without a DCloud appid while preserving App and domain gates', () => {
+    const h5 = { ...profile, dcloudAppId: '' };
+    assert.equal(validateCompany(h5, 'release', 'h5').dcloudAppId, '');
+    assert.throws(() => validateCompany(h5, 'release', 'app'));
+    for (const change of [{ apiOrigin: 'http://cards.example.org' }, { apiOrigin: 'https://a.localhost' }, { developmentOnly: true }])
+        assert.throws(() => validateCompany({ ...h5, ...change }, 'release', 'h5'));
+    assert.throws(() => validateCompany(h5, 'release', 'unknown'));
+});

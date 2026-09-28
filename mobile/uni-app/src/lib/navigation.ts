@@ -1,4 +1,4 @@
-import { company } from './api';
+import { companyOrigin } from './origin';
 // All business URLs stay inside uni-app. Only explicitly registered consumer paths resolve.
 const direct: Record<string, string> = {
     '/login': '/pages/login/index',
@@ -12,10 +12,7 @@ export function internalUrl(path: string) {
     if (/^https?:\/\//i.test(path)) {
         const parsed = /^(https?:\/\/[^/]+)(\/.*)?$/i.exec(path);
         if (!parsed) throw new Error('Invalid route');
-        const allowed = [company.apiOrigin.replace(/\/$/, '')];
-        // #ifdef H5
-        if (typeof window !== 'undefined') allowed.push(window.location.origin);
-        // #endif
+        const allowed = [companyOrigin()];
         if (!allowed.includes(parsed[1])) throw new Error('External route rejected');
         path = parsed[2] || '/';
     }

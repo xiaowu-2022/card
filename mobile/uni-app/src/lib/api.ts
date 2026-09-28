@@ -1,4 +1,5 @@
 import company from '../generated/company.json';
+import { companyOrigin } from './origin';
 export const native = import.meta.env.UNI_PLATFORM === 'app';
 // Until the native Keychain/Keystore bridge is independently verified, App tokens
 // stay in memory. Never downgrade credentials to uni storage/localStorage.
@@ -108,7 +109,7 @@ export function upload<T>(path: string, data: Record<string, string>, files: Upl
 }
 export function photoUrl(value: string | null) {
     if (!value) return '';
-    const origin = company.apiOrigin.replace(/\/$/, '');
+    const origin = companyOrigin();
     if (/[\\\r\n]/.test(value)) return '';
     const path = value.startsWith(origin + '/') ? value.slice(origin.length) : value;
     if (!path.startsWith('/') || path.startsWith('//')) return '';

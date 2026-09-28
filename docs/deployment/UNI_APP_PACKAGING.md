@@ -21,6 +21,34 @@ npm run client -- dev --company local
 公司域名；H5 使用 Cookie/CSRF，App 使用独立 Bearer API。不要将开发服务器
 公开到互联网。H5 部署必须与对应公司 API 同域；不要用跨域 Cookie 绕过。
 
+H5 的 API、邀请链接及海报二维码使用当前访问域名，同一公司的多个域名可共用
+一份 H5；每个域名都必须由后端绑定同一公司并路由 `/api/v1` 到 Laravel。
+`tenantSlug` 仍与 bootstrap 的公司标识严格比对，不因切换域名放宽。
+App 继续使用 `apiOrigin`。`specpay.json` 已按用户确认保留 `tenant-a`，仅用于
+该公司；其中原生包名尚未完成 App 发布验证。
+
+```sh
+npm run client -- build --company specpay --mode release --platform h5
+```
+
+产物为 `dist/clients/specpay/release/h5`；无需 DCloud AppID。
+
+### 项目内 `public/h5` 部署
+
+按用户要求，部署产物放在 `public/h5`，迁移项目时一并带上，访问
+`https://<当前公司域名>/h5/`（带末尾斜杠）。公司标识仍为 `tenant-a`。
+服务器站点根目录保持 Laravel 的 `public`，`/api/v1` 继续由 Laravel 处理。
+根路径仍为原 H5，本步骤不切换原站入口。
+
+```sh
+npm run client -- build --company specpay --mode release --platform h5 --base /h5/
+```
+
+把 `dist/clients/specpay/release/h5/` 内的产物同步到 `public/h5/`，先复制资源、
+最后替换 index.html，保留前一版哈希资源直到旧会话过期。H5 邀请链接使用当前
+域名的 `/h5/#/pages/screen/index?path=...`，无需给注册页单独配置伪静态。
+图片、图标和懒加载脚本使用 `/h5/` 前缀，API 仍是根路径 `/api/v1/`。
+
 ```sh
 npm run client:typecheck
 npm run test:client
@@ -40,7 +68,8 @@ npm run client -- build --company local --platform app
 这两个 AppID 不同：DCloud 标识用于 DCloud 项目，原生包名用于系统与商店。
 debug 自动给原生包名追加 `.debug`；正式签名需对应 release 包名。
 正式公司配置设置 `developmentOnly: false`。local 配置故意不能用于 release；
-发布检查会拒绝测试域名、HTTP、缺少 DCloud AppID、错误包名或未知字段。
+发布检查会拒绝测试域名、HTTP、错误包名或未知字段。仅 App release 要求 DCloud
+AppID；纯 H5 使用 `--platform h5` 时可留空。`prepare` 默认目标为 App。
 API 凭据、Apple 密码、签名私钥和证书密码不得写入 JSON/仓库。
 
 ## HBuilderX 云打包

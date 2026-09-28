@@ -28,7 +28,7 @@ function run(bin, args, cwd = project) {
 try {
     for (let i = 0; i < args.length; i += 2) {
         if (
-            !['--company', '--mode', '--platform'].includes(args[i]) ||
+            !['--company', '--mode', '--platform', '--base'].includes(args[i]) ||
             !args[i + 1] ||
             flags[args[i]]
         )
@@ -50,9 +50,12 @@ try {
     } else {
         const company = flags['--company'] ?? 'local';
         const mode = flags['--mode'] ?? 'debug';
-        const platform = flags['--platform'] ?? 'h5';
+        const platform = flags['--platform'] ?? (command === 'prepare' ? 'app' : 'h5');
         if (!['h5', 'app'].includes(platform)) throw new Error('Platform must be h5 or app.');
-        const config = readCompany(root, company, mode);
+        const h5Base = flags['--base'] ?? '/';
+        if (!/^\/(?:[a-zA-Z0-9_-]+\/)*$/.test(h5Base) || (flags['--base'] && platform !== 'h5'))
+            throw new Error('Use --base / or /directory/ with platform h5.');
+        const config = readCompany(root, company, mode, platform);
         const generated = resolve(project, 'src/generated');
         mkdirSync(generated, { recursive: true });
         writeFileSync(resolve(generated, 'company.json'), JSON.stringify(config, null, 2));
@@ -219,7 +222,7 @@ try {
                     vueVersion: '3',
                     transformPx: false,
                     uniStatistics: { enable: false },
-                    h5: { router: { mode: 'hash', base: './' }, title: config.name },
+                    h5: { router: { mode: 'hash', base: h5Base }, title: config.name },
                     'app-plus': {
                         usingComponents: true,
                         compilerVersion: 3,
@@ -277,7 +280,7 @@ try {
             writeFileSync(
                 resolve(output, 'build-manifest.json'),
                 JSON.stringify(
-                    { ...config, company, platform, builtAt: new Date().toISOString() },
+                    { ...config, company, platform, ...(platform === 'h5' ? { h5Base } : {}), builtAt: new Date().toISOString() },
                     null,
                     2,
                 ),

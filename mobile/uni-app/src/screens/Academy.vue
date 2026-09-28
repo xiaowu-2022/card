@@ -4,6 +4,7 @@ import PageShell from '../components/PageShell.vue';
 import UiIcon from '../components/UiIcon.vue';
 import { t } from '../lib/i18n';
 import { go } from '../lib/navigation';
+import { staticAsset } from '../lib/origin';
 import { academyRegistration } from '../generated/academy-registration';
 import { academyGuide } from '../generated/academy-guide';
 import { academyRewards } from '../generated/academy-rewards';
@@ -75,7 +76,7 @@ const levels = computed(() => [
 function rankLabel(rank: number) {
     return rank ? t('Mastercard level {{rank}}', { rank }) : t('Ordinary member');
 }
-const poster = '/static/images/promotion/academy-level-benefits.png';
+const poster = staticAsset('images/promotion/academy-level-benefits.png');
 function preview() {
     uni.previewImage({ urls: [poster] });
 }
@@ -114,7 +115,7 @@ function jump(id: string) {
                         ><text>{{ t('Read the guide') }}</text
                         ><UiIcon name="arrow-up-right" :size="14" /></view></view
                 ><image
-                    :src="'/static/images/academy/' + topic.image"
+                    :src="staticAsset('images/academy/' + topic.image)"
                     mode="aspectFit"
                     class="poster-art" /></view></view
         ><view v-else class="academy-reader"

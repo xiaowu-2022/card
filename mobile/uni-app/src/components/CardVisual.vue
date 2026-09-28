@@ -71,7 +71,7 @@ const name = computed(() =>
     aspect-ratio: 1.586;
     margin: auto;
     border-radius: 22px;
-    background: #111312 url('/static/images/cards/spec-pay-gold-background.jpg') center / 100% 100%
+    background: #111312 url('../static/images/cards/spec-pay-gold-background.jpg') center / 100% 100%
         no-repeat;
     color: #ecd5a3;
     box-shadow:
