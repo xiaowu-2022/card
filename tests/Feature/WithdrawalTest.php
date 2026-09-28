@@ -14,6 +14,9 @@ use App\Application\Withdrawal\UserWithdrawalQuery;
 use App\Application\Withdrawal\VerifyWithdrawalTransactionAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Audit\Models\AuditLog;
+use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
+use App\Domain\Kyc\DTOs\KycOcrResultDTO;
+use App\Domain\Kyc\Enums\KycOcrOutcome;
 use App\Domain\Ledger\DTOs\LedgerPostingInstruction;
 use App\Domain\Ledger\DTOs\LedgerPostingPlan;
 use App\Domain\Ledger\Enums\LedgerAccountType;
@@ -30,7 +33,7 @@ use App\Domain\Withdrawal\Enums\BlockchainVerificationOutcome;
 use App\Domain\Withdrawal\Enums\WithdrawalStatus;
 use App\Domain\Withdrawal\Models\WithdrawalOrder;
 use App\Domain\Withdrawal\Models\WithdrawalTransactionAttempt;
-use App\Infrastructure\Providers\Blockchain\UnavailableBlockchainGateway;
+use App\Infrastructure\Providers\Blockchain\TronGridBlockchainGateway;
 use App\Support\Errors\DomainException;
 use App\Support\Logging\SensitiveDataRedactor;
 use Illuminate\Database\QueryException;
@@ -183,10 +186,10 @@ function phaseSevenSetup($test, string $available = '250.00000000'): void
     app(UpdateTenantBusinessSettingsAction::class)->execute($test->tenant, [
         'required_security_deposit_amount' => '0', 'required_security_deposit_asset' => 'USDT', 'allow_wallet_topup' => true, 'allow_withdrawal' => true,
     ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
-    $ocr = Mockery::mock(\App\Domain\Kyc\Contracts\KycOcrProviderInterface::class);
+    $ocr = Mockery::mock(KycOcrProviderInterface::class);
     $ocr->shouldReceive('name')->andReturn('TEST');
-    $ocr->shouldReceive('extractIdentityDocument')->andReturn(new \App\Domain\Kyc\DTOs\KycOcrResultDTO(\App\Domain\Kyc\Enums\KycOcrOutcome::Success, 'WITHDRAWAL-'.$test->user->id));
-    app()->instance(\App\Domain\Kyc\Contracts\KycOcrProviderInterface::class, $ocr);
+    $ocr->shouldReceive('extractIdentityDocument')->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, 'WITHDRAWAL-'.$test->user->id));
+    app()->instance(KycOcrProviderInterface::class, $ocr);
     $application = app(SubmitKycApplicationAction::class)->execute(
         $test->tenant, $test->user, 'CN', 'WITHDRAWAL-'.$test->user->id,
         kycTestImage('withdraw-front.png'), kycTestImage('withdraw-back.png'),
@@ -488,7 +491,7 @@ it('keeps mock verification unavailable in production and exposes no manual succ
     $this->app->detectEnvironment(fn (): string => 'production');
     $this->app->forgetInstance(BlockchainGatewayInterface::class);
     try {
-        expect(app(BlockchainGatewayInterface::class))->toBeInstanceOf(UnavailableBlockchainGateway::class)
+        expect(app(BlockchainGatewayInterface::class))->toBeInstanceOf(TronGridBlockchainGateway::class)
             ->and(app(BlockchainGatewayInterface::class)->available())->toBeFalse();
     } finally {
         $this->app->detectEnvironment(fn (): string => 'testing');

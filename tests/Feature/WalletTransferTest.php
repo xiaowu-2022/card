@@ -235,3 +235,19 @@ it('rejects excess precision and unavailable selected wallets without falling ba
     }
     expect(WalletTransfer::query()->count())->toBe(0)->and($this->senderAccount->fresh()->balance)->toBe('100.00000000');
 });
+
+it('keeps native transfer submission independent of unread polling and returns a scoped replayable receipt', function (): void {
+    $base = 'http://a.localhost/api/mobile/v1';
+    $token = $this->postJson($base.'/login', ['identifier' => $this->sender->email, 'password' => 'local-password'])->assertCreated()->json('token');
+    $flow = $this->getJson($base.'/bootstrap')->assertOk()->headers->get('X-Consumer-Flow');
+    $this->withToken($token)->withHeader('X-Consumer-Flow', $flow);
+    for ($i = 0; $i < 6; $i++) {
+        $this->getJson($base.'/unread')->assertOk();
+    }
+    $path = $this->postJson($base.'/client/wallet/transfers', $this->payload)->assertOk()->json('redirect');
+    $count = DB::table('ledger_entries')->count();
+    $this->postJson($base.'/client/wallet/transfers', $this->payload)->assertOk()->assertJsonPath('redirect', $path);
+    $this->getJson($base.'/client'.$path)->assertOk()->assertJsonPath('props.receipt.amount', '10.25000000');
+    expect(DB::table('ledger_entries')->count())->toBe($count);
+    $this->getJson('http://b.localhost/api/mobile/v1/client'.$path)->assertUnauthorized();
+});

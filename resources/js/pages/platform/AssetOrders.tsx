@@ -1,40 +1,57 @@
 import { AssetNavigation } from '@/components/admin/AssetNavigation';
-import { Inbox, ArrowUpRight } from 'lucide-react';
 import type { SharedProps } from '@/types/global';
 import {
     ManualOperationHistory,
     type ManualOperation,
 } from '@/components/admin/ManualOperationHistory';
 import { useState } from 'react';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, useForm, usePage } from '@inertiajs/react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
+import { exactAmount } from '@/lib/exact-amount';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { t, useAdminTranslation, errorMessage } from '@/i18n/admin';
-import { dateTime } from '@/i18n';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from '@/components/ui/dialog';
+import { t, useAdminTranslation, errorMessage, dateTime } from '@/i18n/admin';
 
 type Order = {
     operations?: ManualOperation[];
-    legacy?: boolean;
+    legacy: boolean;
+    canConfirm: boolean;
+    canRecheck: boolean;
+    manuallyConfirmed: boolean;
+    source: string;
     id: string;
+    reference: string;
     tenant_id: string;
     company: string;
-    user_id: string;
+    accountId: string;
+    userEmail: string;
     asset: string;
-    network: string;
+    network: string | null;
     amount: string;
     status: string;
     created_at: string;
+    arrival_at: string | null;
     operator: string | null;
     operated_at: string | null;
     fee: string | null;
-    address: string;
+    address: string | null;
     tx_hash: string;
 };
 type Props = {
     mode: 'deposit' | 'withdrawal';
-    orders: { data: Order[]; next_page_url: string | null; prev_page_url: string | null };
+    orders: AccountPage<Order>;
+    companies: { id: string; name: string }[];
+    filters: Record<string, string | undefined>;
+    statuses: string[];
     observations: {
         network: string;
         event_id: string;
@@ -43,13 +60,23 @@ type Props = {
         occurred_at: string;
     }[];
 };
-export default function AssetOrders({ mode, orders, observations }: Props) {
+export default function AssetOrders({
+    mode,
+    orders,
+    observations,
+    companies,
+    filters,
+    statuses,
+}: Props) {
     useAdminTranslation();
-    const title = mode === 'deposit' ? 'Multi-currency deposits' : 'Multi-currency withdrawals';
+    const title = mode === 'deposit' ? 'Deposit orders' : 'Withdrawal orders';
+    const [selected, setSelected] = useState<string | null>(null);
+    // Resolve from refreshed props after mutations so the dialog cannot retain stale status/actions.
+    const order = orders.data.find((item) => item.source + ':' + item.id === selected);
     return (
         <PlatformLayout>
             <Head title={t(title)} />
-            <div className="mx-auto max-w-6xl space-y-6">
+            <div className="space-y-6">
                 <PageHeader
                     title={t(title)}
                     description={t(
@@ -57,45 +84,137 @@ export default function AssetOrders({ mode, orders, observations }: Props) {
                             ? 'Review deposits and confirm received funds.'
                             : 'Review withdrawal requests and track payout progress.',
                     )}
-                    actions={
-                        <Button asChild variant="secondary">
-                            <Link
-                                href={
-                                    mode === 'deposit'
-                                        ? '/platform/topups'
-                                        : '/platform/asset-tron-withdrawals'
-                                }
-                            >
-                                {'USDT / TRON'} <ArrowUpRight className="ml-2 size-4" />
-                            </Link>
-                        </Button>
-                    }
                 />
                 <AssetNavigation active={mode} />
-                {orders.data.map((o) => (
-                    <OrderRow key={o.id} order={o} mode={mode} />
-                ))}
-                {orders.data.length === 0 && (
-                    <section className="flex min-h-72 flex-col items-center justify-center rounded-2xl border bg-surface px-6 py-12 text-center">
-                        <div className="mb-4 rounded-full bg-muted p-4">
-                            <Inbox className="size-7 text-muted-foreground" />
-                        </div>
-                        <h2 className="font-semibold">{t('No records')}</h2>
-                        <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-                            {t(
-                                mode === 'deposit'
-                                    ? 'New deposit orders will appear here.'
-                                    : 'New withdrawal requests will appear here.',
-                            )}
-                        </p>
-                    </section>
-                )}
-                <div className="flex justify-between">
-                    {orders.prev_page_url && (
-                        <Link href={orders.prev_page_url}>{t('Previous')}</Link>
-                    )}
-                    {orders.next_page_url && <Link href={orders.next_page_url}>{t('Next')}</Link>}
-                </div>
+                <PlatformAccountTable
+                    key={mode + JSON.stringify(filters)}
+                    page={orders}
+                    rowKey={(o) => o.source + ':' + o.id}
+                    companies={companies}
+                    filters={filters}
+                    statuses={statuses}
+                    url={mode === 'deposit' ? '/platform/topups' : '/platform/asset-withdrawals'}
+                    searchLabel={t('Search account ID, email or order')}
+                    selectFilters={[
+                        {
+                            key: 'asset',
+                            label: 'Asset',
+                            allLabel: 'All assets',
+                            values: ['USDT', 'USDC', 'ETH', 'BTC', 'USD'],
+                        },
+                        {
+                            key: 'network',
+                            label: 'Network',
+                            allLabel: 'All networks',
+                            values: ['TRON', 'ETHEREUM', 'BITCOIN'],
+                        },
+                    ]}
+                    columns={[
+                        { label: 'Tenant', render: (o) => o.company },
+                        {
+                            label: 'User',
+                            className: 'w-56 max-w-56',
+                            render: (o) => (
+                                <div className="w-48 max-w-48">
+                                    <p className="truncate" title={o.accountId}>
+                                        {o.accountId}
+                                    </p>
+                                    <p
+                                        className="truncate text-xs text-muted-foreground"
+                                        title={o.userEmail}
+                                    >
+                                        {o.userEmail}
+                                    </p>
+                                </div>
+                            ),
+                        },
+                        { label: 'Order', render: (o) => <span title={o.id}>{o.reference}</span> },
+                        {
+                            label: 'Exact amount',
+                            render: (o) => (
+                                <span className="tabular-nums">
+                                    {exactAmount(o.amount)} {o.asset}
+                                </span>
+                            ),
+                        },
+                        { label: 'Network', render: (o) => o.network || '—' },
+                        ...(mode === 'withdrawal'
+                            ? [
+                                  {
+                                      label: 'Fee',
+                                      render: (o: Order) =>
+                                          o.fee === null ? (
+                                              '—'
+                                          ) : (
+                                              <span className="tabular-nums">
+                                                  {exactAmount(o.fee)} {o.asset}
+                                              </span>
+                                          ),
+                                  },
+                              ]
+                            : []),
+                        {
+                            label: 'Status',
+                            render: (o) => (
+                                <div>
+                                    {t(o.status)}
+                                    {mode === 'deposit' && o.manuallyConfirmed && (
+                                        <p className="text-xs text-muted-foreground">
+                                            {t('Manually confirmed')}
+                                        </p>
+                                    )}
+                                </div>
+                            ),
+                        },
+                        {
+                            label: 'Created',
+                            render: (o) => (
+                                <span className="whitespace-pre">
+                                    {dateTime(o.created_at).replace(' ', '\n')}
+                                </span>
+                            ),
+                        },
+                        {
+                            label: mode === 'deposit' ? 'Arrival time' : 'Completed at',
+                            render: (o) => (
+                                <span className="whitespace-pre">
+                                    {o.arrival_at ? dateTime(o.arrival_at).replace(' ', '\n') : '—'}
+                                </span>
+                            ),
+                        },
+                        {
+                            label: 'Operator',
+                            className: 'w-40 max-w-40',
+                            render: (o) => (
+                                <div className="w-32 truncate" title={o.operator ?? undefined}>
+                                    {o.operator || '—'}
+                                </div>
+                            ),
+                        },
+                        {
+                            label: 'Operation time',
+                            render: (o) => (
+                                <span className="whitespace-pre">
+                                    {o.operated_at
+                                        ? dateTime(o.operated_at).replace(' ', '\n')
+                                        : '—'}
+                                </span>
+                            ),
+                        },
+                        {
+                            label: 'Actions',
+                            className: 'sticky right-0 bg-surface',
+                            render: (o) => (
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => setSelected(o.source + ':' + o.id)}
+                                >
+                                    {t('View details')}
+                                </Button>
+                            ),
+                        },
+                    ]}
+                />
                 {observations.length > 0 && (
                     <section className="rounded-xl border p-5">
                         <h2 className="font-semibold">{t('Transfers requiring review')}</h2>
@@ -116,6 +235,23 @@ export default function AssetOrders({ mode, orders, observations }: Props) {
                     </section>
                 )}
             </div>
+            <Dialog
+                open={!!order}
+                onOpenChange={(open) => {
+                    if (!open) setSelected(null);
+                }}
+            >
+                <DialogContent
+                    closeLabel={t('Close')}
+                    className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl"
+                >
+                    <DialogHeader>
+                        <DialogTitle>{t('Order details')}</DialogTitle>
+                        <DialogDescription>{order?.reference}</DialogDescription>
+                    </DialogHeader>
+                    {order && <OrderRow key={selected} order={order} mode={mode} />}
+                </DialogContent>
+            </Dialog>
         </PlatformLayout>
     );
 }
@@ -135,7 +271,7 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
     const [revealError, setRevealError] = useState(false);
     const post = () =>
         form.post(
-            `/platform/tenants/${o.tenant_id}/${o.legacy ? 'asset-tron-withdrawals' : 'asset-orders'}/${o.id}/${action}`,
+            `/platform/tenants/${o.tenant_id}/${o.legacy ? (mode === 'deposit' ? 'topups' : 'asset-tron-withdrawals') : 'asset-orders'}/${o.id}/${o.legacy && mode === 'deposit' && action === 'recheck' ? 'verify' : action}`,
             {
                 preserveScroll: true,
                 onSuccess: () => {
@@ -188,9 +324,13 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <h2 className="font-semibold">
-                        {o.company} · {o.asset} · {o.network}
+                        {o.company} · {o.asset}
+                        {o.network ? ` · ${o.network}` : ''}
                     </h2>
                     <p className="mt-1 break-all text-xs text-muted-foreground">{o.id}</p>
+                    <p className="mt-2 break-all text-sm">
+                        {o.accountId} · {o.userEmail}
+                    </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                         {dateTime(o.created_at)} · {t(o.status)}
                     </p>
@@ -199,7 +339,18 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
                     {o.amount} {o.asset}
                 </p>
             </div>
-            <p className="break-all text-sm">{o.address}</p>
+            <p className="break-all text-sm">{o.address || '—'}</p>
+            {o.arrival_at && (
+                <p className="text-sm">
+                    {t(mode === 'deposit' ? 'Arrival time' : 'Completed at')}:{' '}
+                    {dateTime(o.arrival_at)}
+                </p>
+            )}
+            {o.tx_hash && (
+                <p className="break-all text-sm">
+                    {t('Transaction hash')}: {o.tx_hash}
+                </p>
+            )}
             {o.operator && o.operated_at && (
                 <p className="text-xs text-muted-foreground">
                     {o.operator} · {dateTime(o.operated_at)}
@@ -210,24 +361,20 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
                     {t('Fee')}: {o.fee} {o.asset}
                 </p>
             )}
-            {mode === 'deposit' &&
-                o.status !== 'CREDITED' &&
-                (permissions.includes('wallet_topups.verify') ||
-                    permissions.includes('wallet_topups.confirm')) && (
-                    <div className="flex flex-wrap gap-2">
-                        {permissions.includes('wallet_topups.verify') && (
-                            <Button variant="secondary" onClick={() => setAction('recheck')}>
-                                {t('Recheck transfer')}
-                            </Button>
-                        )}
-                        {permissions.includes('wallet_topups.confirm') &&
-                            ['PENDING', 'CONFIRMING'].includes(o.status) && (
-                                <Button variant="secondary" onClick={() => setAction('confirm')}>
-                                    {t('Manual receipt confirmation')}
-                                </Button>
-                            )}
-                    </div>
-                )}
+            {mode === 'deposit' && (
+                <div className="flex flex-wrap gap-2">
+                    {o.canRecheck && permissions.includes('wallet_topups.verify') && (
+                        <Button variant="secondary" onClick={() => setAction('recheck')}>
+                            {t('Recheck transfer')}
+                        </Button>
+                    )}
+                    {o.canConfirm && permissions.includes('wallet_topups.confirm') && (
+                        <Button variant="secondary" onClick={() => setAction('confirm')}>
+                            {t('Manual receipt confirmation')}
+                        </Button>
+                    )}
+                </div>
+            )}
             {canReview && mode === 'withdrawal' && o.status === 'PENDING' && (
                 <div className="flex gap-2">
                     <Button
@@ -251,7 +398,7 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
             )}
             {canReview &&
                 mode === 'withdrawal' &&
-                ['APPROVED', 'PROCESSING', 'UNKNOWN'].includes(o.status) && (
+                ['APPROVED', 'PROCESSING', 'VERIFYING', 'UNKNOWN'].includes(o.status) && (
                     <>
                         <div className="flex flex-wrap gap-2">
                             <Input

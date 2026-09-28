@@ -119,7 +119,7 @@ export function TenantAdminLayout({ children }: { children: ReactNode }) {
     } as CSSProperties;
     return (
         <div className="min-h-screen" style={style}>
-            <aside className="fixed inset-y-0 left-0 hidden w-64 border-r bg-surface p-5 lg:block">
+            <aside className="fixed inset-y-0 left-0 hidden w-64 overflow-y-auto overscroll-y-contain border-r bg-surface p-5 lg:block">
                 <AppMark name={tenant?.branding.brandName ?? t('Tenant Admin')} />
                 <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     {t('Tenant administration')}

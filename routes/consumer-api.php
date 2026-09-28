@@ -1,18 +1,20 @@
 <?php
 
 use App\Http\Controllers\Api\ConsumerController;
+use App\Http\Middleware\ConsumerFlowSession;
+use App\Http\Middleware\ConsumerPageResponse;
 use App\Http\Middleware\RequireConsumerApiUser;
 use Illuminate\Support\Facades\Route;
 
-Route::get('bootstrap', [ConsumerController::class, 'bootstrap'])->middleware(['throttle:120,1', \App\Http\Middleware\ConsumerFlowSession::class]);
+Route::get('bootstrap', [ConsumerController::class, 'bootstrap'])->middleware(['throttle:120,1,consumer-bootstrap:', ConsumerFlowSession::class]);
 Route::prefix('client')->middleware([
-    \App\Http\Middleware\ConsumerFlowSession::class,
-    \App\Http\Middleware\ConsumerPageResponse::class,
+    ConsumerFlowSession::class,
+    ConsumerPageResponse::class,
 ])->group(base_path('routes/consumer-client.php'));
-Route::post('login', [ConsumerController::class, 'login'])->middleware('throttle:20,1');
+Route::post('login', [ConsumerController::class, 'login'])->middleware('throttle:20,1,consumer-login:');
 Route::middleware(RequireConsumerApiUser::class)->group(function (): void {
     Route::post('logout', [ConsumerController::class, 'logout']);
-    Route::post('locale', [ConsumerController::class, 'locale'])->middleware('throttle:30,1');
+    Route::post('locale', [ConsumerController::class, 'locale'])->middleware('throttle:30,1,consumer-locale:');
     Route::get('account', [ConsumerController::class, 'account']);
     Route::get('unread', [ConsumerController::class, 'unread'])->middleware('throttle:120,1');
     Route::get('messages', [ConsumerController::class, 'messages']);

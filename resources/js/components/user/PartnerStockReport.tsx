@@ -58,6 +58,7 @@ const lines: [string, string, string][] = [
     ['deposits', 'Ordinary member deposit balances', '+'],
     ['fees', 'Withdrawal fee income', '+'],
     ['activation', 'Activation commissions paid', '−'],
+    ['annualCommission', 'Annual fee commissions paid', '−'],
     ['rebates', 'Annual fees returned', '−'],
     ['reimbursements', 'Reimbursed expenses', '−'],
 ];

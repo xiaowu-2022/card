@@ -1,0 +1,186 @@
+{
+    "mode": "sandbox_read_only",
+    "checks": [
+        {
+            "account": "044a22d6-c487-4604-bc89-1760b9fb79f8",
+            "stored_check": "VERIFIED",
+            "environment": "sandbox",
+            "auth_http": 200,
+            "account_http": 200,
+            "ownership": "MATCH",
+            "bins": [
+                {
+                    "bin": "367218",
+                    "formFactors": [
+                        "virtual_card",
+                        "physical_card"
+                    ]
+                },
+                {
+                    "bin": "522105",
+                    "formFactors": [
+                        "virtual_card"
+                    ]
+                },
+                {
+                    "bin": "52298927",
+                    "formFactors": [
+                        "virtual_card"
+                    ]
+                },
+                {
+                    "bin": "524984",
+                    "formFactors": [
+                        "virtual_card"
+                    ]
+                },
+                {
+                    "bin": "53493435",
+                    "formFactors": [
+                        "virtual_card",
+                        "physical_card"
+                    ]
+                },
+                {
+                    "bin": "546032",
+                    "formFactors": [
+                        "virtual_card",
+                        "physical_card"
+                    ]
+                },
+                {
+                    "bin": "546503",
+                    "formFactors": [
+                        "virtual_card",
+                        "physical_card"
+                    ]
+                },
+                {
+                    "bin": "558325",
+                    "formFactors": [
+                        "virtual_card",
+                        "physical_card"
+                    ]
+                },
+                {
+                    "bin": "658706",
+                    "formFactors": [
+                        "virtual_card"
+                    ]
+                },
+                {
+                    "bin": "658715",
+                    "formFactors": [
+                        "virtual_card",
+                        "physical_card"
+                    ]
+                },
+                {
+                    "bin": "USMAB",
+                    "formFactors": [
+                        "virtual_card"
+                    ]
+                }
+            ],
+            "products": [
+                {
+                    "id": "01a09f22-3136-7386-aa47-6bd925ed4b59",
+                    "bin": "367218",
+                    "archived": true
+                },
+                {
+                    "id": "01a09f44-0eb1-73bc-8d95-3e97f8d4ca12",
+                    "bin": "522105",
+                    "archived": true
+                },
+                {
+                    "id": "01a09f44-2b6f-73c9-8bca-f9dd98ee79c9",
+                    "bin": "658715",
+                    "archived": true
+                },
+                {
+                    "id": "01a09f44-3382-704f-86a0-59aa6fd3b3fe",
+                    "bin": "USMAB",
+                    "archived": true
+                },
+                {
+                    "id": "01a09f97-2e67-7335-a853-e61b0b7d3b11",
+                    "bin": "53493435",
+                    "archived": false
+                },
+                {
+                    "id": "01a09f96-3659-7046-b51b-b8b9d34c0618",
+                    "bin": "522105",
+                    "archived": true
+                },
+                {
+                    "id": "01a0d26a-81d1-718c-9619-152139c261aa",
+                    "bin": "52298927",
+                    "archived": false
+                },
+                {
+                    "id": "01a09f44-136b-7384-b91c-8777647b95f6",
+                    "bin": "52298927",
+                    "archived": true
+                },
+                {
+                    "id": "01a09f44-14fc-7236-88ae-4ab221e958ff",
+                    "bin": "524984",
+                    "archived": true
+                },
+                {
+                    "id": "01a09f44-1ad0-7075-bbdf-db5f4e95f9d6",
+                    "bin": "53493435",
+                    "archived": true
+                },
+                {
+                    "id": "01a09f44-1c81-71a4-a86b-2fee90b6c010",
+                    "bin": "546032",
+                    "archived": true
+                },
+                {
+                    "id": "01a09f44-2182-71d7-aba0-f3e11a67ada7",
+                    "bin": "546503",
+                    "archived": true
+                },
+                {
+                    "id": "01a09f44-2338-72dd-94d0-1a69feb74f35",
+                    "bin": "558325",
+                    "archived": true
+                },
+                {
+                    "id": "01a09f44-29a0-705b-a4ef-7904621da0c0",
+                    "bin": "658706",
+                    "archived": true
+                }
+            ],
+            "cards": [
+                {
+                    "local_id": "01a09f50-6be8-7085-bde1-78708274cd38",
+                    "identity_match": true,
+                    "status": "cancelled",
+                    "asset": "USD",
+                    "transaction_count": 4,
+                    "result": "PASS"
+                },
+                {
+                    "local_id": "01a0a290-0399-72ea-8852-6150e924fa35",
+                    "identity_match": true,
+                    "status": "normal",
+                    "asset": "USD",
+                    "transaction_count": 20,
+                    "result": "PASS"
+                },
+                {
+                    "local_id": "01a09f4e-d660-7133-ac68-4927be9bc6e1",
+                    "identity_match": true,
+                    "status": "cancelled",
+                    "asset": "USD",
+                    "transaction_count": 4,
+                    "result": "PASS"
+                }
+            ],
+            "result": "READ_CHECKS_COMPLETED"
+        }
+    ]
+}

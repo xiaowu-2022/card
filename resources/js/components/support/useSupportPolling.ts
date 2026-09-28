@@ -1,7 +1,7 @@
 import { router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 
-export function useSupportPolling(prop: 'chat' | 'inbox', enabled = true) {
+export function useSupportPolling(prop: 'chat' | 'inbox' | 'workspace', enabled = true) {
     const [disconnected, setDisconnected] = useState(false);
     useEffect(() => {
         if (!enabled) return;
@@ -10,7 +10,7 @@ export function useSupportPolling(prop: 'chat' | 'inbox', enabled = true) {
             if (busy || document.visibilityState !== 'visible') return;
             busy = true;
             router.reload({
-                only: [prop],
+                only: prop === 'workspace' ? ['chat', 'inbox'] : [prop],
                 onSuccess: () => setDisconnected(false),
                 onError: () => setDisconnected(true),
                 onNetworkError: () => {

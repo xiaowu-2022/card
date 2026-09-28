@@ -27,12 +27,13 @@ Fixed valuations cannot be deleted or overwritten. Only a PENDING record may tra
 
 A recursive UNION selects the partner plus all descendants by current tenant invitation relationships, including nested independent partners, without excluding equal/higher levels. UNION also deduplicates nodes. A report uses a PostgreSQL REPEATABLE READ, READ ONLY transaction (or an existing caller transaction); tree aggregates are set-based, not one query per person. Details are paginated at 20 rows. Shared page navigation advances each detail section; all lifetime totals remain unfiltered.
 
-`stock = annual + deposits + fees - activation - rebates - reimbursements`
+`stock = annual + deposits + fees - activation - annualCommission - rebates - reimbursements`
 
 - Annual: completed `paid_promotion_orders.settlement_total`, including actual converted security deposit. Upgrade/renewal orders count their actual settlement, not the current tariff.
 - Deposits: USDT USER_SECURITY_DEPOSIT balances for members without an effective paid cycle at the report timestamp.
 - Fees: successful legacy TRON withdrawal fees in USDT plus COMPLETED asset-withdrawal fees. USDT uses its exact amount. Other assets use fixed saved valuations; zero fees need no rate. Pending/rejected/cancelled orders are excluded.
-- Activation: reuse PromotionReportQuery's posted-income union and legacy-award deduplication, filter by activation source within the tree, with **no beneficiary restriction**. Thus outside ancestors' actual paid activation commissions count, while annual commissions do not.
+- Activation: reuse PromotionReportQuery's posted-income union and legacy-award deduplication, filter by activation source within the tree, with **no beneficiary restriction**. Thus outside ancestors' actual paid activation commissions count; annual commissions are reported separately.
+- Annual commissions (added 2026-09-27): posted annual-fee commission shares whose source payer is the partner or a descendant, including all beneficiaries inside/outside the team. Only Ledger-linked positive payments count; quotes and failed/unpaid orders do not. Reads use existing immutable records without backfill or financial writes. Consumer H5, uni-app and SaaS display this deduction after activation commissions; stock and reference share both deduct it.
 - Rebates: APPROVED, Ledger-linked annual returns received by tree members.
 - Reimbursements: signed journal total from partner configurations whose owner is in the tree. Enabled status does not change ownership. Nested entries occur once in one report.
 

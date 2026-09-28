@@ -2,9 +2,10 @@
 
 ## 当前状态
 
-这是用户端迁移基础工程，原 H5 和 SaaS 后台保持运行。现有新页面包括登录、
-资产／卡片只读概览、我的、站内消息及客服文字会话。完整金融操作尚未迁移，
-当前不能作为正式 App 上架。详见 [迁移范围](../architecture/CONSUMER_UNI_APP.md)。
+用户端页面和操作已迁移到 uni-app，生成 H5 用于与原版对照验收；原 H5 和 SaaS
+后台仍保持现有入口，没有自动切换。范围和验证边界见
+[架构说明](../architecture/CONSUMER_UNI_APP.md)与[验收清单](../testing/uni-app/PARITY.md)。
+App 资源可编译，APK/IPA 云打包和真机验证仍需公司的 DCloud AppID 与签名材料。
 
 ## 本地开发
 
@@ -64,7 +65,8 @@ API 凭据、Apple 密码、签名私钥和证书密码不得写入 JSON/仓库�
 
 ## 上架前剩余工作
 
-- 完整迁移业务页面、原生安全存储、设备权限、隐私及账号删除流程。
+- 完成签名安装包的真机验收、设备权限、文件上传下载、后台敏感信息遮挡及运营方隐私审核。
+- 当前原生登录不持久化，重启需要登录；如需持久登录，应配置并验证 Keychain/Keystore 存储。
 - 配置真实 AppID、公司图标、证书和签名；确定发布地区及运营主体材料。
 - 锁定的 DCloud 工具链存在 npm audit 报告，不能执行 `audit fix --force` 切回
   不兼容的 Vue 2 包来“消除”报告。发布前须完成受支持的工具链升级及依赖风险
@@ -74,3 +76,35 @@ API 凭据、Apple 密码、签名私钥和证书密码不得写入 JSON/仓库�
 
 官方参考：[CLI/HBuilderX 工程区别](https://uniapp.dcloud.net.cn/quickstart-cli)、
 [云打包](https://uniapp.dcloud.net.cn/dev/app/cloud-build.html)。
+
+## 生成 H5 与对比预览
+
+```sh
+npm run build
+npm run client -- build --company local --platform h5
+node scripts/client/preview.mjs
+```
+
+生成版预览默认 `http://127.0.0.1:5202`。该工具只监听本机，将 API 请求代理到
+prepare 后公司的 `apiOrigin`。端口占用时指定 `UNI_PREVIEW_PORT=5203`；不要停止
+不属于此次预览的服务。其他公司输出通过 `UNI_PREVIEW_DIR` 指定。对照图库生成后
+位于 `http://127.0.0.1:5202/__parity/index.html`。
+
+本地 debug H5 重建保留该公司输出目录中的旧哈希资源，先复制新资源，再原子替换
+`index.html`，避免已打开的页面切换到消息／客服时请求旧脚本出现加载超时。
+刷新页面可进入最新版本。release 和 App 输出仍保持干净构建；正式静态发布也应
+在旧会话有效期间保留其可访问的哈希资源，而不是只保留无法通过原 URL 访问的备份。
+
+正式 H5 部署仍是拉取代码、安装锁定依赖、按公司 prepare/build，然后原子发布
+`dist/clients/<company>/release/h5` 的静态产物。原根目录 `npm run build` 继续构建
+SaaS/React。切换前需审核 Nginx：`/api/v1`、回调、PHP、私有图片和现有后台域名仍
+交给 Laravel；仅消费者页面与其静态资源指向新 H5，旧路径访问由 uni-app 的入口
+转换到对应页面。不得将 API/回调误返回 H5 index.html。保留旧静态版本便于前端
+回退；前端回退不回滚财务数据或迁移。此次未修改生产 Nginx 或替换正式入口。
+
+App manifest 已显式包含相机／相册 Camera 和系统分享 Share 模块，以及 iOS 拍照、
+读相册和保存海报的用途说明。权限仅在用户选择上传／保存时触发；未加入录音、
+定位、通讯录、第三方分享 SDK 或推送。参见 DCloud 官方
+[功能模块](https://uniapp.dcloud.io/tutorial/app-modules.html)、
+[系统分享](https://uniapp.dcloud.net.cn/share)、
+[manifest 权限描述](https://uniapp.dcloud.net.cn/tutorial/app-manifest)。

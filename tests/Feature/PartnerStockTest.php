@@ -105,7 +105,7 @@ it('hides and denies the report unless the current tenant user is an enabled par
     $this->actingAs($this->user, 'tenant_user')->getJson($url)->assertNotFound();
     $this->get('http://a.localhost/promotion/daily')->assertOk()->assertInertia(fn (Assert $p) => $p->where('canViewStock', false)->missing('stock'));
     $partner = stockPartner($this, $this->user);
-    $this->getJson($url)->assertOk()->assertJsonPath('stock', '0.00000000')->assertHeader('Cache-Control', 'no-store, private');
+    $this->getJson($url)->assertOk()->assertJsonPath('stock', '0.00000000')->assertJsonPath('totals.annualCommission', '0.00000000')->assertHeader('Cache-Control', 'no-store, private');
     $this->getJson($url.'?user_id='.Str::uuid())->assertUnprocessable();
     stockPartner($this, $this->user, false);
     $this->getJson($url)->assertNotFound();
@@ -167,6 +167,11 @@ it('uses posted source commissions including outside ancestors and annual fees i
     $before = DB::table('ledger_entries')->count();
     $r = $this->report->read($this->tenant->id, $partner->id);
     expect($r['totals']['annual'])->toBe($order->settlement_total)->and($r['totals']['deposits'])->toBe('0.00000000')->and($r['trends']['deposits']['today'])->toBe('50.00000000')->and(DB::table('ledger_entries')->count())->toBe($before);
+    // Rank 8 receives 100% of the wallet-paid fee, including this outside ancestor.
+    expect($r['totals']['annualCommission'])->toBe($order->amount);
+    $expected = BigDecimal::of($order->settlement_total)->minus((string) $cost)->minus($order->amount)->toScale(8);
+    expect($r['stock'])->toBe((string) $expected)
+        ->and($r['share'])->toBe((string) $expected->multipliedBy('0.4')->toScale(8, RoundingMode::HalfUp));
     DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
 });
 
@@ -444,4 +449,32 @@ it('searches selectable company members by account nickname or email with pagina
     $this->getJson('http://admin.localhost/platform/tenants/'.$other->id.'/partner-candidates?search='.rawurlencode($chosen->email))->assertJsonCount(0, 'items');
     $this->actingAs(AdminUser::where('email', 'owner@a.localhost')->firstOrFail(), 'platform_admin')->getJson($base)->assertForbidden();
     Http::assertNothingSent();
+});
+
+it('deducts each posted annual commission once by source team including outside beneficiaries', function () {
+    stockFundWallet($this, $this->user);
+    stockBuy($this, $this->user, 8);
+    $partner = stockChild($this->user);
+    stockFundWallet($this, $partner);
+    stockPartner($this, $partner);
+    stockBuy($this, $partner, 1);
+    $child = stockChild($partner);
+    stockFundWallet($this, $child);
+    stockBuy($this, $child, 1);
+    $paid = DB::table('paid_promotion_orders')->whereIn('user_id', [$partner->id, $child->id])->where('status', 'COMPLETED')->sum('amount');
+    $before = $this->report->read($this->tenant->id, $partner->id);
+    expect($before['totals']['annualCommission'])->toBe((string) BigDecimal::of((string) $paid)->toScale(8))
+        ->and($before['stock'])->toBe('0.00000000')->and($before['share'])->toBe('0.00000000');
+    $outside = stockChild($this->user);
+    stockFundWallet($this, $outside);
+    stockBuy($this, $outside, 1);
+    $level = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->where('rank', 2)->value('id');
+    app(PaidPromotionPurchase::class)->quote($this->tenant->id, $child->id, $level, (string) Str::uuid());
+    $order = DB::table('paid_promotion_orders')->where('user_id', $child->id)->where('status', 'COMPLETED')->first();
+    app(PaidPromotionPurchase::class)->confirm($this->tenant->id, $child->id, $order->id);
+    $entries = DB::table('ledger_entries')->count();
+    $after = $this->report->read($this->tenant->id, $partner->id);
+    expect($after['totals'])->toBe($before['totals'])->and($after['stock'])->toBe($before['stock'])
+        ->and(DB::table('ledger_entries')->count())->toBe($entries);
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
 });

@@ -21,7 +21,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { CompanyConfigurationLayout } from '@/components/admin/CompanyConfiguration';
-import { PlatformLayout } from '@/layouts/PlatformLayout';
+import { PlatformSettingsLayout } from '@/layouts/PlatformSettingsLayout';
 import {
     Select,
     SelectContent,
@@ -53,7 +53,7 @@ export default function Domains({
     useAdminTranslation();
     const form = useForm({ hostname: '' });
     const base = company ? `/platform/tenants/${company.id}/domains` : '/platform/settings/domains';
-    const Layout = company ? CompanyConfigurationLayout : PlatformLayout;
+    const Layout = company ? CompanyConfigurationLayout : PlatformSettingsLayout;
     const availableDomains = domains.filter(
         (domain) =>
             domain.type === 'CUSTOM_DOMAIN' && domain.status === 'ACTIVE' && !domain.companyId,

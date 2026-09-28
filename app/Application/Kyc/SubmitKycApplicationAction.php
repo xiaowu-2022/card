@@ -2,6 +2,7 @@
 
 namespace App\Application\Kyc;
 
+use App\Application\Media\ImageStorage;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
 use App\Domain\Kyc\DTOs\KycOcrRequestDTO;
@@ -25,7 +26,6 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -56,34 +56,33 @@ final readonly class SubmitKycApplicationAction
         if ($latest && $latest->review_status !== KycReviewStatus::ResubmissionRequired) {
             throw new DomainException('KYC_ALREADY_PENDING', 'Identity verification is already under review.');
         }
-        $provider = app(KycOcrProviderInterface::class);
-        try {
-            $ocr = $provider->extractIdentityDocument(new KycOcrRequestDTO($documentType, $country, $front->getContent(), $back?->getContent() ?? ''));
-        } catch (Throwable) {
-            throw new DomainException('KYC_OCR_UNAVAILABLE', 'Document recognition is temporarily unavailable. Please try again later.', 503);
-        }
-        $normalizer = app(IdentityNumberNormalizer::class);
-        if ($ocr->outcome !== KycOcrOutcome::Success || ! $ocr->candidateIdentityNumber
-            || ! hash_equals($normalizer->normalize($identityNumber), $normalizer->normalize($ocr->candidateIdentityNumber))) {
-            throw new DomainException('KYC_OCR_MISMATCH', 'The document number could not be recognized or does not match. Please upload a clear document image.');
-        }
         $applicationId = (string) Str::uuid();
         $disk = (string) config('kyc.document_disk');
         $base = "kyc/{$tenant->id}/{$user->id}/{$applicationId}";
         $frontKey = "{$base}/front/".(string) Str::uuid();
         $backKey = $back ? "{$base}/back/".(string) Str::uuid() : null;
         $stored = [];
+        $images = app(ImageStorage::class);
 
         try {
-            if (! Storage::disk($disk)->putFileAs(dirname($frontKey), $front, basename($frontKey))) {
-                throw new DomainException('KYC_DOCUMENT_STORAGE_FAILED', 'The documents could not be stored. Please try again.', 503);
-            }
+            $images->put($tenant->id, $disk, $frontKey, $front->getContent(), 'kyc', $applicationId);
             $stored[] = $frontKey;
-            if ($back && ! Storage::disk($disk)->putFileAs(dirname($backKey), $back, basename($backKey))) {
-                throw new DomainException('KYC_DOCUMENT_STORAGE_FAILED', 'The documents could not be stored. Please try again.', 503);
-            }
-            if ($backKey) {
+            if ($back && $backKey) {
+                $images->put($tenant->id, $disk, $backKey, $back->getContent(), 'kyc', $applicationId);
                 $stored[] = $backKey;
+            }
+            $frontUrl = $images->ocrUrl($disk, $frontKey);
+            $backUrl = $backKey ? $images->ocrUrl($disk, $backKey) : '';
+            $provider = app(KycOcrProviderInterface::class);
+            try {
+                $ocr = $provider->extractIdentityDocument(new KycOcrRequestDTO($documentType, $country, $frontUrl, $backUrl));
+            } catch (Throwable) {
+                throw new DomainException('KYC_OCR_UNAVAILABLE', 'Document recognition is temporarily unavailable. Please try again later.', 503);
+            }
+            $normalizer = app(IdentityNumberNormalizer::class);
+            if ($ocr->outcome !== KycOcrOutcome::Success || ! $ocr->candidateIdentityNumber
+                || ! hash_equals($normalizer->normalize($identityNumber), $normalizer->normalize($ocr->candidateIdentityNumber))) {
+                throw new DomainException('KYC_OCR_MISMATCH', 'The document number could not be recognized or does not match. Please upload a clear document image.');
             }
             $protected = $this->identities->protect($tenant->id, $documentType->value, $country, $identityNumber);
 
@@ -136,9 +135,13 @@ final readonly class SubmitKycApplicationAction
 
             return $application;
         } catch (Throwable $exception) {
+            // A committed application owns its files, even after an ambiguous commit response.
+            if (KycApplication::whereKey($applicationId)->exists()) {
+                throw $exception;
+            }
             foreach ($stored as $side => $objectKey) {
                 try {
-                    Storage::disk($disk)->delete($objectKey);
+                    $images->discard($disk, $objectKey);
                 } catch (Throwable $cleanupException) {
                     Log::warning('KYC document cleanup failed.', [
                         'tenant_id' => $tenant->id,

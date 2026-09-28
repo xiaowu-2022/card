@@ -19,7 +19,7 @@ export function UserPageHeader({
 }) {
     useClientTranslation();
     const { props, url } = usePage<SharedProps>();
-    const path = url.split(/[?#]/)[0].replace(/\/+$/, '') || '/';
+    const path = (url.split(/[?#]/)[0] ?? '').replace(/\/+$/, '') || '/';
     const showBell = !!props.auth.user && !userNavigation.some((item) => item.href === path);
     return (
         <div

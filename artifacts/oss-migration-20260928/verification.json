@@ -1,0 +1,29 @@
+{
+    "references": 1814,
+    "oss": 1814,
+    "backups_verified": 1812,
+    "new_oss_only": 2,
+    "failures": 0,
+    "samples": {
+        "poster": {
+            "signed_read_and_public_read": true,
+            "size": 2043150,
+            "seconds": 9.07
+        },
+        "kyc": {
+            "signed_read_and_public_read": true,
+            "size": 735597,
+            "seconds": 7.09
+        },
+        "support": {
+            "signed_read_and_public_read": true,
+            "size": 30388,
+            "seconds": 3.12
+        },
+        "card": {
+            "signed_read_and_public_read": true,
+            "size": 64179,
+            "seconds": 3.55
+        }
+    }
+}

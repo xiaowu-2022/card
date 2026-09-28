@@ -2,6 +2,7 @@
 
 namespace App\Application\Support;
 
+use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Support\Models\SupportConversation;
 use App\Domain\Support\Models\SupportMessage;
 use App\Domain\Tenant\Enums\TenantStatus;
@@ -31,7 +32,15 @@ final readonly class SendSupportMessageAction
         return $this->send($tenantId, $conversation->user_id, $adminId, $conversationId, $requestId, $message, $image);
     }
 
-    private function send(string $tenantId, string $userId, ?string $adminId, ?string $conversationId, string $requestId, #[\SensitiveParameter] string $message, #[\SensitiveParameter] ?UploadedFile $upload): string
+    public function platform(string $tenantId, string $adminId, string $userId, string $requestId, #[\SensitiveParameter] string $message, #[\SensitiveParameter] ?UploadedFile $image = null): string
+    {
+        $this->access->platform($adminId, 'support.send');
+        User::query()->where('tenant_id', $tenantId)->whereKey($userId)->firstOrFail();
+
+        return $this->send($tenantId, $userId, $adminId, null, $requestId, $message, $image, true);
+    }
+
+    private function send(string $tenantId, string $userId, ?string $adminId, ?string $conversationId, string $requestId, #[\SensitiveParameter] string $message, #[\SensitiveParameter] ?UploadedFile $upload, bool $platform = false): string
     {
         $message = trim($message);
         $image = $this->images->prepare($upload);
@@ -39,17 +48,32 @@ final readonly class SendSupportMessageAction
             throw new DomainException('SUPPORT_MESSAGE_INVALID', 'Enter a message of 1–2000 characters.');
         }
 
-        $stagedPath = null;
+        // Persist the upload intent before the message transaction so rollback cannot lose OSS cleanup work.
+        $tenant = Tenant::findOrFail($tenantId);
+        $user = User::where('tenant_id', $tenantId)->whereKey($userId)->firstOrFail();
+        abort_unless($tenant->status === TenantStatus::Active, 403);
+        if ($platform) {
+            abort_unless($user->status === UserStatus::Active, 403);
+        }
+        if ($adminId) {
+            $platform ? $this->access->platform($adminId, 'support.send') : $this->access->admin($tenantId, $adminId);
+        } else {
+            abort_unless($user->status === UserStatus::Active, 403);
+        }
         $messageId = (string) Str::uuid();
+        $stagedPath = $image ? $this->images->store($tenantId, $image, $messageId) : null;
         $bodyCompleted = false;
         $outerLevel = DB::transactionLevel();
         try {
-            return DB::transaction(function () use ($tenantId, $userId, $adminId, $conversationId, $requestId, $message, $image, $messageId, &$stagedPath, &$bodyCompleted): string {
+            $result = DB::transaction(function () use ($tenantId, $userId, $adminId, $conversationId, $requestId, $message, $image, $messageId, $platform, &$stagedPath, &$bodyCompleted): string {
                 $tenant = Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
                 $user = User::query()->where('tenant_id', $tenantId)->whereKey($userId)->lockForUpdate()->firstOrFail();
                 abort_unless($tenant->status === TenantStatus::Active, 403);
+                if ($platform) {
+                    abort_unless($user->status === UserStatus::Active, 403);
+                }
                 if ($adminId) {
-                    $this->access->admin($tenantId, $adminId);
+                    $platform ? $this->access->platform($adminId, 'support.send') : $this->access->admin($tenantId, $adminId);
                 } else {
                     abort_unless($user->status === UserStatus::Active, 403);
                 }
@@ -72,10 +96,11 @@ final readonly class SendSupportMessageAction
                     'tenant_id' => $tenantId, 'user_id' => $userId, 'last_sequence' => 0, 'last_sender' => 'USER',
                 ]);
                 $sequence = $conversation->last_sequence + 1;
-                $stagedPath = $image ? $this->images->store($tenantId, $image) : null;
+
                 SupportMessage::query()->create([
                     'id' => $messageId,
                     'tenant_id' => $tenantId, 'conversation_id' => $conversation->id, 'sequence' => $sequence,
+                    'support_name' => $adminId ? AdminUser::findOrFail($adminId)->support_name : null,
                     'sender_user_id' => $adminId ? null : $userId, 'sender_admin_id' => $adminId,
                     'request_id' => $requestId, 'support_message' => $message,
                     'image_object_key' => $stagedPath,
@@ -86,6 +111,11 @@ final readonly class SendSupportMessageAction
 
                 return $conversation->id;
             });
+            if ($stagedPath && ! $bodyCompleted) {
+                $this->images->discardStaged($tenantId, $stagedPath);
+            }
+
+            return $result;
         } catch (\Throwable $error) {
             // A commit exception is ambiguous: never delete in that case.
             if ($stagedPath && ! $bodyCompleted && DB::transactionLevel() === $outerLevel) {

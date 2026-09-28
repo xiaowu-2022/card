@@ -5,6 +5,7 @@ import {
     mkdirSync,
     readdirSync,
     readFileSync,
+    renameSync,
     rmSync,
     writeFileSync,
 } from 'node:fs';
@@ -99,6 +100,10 @@ try {
             'Globe',
             'LockKeyhole',
             'ShieldCheck',
+            'ShieldAlert',
+            'Info',
+            'TriangleAlert',
+            'Share2',
             'ScanFace',
             'Users',
             'BookOpen',
@@ -133,7 +138,11 @@ try {
                 resolve(iconDirectory, filename + '.svg'),
                 renderToStaticMarkup(
                     createElement(
-                        icons[{ Unlock: 'LockOpen', MoreHorizontal: 'Ellipsis' }[name] ?? name],
+                        icons[
+                            { Unlock: 'LockOpen', MoreHorizontal: 'Ellipsis', Globe: 'Earth' }[
+                                name
+                            ] ?? name
+                        ],
                         { color: '#25241f', size: 24, strokeWidth: 1.75 },
                     ),
                 ),
@@ -220,7 +229,7 @@ try {
                             autoclose: true,
                             delay: 0,
                         },
-                        modules: {},
+                        modules: { Camera: {}, Share: {} },
                         distribute: {
                             android: {
                                 packagename: config.appId,
@@ -229,7 +238,14 @@ try {
                                     '<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>',
                                 ],
                             },
-                            ios: { appid: config.appId },
+                            ios: {
+                                appid: config.appId,
+                                privacyDescription: {
+                                    NSCameraUsageDescription: 'Take a photo when you choose to submit identity documents or attach an image to customer support.',
+                                    NSPhotoLibraryUsageDescription: 'Select photos when you choose to submit identity documents or attach an image to customer support.',
+                                    NSPhotoLibraryAddUsageDescription: 'Save your invitation poster to your photo library when you choose Save image.',
+                                },
+                            },
                             sdkConfigs: {},
                         },
                     },
@@ -243,11 +259,21 @@ try {
         if (command === 'build') {
             run('npm', ['run', platform === 'app' ? 'build:app' : 'build:h5']);
             const output = resolve(root, 'dist/clients', company, mode, platform);
-            rmSync(output, { recursive: true, force: true });
+            const preservePreview = platform === 'h5' && mode === 'debug';
+            // Open preview tabs still reference the previous build's hashed lazy chunks.
+            // Keep those files available, and publish the new entry only after its assets.
+            if (!preservePreview) rmSync(output, { recursive: true, force: true });
             mkdirSync(output, { recursive: true });
-            cpSync(resolve(project, 'dist/build', platform === 'app' ? 'app' : 'h5'), output, {
+            const source = resolve(project, 'dist/build', platform === 'app' ? 'app' : 'h5');
+            cpSync(source, output, {
                 recursive: true,
+                filter: (path) => !preservePreview || path !== resolve(source, 'index.html'),
             });
+            if (preservePreview) {
+                const nextEntry = resolve(output, '.index.html.next');
+                cpSync(resolve(source, 'index.html'), nextEntry);
+                renameSync(nextEntry, resolve(output, 'index.html'));
+            }
             writeFileSync(
                 resolve(output, 'build-manifest.json'),
                 JSON.stringify(

@@ -10,6 +10,9 @@ use App\Application\Payment\QueryPaymentStatusAction;
 use App\Application\Payment\TenantPaymentReturnUrl;
 use App\Application\Wallet\ActivateUserWalletAction;
 use App\Domain\Admin\Models\AdminUser;
+use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
+use App\Domain\Kyc\DTOs\KycOcrResultDTO;
+use App\Domain\Kyc\Enums\KycOcrOutcome;
 use App\Domain\Ledger\DTOs\LedgerPostingInstruction;
 use App\Domain\Ledger\DTOs\LedgerPostingPlan;
 use App\Domain\Ledger\Enums\LedgerAccountType;
@@ -42,19 +45,25 @@ use App\Support\Errors\DomainException;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 beforeEach(function (): void {
-    config(['payment.mock_mode' => 'PENDING']);
+    Http::preventStrayRequests();
+    config(['payment.mock_mode' => 'PENDING', 'inertia.ssr.enabled' => false]);
     $this->seed();
     legacyUsdAccountingFixtures();
     Storage::fake('private');
     Queue::fake();
     $this->tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
     $this->user = User::query()->where('tenant_id', $this->tenant->id)->firstOrFail();
-    $application = app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'MY', 'TOPUP-'.$this->user->id, kycTestImage('topup-front.png'), kycTestImage('topup-back.png'));
+    $ocr = Mockery::mock(KycOcrProviderInterface::class);
+    $ocr->shouldReceive('name')->andReturn('TEST');
+    $ocr->shouldReceive('extractIdentityDocument')->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, 'TOPUP-'.$this->user->id));
+    app()->instance(KycOcrProviderInterface::class, $ocr);
+    $application = app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', 'TOPUP-'.$this->user->id, kycTestImage('topup-front.png'), kycTestImage('topup-back.png'));
     $reviewer = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
     app(ApproveKycAction::class)->execute($this->tenant->id, $application->id, $reviewer);
     $this->wallet = app(ActivateUserWalletAction::class)->execute($this->tenant->id, $this->user->id)->wallet;
@@ -423,8 +432,12 @@ it('enforces credited financial facts and one ledger link at the database bounda
 
     $tenantB = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
     $userB = User::query()->where('tenant_id', $tenantB->id)->firstOrFail();
+    $ocr = Mockery::mock(KycOcrProviderInterface::class);
+    $ocr->shouldReceive('name')->andReturn('TEST');
+    $ocr->shouldReceive('extractIdentityDocument')->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, 'TOPUP-B-'.$userB->id));
+    app()->instance(KycOcrProviderInterface::class, $ocr);
     $applicationB = app(SubmitKycApplicationAction::class)->execute(
-        $tenantB, $userB, 'MY', 'TOPUP-B-'.$userB->id, kycTestImage('topup-b-front.png'), kycTestImage('topup-b-back.png'),
+        $tenantB, $userB, 'CN', 'TOPUP-B-'.$userB->id, kycTestImage('topup-b-front.png'), kycTestImage('topup-b-back.png'),
     );
     $reviewerB = AdminUser::query()->where('email', 'owner@b.localhost')->firstOrFail();
     app(ApproveKycAction::class)->execute($tenantB->id, $applicationB->id, $reviewerB);

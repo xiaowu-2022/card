@@ -21,7 +21,7 @@ final readonly class AccountActivationStatus
     {
         $company = Tenant::query()->whereKey($tenant)->firstOrFail();
         User::query()->where('tenant_id', $tenant)->whereKey($user)->firstOrFail();
-        $cycle = $this->rules->cycle($tenant, $user);
+        $cycle = app(ManualPromotion::class)->benefit($tenant, $user);
         $settings = $company->businessSettings;
         $required = Money::of($settings->required_security_deposit_amount, 'USDT');
         $deposit = Money::of(DB::table('ledger_accounts')->where('tenant_id', $tenant)->where('user_id', $user)->where('asset_code', 'USDT')->where('account_type', 'USER_SECURITY_DEPOSIT')->value('balance') ?? '0', 'USDT');

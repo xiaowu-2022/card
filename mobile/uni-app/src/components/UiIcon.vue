@@ -1,4 +1,23 @@
 <script setup lang="ts">
-defineProps<{ name: 'bell' | 'support' | 'account' | 'cards' | 'assets' }>();
+import { computed } from 'vue';
+import icons from '../generated/icons.json';
+const props = withDefaults(defineProps<{ name: string; size?: number; color?: string }>(), {
+    size: 26,
+});
+const source = computed(() => {
+    const svg = (icons as Record<string, string>)[props.name];
+    return props.color && /^#[0-9a-f]{6}$/i.test(props.color) && svg
+        ? 'data:image/svg+xml;charset=utf-8,' +
+              encodeURIComponent(
+                  svg.replace(/stroke="#[0-9a-f]{6}"/gi, 'stroke="' + props.color + '"'),
+              )
+        : '/static/icons/' + props.name + '.svg';
+});
 </script>
-<template><image :src="'/static/icons/' + name + '.svg'" mode="aspectFit" style="width:26px;height:26px;vertical-align:middle" /></template>
+<template>
+    <image
+        :src="source"
+        mode="aspectFit"
+        :style="{ width: size + 'px', height: size + 'px', verticalAlign: 'middle', flexShrink: 0 }"
+    />
+</template>

@@ -1,0 +1,22 @@
+{
+  "ledger_entries": {
+    "original_rows": 2894,
+    "unchanged": true
+  },
+  "kyc_applications": {
+    "original_rows": 902,
+    "unchanged": true
+  },
+  "provider_cardholders": {
+    "original_rows": 26,
+    "unchanged": true
+  },
+  "support_messages": {
+    "original_rows": 3,
+    "unchanged": true
+  },
+  "card_issue_orders": {
+    "original_rows": 26,
+    "unchanged": true
+  }
+}

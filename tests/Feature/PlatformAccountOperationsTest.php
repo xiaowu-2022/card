@@ -16,6 +16,7 @@ beforeEach(function (): void {
     $this->withoutVite();
     config(['inertia.ssr.enabled' => false]);
     Http::preventStrayRequests();
+    \Illuminate\Support\Facades\Storage::fake('private');
     $this->owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
     $this->companyOwner = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
     $this->company = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
@@ -24,7 +25,7 @@ beforeEach(function (): void {
 
 it('opens all-company record lists without requiring selection', function (): void {
     $this->actingAs($this->owner, 'platform_admin');
-    foreach (['users' => 'Users', 'kyc' => 'Kyc', 'wallets' => 'Wallets', 'topups' => 'Topups', 'cards' => 'Cards'] as $section => $component) {
+    foreach (['users' => 'Users', 'kyc' => 'Kyc', 'wallets' => 'Wallets', 'topups' => 'AssetOrders', 'cards' => 'Cards'] as $section => $component) {
         $this->get("http://admin.localhost/platform/{$section}")->assertOk()
             ->assertInertia(fn ($page) => $page->component('platform/'.$component)->has('companies', 2)->missing('filters.company'));
     }
@@ -45,8 +46,9 @@ it('shows only the selected company identity metadata and wallet accounts withou
     $fixtures = [];
     foreach ([$this->company, $this->otherCompany] as $company) {
         $user = User::query()->where('tenant_id', $company->id)->firstOrFail();
+        fakeMatchingKycOcr('PLATFORM-'.$user->id);
         $kyc = app(SubmitKycApplicationAction::class)->execute(
-            $company, $user, 'MY', 'PLATFORM-'.$user->id, kycTestImage(), kycTestImage('back.png'),
+            $company, $user, 'CN', 'PLATFORM-'.$user->id, kycTestImage(), kycTestImage('back.png'),
         );
         $reviewer = AdminUser::query()->where('email', $company->id === $this->company->id ? 'owner@a.localhost' : 'owner@b.localhost')->firstOrFail();
         app(ApproveKycAction::class)->execute($company->id, $kyc->id, $reviewer);

@@ -1,7 +1,6 @@
 import { Head, useForm } from '@inertiajs/react';
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
-import { PlatformLayout } from '@/layouts/PlatformLayout';
-import { PageHeader } from '@/components/shared/PageHeader';
+import { PlatformSettingsLayout } from '@/layouts/PlatformSettingsLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -21,13 +20,12 @@ type KycPolicy = { enabled: boolean; maxAccountsPerIdentity: number; reviewMode:
 export default function KycSettings({ policy }: { policy: KycPolicy }) {
     useAdminTranslation();
     return (
-        <PlatformLayout>
+        <PlatformSettingsLayout>
             <Head title={t('Identity verification settings')} />
             <div className="space-y-6">
-                <PageHeader title={t('Identity verification settings')} />
                 <KycForm policy={policy} />
             </div>
-        </PlatformLayout>
+        </PlatformSettingsLayout>
     );
 }
 

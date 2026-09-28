@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Platform\CompanyConfiguration;
 
+use App\Application\Media\ImageStorage;
 use App\Application\Promotion\PaidPromotionRules;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Tenant\Models\Tenant;
@@ -9,7 +10,7 @@ use App\Domain\Tenant\TenantContext;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 final class InvitationPosterController extends Controller
 {
@@ -18,7 +19,8 @@ final class InvitationPosterController extends Controller
         $actor = $request->user('platform_admin');
         $rules->platform($actor, 'tenant.manage');
         $request->validate(['background' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:8192', 'dimensions:min_width=300,min_height=300,max_width=4000,max_height=6000']]);
-        $path = $request->file('background')->store("invitation-posters/{$tenant->id}", 'private');
+        $images = app(ImageStorage::class);
+        $path = $images->put($tenant->id, 'private', 'invitation-posters/'.$tenant->id.'/'.Str::uuid(), $request->file('background')->getContent(), 'poster', $tenant->id);
         try {
             DB::transaction(function () use ($tenant, $path, $rules, $actor, $audit) {
                 Tenant::whereKey($tenant->id)->lockForUpdate()->firstOrFail();
@@ -29,7 +31,9 @@ final class InvitationPosterController extends Controller
                 $audit->record($tenant->id, 'ADMIN', $actor->id, 'INVITATION_POSTER_CONFIGURED', 'tenant_business_settings', $tenant->id, ['background' => $before], ['background' => $path]);
             });
         } catch (\Throwable $e) {
-            Storage::disk('private')->delete($path);
+            if ($tenant->businessSettings()->value('invitation_poster_background') !== $path) {
+                $images->discard('private', $path);
+            }
             throw $e;
         }
 
@@ -51,8 +55,9 @@ final class InvitationPosterController extends Controller
     private function image(Tenant $tenant)
     {
         $path = $tenant->businessSettings->invitation_poster_background;
-        abort_unless($path && Storage::disk('private')->exists($path), 404);
+        abort_unless($path, 404);
+        $contents = app(ImageStorage::class)->read('private', $path);
 
-        return response()->file(Storage::disk('private')->path($path), ['Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
+        return response($contents, 200, ['Content-Type' => (new \finfo(FILEINFO_MIME_TYPE))->buffer($contents), 'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
     }
 }

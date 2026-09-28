@@ -1,12 +1,33 @@
 {
   "pages": [
-    { "path": "pages/login/index" },
-    { "path": "pages/assets/index" },
-    { "path": "pages/cards/index" },
-    { "path": "pages/account/index" },
-    { "path": "pages/messages/index" },
-    { "path": "pages/messages/detail" },
-    { "path": "pages/support/index" }
+    {
+      "path": "pages/screen/index"
+    },
+    {
+      "path": "pages/login/index"
+    },
+    {
+      "path": "pages/assets/index"
+    },
+    {
+      "path": "pages/cards/index"
+    },
+    {
+      "path": "pages/account/index"
+    },
+    {
+      "path": "pages/messages/index"
+    },
+    {
+      "path": "pages/messages/detail"
+    },
+    {
+      "path": "pages/support/index"
+    }
   ],
-  "globalStyle": { "navigationStyle": "custom", "backgroundColor": "#ffffff", "navigationBarTextStyle": "black" }
+  "globalStyle": {
+    "navigationStyle": "custom",
+    "backgroundColor": "#f7f6f0",
+    "navigationBarTextStyle": "black"
+  }
 }

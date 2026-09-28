@@ -13,7 +13,6 @@ use App\Application\SecurityDeposit\FundSecurityDepositAction;
 use App\Application\SecurityDeposit\RefundSecurityDepositAction;
 use App\Application\Wallet\ActivateUserWalletAction;
 use App\Application\Wallet\UserWalletQuery;
-use App\Application\Withdrawal\CreateWithdrawalAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Ledger\DTOs\LedgerPostingInstruction;
 use App\Domain\Ledger\DTOs\LedgerPostingPlan;
@@ -50,7 +49,8 @@ beforeEach(function (): void {
 function promotionTestWallet($test, User $user): Wallet
 {
     expect($test->tenant->default_asset)->toBe('USDT');
-    $application = app(SubmitKycApplicationAction::class)->execute($test->tenant, $user, 'MY', 'PROMO-'.$user->id, kycTestImage('front.png'), kycTestImage('back.png'));
+    fakeMatchingKycOcr('PROMO-'.$user->id);
+    $application = app(SubmitKycApplicationAction::class)->execute($test->tenant, $user, 'CN', 'PROMO-'.$user->id, kycTestImage('front.png'), kycTestImage('back.png'));
     app(ApproveKycAction::class)->execute($test->tenant->id, $application->id, $test->admin);
     $wallet = app(ActivateUserWalletAction::class)->execute($test->tenant->id, $user->id)->wallet;
     $available = LedgerAccount::query()->where('tenant_id', $test->tenant->id)->where('wallet_id', $wallet->id)->where('account_type', 'USER_AVAILABLE')->firstOrFail();
@@ -128,7 +128,6 @@ it('earns company-funded commission only from real deposit funding and never pay
     expect(array_column($activity, 'eventType'))->toContain('COMMISSION_EARN')->not->toContain('COMMISSION_TRANSFER');
     DB::statement('SET CONSTRAINTS promotion_funding_evidence, commission_award_evidence, commission_transfer_evidence, deposit_refund_evidence IMMEDIATE');
 });
-
 
 it('binds linked invitations to the browser and OTP challenge and rejects tampering', function (): void {
     Mail::fake();

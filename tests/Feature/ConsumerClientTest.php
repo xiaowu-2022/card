@@ -3,7 +3,10 @@
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use App\Infrastructure\Auth\ConsumerDeviceToken;
+use App\Mail\UserVerificationCodeMail;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 
 beforeEach(function () {
     $this->seed();
@@ -77,7 +80,7 @@ it('does not allow client Inertia partial headers to suppress screen data', func
 });
 
 it('preserves actionable field validation and native multipart KYC validation without OCR calls', function () {
-    \Illuminate\Support\Facades\Http::preventStrayRequests();
+    Http::preventStrayRequests();
     $flow = clientFlow($this);
     $token = clientToken($this);
     $before = DB::table('ledger_entries')->count();
@@ -97,9 +100,35 @@ it('converts scoped native form redirects without accepting an external return U
     $token = clientToken($this);
     $this->withToken($token)->withHeader('X-Consumer-Flow', $flow)->withHeader('X-Consumer-Page', '//outside.invalid')
         ->postJson('http://a.localhost/api/mobile/v1/client/account/information/name', ['display_name' => 'Offline display name'])
-        ->assertOk()->assertJsonPath('redirect', '/account/security')->assertJsonPath('csrfToken', null);
+        ->assertOk()->assertJsonPath('redirect', '/')->assertJsonPath('csrfToken', null);
     expect($this->user->fresh()->profile->display_name)->toBe('Offline display name');
     $this->postJson('http://b.localhost/api/mobile/v1/client/account/information/name', ['display_name' => 'Cross company'])
         ->assertUnauthorized();
     expect($this->user->fresh()->profile->display_name)->toBe('Offline display name');
+});
+
+it('completes native invited registration using only its own verified flow', function () {
+    Mail::fake();
+    Http::preventStrayRequests();
+    $flow = clientFlow($this);
+    $this->withHeader('X-Consumer-Flow', $flow);
+    $created = $this->postJson('http://a.localhost/api/mobile/v1/client/register/challenges', [
+        'channel' => 'EMAIL', 'destination' => 'native-parity@example.test', 'invitation_code' => registrationTestInvitation(),
+    ])->assertOk();
+    $path = $created->json('redirect');
+    expect($path)->toStartWith('/register/challenges/');
+    $code = Mail::sent(UserVerificationCodeMail::class)->first()->code;
+    $this->postJson('http://a.localhost/api/mobile/v1/client'.$path.'/complete', [
+        'display_name' => 'Native registration', 'password' => 'OfflinePass123', 'password_confirmation' => 'OfflinePass123', 'locale' => 'en',
+    ])->assertStatus(422);
+    $this->flushHeaders();
+    $other = clientFlow($this);
+    $this->withHeader('X-Consumer-Flow', $other)->getJson('http://a.localhost/api/mobile/v1/client'.$path)->assertStatus(422);
+    $this->withHeader('X-Consumer-Flow', $flow)->postJson('http://a.localhost/api/mobile/v1/client'.$path.'/verify', ['code' => $code])->assertOk();
+    $this->getJson('http://a.localhost/api/mobile/v1/client'.$path)->assertOk()->assertJsonPath('props.challenge.status', 'VERIFIED');
+    $complete = $this->postJson('http://a.localhost/api/mobile/v1/client'.$path.'/complete', [
+        'display_name' => 'Native registration', 'password' => 'OfflinePass123', 'password_confirmation' => 'OfflinePass123', 'locale' => 'en',
+    ])->assertCreated()->assertJsonPath('redirect', '/dashboard');
+    $this->withToken($complete->json('token'))->getJson('http://a.localhost/api/mobile/v1/bootstrap')->assertOk()->assertJsonPath('user.email', 'native-parity@example.test');
+    expect(User::where('tenant_id', $this->tenant->id)->where('email', 'native-parity@example.test')->count())->toBe(1);
 });

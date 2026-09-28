@@ -1,0 +1,90 @@
+[
+  {
+    "surface": "legacy",
+    "lang": "zh-CN",
+    "htmlNodes": 0,
+    "names": [
+      "我",
+      "在线客服",
+      "<b>客服小林</b>"
+    ],
+    "overflow": false
+  },
+  {
+    "surface": "legacy",
+    "lang": "en",
+    "htmlNodes": 0,
+    "names": [
+      "You",
+      "Customer support",
+      "<b>客服小林</b>"
+    ],
+    "overflow": false
+  },
+  {
+    "surface": "legacy",
+    "lang": "ms",
+    "htmlNodes": 0,
+    "names": [
+      "Anda",
+      "Khidmat pelanggan",
+      "<b>客服小林</b>"
+    ],
+    "overflow": false
+  },
+  {
+    "surface": "legacy",
+    "lang": "es",
+    "htmlNodes": 0,
+    "names": [
+      "Tú",
+      "Atención al cliente",
+      "<b>客服小林</b>"
+    ],
+    "overflow": false
+  },
+  {
+    "surface": "uni-app",
+    "lang": "zh-CN",
+    "htmlNodes": 0,
+    "names": [
+      "我",
+      "在线客服",
+      "<b>客服小林</b>"
+    ],
+    "overflow": false
+  },
+  {
+    "surface": "uni-app",
+    "lang": "en",
+    "htmlNodes": 0,
+    "names": [
+      "You",
+      "Customer support",
+      "<b>客服小林</b>"
+    ],
+    "overflow": false
+  },
+  {
+    "surface": "uni-app",
+    "lang": "ms",
+    "htmlNodes": 0,
+    "names": [
+      "Anda",
+      "Khidmat pelanggan",
+      "<b>客服小林</b>"
+    ],
+    "overflow": false
+  },
+  {
+    "surface": "uni-app",
+    "lang": "es",
+    "htmlNodes": 0,
+    "names": [
+      "Tú",
+      "Atención al cliente",
+      "<b>客服小林</b>"
+    ],
+    "overflow": false
+  }
+]

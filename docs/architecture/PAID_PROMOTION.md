@@ -1,3 +1,8 @@
+> 2026-09-27: Platform can now assign free manual promotion levels. This overrides
+> paid-only qualification for the explicit manual workflow. See
+> [Manual promotion levels](MANUAL_PROMOTION.md) for effective qualification,
+> permissions, immutable history and restoration of paid rules.
+
 # Paid promotion (approved 2026-09-16)
 
 Current activation, mixed annual payment and annual allocation rules are defined in

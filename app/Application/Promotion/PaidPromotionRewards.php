@@ -41,11 +41,11 @@ final readonly class PaidPromotionRewards
             $activationEligible = $this->activation->execute($tenant, $sourceUser, 'ANNUAL', $sourceId, $order->ledger_entry_id, $time);
         }
         DB::table('paid_promotion_events')->insert(['id' => $id, 'tenant_id' => $tenant, 'user_id' => $sourceUser, 'kind' => $kind, 'source_id' => $sourceId,
-            'source_rank' => $purchasedRank ?? ($this->rules->cycle($tenant, $sourceUser, $time)?->rank ?? 0), 'amount' => $amount, 'occurred_at' => $time, 'created_at' => $time, 'is_first_funding' => $kind === 'ACTIVATION' ? $firstFunding : false]);
+            'source_rank' => $purchasedRank ?? (app(ManualPromotion::class)->benefit($tenant, $sourceUser, $time)?->rank ?? 0), 'amount' => $amount, 'occurred_at' => $time, 'created_at' => $time, 'is_first_funding' => $kind === 'ACTIVATION' ? $firstFunding : false]);
         $highest = 0;
         $ancestors = $this->rules->ancestors($tenant, $sourceUser);
         foreach ($ancestors as $ancestor) {
-            $cycle = $this->rules->cycle($tenant, $ancestor->user_id, $time);
+            $cycle = app(ManualPromotion::class)->benefit($tenant, $ancestor->user_id, $time);
             $standard = $kind === 'ANNUAL' ? ($cycle?->percent ?? 0) : ($cycle?->reward ?? ($ancestor->depth === 1 ? 20 : 0));
             if (($kind === 'ACTIVATION' && ! $activationEligible)
                 || ($kind === 'ANNUAL' && $ancestor->depth > 1 && ($cycle?->rank ?? 0) < $purchasedRank)) {
@@ -72,7 +72,7 @@ final readonly class PaidPromotionRewards
                 }
             }
             DB::table('paid_promotion_shares')->insert(['id' => $shareId, 'tenant_id' => $tenant, 'user_id' => $ancestor->user_id, 'event_id' => $id,
-                'cycle_id' => $cycle?->id, 'revision' => $cycle?->revision, 'standard' => $standard, 'covered' => $covered,
+                'cycle_id' => $cycle?->id, 'manual_adjustment_id' => $cycle?->manual_id, 'revision' => $cycle?->revision, 'standard' => $standard, 'covered' => $covered,
                 'depth' => $ancestor->depth, 'rank' => $cycle?->rank ?? 0, 'rate' => (string) $difference, 'amount' => (string) $reward, 'ledger_entry_id' => $entry?->id, 'created_at' => $time]);
             if ($entry) {
                 app(\App\Application\Inbox\InboxWriter::class)->record($tenant, $ancestor->user_id, 'commission:'.$shareId,

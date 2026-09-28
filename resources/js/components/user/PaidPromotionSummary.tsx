@@ -37,6 +37,7 @@ export type PaidClaim = {
     source: 'AUTO';
 };
 export type PaidPromotionData = {
+    manualLevel?: boolean;
     upgradeEligibility: {
         weightedUnits: number;
         weightedCount: string;

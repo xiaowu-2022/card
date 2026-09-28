@@ -63,9 +63,13 @@ export default function PaidPromotion({
                     <p className="text-xs text-muted-foreground">{t('My promotion level')}</p>
                     <h2 className="text-xl font-semibold">{promotionLevel(p.rank)}</h2>
                     <p className="text-sm">
-                        {p.cycle
-                            ? t('Valid until {{time}}', { time: dateTime(p.cycle.endsAt) })
-                            : t('Ordinary members earn 20 USDT for direct activation only.')}
+                        {p.manualLevel
+                            ? t(
+                                  'Your promotion level is managed by the platform. No annual payment is needed. Contact support to change it.',
+                              )
+                            : p.cycle
+                              ? t('Valid until {{time}}', { time: dateTime(p.cycle.endsAt) })
+                              : t('Ordinary members earn 20 USDT for direct activation only.')}
                     </p>
                     {p.membershipStatus === 'EXPIRED' && p.previousCycle && (
                         <p className="text-sm">

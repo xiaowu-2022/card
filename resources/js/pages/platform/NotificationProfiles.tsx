@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Head } from '@inertiajs/react';
 import { t, useAdminTranslation } from '@/i18n/admin';
-import { PlatformLayout } from '@/layouts/PlatformLayout';
-import { PageHeader } from '@/components/shared/PageHeader';
+import { PlatformSettingsLayout } from '@/layouts/PlatformSettingsLayout';
 import { TenantSmsSettings, type SmsSettings } from '@/components/admin/TenantSmsSettings';
 import { TenantEmailSettings, type EmailSettings } from '@/components/admin/TenantEmailSettings';
 import { Button } from '@/components/ui/button';
@@ -58,15 +57,12 @@ export default function NotificationProfiles({
     const selected = editing && editing !== 'new' ? editing : null;
     const actionUrl = `/platform/settings/${channel}${selected ? `/${selected.id}` : ''}`;
     return (
-        <PlatformLayout>
+        <PlatformSettingsLayout>
             <Head title={title} />
             <div className="space-y-6">
-                <PageHeader
-                    title={title}
-                    actions={
-                        <Button onClick={() => setEditing('new')}>{t('Add configuration')}</Button>
-                    }
-                />
+                <div className="flex justify-end">
+                    <Button onClick={() => setEditing('new')}>{t('Add configuration')}</Button>
+                </div>
                 <div className="min-w-0 overflow-hidden rounded-xl border bg-surface">
                     <Table className="min-w-[600px]">
                         <TableHeader>
@@ -165,6 +161,6 @@ export default function NotificationProfiles({
                         ))}
                 </DialogContent>
             </Dialog>
-        </PlatformLayout>
+        </PlatformSettingsLayout>
     );
 }

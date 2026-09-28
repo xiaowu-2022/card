@@ -1,3 +1,45 @@
+On 2026-09-27 the user approved a separate desktop SaaS support center with all-company
+conversation reads, scoped proactive customer contact and per-admin support nicknames.
+Platform support.read/send/agents.manage are granted incrementally to Owner/Admin;
+tenant support.manage still requires exact company membership. Reuse one company/user
+conversation, serialized sequences and request UUIDs. Snapshot the nickname on new
+replies only; consumers never receive staff identity fields. Preserve read-only GET,
+visible-sequence acknowledgements and support/inbox separation. No real customer test
+messages, broadcasts or external notifications. See docs/architecture/SUPPORT_CHAT.md
+and docs/deployment/PLATFORM_SUPPORT.md.
+
+On 2026-09-27 the user requested consolidating compatible SaaS settings into one
+System settings entry with category tabs. Global assets/domains/SMS/email/OSS/KYC
+share this shell; administrators and financial audit remain independent. Retain
+category permissions, existing mutation contracts and company-specific configuration.
+See `docs/architecture/PLATFORM_SETTINGS.md`.
+
+On 2026-09-27 the user requested desktop-only SaaS admin acceptance; mobile
+compatibility is not required for the backend. Consumer uni-app/H5 remains mobile.
+Platform recharge orders now combine TRON and other asset deposits in one read-only
+paginated list, and withdrawals combine all networks. Keep original scoped mutation
+routes, permissions, exact decimal amounts and Ledger settlement unchanged. See
+`docs/architecture/PLATFORM_FUNDS_ORDERS.md`.
+
+On 2026-09-27 the user explicitly approved global SaaS-managed OSS and public-read
+uploaded images, including KYC and cardholder documents and support pictures.
+OCR must receive server-generated OSS URLs only, never image binary or Base64.
+This supersedes private-image storage restrictions for these uploaded images only;
+identity numbers, support text, provider fields and test archives remain encrypted.
+Preserve immutable business references through versioned storage mappings. Migrate
+referenced history with checksum verification and retained local backups; no OCR,
+provider or financial replay. See docs/architecture/OSS_IMAGES.md and
+docs/deployment/OSS_IMAGES.md.
+
+On 2026-09-27 the user approved free Platform manual promotion-level adjustment,
+including upgrades and downgrades, effective for future qualification and rewards.
+This supersedes paid-only/manual-assignment prohibitions for this explicit workflow.
+Use tenant/user-scoped append-only adjustment history, Platform permission,
+reason, confirmation, idempotency and stale-state checks. Manual levels stay in effect
+until another adjustment or explicit restoration of paid-cycle rules. Preserve KYC,
+wallet/account gates, historical paid cycles, rewards and Ledger; the adjustment itself
+creates no payment, activation, rebate or reward. See docs/architecture/MANUAL_PROMOTION.md.
+
 On 2026-09-26 the user superseded the React/Capacitor consumer migration choice
 with uni-app (Vue 3 + TypeScript) and HBuilderX cloud packaging. Keep Laravel,
 existing financial services and React/Inertia administrative surfaces. Each company

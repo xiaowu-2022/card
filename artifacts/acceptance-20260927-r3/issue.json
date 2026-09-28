@@ -1,0 +1,8 @@
+{
+    "mode": "--issue",
+    "environment": "sandbox",
+    "checks": [],
+    "result": "BLOCKED_OR_FAILED",
+    "error_class": "App\\Support\\Errors\\DomainException",
+    "error_code": "CARD_LIMIT_REACHED"
+}

@@ -16,7 +16,10 @@
     "test:browser:phase5": "node tests/Browser/phase-five-responsive.mjs",
     "test:browser:phase6": "node tests/Browser/phase-six-responsive.mjs",
     "test:browser:phase9": "node tests/Browser/phase-nine-responsive.mjs",
-    "test:browser:phase10": "node tests/Browser/phase-ten-responsive.mjs"
+    "test:browser:phase10": "node tests/Browser/phase-ten-responsive.mjs",
+    "client:preview": "node scripts/client/preview.mjs",
+    "client:parity": "node scripts/client/parity.mjs && node scripts/client/parity-gallery.mjs",
+    "test:client:flows": "node tests/Browser/consumer-uni-flows.mjs"
   },
   "dependencies": {
     "@inertiajs/react": "^3.7.0",

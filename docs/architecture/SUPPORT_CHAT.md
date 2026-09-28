@@ -9,7 +9,8 @@ KYC, cards, commissions or user lifecycle state.
   GET does not create conversations. First message creates one transactionally.
 - Admin inbox, reads and replies require an ACTIVE AdminUser and exact ACTIVE
   company membership with `support.manage`. Grant this to TENANT_OWNER,
-  TENANT_ADMIN and SUPPORT only. Platform membership is never sufficient.
+  TENANT_ADMIN and SUPPORT only. Platform membership is never sufficient for these
+  company Admin routes; the separately authorized Platform entry is described below.
 - `support_conversations`: UUID, company/user composite ownership, unique company
   user, monotonic integer message sequence, last sender and activity timestamp.
 - `support_messages`: UUID, composite conversation/company ownership, per-thread
@@ -23,8 +24,9 @@ KYC, cards, commissions or user lifecycle state.
   APP_KEY encryption at rest, hidden from ordinary model serialization and excluded
   from request flashing/logging. Do not send passwords, OTPs, PAN/CVV or documents.
   Key rotation must preserve decryption of existing conversations.
-- Explicit allowlisted responses only. User sees their messages and generic
-  Customer support identity, never internal administrator identifiers/email.
+- Explicit allowlisted responses only. User sees their messages and the support
+  nickname snapshot (generic Customer support when null), never internal administrator
+  names, identifiers or email addresses.
 - Messages use sequence-cursor pagination (50 at a time); inbox uses 30-row pages.
   Poll every 5 seconds only on the visible current conversation/inbox. Failures
   show connection feedback; draft and request UUID survive polling and retry.
@@ -45,6 +47,10 @@ KYC, cards, commissions or user lifecycle state.
   idempotent retries are untouched. Commit exceptions, process crashes, outer
   transaction failures after a successful action, or failed cleanup remain
   conservative retention cases; no blind historical sweep is introduced.
+  **2026-09-27 storage amendment:** configured OSS uploads and migrated images follow
+  `OSS_IMAGES.md`, including public-readable uploaded image objects. Authenticated
+  chat/image endpoints retain ownership checks; legacy local ciphertext remains
+  readable until migrated. This replaces the private-disk-only requirement above.
 - No external chat scripts, AI
   replies, fabricated staff presence, delivery/read guarantees or notifications
   outside this app. Inbox distinguishes awaiting reply from replied using actual
@@ -73,3 +79,50 @@ conversations at their current last sequence because historical read evidence di
 exist. New support replies count from rollout. Verification: SupportChat + Inbox feature
 suites pass (26 tests/219 assertions); the offline browser harness verifies support=4,
 inbox=3, Me=7, then support reading leaves Me=3, plus four-language/responsive checks.
+
+## SaaS support center and nickname snapshots (2026-09-27)
+
+Platform `/platform/support` is a separate desktop workspace beside notifications.
+Its 30-row all-company list filters company, account ID/email and last-sender state
+(awaiting reply = USER, replied = ADMIN), ordered by activity time and stable ID.
+The selected chat reads 50 messages with the existing sequence cursor. Visible
+latest-page polling refreshes chat and inbox together every five seconds; history
+pages do not jump to the latest messages. Read-only staff have no composer.
+
+Proactive contact selects a company and searches its active customers. Opening a
+customer without a conversation is read-only. A successful first message creates
+the existing unique company/user conversation under Tenant/User locks. Platform,
+company Admin and customer messages share the same records and monotonic sequences.
+Request UUID retries compare the same sender, target, text and image digest; they
+never create another message or snapshot a new nickname. Failed drafts retain their
+request UUID. Changing customer remounts the composer to prevent draft misdelivery.
+
+Platform routes require active `platform_admin` authentication plus `support.read`;
+send, candidate search and self-name updates additionally require `support.send`.
+The staff tab and editing other names additionally require `support.agents.manage`.
+Every company/user or company/image pair is validated server-side. Active tenant and
+customer status is checked under the send locks for proactive Platform messages.
+Company Admin routes remain guarded by exact active company `support.manage`
+membership; there is no Platform bypass in the company service entry point.
+
+`admin_users.support_name` is a nullable, maximum-30-character plain-text nickname,
+independent of login name and shared across the account's companies. Support-capable
+staff can edit their own nickname from the support inbox. SaaS staff managers can
+edit eligible Platform or company staff on `/platform/support/agents` (30-row pages).
+Updates use authenticated CSRF-protected POST, existing throttles and a
+`SUPPORT_NAME_UPDATED` audit with actor, target, before/after nickname and timestamp.
+No repeat password. Staff without support permission are not nickname targets.
+
+`support_messages.support_name` snapshots the current name on each new admin reply.
+Null or blank means the existing localized generic label; old messages are neither
+renamed nor backfilled. The allowlisted message DTO exposes only nullable
+`supportName`, never the sender's administrator name, email or internal ID.
+React H5, uni-app H5 and company Admin render this field as text without translation
+or HTML interpretation. A platform reply increments the existing support unread
+count; it does not enter inbox messages. Acknowledgement remains scoped to displayed
+sequences and cannot consume later replies or regress.
+
+Migration `2026_09_27_160000_add_platform_support.php` adds only these two nullable
+columns and the three Platform permissions, granting Owner/Admin incrementally.
+Existing roles' other grants, conversations, message history and money stay intact.
+See `../deployment/PLATFORM_SUPPORT.md` and `../testing/PLATFORM_SUPPORT_20260927.md`.

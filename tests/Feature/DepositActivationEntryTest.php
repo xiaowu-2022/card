@@ -45,8 +45,9 @@ beforeEach(function (): void {
         'allow_wallet_topup' => true,
     ]);
     $this->user = User::query()->where('tenant_id', $this->tenant->id)->firstOrFail();
+    fakeMatchingKycOcr('DEPOSIT-ENTRY-'.$this->user->id);
     $application = app(SubmitKycApplicationAction::class)->execute(
-        $this->tenant->fresh(), $this->user, 'MY', 'DEPOSIT-ENTRY-'.$this->user->id,
+        $this->tenant->fresh(), $this->user, 'CN', 'DEPOSIT-ENTRY-'.$this->user->id,
         kycTestImage('entry-front.png'), kycTestImage('entry-back.png'),
     );
     app(ApproveKycAction::class)->execute($this->tenant->id, $application->id,

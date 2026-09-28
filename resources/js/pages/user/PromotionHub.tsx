@@ -15,6 +15,7 @@ import '../../../css/promotion.css';
 
 type Benefits = Pick<
     PaidPromotionData,
+    | 'manualLevel'
     | 'levels'
     | 'rank'
     | 'percent'
@@ -88,7 +89,7 @@ export default function PromotionHub({
         return () => observer.disconnect();
     }, [section]);
     const quote = (id: string) => {
-        if (submitting.current || p.pending || !home.canPurchase) return;
+        if (submitting.current || p.manualLevel || p.pending || !home.canPurchase) return;
         const requestId = intents.current.get(id) ?? crypto.randomUUID();
         intents.current.set(id, requestId);
         submitting.current = true;
@@ -246,6 +247,7 @@ export default function PromotionHub({
                                     const reward =
                                         rank === 0 ? '20' : current ? p.reward : offer?.reward;
                                     const canUpgrade =
+                                        !p.manualLevel &&
                                         !!offer &&
                                         rank > p.rank &&
                                         (!p.cycle ||
@@ -270,7 +272,7 @@ export default function PromotionHub({
                                                     )}
                                                 </div>
                                                 <p className="promotion-level-price whitespace-nowrap text-right text-sm font-semibold leading-6 tabular-nums">
-                                                    {rank === 0 ? (
+                                                    {rank === 0 || (current && p.manualLevel) ? (
                                                         t('No annual fee')
                                                     ) : fee !== undefined ? (
                                                         <>
@@ -413,6 +415,13 @@ export default function PromotionHub({
                             <p className="text-center text-xs text-muted-foreground">
                                 {t('Swipe to compare levels')}
                             </p>
+                            {p.manualLevel && (
+                                <p className="mt-3 text-sm text-muted-foreground">
+                                    {t(
+                                        'Your promotion level is managed by the platform. No annual payment is needed. Contact support to change it.',
+                                    )}
+                                </p>
+                            )}
                             {!home.canPurchase && (
                                 <p className="mt-3 text-xs leading-5 text-muted-foreground">
                                     {t(

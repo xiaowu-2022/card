@@ -9,7 +9,7 @@ final readonly class KycOcrRequestDTO
     public function __construct(
         public KycDocumentType $documentType,
         public string $documentCountry,
-        public string $frontContents,
-        public string $backContents,
+        public string $frontUrl,
+        public string $backUrl,
     ) {}
 }

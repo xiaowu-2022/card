@@ -40,7 +40,7 @@ final class DatabaseSeeder extends Seeder
         }
 
         $permissions = collect([
-            'notifications.read', 'notifications.send', 'partners.manage', 'promotion_refunds.review', 'tenant.read', 'tenant.manage', 'users.read', 'users.suspend', 'wallet_topups.verify', 'wallet_topups.confirm',
+            'support.read', 'support.send', 'support.agents.manage', 'promotion_members.manage', 'notifications.read', 'notifications.send', 'storage.manage', 'partners.manage', 'promotion_refunds.review', 'tenant.read', 'tenant.manage', 'users.read', 'users.suspend', 'wallet_topups.verify', 'wallet_topups.confirm',
             'kyc.read', 'kyc.review', 'kyc.document.view', 'wallet.read', 'ledger.read', 'wallet_topups.read', 'withdrawals.read', 'withdrawals.review',
             'cards.read', 'cards.reveal_sensitive', 'card_load.process',
             'provider_operation.read', 'provider_operation.retry', 'provider_credentials.manage',
@@ -51,7 +51,7 @@ final class DatabaseSeeder extends Seeder
 
         $roles = [
             'PLATFORM_OWNER' => [ScopeType::Platform, $permissions->keys()->all()],
-            'PLATFORM_ADMIN' => [ScopeType::Platform, ['tenant.read', 'tenant.manage', 'admin_team.read', 'admin_team.manage', 'users.read', 'kyc.read', 'wallet.read', 'ledger.read', 'wallet_topups.read', 'wallet_topups.verify', 'wallet_topups.confirm', 'withdrawals.read', 'cards.read', 'card_product.read', 'card_product.manage', 'provider_operation.read', 'audit.read']],
+            'PLATFORM_ADMIN' => [ScopeType::Platform, ['promotion_members.manage', 'tenant.read', 'tenant.manage', 'admin_team.read', 'admin_team.manage', 'users.read', 'kyc.read', 'wallet.read', 'ledger.read', 'wallet_topups.read', 'wallet_topups.verify', 'wallet_topups.confirm', 'withdrawals.read', 'cards.read', 'card_product.read', 'card_product.manage', 'provider_operation.read', 'audit.read']],
             'PLATFORM_AUDITOR' => [ScopeType::Platform, ['tenant.read', 'users.read', 'kyc.read', 'wallet.read', 'ledger.read', 'withdrawals.read', 'cards.read', 'provider_operation.read', 'audit.read']],
             'TENANT_OWNER' => [ScopeType::Tenant, ['admin_team.read', 'admin_team.manage', 'tenant.activate', 'users.read', 'users.suspend', 'kyc.read', 'kyc.review', 'kyc.document.view', 'wallet.read', 'ledger.read', 'wallet_topups.read', 'withdrawals.read', 'withdrawals.review', 'cards.read', 'cards.reveal_sensitive', 'card_load.process', 'card_product.read', 'card_product.manage', 'card_limit.manage', 'tenant_settings.manage', 'audit.read']],
             'TENANT_ADMIN' => [ScopeType::Tenant, ['users.read', 'users.suspend', 'kyc.read', 'wallet.read', 'ledger.read', 'wallet_topups.read', 'withdrawals.read', 'withdrawals.review', 'cards.read', 'card_product.read', 'card_product.manage', 'tenant_settings.manage', 'audit.read']],
@@ -63,6 +63,9 @@ final class DatabaseSeeder extends Seeder
 
         $permissions->put('support.manage', Permission::query()->firstOrCreate(['name' => 'support.manage']));
         $roles['PLATFORM_ADMIN'][1][] = 'card_provider_reference.manage';
+        foreach (['support.read', 'support.send', 'support.agents.manage'] as $permission) {
+            $roles['PLATFORM_ADMIN'][1][] = $permission;
+        }
         $roles['PLATFORM_ADMIN'][1][] = 'notifications.read';
         $roles['PLATFORM_ADMIN'][1][] = 'notifications.send';
         $roles['PLATFORM_ADMIN'][1][] = 'promotion_refunds.review';

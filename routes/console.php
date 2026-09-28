@@ -19,3 +19,5 @@ Schedule::command('assets:scan BITCOIN')->everyMinute()->withoutOverlapping(30)-
 Schedule::command('wealth:recover')->everyMinute()->withoutOverlapping(30)->onOneServer();
 
 Schedule::command('messages:recover')->everyMinute()->withoutOverlapping(5)->onOneServer();
+
+Schedule::command('images:recover')->everyMinute()->withoutOverlapping(5)->onOneServer();

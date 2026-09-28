@@ -35,6 +35,28 @@ use App\Http\Middleware\PlatformCompanyConfiguration;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('platform')->name('platform.')->group(function (): void {
+    Route::middleware('admin.scope:platform,support.read')->group(function (): void {
+        Route::get('/support', [\App\Http\Controllers\Platform\SupportController::class, 'index'])->middleware('throttle:60,1');
+        Route::get('/tenants/{tenant}/support/users/{user}', [\App\Http\Controllers\Platform\SupportController::class, 'show'])->whereUuid(['tenant', 'user'])->middleware('throttle:60,1');
+        Route::get('/tenants/{tenant}/support/images/{message}', [\App\Http\Controllers\Platform\SupportController::class, 'image'])->whereUuid(['tenant', 'message'])->middleware('throttle:120,1');
+        Route::middleware('admin.scope:platform,support.send')->group(function (): void {
+            Route::get('/tenants/{tenant}/support/candidates', [\App\Http\Controllers\Platform\SupportController::class, 'candidates'])->whereUuid('tenant')->middleware('throttle:60,1');
+            Route::post('/tenants/{tenant}/support/users/{user}/messages', [\App\Http\Controllers\Platform\SupportController::class, 'send'])->whereUuid(['tenant', 'user'])->middleware('throttle:30,1');
+            Route::post('/support/profile', [\App\Http\Controllers\Platform\SupportController::class, 'profile'])->middleware('throttle:20,1');
+        });
+        Route::middleware('admin.scope:platform,support.agents.manage')->group(function (): void {
+            Route::get('/support/agents', [\App\Http\Controllers\Platform\SupportController::class, 'agents']);
+            Route::post('/support/agents/{agent}', [\App\Http\Controllers\Platform\SupportController::class, 'updateAgent'])->whereUuid('agent')->middleware('throttle:20,1');
+        });
+    });
+    Route::get('/settings', \App\Http\Controllers\Platform\SettingsController::class)->name('settings.index');
+    Route::middleware(['admin.scope:platform,storage.manage'])->group(function (): void {
+        Route::get('/settings/oss', [\App\Http\Controllers\Platform\OssSettingsController::class, 'show']);
+        Route::post('/settings/oss', [\App\Http\Controllers\Platform\OssSettingsController::class, 'save'])->middleware('throttle:10,1');
+        Route::post('/settings/oss/{configuration}/check', [\App\Http\Controllers\Platform\OssSettingsController::class, 'check'])->whereUuid('configuration')->middleware('throttle:10,1');
+        Route::post('/settings/oss/{configuration}/activate', [\App\Http\Controllers\Platform\OssSettingsController::class, 'activate'])->whereUuid('configuration')->middleware('throttle:10,1');
+    });
+
     Route::get('/notifications', [\App\Http\Controllers\Platform\InboxController::class, 'index'])->middleware('admin.scope:platform,notifications.read')->name('notifications');
     Route::middleware('admin.scope:platform,notifications.send')->group(function (): void {
         Route::get('/tenants/{tenant}/notifications/candidates', [\App\Http\Controllers\Platform\InboxController::class, 'candidates'])->whereUuid('tenant')->middleware('throttle:60,1');
@@ -55,12 +77,12 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::post('/settings/assets', [AssetsController::class, 'save'])->middleware('throttle:10,1')->name('assets.settings.save');
         Route::post('/tenants/{tenant}/assets/settings', [AssetsController::class, 'save'])->whereUuid('tenant')->middleware('throttle:10,1')->name('assets.company.save');
     });
-    Route::get('/asset-deposits', [AssetsController::class, 'deposits'])->middleware('admin.scope:platform,wallet_topups.read')->name('assets.deposits');
-    Route::get('/asset-withdrawals', [AssetsController::class, 'withdrawals'])->middleware('admin.scope:platform,withdrawals.read')->name('assets.withdrawals');
+    Route::get('/asset-deposits', fn (\Illuminate\Http\Request $request) => redirect()->route('platform.topups.all', $request->query()))->middleware('admin.scope:platform,wallet_topups.read')->name('assets.deposits');
+    Route::get('/asset-withdrawals', [\App\Http\Controllers\Platform\FundsOrdersController::class, 'withdrawals'])->middleware('admin.scope:platform,withdrawals.read')->name('assets.withdrawals');
     foreach (['confirm' => 'wallet_topups.confirm', 'recheck' => 'wallet_topups.verify', 'review' => 'withdrawals.review', 'verify' => 'withdrawals.review', 'reveal' => 'withdrawals.review'] as $action => $permission) {
         Route::post('/tenants/{tenant}/asset-orders/{order}/'.$action, [AssetsController::class, $action])->whereUuid(['tenant', 'order'])->middleware(['admin.scope:platform,'.$permission, 'throttle:5,1'])->name('assets.'.$action);
     }
-    Route::get('/asset-tron-withdrawals', [TronWithdrawalsController::class, 'index'])->middleware('admin.scope:platform,withdrawals.read')->name('assets.tron.withdrawals');
+    Route::get('/asset-tron-withdrawals', fn (\Illuminate\Http\Request $request) => redirect()->route('platform.assets.withdrawals', array_merge($request->query(), ['network' => 'TRON'])))->middleware('admin.scope:platform,withdrawals.read')->name('assets.tron.withdrawals');
     foreach (['review', 'verify', 'reveal'] as $action) {
         Route::post('/tenants/{tenant}/asset-tron-withdrawals/{order}/'.$action, [TronWithdrawalsController::class, $action])->whereUuid(['tenant', 'order'])->middleware(['admin.scope:platform,withdrawals.review', 'throttle:5,1'])->name('assets.tron.'.$action);
     }
@@ -85,6 +107,8 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware(['admin.scope:platform,cards.read', 'throttle:120,1'])->get('/tenants/{tenant}/cards/{card}/transactions', [CardOperationsController::class, 'transactions'])->whereUuid(['tenant', 'card'])->name('cards.transactions');
     Route::middleware(['admin.scope:platform,cards.read', 'throttle:30,1'])->post('/tenants/{tenant}/cards/{card}/refresh', [CardOperationsController::class, 'refresh'])->whereUuid(['tenant', 'card'])->name('cards.refresh');
     Route::middleware('admin.scope:platform,users.read')->get('/users', UserOperationsController::class)->name('users.index');
+    Route::middleware('admin.scope:platform,users.read')->get('/tenants/{tenant}/users/{user}/promotion', [\App\Http\Controllers\Platform\UserPromotionController::class, 'show'])->whereUuid(['tenant', 'user']);
+    Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,promotion_members.manage', 'throttle:20,1'])->post('/tenants/{tenant}/users/{user}/promotion', [\App\Http\Controllers\Platform\UserPromotionController::class, 'update'])->whereUuid(['tenant', 'user']);
     Route::middleware('admin.scope:platform,provider_operation.read')->get('/card-providers', CardProviderController::class)->name('card-providers.index');
     Route::middleware(['admin.scope:platform,card_provider_reference.manage', 'throttle:30,1'])->group(function (): void {
         Route::post('/card-providers/{reference}/check', [CardProviderController::class, 'check'])->whereUuid('reference')->name('card-providers.check');

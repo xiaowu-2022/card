@@ -41,7 +41,9 @@ final class PartnerReport
             $today = $at->setTimezone($company->timezone)->startOfDay();
             $team = $this->team($tenant, $user);
             $annual = DB::table('paid_promotion_orders')->where('tenant_id', $tenant)->whereIn('user_id', clone $team)->where('status', 'COMPLETED')->whereNotNull('ledger_entry_id');
-            $costs = app(PromotionReportQuery::class)->income($tenant, null)->whereIn('source_user_id', clone $team)->whereIn('kind', ['activation', 'legacy']);
+            $commissions = app(PromotionReportQuery::class)->income($tenant, null)->whereIn('source_user_id', clone $team);
+            $costs = (clone $commissions)->whereIn('kind', ['activation', 'legacy']);
+            $annualCommissions = (clone $commissions)->where('kind', 'annual');
             $deposits = DB::table('ledger_accounts as a')->where('a.tenant_id', $tenant)->whereIn('a.user_id', clone $team)->where('a.asset_code', 'USDT')->where('a.account_type', 'USER_SECURITY_DEPOSIT')
                 ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('paid_promotion_cycles as c')->whereColumn('c.tenant_id', 'a.tenant_id')->whereColumn('c.user_id', 'a.user_id')->where('c.starts_at', '<=', $at)->where('c.ends_at', '>', $at));
             $rebates = DB::table('paid_promotion_rebates')->where('tenant_id', $tenant)->whereIn('user_id', clone $team)->where('status', 'APPROVED')->whereNotNull('ledger_entry_id');
@@ -50,8 +52,8 @@ final class PartnerReport
             $fees = DB::table('asset_withdrawal_orders as w')->leftJoin('withdrawal_fee_valuations as v', fn ($j) => $j->on('v.withdrawal_id', '=', 'w.id')->on('v.tenant_id', '=', 'w.tenant_id'))->where('w.tenant_id', $tenant)->whereIn('w.user_id', clone $team)->where('w.status', 'COMPLETED')->whereNotNull('w.ledger_entry_id');
             $feeTotals = (clone $fees)->selectRaw("COALESCE(SUM(CASE WHEN w.asset_code='USDT' THEN w.fee_amount ELSE v.usdt_amount END),0) AS valued, COUNT(*) FILTER(WHERE w.asset_code<>'USDT' AND w.fee_amount>0 AND v.usdt_amount IS NULL) AS missing")->first();
             $tron = DB::table('withdrawal_orders')->where('tenant_id', $tenant)->whereIn('user_id', clone $team)->where('status', 'SUCCEEDED')->whereNotNull('settlement_ledger_entry_id')->sum('fee_amount');
-            $totals = ['annual' => $this->decimal((clone $annual)->sum('settlement_total')), 'deposits' => $this->decimal($deposits->sum('balance')), 'fees' => $this->decimal(BigDecimal::of($feeTotals->valued)->plus((string) $tron)), 'activation' => $this->decimal((clone $costs)->sum('amount')), 'rebates' => $this->decimal($rebates->sum('amount')), 'reimbursements' => $this->decimal($journalTotals->reimbursements), 'advances' => $this->decimal($journalTotals->advances)];
-            $stock = BigDecimal::of($totals['annual'])->plus($totals['deposits'])->plus($totals['fees'])->minus($totals['activation'])->minus($totals['rebates'])->minus($totals['reimbursements']);
+            $totals = ['annual' => $this->decimal((clone $annual)->sum('settlement_total')), 'deposits' => $this->decimal($deposits->sum('balance')), 'fees' => $this->decimal(BigDecimal::of($feeTotals->valued)->plus((string) $tron)), 'activation' => $this->decimal((clone $costs)->sum('amount')), 'annualCommission' => $this->decimal($annualCommissions->sum('amount')), 'rebates' => $this->decimal($rebates->sum('amount')), 'reimbursements' => $this->decimal($journalTotals->reimbursements), 'advances' => $this->decimal($journalTotals->advances)];
+            $stock = BigDecimal::of($totals['annual'])->plus($totals['deposits'])->plus($totals['fees'])->minus($totals['activation'])->minus($totals['annualCommission'])->minus($totals['rebates'])->minus($totals['reimbursements']);
             $firstDeposits = DB::table('account_activations as x')->join('ledger_postings as p', fn ($j) => $j->on('p.ledger_entry_id', '=', 'x.ledger_entry_id')->on('p.tenant_id', '=', 'x.tenant_id'))->join('ledger_accounts as a', fn ($j) => $j->on('a.id', '=', 'p.ledger_account_id')->on('a.tenant_id', '=', 'p.tenant_id')->on('a.user_id', '=', 'x.user_id'))
                 ->where('x.tenant_id', $tenant)->whereIn('x.user_id', clone $team)->where('x.source_type', 'DEPOSIT')->where('a.account_type', 'USER_SECURITY_DEPOSIT')->where('a.asset_code', 'USDT')->where('p.delta', '>', 0);
             $trends = [

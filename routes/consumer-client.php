@@ -13,6 +13,7 @@ use App\Http\Controllers\User\CardSetupController;
 use App\Http\Controllers\User\CardTransactionsController;
 use App\Http\Controllers\User\DashboardController;
 use App\Http\Controllers\User\ForgotPasswordController;
+use App\Http\Controllers\User\InboxController;
 use App\Http\Controllers\User\KycController;
 use App\Http\Controllers\User\PaidPromotionController;
 use App\Http\Controllers\User\PartnerReportController;
@@ -21,13 +22,14 @@ use App\Http\Controllers\User\PromotionController;
 use App\Http\Controllers\User\RegistrationController;
 use App\Http\Controllers\User\SecurityDepositController;
 use App\Http\Controllers\User\SupportController;
-use App\Http\Controllers\User\UserAuthController;
 use App\Http\Controllers\User\UserLocaleController;
 use App\Http\Controllers\User\WalletController;
 use App\Http\Controllers\User\WalletTopupController;
 use App\Http\Controllers\User\WalletTransferController;
 use App\Http\Controllers\User\WealthController;
 use App\Http\Controllers\User\WithdrawalController;
+use App\Http\Middleware\RequireConsumerApiGuest;
+use App\Http\Middleware\RequireConsumerApiUser;
 use App\Http\Middleware\ThrottleCardTransactionReads;
 use Illuminate\Support\Facades\Route;
 
@@ -35,7 +37,7 @@ use Illuminate\Support\Facades\Route;
 // No web HTML, admin routes, development fixtures or named-route overrides.
 Route::middleware('tenant.surface:end-user')->group(function (): void {
     Route::get('/', LandingController::class);
-    Route::middleware(\App\Http\Middleware\RequireConsumerApiGuest::class)->group(function (): void {
+    Route::middleware(RequireConsumerApiGuest::class)->group(function (): void {
         Route::get('/register', [RegistrationController::class, 'create']);
         Route::post('/register/challenges', [RegistrationController::class, 'storeChallenge']);
         Route::get('/register/challenges/{challenge}', [RegistrationController::class, 'showChallenge'])->whereUuid('challenge');
@@ -46,21 +48,21 @@ Route::middleware('tenant.surface:end-user')->group(function (): void {
 });
 
 Route::middleware('tenant.surface:user-auth')->group(function (): void {
-    Route::post('/locale', UserLocaleController::class)->middleware('throttle:30,1');
-    Route::middleware(\App\Http\Middleware\RequireConsumerApiGuest::class)->group(function (): void {
+    Route::post('/locale', UserLocaleController::class)->middleware('throttle:30,1,consumer-locale:');
+    Route::middleware(RequireConsumerApiGuest::class)->group(function (): void {
         Route::get('/forgot-password', [ForgotPasswordController::class, 'create']);
-        Route::post('/forgot-password', [ForgotPasswordController::class, 'start'])->middleware('throttle:5,1');
-        Route::get('/forgot-password/{reset}', [ForgotPasswordController::class, 'show'])->whereUuid('reset')->middleware('throttle:30,1');
-        Route::post('/forgot-password/{reset}', [ForgotPasswordController::class, 'complete'])->whereUuid('reset')->middleware('throttle:5,1');
+        Route::post('/forgot-password', [ForgotPasswordController::class, 'start'])->middleware('throttle:5,1,consumer-recovery-start:');
+        Route::get('/forgot-password/{reset}', [ForgotPasswordController::class, 'show'])->whereUuid('reset')->middleware('throttle:30,1,consumer-recovery-read:');
+        Route::post('/forgot-password/{reset}', [ForgotPasswordController::class, 'complete'])->whereUuid('reset')->middleware('throttle:5,1,consumer-recovery-complete:');
     });
 
-    Route::middleware([\App\Http\Middleware\RequireConsumerApiUser::class, 'tenant.surface:user-restricted'])->group(function (): void {
+    Route::middleware([RequireConsumerApiUser::class, 'tenant.surface:user-restricted'])->group(function (): void {
         Route::post('/support/read', [SupportController::class, 'read'])->middleware('throttle:120,1');
-        Route::get('/messages', [\App\Http\Controllers\User\InboxController::class, 'index']);
-        Route::get('/messages/unread-count', [\App\Http\Controllers\User\InboxController::class, 'unread'])->middleware('throttle:120,1');
-        Route::post('/messages/read-all', [\App\Http\Controllers\User\InboxController::class, 'readAll'])->middleware('throttle:30,1');
-        Route::get('/messages/{message}', [\App\Http\Controllers\User\InboxController::class, 'show'])->whereUuid('message');
-        Route::post('/messages/{message}/read', [\App\Http\Controllers\User\InboxController::class, 'read'])->whereUuid('message')->middleware('throttle:120,1');
+        Route::get('/messages', [InboxController::class, 'index']);
+        Route::get('/messages/unread-count', [InboxController::class, 'unread'])->middleware('throttle:120,1');
+        Route::post('/messages/read-all', [InboxController::class, 'readAll'])->middleware('throttle:30,1');
+        Route::get('/messages/{message}', [InboxController::class, 'show'])->whereUuid('message');
+        Route::post('/messages/{message}/read', [InboxController::class, 'read'])->whereUuid('message')->middleware('throttle:120,1');
         Route::get('/account/restricted', [AccountController::class, 'restricted']);
         Route::get('/account/security', [AccountController::class, 'security']);
         Route::get('/kyc', [KycController::class, 'show']);
@@ -72,7 +74,7 @@ Route::middleware('tenant.surface:user-auth')->group(function (): void {
     });
 });
 
-Route::middleware(['tenant.surface:end-user', \App\Http\Middleware\RequireConsumerApiUser::class, \App\Http\Middleware\RequireConsumerApiUser::class.':operational'])->group(function (): void {
+Route::middleware(['tenant.surface:end-user', RequireConsumerApiUser::class, RequireConsumerApiUser::class.':operational'])->group(function (): void {
     Route::post('/account/information/name', [AccountController::class, 'updateName'])->middleware('throttle:10,1');
     Route::post('/account/information/contacts', [AccountController::class, 'startContact'])->middleware('throttle:5,1');
     Route::post('/account/information/contacts/{change}/verify', [AccountController::class, 'completeContact'])->whereUuid('change')->middleware('throttle:5,1');
@@ -88,12 +90,12 @@ Route::middleware(['tenant.surface:end-user', \App\Http\Middleware\RequireConsum
     Route::post('/wealth/orders/{order}/redeem', [WealthController::class, 'redeem'])->whereUuid('order')->middleware('throttle:5,1');
     Route::post('/wealth/orders/{order}/cancel', [WealthController::class, 'cancel'])->whereUuid('order')->middleware('throttle:5,1');
     Route::get('/assets/operate', [AssetsController::class, 'show']);
-    Route::post('/assets/orders', [AssetsController::class, 'store'])->middleware('throttle:10,1');
-    Route::post('/assets/exchanges/{order}/confirm', [AssetsController::class, 'confirm'])->whereUuid('order')->middleware('throttle:10,1');
-    Route::post('/assets/withdrawals/{order}/cancel', [AssetsController::class, 'cancel'])->whereUuid('order')->middleware('throttle:10,1');
+    Route::post('/assets/orders', [AssetsController::class, 'store'])->middleware('throttle:10,1,consumer-asset-orders:');
+    Route::post('/assets/exchanges/{order}/confirm', [AssetsController::class, 'confirm'])->whereUuid('order')->middleware('throttle:10,1,consumer-exchange-confirm:');
+    Route::post('/assets/withdrawals/{order}/cancel', [AssetsController::class, 'cancel'])->whereUuid('order')->middleware('throttle:10,1,consumer-asset-cancel:');
     Route::get('/dashboard', DashboardController::class);
     Route::get('/wallet/transfer', [WalletTransferController::class, 'show']);
-    Route::post('/wallet/transfers', [WalletTransferController::class, 'store'])->middleware('throttle:5,1');
+    Route::post('/wallet/transfers', [WalletTransferController::class, 'store'])->middleware('throttle:5,1,consumer-transfer:');
     Route::get('/wallet/transfers/{transfer}', [WalletTransferController::class, 'show'])->whereUuid('transfer');
     Route::get('/cards', [CardsController::class, 'index']);
     Route::post('/cards/{card}/management', CardManagementController::class)
@@ -141,6 +143,4 @@ Route::middleware(['tenant.surface:end-user', \App\Http\Middleware\RequireConsum
     Route::get('/wallet/withdrawals/{withdrawal}', [WithdrawalController::class, 'show'])->whereUuid('withdrawal');
     Route::post('/wallet/withdrawals/{withdrawal}/cancel', [WithdrawalController::class, 'cancel'])->whereUuid('withdrawal')->middleware('throttle:withdrawals');
 
-
 });
-

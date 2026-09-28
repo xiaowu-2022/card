@@ -44,8 +44,9 @@ function phaseSixWallet($test, string $required = '50.00000000', string $availab
         'allow_wallet_topup' => true,
         'allow_withdrawal' => false,
     ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
+    fakeMatchingKycOcr('DEPOSIT-'.$test->user->id);
     $application = app(SubmitKycApplicationAction::class)->execute(
-        $test->tenant, $test->user, 'MY', 'DEPOSIT-'.$test->user->id,
+        $test->tenant, $test->user, 'CN', 'DEPOSIT-'.$test->user->id,
         kycTestImage('deposit-front.png'), kycTestImage('deposit-back.png'),
     );
     app(ApproveKycAction::class)->execute($test->tenant->id, $application->id, $test->owner);
@@ -152,8 +153,9 @@ it('fails closed when the wallet and required security deposit assets differ', f
     app(UpdateTenantBusinessSettingsAction::class)->execute($this->tenant, [
         'required_security_deposit_amount' => '50', 'required_security_deposit_asset' => 'USD', 'allow_wallet_topup' => true, 'allow_withdrawal' => false,
     ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
+    fakeMatchingKycOcr('DEPOSIT-ASSET-'.$this->user->id);
     $application = app(SubmitKycApplicationAction::class)->execute(
-        $this->tenant, $this->user, 'MY', 'DEPOSIT-ASSET-'.$this->user->id,
+        $this->tenant, $this->user, 'CN', 'DEPOSIT-ASSET-'.$this->user->id,
         kycTestImage('asset-front.png'), kycTestImage('asset-back.png'),
     );
     app(ApproveKycAction::class)->execute($this->tenant->id, $application->id, $this->owner);
@@ -169,7 +171,7 @@ it('keeps tenant boundaries and admin deposit views read only', function (): voi
     expect(fn () => app(FundSecurityDepositAction::class)->execute($tenantB->id, $this->user->id, (string) Str::uuid(), '50'))->toThrow(ModelNotFoundException::class);
     $this->actingAs($this->owner, 'tenant_admin')->get("http://a.localhost/admin/users/{$this->user->id}/wallet")
         ->assertOk()->assertInertia(fn ($page) => $page->where('wallet.securityDepositRequired.amount', '50.00000000')->where('wallet.securityDepositSatisfied', false));
-    expect(collect(Route::getRoutes())->pluck('uri')->filter(fn (string $uri): bool => preg_match('/security-deposit.*(adjust|refund|release)/', $uri) === 1)->values()->all())->toBe(['security-deposit/refund'])
+    expect(collect(Route::getRoutes())->pluck('uri')->filter(fn (string $uri): bool => preg_match('/security-deposit.*(adjust|refund|release)/', $uri) === 1)->values()->all())->toBe(['api/v1/client/security-deposit/refund', 'api/mobile/v1/client/security-deposit/refund', 'security-deposit/refund'])
         ->and($wallet->fresh()->tenant_id)->toBe($this->tenant->id);
     $this->post('http://a.localhost/admin/security-deposit/refund')->assertNotFound();
 });

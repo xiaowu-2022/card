@@ -1,6 +1,7 @@
 import { Link, router } from '@inertiajs/react';
 import { useState, type ReactNode } from 'react';
 import { t } from '@/i18n/admin';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -37,16 +38,30 @@ export function PlatformAccountTable<T extends { id: string }>({
     searchLabel,
     companies,
     extraQuery = {},
+    showFilters = true,
+    selectFilters = [],
+    rowKey = (row) => row.id,
 }: {
     page: AccountPage<T>;
-    columns: { label: string; render: (row: T) => ReactNode }[];
+    rowKey?: (row: T) => string;
+    columns: { label: string; className?: string; render: (row: T) => ReactNode }[];
     url: string;
-    filters: { search?: string; status?: string; company?: string };
+    filters: {
+        search?: string;
+        status?: string;
+        company?: string;
+        [key: string]: string | undefined;
+    };
     companies?: { id: string; name: string }[];
+    selectFilters?: { key: string; label: string; allLabel: string; values: string[] }[];
     extraQuery?: Record<string, string>;
+    showFilters?: boolean;
     statuses?: string[];
     searchLabel: string;
 }) {
+    const [additional, setAdditional] = useState<Record<string, string>>(() =>
+        Object.fromEntries(selectFilters.map((item) => [item.key, filters[item.key] ?? 'ALL'])),
+    );
     const [search, setSearch] = useState(filters.search ?? '');
     const [status, setStatus] = useState(filters.status ?? 'ALL');
     const [company, setCompany] = useState(filters.company ?? 'ALL');
@@ -57,98 +72,129 @@ export function PlatformAccountTable<T extends { id: string }>({
     };
     return (
         <div className="overflow-hidden rounded-xl border bg-surface">
-            <form
-                className="flex flex-wrap gap-3 border-b p-4"
-                onSubmit={(event) => {
-                    event.preventDefault();
-                    router.get(
-                        url,
-                        {
-                            ...extraQuery,
-                            company: companies && company !== 'ALL' ? company : undefined,
-                            search: search || undefined,
-                            status: statuses && status !== 'ALL' ? status : undefined,
-                        },
-                        { preserveState: true, replace: true },
-                    );
-                }}
-            >
-                {companies && (
-                    <Select value={company} onValueChange={setCompany}>
-                        <SelectTrigger className="w-48" aria-label={t('Filter by company')}>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="ALL">{t('All companies')}</SelectItem>
-                            {companies.map((item) => (
-                                <SelectItem key={item.id} value={item.id}>
-                                    {item.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                )}
-                <Input
-                    className="min-w-0 flex-1 basis-48"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    aria-label={searchLabel}
-                    placeholder={searchLabel}
-                />
-                {statuses && (
-                    <Select value={status} onValueChange={setStatus}>
-                        <SelectTrigger className="w-48" aria-label={t('Status')}>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="ALL">{t('All statuses')}</SelectItem>
-                            {statuses.map((value) => (
-                                <SelectItem key={value} value={value}>
-                                    {t(value)}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                )}
-                <Button type="submit" variant="secondary">
-                    {t('Apply')}
-                </Button>
-            </form>
+            {showFilters && (
+                <form
+                    className="flex flex-wrap gap-3 border-b p-4"
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        router.get(
+                            url,
+                            {
+                                ...extraQuery,
+                                ...Object.fromEntries(
+                                    Object.entries(additional).map(([key, value]) => [
+                                        key,
+                                        value === 'ALL' ? undefined : value,
+                                    ]),
+                                ),
+                                company: companies && company !== 'ALL' ? company : undefined,
+                                search: search || undefined,
+                                status: statuses && status !== 'ALL' ? status : undefined,
+                            },
+                            { preserveState: true, replace: true },
+                        );
+                    }}
+                >
+                    {companies && (
+                        <Select value={company} onValueChange={setCompany}>
+                            <SelectTrigger className="w-48" aria-label={t('Filter by company')}>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ALL">{t('All companies')}</SelectItem>
+                                {companies.map((item) => (
+                                    <SelectItem key={item.id} value={item.id}>
+                                        {item.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                    <Input
+                        className="min-w-0 flex-1 basis-48"
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        aria-label={searchLabel}
+                        placeholder={searchLabel}
+                    />
+                    {statuses && (
+                        <Select value={status} onValueChange={setStatus}>
+                            <SelectTrigger className="w-48" aria-label={t('Status')}>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ALL">{t('All statuses')}</SelectItem>
+                                {statuses.map((value) => (
+                                    <SelectItem key={value} value={value}>
+                                        {t(value)}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                    {selectFilters.map((item) => (
+                        <Select
+                            key={item.key}
+                            value={additional[item.key]}
+                            onValueChange={(value) =>
+                                setAdditional((current) => ({ ...current, [item.key]: value }))
+                            }
+                        >
+                            <SelectTrigger className="w-40" aria-label={t(item.label)}>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ALL">{t(item.allLabel)}</SelectItem>
+                                {item.values.map((value) => (
+                                    <SelectItem key={value} value={value}>
+                                        {value}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    ))}
+                    <Button type="submit" variant="secondary">
+                        {t('Apply')}
+                    </Button>
+                </form>
+            )}
             <div className="overflow-x-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
                             {columns.map((column) => (
-                                <TableHead className="whitespace-nowrap" key={column.label}>
+                                <TableHead
+                                    className={cn('whitespace-nowrap', column.className)}
+                                    key={column.label}
+                                >
                                     {t(column.label)}
                                 </TableHead>
                             ))}
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {page.data.length ? (
-                            page.data.map((row) => (
-                                <TableRow key={row.id}>
-                                    {columns.map((column) => (
-                                        <TableCell className="whitespace-nowrap" key={column.label}>
-                                            {column.render(row)}
-                                        </TableCell>
-                                    ))}
-                                </TableRow>
-                            ))
-                        ) : (
-                            <TableRow>
-                                <TableCell
-                                    colSpan={columns.length}
-                                    className="py-12 text-center text-muted-foreground"
-                                >
-                                    {t('No matching records.')}
-                                </TableCell>
-                            </TableRow>
-                        )}
+                        {page.data.length
+                            ? page.data.map((row) => (
+                                  <TableRow key={rowKey(row)}>
+                                      {columns.map((column) => (
+                                          <TableCell
+                                              className={cn('whitespace-nowrap', column.className)}
+                                              key={column.label}
+                                          >
+                                              {column.render(row)}
+                                          </TableCell>
+                                      ))}
+                                  </TableRow>
+                              ))
+                            : null}
                     </TableBody>
                 </Table>
             </div>
+            {page.data.length === 0 && (
+                <p className="px-4 py-12 text-center text-sm text-muted-foreground">
+                    {t('No matching records.')}
+                </p>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-3 border-t p-4 text-sm">
                 <span className="text-muted-foreground">
                     {t('Page {{page}} of {{pages}} · {{total}} records', {

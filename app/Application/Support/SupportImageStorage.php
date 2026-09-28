@@ -2,10 +2,9 @@
 
 namespace App\Application\Support;
 
+use App\Application\Media\ImageStorage;
 use App\Support\Errors\DomainException;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 final class SupportImageStorage
@@ -27,22 +26,17 @@ final class SupportImageStorage
         return ['contents' => $contents, 'mime' => $mime, 'hash' => hash_hmac('sha256', $contents, (string) config('app.key'))];
     }
 
-    public function store(string $tenantId, #[\SensitiveParameter] array $image): string
+    public function store(string $tenantId, #[\SensitiveParameter] array $image, ?string $reference = null): string
     {
         $path = 'support/'.$tenantId.'/'.Str::uuid().'.enc';
-        if (! Storage::disk('private')->put($path, Crypt::encryptString($image['contents']))) {
-            throw new DomainException('SUPPORT_IMAGE_UNAVAILABLE', 'Image upload failed. Please try again.');
-        }
+        app(ImageStorage::class)->put($tenantId, 'private', $path, $image['contents'], 'support', $reference, 'support');
 
         return $path;
     }
 
     public function read(#[\SensitiveParameter] string $path): string
     {
-        $contents = Storage::disk('private')->get($path);
-        abort_if($contents === null, 404);
-
-        return Crypt::decryptString($contents);
+        return app(ImageStorage::class)->read('private', $path, 'support');
     }
 
     /** Only the caller's newly staged, proven-unreferenced object may be discarded. */
@@ -52,8 +46,6 @@ final class SupportImageStorage
         if (! str_starts_with($path, $prefix) || ! preg_match('/^[a-f0-9-]{36}\.enc$/D', substr($path, strlen($prefix)))) {
             throw new \LogicException('Invalid staged image scope.');
         }
-        if (! Storage::disk('private')->delete($path)) {
-            throw new \RuntimeException('Staged image cleanup failed.');
-        }
+        app(ImageStorage::class)->discard('private', $path);
     }
 }

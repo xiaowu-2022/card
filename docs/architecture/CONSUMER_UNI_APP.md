@@ -13,37 +13,42 @@ No Capacitor dependencies/configuration remain. The prepare script copies only
 pure translation/data catalogs from the current frontend; it never copies PHP,
 `.env`, credentials, certificates or the repository into a cloud project.
 
-### Delivered foundation
+### Consumer implementation and acceptance
 
-- Company profile validation, generated manifest, distinct debug package ID,
-  deterministic company/mode/platform output folders and build metadata.
-- H5 and App resource compilation; no APK/IPA, signing or cloud submission.
-- Email/password login, company bootstrap, user account, language preference,
-  original-precision asset overview and existing masked card reads.
-- Messages: filters, 20-row pagination, escaped plain text detail, explicit POST
-  read/read-all, independent message/support badges and aggregate Me badge.
-- Support: scoped conversation and private image reads, text send with an immutable
-  retry intent, and POST acknowledgement of rendered sequences. No real messages sent.
-- Shared four-language catalogs and safe error copy, foreground-only unread refresh.
+The consumer routes are implemented in Vue/uni-app, including public landing,
+login/register/email challenges/recovery, account/settings/security/KYC, assets,
+wallets and all four-asset deposit/withdrawal/exchange/transfer views, security
+deposits, wealth purchases/interest/maturity/renewal/redemption, card applications,
+holder documents, shipping/physical activation, card management/reveal/reload/return,
+transactions, promotion purchase/upgrade/renewal/reports/posters, academy/articles,
+messages and support text/image uploads. Administration stays React/Inertia.
 
-### Still required before replacing H5 / publishing
+`pages/screen/index.vue` dispatches explicit consumer DTO components to Vue screens;
+this is not a WebView/iframe of old pages. Direct home/message/support pages use the
+same scoped API. Internal links stay in uni-app. Original approved images, four
+translation catalogs, precision helpers and geography data are bundled. App geography
+uses eager data imports because the App service bundle is an IIFE; H5 lazy-loads it.
 
-Registration and password recovery proof binding; account/security forms; KYC and
-cardholder uploads; card issue/reload/return/reveal/activation; deposits, withdrawals,
-transfers, exchanges, security deposits, wealth, promotion, academy and record links;
-support image upload; native sharing/deep links; complete original UI and financial
-confirmation parity; account deletion/privacy release requirements. Do not invent
-unimplemented financial controls or silently route a native transaction through a
-browser wrapper. Current asset/card pages are **read-only**.
+Original H5 remains the production baseline. Acceptance uses the **compiled** H5,
+not the dev server: isolated Pest DTOs plus explicitly synthetic read-model states
+are rendered by both React and uni-app, at 375/768/1440px in four languages. See
+`docs/testing/uni-app/PARITY.md` for the matrix and generated comparison gallery.
+Passing compilation and screenshot runtime checks alone does not certify every
+financial path or exact pixel equality. Human visual acceptance and signed native
+install/device acceptance remain separate.
 
-Native persistent authentication is also pending: bearer tokens currently stay only
-in memory (relaunch requires login). Do NOT replace this with uni storage, Preferences,
-localStorage, a hardcoded encryption key or insecure plugin fallbacks. Implement and
-device-test Keychain/Keystore storage before claiming secure persistent login.
+Native bearer tokens remain in memory: restarting the App requires login. No token,
+password, OTP, full PAN/CVV or PIN is persisted in uni storage. Adding persistent
+login requires a verified Keychain/Keystore bridge. Transfer retry intent stores
+only its scoped non-secret request ID, asset, amount and recipient; passwords and
+confirmations clear on submission/leave. Card details expire after 30 seconds and
+clear when leaving/hiding. UNKNOWN issuing/recipient/activation results are not
+silently re-submitted. Card transaction reads use platform records only.
 
 ## API and identity
 
-Both API families are explicitly routed in `routes/consumer-api.php`:
+API families are explicitly routed in `routes/consumer-api.php`, with full consumer
+screen/action adapters in `routes/consumer-client.php`:
 
 | Prefix | Authentication |
 | --- | --- |
@@ -56,6 +61,38 @@ and an H5 CSRF token (null on mobile). `POST login`, `POST logout`, `POST locale
 `GET messages/{uuid}`, `POST messages/{uuid}/read`, `POST messages/read-all`,
 `GET support`, `POST support/messages`, `POST support/read`,
 `GET support/images/{uuid}` are currently exposed.
+
+`/client/<original-consumer-path>` reuses the existing controllers, FormRequests,
+authorization, throttling and domain actions. `ConsumerPageResponse` emits allowlisted
+page JSON, converts local redirects into client navigation, translates flashed field
+errors to HTTP 422, strips client partial-Inertia headers and never returns admin
+props. API responses are private/no-store. There is no wildcard route to arbitrary
+controllers, mock payments or administration.
+
+Native multi-step registration/recovery/contact proofs use `X-Consumer-Flow`, an
+opaque random handle to an isolated server session. It is scoped to tenant, expires
+in two hours and is never authentication. Bearer authentication is checked separately.
+Flow requests are serialized, controller session rotation is retained, and changing
+the authenticated user clears previous flow proofs. Native registration completion
+issues its own scoped device token; H5 completion refreshes cookie-session bootstrap.
+
+Redirect flash messages/errors use that same isolated flow session. The request-scoped
+redirector is restored in finally, avoiding default/browser session leakage. Bootstrap,
+login, locale and recovery API limits use separate operation prefixes so routine reads
+cannot consume recovery attempts; the existing rates and tenant-host scope remain.
+Auth acceptance evidence: `docs/testing/uni-app/ACCEPTANCE_AUTH_20260926.md`.
+
+Transfers, asset order creation, exchange confirmation and asset withdrawal cancellation
+also have independent API throttle prefixes. Unread polling must not consume these
+financial-operation allowances. Asset acceptance evidence and remaining visual differences:
+`docs/testing/uni-app/ACCEPTANCE_ASSETS_20260926.md`.
+
+Card acceptance evidence, API adapter coverage and outstanding UI/device checks:
+`docs/testing/uni-app/ACCEPTANCE_CARDS_20260926.md`.
+H5 cardholder uploads decode the selected local blob and inspect PNG/JPEG signatures;
+the H5 image-info API does not supply the native MIME-type field. Server validation
+remains authoritative. App packaging/device testing is deferred at the user's request
+while H5 parity acceptance continues.
 
 Money remains decimal strings; no JavaScript-number financial calculations. Asset
 and card reads call the existing scoped queries, not providers or Ledger mutations.
@@ -92,3 +129,5 @@ Expired token cleanup may delete expired authentication rows only, never financi
 or identity records. Add a scoped maintenance command when native deployment begins.
 
 Build and cloud packaging instructions: [UNI_APP_PACKAGING.md](../deployment/UNI_APP_PACKAGING.md).
+
+Latest bounded PhotonPay sandbox lifecycle evidence: `docs/testing/uni-app/ACCEPTANCE_H5_20260927_R3.md`; broad H5 acceptance remains recorded in R2. Public callback delivery is not yet confirmed. This does not replace production deployment, device, or signed App release checks.

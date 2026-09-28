@@ -44,11 +44,19 @@ final class ConsumerFlowSession
             if ($userId) {
                 $session->put('consumer_user_id', $userId);
             }
+            // redirect()->with()/withErrors() must use the same isolated flow as
+            // request->session(), never the browser/default session store.
+            $previousRedirector = app('redirect');
+            $flowRedirector = clone $previousRedirector;
+            $flowRedirector->setSession($session);
+            app()->instance('redirect', $flowRedirector);
             try {
                 $response = $next($request);
                 $response->headers->set('X-Consumer-Flow', $token);
+
                 return $response;
             } finally {
+                app()->instance('redirect', $previousRedirector);
                 $session->save();
                 // Rotation by an existing domain controller preserves ownership of this flow.
                 Cache::put($key, $session->getId(), now()->addHours(2));

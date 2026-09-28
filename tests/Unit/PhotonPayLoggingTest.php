@@ -12,9 +12,10 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Monolog\Handler\TestHandler;
 use Monolog\Logger;
+use Tests\Concerns\RefreshIsolatedDatabase;
 use Tests\TestCase;
 
-uses(TestCase::class);
+uses(TestCase::class, RefreshIsolatedDatabase::class);
 
 it('correlates nested and deferred diagnostics and clears worker context after exceptions', function (): void {
     $eventId = '01a0a9ee-6adc-7277-ab91-312fee636acb';
@@ -171,8 +172,8 @@ it('records exact management amounts and expiry diagnostics without revealed car
 });
 
 it('logs rejected notification acknowledgements without raw bodies or headers', function (): void {
-    config(['card-provider.photonpay.webhook_public_key' => null]);
-    $this->call('POST', 'http://callback.example/webhooks/card-provider', [], [], [], [
+    $callback = photonWebhookFixtureUrl($this, 'invalid-test-key');
+    $this->call('POST', $callback, [], [], [], [
         'CONTENT_TYPE' => 'application/json', 'HTTP_X_PD_SIGN' => 'private-signature-marker',
         'HTTP_X_PD_NOTIFICATION_CATAGORY' => 'injected-category-marker',
         'HTTP_X_PD_NOTIFICATION_TYPE' => 'private-type-marker',
@@ -270,10 +271,10 @@ it('logs management history counts and refresh balances without private result f
 
 it('identifies signed callback validation failures without exposing field values', function (): void {
     $key = openssl_pkey_new(['private_key_bits' => 1024]);
-    config(['card-provider.photonpay.webhook_public_key' => openssl_pkey_get_details($key)['key']]);
+    $callback = photonWebhookFixtureUrl($this, openssl_pkey_get_details($key)['key']);
     $body = '{"cardId":"private-card-marker","requestId":{"secret":"private-field-marker"},"pan":"4111111111111111"}';
     openssl_sign($body, $signature, $key, OPENSSL_ALGO_MD5);
-    $this->call('POST', 'http://callback.example/webhooks/card-provider', [], [], [], [
+    $this->call('POST', $callback, [], [], [], [
         'CONTENT_TYPE' => 'application/json', 'HTTP_X_PD_SIGN' => base64_encode($signature),
         'HTTP_X_PD_NOTIFICATION_CATAGORY' => 'issuing', 'HTTP_X_PD_NOTIFICATION_TYPE' => 'auth',
     ], $body)->assertStatus(422)->assertExactJson(['roger' => false]);

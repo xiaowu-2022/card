@@ -83,7 +83,7 @@ final readonly class PromotionQuery
         foreach ($directAnnual as $source => $amount) {
             $directContributions[$source] = (string) BigDecimal::of($directContributions[$source] ?? '0')->plus($amount);
         }
-        $directRanks = DB::table('paid_promotion_cycles')->where('tenant_id', $tenantId)->whereIn('user_id', $direct->pluck('user_id'))->where('starts_at', '<=', now())->where('ends_at', '>', now())->pluck('rank', 'user_id');
+        $directRanks = DB::query()->fromSub(app(ManualPromotion::class)->query($tenantId), 'effective')->whereIn('user_id', $direct->pluck('user_id'))->pluck('rank', 'user_id');
         $annualAwards = DB::table('paid_promotion_shares as s')->join('paid_promotion_events as e', fn ($j) => $j->on('e.id', '=', 's.event_id')->on('e.tenant_id', '=', 's.tenant_id'))
             ->where('s.tenant_id', $tenantId)->where('s.user_id', $userId)->where('e.kind', 'ANNUAL')->where('s.amount', '>', 0)->where('e.occurred_at', '>=', $start)->where('e.occurred_at', '<', $end);
         $annualDaily = (string) (clone $annualAwards)->sum('s.amount');

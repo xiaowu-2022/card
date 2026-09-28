@@ -1,4 +1,5 @@
 export const clientPolishCatalog: Record<string, [string, string, string]> = {
+    'Loading…': ['加载中…', 'Memuatkan…', 'Cargando…'],
     'Latest transactions': ['最新交易', 'Transaksi terkini', 'Últimas transacciones'],
     'Featured services': ['精选服务', 'Perkhidmatan pilihan', 'Servicios destacados'],
     'Invite and earn': ['邀请推广', 'Jemput dan jana', 'Invita y gana'],

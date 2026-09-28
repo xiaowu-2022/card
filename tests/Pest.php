@@ -3,10 +3,15 @@
 use App\Application\CardProviderDirectory\PhotonPayAccounts;
 use App\Application\CardProviderDirectory\SaveCardProviderReferenceAction;
 use App\Application\Promotion\PromotionMembershipAction;
+use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Card\Models\CardProviderEvent;
 use App\Domain\CardProduct\Models\CardProduct;
+use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
+use App\Domain\Kyc\DTOs\KycOcrResultDTO;
+use App\Domain\Kyc\Enums\KycOcrOutcome;
 use App\Domain\Tenant\Models\Tenant;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Concerns\RefreshIsolatedDatabase;
@@ -20,6 +25,15 @@ function kycTestImage(string $name = 'identity.png'): UploadedFile
     $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true);
 
     return UploadedFile::fake()->createWithContent($name, $png ?: 'invalid');
+}
+
+/** Synthetic OCR evidence for isolated domain tests; does not call a real OCR service. */
+function fakeMatchingKycOcr(string $number): void
+{
+    $provider = Mockery::mock(KycOcrProviderInterface::class);
+    $provider->shouldReceive('name')->andReturn('TEST');
+    $provider->shouldReceive('extractIdentityDocument')->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, $number));
+    app()->instance(KycOcrProviderInterface::class, $provider);
 }
 
 function registrationTestInvitation(string $slug = 'tenant-a'): string
@@ -85,4 +99,14 @@ function storedCardNotificationFixture($resource, string $column, ?string $trans
         'event_digest' => hash('sha256', $resource->id.($transaction ?? '')), 'category' => 'issuing', 'event_type' => 'auth', 'transaction_id' => $transaction, 'status' => 'PENDING'])->save();
 
     return $event;
+}
+
+/** A persisted synthetic account for scoped webhook verification and diagnostics. */
+function photonWebhookFixtureUrl($test, string $publicKey): string
+{
+    $test->seed();
+    [$account] = photonAccountFixture(AdminUser::where('email', 'owner@platform.local')->firstOrFail());
+    $account->forceFill(['photonpay_webhook_key_encrypted' => Crypt::encryptString($publicKey)])->save();
+
+    return 'http://callback.example/webhooks/card-provider/'.$account->id;
 }

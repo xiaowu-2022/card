@@ -11,6 +11,14 @@ final readonly class SupportAccess
 {
     public function __construct(private AuthorizationService $authorization) {}
 
+    public function platform(string $adminId, string $permission = 'support.read'): void
+    {
+        $admin = AdminUser::query()->whereKey($adminId)->firstOrFail();
+        abort_unless($admin->status === AdminUserStatus::Active
+            && $this->authorization->allows($admin, ScopeType::Platform, null, 'support.read')
+            && $this->authorization->allows($admin, ScopeType::Platform, null, $permission), 403);
+    }
+
     public function admin(string $tenantId, string $adminId): void
     {
         $admin = AdminUser::query()->whereKey($adminId)->firstOrFail();

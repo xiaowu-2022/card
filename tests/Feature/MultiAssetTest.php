@@ -26,6 +26,9 @@ use App\Domain\Assets\ExchangePolicy;
 use App\Domain\Assets\MarketSettings;
 use App\Domain\Assets\MarketSnapshot;
 use App\Domain\Assets\WithdrawalFee;
+use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
+use App\Domain\Kyc\DTOs\KycOcrResultDTO;
+use App\Domain\Kyc\Enums\KycOcrOutcome;
 use App\Domain\Ledger\DTOs\LedgerPostingInstruction;
 use App\Domain\Ledger\DTOs\LedgerPostingPlan;
 use App\Domain\Ledger\Models\LedgerAccount;
@@ -68,10 +71,10 @@ beforeEach(function () {
     Queue::fake();
     $this->tenant = Tenant::where('slug', 'tenant-a')->firstOrFail();
     $this->user = User::where('tenant_id', $this->tenant->id)->firstOrFail();
-    $ocr = Mockery::mock(\App\Domain\Kyc\Contracts\KycOcrProviderInterface::class);
+    $ocr = Mockery::mock(KycOcrProviderInterface::class);
     $ocr->shouldReceive('name')->andReturn('TEST');
-    $ocr->shouldReceive('extractIdentityDocument')->andReturn(new \App\Domain\Kyc\DTOs\KycOcrResultDTO(\App\Domain\Kyc\Enums\KycOcrOutcome::Success, 'ASSET-'.$this->user->id));
-    app()->instance(\App\Domain\Kyc\Contracts\KycOcrProviderInterface::class, $ocr);
+    $ocr->shouldReceive('extractIdentityDocument')->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, 'ASSET-'.$this->user->id));
+    app()->instance(KycOcrProviderInterface::class, $ocr);
     $app = app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', 'ASSET-'.$this->user->id, kycTestImage(), kycTestImage());
     app(ApproveKycAction::class)->execute($this->tenant->id, $app->id, AdminUser::where('email', 'owner@a.localhost')->firstOrFail());
     app(ActivateUserWalletAction::class)->execute($this->tenant->id, $this->user->id);
@@ -381,7 +384,7 @@ it('exposes existing TRON withdrawals to SaaS with scoped review and no alternat
     ($this->fund)('USDT', '100');
     $order = app(CreateWithdrawalAction::class)->executeWithAddress($this->tenant->id, $this->user->id, (string) Str::uuid(), 'T'.str_repeat('A', 33), '10', null, '0');
     $platform = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
-    $this->actingAs($platform, 'platform_admin')->get('http://admin.localhost/platform/asset-tron-withdrawals')->assertOk()->assertInertia(fn ($page) => $page->where('orders.data.0.id', $order->id)->where('orders.data.0.legacy', true));
+    $this->actingAs($platform, 'platform_admin')->get('http://admin.localhost/platform/asset-withdrawals?network=TRON')->assertOk()->assertInertia(fn ($page) => $page->where('orders.data.0.id', $order->id)->where('orders.data.0.legacy', true));
     $other = Tenant::where('slug', 'tenant-b')->firstOrFail();
     $this->post("http://admin.localhost/platform/tenants/{$other->id}/asset-tron-withdrawals/{$order->id}/review", ['approve' => true, 'confirmed' => true])->assertNotFound();
     $this->post("http://admin.localhost/platform/tenants/{$this->tenant->id}/asset-tron-withdrawals/{$order->id}/review", ['approve' => true, 'confirmed' => true])->assertRedirect();
@@ -1016,3 +1019,116 @@ it('requires two spare chain decimals in native minimum configuration', function
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     expect(fn () => app(ConfigureAssetsAction::class)->execute($actor, ['kind' => 'company-rail', 'code' => $rail, 'deposit_enabled' => true, 'withdrawal_enabled' => false, 'minimum' => $minimum], $this->tenant))->toThrow(DomainException::class);
 })->with([['BTC_BITCOIN', '0.0000001'], ['ETH_ETHEREUM', '0.00000000000000001']]);
+
+it('adapts scoped deposit withdrawal and exchange flows without changing exact economics', function (string $mode): void {
+    ($this->fund)('ETH', '10');
+    $base = 'http://a.localhost/api/'.($mode === 'native' ? 'mobile/v1' : 'v1');
+    if ($mode === 'native') {
+        $token = $this->postJson($base.'/login', ['identifier' => $this->user->email, 'password' => 'local-password'])->assertCreated()->json('token');
+        $flow = $this->getJson($base.'/bootstrap')->assertOk()->headers->get('X-Consumer-Flow');
+        $this->withToken($token)->withHeader('X-Consumer-Flow', $flow);
+    } else {
+        $this->actingAs($this->user, 'tenant_user');
+    }
+    for ($i = 0; $i < 11; $i++) {
+        $this->getJson($base.'/unread')->assertOk();
+    }
+    foreach (['deposit', 'withdrawal', 'exchange'] as $operation) {
+        $body = ['mode' => $operation, 'asset' => 'ETH', 'rail' => 'ETH_ETHEREUM', 'amount' => '0.123456789123456789', 'request_id' => (string) Str::uuid(), 'address' => '0x'.str_repeat('2', 40), 'confirmed' => true, 'expected_fee' => '0.000000123456789124'];
+        $path = $this->postJson($base.'/client/assets/orders', $body)->assertOk()->json('redirect');
+        $this->postJson($base.'/client/assets/orders', $body)->assertOk()->assertJsonPath('redirect', $path);
+        $result = $this->getJson($base.'/client'.$path)->assertOk()->assertJsonPath('component', 'user/AssetFlow')->json('props.result');
+        expect($result['asset'])->toBe('ETH');
+        if ($operation !== 'deposit') {
+            expect($result['amount'])->toBe('0.123456789123456789');
+        }
+        if ($operation === 'exchange') {
+            $this->withHeader('X-Consumer-Page', $path)->postJson($base.'/client/assets/exchanges/'.$result['id'].'/confirm', ['confirmed' => false])->assertUnprocessable();
+            $this->postJson($base.'/client/assets/exchanges/'.$result['id'].'/confirm', ['confirmed' => true])->assertOk();
+            $count = LedgerEntry::count();
+            $this->postJson($base.'/client/assets/exchanges/'.$result['id'].'/confirm', ['confirmed' => true])->assertOk();
+            expect(LedgerEntry::count())->toBe($count);
+        } elseif ($operation === 'withdrawal') {
+            $this->withHeader('X-Consumer-Page', $path)->postJson($base.'/client/assets/withdrawals/'.$result['id'].'/cancel', [])->assertOk();
+            $this->getJson($base.'/client'.$path)->assertOk()->assertJsonPath('props.result.state', 'Cancelled');
+        }
+    }
+    $count = LedgerEntry::count();
+    $this->postJson($base.'/client/assets/orders', ['mode' => 'exchange', 'asset' => 'USDT', 'amount' => '1', 'request_id' => (string) Str::uuid()])->assertUnprocessable();
+    expect(LedgerEntry::count())->toBe($count);
+})->with(['native', 'web']);
+
+it('unifies deposit sources with company user asset network filters and stable cross-source pagination', function () {
+    $this->withoutVite();
+    config(['inertia.ssr.enabled' => false, 'payment.trc20_deposit_address' => 'T111111111111111111111111111111111']);
+    $primary = app(\App\Application\Payment\CreateTrc20WalletTopupAction::class)->execute($this->tenant->id, $this->user->id, '100', (string) Str::uuid())->order;
+    $assets = [];
+    for ($i = 0; $i < 26; $i++) {
+        $assets[] = app(DepositAssetsAction::class)->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', (string) Str::uuid());
+    }
+    $count = LedgerEntry::count();
+    $balances = LedgerAccount::orderBy('id')->pluck('balance', 'id')->all();
+    $this->actingAs(AdminUser::where('email', 'owner@platform.local')->firstOrFail(), 'platform_admin');
+    $base = 'http://admin.localhost/platform/topups';
+    $first = $this->get($base)->assertOk()->assertInertia(fn ($p) => $p->component('platform/AssetOrders')->where('orders.total', 27)->has('orders.data', 25));
+    $firstIds = collect($first->viewData('page')['props']['orders']['data'])->pluck('id')->all();
+    $second = $this->get($base.'?page=2')->assertOk()->assertInertia(fn ($p) => $p->has('orders.data', 2));
+    $secondIds = collect($second->viewData('page')['props']['orders']['data'])->pluck('id')->all();
+    expect(array_intersect($firstIds, $secondIds))->toBe([])->and(array_unique([...$firstIds, ...$secondIds]))->toHaveCount(27);
+    $this->get($base.'?asset=USDT&network=TRON&status=PENDING&company='.$this->tenant->id.'&search='.$this->user->account_id)->assertOk()->assertInertia(fn ($p) => $p
+        ->where('orders.total', 1)->where('orders.data.0.id', $primary->id)->where('orders.data.0.amount', $primary->amount)->where('orders.data.0.legacy', true));
+    $this->get($base.'?asset=ETH&network=ETHEREUM&search='.urlencode($this->user->email))->assertOk()->assertInertia(fn ($p) => $p
+        ->where('orders.total', 26)->where('orders.next_page_url', fn ($url) => str_contains($url, 'asset=ETH') && str_contains($url, 'network=ETHEREUM')));
+    $this->get($base.'?search='.strtoupper(substr(str_replace('-', '', $assets[0]->id), 0, 12)))->assertOk()->assertInertia(fn ($p) => $p
+        ->where('orders.total', 1)->where('orders.data.0.amount', $assets[0]->amount)->where('orders.data.0.accountId', $this->user->account_id)->where('orders.data.0.legacy', false));
+    $other = Tenant::where('slug', 'tenant-b')->firstOrFail();
+    $this->get($base.'?company='.$other->id)->assertOk()->assertInertia(fn ($p) => $p->where('orders.total', 0));
+    $this->get($base.'?asset=BTC')->assertOk()->assertInertia(fn ($p) => $p->where('orders.total', 0));
+    expect(LedgerEntry::count())->toBe($count)->and(LedgerAccount::orderBy('id')->pluck('balance', 'id')->all())->toBe($balances);
+    Http::assertNothingSent();
+});
+
+it('unifies withdrawal sources without revealing addresses or changing held funds', function () {
+    $this->withoutVite();
+    config(['inertia.ssr.enabled' => false]);
+    ($this->fund)('USDT', '100');
+    ($this->fund)('ETH', '1');
+    $tronAddress = 'T'.str_repeat('A', 33);
+    $ethAddress = '0x'.str_repeat('3', 40);
+    $primary = app(CreateWithdrawalAction::class)->executeWithAddress($this->tenant->id, $this->user->id, (string) Str::uuid(), $tronAddress, '10', null, '0');
+    $asset = app(WithdrawAssetsAction::class)->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '0.1', $ethAddress, '0.0000001', (string) Str::uuid(), true);
+    $entries = LedgerEntry::count();
+    $this->actingAs(AdminUser::where('email', 'owner@platform.local')->firstOrFail(), 'platform_admin');
+    $url = 'http://admin.localhost/platform/asset-withdrawals';
+    $response = $this->get($url)->assertOk()->assertInertia(fn ($p) => $p->where('orders.total', 2));
+    $data = $response->viewData('page')['props']['orders']['data'];
+    expect(json_encode($data))->not->toContain($tronAddress)->not->toContain($ethAddress);
+    $this->get($url.'?asset=ETH&network=ETHEREUM')->assertOk()->assertInertia(fn ($p) => $p->where('orders.total', 1)->where('orders.data.0.id', $asset->id)->where('orders.data.0.fee', $asset->fee_amount));
+    $this->get($url.'?network=TRON')->assertOk()->assertInertia(fn ($p) => $p->where('orders.total', 1)->where('orders.data.0.id', $primary->id));
+    $other = Tenant::where('slug', 'tenant-b')->firstOrFail();
+    $this->get($url.'?company='.$other->id)->assertOk()->assertInertia(fn ($p) => $p->where('orders.total', 0));
+    $this->post("http://admin.localhost/platform/tenants/{$other->id}/asset-orders/{$asset->id}/review", ['approve' => true, 'confirmed' => true])->assertNotFound();
+    expect($asset->fresh()->status)->toBe('PENDING')->and($primary->fresh()->status->value)->toBe('PENDING')->and(LedgerEntry::count())->toBe($entries);
+    Http::assertNothingSent();
+});
+
+it('keeps old financial list links usable and enforces read permission and valid filters', function () {
+    $this->withoutVite();
+    config(['inertia.ssr.enabled' => false]);
+    $owner = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $this->actingAs($owner, 'platform_admin');
+    $this->get('http://admin.localhost/platform/asset-deposits?asset=ETH')->assertRedirect('http://admin.localhost/platform/topups?asset=ETH');
+    $this->get('http://admin.localhost/platform/asset-tron-withdrawals?status=PENDING')->assertRedirect('http://admin.localhost/platform/asset-withdrawals?status=PENDING&network=TRON');
+    $this->getJson('http://admin.localhost/platform/topups?asset=INVALID')->assertUnprocessable();
+    $this->getJson('http://admin.localhost/platform/asset-withdrawals?network=INVALID')->assertUnprocessable();
+    $this->get('http://admin.localhost/platform/tenants/'.$this->tenant->id.'/topups?company='.Tenant::where('slug', 'tenant-b')->value('id'))->assertOk()->assertInertia(fn ($p) => $p->where('filters.company', $this->tenant->id));
+    $this->actingAs(AdminUser::where('email', 'owner@a.localhost')->firstOrFail(), 'platform_admin');
+    foreach (['topups', 'asset-deposits', 'asset-withdrawals', 'asset-tron-withdrawals'] as $path) {
+        $this->get('http://admin.localhost/platform/'.$path)->assertForbidden();
+    }
+    DB::table('role_permissions')->whereIn('permission_id', DB::table('permissions')->whereIn('name', ['wallet_topups.read', 'withdrawals.read'])->pluck('id'))->delete();
+    $this->actingAs($owner->fresh(), 'platform_admin');
+    foreach (['topups', 'asset-deposits', 'asset-withdrawals', 'asset-tron-withdrawals'] as $path) {
+        $this->get('http://admin.localhost/platform/'.$path)->assertForbidden();
+    }
+});

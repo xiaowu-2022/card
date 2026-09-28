@@ -251,8 +251,8 @@ it('manually confirms the exact full amount without any online call and credits 
         ->and(app(PaymentLedgerReconciliationService::class)->mismatches($this->tenant->id))->toBe([]);
     $this->get("http://admin.localhost/platform/tenants/{$this->tenant->id}/topups")->assertOk()
         ->assertInertia(fn ($page) => $page->where('orders.data.0.manuallyConfirmed', true)
-            ->where('orders.data.0.manualConfirmedBy', ['id' => $owner->id, 'name' => $owner->name])
-            ->where('orders.data.0.manualConfirmedAt', $saved->manual_confirmed_at->toIso8601String()));
+            ->where('orders.data.0.operator', $owner->name)
+            ->where('orders.data.0.operated_at', $saved->manual_confirmed_at->toIso8601String()));
     $this->get('http://admin.localhost/platform/financial-operations?company='.$this->tenant->id.'&search='.$order->id)->assertOk()
         ->assertInertia(fn ($page) => $page->has('operations.data', 1)->where('operations.data.0.operatorId', $owner->id)
             ->where('operations.data.0.action', 'PLATFORM_TOPUP_MANUALLY_CONFIRMED')->missing('operations.data.0.after_data'));

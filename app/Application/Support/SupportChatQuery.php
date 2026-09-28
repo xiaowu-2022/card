@@ -4,6 +4,7 @@ namespace App\Application\Support;
 
 use App\Domain\Support\Models\SupportConversation;
 use App\Domain\Support\Models\SupportMessage;
+use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 
 final readonly class SupportChatQuery
@@ -42,6 +43,31 @@ final readonly class SupportChatQuery
         ])->all()];
     }
 
+    public function platform(string $tenantId, string $adminId, string $userId, int $before = 0): array
+    {
+        $this->access->platform($adminId);
+        $user = User::query()->where('tenant_id', $tenantId)->whereKey($userId)->firstOrFail();
+        $conversation = SupportConversation::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->first();
+        $chat = $this->thread($tenantId, $conversation, $before, true);
+        foreach ($chat['messages'] as &$message) {
+            if ($message['imageUrl']) {
+                $message['imageUrl'] = '/platform/tenants/'.$tenantId.'/support/images/'.$message['id'];
+            }
+        }
+
+        return $chat + ['accountId' => $user->account_id, 'email' => $user->email, 'tenantId' => $tenantId, 'userId' => $userId,
+            'company' => Tenant::findOrFail($tenantId)->name];
+    }
+
+    public function platformImage(string $tenantId, string $adminId, string $messageId): array
+    {
+        $this->access->platform($adminId);
+        $message = SupportMessage::query()->where('tenant_id', $tenantId)->whereKey($messageId)->firstOrFail();
+        abort_unless($message->image_object_key, 404);
+
+        return ['path' => $message->image_object_key, 'mime' => $message->image_mime];
+    }
+
     public function image(string $tenantId, string $actorId, string $messageId, bool $admin): array
     {
         if ($admin) {
@@ -71,6 +97,7 @@ final readonly class SupportChatQuery
             'messages' => $visible->map(fn (SupportMessage $message): array => [
                 'id' => $message->id, 'sequence' => $message->sequence,
                 'fromSupport' => $message->sender_admin_id !== null,
+                'supportName' => $message->sender_admin_id ? $message->support_name : null,
                 'text' => $message->support_message, 'createdAt' => $message->created_at->toIso8601String(),
                 'imageUrl' => $message->image_mime ? ($admin ? '/admin/support/images/' : '/support/images/').$message->id : null,
             ])->all(),

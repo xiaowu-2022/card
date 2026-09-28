@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\ViewErrorBag;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -26,7 +27,7 @@ final class ConsumerPageResponse
             'tenant' => ['id' => $tenant->id, 'name' => $tenant->name, 'branding' => [
                 'brandName' => $tenant->branding?->brand_name ?? $tenant->name,
                 'primaryColor' => $tenant->branding?->primary_color ?? '#39AD8D',
-                'logoUrl' => $tenant->branding?->logo_object_key ? Storage::disk('public')->url($tenant->branding->logo_object_key) : null,
+                'logoUrl' => $tenant->branding?->logo_object_key ? app(\App\Application\Media\ImageStorage::class)->url('public', $tenant->branding->logo_object_key) : null,
             ]],
             'auth' => ['user' => $user ? ['id' => $user->id, 'accountId' => $user->account_id,
                 'displayName' => $user->profile?->display_name, 'email' => $user->email,
@@ -45,7 +46,7 @@ final class ConsumerPageResponse
         $response = $next($request);
         if ($response->isRedirection()) {
             $errors = $request->session()->pull('errors');
-            if ($errors instanceof \Illuminate\Support\ViewErrorBag && $errors->any()) {
+            if ($errors instanceof ViewErrorBag && $errors->any()) {
                 return response()->json(['errors' => $errors->getBag('default')->messages()], 422)
                     ->header('Cache-Control', 'private, no-store');
             }
@@ -62,6 +63,7 @@ final class ConsumerPageResponse
             $response = response()->json(['component' => $page['component'], 'props' => $page['props']]);
         }
         $response->headers->set('Cache-Control', 'private, no-store');
+
         return $response;
     }
 }

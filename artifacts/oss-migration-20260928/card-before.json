@@ -1,0 +1,10 @@
+{
+    "environment": "sandbox",
+    "execute": false,
+    "opening_fee": "2.00000000",
+    "initial_amount": "20.00",
+    "existing_issue_count": 2,
+    "original_limit": 1,
+    "issue": null,
+    "result": "INSPECTED"
+}

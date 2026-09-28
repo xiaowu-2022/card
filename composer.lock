@@ -4,8 +4,53 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "731c6fb2cb89b643ef69ee5871019cd8",
+    "content-hash": "90b3d3442c2cf3038c7203350ff2bc9a",
     "packages": [
+        {
+            "name": "aliyuncs/oss-sdk-php",
+            "version": "v2.7.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/aliyun/aliyun-oss-php-sdk.git",
+                "reference": "10dbd2a7253131da60629d431c8eb6c216fbbbf7"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/aliyun/aliyun-oss-php-sdk/zipball/10dbd2a7253131da60629d431c8eb6c216fbbbf7",
+                "reference": "10dbd2a7253131da60629d431c8eb6c216fbbbf7",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=5.3"
+            },
+            "require-dev": {
+                "php-coveralls/php-coveralls": "*",
+                "phpunit/phpunit": "*"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "OSS\\": "src/OSS"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Aliyuncs",
+                    "homepage": "http://www.aliyun.com"
+                }
+            ],
+            "description": "Aliyun OSS SDK for PHP",
+            "homepage": "http://www.aliyun.com/product/oss/",
+            "support": {
+                "issues": "https://github.com/aliyun/aliyun-oss-php-sdk/issues",
+                "source": "https://github.com/aliyun/aliyun-oss-php-sdk/tree/v2.7.3"
+            },
+            "time": "2026-06-26T07:23:48+00:00"
+        },
         {
             "name": "brick/math",
             "version": "0.18.0",

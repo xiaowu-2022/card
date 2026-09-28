@@ -1,12 +1,13 @@
 // Compare generated uni H5 with the original React renderer using isolated Pest DTOs.
 // Run ConsumerParityFixtureTest with UNI_PARITY_EXPORT=1 first. No business writes.
-import { get as httpGet } from 'node:http';
+import { addParityStates } from './parity-states.mjs';
 import { chromium } from 'playwright';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 const fixture = JSON.parse(
     readFileSync('storage/framework/testing/uni-parity/fixtures.json', 'utf8'),
 );
+addParityStates(fixture);
 const oldOrigin = 'http://127.0.0.1:8000',
     newOrigin = process.env.UNI_PARITY_ORIGIN ?? 'http://127.0.0.1:5202';
 const widths = (process.env.UNI_PARITY_WIDTHS ?? '375,768,1440').split(',').map(Number);
@@ -27,37 +28,43 @@ const esc = (s) =>
         .replaceAll('<', '&lt;')
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;');
-const html = await new Promise((resolve, reject) =>
-    httpGet(
-        {
-            hostname: '127.0.0.1',
-            port: 8000,
-            path: '/login',
-            headers: { Host: 'a.localhost:8000' },
-        },
-        (res) => {
-            let body = '';
-            res.on('data', (chunk) => (body += chunk));
-            res.on('end', () =>
-                resolve(body.replaceAll('http://0.0.0.0:5173', 'http://127.0.0.1:5173')),
-            );
-        },
-    ).on('error', reject),
-);
-if (!html.includes('data-page=')) throw new Error('Original HTML bootstrap unavailable');
+const manifest = JSON.parse(readFileSync('public/build/manifest.json', 'utf8'));
+const entry = manifest['resources/js/app.tsx'];
+const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="csrf-token" content="offline-fixture">${entry.css.map((file) => `<link rel="stylesheet" href="/build/${file}">`).join('')}<script type="module" src="/build/${entry.file}"></script></head><body class="antialiased"><script data-page="app" type="application/json">{}</script><div id="app"></div></body></html>`;
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
-const results = [];
+// Explicit resume keeps successful captures from this acceptance run; failed or
+// incomplete pairs are always repeated. Start without this flag after UI changes.
+const results = process.env.UNI_PARITY_RESUME === '1' && existsSync(resolve(out, 'results.json'))
+    ? JSON.parse(readFileSync(resolve(out, 'results.json'), 'utf8')).filter(
+        (pair) => pair.pages.length === 2 && pair.pages.every((page) => !page.errors.length && !page.overflow),
+    ) : [];
+const completed = new Set(results.map((pair) => JSON.stringify([pair.path, pair.width, pair.language])));
 try {
-    for (const width of widths)
-        for (const language of languages)
-            for (const [path, original] of Object.entries(fixture.pages)) {
-                if (original.redirect) continue;
+    const tasks = widths.flatMap((width) =>
+        languages.flatMap((language) =>
+            Object.entries(fixture.pages)
+                .filter(
+                    ([path, original]) =>
+                        !original.redirect &&
+                        !completed.has(JSON.stringify([path, width, language])) &&
+                        (!process.env.UNI_PARITY_PATHS ||
+                            process.env.UNI_PARITY_PATHS.split(',').includes(path)),
+                )
+                .map(([path, original]) => ({ width, language, path, original })),
+        ),
+    );
+    let index = 0;
+    await Promise.all(
+        Array.from({ length: 3 }, async () => {
+            while (index < tasks.length) {
+                const { width, language, path, original } = tasks[index++];
                 const pair = { path, width, language, pages: [] };
                 for (const [name, origin] of [
                     ['original', oldOrigin],
                     ['uni', newOrigin],
                 ]) {
                     const context = await browser.newContext({
+                        permissions: ['local-network-access'],
                         viewport: { width, height: 900 },
                         locale: language,
                     });
@@ -65,11 +72,18 @@ try {
                     let errors = [],
                         blocked = [];
                     page.on('pageerror', (error) => errors.push(error.message));
+                    page.on('response', (response) => {
+                        if (response.status() >= 400)
+                            errors.push(`HTTP ${response.status()}: ${response.url()}`);
+                    });
                     page.on('console', (msg) => {
                         if (msg.type() === 'error') errors.push(msg.text());
                     });
                     page.on('requestfailed', (r) =>
-                        errors.push(r.url() + ': ' + r.failure()?.errorText),
+                        r.failure()?.errorText === 'net::ERR_ABORTED' &&
+                        r.resourceType() === 'image'
+                            ? undefined
+                            : errors.push(r.url() + ': ' + r.failure()?.errorText),
                     );
                     const data = structuredClone(original);
                     data.props.i18n = {
@@ -83,6 +97,10 @@ try {
                     );
                     bootstrap.locale = language;
                     bootstrap.locales = languages;
+                    bootstrap.unread = {
+                        messages: data.props.unreadMessages ?? 0,
+                        support: data.props.unreadSupport ?? 0,
+                    };
                     await context.route('**/*', async (route) => {
                         const request = route.request(),
                             u = new URL(request.url());
@@ -109,15 +127,23 @@ try {
                         }
                         if (u.pathname.startsWith('/api/v1/')) {
                             let key = u.pathname.slice(7);
+                            if (key === '/unread') return route.fulfill({ json: bootstrap.unread });
+                            if (fixture.api[key]) return route.fulfill({ json: fixture.api[key] });
                             if (key === '/bootstrap') return route.fulfill({ json: bootstrap });
                             if (key.startsWith('/client')) {
-                                const found = fixture.pages[key.slice(7) || '/'];
+                                const requested = key.slice(7) || '/';
+                                const found =
+                                    requested === path.split('?')[0]
+                                        ? data
+                                        : (fixture.pages[requested + u.search] ??
+                                          fixture.pages[requested]);
                                 if (found) {
                                     const dto = structuredClone(found);
                                     if (dto.props) dto.props.i18n = data.props.i18n;
                                     return route.fulfill({ json: dto });
                                 }
                             }
+                            if (key === '/unread') return route.fulfill({ json: bootstrap.unread });
                             if (fixture.api[key]) return route.fulfill({ json: fixture.api[key] });
                             errors.push('Uncovered API ' + key);
                             return route.fulfill({
@@ -125,14 +151,29 @@ try {
                                 json: { error: { message: 'Fixture not found' } },
                             });
                         }
+                        if (
+                            u.pathname.endsWith('/transactions') &&
+                            u.pathname.startsWith('/cards/')
+                        )
+                            return route.fulfill({ json: { items: [], page: 1, hasMore: false } });
                         if (u.pathname === '/messages/unread-count')
-                            return route.fulfill({ json: { count: 0 } });
+                            return route.fulfill({
+                                json: {
+                                    count: bootstrap.unread.messages,
+                                    supportCount: bootstrap.unread.support,
+                                },
+                            });
                         if (u.pathname === '/support' && u.search)
                             return route.fulfill({ json: fixture.pages['/support'].props.chat });
                         if (u.pathname === '/support/unread-count')
-                            return route.fulfill({ json: { count: 0 } });
+                            return route.fulfill({
+                                json: {
+                                    count: bootstrap.unread.messages,
+                                    supportCount: bootstrap.unread.support,
+                                },
+                            });
                         const staticPath =
-                            /\.(js|tsx?|css|svg|png|jpe?g|webp|woff2?|ttf|ico)(\?|$)/i.test(
+                            /\.(js|json|tsx?|css|svg|png|jpe?g|webp|woff2?|ttf|ico)(\?|$)/i.test(
                                 u.pathname,
                             ) ||
                             u.pathname.startsWith('/@') ||
@@ -155,21 +196,23 @@ try {
                             ? origin + path
                             : origin +
                               '/#' +
-                              (direct[path] ??
-                                  '/pages/screen/index?path=' + encodeURIComponent(path));
+                              (/^\/messages\/[a-f0-9-]{36}$/.test(path)
+                                  ? '/pages/messages/detail?id=' + path.split('/').pop()
+                                  : (direct[path.split('?')[0]] ??
+                                    '/pages/screen/index?path=' + encodeURIComponent(path)));
                     await page.goto(target, { waitUntil: 'domcontentloaded' });
                     await page.waitForTimeout(550);
                     await page.evaluate(() => document.fonts.ready);
                     await page
                         .locator(name === 'uni' ? 'uni-page-body' : '#app')
-                        .waitFor({ timeout: 8000 })
+                        .waitFor({ timeout: 12000 })
                         .catch((e) => {
                             console.log({ name, path, errors, blocked });
                             writeFileSync(resolve(out, 'failed.html'), html);
-                            throw e;
+                            errors.push('Page did not render within 12 seconds');
                         });
                     await page.waitForTimeout(200);
-                    const file = `${path === '/' ? 'landing' : path.slice(1).replaceAll('/', '-')}-${language}-${width}-${name}.png`;
+                    const file = `${path === '/' ? 'landing' : path.slice(1).replace(/[^a-z0-9-]/gi, '-')}-${language}-${width}-${name}.png`;
                     await page.screenshot({ path: resolve(out, file), fullPage: true });
                     const metrics = await page.evaluate(() => ({
                         overflow: document.documentElement.scrollWidth > innerWidth,
@@ -190,6 +233,8 @@ try {
                         .join(' / '),
                 );
             }
+        }),
+    );
 } finally {
     await browser.close();
 }

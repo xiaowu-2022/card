@@ -34,6 +34,7 @@ final readonly class PaidPromotionPurchase
 
                 return $existing;
             }
+            app(ManualPromotion::class)->assertPurchasable($tenant, $user);
             $level = DB::table('paid_promotion_levels')->where('tenant_id', $tenant)->where('id', $levelId)->where('enabled', true)->firstOrFail();
             $cycle = $this->rules->cycle($tenant, $user);
             $this->assertUpgrade($tenant, $cycle, $level);
@@ -65,6 +66,7 @@ final readonly class PaidPromotionPurchase
             if (CarbonImmutable::parse($order->expires_at)->lessThanOrEqualTo(now())) {
                 throw new DomainException('PROMOTION_QUOTE_EXPIRED', 'The promotion quote expired. Request a new quote.', 409);
             }
+            app(ManualPromotion::class)->assertPurchasable($tenant, $user);
             $level = DB::table('paid_promotion_levels')->where('tenant_id', $tenant)->where('id', $order->level_id)->where('enabled', true)->firstOrFail();
             $cycle = $this->rules->cycle($tenant, $user);
             if ($level->revision !== $order->revision || $order->cycle_id !== $cycle?->id || BigDecimal::of($order->previous_tariff)->compareTo($cycle?->tariff ?? '0') !== 0) {

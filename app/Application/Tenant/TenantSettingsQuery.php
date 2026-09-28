@@ -2,6 +2,7 @@
 
 namespace App\Application\Tenant;
 
+use App\Application\Media\ImageStorage;
 use App\Domain\Tenant\Models\PlatformKycSetting;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\Tenant\Models\TenantArticle;
@@ -20,8 +21,8 @@ final class TenantSettingsQuery
                 'supportEmail' => $tenant->branding->support_email,
                 'supportUrl' => $tenant->branding->support_url,
                 'copyrightText' => $tenant->branding->copyright_text,
-                'logoUrl' => $tenant->branding->logo_object_key ? asset('storage/'.$tenant->branding->logo_object_key) : null,
-                'faviconUrl' => $tenant->branding->favicon_object_key ? asset('storage/'.$tenant->branding->favicon_object_key) : null,
+                'logoUrl' => $tenant->branding->logo_object_key ? app(ImageStorage::class)->url('public', $tenant->branding->logo_object_key) : null,
+                'faviconUrl' => $tenant->branding->favicon_object_key ? app(ImageStorage::class)->url('public', $tenant->branding->favicon_object_key) : null,
             ],
             'locales' => $tenant->locales->map(fn ($locale) => ['locale' => $locale->locale, 'enabled' => $locale->enabled, 'default' => $locale->is_default]),
             'business' => [

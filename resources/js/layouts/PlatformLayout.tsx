@@ -9,6 +9,7 @@ import {
     CreditCard,
     FileCheck2,
     Menu,
+    MessageSquare,
     ReceiptText,
     ServerCog,
     ShieldCheck,
@@ -16,6 +17,7 @@ import {
     WalletCards,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { AppMark } from '@/components/shared/AppMark';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -26,9 +28,17 @@ import {
     SheetTitle,
     SheetTrigger,
 } from '@/components/ui/sheet';
+import { cn } from '@/lib/utils';
 import type { SharedProps } from '@/types/global';
 
-const groups = [
+type PlatformNavItem = {
+    label: string;
+    href: string;
+    icon: LucideIcon;
+    permission?: string;
+    anyPermissions?: string[];
+};
+const groups: { label: string; items: PlatformNavItem[] }[] = [
     {
         label: 'Workspace',
         items: [
@@ -39,8 +49,24 @@ const groups = [
     {
         label: 'Operations',
         items: [
-            { label: 'Partners', href: '/platform/partners', icon: Users, permission: 'partners.manage' },
-            { label: 'Notifications', href: '/platform/notifications', icon: ReceiptText, permission: 'notifications.read' },
+            {
+                label: 'Partners',
+                href: '/platform/partners',
+                icon: Users,
+                permission: 'partners.manage',
+            },
+            {
+                label: 'Notifications',
+                href: '/platform/notifications',
+                icon: ReceiptText,
+                permission: 'notifications.read',
+            },
+            {
+                label: 'Customer support',
+                href: '/platform/support',
+                icon: MessageSquare,
+                permission: 'support.read',
+            },
             { label: 'Users', href: '/platform/users', icon: Users, permission: 'users.read' },
             { label: 'KYC', href: '/platform/kyc', icon: FileCheck2, permission: 'kyc.read' },
             {
@@ -51,19 +77,13 @@ const groups = [
             },
             { label: 'Cards', href: '/platform/cards', icon: CreditCard },
             {
-                label: 'Payment orders',
+                label: 'Deposit orders',
                 href: '/platform/topups',
                 icon: ReceiptText,
                 permission: 'wallet_topups.read',
             },
             {
-                label: 'Multi-currency deposits',
-                href: '/platform/asset-deposits',
-                icon: ReceiptText,
-                permission: 'wallet_topups.read',
-            },
-            {
-                label: 'Multi-currency withdrawals',
+                label: 'Withdrawal orders',
                 href: '/platform/asset-withdrawals',
                 icon: ReceiptText,
                 permission: 'withdrawals.read',
@@ -81,34 +101,10 @@ const groups = [
         label: 'Control',
         items: [
             {
-                label: 'Multi-currency settings',
-                href: '/platform/settings/assets',
+                label: 'System settings',
+                href: '/platform/settings',
                 icon: ServerCog,
-                permission: 'tenant.manage',
-            },
-            {
-                label: 'Domain configurations',
-                href: '/platform/settings/domains',
-                icon: ServerCog,
-                permission: 'tenant.manage',
-            },
-            {
-                label: 'SMS configurations',
-                href: '/platform/settings/sms',
-                icon: ServerCog,
-                permission: 'tenant.manage',
-            },
-            {
-                label: 'Email configurations',
-                href: '/platform/settings/email',
-                icon: ServerCog,
-                permission: 'tenant.manage',
-            },
-            {
-                label: 'Identity verification settings',
-                href: '/platform/settings/kyc',
-                icon: FileCheck2,
-                permission: 'tenant.manage',
+                anyPermissions: ['tenant.manage', 'storage.manage'],
             },
             {
                 label: 'SaaS administrators',
@@ -126,7 +122,17 @@ const groups = [
     },
 ];
 const PlatformNav = () => {
-    const permissions = usePage<SharedProps>().props.auth.admin?.permissions ?? [];
+    const { url, props } = usePage<SharedProps>();
+    const permissions = props.auth.admin?.permissions ?? [];
+    const path = url.split('?')[0] ?? '';
+    const navPath = /^\/platform\/tenants\/[^/]+\/support\//.test(path)
+        ? '/platform/support'
+        : /^\/platform\/tenants\/[^/]+\/topups$/.test(path) || path === '/platform/asset-deposits'
+          ? '/platform/topups'
+          : path === '/platform/asset-tron-withdrawals'
+            ? '/platform/asset-withdrawals'
+            : path;
+    const active = (href: string) => navPath === href || navPath.startsWith(href + '/');
     return (
         <nav className="mt-7 space-y-6">
             {groups.map((group) => (
@@ -135,17 +141,28 @@ const PlatformNav = () => {
                         {t(group.label)}
                     </p>
                     {group.items
-                        .filter(
-                            (item) =>
+                        .filter((item) => {
+                            if (item.anyPermissions)
+                                return item.anyPermissions.some((permission) =>
+                                    permissions.includes(permission),
+                                );
+                            return (
                                 !('permission' in item) ||
                                 !item.permission ||
-                                permissions.includes(item.permission),
-                        )
+                                permissions.includes(item.permission)
+                            );
+                        })
                         .map((item) => (
                             <Link
                                 key={item.label}
                                 href={item.href}
-                                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                                aria-current={active(item.href) ? 'page' : undefined}
+                                className={cn(
+                                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
+                                    active(item.href)
+                                        ? 'bg-muted text-foreground'
+                                        : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                                )}
                             >
                                 <item.icon className="size-4" />
                                 {t(item.label)}
@@ -169,7 +186,7 @@ export function PlatformLayout({ children }: { children: ReactNode }) {
         .toUpperCase();
     return (
         <div className="min-h-screen">
-            <aside className="fixed inset-y-0 left-0 hidden w-64 border-r bg-surface p-5 lg:block">
+            <aside className="fixed inset-y-0 left-0 hidden w-64 overflow-y-auto overscroll-y-contain border-r bg-surface p-5 lg:block">
                 <AppMark name="Aperture Platform" />
                 <PlatformNav />
             </aside>

@@ -1,0 +1,43 @@
+{
+    "environment": "local",
+    "database": "card_mock",
+    "active_configuration": "01a0e6d4-7739-72e3-a5ef-c8867b929a22",
+    "images": {
+        "poster": {
+            "local": 1
+        },
+        "kyc": {
+            "oss": 335,
+            "local": 1469
+        },
+        "support": {
+            "local": 1
+        },
+        "card": {
+            "local": 6
+        }
+    },
+    "cutoff": "2026-09-28T07:15:22+00:00",
+    "business": {
+        "ledger_entries": {
+            "count": 2894,
+            "sha256": "19c9a8d6ab475d9b59096c5807bf2ae189c0cc1ef51eda98b3fef02aa04d3043"
+        },
+        "kyc_applications": {
+            "count": 902,
+            "sha256": "fb03907f4622ef79fb74c122e12b1bc0fc15cdb38e2b40e6e40f728a8f0ff76a"
+        },
+        "provider_cardholders": {
+            "count": 26,
+            "sha256": "fdea0cbd789fa3c301f182f1ae5ada15e49cf470a305eb2ab496d450b90adaea"
+        },
+        "support_messages": {
+            "count": 3,
+            "sha256": "62515ae19b25f21f1c9371e57499edd5ab48eed2407854f0154f596cb705123c"
+        },
+        "card_issue_orders": {
+            "count": 26,
+            "sha256": "7cca0ca719020de06058302b7db580e3f74acb805d60cd796ce10d6602cc89c2"
+        }
+    }
+}

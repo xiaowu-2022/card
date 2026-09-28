@@ -9,6 +9,7 @@ use App\Domain\Kyc\DTOs\KycOcrResultDTO;
 use App\Domain\Kyc\Enums\KycOcrOutcome;
 use App\Domain\Kyc\Enums\KycOcrStatus;
 use App\Domain\Kyc\Enums\KycReviewStatus;
+use App\Domain\Kyc\Models\IdentityRecord;
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Kyc\Services\IdentityNumberNormalizer;
 use App\Domain\Kyc\Services\IdentityNumberProtector;
@@ -16,33 +17,26 @@ use App\Domain\Kyc\Services\KycDataCipher;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\Tenant\TenantContext;
 use App\Domain\User\Models\User;
-use App\Infrastructure\Providers\Kyc\MockKycOcrProvider;
 use App\Jobs\ProcessKycOcrJob;
+use App\Support\Errors\DomainException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
-beforeEach(function (): void {
+beforeEach(function () {
     $this->seed();
     Storage::fake('private');
     Queue::fake();
-    $this->tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
-    $this->user = User::query()->where('tenant_id', $this->tenant->id)->firstOrFail();
-    $this->application = app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'MY', 'OCR-1234', kycTestImage('front.jpg'), kycTestImage('back.jpg'));
+    Http::preventStrayRequests();
+    $this->tenant = Tenant::where('slug', 'tenant-a')->firstOrFail();
+    $this->user = User::where('tenant_id', $this->tenant->id)->firstOrFail();
 });
-
-function runPhaseThreeOcr(ProcessKycOcrJob $job, KycOcrProviderInterface $provider): void
+function submitCurrentOcr($test): KycApplication
 {
-    $job->handle(
-        app(TenantContext::class),
-        $provider,
-        app(IdentityNumberNormalizer::class),
-        app(IdentityNumberProtector::class),
-        app(KycDataCipher::class),
-    );
+    return app(SubmitKycApplicationAction::class)->execute($test->tenant, $test->user, 'CN', 'OCR-1234', kycTestImage('front.png'), kycTestImage('back.png'));
 }
-
-it('runs OCR from an explicit tenant-scoped job outside a database transaction', function (): void {
+it('runs synchronous OCR before the submission transaction and stores only encrypted match evidence', function () {
     $provider = new class implements KycOcrProviderInterface
     {
         public int $transactionLevel = -1;
@@ -52,89 +46,62 @@ it('runs OCR from an explicit tenant-scoped job outside a database transaction',
             return 'boundary-test';
         }
 
-        public function extractIdentityDocument(KycOcrRequestDTO $request): KycOcrResultDTO
+        public function extractIdentityDocument(KycOcrRequestDTO $r): KycOcrResultDTO
         {
             $this->transactionLevel = DB::transactionLevel();
 
             return new KycOcrResultDTO(KycOcrOutcome::Success, 'OCR-1234', 'TEST PERSON', '0.98', 'SAFE-REF');
         }
     };
-    $outerTransactionLevel = DB::transactionLevel();
-    runPhaseThreeOcr(new ProcessKycOcrJob($this->tenant->id, $this->application->id), $provider);
-    $fresh = $this->application->fresh();
-
-    expect($provider->transactionLevel)->toBe($outerTransactionLevel)
-        ->and($fresh->ocr_status)->toBe(KycOcrStatus::Succeeded)
-        ->and($fresh->review_status)->toBe(KycReviewStatus::Pending)
-        ->and($fresh->ocr_result_encrypted)->not->toContain('OCR-1234')
-        ->and(json_decode(app(KycDataCipher::class)->decrypt($fresh->ocr_result_encrypted), true)['candidate_identity_match'])->toBe('MATCH')
+    app()->instance(KycOcrProviderInterface::class, $provider);
+    $outer = DB::transactionLevel();
+    $a = submitCurrentOcr($this);
+    expect($provider->transactionLevel)->toBe($outer)->and($a->ocr_status)->toBe(KycOcrStatus::Succeeded)
+        ->and($a->review_status)->toBe(KycReviewStatus::Pending)
+        ->and(json_decode(app(KycDataCipher::class)->decrypt($a->ocr_result_encrypted), true))->toBe(['candidate_identity_match' => 'MATCH'])
+        ->and($a->ocr_result_encrypted)->not->toContain('OCR-1234', 'TEST PERSON');
+    Queue::assertNotPushed(ProcessKycOcrJob::class);
+});
+it('fails closed before storage when recognition fails or mismatches', function ($outcome, $number) {
+    $p = Mockery::mock(KycOcrProviderInterface::class);
+    $p->shouldReceive('extractIdentityDocument')->once()->andReturn(new KycOcrResultDTO($outcome, $number));
+    app()->instance(KycOcrProviderInterface::class, $p);
+    expect(fn () => submitCurrentOcr($this))->toThrow(DomainException::class, 'could not be recognized or does not match');
+    expect(KycApplication::count())->toBe(0)->and(IdentityRecord::count())->toBe(0)->and(Storage::disk('private')->allFiles())->toBe([]);
+})->with([[KycOcrOutcome::Failed, null], [KycOcrOutcome::Success, 'WRONG'], [KycOcrOutcome::Success, '']]);
+it('allows a safe resubmission after upstream timeout without queued retries or orphaned documents', function () {
+    $p = Mockery::mock(KycOcrProviderInterface::class);
+    $p->shouldReceive('extractIdentityDocument')->once()->andThrow(new RuntimeException('secret upstream details'));
+    app()->instance(KycOcrProviderInterface::class, $p);
+    expect(fn () => submitCurrentOcr($this))->toThrow(DomainException::class, 'Document recognition is temporarily unavailable.');
+    expect(KycApplication::count())->toBe(0)->and(Storage::disk('private')->allFiles())->toBe([]);
+    fakeMatchingKycOcr('OCR-1234');
+    submitCurrentOcr($this);
+    expect(KycApplication::count())->toBe(1);
+    Queue::assertNotPushed(ProcessKycOcrJob::class);
+});
+it('does not rerun OCR on duplicate submission or an obsolete queued job', function () {
+    fakeMatchingKycOcr('OCR-1234');
+    $a = submitCurrentOcr($this);
+    $encrypted = $a->ocr_result_encrypted;
+    $p = Mockery::mock(KycOcrProviderInterface::class);
+    $p->shouldNotReceive('extractIdentityDocument');
+    app()->instance(KycOcrProviderInterface::class, $p);
+    expect(fn () => submitCurrentOcr($this))->toThrow(DomainException::class, 'already under review');
+    $job = new ProcessKycOcrJob($this->tenant->id, $a->id);
+    $job->handle(app(TenantContext::class), $p, app(IdentityNumberNormalizer::class), app(IdentityNumberProtector::class), app(KycDataCipher::class));
+    expect($a->fresh()->ocr_result_encrypted)->toBe($encrypted)->and(serialize($job))->not->toContain('OCR-1234', 'front.png')
         ->and(app(TenantContext::class)->hasTenant())->toBeFalse();
 });
-
-it('marks OCR failure without rejecting or approving KYC', function (): void {
-    runPhaseThreeOcr(new ProcessKycOcrJob($this->tenant->id, $this->application->id), new MockKycOcrProvider('FAILED'));
-    expect($this->application->fresh()->ocr_status)->toBe(KycOcrStatus::Failed)
-        ->and($this->application->fresh()->review_status)->toBe(KycReviewStatus::Pending);
+it('preserves approved review and recognition if an obsolete worker reports failure', function () {
+    fakeMatchingKycOcr('OCR-1234');
+    $a = submitCurrentOcr($this);
+    app(ApproveKycAction::class)->execute($this->tenant->id, $a->id, AdminUser::where('email', 'owner@a.localhost')->firstOrFail());
+    (new ProcessKycOcrJob($this->tenant->id, $a->id))->failed(new RuntimeException('test'));
+    expect($a->fresh()->review_status)->toBe(KycReviewStatus::Approved)->and($a->fresh()->ocr_status)->toBe(KycOcrStatus::Succeeded);
 });
-
-it('is idempotent after OCR success and carries no image or identity payload', function (): void {
-    $job = new ProcessKycOcrJob($this->tenant->id, $this->application->id);
-    $provider = new MockKycOcrProvider('SUCCESS');
-    runPhaseThreeOcr($job, $provider);
-    $first = $this->application->fresh()->ocr_result_encrypted;
-    runPhaseThreeOcr($job, $provider);
-
-    expect($this->application->fresh()->ocr_result_encrypted)->toBe($first)
-        ->and(serialize($job))->not->toContain('OCR-1234', 'front.jpg', 'back.jpg')
-        ->and(KycApplication::query()->count())->toBe(1);
-});
-
-it('recovers from a worker exception and marks only exhausted jobs failed', function (): void {
-    $job = new ProcessKycOcrJob($this->tenant->id, $this->application->id);
-    $timeout = new MockKycOcrProvider('TIMEOUT');
-    try {
-        runPhaseThreeOcr($job, $timeout);
-        $this->fail('Expected the provider timeout to be retried by the queue.');
-    } catch (RuntimeException $exception) {
-        expect($this->application->fresh()->ocr_status)->toBe(KycOcrStatus::Processing);
-        runPhaseThreeOcr($job, new MockKycOcrProvider('SUCCESS'));
-        expect($this->application->fresh()->ocr_status)->toBe(KycOcrStatus::Succeeded)
-            ->and($this->application->fresh()->review_status)->toBe(KycReviewStatus::Pending);
-    }
-
-    $this->application->forceFill(['ocr_status' => KycOcrStatus::Processing])->save();
-    $job->failed(new RuntimeException('safe failure'));
-    expect($this->application->fresh()->ocr_status)->toBe(KycOcrStatus::Failed)
-        ->and($this->application->fresh()->review_status)->toBe(KycReviewStatus::Pending);
-});
-
-it('allows late OCR metadata without changing a terminal review result', function (): void {
-    $reviewer = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
-    app(ApproveKycAction::class)->execute($this->tenant->id, $this->application->id, $reviewer);
-    runPhaseThreeOcr(new ProcessKycOcrJob($this->tenant->id, $this->application->id), new MockKycOcrProvider('SUCCESS'));
-
-    expect($this->application->fresh()->review_status)->toBe(KycReviewStatus::Approved)
-        ->and($this->application->fresh()->ocr_status)->toBe(KycOcrStatus::Succeeded);
-});
-
-it('minimizes and validates untrusted OCR output before encrypted persistence', function (): void {
-    $provider = new class implements KycOcrProviderInterface
-    {
-        public function name(): string
-        {
-            return 'untrusted-test';
-        }
-
-        public function extractIdentityDocument(KycOcrRequestDTO $request): KycOcrResultDTO
-        {
-            return new KycOcrResultDTO(KycOcrOutcome::Success, '<script>different</script>', '<script>alert(1)</script>', '999', str_repeat('R', 500));
-        }
-    };
-    runPhaseThreeOcr(new ProcessKycOcrJob($this->tenant->id, $this->application->id), $provider);
-    $fresh = $this->application->fresh();
-    $payload = json_decode(app(KycDataCipher::class)->decrypt($fresh->ocr_result_encrypted), true);
-
-    expect($payload)->toBe(['candidate_identity_match' => 'UNKNOWN', 'candidate_name' => 'alert(1)', 'confidence' => null])
-        ->and($fresh->ocr_reference)->toHaveLength(255)
-        ->and($fresh->ocr_result_encrypted)->not->toContain('<script>', 'different');
+it('rejects untrusted identity output instead of retaining it as approved evidence', function () {
+    fakeMatchingKycOcr('<script>different</script>');
+    expect(fn () => submitCurrentOcr($this))->toThrow(DomainException::class);
+    expect(KycApplication::count())->toBe(0)->and(IdentityRecord::count())->toBe(0)->and(Storage::disk('private')->allFiles())->toBe([]);
 });

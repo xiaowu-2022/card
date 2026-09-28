@@ -2,32 +2,26 @@
 
 namespace App\Http\Controllers\Platform;
 
+use App\Application\Assets\PlatformFundsQuery;
 use App\Application\Payment\ConfirmPlatformTopupAction;
-use App\Application\Payment\PlatformTopupQuery;
 use App\Application\Payment\VerifyPlatformTopupAction;
 use App\Application\Tenant\PlatformListFilters;
 use App\Domain\Tenant\Models\Tenant;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 
 final class TopupVerificationController extends Controller
 {
-    public function index(Tenant $tenant, Request $request, PlatformTopupQuery $query, PlatformListFilters $lists)
+    public function index(Tenant $tenant, Request $request, PlatformFundsQuery $query, PlatformListFilters $lists)
     {
         $request->merge(['company' => $tenant->id]);
 
         return $this->all($request, $query, $lists);
     }
 
-    public function all(Request $request, PlatformTopupQuery $query, PlatformListFilters $lists)
+    public function all(Request $request, PlatformFundsQuery $query, PlatformListFilters $lists)
     {
-        $filters = $lists->validated($request, ['status' => ['nullable', 'in:PENDING,PROCESSING,UNKNOWN,PAID,CREDITED,FAILED,CANCELLED,EXPIRED,REFUNDED,REQUIRES_REVIEW']]);
-
-        return Inertia::render('platform/Topups', [
-            'orders' => $query->paginate($filters['company'] ?? null, $filters['search'] ?? null, $filters['status'] ?? null),
-            'companies' => $lists->companies(), 'filters' => $filters,
-        ]);
+        return app(FundsOrdersController::class)->deposits($request, $query, $lists);
     }
 
     public function verify(Request $request, Tenant $tenant, string $topup, VerifyPlatformTopupAction $verify)

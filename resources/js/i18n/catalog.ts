@@ -14,6 +14,14 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    'Your promotion level is managed by the platform. No annual payment is needed. Contact support to change it.':
+        [
+            '您的代理等级由平台设置，无需支付年费。如需调整，请联系客服。',
+            'Tahap ejen anda ditetapkan oleh platform. Tiada bayaran tahunan diperlukan. Hubungi sokongan untuk mengubahnya.',
+            'La plataforma gestiona tu nivel de agente. No necesitas pagar una cuota anual. Contacta con soporte para cambiarlo.',
+        ],
+    'Choose file': ['选择文件', 'Pilih fail', 'Elegir archivo'],
+    'Change image': ['更换图片', 'Tukar imej', 'Cambiar imagen'],
     ...inboxCatalog,
     'After depositing to the address above 👆, your deposit succeeds after 3 network confirmations!':
         [
@@ -494,6 +502,21 @@ export const catalog = {
         '请输入 1–2000 字的消息，或添加图片。',
         'Masukkan mesej 1–2000 aksara atau lampirkan imej.',
         'Escribe entre 1 y 2000 caracteres o adjunta una imagen.',
+    ],
+    'Image storage is unavailable. Please try again.': [
+        '图片存储服务暂不可用，请稍后重试。',
+        'Storan imej tidak tersedia. Sila cuba lagi.',
+        'El almacenamiento de imágenes no está disponible. Vuelve a intentarlo.',
+    ],
+    'Use a supported image file.': [
+        '请上传支持格式的图片。',
+        'Gunakan fail imej yang disokong.',
+        'Utiliza un archivo de imagen compatible.',
+    ],
+    'Configure and enable OSS before identity verification.': [
+        '证件上传服务尚未配置，请联系客服。',
+        'Perkhidmatan muat naik dokumen belum dikonfigurasi. Hubungi sokongan.',
+        'El servicio de carga de documentos aún no está configurado. Contacta con soporte.',
     ],
     'Image upload failed. Please try again.': [
         '图片上传失败，请重试。',

@@ -1,0 +1,17 @@
+{
+  "pairs": 888,
+  "scenarios": 74,
+  "languages": [
+    "en",
+    "es",
+    "ms",
+    "zh-CN"
+  ],
+  "widths": [
+    375,
+    768,
+    1440
+  ],
+  "errors": 0,
+  "overflow": 0
+}

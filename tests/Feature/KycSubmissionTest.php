@@ -8,6 +8,7 @@ use App\Domain\Kyc\Enums\KycUserStatus;
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Kyc\Services\IdentityNumberProtector;
 use App\Domain\Kyc\Services\KycStatusService;
+use App\Domain\Media\StoredImage;
 use App\Domain\Tenant\Enums\TenantStatus;
 use App\Domain\Tenant\Models\PlatformKycSetting;
 use App\Domain\Tenant\Models\Tenant;
@@ -33,10 +34,12 @@ beforeEach(function (): void {
 
 function submitPhaseThreeKyc($test, string $identity = 'MY 1234-5678'): KycApplication
 {
+    fakeMatchingKycOcr($identity);
+
     return app(SubmitKycApplicationAction::class)->execute(
         $test->tenant,
         $test->user,
-        'MY',
+        'CN',
         $identity,
         kycTestImage('personal-front.jpg'),
         kycTestImage('personal-back.png'),
@@ -44,29 +47,30 @@ function submitPhaseThreeKyc($test, string $identity = 'MY 1234-5678'): KycAppli
     );
 }
 
-it('submits a national id to private storage and dispatches tenant-scoped OCR after commit', function (): void {
+it('recognizes a mainland national id before saving private documents without dispatching OCR', function (): void {
     $application = submitPhaseThreeKyc($this);
 
     expect($application->review_status)->toBe(KycReviewStatus::Pending)
         ->and($application->document_type->value)->toBe('NATIONAL_ID')
-        ->and($application->document_country)->toBe('MY')
+        ->and($application->document_country)->toBe('CN')
         ->and($application->front_object_key)->toStartWith("kyc/{$this->tenant->id}/{$this->user->id}/{$application->id}/front/")
         ->and($application->front_object_key)->not->toContain('user@', '1234', 'personal-front')
         ->and($application->back_object_key)->not->toContain('user@', '5678', 'personal-back');
     Storage::disk('private')->assertExists([$application->front_object_key, $application->back_object_key]);
     Storage::disk('public')->assertMissing([$application->front_object_key, $application->back_object_key]);
-    Queue::assertPushed(ProcessKycOcrJob::class, fn (ProcessKycOcrJob $job) => $job->tenantId === $this->tenant->id && $job->kycApplicationId === $application->id);
+    expect($application->ocr_status->value)->toBe('SUCCEEDED');
+    Queue::assertNotPushed(ProcessKycOcrJob::class);
 });
 
 it('requires both real supported images and enforces the configured size', function (): void {
     $this->actingAs($this->user, 'tenant_user')->post('http://a.localhost/kyc/applications', [
-        'document_country' => 'MY', 'identity_number' => 'MY1234',
+        'document_type' => 'NATIONAL_ID', 'document_country' => 'CN', 'identity_number' => 'MY1234',
         'front' => UploadedFile::fake()->create('front.svg', 10, 'image/svg+xml'),
     ])->assertSessionHasErrors(['front', 'back']);
 
     config(['kyc.document_max_mb' => 1]);
     $this->actingAs($this->user, 'tenant_user')->post('http://a.localhost/kyc/applications', [
-        'document_country' => 'Malaysia', 'identity_number' => 'MY1234',
+        'document_type' => 'NATIONAL_ID', 'document_country' => 'Malaysia', 'identity_number' => 'MY1234',
         'front' => UploadedFile::fake()->create('front.jpg', 1100, 'image/jpeg'),
         'back' => kycTestImage('back.jpg'),
     ])->assertSessionHasErrors(['document_country', 'front']);
@@ -75,7 +79,7 @@ it('requires both real supported images and enforces the configured size', funct
 
 it('rejects non-image payloads regardless of a trusted-looking filename', function (string $filename, string $contents): void {
     $this->actingAs($this->user, 'tenant_user')->post('http://a.localhost/kyc/applications', [
-        'document_country' => 'MY', 'identity_number' => 'MY1234',
+        'document_type' => 'NATIONAL_ID', 'document_country' => 'CN', 'identity_number' => 'MY1234',
         'front' => UploadedFile::fake()->createWithContent($filename, $contents),
         'back' => kycTestImage('back.png'),
     ])->assertSessionHasErrors('front');
@@ -97,7 +101,7 @@ it('blocks submission for suspended users suspended tenants and disabled KYC', f
     }
 
     $response = $this->actingAs($this->user, 'tenant_user')->post('http://a.localhost/kyc/applications', [
-        'document_country' => 'MY', 'identity_number' => 'MY1234',
+        'document_type' => 'NATIONAL_ID', 'document_country' => 'CN', 'identity_number' => 'MY1234',
         'front' => kycTestImage('front.jpg'), 'back' => kycTestImage('back.jpg'),
     ]);
     $restriction === 'tenant' ? $response->assertRedirect('/account/restricted') : $response->assertRedirect();
@@ -122,30 +126,33 @@ it('keeps one pending application and cleans files uploaded by a failed duplicat
 });
 
 it('cleans a successful front upload when the back upload fails', function (): void {
+    fakeMatchingKycOcr('PARTIAL-1');
     $disk = Mockery::mock(FilesystemAdapter::class);
-    $disk->shouldReceive('putFileAs')->twice()->andReturn(true, false);
-    $disk->shouldReceive('delete')->once()->andReturn(true);
+    $disk->shouldReceive('put')->twice()->andReturn(true, false);
+    $disk->shouldReceive('delete')->twice()->andReturn(true);
     Storage::shouldReceive('disk')->atLeast()->once()->with('private')->andReturn($disk);
 
-    expect(fn () => app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'MY', 'PARTIAL-1', kycTestImage('front.jpg'), kycTestImage('back.jpg')))
+    expect(fn () => app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', 'PARTIAL-1', kycTestImage('front.jpg'), kycTestImage('back.jpg')))
         ->toThrow(DomainException::class);
     expect(KycApplication::query()->count())->toBe(0);
 });
 
-it('preserves the primary failure and logs only safe metadata when orphan cleanup fails', function (): void {
+it('preserves the primary failure and queues safe cleanup records when deletion fails', function (): void {
+    fakeMatchingKycOcr('CLEANUP-SECRET');
     $disk = Mockery::mock(FilesystemAdapter::class);
-    $disk->shouldReceive('putFileAs')->twice()->andReturn(true, false);
-    $disk->shouldReceive('delete')->once()->andThrow(new RuntimeException('unsafe provider path detail'));
+    $disk->shouldReceive('put')->twice()->andReturn(true, false);
+    $disk->shouldReceive('delete')->twice()->andThrow(new RuntimeException('unsafe provider path detail'));
     Storage::shouldReceive('disk')->atLeast()->once()->with('private')->andReturn($disk);
     Log::spy();
 
-    expect(fn () => app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'MY', 'CLEANUP-SECRET', kycTestImage('front.jpg'), kycTestImage('back.jpg')))
-        ->toThrow(DomainException::class, 'The documents could not be stored.');
-    Log::shouldHaveReceived('warning')->once()->with('KYC document cleanup failed.', Mockery::on(function (array $context): bool {
-        $json = json_encode($context);
-
-        return ! str_contains($json, 'CLEANUP-SECRET') && ! str_contains($json, 'unsafe provider path detail') && ! str_contains($json, '/front/');
-    }));
+    expect(fn () => app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', 'CLEANUP-SECRET', kycTestImage('front.jpg'), kycTestImage('back.jpg')))
+        ->toThrow(DomainException::class, 'Image storage is unavailable.');
+    $records = StoredImage::where('state', 'cleanup_pending')->get();
+    expect($records)->toHaveCount(2);
+    foreach ($records as $record) {
+        expect($record->last_error)->toBe('DELETE_FAILED');
+    }
+    Log::shouldNotHaveReceived('warning');
 });
 
 it('derives status from applications and gives an identity record highest priority', function (): void {
@@ -166,7 +173,7 @@ it('encrypts identity numbers uses tenant-scoped HMAC and exposes only allowlist
 
     expect($application->identity_number_encrypted)->not->toContain($plain, 'MY 1234-5678')
         ->and($application->identity_hash)->toHaveLength(64)
-        ->and($protector->protect($tenantB->id, 'NATIONAL_ID', 'MY', $plain)['hash'])->not->toBe($application->identity_hash)
+        ->and($protector->protect($tenantB->id, 'NATIONAL_ID', 'CN', $plain)['hash'])->not->toBe($application->identity_hash)
         ->and(json_encode(app(UserKycQuery::class)->get($this->tenant->id, $this->user->id)))->not->toContain($plain, 'identity_hash', 'object_key', 'encrypted');
 
     $this->actingAs($this->user, 'tenant_user')->get('http://a.localhost/kyc')->assertOk()
@@ -174,8 +181,9 @@ it('encrypts identity numbers uses tenant-scoped HMAC and exposes only allowlist
 });
 
 it('preserves only the allowed verification return source after submission', function (string $source, string $expected): void {
+    fakeMatchingKycOcr('MY1234');
     $this->actingAs($this->user, 'tenant_user')->post('http://a.localhost/kyc/applications?'.http_build_query(['from' => $source]), [
-        'document_country' => 'MY', 'identity_number' => 'MY1234',
+        'document_type' => 'NATIONAL_ID', 'document_country' => 'CN', 'identity_number' => 'MY1234',
         'front' => kycTestImage('front.png'), 'back' => kycTestImage('back.png'),
     ])->assertSessionHasNoErrors()->assertRedirect($expected);
     expect(KycApplication::query()->where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->count())->toBe(1);

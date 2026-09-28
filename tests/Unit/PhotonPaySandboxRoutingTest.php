@@ -51,9 +51,9 @@ it('reuses tokens for holder updates and freezes until the 110 minute cache boun
     }
 });
 
-it('routes only explicitly encrypted sandbox connections and rejects another host', function (string $host, bool $allowed): void {
+it('routes only verified account connections on approved hosts', function (string $host, bool $allowed, bool $verified): void {
     $merchant = new CardProviderReference;
-    $merchant->forceFill(['runtime_driver' => 'UNCONFIGURED', 'photonpay_issuing_encrypted' => Crypt::encryptString(json_encode([
+    $merchant->forceFill(['runtime_driver' => 'UNCONFIGURED', 'photonpay_identity' => ['base_url' => $host], 'photonpay_check_status' => $verified ? 'VERIFIED' : 'UNCHECKED', 'photonpay_issuing_encrypted' => Crypt::encryptString(json_encode([
         'base_url' => $host, 'app_id' => 'id', 'app_secret' => 'secret', 'private_key' => 'invalid-test-key', 'account_id' => 'account', 'member_id' => 'member',
     ]))]);
     $product = new CardProduct;
@@ -63,9 +63,11 @@ it('routes only explicitly encrypted sandbox connections and rejects another hos
     expect($provider)->toBeInstanceOf($allowed ? PhotonPayCardProvider::class : UnavailableCardProvider::class);
     expect($merchant->toArray())->not->toHaveKey('photonpay_issuing_encrypted');
 })->with([
-    ['https://x-api.sandbox.photontech.cc', true],
-    ['https://x-api.photonpay.com', false],
-    ['http://localhost', false],
+    ['https://x-api.sandbox.photontech.cc', true, true],
+    ['https://x-api.photonpay.com', true, true],
+    ['http://localhost', false, true],
+    ['https://x-api.sandbox.photontech.cc', false, false],
+    ['https://x-api.photonpay.com', false, false],
 ]);
 
 it('shares only an encrypted short-lived token across sandbox provider instances', function (): void {
@@ -81,7 +83,7 @@ it('shares only an encrypted short-lived token across sandbox provider instances
         expect($provider->productAvailable('367218', 'USD'))->toBeFalse();
     }
     Http::assertSentCount(3);
-    $key = 'photonpay-issuing-token:'.hash('sha256', "https://x-api.sandbox.photontech.cc\0cache-test-app\0cache-test-secret");
+    $key = 'photonpay-issuing-token:'.hash('sha256', "https://x-api.sandbox.photontech.cc\0cache-test-app\0cache-test-secret\0");
     $saved = Cache::store('array')->get($key);
     expect($saved)->not->toContain('test-private-token')->and(Crypt::decryptString($saved))->toBe('test-private-token');
 });

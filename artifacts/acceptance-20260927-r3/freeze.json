@@ -1,0 +1,30 @@
+{
+    "mode": "--freeze",
+    "environment": "sandbox",
+    "checks": [],
+    "application": {
+        "id": "01a0e0d2-b71c-70d4-bded-e462a56c6e3a",
+        "status": "READY"
+    },
+    "issue": {
+        "id": "707e5348-4c38-4d9d-86dc-720f911f7b4f",
+        "status": "SUCCEEDED",
+        "initial_amount": "20.00000000",
+        "opening_fee": "2.00000000"
+    },
+    "operation": {
+        "id": "4192e6d4-0de0-4128-ac2c-622f50914acb",
+        "kind": "FREEZE",
+        "status": "SUCCEEDED",
+        "amount": "0.00000000",
+        "arrival_amount": null,
+        "fee_amount": null,
+        "settlement_entry_id": null
+    },
+    "card": {
+        "id": "01a0e0d3-2dfb-712b-998b-32b30e36be9c",
+        "status": "frozen",
+        "balance": "20.00000000"
+    },
+    "result": "PASS"
+}

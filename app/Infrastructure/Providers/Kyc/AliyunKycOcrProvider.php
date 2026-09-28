@@ -33,7 +33,7 @@ final class AliyunKycOcrProvider implements KycOcrProviderInterface
         if (! $passport && $request->documentCountry !== 'CN') {
             return new KycOcrResultDTO(KycOcrOutcome::Failed);
         }
-        $result = $this->recognize($passport ? (in_array($request->documentCountry, ['CN', 'HK', 'MO', 'TW'], true) ? 'RecognizeChinesePassport' : 'RecognizePassport') : 'RecognizeIdcard', $request->frontContents);
+        $result = $this->recognize($passport ? (in_array($request->documentCountry, ['CN', 'HK', 'MO', 'TW'], true) ? 'RecognizeChinesePassport' : 'RecognizePassport') : 'RecognizeIdcard', $request->frontUrl);
         $data = $passport ? ($result['data'] ?? []) : ($result['data']['face']['data'] ?? []);
         $number = $data[$passport ? 'passportNumber' : 'idNumber'] ?? null;
         if (is_int($number)) {
@@ -51,7 +51,7 @@ final class AliyunKycOcrProvider implements KycOcrProviderInterface
             if ($number[17] !== '10X98765432'[$sum % 11]) {
                 return new KycOcrResultDTO(KycOcrOutcome::Failed);
             }
-            $back = $this->recognize('RecognizeIdcard', $request->backContents);
+            $back = $this->recognize('RecognizeIdcard', $request->backUrl);
             if (empty($back['data']['back']['data']['issueAuthority']) || empty($back['data']['back']['data']['validPeriod'])) {
                 return new KycOcrResultDTO(KycOcrOutcome::Failed);
             }
@@ -60,7 +60,7 @@ final class AliyunKycOcrProvider implements KycOcrProviderInterface
         return new KycOcrResultDTO(KycOcrOutcome::Success, strtoupper($number), $data['name'] ?? $data['nameEn'] ?? null, providerReference: $result['_requestId'] ?? null);
     }
 
-    private function recognize(string $action, #[\SensitiveParameter] string $contents): array
+    private function recognize(string $action, #[\SensitiveParameter] string $url): array
     {
         $phase = 'configuration';
         $status = null;
@@ -74,18 +74,19 @@ final class AliyunKycOcrProvider implements KycOcrProviderInterface
                 throw new \RuntimeException;
             }
             $phase = 'input';
-            if ($contents === '' || strlen($contents) > 10485760) {
+            if (strlen($url) > 2048 || ! filter_var($url, FILTER_VALIDATE_URL) || ! in_array(parse_url($url, PHP_URL_SCHEME), ['http', 'https'], true)) {
                 throw new \RuntimeException;
             }
             $phase = 'signing';
             $host = 'ocr-api.cn-hangzhou.aliyuncs.com';
             $headers = ['host' => $host, 'x-acs-action' => $action, 'x-acs-version' => '2021-07-07',
                 'x-acs-date' => gmdate('Y-m-d\TH:i:s\Z'), 'x-acs-signature-nonce' => (string) Str::uuid(),
-                'x-acs-content-sha256' => hash('sha256', $contents)];
-            $headers['Authorization'] = (new AliyunAcs3Signer)->authorization('POST', '/', [], $headers, $key, $secret, $contents);
+                'x-acs-content-sha256' => hash('sha256', '')];
+            $query = ['Url' => $url];
+            $headers['Authorization'] = (new AliyunAcs3Signer)->authorization('POST', '/', $query, $headers, $key, $secret, '');
             $phase = 'transport';
             $response = Http::connectTimeout(10)->timeout(120)->withoutRedirecting()->withHeaders($headers)
-                ->withBody($contents, 'application/octet-stream')->post('https://'.$host.'/');
+                ->withBody('', 'application/octet-stream')->post('https://'.$host.'/?'.(new AliyunAcs3Signer)->queryString($query));
             $status = $response->status();
             $phase = 'response_size';
             if (strlen($response->body()) > 2097152) {

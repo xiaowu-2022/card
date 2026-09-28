@@ -24,12 +24,12 @@ final readonly class PaidPromotionQuery
         ])->all();
     }
 
-    private function choices(string $tenant, ?object $cycle): array
+    private function choices(string $tenant, ?object $cycle, bool $manual = false): array
     {
         $policy = app(PromotionUpgradeEligibility::class);
         $context = $policy->context($tenant, $cycle);
 
-        return ['upgradeEligibility' => $context, 'levels' => array_map(fn ($level) => $level + $policy->decision($cycle, (object) $level, $context), $this->levels($tenant))];
+        return ['upgradeEligibility' => $context, 'levels' => array_map(fn ($level) => $level + ($manual ? ['selectable' => false, 'unavailableReason' => 'Your promotion level is managed by the platform. No annual payment is needed. Contact support to change it.'] : $policy->decision($cycle, (object) $level, $context)), $this->levels($tenant))];
     }
 
     /** Benefits and rebate progress only: no team traversal or member details. */
@@ -37,14 +37,16 @@ final readonly class PaidPromotionQuery
     {
         User::query()->where('tenant_id', $tenant)->whereKey($user)->firstOrFail();
         $at = CarbonImmutable::now();
-        $cycle = $this->rules->cycle($tenant, $user, $at);
-        $previous = $cycle ? null : DB::table('paid_promotion_cycles')->where('tenant_id', $tenant)->where('user_id', $user)->where('ends_at', '<=', $at)->orderByDesc('ends_at')->first();
+        $benefit = app(ManualPromotion::class)->benefit($tenant, $user, $at);
+        $manual = app(ManualPromotion::class)->managed($tenant, $user);
+        $cycle = $manual ? null : $this->rules->cycle($tenant, $user, $at);
+        $previous = ($cycle || $manual) ? null : DB::table('paid_promotion_cycles')->where('tenant_id', $tenant)->where('user_id', $user)->where('ends_at', '<=', $at)->orderByDesc('ends_at')->first();
         $claims = DB::table('paid_promotion_rebates')->where('tenant_id', $tenant)->where('user_id', $user);
 
         return [
-            ...$this->choices($tenant, $cycle), 'rank' => $cycle?->rank ?? 0,
-            'percent' => $cycle?->percent ?? 0, 'reward' => (string) ($cycle?->reward ?? 20),
-            'membershipStatus' => $cycle ? 'ACTIVE' : ($previous ? 'EXPIRED' : 'NONE'),
+            ...$this->choices($tenant, $cycle, $manual), 'manualLevel' => $manual, 'rank' => $benefit?->rank ?? 0,
+            'percent' => $benefit?->percent ?? 0, 'reward' => (string) ($benefit?->reward ?? 20),
+            'membershipStatus' => $benefit ? 'ACTIVE' : ($manual ? 'NONE' : ($previous ? 'EXPIRED' : 'NONE')),
             'previousCycle' => $previous ? ['rank' => $previous->rank, 'endsAt' => $previous->ends_at] : null,
             'cycle' => $cycle ? ['id' => $cycle->id, 'startsAt' => $cycle->starts_at, 'endsAt' => $cycle->ends_at, 'tariff' => $cycle->tariff, 'rebatePolicy' => $cycle->rebate_policy] : null,
             'pending' => $cycle && (clone $claims)->where('cycle_id', $cycle->id)->where('status', 'PENDING')->exists(),
@@ -57,8 +59,10 @@ final readonly class PaidPromotionQuery
     {
         User::query()->where('tenant_id', $tenant)->whereKey($user)->firstOrFail();
         $at = CarbonImmutable::now();
-        $cycle = $this->rules->cycle($tenant, $user, $at);
-        $previous = $cycle ? null : DB::table('paid_promotion_cycles')->where('tenant_id', $tenant)->where('user_id', $user)->where('ends_at', '<=', $at)->orderByDesc('ends_at')->first();
+        $benefit = app(ManualPromotion::class)->benefit($tenant, $user, $at);
+        $manual = app(ManualPromotion::class)->managed($tenant, $user);
+        $cycle = $manual ? null : $this->rules->cycle($tenant, $user, $at);
+        $previous = ($cycle || $manual) ? null : DB::table('paid_promotion_cycles')->where('tenant_id', $tenant)->where('user_id', $user)->where('ends_at', '<=', $at)->orderByDesc('ends_at')->first();
         $available = LedgerAccount::query()->where('tenant_id', $tenant)->where('user_id', $user)->where('asset_code', 'USDT')->where('account_type', 'USER_AVAILABLE')->value('balance');
 
         $rows = $this->shares($tenant, $user)->selectRaw('e.kind,e.source_rank,CASE WHEN s.depth=1 THEN 1 ELSE 2 END AS relation,COUNT(*) AS count,SUM(s.amount)::text AS amount,MIN(s.rate)::text AS minimum,MAX(s.rate)::text AS maximum')
@@ -77,7 +81,8 @@ final readonly class PaidPromotionQuery
             }
         }
         $legacy = CommissionAward::query()->where('tenant_id', $tenant)->where('user_id', $user)->whereNotExists(fn ($q) => $q->selectRaw('1')->from('paid_promotion_shares as s')->whereColumn('s.id', 'commission_awards.id')->whereColumn('s.tenant_id', 'commission_awards.tenant_id'))->sum('amount');
-        $team = collect(DB::select(<<<'SQL'
+        $effective = app(ManualPromotion::class)->query($tenant, $at);
+        $team = collect(DB::select(<<<SQL
           WITH RECURSIVE team AS (
             SELECT c.id,c.user_id,1 AS depth FROM promotion_members p
               JOIN promotion_members c ON c.inviter_id=p.id AND c.tenant_id=p.tenant_id
@@ -90,13 +95,9 @@ final readonly class PaidPromotionQuery
             COUNT(*) FILTER (WHERE team.depth=1) AS direct,
             COUNT(*) FILTER (WHERE team.depth>1) AS indirect
           FROM team
-          LEFT JOIN LATERAL (
-            SELECT rank FROM paid_promotion_cycles
-            WHERE tenant_id=? AND user_id=team.user_id AND starts_at<=? AND ends_at>?
-            ORDER BY starts_at DESC LIMIT 1
-          ) active ON true
+          LEFT JOIN ({$effective->toSql()}) active ON active.user_id=team.user_id
           GROUP BY COALESCE(active.rank,0)
-          SQL, [$tenant, $user, $tenant, $tenant, $at, $at]))->keyBy('rank');
+          SQL, [$tenant, $user, $tenant, ...$effective->getBindings()]))->keyBy('rank');
         $teamByLevel = collect(PromotionRanks::forTenant($tenant))->map(fn ($rank) => [
             'rank' => $rank, 'direct' => (int) ($team->get($rank)?->direct ?? 0),
             'indirect' => (int) ($team->get($rank)?->indirect ?? 0),
@@ -107,10 +108,10 @@ final readonly class PaidPromotionQuery
         $eligibility = app(WalletEligibilityService::class)->forUser(Tenant::findOrFail($tenant), User::where('tenant_id', $tenant)->findOrFail($user));
 
         return ['activation' => $eligibility['activation'], 'paymentAccess' => ['verified' => $eligibility['kycStatus'] === 'APPROVED', 'walletActive' => $eligibility['walletStatus'] === 'ACTIVE', 'canCreateWallet' => $eligibility['canActivate']],
-            'membershipStatus' => $cycle ? 'ACTIVE' : ($previous ? 'EXPIRED' : 'NONE'),
+            'membershipStatus' => $benefit ? 'ACTIVE' : ($manual ? 'NONE' : ($previous ? 'EXPIRED' : 'NONE')),
             'previousCycle' => $previous ? ['rank' => $previous->rank, 'endsAt' => $previous->ends_at] : null,
             'availableBalance' => Money::of($available ?? '0', 'USDT')->amount(),
-            ...$this->choices($tenant, $cycle), 'rank' => $cycle?->rank ?? 0, 'percent' => $cycle?->percent ?? 0, 'reward' => (string) ($cycle?->reward ?? 20),
+            ...$this->choices($tenant, $cycle, $manual), 'manualLevel' => $manual, 'rank' => $benefit?->rank ?? 0, 'percent' => $benefit?->percent ?? 0, 'reward' => (string) ($benefit?->reward ?? 20),
             'cycle' => $cycle ? ['id' => $cycle->id, 'startsAt' => $cycle->starts_at, 'endsAt' => $cycle->ends_at, 'tariff' => $cycle->tariff, 'rebatePolicy' => $cycle->rebate_policy] : null,
             'progress' => $progress, 'pending' => $cycle && DB::table('paid_promotion_rebates')->where('tenant_id', $tenant)->where('user_id', $user)->where('cycle_id', $cycle->id)->where('status', 'PENDING')->exists(),
             'claimsPage' => $claimsPage, 'hasMoreClaims' => $claims->count() > 30,

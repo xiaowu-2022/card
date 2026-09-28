@@ -3,8 +3,8 @@
 2026-09-24 用户批准大陆身份证和护照识别，替代原来上传合法图片就自动认证的规则。
 
 实名认证表单选择证件类型；大陆身份证仅 CN 且正反面必传，护照仅资料页。
-提交先校验权限、已有认证/待审核状态，后用私有图片二进制调用固定杭州端点，
-不提供公开图片 URL。RecognizeIdcard 校验正面号码及校验位并识别背面签发机关/
+提交先校验权限、已有认证/待审核状态，后先将图片存入 OSS，再以服务端生成的图片 URL 调用固定杭州端点，
+只传 Url 参数和空请求体，不发送图片二进制或 Base64。RecognizeIdcard 校验正面号码及校验位并识别背面签发机关/
 有效期字段；中国内地及港澳台护照走 RecognizeChinesePassport，其他护照走
 RecognizePassport。仅识别非空号码且与填写号码规范化后匹配才能存入新申请，
 自动模式随即认证，手动模式进入审核。审批入口也校验加密 OCR 匹配证据。
@@ -17,7 +17,7 @@ RecognizePassport。仅识别非空号码且与填写号码规范化后匹配才
 服务独立读取 ALIYUN_OCR_ACCESS_KEY_ID / ALIYUN_OCR_ACCESS_KEY_SECRET；
 KYC_OCR_DRIVER=aliyun。缺凭据或权限失败时关闭通过路径，不回退 Mock。
 Mock 仅用于 local/testing 的显式配置。图片、证件号码和完整 OCR 响应不进日志，
-证件沿用私有存储，加密保存 MATCH 证据，阿里云 RequestId 用于查请求。
+证件按 2026-09-27 批准方案使用 OSS 公开读取，加密保存 MATCH 证据，阿里云 RequestId 用于查请求。
 自动审批仍保留身份账户数量限制、公司隔离、锁和审计，无 Ledger 操作。
 
 部署先执行 2026_09_24_180000_allow_kyc_passports 迁移，再部署应用和前端。
@@ -99,3 +99,5 @@ must be at least 24m; fastcgi_read_timeout should be 300s. If PHP-FPM
 request_terminate_timeout is enabled, allow at least 300s. Check proxy/CDN limits
 as well. docker/php/uploads.ini is updated; deployed panel settings require separate
 configuration. Application HTTP timeouts cannot override an earlier gateway timeout.
+
+2026-09-27 存储配置、迁移及 URL 识别细节见 [OSS_IMAGES.md](OSS_IMAGES.md)。旧的二进制图片传输说明已被此方案取代。

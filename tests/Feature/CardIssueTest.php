@@ -181,7 +181,7 @@ it('manages card reload with quoted fee exact hold and one settlement', function
     DB::statement('SET CONSTRAINTS card_management_accounting IMMEDIATE');
 });
 
-it('confirms reload without a second password or checkbox and replays without another debit', function (bool $unknown): void {
+it('confirms reload without a second password or checkbox and replays without another debit', function (bool $unknown, string $client): void {
     [$card, $provider] = managedCardFixture($this);
     $provider->shouldReceive('quoteCardLoad')->once()->andReturnUsing(fn ($id, $amount, $request) => new ProviderCardQuoteDTO($request, '21.00000000', '20.00000000', '1.00000000'));
     $confirmation = $provider->shouldReceive('confirmCardLoad')->once();
@@ -190,8 +190,16 @@ it('confirms reload without a second password or checkbox and replays without an
     } else {
         $confirmation->andReturnUsing(fn ($id, $request) => new ProviderCardFundsDTO(ProviderOperationStatus::Succeeded, $id, $request, 'TX-ONE-SUBMIT', '21.00000000', '20.00000000', '1.00000000'));
     }
-    $this->actingAs($this->user, 'tenant_user');
-    $url = 'http://a.localhost/cards/'.$card->id.'/management';
+    Http::preventStrayRequests();
+    if ($client === 'native') {
+        $flow = $this->getJson('http://a.localhost/api/mobile/v1/bootstrap')->assertOk()->headers->get('X-Consumer-Flow');
+        $token = $this->postJson('http://a.localhost/api/mobile/v1/login', ['identifier' => $this->user->email, 'password' => 'local-password'])->assertCreated()->json('token');
+        $this->withToken($token)->withHeader('X-Consumer-Flow', $flow)->withHeader('X-Consumer-Page', '/cards');
+    } else {
+        $this->actingAs($this->user, 'tenant_user');
+    }
+    $prefix = match ($client) { 'native' => '/api/mobile/v1/client', 'h5' => '/api/v1/client', default => '' };
+    $url = 'http://a.localhost'.$prefix.'/cards/'.$card->id.'/management';
     $before = phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance;
     $quote = $this->postJson($url, ['action' => 'quote', 'request_id' => (string) Str::uuid(), 'amount' => '20'])->assertOk()->assertJsonPath('state', 'quoted')->json();
     expect(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe($before);
@@ -204,7 +212,7 @@ it('confirms reload without a second password or checkbox and replays without an
         ->and(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe(Money::of($before, 'USDT')->subtract(Money::of('21', 'USDT'))->amount());
     $this->postJson($url, ['action' => 'return', 'request_id' => (string) Str::uuid(), 'amount' => '20'])->assertUnprocessable()->assertJsonValidationErrors(['current_password', 'confirmed']);
     $this->postJson($url, ['action' => 'reveal'])->assertUnprocessable()->assertJsonValidationErrors('current_password');
-})->with([false, true]);
+})->with([[false, 'web'], [true, 'web'], [false, 'h5'], [true, 'h5'], [false, 'native'], [true, 'native']]);
 
 it('keeps uncertain reload held blocks a new request and recovers only by stable query', function (): void {
     [$card,$provider,$action] = managedCardFixture($this);
@@ -1383,7 +1391,7 @@ it('exposes only read-only tenant and platform card operations routes', function
     $otherCompany = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
     $this->get('http://admin.localhost/platform/cards?company='.$otherCompany->id)->assertOk()->assertInertia(fn (Assert $page) => $page->has('cards.data', 0)->has('orders.data', 0));
     $uris = collect(Route::getRoutes())->map(fn ($route): string => implode('|', $route->methods()).' '.$route->uri());
-    expect($uris->filter(fn (string $route): bool => $route !== 'PUT platform/tenants/{tenant}/cards/{card}/balance-limit' && preg_match('/cards.*(manual|success|settle|release|balance|reveal|freeze|cancel|reload)/i', $route) === 1)->all())->toBe([]);
+    expect($uris->filter(fn (string $route): bool => ! in_array($route, ['PUT platform/tenants/{tenant}/cards/{card}/balance-limit', 'POST platform/tenants/{tenant}/cards/{card}/reveal'], true) && preg_match('/cards.*(manual|success|settle|release|balance|reveal|freeze|cancel|reload)/i', $route) === 1)->all())->toBe([]);
 });
 
 it('enforces issue financial state and terminal immutability at the database boundary', function (): void {
@@ -1411,6 +1419,7 @@ function independentCardMaterials($test, string $person = 'Alice'): array
         'request_id' => (string) Str::uuid(), 'card_product_id' => $test->product->id,
         'legal_first_name' => $person, 'legal_last_name' => 'Holder', 'date_of_birth' => '1992-03-04',
         'email' => 'holder-contact@example.test', 'nationality_country_code' => 'MY',
+        'mobile' => '13800138000', 'mobile_country_code' => 'CN',
         'residential_address' => '9 Holder Road', 'residential_city' => 'Kuala Lumpur',
         'residential_state' => 'Kuala Lumpur', 'residential_country_code' => 'MY', 'residential_postal_code' => '50000',
         'document_type' => 'id_card', 'identity_number' => 'PERSON-'.$person,

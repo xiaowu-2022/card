@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
@@ -9,10 +9,11 @@ import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
 type User = {
     id: string;
     companyName: string;
+    companyId: string;
+    promotionRank: number;
     accountId: string;
     displayName: string | null;
     email: string | null;
-    phone: string | null;
     status: string;
     createdAt: string;
     lastLoginAt: string | null;
@@ -42,7 +43,7 @@ export default function Users({
                     eyebrow={t('Operations')}
                     title={t('Users')}
                     description={t(
-                        'Read-only user records across companies. Filter by company, account or status.',
+                        'User records and promotion levels. Filter by company, account or status.',
                     )}
                 />
                 <PlatformAccountTable
@@ -51,7 +52,7 @@ export default function Users({
                     page={users}
                     filters={filters}
                     url="/platform/users"
-                    searchLabel={t('Search name, account ID, email or phone')}
+                    searchLabel={t('Search name, account ID or email')}
                     statuses={['ACTIVE', 'SUSPENDED', 'DISABLED']}
                     columns={[
                         { label: 'Tenant', render: (row) => row.companyName },
@@ -60,8 +61,33 @@ export default function Users({
                             render: (row) => <span className="font-mono">{row.accountId}</span>,
                         },
                         { label: 'Name', render: (row) => row.displayName ?? '—' },
-                        { label: 'Email', render: (row) => row.email ?? '—' },
-                        { label: 'Phone number', render: (row) => row.phone ?? '—' },
+                        {
+                            label: 'Email',
+                            className: 'w-56 max-w-56',
+                            render: (row) => (
+                                <span
+                                    className="block w-48 truncate"
+                                    title={row.email ?? undefined}
+                                >
+                                    {row.email ?? '—'}
+                                </span>
+                            ),
+                        },
+                        {
+                            label: 'Agent level',
+                            render: (row) => (
+                                <Link
+                                    className="text-primary underline underline-offset-4"
+                                    href={`/platform/tenants/${row.companyId}/users/${row.id}/promotion`}
+                                >
+                                    {row.promotionRank
+                                        ? t('Mastercard level {{rank}}', {
+                                              rank: row.promotionRank,
+                                          })
+                                        : t('Ordinary member')}
+                                </Link>
+                            ),
+                        },
                         ...(financialAccess.balances
                             ? [
                                   {

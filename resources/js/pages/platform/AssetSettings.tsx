@@ -1,9 +1,7 @@
-import { AssetNavigation } from '@/components/admin/AssetNavigation';
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { dateTime } from '@/i18n';
 import { Head, router, useForm } from '@inertiajs/react';
-import { PlatformLayout } from '@/layouts/PlatformLayout';
-import { PageHeader } from '@/components/shared/PageHeader';
+import { PlatformSettingsLayout } from '@/layouts/PlatformSettingsLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { t, useAdminTranslation, errorMessage } from '@/i18n/admin';
@@ -151,16 +149,14 @@ function AssetSettingsForm(p: Props) {
         });
     };
     return (
-        <PlatformLayout>
-            <Head title={t('Multi-currency settings')} />
-            <div className="mx-auto max-w-6xl space-y-6">
-                <PageHeader
-                    title={t('Multi-currency settings')}
-                    description={t(
+        <PlatformSettingsLayout>
+            <Head title={t('Asset settings')} />
+            <div className="space-y-6">
+                <p className="text-sm text-muted-foreground">
+                    {t(
                         'Manage receiving addresses and company deposit, withdrawal and exchange settings.',
                     )}
-                />
-                <AssetNavigation active="settings" />
+                </p>
                 <SettingsContext.Provider
                     value={{
                         sections: form.data.sections,
@@ -412,7 +408,7 @@ function AssetSettingsForm(p: Props) {
                     </form>
                 </SettingsContext.Provider>
             </div>
-        </PlatformLayout>
+        </PlatformSettingsLayout>
     );
 }
 function trim(v: string | null | undefined) {

@@ -224,8 +224,7 @@ final class PromotionReportQuery
         $depositSupported = $policy !== null && $policy->default_asset === 'USDT' && $policy->required_security_deposit_asset === 'USDT';
         $depositRequired = Money::of($policy?->required_security_deposit_amount ?? '0', 'USDT');
         $at = CarbonImmutable::now();
-        $cycles = DB::table('paid_promotion_cycles')->where('tenant_id', $tenant)->where('starts_at', '<=', $at)->where('ends_at', '>', $at)
-            ->selectRaw('DISTINCT ON (user_id) user_id,rank,ends_at')->orderBy('user_id')->orderByDesc('starts_at');
+        $cycles = app(ManualPromotion::class)->query($tenant, $at);
         $income = $this->income($tenant, $user)->selectRaw("source_user_id,SUM(amount)::text AS total,
             COALESCE(SUM(amount) FILTER (WHERE kind='annual'),0)::text AS annual,
             COALESCE(SUM(amount) FILTER (WHERE kind='activation'),0)::text AS activation,
@@ -286,7 +285,7 @@ final class PromotionReportQuery
                 'relation' => $r->depth === 1 ? 'direct' : 'indirect', 'displayName' => $r->display_name, 'maskedEmail' => $r->email ? $this->masker->mask(RegistrationChannel::Email, $r->email) : null,
                 'joinedAt' => $r->created_at, 'depositAmount' => $r->deposit_amount,
                 'teamSize' => (int) ($teamCounts->get($r->id)?->total ?? 0),
-                'membershipStatus' => $r->ends_at !== null ? 'agent' : (AccountActivationStatus::depositSatisfied($depositSupported, Money::of($r->deposit_amount, 'USDT'), $depositRequired) ? 'ordinary' : 'inactive'),
+                'membershipStatus' => $r->rank > 0 ? 'agent' : (AccountActivationStatus::depositSatisfied($depositSupported, Money::of($r->deposit_amount, 'USDT'), $depositRequired) ? 'ordinary' : 'inactive'),
                 'totals' => ['total' => $r->total, 'annual' => $r->annual, 'activation' => $r->activation, 'legacy' => $r->legacy]])->all()];
     }
 
@@ -298,8 +297,7 @@ final class PromotionReportQuery
         $target = $this->descendant($tenant, $viewer, $member);
         $team = $this->team($tenant, $target->user_id);
         $at = CarbonImmutable::now();
-        $cycles = DB::table('paid_promotion_cycles')->where('tenant_id', $tenant)->where('starts_at', '<=', $at)->where('ends_at', '>', $at)
-            ->selectRaw('DISTINCT ON (user_id) user_id,rank')->orderBy('user_id')->orderByDesc('starts_at');
+        $cycles = app(ManualPromotion::class)->query($tenant, $at);
         $people = DB::query()->fromSub(clone $team, 't')->leftJoinSub($cycles, 'c', 'c.user_id', '=', 't.user_id')
             ->selectRaw('COALESCE(c.rank,0) AS rank,COUNT(*) FILTER (WHERE t.depth=1) AS direct,COUNT(*) FILTER (WHERE t.depth>1) AS indirect')
             ->groupByRaw('COALESCE(c.rank,0)')->get()->keyBy('rank');

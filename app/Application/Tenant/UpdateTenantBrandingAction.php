@@ -2,12 +2,13 @@
 
 namespace App\Application\Tenant;
 
+use App\Application\Media\ImageStorage;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Tenant\Models\Tenant;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 final readonly class UpdateTenantBrandingAction
 {
@@ -17,31 +18,35 @@ final readonly class UpdateTenantBrandingAction
     public function execute(Tenant $tenant, array $data, ?UploadedFile $logo, ?UploadedFile $favicon, AdminUser $actor, ?string $requestId = null): void
     {
         app(CompanyConfigurationAuthority::class)->assert($actor);
-        $newLogo = $logo?->store('tenant-branding/'.$tenant->id, 'public');
-        $newFavicon = $favicon?->store('tenant-branding/'.$tenant->id, 'public');
-        $oldLogo = $tenant->branding?->logo_object_key;
-        $oldFavicon = $tenant->branding?->favicon_object_key;
+        $images = app(ImageStorage::class);
+        $newLogo = $logo ? $images->put($tenant->id, 'public', 'tenant-branding/'.$tenant->id.'/'.Str::uuid(), $logo->getContent(), 'branding', $tenant->id) : null;
+        $newFavicon = null;
+        try {
+            $newFavicon = $favicon ? $images->put($tenant->id, 'public', 'tenant-branding/'.$tenant->id.'/'.Str::uuid(), $favicon->getContent(), 'branding', $tenant->id) : null;
 
-        DB::transaction(function () use ($tenant, $data, $newLogo, $newFavicon, $actor, $requestId): void {
-            $branding = $tenant->branding()->lockForUpdate()->firstOrFail();
-            $before = $branding->only(['brand_name', 'logo_object_key', 'favicon_object_key', 'primary_color', 'support_email', 'support_url', 'copyright_text']);
-            $branding->update([
-                'brand_name' => $data['brand_name'],
-                'primary_color' => $data['primary_color'],
-                'support_email' => $data['support_email'],
-                'support_url' => $data['support_url'],
-                'copyright_text' => $data['copyright_text'],
-                'logo_object_key' => $newLogo ?? $branding->logo_object_key,
-                'favicon_object_key' => $newFavicon ?? $branding->favicon_object_key,
-            ]);
-            $this->audit->record($tenant->id, 'ADMIN', $actor->id, 'TENANT_BRANDING_UPDATED', 'tenant_branding', $tenant->id, $before, $branding->fresh()->only(array_keys($before)), $requestId);
-        });
+            DB::transaction(function () use ($tenant, $data, $newLogo, $newFavicon, $actor, $requestId): void {
+                $branding = $tenant->branding()->lockForUpdate()->firstOrFail();
+                $before = $branding->only(['brand_name', 'logo_object_key', 'favicon_object_key', 'primary_color', 'support_email', 'support_url', 'copyright_text']);
+                $branding->update([
+                    'brand_name' => $data['brand_name'],
+                    'primary_color' => $data['primary_color'],
+                    'support_email' => $data['support_email'],
+                    'support_url' => $data['support_url'],
+                    'copyright_text' => $data['copyright_text'],
+                    'logo_object_key' => $newLogo ?? $branding->logo_object_key,
+                    'favicon_object_key' => $newFavicon ?? $branding->favicon_object_key,
+                ]);
+                $this->audit->record($tenant->id, 'ADMIN', $actor->id, 'TENANT_BRANDING_UPDATED', 'tenant_branding', $tenant->id, $before, $branding->fresh()->only(array_keys($before)), $requestId);
+            });
 
-        if ($newLogo && $oldLogo) {
-            Storage::disk('public')->delete($oldLogo);
-        }
-        if ($newFavicon && $oldFavicon) {
-            Storage::disk('public')->delete($oldFavicon);
+        } catch (\Throwable $error) {
+            $current = $tenant->branding()->first();
+            foreach ([$newLogo, $newFavicon] as $key) {
+                if ($key && ! in_array($key, [$current?->logo_object_key, $current?->favicon_object_key], true)) {
+                    $images->discard('public', $key);
+                }
+            }
+            throw $error;
         }
     }
 }

@@ -1,0 +1,16 @@
+{
+    "environment": "sandbox",
+    "requested_amount": "20.00",
+    "currency": "USD",
+    "reused_existing_intent": true,
+    "order": {
+        "id": "2238071d-8e5e-41c0-99c0-052ae969ee2b",
+        "status": "SUCCEEDED",
+        "amount": "20.00000000",
+        "arrival_amount": "20.00000000",
+        "debit_amount": "20.00000000",
+        "fee_amount": "0.00000000"
+    },
+    "result": "PASS",
+    "saved_transaction_matches": true
+}

@@ -1,0 +1,320 @@
+.report-page {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    font-size: 14px;
+    min-width: 0;
+}
+.report-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.report-filter-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid #dfe5df;
+    border-radius: 10px;
+    background: white;
+    font-size: 13px;
+    margin: 0;
+    flex-shrink: 0;
+    line-height: 20px;
+}
+.report-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.report-chips button {
+    font-size: 12px;
+    line-height: 20px;
+    background: #eef5ed;
+    color: #37604a;
+    border-radius: 999px;
+    padding: 6px 10px;
+    margin: 0;
+}
+.report-empty {
+    padding: 36px 16px;
+    text-align: center;
+    color: #68736e;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+}
+.report-entry {
+    border-bottom: 1px solid #e5e9e1;
+}
+.report-entry-summary {
+    display: flex;
+    gap: 12px;
+    padding: 18px 0;
+    align-items: flex-start;
+}
+.report-entry-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #f0f5ed;
+}
+.report-entry-body {
+    min-width: 0;
+    flex: 1;
+}
+.report-entry-top {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 4px 12px;
+}
+.report-entry-title {
+    font-size: 14px;
+    line-height: 22px;
+    font-weight: 500;
+}
+.report-positive {
+    font-weight: 600;
+    color: #2a7352;
+    font-size: 14px;
+    line-height: 22px;
+    overflow-wrap: anywhere;
+}
+.report-entry-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    font-size: 12px;
+    line-height: 20px;
+    color: #68736e;
+    margin-top: 4px;
+}
+.report-entry-meta > :last-child {
+    margin-left: auto;
+}
+.report-account {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.015em;
+}
+.report-entry-detail {
+    padding: 0 0 16px 46px;
+    font-size: 12px;
+    line-height: 20px;
+}
+.report-entry-detail > view {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    padding: 7px 0;
+}
+.report-entry-detail > view > text:first-child {
+    color: #68736e;
+}
+.report-entry-detail > view > text:last-child {
+    overflow-wrap: anywhere;
+    min-width: 0;
+}
+.report-entry-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 11px;
+    line-height: 18px;
+}
+.report-entry-tags text {
+    padding: 2px 8px;
+    border-radius: 5px;
+    background: #f2f6ef;
+    color: #37604a;
+}
+.report-notes {
+    font-size: 12px;
+    line-height: 20px;
+    color: #68736e;
+}
+.report-notes button {
+    margin: 0;
+    min-height: 40px;
+    padding: 8px 0;
+    background: none;
+    font-size: 12px;
+    line-height: 20px;
+}
+.report-notes text {
+    display: block;
+    margin-top: 8px;
+}
+.report-period {
+    font-size: 12px;
+    line-height: 20px;
+    color: #68736e;
+}
+.report-team-counts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    border-bottom: 1px solid #e5e9e1;
+    padding-bottom: 20px;
+}
+.report-team-counts text {
+    display: block;
+    font-size: 12px;
+    line-height: 20px;
+    color: #68736e;
+}
+.report-team-counts text:first-child {
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 32px;
+    color: #254235;
+    margin-bottom: 4px;
+}
+.report-member {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(100px, 40%);
+    gap: 16px;
+    padding: 20px 0;
+    border-bottom: 1px solid #e5e9e1;
+}
+.report-member-person {
+    display: block;
+    padding: 0;
+    margin: 0;
+    text-align: left;
+    background: none;
+    font-size: 14px;
+    line-height: 22px;
+}
+.report-member-person > text {
+    display: block;
+    font-size: 16px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+.report-member-account-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 14px;
+    font-weight: 500;
+}
+.report-member-email {
+    display: block;
+    font-size: 12px;
+    color: #68736e;
+    line-height: 20px;
+    margin-top: 4px;
+    overflow-wrap: anywhere;
+}
+.report-member-team-count {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-top: 10px;
+    font-size: 12px;
+    line-height: 20px;
+    color: #68736e;
+}
+.report-member-financial {
+    text-align: right;
+}
+.member-status {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 3px 8px;
+    font-size: 11px;
+    line-height: 18px;
+    background: #f0f3ee;
+    color: #647164;
+}
+.member-status-agent {
+    background: #f6eed8;
+    color: #84651b;
+}
+.member-status-ordinary {
+    background: #edf5ed;
+    color: #39704b;
+}
+.member-commission-summary {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.member-commission-summary > text:first-child {
+    font-size: 11px;
+    color: #68736e;
+    line-height: 18px;
+}
+.member-commission-summary .amount {
+    font-size: 22px;
+    line-height: 28px;
+    font-weight: 600;
+    color: #2a7352;
+    overflow-wrap: anywhere;
+}
+.member-commission-summary .currency {
+    font-size: 11px;
+    color: #68736e;
+}
+.report-section-title {
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 600;
+}
+.report-filter-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+.report-filter-buttons button {
+    width: 100%;
+    font-size: 14px;
+}
+.member-search {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    min-width: 0;
+    flex: 1;
+}
+.member-search input {
+    height: 44px;
+    padding: 0 12px;
+    border: 1px solid #dfe5df;
+    border-radius: 10px;
+    font-size: 14px;
+    min-width: 0;
+    flex: 1;
+}
+.member-search button {
+    font-size: 14px;
+    line-height: 24px;
+    padding: 10px 14px;
+    min-height: 44px;
+    flex-shrink: 0;
+    margin: 0;
+}
+.member-count-copy {
+    font-size: 12px;
+    line-height: 20px;
+    color: #68736e;
+}
+.member-count-copy > text {
+    display: block;
+}

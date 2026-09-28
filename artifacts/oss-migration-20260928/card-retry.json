@@ -1,0 +1,31 @@
+{
+    "environment": "sandbox",
+    "execute": true,
+    "opening_fee": "2.00000000",
+    "initial_amount": "20.00",
+    "existing_issue_count": 3,
+    "original_limit": 1,
+    "documents": [
+        {
+            "oss": true,
+            "checksum": true
+        },
+        {
+            "oss": true,
+            "checksum": true
+        }
+    ],
+    "holder_id": "01a0e6de-5cb8-7184-80a2-1b9d022f0019",
+    "holder_status": "READY",
+    "issue": {
+        "id": "f0a84495-63f3-450e-bde8-0df4168d9b7e",
+        "status": "SUCCEEDED",
+        "initial_load_amount": "20.00000000",
+        "opening_fee": "2.00000000"
+    },
+    "card": {
+        "id": "01a0e6de-a758-7333-95a4-e94c99d67326",
+        "provider_status": "normal"
+    },
+    "result": "PASS"
+}

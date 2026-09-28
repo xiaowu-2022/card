@@ -63,7 +63,7 @@ final readonly class FundSecurityDepositAction
                 return $this->receiptForExisting($existing, $tenantId, $wallet->id);
             }
             RefundSecurityDepositAction::assertNoPending($tenantId, $userId);
-            if (app(PaidPromotionRules::class)->cycle($tenantId, $userId)) {
+            if (app(\App\Application\Promotion\ManualPromotion::class)->benefit($tenantId, $userId)) {
                 throw new DomainException('AGENT_DEPOSIT_EXEMPT', 'Active agents do not need a security deposit.', 409);
             }
 

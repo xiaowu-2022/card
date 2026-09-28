@@ -23,12 +23,12 @@ final readonly class RecordAccountActivation
         $id = (string) Str::uuid();
         DB::table('account_activations')->insert(['id' => $id, 'tenant_id' => $tenant, 'user_id' => $user,
             'source_type' => $kind, 'source_id' => $source, 'ledger_entry_id' => $entry, 'activated_at' => $at, 'created_at' => now()]);
-        $sourceRank = (int) ($this->rules->cycle($tenant, $user, $at)?->rank ?? 0);
+        $sourceRank = (int) (app(ManualPromotion::class)->benefit($tenant, $user, $at)?->rank ?? 0);
         $pathMaxRank = $sourceRank;
         foreach ($this->rules->ancestors($tenant, $user) as $ancestor) {
             DB::table('account_activation_relations')->insert(['activation_id' => $id, 'tenant_id' => $tenant,
                 'ancestor_user_id' => $ancestor->user_id, 'depth' => $ancestor->depth]);
-            $rank = (int) ($this->rules->cycle($tenant, $ancestor->user_id, $at)?->rank ?? 0);
+            $rank = (int) (app(ManualPromotion::class)->benefit($tenant, $ancestor->user_id, $at)?->rank ?? 0);
             $eligible = $ancestor->depth <= 5 && $rank > $pathMaxRank;
             DB::table('activation_count_snapshots')->insert([
                 'activation_id' => $id, 'tenant_id' => $tenant, 'ancestor_user_id' => $ancestor->user_id,

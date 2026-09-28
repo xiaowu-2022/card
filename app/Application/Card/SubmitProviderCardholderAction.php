@@ -2,6 +2,7 @@
 
 namespace App\Application\Card;
 
+use App\Application\Media\ImageStorage;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Card\Enums\ProviderCardholderStatus;
 use App\Domain\Card\Models\CardIssueOrder;
@@ -30,7 +31,6 @@ use App\Support\Errors\DomainException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -99,7 +99,7 @@ final readonly class SubmitProviderCardholderAction
         $fingerprint = $this->materials->fingerprint($tenantId, $userId, $data['card_product_id'], json_encode([
             $formFactor, $fields, hash('sha256', $front), $back === null ? null : hash('sha256', $back),
         ], JSON_THROW_ON_ERROR));
-        $disk = Storage::disk('private');
+        $images = app(ImageStorage::class);
         $base = 'card-materials/'.$tenantId.'/'.$userId.'/'.Str::uuid();
         $keys = [];
         $committed = false;
@@ -109,9 +109,7 @@ final readonly class SubmitProviderCardholderAction
                     continue;
                 }
                 $key = $base.'/'.$side;
-                if (! $disk->put($key, $this->materials->encrypt($contents))) {
-                    throw new DomainException('CARD_MATERIALS_STORAGE_FAILED', 'The documents could not be stored. Please try again.', 503);
-                }
+                $images->put($tenantId, 'private', $key, $contents, 'card', $data['request_id'], 'card');
                 $keys[$side] = $key;
             }
             $encrypted = $this->materials->encrypt(json_encode(['fields' => $fields, 'documents' => $keys], JSON_THROW_ON_ERROR));
@@ -181,7 +179,7 @@ final readonly class SubmitProviderCardholderAction
             if (! $committed) {
                 foreach ($keys as $key) {
                     try {
-                        $disk->delete($key);
+                        $images->discard('private', $key);
                     } catch (Throwable) {
                         Log::warning('Uncommitted card document cleanup failed.', ['tenant_id' => $tenantId]);
                     }

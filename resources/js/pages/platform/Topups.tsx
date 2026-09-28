@@ -124,10 +124,18 @@ export default function Topups({ companies, filters, orders }: Props) {
                     { label: 'Tenant', render: (order) => order.companyName },
                     {
                         label: 'User',
+                        className: 'w-56 max-w-56',
                         render: (order) => (
-                            <div>
-                                {order.accountId}
-                                <p className="text-xs text-muted-foreground">{order.userEmail}</p>
+                            <div className="w-48 max-w-48">
+                                <p className="truncate" title={order.accountId}>
+                                    {order.accountId}
+                                </p>
+                                <p
+                                    className="truncate text-xs text-muted-foreground"
+                                    title={order.userEmail}
+                                >
+                                    {order.userEmail}
+                                </p>
                             </div>
                         ),
                     },
@@ -158,13 +166,14 @@ export default function Topups({ companies, filters, orders }: Props) {
                     },
                     {
                         label: 'Operator',
+                        className: 'w-40 max-w-40',
                         render: (order) =>
                             order.manuallyConfirmed ? (
-                                <div>
+                                <div
+                                    className="w-32 truncate"
+                                    title={order.manualConfirmedBy?.name ?? t('Unknown operator')}
+                                >
                                     {order.manualConfirmedBy?.name ?? t('Unknown operator')}
-                                    <p className="max-w-48 break-all text-xs text-muted-foreground">
-                                        {order.manualConfirmedBy?.id}
-                                    </p>
                                 </div>
                             ) : (
                                 '—'

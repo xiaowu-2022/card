@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Application\Media\ImageStorage;
 use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
 use App\Domain\Kyc\DTOs\KycOcrRequestDTO;
 use App\Domain\Kyc\Enums\KycOcrOutcome;
@@ -15,7 +16,6 @@ use App\Domain\Tenant\TenantContext;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
-use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 final class ProcessKycOcrJob implements ShouldQueue
@@ -48,12 +48,13 @@ final class ProcessKycOcrJob implements ShouldQueue
             }
             $application->forceFill(['ocr_status' => KycOcrStatus::Processing])->save();
             try {
-                $disk = Storage::disk((string) config('kyc.document_disk'));
+                $disk = (string) config('kyc.document_disk');
+                $images = app(ImageStorage::class);
                 $result = $provider->extractIdentityDocument(new KycOcrRequestDTO(
                     $application->document_type,
                     $application->document_country,
-                    (string) $disk->get($application->front_object_key),
-                    $application->back_object_key ? (string) $disk->get($application->back_object_key) : '',
+                    $images->ocrUrl($disk, $application->front_object_key),
+                    $application->back_object_key ? $images->ocrUrl($disk, $application->back_object_key) : '',
                 ));
             } catch (Throwable) {
                 throw new \RuntimeException('KYC OCR processing failed.');

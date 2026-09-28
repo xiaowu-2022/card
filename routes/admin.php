@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['tenant.surface:tenant-admin', CompanyConfigurationReadOnly::class])->prefix('admin')->name('tenant-admin.')->group(function (): void {
     Route::middleware('admin.scope:tenant,support.manage')->group(function (): void {
+        Route::post('/support/profile', [SupportController::class, 'profile'])->middleware('throttle:20,1');
         Route::get('/support/images/{message}', [SupportController::class, 'image'])->whereUuid('message')->name('support.image');
         Route::get('/support', [SupportController::class, 'index'])->middleware('throttle:60,1')->name('support');
         Route::get('/support/{conversation}', [SupportController::class, 'show'])->whereUuid('conversation')->middleware('throttle:60,1')->name('support.show');

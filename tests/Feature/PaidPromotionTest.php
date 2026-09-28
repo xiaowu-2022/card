@@ -8,6 +8,7 @@ use App\Application\Promotion\CommissionAccounts;
 use App\Application\Promotion\CompanyFundBookQuery;
 use App\Application\Promotion\ConfigurePaidPromotion;
 use App\Application\Promotion\ConsolidateDevelopmentCommission;
+use App\Application\Promotion\ManualPromotion;
 use App\Application\Promotion\PaidPromotionPurchase;
 use App\Application\Promotion\PaidPromotionQuery;
 use App\Application\Promotion\PaidPromotionRebate;
@@ -27,6 +28,9 @@ use App\Application\Wallet\WalletActivityQuery;
 use App\Application\Wallet\WalletEligibilityService;
 use App\Application\Withdrawal\CreateWithdrawalAction;
 use App\Domain\Admin\Models\AdminUser;
+use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
+use App\Domain\Kyc\DTOs\KycOcrResultDTO;
+use App\Domain\Kyc\Enums\KycOcrOutcome;
 use App\Domain\Kyc\Services\KycStatusService;
 use App\Domain\Ledger\DTOs\LedgerPostingInstruction;
 use App\Domain\Ledger\DTOs\LedgerPostingPlan;
@@ -67,10 +71,10 @@ afterEach(function () {
 
 function paidWallet($test, User $user, string $amount = '500000'): void
 {
-    $ocr = Mockery::mock(\App\Domain\Kyc\Contracts\KycOcrProviderInterface::class);
+    $ocr = Mockery::mock(KycOcrProviderInterface::class);
     $ocr->shouldReceive('name')->andReturn('TEST');
-    $ocr->shouldReceive('extractIdentityDocument')->andReturn(new \App\Domain\Kyc\DTOs\KycOcrResultDTO(\App\Domain\Kyc\Enums\KycOcrOutcome::Success, 'PAID-'.$user->id));
-    app()->instance(\App\Domain\Kyc\Contracts\KycOcrProviderInterface::class, $ocr);
+    $ocr->shouldReceive('extractIdentityDocument')->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, 'PAID-'.$user->id));
+    app()->instance(KycOcrProviderInterface::class, $ocr);
     $application = app(SubmitKycApplicationAction::class)->execute($test->tenant, $user, 'CN', 'PAID-'.$user->id, kycTestImage(), kycTestImage());
     app(ApproveKycAction::class)->execute($test->tenant->id, $application->id, $test->admin);
     $wallet = app(ActivateUserWalletAction::class)->execute($test->tenant->id, $user->id)->wallet;
@@ -1376,4 +1380,45 @@ it('rejects missing counting snapshots atomically and preserves immutable eviden
     expect(DB::table('ledger_entries')->count())->toBe($entries);
     app(FundSecurityDepositAction::class)->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
     expect(fn () => DB::transaction(fn () => DB::table('activation_count_snapshots')->where('ancestor_user_id', $this->user->id)->update(['eligible' => false])))->toThrow(QueryException::class);
+});
+
+it('uses manual ranks for future activation and annual rewards without rewriting paid periods', function () {
+    paidWallet($this, $this->user);
+    $paid = paidBuy($this, $this->user, 1);
+    $oldCycle = (array) app(PaidPromotionRules::class)->cycle($this->tenant->id, $this->user->id);
+    $manual = app(ManualPromotion::class);
+    $level = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->where('rank', 8)->first();
+    $grant = $manual->adjust($this->tenant->id, $this->user->id, $this->platform, $level->id, 'Test grant', (string) Str::uuid(), null);
+    expect(app(AccountActivationStatus::class)->get($this->tenant->id, $this->user->id)['rank'])->toBe(8);
+    expect((array) app(PaidPromotionRules::class)->cycle($this->tenant->id, $this->user->id))->toBe($oldCycle);
+    $child = paidChild($this, $this->user);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
+    $share = DB::table('paid_promotion_shares')->where('user_id', $this->user->id)->where('manual_adjustment_id', $grant->id)->first();
+    expect($share->rank)->toBe(8)->and($share->amount)->toBe(number_format($level->reward, 8, '.', ''))->and($share->cycle_id)->toBeNull();
+    $buyer = paidChild($this, $this->user);
+    $purchase = paidBuy($this, $buyer, 1);
+    $event = DB::table('paid_promotion_events')->where('source_id', $purchase->id)->first();
+    $annual = DB::table('paid_promotion_shares')->where('event_id', $event->id)->where('user_id', $this->user->id)->first();
+    expect($annual->manual_adjustment_id)->toBe($grant->id)->and($annual->rank)->toBe(8)->and($annual->rate)->toBe((string) $level->percent.'.00000000');
+    $ordinary = $manual->adjust($this->tenant->id, $this->user->id, $this->platform, 'ordinary', 'Test downgrade', (string) Str::uuid(), $grant->id);
+    expect(app(AccountActivationStatus::class)->get($this->tenant->id, $this->user->id)['agent'])->toBeFalse();
+    expect(fn () => app(PaidPromotionPurchase::class)->quote($this->tenant->id, $this->user->id, $level->id, (string) Str::uuid()))->toThrow(DomainException::class);
+    $manual->adjust($this->tenant->id, $this->user->id, $this->platform, 'paid', 'Restore paid cycle', (string) Str::uuid(), $ordinary->id);
+    expect($manual->benefit($this->tenant->id, $this->user->id)->rank)->toBe(1)
+        ->and(DB::table('paid_promotion_shares')->where('id', $share->id)->first())->toEqual($share)
+        ->and((array) app(PaidPromotionRules::class)->cycle($this->tenant->id, $this->user->id))->toBe($oldCycle);
+});
+
+it('reflects manual levels in team reports and blocks a pre-adjustment unpaid quote', function () {
+    paidWallet($this, $this->user);
+    $child = paidChild($this, $this->user);
+    $level = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->where('rank', 3)->first();
+    $quote = app(PaidPromotionPurchase::class)->quote($this->tenant->id, $child->id, $level->id, (string) Str::uuid());
+    $manual = app(ManualPromotion::class);
+    $manual->adjust($this->tenant->id, $child->id, $this->platform, $level->id, 'Test rank', (string) Str::uuid(), null);
+    expect(fn () => app(PaidPromotionPurchase::class)->confirm($this->tenant->id, $child->id, $quote->id))->toThrow(DomainException::class);
+    $dto = app(PaidPromotionQuery::class)->execute($this->tenant->id, $this->user->id);
+    expect(collect($dto['teamByLevel'])->firstWhere('rank', 3)['direct'])->toBe(1);
+    $report = app(PromotionReportQuery::class)->members($this->tenant->id,$this->user->id,[]);
+    expect(collect($report['items'])->firstWhere('accountId',$child->fresh()->account_id))->toMatchArray(['rank' => 3, 'membershipStatus' => 'agent']);
 });

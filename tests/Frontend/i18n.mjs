@@ -27,18 +27,18 @@ test('card provider directory distinguishes manual references and configured API
     assert.ok(!overview.includes('cardProviderCount'));
 });
 
-test('SaaS users and payment orders have independent permission-scoped navigation', () => {
+test('SaaS users and unified deposit orders have independent permission-scoped navigation', () => {
     const nav = readFileSync('resources/js/layouts/PlatformLayout.tsx', 'utf8');
     for (const [path, permission] of [['/platform/users', 'users.read'], ['/platform/topups', 'wallet_topups.read']]) {
         assert.ok(nav.includes(`href: '${path}'`));
         assert.ok(nav.includes(`permission: '${permission}'`));
     }
-    assert.ok(nav.includes("label: 'Payment orders'"));
+    assert.ok(nav.includes("label: 'Deposit orders'"));
     const users = readFileSync('resources/js/pages/platform/Users.tsx', 'utf8');
     assert.ok(users.includes('companies={companies}'));
     assert.ok(users.includes('row.companyName'));
     assert.ok(!users.includes('.post('));
-    assert.ok(readFileSync('resources/js/pages/platform/Topups.tsx', 'utf8').includes("title={t('Payment orders')}"));
+    assert.ok(readFileSync('resources/js/pages/platform/AssetOrders.tsx', 'utf8').includes("'Deposit orders' : 'Withdrawal orders'"));
 });
 
 test('SaaS identity and wallet navigation uses real permission-scoped read pages', () => {
@@ -659,7 +659,7 @@ test('consumer header language and support icons share responsive sizing and str
 test('card controls expose primary unfreeze for frozen cards and permission-scoped management in More', () => {
     const source = readFileSync('resources/js/components/user/CardManagementActions.tsx', 'utf8');
     assert.match(source, /const actions = \[\s*'reveal',\s*card.state === 'Frozen' \? 'unfreeze' : 'load',\s*'return',\s*'transactions',?\s*\]/);
-    assert.ok(source.includes("const moreActions = ['freeze', 'unfreeze', 'holder', 'cancel'].filter"));
+    assert.ok(source.includes("const moreActions = ['unfreeze', 'holder'].filter"));
     const controls = source.slice(source.indexOf('data-card-actions'), source.indexOf('<Dialog\n'));
     assert.ok(controls.includes('capabilities.includes(action)'));
     assert.ok(controls.includes("t('More')"));
@@ -799,7 +799,7 @@ test('admin static page copy and navigation labels have complete translations', 
     const missing = [],
         raw = [];
     const allowed =
-        /^(?:USDT|USD|TRC20|REGULAR|Aperture Platform|TEST|MOCK|acme|[\s\d.,+…—·:()*/%-]+)$/;
+        /^(?:\(USDT\)|CVV|USDT|USD|TRC20|REGULAR|Aperture Platform|TEST|MOCK|acme|[\s\d.,+…—·:()*/%-]+)$/;
     for (const path of adminSources) {
         const file = ts.createSourceFile(
             path,
@@ -1047,7 +1047,7 @@ test('successful material submission continues the same application while errors
     assert.equal(resets, 1);
 });
 
-test('cardholder contact errors reject the reported 1111 values and preserve optional phone', () => {
+test('cardholder contact errors reject invalid contact details and require the cardholder phone', () => {
     const errors = holderValidation.cardholderErrors(
         { ...holderData, email: '1111', mobile: '1111' },
         holderContext,
@@ -1057,7 +1057,7 @@ test('cardholder contact errors reject the reported 1111 values and preserve opt
     assert.deepEqual(holderValidation.cardholderErrors(holderData, holderContext), {});
     assert.deepEqual(
         holderValidation.cardholderErrors({ ...holderData, mobile: '' }, holderContext),
-        {},
+        { mobile: 'This field is required.' },
     );
     assert.equal(
         holderValidation.cardholderErrors({ ...holderData, email: ' ' }, holderContext).email,
@@ -1369,7 +1369,7 @@ test('consumer JSX does not reintroduce untranslated visible copy or accessibili
     const raw = [];
     // Currency/network identifiers, deliberately marked mock data, masked PAN and copyright are not translated.
     const allowed =
-        /^(?:\$|CVV|USDT|USD|TRON|TRC20|MY|USDT \(|T\.\.\.|TEST|MOCK|© 2026|•••• 1234|08\/29|[\s\d.,+—·:()*/%-]+)$/;
+        /^(?:Spec Pay|SPEC U CARD|Mastercard|· USDT|\$|CVV|USDT|USD|TRON|TRC20|MY|USDT \(|T\.\.\.|TEST|MOCK|© 2026|•••• 1234|08\/29|[\s\d.,+—·:()*/%-]+)$/;
     for (const path of sources) {
         const file = ts.createSourceFile(
             path,
@@ -1566,8 +1566,10 @@ test('default card display name follows the selected language and keeps U unchan
         void i18n.clientI18n.changeLanguage(previousLocale);
     }
     const page = readFileSync('resources/js/pages/user/Cards.tsx', 'utf8');
-    for (const field of ['option.name', 'product.name', 'card.productName'])
-        assert.ok(page.includes(`cardDisplayName(${field})`), field);
+    assert.ok(page.includes('cardDisplayName(card.productName)'));
+    for (const field of ['option.name', 'product.name'])
+        assert.ok(page.includes(`name={${field}}`), field);
+    assert.ok(readFileSync('resources/js/components/user/CardProductPreview.tsx', 'utf8').includes('cardDisplayName(name)'));
 });
 
 test('language switching translates real activity and card keys without changing decimal strings', () => {
@@ -1829,8 +1831,8 @@ test('promotion display totals preserve eight-decimal rewards without floating p
     assert.equal(promotionMoney('16880.00000000'), '16,880.00 USDT');
     assert.equal(membershipAction({rank:0,membershipStatus:'NONE'}), 'Apply for promotion membership');
     assert.equal(membershipAction({rank:0,membershipStatus:'EXPIRED'}), 'Renew promotion membership');
-    assert.equal(membershipAction({rank:6,membershipStatus:'ACTIVE'}), 'Upgrade promotion level');
-    assert.equal(membershipAction({rank:8,membershipStatus:'ACTIVE'}), 'View level benefits');
+    assert.equal(membershipAction({rank:6,membershipStatus:'ACTIVE',levels:[{rank:12,enabled:true}]}), 'Upgrade promotion level');
+    assert.equal(membershipAction({rank:12,membershipStatus:'ACTIVE',levels:[{rank:12,enabled:true}]}), 'View level benefits');
 });
 
 test('compact promotion table amounts do not hide small rewards or lose exact expanded values', () => {
@@ -1921,6 +1923,7 @@ test('membership page omits rebate progress and history in every locale', () => 
     const paid = {
         activation: { agent: true, qualified: true, refundPending: false }, paymentAccess: { verified: true, walletActive: true, canCreateWallet: false },
         rank: 1, membershipStatus: 'ACTIVE', percent: 30, reward: '50', availableBalance: '2000',
+        upgradeEligibility: { highestEnabledRank: 2 },
         cycle: { tariff: '1000', endsAt: '2027-09-17T01:00:00Z', rebatePolicy: 'AUTO_FIRST_FUNDING' },
         progress: { policy: 'AUTO_FIRST_FUNDING', direct: 35, indirect: 0, target: 100, remaining: '1000', paid: '1000', returned: '0', pending: false },
         levels: [{ id: 'rank2', rank: 2, enabled: true, fee: '2000', percent: 40, reward: '60', target: 135 }],

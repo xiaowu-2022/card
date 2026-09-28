@@ -9,9 +9,10 @@ use Illuminate\Support\Facades\Log;
 use Monolog\Formatter\JsonFormatter;
 use Monolog\Handler\TestHandler;
 use Monolog\Logger;
+use Tests\Concerns\RefreshIsolatedDatabase;
 use Tests\TestCase;
 
-uses(TestCase::class);
+uses(TestCase::class, RefreshIsolatedDatabase::class);
 
 beforeEach(function () {
     $this->payloadHandler = new TestHandler;
@@ -86,8 +87,8 @@ it('keeps diagnostic write failures out of the business flow', function () {
 
 it('correlates encrypted callback evidence with a rejected webhook without weakening verification', function () {
     $key = openssl_pkey_new(['private_key_bits' => 1024]);
-    config(['card-provider.photonpay.webhook_public_key' => openssl_pkey_get_details($key)['key']]);
-    $this->call('POST', 'http://callback.example/webhooks/card-provider', [], [], [], [
+    $callback = photonWebhookFixtureUrl($this, openssl_pkey_get_details($key)['key']);
+    $this->call('POST', $callback, [], [], [], [
         'CONTENT_TYPE' => 'application/json', 'HTTP_X_PD_SIGN' => 'private-invalid-signature',
         'HTTP_X_PD_NOTIFICATION_CATAGORY' => 'issuing', 'HTTP_X_PD_NOTIFICATION_TYPE' => 'auth',
     ], '{"transactionAmount":"10","cvv":"private-cvv"}')->assertStatus(401);

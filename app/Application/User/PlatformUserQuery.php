@@ -19,9 +19,9 @@ final class PlatformUserQuery
             ->when($search, fn ($q) => $q->where(function ($q) use ($search): void {
                 $pattern = '%'.addcslashes($search, '%_').'%';
                 $q->where('u.account_id', 'like', $pattern)->orWhere('u.email', 'ilike', $pattern)
-                    ->orWhere('u.phone', 'like', $pattern)->orWhere('p.display_name', 'ilike', $pattern);
+                    ->orWhere('p.display_name', 'ilike', $pattern);
             }))
-            ->select(['u.id', 'u.tenant_id', 't.name as company_name', 'u.account_id', 'p.display_name', 'u.email', 'u.phone', 'u.status', 'u.created_at', 'u.last_login_at'])
+            ->select(['u.id', 'u.tenant_id', 't.name as company_name', 'u.account_id', 'p.display_name', 'u.email', 'u.status', 'u.created_at', 'u.last_login_at'])
             ->when($financialAccess['balances'] ?? false, fn ($q) => $q
                 ->selectSub($this->balance('USER_AVAILABLE'), 'available_balance')
                 ->selectSub($this->balance('USER_SECURITY_DEPOSIT'), 'security_deposit'))
@@ -34,7 +34,7 @@ final class PlatformUserQuery
             ->through(fn ($row): array => [
                 'id' => $row->id, 'companyId' => $row->tenant_id, 'companyName' => $row->company_name,
                 'accountId' => $row->account_id, 'displayName' => $row->display_name,
-                'email' => $row->email, 'phone' => $row->phone, 'status' => $row->status,
+                'email' => $row->email, 'promotionRank' => app(\App\Application\Promotion\ManualPromotion::class)->benefit($row->tenant_id, $row->id)?->rank ?? 0, 'status' => $row->status,
                 'createdAt' => $row->created_at, 'lastLoginAt' => $row->last_login_at,
             ] + (($financialAccess['balances'] ?? false) ? [
                 'availableBalance' => $this->decimal($row->available_balance), 'securityDeposit' => $this->decimal($row->security_deposit),

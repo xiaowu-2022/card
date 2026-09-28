@@ -53,7 +53,7 @@ final class ConsumerController extends Controller
         return response()->json([
             'apiVersion' => 1,
             'tenant' => ['id' => $tenant->id, 'slug' => $tenant->slug, 'name' => $tenant->branding?->brand_name ?? $tenant->name,
-                'logoUrl' => $tenant->branding?->logo_object_key ? Storage::disk('public')->url($tenant->branding->logo_object_key) : null,
+                'logoUrl' => $tenant->branding?->logo_object_key ? app(\App\Application\Media\ImageStorage::class)->url('public', $tenant->branding->logo_object_key) : null,
                 'primaryColor' => $tenant->branding?->primary_color ?? '#39AD8D'],
             'locale' => $request->attributes->get('client_locale', 'en'),
             'locales' => $request->attributes->get('client_locales', ['en']),

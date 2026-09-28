@@ -1,3 +1,4 @@
+import { SupportProfile } from '@/components/support/SupportProfile';
 import { Head, Link } from '@inertiajs/react';
 import { t, dateTime, useAdminTranslation } from '@/i18n/admin';
 import { TenantAdminLayout } from '@/layouts/TenantAdminLayout';
@@ -11,7 +12,13 @@ type Inbox = {
     hasMore: boolean;
     items: { id: string; accountId: string; awaitingReply: boolean; updatedAt: string }[];
 };
-export default function SupportInbox({ inbox }: { inbox: Inbox }) {
+export default function SupportInbox({
+    inbox,
+    supportName,
+}: {
+    inbox: Inbox;
+    supportName: string | null;
+}) {
     useAdminTranslation();
     const disconnected = useSupportPolling('inbox');
     return (
@@ -19,6 +26,13 @@ export default function SupportInbox({ inbox }: { inbox: Inbox }) {
             <Head title={t('Support messages')} />
             <div className="space-y-6">
                 <PageHeader
+                    actions={
+                        <SupportProfile
+                            key={supportName}
+                            name={supportName}
+                            url="/admin/support/profile"
+                        />
+                    }
                     title={t('Support messages')}
                     description={t('Receive customer messages and reply with text or images.')}
                 />
