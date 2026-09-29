@@ -2,7 +2,7 @@
 import { staticAsset } from '../lib/origin';
 import { computed } from 'vue';
 import { session } from '../lib/session';
-import { photoUrl } from '../lib/api';
+import { native, photoUrl } from '../lib/api';
 import { go } from '../lib/navigation';
 import { t } from '../lib/i18n';
 import UiIcon from './UiIcon.vue';
@@ -22,6 +22,7 @@ const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
             ><view class="auth-banner"
                 ><view class="auth-topbar"
                     ><button
+                        v-if="!login || !native"
                         class="auth-back"
                         :aria-label="t('Back to sign in')"
                         @click="go(login ? '/' : '/login', true)"
@@ -137,6 +138,7 @@ const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
 
 <style scoped>
 .auth-topbar :deep(.language-picker) {
+    margin-left: auto;
     font-size: 16px;
 }
 @media (min-width: 640px) {

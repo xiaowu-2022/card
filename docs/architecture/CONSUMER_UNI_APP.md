@@ -1,5 +1,14 @@
 # uni-app consumer migration
 
+## Native launch entry — 2026-09-29
+
+Native App packages launch directly into `pages/login/index`; the existing login
+bootstrap sends authenticated users to the assets dashboard (or the restricted
+account page when required). Native login has no back link to the public marketing
+page. H5 retains `pages/screen/index` as its first page and its public landing route.
+The page order uses APP-PLUS conditional compilation. This does not persist native
+tokens: cold starts still require login under the existing in-memory session policy.
+
 ## Decision and current boundary — 2026-09-26
 
 The user selected **uni-app / Vue 3 / TypeScript with HBuilderX cloud packaging**,

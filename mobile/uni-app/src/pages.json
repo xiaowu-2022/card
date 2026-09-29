@@ -1,11 +1,18 @@
 {
   "pages": [
-    {
-      "path": "pages/screen/index"
-    },
+    // #ifdef APP-PLUS
     {
       "path": "pages/login/index"
     },
+    // #endif
+    {
+      "path": "pages/screen/index"
+    },
+    // #ifndef APP-PLUS
+    {
+      "path": "pages/login/index"
+    },
+    // #endif
     {
       "path": "pages/assets/index"
     },
