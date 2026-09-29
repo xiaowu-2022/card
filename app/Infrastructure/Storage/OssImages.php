@@ -5,6 +5,7 @@ namespace App\Infrastructure\Storage;
 use App\Application\Media\ServerImages;
 use App\Domain\Media\OssConfiguration;
 use App\Support\Errors\DomainException;
+use OSS\Core\OssException;
 use OSS\Credentials\StaticCredentialsProvider;
 use OSS\OssClient;
 
@@ -18,6 +19,40 @@ class OssImages
         $client->connectionTest = true;
 
         return $client;
+    }
+
+    private function uploadFailure(\Throwable $error): DomainException
+    {
+        // Only fixed classifications leave the SDK: never URLs, request bodies or credentials.
+        $reason = 'unknown';
+        if ($error instanceof OssException) {
+            $reason = match ($error->getErrorCode()) {
+                'AccessDenied', 'AccessDeniedException' => 'permission',
+                'InvalidAccessKeyId' => 'access_key',
+                'SignatureDoesNotMatch', 'InvalidSignature', 'AuthorizationHeaderMalformed' => 'signature',
+                'RequestTimeTooSkewed', 'RequestExpired' => 'clock',
+                'NoSuchBucket' => 'bucket',
+                'MethodNotAllowed', 'NotImplemented' => 'method',
+                default => match ((int) $error->getHTTPStatus()) {
+                    401, 403 => 'permission',
+                    405, 501 => 'method',
+                    301, 302, 307, 308 => 'redirect',
+                    default => 'unknown',
+                },
+            };
+        }
+        if ($reason === 'unknown') {
+            $message = strtolower($error->getMessage());
+            $reason = match (true) {
+                str_contains($message, 'timed out'), str_contains($message, 'timeout') => 'timeout',
+                str_contains($message, 'could not resolve'), str_contains($message, "couldn't resolve") => 'dns',
+                str_contains($message, 'certificate'), str_contains($message, 'ssl connect'), str_contains($message, 'tls') => 'tls',
+                str_contains($message, 'failed to connect'), str_contains($message, "couldn't connect"), str_contains($message, 'connection refused') => 'connect',
+                default => 'unknown',
+            };
+        }
+
+        return new DomainException('IMAGE_STORAGE_UNAVAILABLE', 'Image storage is unavailable. Please try again.', 503, ['reason' => $reason]);
     }
 
     protected function client(OssConfiguration $config): OssClient
@@ -129,8 +164,8 @@ class OssImages
             $client->putObject($config->bucket, $key, $contents, [OssClient::OSS_HEADERS => [
                 'Content-Type' => $mime, 'Cache-Control' => str_starts_with($key, 'assets/') ? 'public, max-age=31536000, immutable' : 'no-store', 'x-oss-object-acl' => 'public-read', 'x-oss-server-side-encryption' => 'AES256',
             ]]);
-        } catch (\Throwable) {
-            throw new DomainException('IMAGE_STORAGE_UNAVAILABLE', 'Image storage is unavailable. Please try again.', 503);
+        } catch (\Throwable $error) {
+            throw $this->uploadFailure($error);
         }
     }
 

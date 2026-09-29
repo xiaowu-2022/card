@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use OSS\Core\OssException;
 use OSS\OssClient;
 
 beforeEach(function () {
@@ -536,6 +537,41 @@ it('reports the first failed connection stage without leaking upstream secrets',
         } catch (DomainException $error) {
             expect($error->details)->toBe(['stage' => $stage]);
             expect($error->getMessage())->not->toContain('SECRET-UPSTREAM')->not->toContain('synthetic-secret');
+        }
+    }
+});
+
+it('classifies upload failures without returning SDK secrets', function () {
+    $config = enableOssFixture($this);
+    foreach ([
+        ['timeout', new RuntimeException('cURL error: Connection timed out SECRET-UPSTREAM')],
+        ['permission', new OssException(['code' => 'AccessDenied', 'message' => 'SECRET-UPSTREAM', 'request-id' => 'test', 'status' => 403])],
+        ['signature', new OssException(['code' => 'SignatureDoesNotMatch', 'message' => 'SECRET-UPSTREAM', 'request-id' => 'test', 'status' => 403])],
+        ['method', new OssException(['code' => 'MethodNotAllowed', 'message' => 'SECRET-UPSTREAM', 'request-id' => 'test', 'status' => 405])],
+    ] as [$reason, $failure]) {
+        $sdk = Mockery::mock(OssClient::class);
+        $sdk->shouldReceive('putObject')->once()->andThrow($failure);
+        $adapter = new class($sdk) extends OssImages
+        {
+            public function __construct(private OssClient $sdk) {}
+
+            protected function client(OssConfiguration $config): OssClient
+            {
+                return $this->sdk;
+            }
+        };
+        app()->instance(OssImages::class, $adapter);
+        $sdk->shouldReceive('deleteObject')->once();
+        try {
+            app(OssSettings::class)->check($config, $this->owner);
+            $this->fail('Expected upload failure');
+        } catch (DomainException $error) {
+            expect($error->details)->toBe(['stage' => 'upload']);
+            expect($error->getMessage())->toStartWith('OSS upload failed:')->not->toContain('SECRET-UPSTREAM');
+            expect($error->getMessage())->toContain(match ($reason) {
+                'timeout' => 'timed out', 'permission' => 'denied write access',
+                'signature' => 'signature validation', 'method' => 'upload method',
+            });
         }
     }
 });

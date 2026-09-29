@@ -65,6 +65,7 @@ final class OssSettings
         $key = 'connection-tests/'.Str::uuid().'.png';
         $bytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true);
         $failure = null;
+        $reason = null;
         $stage = 'dns';
         try {
             if (! app()->environment('testing')) {
@@ -84,8 +85,9 @@ final class OssSettings
             if (! $response->successful() || ! hash_equals(hash('sha256', $bytes), hash('sha256', $response->body()))) {
                 throw new \RuntimeException;
             }
-        } catch (\Throwable) {
+        } catch (\Throwable $error) {
             $failure = $stage;
+            $reason = $error instanceof DomainException ? ($error->details['reason'] ?? null) : null;
         } finally {
             try {
                 $oss->delete($config, $key);
@@ -101,6 +103,22 @@ final class OssSettings
                 'public_read' => 'OSS test failed: the image domain could not return the exact test image. Check public access, CDN and HTTPS.',
                 'delete' => 'OSS test failed: upload and reads succeeded, but deleting the test image failed. Check delete permissions.',
             };
+            if ($failure === 'upload') {
+                $message = match ($reason) {
+                    'timeout' => 'OSS upload failed: the server connection timed out.',
+                    'dns' => 'OSS upload failed: the server could not resolve the endpoint.',
+                    'tls' => 'OSS upload failed: HTTPS handshake or certificate verification failed.',
+                    'connect' => 'OSS upload failed: the server could not connect to the endpoint.',
+                    'permission' => 'OSS upload failed: the endpoint denied write access (401/403 or AccessDenied).',
+                    'access_key' => 'OSS upload failed: the endpoint rejected the AccessKey ID.',
+                    'signature' => 'OSS upload failed: signature validation failed. Check region, credentials and CDN forwarding.',
+                    'clock' => 'OSS upload failed: the server clock or request timestamp is invalid.',
+                    'bucket' => 'OSS upload failed: the endpoint could not find the bucket.',
+                    'method' => 'OSS upload failed: the endpoint does not accept the upload method.',
+                    'redirect' => 'OSS upload failed: the endpoint returned a redirect.',
+                    default => $message,
+                };
+            }
             throw new DomainException('OSS_TEST_FAILED', $message, 422, ['stage' => $failure]);
         }
         if (! $config->exists) {
