@@ -64,7 +64,8 @@ final class OssSettings
         $oss = ServerImages::enabled() ? app(OssImages::class)->forConnectionTest() : app(OssImages::class);
         $key = 'connection-tests/'.Str::uuid().'.png';
         $bytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true);
-        $ok = false;
+        $failure = null;
+        $stage = 'dns';
         try {
             if (! app()->environment('testing')) {
                 $ips = gethostbynamel(parse_url($config->public_url, PHP_URL_HOST));
@@ -72,26 +73,35 @@ final class OssSettings
                     throw new \RuntimeException;
                 }
             }
+            $stage = 'upload';
             $oss->put($config, $key, $bytes, 'image/png');
+            $stage = 'read';
             if (! hash_equals(hash('sha256', $bytes), hash('sha256', $oss->get($config, $key)))) {
                 throw new \RuntimeException;
             }
+            $stage = 'public_read';
             $response = Http::connectTimeout(5)->timeout(15)->withoutRedirecting()->get($oss->url($config, $key));
             if (! $response->successful() || ! hash_equals(hash('sha256', $bytes), hash('sha256', $response->body()))) {
                 throw new \RuntimeException;
             }
-            $ok = true;
         } catch (\Throwable) {
-            $ok = false;
+            $failure = $stage;
         } finally {
             try {
                 $oss->delete($config, $key);
             } catch (\Throwable) {
-                $ok = false;
+                $failure ??= 'delete';
             }
         }
-        if (! $ok) {
-            throw new DomainException('OSS_TEST_FAILED', 'OSS test failed. Check credentials, endpoint, public access and image domain.', 422);
+        if ($failure) {
+            $message = match ($failure) {
+                'dns' => 'OSS test failed: image domain DNS did not resolve to public addresses.',
+                'upload' => 'OSS test failed: uploading the test image failed. Check endpoint connectivity and write permissions.',
+                'read' => 'OSS test failed: reading or verifying the uploaded original through the OSS endpoint failed.',
+                'public_read' => 'OSS test failed: the image domain could not return the exact test image. Check public access, CDN and HTTPS.',
+                'delete' => 'OSS test failed: upload and reads succeeded, but deleting the test image failed. Check delete permissions.',
+            };
+            throw new DomainException('OSS_TEST_FAILED', $message, 422, ['stage' => $failure]);
         }
         if (! $config->exists) {
             return;

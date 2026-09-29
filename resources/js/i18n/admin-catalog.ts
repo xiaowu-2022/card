@@ -97,6 +97,11 @@ export const adminCatalog: Record<string, string> = {
     'OSS connection verified.': 'OSS 连接测试通过。',
     'OSS enabled for new uploads.': '已启用 OSS，后续图片将上传至 OSS。',
     'Image storage is unavailable. Please try again.': '图片存储服务暂不可用，请稍后重试。',
+    'OSS test failed: image domain DNS did not resolve to public addresses.': 'OSS 测试失败：图片域名 DNS 解析失败或解析到了非公网地址。',
+    'OSS test failed: uploading the test image failed. Check endpoint connectivity and write permissions.': 'OSS 测试失败：上传测试图片失败。请检查访问端点的网络连接和写入权限。',
+    'OSS test failed: reading or verifying the uploaded original through the OSS endpoint failed.': 'OSS 测试失败：通过 OSS 端点读取原图或校验原图内容失败。',
+    'OSS test failed: the image domain could not return the exact test image. Check public access, CDN and HTTPS.': 'OSS 测试失败：图片域名未返回正确的测试图片。请检查公开读取、CDN 回源和 HTTPS。',
+    'OSS test failed: upload and reads succeeded, but deleting the test image failed. Check delete permissions.': 'OSS 测试失败：上传和读取均成功，但删除测试图片失败。请检查删除权限。',
     'OSS test failed. Check credentials, endpoint, public access and image domain.':
         'OSS 测试失败，请检查凭证、端点、公开读取权限及图片域名。',
     'Test this OSS configuration before enabling it.': '请先完成此配置的连接测试再启用。',

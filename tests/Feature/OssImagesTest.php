@@ -294,7 +294,7 @@ it('returns a safe form error when a connection check fails instead of reporting
     $c = app(OssSettings::class)->save($this->data, $this->owner);
     $this->oss->failPut = true;
     $this->actingAs($this->owner, 'platform_admin')->post('http://admin.localhost/platform/settings/oss/'.$c->id.'/check')
-        ->assertSessionHasErrors(['form' => 'OSS test failed. Check credentials, endpoint, public access and image domain.']);
+        ->assertSessionHasErrors(['form' => 'OSS test failed: uploading the test image failed. Check endpoint connectivity and write permissions.']);
     expect($c->fresh()->verified_at)->toBeNull();
 });
 
@@ -517,4 +517,25 @@ it('resolves existing image references with the current OSS configuration withou
     expect($this->oss->reads)->not->toContain($old->id);
     Storage::disk('private')->delete($image->backup_key);
     expect(fn () => $images->read('private', $key))->toThrow(RuntimeException::class);
+});
+
+it('reports the first failed connection stage without leaking upstream secrets', function () {
+    $config = enableOssFixture($this);
+    $bytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true);
+    $stage = '';
+    Http::fake(function () use (&$stage, $bytes) {
+        return Http::response($stage === 'public_read' ? 'wrong-image' : $bytes, 200);
+    });
+    foreach (['upload', 'read', 'public_read', 'delete'] as $stage) {
+        $this->oss->failPut = $stage === 'upload';
+        $this->oss->corrupt = $stage === 'read';
+        $this->oss->failDelete = in_array($stage, ['upload', 'delete']);
+        try {
+            app(OssSettings::class)->check($config, $this->owner);
+            $this->fail('Expected a staged failure');
+        } catch (DomainException $error) {
+            expect($error->details)->toBe(['stage' => $stage]);
+            expect($error->getMessage())->not->toContain('SECRET-UPSTREAM')->not->toContain('synthetic-secret');
+        }
+    }
 });
