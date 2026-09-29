@@ -20,28 +20,34 @@ function set(key: string, value: string) {
     <view class="holder-fields"
         ><text class="section-title">{{ t('Card user') }}</text
         ><view class="grid"
-            ><template
-                ><FormField
-                    :model-value="modelValue.legal_last_name ?? ''"
-                    :label="t('Last name')"
-                    :maxlength="40"
-                    :disabled="disabled"
-                    :error="errors?.legal_last_name"
-                    @update:model-value="(v) => set('legal_last_name', v)" /><FormField
-                    :model-value="modelValue.legal_first_name ?? ''"
-                    :label="t('First name')"
-                    :maxlength="40"
-                    :disabled="disabled"
-                    :error="errors?.legal_first_name"
-                    @update:model-value="(v) => set('legal_first_name', v)" /></template
             ><FormField
-                :model-value="modelValue.email ?? ''"
-                :label="t('Email')"
+                :model-value="modelValue.legal_last_name ?? ''"
+                :label="t('Last name')"
                 :maxlength="40"
                 :disabled="disabled"
-                :error="errors?.email"
-                @update:model-value="(v) => set('email', v)"
+                :error="errors?.legal_last_name"
+                @update:model-value="(v) => set('legal_last_name', v)"
+            /><FormField
+                :model-value="modelValue.legal_first_name ?? ''"
+                :label="t('First name')"
+                :maxlength="40"
+                :disabled="disabled"
+                :error="errors?.legal_first_name"
+                @update:model-value="(v) => set('legal_first_name', v)"
             /><view
+                ><FormField
+                    :model-value="modelValue.email ?? ''"
+                    :label="t('Email')"
+                    :maxlength="40"
+                    :disabled="disabled"
+                    :error="errors?.email"
+                    @update:model-value="(v) => set('email', v)"
+                /><text class="hint verification-notice">{{
+                    t(
+                        'Your email receives purchase verification codes. Please ensure you can receive these emails.',
+                    )
+                }}</text></view
+            ><view
                 ><text class="label">{{ t('Mobile number') }}</text
                 ><view class="phone"
                     ><SelectField
@@ -57,13 +63,14 @@ function set(key: string, value: string) {
                         :disabled="disabled"
                         :error="errors?.mobile || errors?.mobile_country_code"
                         @update:model-value="(v) => set('mobile', v)" /></view
-                ><text class="hint muted">{{
+                ><text class="hint verification-notice">{{
                     t(
                         'Your mobile number receives purchase verification codes. Please ensure it can receive SMS.',
                     )
                 }}</text></view
             ></view
-    ></view>
+        ></view
+    >
 </template>
 <style scoped>
 .section-title {
@@ -112,6 +119,9 @@ function set(key: string, value: string) {
     font-size: 12px;
     line-height: 20px;
     margin: 8px 0 20px;
+}
+.verification-notice {
+    color: #b42318;
 }
 .birth {
     margin-bottom: 20px;

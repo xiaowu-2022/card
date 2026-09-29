@@ -1119,6 +1119,11 @@ export const catalog = {
         'Gunakan huruf, nombor, ruang atau sempang, maksimum 10 aksara.',
         'Usa letras, números, espacios o guiones, hasta 10 caracteres.',
     ],
+    'Your email receives purchase verification codes. Please ensure you can receive these emails.': [
+        '邮箱用于接收消费验证码，请确保能够收到邮件。',
+        'E-mel anda menerima kod pengesahan pembelian. Pastikan anda boleh menerima e-mel ini.',
+        'Tu correo recibe códigos de verificación de compras. Asegúrate de poder recibir estos correos.',
+    ],
     'Last name': ['姓', 'Nama keluarga', 'Apellido'],
     'First name': ['名', 'Nama pertama', 'Nombre'],
     'Mobile number': ['手机号', 'Nombor mudah alih', 'Número de móvil'],
