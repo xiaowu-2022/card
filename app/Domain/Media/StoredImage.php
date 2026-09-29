@@ -11,10 +11,10 @@ final class StoredImage extends Model
 
     protected $guarded = [];
 
-    protected $hidden = ['source_key', 'object_key'];
+    protected $hidden = ['source_key', 'object_key', 'backup_key', 'backup_sha256'];
 
     protected function casts(): array
     {
-        return ['cleanup_after' => 'immutable_datetime', 'size' => 'integer'];
+        return ['oss_pending' => 'boolean', 'cleanup_after' => 'immutable_datetime', 'size' => 'integer'];
     }
 }

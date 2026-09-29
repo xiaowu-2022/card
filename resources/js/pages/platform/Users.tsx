@@ -28,7 +28,9 @@ export default function Users({
     companies,
     filters,
     financialAccess,
+    canAdjustWallet,
 }: {
+    canAdjustWallet: boolean;
     users: AccountPage<User>;
     companies: { id: string; name: string }[];
     filters: { company?: string; search?: string; status?: string };
@@ -154,6 +156,21 @@ export default function Users({
                                 />
                             ),
                         },
+                        ...(canAdjustWallet
+                            ? [
+                                  {
+                                      label: 'Actions',
+                                      render: (row: User) => (
+                                          <Link
+                                              className="text-primary underline"
+                                              href={`/platform/tenants/${row.companyId}/users/${row.id}/wallet-adjustments`}
+                                          >
+                                              {t('Wallet adjustment')}
+                                          </Link>
+                                      ),
+                                  },
+                              ]
+                            : []),
                         { label: 'Created', render: (row) => dateTime(row.createdAt) },
                         {
                             label: 'Last login',

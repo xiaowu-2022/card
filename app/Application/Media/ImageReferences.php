@@ -37,7 +37,7 @@ final class ImageReferences
             $data = json_decode(app(CardholderMaterials::class)->decrypt($row->materials_encrypted), true, 512, JSON_THROW_ON_ERROR);
             foreach ($data['documents'] ?? [] as $key) {
                 if (is_string($key) && $key !== '') {
-                    yield $this->ref($row->tenant_id, 'private', $key, 'card', $row->id, 'card');
+                    yield $this->ref($row->tenant_id, $data['document_disk'] ?? 'private', $key, 'card', $row->id, $data['document_codec'] ?? 'card');
                 }
             }
         }

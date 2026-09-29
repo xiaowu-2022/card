@@ -108,7 +108,7 @@ function loadTs(path, overrides = {}) {
     }).outputText;
     const module = { exports: {} };
     new Function('require', 'module', 'exports', source)(
-        (name) => overrides[name] ?? require(name),
+        (name) => overrides[name] ?? (name === '@/lib/public-assets' ? { usePublicAsset: () => (path) => path } : require(name)),
         module,
         module.exports,
     );
@@ -680,8 +680,9 @@ test('holder edits prefill privately and send only changes with complete depende
     assert.deepEqual(cardholderChanges(original, original), {});
     assert.deepEqual(cardholderChanges({...original, email: 'new@example.test'}, original), {email: 'new@example.test'});
     assert.deepEqual(cardholderChanges({...original, mobile: '13900139000'}, original), {mobile: '13900139000', mobile_country_code: 'CN'});
-    assert.deepEqual(cardholderChanges({...original, residential_address: 'New street'}, original), {residential_address: 'New street', residential_country_code: 'MY', residential_state: 'Selangor', residential_city: 'Petaling Jaya', residential_postal_code: '46000'});
+    assert.deepEqual(cardholderChanges({...original, residential_address: 'New street'}, original), {});
     assert.deepEqual(cardholderChanges({...original, email: ''}, original), {email: ''});
+    assert.deepEqual(cardholderChanges({...original, legal_first_name: 'Amy'}, original), {legal_first_name: 'Amy'});
     const source = readFileSync('resources/js/components/user/CardManagementActions.tsx', 'utf8');
     assert.ok(source.includes("post(card.id, { action: 'holder_details' })"));
     assert.ok(source.includes('setOriginalFields(values)'));
@@ -1533,7 +1534,7 @@ test('local simulated transactions promote the card tail and type without hiding
         assert.doesNotMatch(markup, /已加载记录按交易时间|Loaded records are sorted/);
         assert.match(markup, /font-medium">尾号 1234 · 卡片充值<\/p>/);
         assert.equal((markup.match(/尾号 1234/g) ?? []).length, 1);
-        assert.match(markup, /\$35\.00/);
+        assert.match(markup, /\$35(?:\.00)?<\/p>/);
         assert.doesNotMatch(markup, /记录时间|已完成/);
         assert.match(markup, /<time dateTime="2026-09-13T14:54:32\+00:00"/);
         assert.doesNotMatch(markup, /发卡方|卡商|通道方/);

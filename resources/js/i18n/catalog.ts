@@ -14,6 +14,12 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    'Image storage changed. Please select and upload the image again.': [
+        '图片存储方式已变更，请重新选择并上传图片。',
+        'Storan imej berubah. Sila pilih dan muat naik imej semula.',
+        'El almacenamiento cambió. Selecciona y sube la imagen de nuevo.',
+    ],
+    'Admin adjustment': ['后台调整', 'Pelarasan pentadbir', 'Ajuste administrativo'],
     'Transaction fee': ['交易手续费', 'Fi transaksi', 'Comisión de transacción'],
     'Fee refund': ['手续费返还', 'Bayaran balik fi', 'Reembolso de comisión'],
     'Your promotion level is managed by the platform. No annual payment is needed. Contact support to change it.':
@@ -588,7 +594,11 @@ export const catalog = {
     FAQ: ['常见问题', 'Soalan lazim', 'Preguntas frecuentes'],
     'Company sign in': ['公司后台登录', 'Log masuk syarikat', 'Acceso de empresa'],
     'Explore your account': ['进入我的账户', 'Terokai akaun anda', 'Explora tu cuenta'],
-    'Download Android app': ['下载安卓版 App', 'Muat turun aplikasi Android', 'Descargar app para Android'],
+    'Download Android app': [
+        '下载安卓版 App',
+        'Muat turun aplikasi Android',
+        'Descargar app para Android',
+    ],
     'Explore products': ['了解产品', 'Terokai produk', 'Explorar productos'],
     'Your account. Your cards. One place.': [
         '账户与卡片，一站管理。',

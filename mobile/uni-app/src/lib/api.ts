@@ -118,11 +118,19 @@ export async function upload<T>(
                 mime = blob.type.toLowerCase();
             }
             if (!['image/jpeg', 'image/png', 'image/webp'].includes(mime)) throw new ApiError(422);
-            const ticket = await request<{ id: string; url: string; imageUrl?: string; fields: Record<string, string> }>(
+            const ticket = await request<{ id: string; mode?: string; url: string; imageUrl?: string; fields: Record<string, string> }>(
                 '/images/direct', 'POST', { purpose, field: file.name, mime },
             );
-            if (!/^https:\/\/[a-z0-9.-]+\/?$/i.test(ticket.url)) throw new ApiError(502);
+            if (ticket.mode !== 'server' && !/^https:\/\/[a-z0-9.-]+\/?$/i.test(ticket.url)) throw new ApiError(502);
+            // The private same-origin copy is validated before any business binding.
             await new Promise<void>((resolve, reject) => uni.uploadFile({
+                url: url('/images/direct/' + ticket.id + '/backup'),
+                filePath: file.path, name: 'file', header: headers(), timeout: 120000,
+                success: response => response.statusCode >= 200 && response.statusCode < 300
+                    ? resolve() : reject(new ApiError(response.statusCode)),
+                fail: () => reject(new ApiError(0)),
+            }));
+            if (ticket.mode !== 'server') await new Promise<void>((resolve, reject) => uni.uploadFile({
                 url: ticket.url,
                 filePath: file.path,
                 name: 'file',
@@ -133,13 +141,8 @@ export async function upload<T>(
                 success: (response) => response.statusCode >= 200 && response.statusCode < 300
                     ? resolve() : reject(new ApiError(502)),
                 fail: () => reject(new ApiError(0)),
-            }));
-            if (purpose === 'kyc') {
-                if (!ticket.imageUrl || !/^https:\/\/[^\s]+$/.test(ticket.imageUrl)) throw new ApiError(502);
-                payload[file.name + '_url'] = ticket.imageUrl;
-            } else {
-                await request('/images/direct/' + ticket.id + '/complete', 'POST');
-            }
+            })).catch(() => { /* Server copy remains available; completion records OSS retry. */ });
+            await request('/images/direct/' + ticket.id + '/complete', 'POST');
             payload[file.name + '_upload_id'] = ticket.id;
         }
         // Business submission is still authenticated and never replayed automatically.

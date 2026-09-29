@@ -2,6 +2,44 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Edit this configuration directly. Test checks the current form without saving; save applies it without a separate activation step.':
+        '直接编辑当前配置。测试只检查表单内容、不保存；保存后直接应用，无需再次启用。',
+    'Server storage is active. You can save and test OSS here; using OSS requires IMAGE_STORAGE_DRIVER=oss.':
+        '当前使用服务器存储，可在此保存和测试 OSS；使用 OSS 需设置 IMAGE_STORAGE_DRIVER=oss。',
+    'Leave blank to keep the saved value': '留空保留已保存的值',
+    'Storage configuration changed. Refresh before saving.': '配置已被修改，请刷新后重新保存。',
+    'OSS': 'OSS',
+    'Image storage mode': '图片存储方式',
+    'Local server': '服务器本地',
+    'Save storage mode': '保存存储方式',
+    'Storage mode saved.': '存储方式已保存。',
+    'Save a complete OSS configuration before selecting OSS.': '请先保存完整的 OSS 配置，再切换为 OSS。',
+    'The saved mode applies to new uploads. Existing image records and OSS settings are retained.': '保存后按所选方式上传。已有图片记录和 OSS 配置会保留；本地模式需要服务器已有图片原件。',
+    'OSS configuration saved.': 'OSS 配置已保存。',
+    'Server image storage': '服务器图片存储',
+    'Images are stored on this server. OSS uploads, reads and background replication are disabled. Existing OSS settings are retained.':
+        '图片存储在当前服务器，已停用 OSS 上传、读取和后台补传，原 OSS 配置保留。',
+    'Wallet adjustment': '钱包调整',
+    'Admin adjustment': '后台调整',
+    'Adjustment direction': '调整方向',
+    'Increase balance': '增加余额',
+    'Decrease balance': '减少余额',
+    'Adjustment amount': '调整金额',
+    'Balance before': '调整前余额',
+    'Balance after': '调整后余额',
+    'Wallet adjustment completed.': '钱包调整成功。',
+    'Adjust available balance. A decrease cannot exceed the available balance.':
+        '调整客户可用余额，扣减金额不能超过可用余额。',
+    'I confirm this adjustment changes the customer’s available balance immediately.':
+        '我确认此操作将立即变更该客户的可用余额。',
+    'This customer has no wallet to adjust.': '该客户暂无可调整的钱包。',
+    'Enter a positive amount within the currency precision and an adjustment reason.':
+        '请输入符合币种精度的正数金额并填写调整原因。',
+    'Enter a positive adjustment amount.': '请输入大于零的调整金额。',
+    'An active account and an existing active wallet are required.':
+        '客户账号及已有钱包必须处于正常状态。',
+    'The adjustment exceeds the available balance.': '扣减金额超过可用余额。',
+
     'Transaction fee': '交易手续费',
     'Fee refund': '手续费返还',
     'OSS region must match the endpoint. For Beijing, use cn-beijing.':
@@ -54,7 +92,8 @@ export const adminCatalog: Record<string, string> = {
         '保存后生成新版本，可直接启用，连接测试为可选诊断。既有图片保留原存储配置。',
     'Preview historical images before migration. Verified copies switch to OSS; local backups are retained.':
         '请先预览历史图片，再执行迁移。校验成功后切换至 OSS，本地备份保留。',
-    'OSS configuration saved. You can enable it now; connection testing is optional.': 'OSS 配置已保存，可直接启用；连接测试为可选操作。',
+    'OSS configuration saved. You can enable it now; connection testing is optional.':
+        'OSS 配置已保存，可直接启用；连接测试为可选操作。',
     'OSS connection verified.': 'OSS 连接测试通过。',
     'OSS enabled for new uploads.': '已启用 OSS，后续图片将上传至 OSS。',
     'Image storage is unavailable. Please try again.': '图片存储服务暂不可用，请稍后重试。',
@@ -951,6 +990,9 @@ export const adminCatalog: Record<string, string> = {
     TENANT_WITHDRAWAL_CLEARING: '公司提现清算',
     TENANT_CARD_FUNDING_CLEARING: '公司入卡清算',
     TENANT_FEE_REVENUE: '公司手续费收入',
+    WALLET_ADJUSTMENT: '后台调整',
+    'wallet.adjust': '钱包调整',
+    'The adjustment exceeds the supported balance range.': '调整后的余额超过系统支持范围。',
     WALLET_TOPUP_CREDIT: '钱包充值入账',
     SECURITY_DEPOSIT_FUND: '缴纳保证金',
     WITHDRAWAL_HOLD: '提现资金冻结',

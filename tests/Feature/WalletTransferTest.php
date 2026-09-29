@@ -251,3 +251,22 @@ it('keeps native transfer submission independent of unread polling and returns a
     expect(DB::table('ledger_entries')->count())->toBe($count);
     $this->getJson('http://b.localhost/api/mobile/v1/client'.$path)->assertUnauthorized();
 });
+
+it('previews only an eligible same-company recipient email without financial writes', function () {
+    $before = DB::table('ledger_entries')->count();
+    $preview = app(WalletTransferQuery::class)->recipient($this->tenant->id, $this->sender->id, $this->recipient->account_id, 'USDT');
+    expect($preview)->toBe(['accountId' => $this->recipient->account_id, 'email' => $this->recipient->email, 'asset' => 'USDT']);
+    expect(DB::table('ledger_entries')->count())->toBe($before)->and(WalletTransfer::count())->toBe(0);
+    $this->actingAs($this->sender, 'tenant_user')->getJson('http://a.localhost/api/v1/client/wallet/transfer-recipient?recipient_account_id='.$this->recipient->account_id.'&asset=USDT')
+        ->assertOk()->assertJsonPath('email', $this->recipient->email)->assertHeader('Cache-Control', 'no-store, private');
+});
+
+it('hides cross-company self and unavailable transfer recipient emails', function () {
+    $other = User::where('tenant_id', '<>', $this->tenant->id)->firstOrFail();
+    foreach ([$this->sender->account_id, $other->account_id, '000000000000'] as $id) {
+        expect(fn () => app(WalletTransferQuery::class)->recipient($this->tenant->id, $this->sender->id, $id, 'USDT'))->toThrow(DomainException::class);
+    }
+    expect(fn () => app(WalletTransferQuery::class)->recipient($this->tenant->id, $this->sender->id, $this->recipient->account_id, 'BTC'))->toThrow(DomainException::class);
+    $this->recipient->update(['status' => 'SUSPENDED']);
+    expect(fn () => app(WalletTransferQuery::class)->recipient($this->tenant->id, $this->sender->id, $this->recipient->account_id, 'USDT'))->toThrow(DomainException::class);
+});

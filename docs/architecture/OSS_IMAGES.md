@@ -1,3 +1,58 @@
+On 2026-09-30 the user required image reads and public asset URL prefixes to follow
+the current storage selection/configuration, including existing images. Store object
+keys, not replaceable domain prefixes in business rows. Signed image gateways resolve
+the current OSS config or local server at read time; current OSS failures retain the
+verified server-original fallback. Previous configuration mappings remain provenance
+for migration/cleanup only, not the read endpoint. A different bucket must contain
+the same original objects/asset keys; changing a prefix does not copy files. Reads
+never upload or rewrite business records. Changed-config processed reads verify the
+original checksum before displaying a processed image.
+
+On 2026-09-30 the user requested a Platform storage selector: server or OSS.
+The storage.manage-protected selector persists media_storage_settings.storage_driver,
+with locked revision checks and actor audit. A null value retains the deployment's
+IMAGE_STORAGE_DRIVER until the first explicit selection; subsequent selections
+override it immediately. OSS requires a saved valid configuration, not a connection
+test. Mode switching does not migrate/delete originals or rewrite image mappings.
+Deploy the storage-driver migration and rebuilt admin assets before using the selector.
+
+## 2026-09-30 single editable configuration
+
+The administration page exposes one current OSS form, direct Test and Save, and no version list or activation step. Test validates an unsaved draft using a temporary object without changing persisted settings. Save atomically selects its immutable configuration; identical saves reuse the existing record. Old internal snapshots stay available for historical image mappings. Blank secrets reuse current encrypted credentials; no secret is returned to the browser. expected_id rejects stale form saves. Explicit draft tests also work in server mode without changing the runtime storage driver.
+
+# Dual image copies — approved 2026-09-29
+
+New runtime business images retain an encrypted original under private image-replicas
+and an OSS final object. Consumers upload the same selected bytes to the authenticated
+backup endpoint and privately to OSS staging. Completion requires a validated local
+copy, verifies final OSS bytes against its SHA-256 and only then publishes that object.
+If OSS fails or differs, the local original is authoritative, oss_pending stays true,
+and no unverified remote object is served. Existing short-lived tickets may finish
+under their already-issued mode; new authorizations always require dual copies.
+
+Signed, host-bound /media/images/{id} delivery URLs expire in 12 hours and accept
+only bounded named display profiles. URLs reveal no storage paths. Ready business
+images are public by the prior explicit approval; signatures prevent enumeration or
+arbitrary file selection. Original reads prefer OSS with 3-second connect / 8-second
+request timeouts and SHA-256 checking; on failure they decrypt/check the server copy.
+Pending OSS writes read locally immediately. Displays may request OSS resize/WebP;
+local fallback returns the unchanged original. OCR gets the original-profile signed
+URL, so image fetching falls back within the gateway without another OCR submission.
+No credential, OCR body or provider operation is replayed by image repair.
+
+images:replicate repairs pending OSS copies and verifies their hashes before marking
+success. --backfill copies existing ready originals without mutating business history;
+it retains missing/unreachable originals as pending rather than inventing files.
+New backups use atomic encrypted-file replacement and retained per-image metadata.
+Public built-in artwork remains in H5 static / native packaged resources alongside
+OSS; requested remote images switch reactively to those local copies on load failure,
+including CSS image backgrounds. React administration uses the same failure principle.
+Old OSS objects, configurations, packaged resources and published releases are retained.
+
+POST policies cannot establish content identity by ETag alone; staging remains
+untrusted until compared to the validated server copy. See the official
+[PostObject contract](https://www.alibabacloud.com/help/en/oss/developer-reference/postobject).
+
 # 全局 OSS 图片存储（2026-09-27）
 
 用户批准 SaaS 全局 OSS、上传图片公开读取（包括实名认证/开卡证件、客服图片），以及 OCR URL 输入。本规则仅改变图片存储和访问策略，替代这些图片过去的私有存储要求；业务字段、证件号码、客服文字、测试档案的加密规则不变。

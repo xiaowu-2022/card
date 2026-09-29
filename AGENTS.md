@@ -1,3 +1,50 @@
+On 2026-09-30 the user required image reads and public asset URL prefixes to follow
+the current storage selection/configuration, including existing images. Store object
+keys, not replaceable domain prefixes in business rows. Signed image gateways resolve
+the current OSS config or local server at read time; current OSS failures retain the
+verified server-original fallback. Previous configuration mappings remain provenance
+for migration/cleanup only, not the read endpoint. A different bucket must contain
+the same original objects/asset keys; changing a prefix does not copy files. Reads
+never upload or rewrite business records. Changed-config processed reads verify the
+original checksum before displaying a processed image.
+
+On 2026-09-30 the user requested a Platform storage selector: server or OSS.
+The storage.manage-protected selector persists media_storage_settings.storage_driver,
+with locked revision checks and actor audit. A null value retains the deployment's
+IMAGE_STORAGE_DRIVER until the first explicit selection; subsequent selections
+override it immediately. OSS requires a saved valid configuration, not a connection
+test. Mode switching does not migrate/delete originals or rewrite image mappings.
+Deploy the storage-driver migration and rebuilt admin assets before using the selector.
+
+On 2026-09-30 the user requested one editable OSS configuration with direct Test and Save buttons, no version-list or separate activation UI. Tests validate the current draft without persistence; saving selects the configuration atomically. Retain immutable internal configurations referenced by historical images. Blank credential fields retain saved secrets without exposing them; stale edits are rejected. Explicit configuration tests are allowed in server-storage mode but do not switch runtime storage.
+
+On 2026-09-30 the user selected server-only image/resource storage temporarily, superseding OSS-required and dual-write rules. New originals remain encrypted on the server, with scoped single-use upload references and signed image/OCR URLs. No runtime OSS calls or background replication in server mode. Preserve existing OSS mappings and original checksums; import retained local snapshots without replaying OCR/provider/business operations. Default IMAGE_STORAGE_DRIVER=server. See docs/deployment/SERVER_IMAGES.md.
+
+On 2026-09-29 the user approved Platform customer-list wallet adjustments: increase or decrease available balance with an explicit reason/confirmation, dedicated wallet.adjust permission and immutable actor/request history. Use LedgerWriter with TENANT_ADJUSTMENT_CLEARING, enforce tenant/user/currency scope and nonnegative available balances, and label activity Admin adjustment. This supersedes generic-adjustment prohibitions only for this workflow. No live financial testing, automatic wallet activation, deposit/reward or provider effects. See docs/architecture/WALLET_ADJUSTMENTS.md.
+
+On 2026-09-29 the user approved dual OSS/server image originals with OSS-first
+reads and encrypted server replica fallback. This supersedes OSS-only runtime
+storage and KYC URL-only/no-server-read restrictions. Consumer uploads must save a
+validated owner-scoped server copy before completion; compare OSS final bytes to its
+SHA-256, otherwise serve the replica and queue repair. Never expose unchecked staging
+objects. Server multipart uploads retain a replica even if OSS is unavailable.
+Signed host-bound image delivery performs fallback for display and OCR originals;
+OCR still receives URLs only and requires exact recognition/matching. Preserve
+immutable references, old configs, no original compression, tenant isolation and
+single-use binding. Repair/backfill images only; no business/provider/OCR replay.
+See docs/architecture/OSS_IMAGES.md and docs/deployment/OSS_IMAGES.md.
+
+On 2026-09-29 the user simplified consumer card setup/editing to first name,
+last name, mobile (with calling region) and account-prefilled editable email.
+Reuse only the current tenant/user approved KYC originals; derive birth date from
+approved CN national ID or existing account profile, never fabricate missing dates.
+Nationality is CN; fixed billing address is CN / Fujian / Fuzhou / 西湖花园3#304 /
+351000. Clients cannot override fixed fields or documents. This supersedes the old
+fresh-per-card/no-account-KYC-reuse and approved-name-edit prohibitions for this flow.
+Keep independent provider applications, encrypted snapshots, UNKNOWN/idempotency,
+one-application-one-issue and Ledger rules. Provider file upload still needs server
+OSS reads. See docs/architecture/PER_CARD_MATERIALS.md.
+
 On 2026-09-29 the user superseded server-copy/checksum verification for consumer
 KYC direct uploads: frontend uploads a public OSS object, then submits its issued
 upload ID and exact returned image URL; backend checks tenant/user/field/expiry

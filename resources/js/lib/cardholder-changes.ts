@@ -1,15 +1,4 @@
-export const holderEditFields = [
-    'email',
-    'date_of_birth',
-    'mobile',
-    'mobile_country_code',
-    'nationality_country_code',
-    'residential_country_code',
-    'residential_state',
-    'residential_city',
-    'residential_address',
-    'residential_postal_code',
-] as const;
+export const holderEditFields = ['legal_first_name', 'legal_last_name', 'email', 'mobile', 'mobile_country_code'] as const;
 
 export function cardholderChanges(
     values: Record<string, string>,
@@ -19,12 +8,7 @@ export function cardholderChanges(
         (key) => (values[key] ?? '').trim() !== (original[key] ?? ''),
     );
     const keys = new Set<string>(changed);
-    // Validation requires complete dependent groups, even when only one member changed.
-    if (changed.some((key) => key.startsWith('residential_'))) {
-        holderEditFields
-            .filter((key) => key.startsWith('residential_'))
-            .forEach((key) => keys.add(key));
-    }
+    // Send the phone number and calling region together.
     if (keys.has('mobile') || keys.has('mobile_country_code')) {
         keys.add('mobile');
         keys.add('mobile_country_code');

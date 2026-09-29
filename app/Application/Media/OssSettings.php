@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
 
 final class OssSettings
 {
-    public function save(array $data, AdminUser $actor): OssConfiguration
+    public function prepare(array $data, AdminUser $actor): OssConfiguration
     {
         app(PaidPromotionRules::class)->platform($actor, 'storage.manage');
         $data = Validator::make($data, [
@@ -25,6 +25,7 @@ final class OssSettings
             'endpoint' => ['required', 'string', 'max:255'], 'public_url' => ['required', 'string', 'max:255'],
             'access_key_id' => ['required', 'string', 'max:200'], 'access_key_secret' => ['required', 'string', 'max:300'],
         ])->validate();
+        $data['endpoint'] = rtrim(trim($data['endpoint']), '/');
         $data['public_url'] = rtrim($data['public_url'], '/');
         if (! preg_match('#^https://[a-zA-Z0-9][a-zA-Z0-9.-]+[a-zA-Z0-9]$#D', $data['public_url']) || filter_var(parse_url($data['public_url'], PHP_URL_HOST), FILTER_VALIDATE_IP)) {
             throw ValidationException::withMessages(['public_url' => 'Use an HTTPS public image domain without a path.']);
@@ -38,11 +39,18 @@ final class OssSettings
             throw ValidationException::withMessages(['endpoint' => 'Use the regional OSS endpoint or the configured image domain.']);
         }
 
-        return DB::transaction(function () use ($data, $actor) {
+        return new OssConfiguration(collect($data)->except(['access_key_id', 'access_key_secret'])->all() + [
+            'credentials' => ['access_key_id' => $data['access_key_id'], 'access_key_secret' => $data['access_key_secret']], 'created_by' => $actor->id,
+        ]);
+    }
+
+    public function save(array $data, AdminUser $actor): OssConfiguration
+    {
+        $config = $this->prepare($data, $actor);
+
+        return DB::transaction(function () use ($config, $actor) {
             app(PaidPromotionRules::class)->platform($actor, 'storage.manage');
-            $config = OssConfiguration::create(collect($data)->except(['access_key_id', 'access_key_secret'])->all() + [
-                'credentials' => ['access_key_id' => $data['access_key_id'], 'access_key_secret' => $data['access_key_secret']], 'created_by' => $actor->id,
-            ]);
+            $config->save();
             app(AuditLogger::class)->record(null, 'ADMIN', $actor->id, 'OSS_CONFIGURATION_CREATED', 'oss_configuration', $config->id, null, ['bucket' => $config->bucket, 'region' => $config->region]);
 
             return $config;
@@ -53,7 +61,7 @@ final class OssSettings
     {
         app(PaidPromotionRules::class)->platform($actor, 'storage.manage');
         $this->validateRegion($config->region, $config->endpoint, $config->public_url);
-        $oss = app(OssImages::class);
+        $oss = ServerImages::enabled() ? app(OssImages::class)->forConnectionTest() : app(OssImages::class);
         $key = 'connection-tests/'.Str::uuid().'.png';
         $bytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true);
         $ok = false;
@@ -84,6 +92,9 @@ final class OssSettings
         }
         if (! $ok) {
             throw new DomainException('OSS_TEST_FAILED', 'OSS test failed. Check credentials, endpoint, public access and image domain.', 422);
+        }
+        if (! $config->exists) {
+            return;
         }
         DB::transaction(function () use ($actor, $config) {
             app(PaidPromotionRules::class)->platform($actor, 'storage.manage');

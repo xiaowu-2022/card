@@ -2,8 +2,7 @@
 import { computed } from 'vue';
 import FormField from './FormField.vue';
 import SelectField from './SelectField.vue';
-import { countryOptions, placeOptions, useRegions } from '../lib/card-geography';
-import { localityMode } from '../lib/card-locality';
+import { countryOptions } from '../lib/card-geography';
 import { t, locale } from '../lib/i18n';
 const props = defineProps<{
         modelValue: Record<string, string>;
@@ -12,53 +11,16 @@ const props = defineProps<{
         errors?: Record<string, string>;
     }>(),
     emit = defineEmits<{ 'update:modelValue': [value: Record<string, string>] }>();
-const country = computed(() => props.modelValue.residential_country_code ?? ''),
-    regions = useRegions(country),
-    countries = computed(() => countryOptions(locale.value)),
-    phones = computed(() => countryOptions(locale.value, true)),
-    states = computed(() => placeOptions(regions.data.value ?? [], locale.value)),
-    cities = computed(() =>
-        placeOptions(
-            regions.data.value?.find((r) => r.value === props.modelValue.residential_state)
-                ?.cities ?? [],
-            locale.value,
-        ),
-    );
-const stateMode = computed(() =>
-        localityMode(
-            regions.data.value,
-            props.modelValue.residential_state ?? '',
-            'residential_state',
-        ),
-    ),
-    cityMode = computed(() =>
-        localityMode(
-            regions.data.value,
-            props.modelValue.residential_state ?? '',
-            'residential_city',
-        ),
-    );
+const phones = computed(() => countryOptions(locale.value, true));
 function set(key: string, value: string) {
-    const next = { ...props.modelValue, [key]: value };
-    if (key === 'residential_country_code') {
-        next.residential_state = '';
-        next.residential_city = '';
-    }
-    if (key === 'residential_state') next.residential_city = '';
-    emit('update:modelValue', next);
+    emit('update:modelValue', { ...props.modelValue, [key]: value });
 }
-defineExpose({ regions });
 </script>
 <template>
     <view class="holder-fields"
-        ><text v-if="editing" class="intro muted">{{
-            t(
-                'Saved information is shown below. Approved names cannot be changed. This does not replace the cardholder.',
-            )
-        }}</text
-        ><text v-else class="section-title">{{ t('Card user') }}</text
+        ><text class="section-title">{{ t('Card user') }}</text
         ><view class="grid"
-            ><template v-if="!editing"
+            ><template
                 ><FormField
                     :model-value="modelValue.legal_last_name ?? ''"
                     :label="t('Last name')"
@@ -100,94 +62,7 @@ defineExpose({ regions });
                         'Your mobile number receives purchase verification codes. Please ensure it can receive SMS.',
                     )
                 }}</text></view
-            ><SelectField
-                :model-value="modelValue.nationality_country_code ?? ''"
-                :label="t('Nationality')"
-                :options="countries"
-                searchable
-                :disabled="disabled"
-                @update:model-value="(v) => set('nationality_country_code', v)"
-            /><view class="birth"
-                ><text class="label">{{ t('Date of birth') }}</text
-                ><picker
-                    mode="date"
-                    :value="modelValue.date_of_birth"
-                    :disabled="disabled"
-                    @change="set('date_of_birth', $event.detail.value)"
-                    ><view class="date">{{
-                        modelValue.date_of_birth || t('Please select')
-                    }}</view></picker
-                ><text v-if="errors?.date_of_birth" class="error">{{
-                    errors.date_of_birth
-                }}</text></view
             ></view
-        ><slot /><view class="billing"
-            ><text class="section-title">{{ t('Billing address') }}</text
-            ><SelectField
-                :model-value="modelValue.residential_country_code ?? ''"
-                :label="t('Country / region')"
-                :options="countries"
-                searchable
-                :disabled="disabled"
-                @update:model-value="(v) => set('residential_country_code', v)" /><view class="grid"
-                ><FormField
-                    v-if="stateMode === 'manual'"
-                    :model-value="modelValue.residential_state ?? ''"
-                    :label="t('State / province')"
-                    :maxlength="50"
-                    :placeholder="t('Enter the actual location name')"
-                    :disabled="disabled"
-                    :error="errors?.residential_state"
-                    @update:model-value="(v) => set('residential_state', v)" /><SelectField
-                    v-else
-                    :model-value="modelValue.residential_state ?? ''"
-                    :label="t('State / province')"
-                    :options="states"
-                    searchable
-                    :disabled="disabled || stateMode === 'disabled'"
-                    @update:model-value="(v) => set('residential_state', v)" /><FormField
-                    v-if="cityMode === 'manual'"
-                    :model-value="modelValue.residential_city ?? ''"
-                    :label="t('City')"
-                    :maxlength="50"
-                    :placeholder="t('Enter the actual location name')"
-                    :disabled="disabled"
-                    :error="errors?.residential_city"
-                    @update:model-value="(v) => set('residential_city', v)" /><SelectField
-                    v-else
-                    :model-value="modelValue.residential_city ?? ''"
-                    :label="t('City')"
-                    :options="cities"
-                    searchable
-                    :disabled="disabled || cityMode === 'disabled'"
-                    @update:model-value="(v) => set('residential_city', v)" /></view
-            ><text
-                v-if="country && !regions.data.value && !regions.failed.value"
-                class="intro muted"
-                >{{ t('Loading regions…') }}</text
-            ><text
-                v-if="
-                    regions.data.value &&
-                    (!states.length || (modelValue.residential_state && !cities.length))
-                "
-                class="intro muted"
-                >{{
-                    t('Location data is incomplete here. Enter the actual state or city name.')
-                }}</text
-            ><view v-if="regions.failed.value" class="error"
-                ><text>{{ t('Location options could not be loaded.') }}</text
-                ><button class="retry" @click="regions.retry">{{ t('Try again') }}</button></view
-            ><FormField
-                :model-value="modelValue.residential_address ?? ''"
-                :label="t('Detailed address')"
-                :disabled="disabled"
-                :error="errors?.residential_address"
-                @update:model-value="(v) => set('residential_address', v)" /><FormField
-                :model-value="modelValue.residential_postal_code ?? ''"
-                :label="t('Postal code')"
-                :disabled="disabled"
-                :error="errors?.residential_postal_code"
-                @update:model-value="(v) => set('residential_postal_code', v)" /></view
     ></view>
 </template>
 <style scoped>

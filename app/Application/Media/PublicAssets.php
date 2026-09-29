@@ -2,7 +2,6 @@
 
 namespace App\Application\Media;
 
-use App\Domain\Media\OssConfiguration;
 use App\Infrastructure\Storage\OssImages;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -12,8 +11,14 @@ final class PublicAssets
 {
     public function manifest(bool $includeBuilds = false): array
     {
+        if (ServerImages::enabled()) {
+            return [];
+        }
         $records = json_decode(DB::table('media_storage_settings')->where('id', 1)->value('public_assets') ?? '{}', true, 512, JSON_THROW_ON_ERROR);
-        $configs = OssConfiguration::whereIn('id', array_unique(array_column($records, 'configuration_id')))->get()->keyBy('id');
+        $config = app(ImageStorage::class)->active();
+        if (! $config) {
+            return [];
+        }
         $result = [];
         foreach ($records as $path => $record) {
             if (str_starts_with($path, '@staging/')) {
@@ -22,7 +27,7 @@ final class PublicAssets
             if (! $includeBuilds && (str_starts_with($path, '/build/') || str_starts_with($path, '/h5/'))) {
                 continue;
             }
-            $url = app(OssImages::class)->url($configs[$record['configuration_id']], $record['object_key']);
+            $url = app(OssImages::class)->url($config, $record['object_key']);
             $profile = str_contains($path, '/promotion/') || str_contains($path, '/growth/poster-') ? 'poster' : 'preview';
             $process = ImagePresentation::process($profile, $record['mime']);
             $result[$path] = $process ? $url.'?'.http_build_query(['x-oss-process' => $process], '', '&', PHP_QUERY_RFC3986) : $url;

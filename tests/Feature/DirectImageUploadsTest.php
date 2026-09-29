@@ -22,6 +22,7 @@ use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 beforeEach(function () {
+    config(['media.storage' => 'oss']);
     $this->seed();
     Http::preventStrayRequests();
     Storage::fake('private');
@@ -94,6 +95,19 @@ beforeEach(function () {
             $this->published[] = $key;
         }
 
+        public function put(OssConfiguration $c, string $key, string $contents, string $mime): void
+        {
+            if ($this->denyNetwork) {
+                throw new LogicException('Synthetic outage');
+            }
+            $this->objects[$key] = $contents;
+        }
+
+        public function display(OssConfiguration $c, string $key, string $process): string
+        {
+            return $this->get($c, $key);
+        }
+
         public function delete(OssConfiguration $c, string $key): void
         {
             $this->networkCalls++;
@@ -112,8 +126,12 @@ beforeEach(function () {
 
 function directFixture($test, string $purpose = 'support', string $field = 'support_image'): array
 {
+    if ($purpose === 'kyc') {
+        return app(DirectKycUploads::class)->authorize($test->tenant->id, $test->user->id, $field, 'image/png');
+    }
     $ticket = $test->postJson($test->base.'/images/direct', ['purpose' => $purpose, 'field' => $field, 'mime' => 'image/png'])->assertOk()->json();
     $test->oss->objects[$ticket['fields']['key']] = kycTestImage()->getContent();
+    $test->service->backup($test->tenant->id, $test->user->id, $ticket['id'], kycTestImage()->getContent());
 
     return $ticket;
 }
@@ -152,7 +170,8 @@ it('binds verified originals and makes completion immune to staging overwrites',
 it('rejects wrong users purposes expired tickets and non-images before publishing', function () {
     $ticket = directFixture($this);
     $this->oss->objects[$ticket['fields']['key']] = '<script>bad</script>';
-    $this->postJson($this->base.'/images/direct/'.$ticket['id'].'/complete')->assertUnprocessable();
+    $this->postJson($this->base.'/images/direct/'.$ticket['id'].'/complete')->assertNoContent();
+    expect(StoredImage::find(DirectImageUpload::find($ticket['id'])->image_id)->oss_pending)->toBeTrue();
     expect($this->oss->published)->toBe([]);
     expect(fn () => $this->service->complete($this->tenant->id, (string) Str::uuid(), $ticket['id']))->toThrow(HttpException::class);
     $this->oss->objects[$ticket['fields']['key']] = kycTestImage()->getContent();
@@ -253,4 +272,68 @@ it('keeps both national ID URLs and fails closed on OCR mismatch without synchro
     expect(StoredImage::whereIn('id', DirectImageUpload::pluck('image_id'))->pluck('state')->unique()->all())->toBe(['cleanup_pending']);
     expect(StoredImage::min('cleanup_after'))->not->toBeNull();
     expect($this->oss->networkCalls)->toBe(0);
+});
+
+it('requires the server replica and rejects conflicting backup bytes', function () {
+    $ticket = $this->postJson($this->base.'/images/direct', ['purpose' => 'support', 'field' => 'support_image', 'mime' => 'image/png'])->assertOk()->json();
+    $this->postJson($this->base.'/images/direct/'.$ticket['id'].'/complete')->assertStatus(409);
+    $this->post($this->base.'/images/direct/'.$ticket['id'].'/backup', ['file' => kycTestImage()])->assertNoContent();
+    $this->service->backup($this->tenant->id, $this->user->id, $ticket['id'], kycTestImage()->getContent());
+    expect(fn () => $this->service->backup($this->tenant->id, $this->user->id, $ticket['id'], kycTestImage()->getContent().'different'))->toThrow(HttpException::class);
+    expect(fn () => $this->service->backup($this->tenant->id, (string) Str::uuid(), $ticket['id'], kycTestImage()->getContent()))->toThrow(HttpException::class);
+});
+
+it('serves encrypted replicas during OSS outages and repairs only the image later', function () {
+    $ticket = directFixture($this);
+    $this->oss->denyNetwork = true;
+    $this->postJson($this->base.'/images/direct/'.$ticket['id'].'/complete')->assertNoContent();
+    $upload = DirectImageUpload::findOrFail($ticket['id']);
+    $image = StoredImage::findOrFail($upload->image_id);
+    expect($image->oss_pending)->toBeTrue()->and($image->backup_key)->not->toBeNull();
+    expect(Storage::disk('private')->get($image->backup_key))->not->toContain(kycTestImage()->getContent());
+    $file = $this->service->resolve($this->tenant->id, $this->user->id, $ticket['id'], 'support', 'support_image');
+    $key = 'support/'.$this->tenant->id.'/'.Str::uuid();
+    app(ImageStorage::class)->putUpload($this->tenant->id, 'private', $key, $file, 'support');
+    $url = app(ImageStorage::class)->displayUrl('private', $key);
+    $this->get($url)->assertOk()->assertHeader('Content-Type', 'image/png');
+    $this->get($url.'&profile=original')->assertForbidden();
+    expect(app(ImageStorage::class)->read('private', $key))->toBe(kycTestImage()->getContent());
+    $this->oss->denyNetwork = false;
+    $this->artisan('images:replicate')->assertSuccessful();
+    expect($image->fresh()->oss_pending)->toBeFalse()
+        ->and($this->oss->objects[$image->object_key])->toBe(kycTestImage()->getContent())
+        ->and($upload->fresh()->claimed_at)->not->toBeNull();
+    $this->oss->objects[$image->object_key] = 'corrupted remote';
+    expect(app(ImageStorage::class)->read('private', $key))->toBe(kycTestImage()->getContent());
+});
+
+it('uses signed original-image URLs for mirrored KYC while OSS is unavailable', function () {
+    kycUrlFlow($this);
+    $ticket = $this->postJson($this->base.'/images/direct', ['purpose' => 'kyc', 'field' => 'front', 'mime' => 'image/png'])->assertOk()->json();
+    $this->post($this->base.'/images/direct/'.$ticket['id'].'/backup', ['file' => kycTestImage()])->assertNoContent();
+    $this->postJson($this->base.'/images/direct/'.$ticket['id'].'/complete')->assertNoContent();
+    $provider = Mockery::mock(KycOcrProviderInterface::class);
+    $provider->shouldReceive('name')->andReturn('TEST');
+    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(function ($request) {
+        expect($request->frontUrl)->toContain('/media/images/', 'signature=', 'profile=original');
+        $this->get($request->frontUrl)->assertOk()->assertContent(kycTestImage()->getContent());
+
+        return $request->backUrl === '';
+    }))->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, 'E12345678'));
+    app()->instance(KycOcrProviderInterface::class, $provider);
+    $this->postJson($this->base.'/client/kyc/applications', ['document_type' => 'PASSPORT', 'document_country' => 'CN',
+        'identity_number' => 'E12345678', 'front_upload_id' => $ticket['id']])->assertSuccessful();
+    $record = StoredImage::find(DirectImageUpload::find($ticket['id'])->image_id);
+    expect($record->sha256)->toBe(hash('sha256', kycTestImage()->getContent()))->and($record->oss_pending)->toBeTrue();
+});
+
+it('backs up multipart originals and rejects damaged local replicas', function () {
+    $this->oss->denyNetwork = true;
+    $key = 'branding/'.$this->tenant->id.'/'.Str::uuid();
+    $storage = app(ImageStorage::class);
+    $storage->put($this->tenant->id, 'public', $key, kycTestImage()->getContent(), 'branding');
+    $image = $storage->record('public', $key);
+    expect($image->oss_pending)->toBeTrue()->and($storage->read('public', $key))->toBe(kycTestImage()->getContent());
+    Storage::disk('private')->put($image->backup_key, 'corrupted');
+    expect(fn () => $storage->read('public', $key))->toThrow(RuntimeException::class);
 });

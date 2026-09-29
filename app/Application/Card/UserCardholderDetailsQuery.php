@@ -11,13 +11,7 @@ use libphonenumber\PhoneNumberUtil;
 
 final readonly class UserCardholderDetailsQuery
 {
-    private const FIELDS = [
-        'email' => 'email', 'dateOfBirth' => 'date_of_birth',
-        'nationalityCountryCode' => 'nationality_country_code',
-        'residentialCountryCode' => 'residential_country_code', 'residentialState' => 'residential_state',
-        'residentialCity' => 'residential_city', 'residentialAddress' => 'residential_address',
-        'residentialPostalCode' => 'residential_postal_code', 'mobile' => 'mobile', 'mobilePrefix' => 'mobile_prefix',
-    ];
+    private const FIELDS = ['firstName' => 'legal_first_name', 'lastName' => 'legal_last_name', 'email' => 'email', 'mobile' => 'mobile', 'mobilePrefix' => 'mobile_prefix'];
 
     public function __construct(private CardManagementAccess $access, private CardholderMaterials $materials) {}
 

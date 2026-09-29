@@ -10,8 +10,7 @@ final readonly class CardManagementInput
 
     public static function fromValidated(#[\SensitiveParameter] array $values): self
     {
-        $fields = array_intersect_key($values, array_flip(['email', 'date_of_birth', 'nationality_country_code', 'mobile', 'mobile_country_code',
-            'residential_country_code', 'residential_state', 'residential_city', 'residential_address', 'residential_postal_code']));
+        $fields = array_intersect_key($values, array_flip(['legal_first_name', 'legal_last_name', 'email', 'mobile', 'mobile_country_code']));
 
         return new self($values['action'], $values['request_id'] ?? null, $values['order_id'] ?? null, $values['amount'] ?? null, $fields);
     }

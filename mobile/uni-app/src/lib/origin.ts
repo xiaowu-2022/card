@@ -70,15 +70,24 @@ const publicAssets = shallowRef<Record<string, string>>(
         : {},
 );
 export function setPublicAssets(value: unknown = {}) {
-    // A deployment may serve its versioned entry before the API manifest is published.
-    // Keep the entry's complete artwork map; valid newer URLs override individual keys.
-    publicAssets.value = { ...publicAssets.value, ...validAssets(value) };
+    // The server may disable remote assets; an empty manifest must clear old OSS URLs.
+    publicAssets.value = validAssets(value);
 }
+const failedAssets = shallowRef<Record<string, boolean>>({});
+const checkingAssets = new Set<string>();
 export function staticAsset(path: string): string {
     const remote = publicAssets.value['/' + path];
-    if (remote) return remote;
-    // Native startup can be offline. H5 must never silently request local artwork.
-    return native ? '/static/' + path : '';
+    if (remote && !failedAssets.value[remote]) {
+        if (!checkingAssets.has(remote) && typeof uni.getImageInfo === 'function') {
+            checkingAssets.add(remote);
+            // Probe only requested artwork; the reactive URL also covers CSS backgrounds.
+            uni.getImageInfo({ src: remote, fail: () => {
+                failedAssets.value = { ...failedAssets.value, [remote]: true };
+            } });
+        }
+        return remote;
+    }
+    return native ? '/static/' + path : webBase() + 'static/' + path;
 }
 
 export function invitationUrl(code: string): string {

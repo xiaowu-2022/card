@@ -22,6 +22,7 @@ final class UserOperationsController extends Controller
         return Inertia::render('platform/Users', [
             'users' => $query->paginate($filters['company'] ?? null, $filters['search'] ?? null, $filters['status'] ?? null, $financialAccess),
             'financialAccess' => $financialAccess,
+            'canAdjustWallet' => $financialAccess['balances'] && $allowed('wallet.adjust'),
             'companies' => $lists->companies(), 'filters' => $filters,
         ]);
     }

@@ -95,6 +95,7 @@ Route::middleware(['tenant.surface:end-user', RequireConsumerApiUser::class, Req
     Route::post('/assets/withdrawals/{order}/cancel', [AssetsController::class, 'cancel'])->whereUuid('order')->middleware('throttle:10,1,consumer-asset-cancel:');
     Route::get('/dashboard', DashboardController::class);
     Route::get('/wallet/transfer', [WalletTransferController::class, 'show']);
+    Route::get('/wallet/transfer-recipient', [WalletTransferController::class, 'recipient'])->middleware('throttle:10,1,consumer-transfer-recipient:');
     Route::post('/wallet/transfers', [WalletTransferController::class, 'store'])->middleware('throttle:5,1,consumer-transfer:');
     Route::get('/wallet/transfers/{transfer}', [WalletTransferController::class, 'show'])->whereUuid('transfer');
     Route::get('/cards', [CardsController::class, 'index']);

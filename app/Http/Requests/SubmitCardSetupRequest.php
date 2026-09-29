@@ -3,76 +3,33 @@
 namespace App\Http\Requests;
 
 use App\Domain\Card\Services\CardholderGeography;
-use App\Http\Requests\Concerns\AcceptsDirectImages;
-use App\Support\Errors\DomainException;
-use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 final class SubmitCardSetupRequest extends FormRequest
 {
-    use AcceptsDirectImages;
-
     /** @return array<string,mixed> */
     public function rules(): array
     {
-        $geography = app(CardholderGeography::class);
-        $country = is_string($this->input('residential_country_code')) ? $this->input('residential_country_code') : '';
-        $state = is_string($this->input('residential_state')) ? $this->input('residential_state') : '';
-
-        return [
-            'request_id' => ['required', 'uuid'],
-            'card_product_id' => ['required', 'uuid'],
-            'form_factor' => ['sometimes', 'in:virtual_card,physical_card'],
-            'cardholder_name_abbreviation' => ['required_if:form_factor,physical_card', 'nullable', 'string', 'max:26', 'regex:/^[A-Z ]+\/[A-Z ]+$/D'],
-            'legal_first_name' => ['required', 'string', 'max:40', 'regex:/^[\pL ]+$/u'],
-            'legal_last_name' => ['required', 'string', 'max:40', 'regex:/^[\pL ]+$/u'],
-            'date_of_birth' => ['required', 'date_format:Y-m-d', 'before:today'],
-            'nationality_country_code' => ['required', 'string', Rule::in($geography->countryCodes())],
-            'residential_address' => ['required', 'string', 'max:100'],
-            'residential_city' => ['bail', 'required', 'string', 'max:50', function (string $attribute, mixed $value, Closure $fail) use ($geography, $country, $state): void {
-                if (! $geography->validCity($country, $state, $value)) {
-                    $fail('Enter a valid city or select one from the available options.');
-                }
-            }],
-            'residential_state' => ['bail', 'required', 'string', 'max:50', function (string $attribute, mixed $value, Closure $fail) use ($geography, $country): void {
-                if (! $geography->validState($country, $value)) {
-                    $fail('Enter a valid state or province, or select one from the available options.');
-                }
-            }],
-            'residential_country_code' => ['required', 'string', Rule::in($geography->countryCodes())],
-            'residential_postal_code' => ['required', 'string', 'max:10', 'regex:/^[A-Za-z0-9 -]+$/'],
+        $rules = [
+            'request_id' => ['required', 'uuid'], 'card_product_id' => ['required', 'uuid'],
+            'form_factor' => ['sometimes', Rule::in(['virtual_card', 'physical_card'])],
+            'legal_first_name' => ['required', 'string', 'max:40', 'regex:/^[\pL\pM ]+$/u'],
+            'legal_last_name' => ['required', 'string', 'max:40', 'regex:/^[\pL\pM ]+$/u'],
             'email' => ['required', 'email:rfc', 'max:40'],
-            'mobile' => ['bail', 'required', 'string', 'max:24', 'regex:/^[0-9 ()-]{4,24}$/', function (string $attribute, mixed $value, Closure $fail) use ($geography): void {
-                $country = $this->input('mobile_country_code');
-                if (! is_string($country)) {
-                    $fail('Select a calling code and enter a valid mobile number.');
-
-                    return;
-                }
-                try {
-                    $geography->phone($value, $country);
-                } catch (DomainException) {
-                    $fail('Select a calling code and enter a valid mobile number.');
-                }
-            }],
-            'mobile_country_code' => ['required', 'string', Rule::in($geography->countryCodes())],
-            'mobile_prefix' => ['prohibited'],
-            'document_type' => ['required', 'in:id_card,passport,resident_permit'],
-            'document_country' => ['prohibited'],
-            'identity_number' => ['nullable', 'string', 'min:3', 'max:64'],
-            ...$this->imageRules('front', true, ['file', 'image', 'mimetypes:image/jpeg,image/png', 'max:6144', 'dimensions:min_width=1,min_height=1,max_width=12000,max_height=12000']),
-            ...$this->imageRules('back', $this->input('document_type') !== 'passport', ['file', 'image', 'mimetypes:image/jpeg,image/png', 'max:6144', 'dimensions:min_width=1,min_height=1,max_width=12000,max_height=12000']),
-            'tenant_id' => ['prohibited'],
-            'user_id' => ['prohibited'],
-            'provider' => ['prohibited'],
-            'provider_cardholder_id' => ['prohibited'],
-            'portrait' => ['prohibited'],
-            'reverse_side' => ['prohibited'],
+            'mobile' => ['required', 'string', 'max:24', 'regex:/^[0-9 ()-]{4,24}$/'],
+            'mobile_country_code' => ['required', Rule::in(app(CardholderGeography::class)->countryCodes())],
         ];
+        foreach (['tenant_id', 'user_id', 'provider', 'provider_cardholder_id', 'date_of_birth', 'nationality_country_code',
+            'residential_address', 'residential_city', 'residential_state', 'residential_country_code', 'residential_postal_code',
+            'document_type', 'document_country', 'identity_number', 'front', 'back', 'front_upload_id', 'back_upload_id',
+            'front_url', 'back_url', 'portrait', 'reverse_side', 'mobile_prefix', 'cardholder_name_abbreviation'] as $key) {
+            $rules[$key] = ['prohibited'];
+        }
+
+        return $rules;
     }
 
-    /** @return array<string,string> */
     public function messages(): array
     {
         return [

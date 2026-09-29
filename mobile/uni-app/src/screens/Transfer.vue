@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { useSensitiveScreen } from '../lib/sensitive';
-import { computed, reactive, ref, onBeforeUnmount } from 'vue';
+import { computed, reactive, ref } from 'vue';
+import Modal from '../components/Modal.vue';
+import { request } from '../lib/api';
 import PageShell from '../components/PageShell.vue';
 import FormField from '../components/FormField.vue';
 import FormErrors from '../components/FormErrors.vue';
@@ -9,7 +11,7 @@ import ConfirmCheck from '../components/ConfirmCheck.vue';
 import UiIcon from '../components/UiIcon.vue';
 import { t, dateTime } from '../lib/i18n';
 import { session } from '../lib/session';
-import { useAction, requestId } from '../lib/client';
+import { useAction, requestId, explainError } from '../lib/client';
 import { go } from '../lib/navigation';
 import { exactAmount } from '../generated/exact-amount';
 type Draft = { request_id: string; recipient_account_id: string; amount: string; asset: string };
@@ -70,14 +72,18 @@ const form = reactive({
     confirmed: false,
 });
 const action = useAction(),
-    reviewing = ref(!!draft),
+    reviewing = ref(false),
     attempted = ref(!!draft);
+const recipientEmail = ref('');
+const loadingRecipient = ref(false);
 const selected = computed(() => props.page.assets.find((a) => a.asset === form.asset));
 useSensitiveScreen(() => {
     form.current_password = '';
     form.confirmed = false;
 });
 function changed() {
+    recipientEmail.value = '';
+    reviewing.value = false;
     form.request_id = requestId();
     form.confirmed = false;
     action.errors.value = {};
@@ -90,7 +96,7 @@ function edit() {
     form.request_id = requestId();
 }
 async function submit() {
-    if (action.pending.value) return;
+    if (action.pending.value || loadingRecipient.value) return;
     if (!reviewing.value) {
         if (!validAmount(form.amount, form.asset)) {
             action.errors.value = { amount: t('Enter a positive transfer amount.') };
@@ -108,10 +114,31 @@ async function submit() {
             return;
         }
         action.errors.value = {};
-        reviewing.value = true;
+        loadingRecipient.value = true;
+        const reviewId = form.request_id;
+        try {
+            const recipient = await request<{ accountId: string; email: string; asset: string }>(
+                '/client/wallet/transfer-recipient?recipient_account_id=' +
+                    encodeURIComponent(form.recipient_account_id) +
+                    '&asset=' +
+                    encodeURIComponent(form.asset),
+            );
+            if (
+                reviewId !== form.request_id ||
+                recipient.accountId !== form.recipient_account_id ||
+                recipient.asset !== form.asset
+            )
+                return;
+            recipientEmail.value = recipient.email;
+            reviewing.value = true;
+        } catch (error) {
+            action.errors.value = explainError(error);
+        } finally {
+            loadingRecipient.value = false;
+        }
         return;
     }
-    if (!form.confirmed || !form.current_password) return;
+    if (!recipientEmail.value || !form.confirmed || !form.current_password) return;
     try {
         uni.setStorageSync(key, {
             request_id: form.request_id,
@@ -176,6 +203,7 @@ async function submit() {
             ><FormErrors :errors="action.errors.value" /><template v-if="!reviewing"
                 ><SelectField
                     v-model="form.asset"
+                    :disabled="loadingRecipient || attempted"
                     :label="t('Currency')"
                     :options="page.assets.map((a) => ({ value: a.asset, label: a.asset }))"
                     @update:model-value="
@@ -186,28 +214,45 @@ async function submit() {
                     "
                 /><FormField
                     v-model="form.recipient_account_id"
+                    :disabled="loadingRecipient || attempted"
                     :label="t('Recipient account ID')"
                     type="number"
                     :maxlength="12"
                     @update:model-value="changed"
                 /><FormField
                     v-model="form.amount"
-                    :label="t('Transfer amount')"
+                    :disabled="loadingRecipient || attempted"
+                    :label="t('Transfer quantity')"
                     :description="form.asset"
                     type="digit"
                     @update:model-value="changed"
                 /><text v-if="!selected?.available" class="muted">{{
                     t('Both accounts need active verified wallets in the same currency.')
                 }}</text
-                ><button class="primary" form-type="submit" :disabled="!selected?.available">
+                ><button
+                    class="primary"
+                    form-type="submit"
+                    :disabled="!selected?.available || loadingRecipient"
+                >
                     {{ t('Review transfer') }}
                 </button></template
-            ><template v-else
-                ><view class="transfer-review"
+            ><Modal
+                :open="reviewing"
+                :title="t('Review transfer')"
+                :busy="action.pending.value"
+                @close="
+                    () => {
+                        reviewing = false;
+                        form.current_password = '';
+                        form.confirmed = false;
+                    }
+                "
+                ><FormErrors :errors="action.errors.value" /><view class="transfer-review"
                     ><text class="review-title">{{ t('Review transfer') }}</text
                     ><text>{{ t('Recipient account ID') }}: {{ form.recipient_account_id }}</text
+                    ><text selectable>{{ t('Recipient email') }}: {{ recipientEmail }}</text
                     ><text
-                        >{{ t('Transfer amount') }}: {{ exactAmount(form.amount) }}
+                        >{{ t('Transfer quantity') }}: {{ exactAmount(form.amount) }}
                         {{ form.asset }}</text
                     ><text class="review-note">{{
                         t(
@@ -222,7 +267,11 @@ async function submit() {
                     :disabled="action.pending.value"
                 /><ConfirmCheck
                     v-model="form.confirmed"
-                    :label="t('I have checked the recipient and amount and confirm this transfer.')"
+                    :label="
+                        t(
+                            'I have checked the recipient email and quantity and confirm this transfer.',
+                        )
+                    "
                     :disabled="action.pending.value"
                 /><view class="transfer-buttons"
                     ><button
@@ -244,7 +293,7 @@ async function submit() {
                     t(
                         'If the result is unclear, retry this same transfer. Do not start a new request.',
                     )
-                }}</text></template
+                }}</text></Modal
             >
         </form></PageShell
     >

@@ -1,3 +1,33 @@
+# Simplified account-backed card materials (2026-09-29)
+
+The user now requires only last name, first name, phone (including calling region)
+and email for setup and editing. Email is prefilled from the authenticated account
+and remains editable. This supersedes the independent-document and no-account-prefill
+rules below. Every new card still has its own provider application and explicit
+financial confirmation; no account identity or previous financial record is rewritten.
+
+The server resolves approved KYC through tenant/user-scoped IdentityRecord and its
+approved source application. Original front/back references are retained and never
+copied, compressed or deleted by setup cleanup. The submitted envelope remains
+encrypted. CN national IDs supply their encoded birth date; passport accounts require
+an existing profile birth date. Missing/invalid birth information fails closed rather
+than supplying a fictitious date. Chinese nationality and billing address are fixed:
+CN / Fujian / Fuzhou / 西湖花园3#304 / 351000. Client overrides are prohibited.
+Physical-card face names derive uppercase FIRST/LAST from the entered names and
+still must satisfy the provider's Latin-name/26-character rule.
+
+Both pre-issue and issued-card edits expose only names/email/phone. Issued updates
+use existing firstName/lastName provider fields and confirmed encrypted management
+history. Existing permissions, password/confirmation, UNKNOWN recovery, owner scope,
+idempotency and issue locking remain in force. Public URLs, ID numbers and hidden
+fields are not returned by material edit reads.
+
+KYC URL-to-OCR remains independent of server OSS connectivity. Card issuing uses the
+provider's existing binary certificate upload and therefore must read original OSS
+files on the backend. Storage failures happen before provider submission. Existing
+checksums are checked where present; absent KYC URL-upload checksums are not invented.
+Deploy Laravel and rebuilt public/h5 together; no migration for this change.
+
 # Per-card holder materials — approved architecture revision
 
 The user explicitly approved independent materials for every card, including a holder different from the account owner (2026-09-10). This supersedes Phase 10's account-level Cardholder/KYC-reuse assumption, not its financial or tenant boundaries.

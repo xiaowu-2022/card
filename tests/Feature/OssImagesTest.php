@@ -3,6 +3,7 @@
 use App\Application\Kyc\SubmitKycApplicationAction;
 use App\Application\Media\ImagePresentation;
 use App\Application\Media\ImageReferences;
+use App\Application\Media\ImageReplicas;
 use App\Application\Media\ImageStorage;
 use App\Application\Media\MigrateImages;
 use App\Application\Media\OssSettings;
@@ -26,6 +27,7 @@ use Illuminate\Validation\ValidationException;
 use OSS\OssClient;
 
 beforeEach(function () {
+    config(['media.storage' => 'oss']);
     $this->seed();
     config(['inertia.ssr.enabled' => false]);
     Storage::fake('private');
@@ -39,6 +41,8 @@ beforeEach(function () {
         public array $objects = [];
 
         public int $puts = 0;
+
+        public array $reads = [];
 
         public bool $failPut = false;
 
@@ -56,7 +60,14 @@ beforeEach(function () {
 
         public function get(OssConfiguration $c, string $key): string
         {
+            $this->reads[] = $c->id;
+
             return $this->corrupt ? 'bad-checksum' : $this->objects[$c->id.'/'.$key];
+        }
+
+        public function getBounded(OssConfiguration $c, string $key, int $maxBytes): string
+        {
+            return substr($this->get($c, $key), 0, $maxBytes + 1);
         }
 
         public array $processes = [];
@@ -114,7 +125,7 @@ it('does not verify a domain serving the wrong image', function () {
     expect(fn () => app(OssSettings::class)->check($c, $this->owner))->toThrow(DomainException::class);
     expect($c->fresh()->verified_at)->toBeNull()->and($this->oss->objects)->toBe([]);
 });
-it('keeps stored objects bound to immutable configuration versions and never falls back after upload failure', function () {
+it('keeps stored objects bound to immutable configuration versions and retains a replica after upload failure', function () {
     $c = enableOssFixture($this);
     $images = app(ImageStorage::class);
     $key = 'kyc/'.$this->company->id.'/'.Str::uuid();
@@ -126,10 +137,11 @@ it('keeps stored objects bound to immutable configuration versions and never fal
     expect($images->url('private', $key))->toBe($url)->and($images->read('private', $key))->toBe($bytes)->and($images->record('private', $key)->configuration_id)->toBe($c->id);
     $this->oss->failPut = true;
     $failed = 'kyc/'.$this->company->id.'/'.Str::uuid();
-    expect(fn () => $images->put($this->company->id, 'private', $failed, $bytes, 'kyc'))->toThrow(DomainException::class);
+    $images->put($this->company->id, 'private', $failed, $bytes, 'kyc');
+    expect($images->record('private', $failed)->oss_pending)->toBeTrue()->and($images->read('private', $failed))->toBe($bytes);
     Storage::disk('private')->assertMissing($failed);
 });
-it('sends OCR only generated OSS URLs and no image bytes', function () {
+it('sends OCR only signed image gateway URLs and no image bytes', function () {
     enableOssFixture($this);
     config(['kyc.ocr_driver' => 'aliyun', 'kyc.aliyun.access_key_id' => 'ocr-key', 'kyc.aliyun.access_key_secret' => 'ocr-secret']);
     Http::fake(['ocr-api.cn-hangzhou.aliyuncs.com/*' => Http::response(['Data' => json_encode(['data' => ['passportNumber' => 'E12345678']])])]);
@@ -137,7 +149,7 @@ it('sends OCR only generated OSS URLs and no image bytes', function () {
     Http::assertSent(function ($request) {
         parse_str(parse_url($request->url(), PHP_URL_QUERY), $query);
 
-        return $request->body() === '' && str_starts_with($query['Url'] ?? '', 'https://images.example.com/images/') && $request->hasHeader('x-acs-content-sha256', hash('sha256', ''));
+        return $request->body() === '' && str_contains($query['Url'] ?? '', '/media/images/') && str_contains($query['Url'] ?? '', 'signature=') && $request->hasHeader('x-acs-content-sha256', hash('sha256', ''));
     });
     expect(count($this->oss->objects))->toBe(1)->and($app->front_object_key)->not->toContain('E12345678');
     Storage::disk('private')->assertMissing($app->front_object_key);
@@ -274,6 +286,7 @@ it('rejects a region mismatching a bucket endpoint and reports saved-version tes
     $this->post($base.'/'.$legacy->id.'/check')->assertSessionHasErrors('region');
     expect($legacy->fresh()->verified_at)->toBeNull()->and($this->oss->puts)->toBe(0);
     $this->data['region'] = 'cn-beijing';
+    $this->data['expected_id'] = $legacy->id;
     $this->post($base, $this->data)->assertSessionHasNoErrors();
 });
 
@@ -285,11 +298,11 @@ it('returns a safe form error when a connection check fails instead of reporting
     expect($c->fresh()->verified_at)->toBeNull();
 });
 
-it('allows bounded extra upload time for large images without changing OSS headers', function () {
+it('retains the short business-image timeout even for large originals', function () {
     $config = enableOssFixture($this);
     $sdk = Mockery::mock(OssClient::class);
     $bytes = str_repeat('synthetic-image-bytes', 110000);
-    $sdk->shouldReceive('setTimeout')->once()->with(180);
+    $sdk->shouldNotReceive('setTimeout');
     $sdk->shouldReceive('putObject')->once()->with($config->bucket, 'images/large.png', $bytes, Mockery::on(fn ($options) => $options[OssClient::OSS_HEADERS]['Content-Type'] === 'image/png'
         && $options[OssClient::OSS_HEADERS]['x-oss-object-acl'] === 'public-read'
         && $options[OssClient::OSS_HEADERS]['x-oss-server-side-encryption'] === 'AES256'));
@@ -314,7 +327,8 @@ it('generates bounded display URLs while preserving original bytes and OCR URLs'
     $original = $images->url('private', $key);
     $url = $images->displayUrl('private', $key, 'document');
     parse_str(parse_url($url, PHP_URL_QUERY), $query);
-    expect($query['x-oss-process'])->toBe('image/resize,m_lfit,w_2048,h_2048,limit_1/format,webp/quality,Q_85')
+    expect($query['profile'])->toBe('document')
+        ->and($query['signature'])->not->toBeEmpty()
         ->and($images->ocrUrl('private', $key))->toBe($original)
         ->and($images->read('private', $key))->toBe($bytes)
         ->and($images->record('private', $key)->sha256)->toBe(hash('sha256', $bytes));
@@ -368,7 +382,7 @@ it('publishes all public assets idempotently with versioned mappings and untouch
         ->and($manifest['/images/marketing/spec-pay-gold-world.png'])->toContain('x-oss-process');
     $this->data['public_url'] = 'https://new.example.com';
     enableOssFixture($this);
-    expect($assets->manifest())->toBe($manifest);
+    expect($assets->manifest())->toBe(array_map(fn ($url) => str_replace('https://images.example.com', 'https://new.example.com', $url), $manifest));
 });
 
 it('does not publish a mapping when uploaded public artwork fails checksum validation', function () {
@@ -418,4 +432,89 @@ it('uses immutable caching and bounded long transfers only for public assets', f
         }
     };
     $adapter->put($config, 'assets/hash/icon.svg', '<svg/>', 'image/svg+xml');
+});
+
+it('backfills old originals only after checksum verification and never repeats their uploads', function () {
+    enableOssFixture($this);
+    $key = 'kyc/'.$this->company->id.'/'.Str::uuid();
+    $images = app(ImageStorage::class);
+    $bytes = kycTestImage()->getContent();
+    $images->put($this->company->id, 'private', $key, $bytes, 'kyc');
+    $record = $images->record('private', $key);
+    $record->update(['backup_key' => null, 'backup_sha256' => null]);
+    $puts = $this->oss->puts;
+    $this->oss->corrupt = true;
+    $this->artisan('images:replicate', ['--backfill' => true])->assertFailed();
+    expect($record->fresh()->backup_key)->toBeNull()->and($record->fresh()->sha256)->toBe(hash('sha256', $bytes));
+    $this->oss->corrupt = false;
+    $this->artisan('images:replicate', ['--backfill' => true])->assertSuccessful();
+    $this->artisan('images:replicate', ['--backfill' => true])->assertSuccessful();
+    expect($record->fresh()->backup_key)->not->toBeNull()->and($this->oss->puts)->toBe($puts)
+        ->and(app(ImageReplicas::class)->read($record->fresh()))->toBe($bytes);
+});
+
+it('rejects expired unsigned and cross-host image capabilities without exposing private paths', function () {
+    enableOssFixture($this);
+    $key = 'kyc/'.$this->company->id.'/'.Str::uuid();
+    $images = app(ImageStorage::class);
+    $images->put($this->company->id, 'private', $key, kycTestImage()->getContent(), 'kyc');
+    $url = $images->gatewayUrl($images->record('private', $key));
+    $this->get($url)->assertOk();
+    $this->get(strtok($url, '?'))->assertForbidden();
+    $changed = preg_replace('~^https?://[^/]+~', 'http://other.example.test', $url);
+    $this->get($changed)->assertForbidden();
+    expect($url)->not->toContain($key, 'image-replicas');
+    $this->travel(13)->hours();
+    $this->get($url)->assertForbidden();
+});
+
+it('edits one current configuration and preserves blank credentials and historical mappings', function () {
+    $old = enableOssFixture($this);
+    $url = 'http://admin.localhost/platform/settings/oss';
+    $this->actingAs($this->owner, 'platform_admin')->get($url)->assertOk()
+        ->assertInertia(fn ($page) => $page->where('configuration.id', $old->id)->missing('configurations')->missing('configuration.credentials'));
+    $payload = array_replace($this->data, ['expected_id' => $old->id, 'public_url' => 'https://new-images.example.com', 'access_key_id' => '', 'access_key_secret' => '']);
+    $this->post($url, $payload)->assertRedirect()->assertSessionHasNoErrors();
+    $current = app(ImageStorage::class)->active();
+    expect($current->id)->not->toBe($old->id)->and($current->credentials)->toBe($old->credentials);
+    expect($old->fresh()->public_url)->toBe($this->data['public_url']);
+    $this->post($url, $payload)->assertSessionHasErrors('form');
+    $count = OssConfiguration::count();
+    $payload['expected_id'] = $current->id;
+    $this->post($url, $payload)->assertSessionHasNoErrors();
+    expect(OssConfiguration::count())->toBe($count);
+});
+
+it('tests the unsaved form without persisting configuration or selecting it', function () {
+    $current = enableOssFixture($this);
+    $bytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=');
+    Http::fake(['https://draft-images.example.com/*' => Http::response($bytes)]);
+    $count = OssConfiguration::count();
+    $this->actingAs($this->owner, 'platform_admin')->post('http://admin.localhost/platform/settings/oss/test', array_replace($this->data, ['expected_id' => $current->id, 'public_url' => 'https://draft-images.example.com']))->assertRedirect()->assertSessionHasNoErrors();
+    expect(OssConfiguration::count())->toBe($count)->and(app(ImageStorage::class)->active()->id)->toBe($current->id);
+    $this->oss->failPut = true;
+    $this->post('http://admin.localhost/platform/settings/oss/test', $this->data + ['expected_id' => $current->id])->assertSessionHasErrors('form');
+    expect(OssConfiguration::count())->toBe($count);
+});
+
+it('resolves existing image references with the current OSS configuration without rewriting history', function () {
+    $old = enableOssFixture($this);
+    $images = app(ImageStorage::class);
+    $key = 'kyc/'.$this->company->id.'/'.Str::uuid();
+    $bytes = kycTestImage()->getContent();
+    $images->put($this->company->id, 'private', $key, $bytes, 'kyc');
+    $image = $images->record('private', $key);
+    $this->data['public_url'] = 'https://current.example.com';
+    $current = enableOssFixture($this);
+    $this->oss->objects[$current->id.'/'.$image->object_key] = $bytes;
+    $this->oss->reads = [];
+    expect($images->read('private', $key))->toBe($bytes);
+    expect($this->oss->reads)->toBe([$current->id]);
+    expect($image->fresh()->configuration_id)->toBe($old->id);
+    expect($images->url('private', $key))->not->toContain('images.example.com');
+    $this->oss->objects[$current->id.'/'.$image->object_key] = 'incorrect object';
+    expect($images->read('private', $key))->toBe($bytes);
+    expect($this->oss->reads)->not->toContain($old->id);
+    Storage::disk('private')->delete($image->backup_key);
+    expect(fn () => $images->read('private', $key))->toThrow(RuntimeException::class);
 });

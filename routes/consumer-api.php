@@ -27,6 +27,7 @@ Route::middleware(RequireConsumerApiUser::class)->group(function (): void {
 });
 Route::middleware(RequireConsumerApiUser::class.':operational')->group(function (): void {
     Route::post('images/direct', [DirectImageUploadController::class, 'store'])->middleware('throttle:20,1');
+    Route::post('images/direct/{upload}/backup', [DirectImageUploadController::class, 'backup'])->whereUuid('upload')->middleware('throttle:30,1');
     Route::post('images/direct/{upload}/complete', [DirectImageUploadController::class, 'complete'])->whereUuid('upload')->middleware('throttle:30,1');
     Route::get('assets', [ConsumerController::class, 'assets']);
     Route::get('cards', [ConsumerController::class, 'cards']);

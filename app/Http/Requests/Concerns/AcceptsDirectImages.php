@@ -4,6 +4,7 @@ namespace App\Http\Requests\Concerns;
 
 use App\Application\Media\DirectImageUploads;
 use App\Application\Media\DirectKycUploads;
+use App\Domain\Media\DirectImageUpload;
 use Illuminate\Validation\Rule;
 
 trait AcceptsDirectImages
@@ -21,7 +22,9 @@ trait AcceptsDirectImages
         $data = $this->validated();
         foreach ($fields as $field) {
             if (! empty($data[$field.'_upload_id'])) {
-                $data[$field] = $purpose === 'kyc'
+                $legacyUrl = $purpose === 'kyc' && DirectImageUpload::whereKey($data[$field.'_upload_id'])->where('tenant_id', $tenant)->where('user_id', $user)->where('upload_mode', 'kyc_url')->exists();
+                abort_if(! $legacyUrl && ! empty($data[$field.'_url']), 422);
+                $data[$field] = $legacyUrl
                     ? app(DirectKycUploads::class)->resolve($tenant, $user, $data[$field.'_upload_id'], $field, $data[$field.'_url'] ?? '')
                     : app(DirectImageUploads::class)->resolve($tenant, $user, $data[$field.'_upload_id'], $purpose, $field);
             }

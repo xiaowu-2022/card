@@ -1,4 +1,11 @@
 export const transferCatalog = {
+    'Transfer quantity': ['转账数量', 'Kuantiti pindahan', 'Cantidad a transferir'],
+    'Recipient email': ['收款方邮箱', 'E-mel penerima', 'Correo del destinatario'],
+    'I have checked the recipient email and quantity and confirm this transfer.': [
+        '我已核对收款方邮箱和转账数量，确认转账。',
+        'Saya telah menyemak e-mel penerima dan kuantiti serta mengesahkan pindahan ini.',
+        'He verificado el correo del destinatario y la cantidad y confirmo la transferencia.',
+    ],
     Currency: ['币种', 'Mata wang', 'Moneda'],
     Time: ['时间', 'Masa', 'Hora'],
     Transfer: ['转账', 'Pindahan', 'Transferir'],
@@ -14,7 +21,7 @@ export const transferCatalog = {
     'Recipient account ID': ['收款账号 ID', 'ID akaun penerima', 'ID de cuenta destinataria'],
     'Transfer reference': ['转账单号', 'Rujukan pindahan', 'Referencia de transferencia'],
     'New transfer': ['再次转账', 'Pindahan baharu', 'Nueva transferencia'],
-    'Transfer amount': ['转账金额', 'Jumlah pindahan', 'Importe de transferencia'],
+    'Transfer amount': ['转账数量', 'Jumlah pindahan', 'Importe de transferencia'],
     'Review transfer': ['核对转账', 'Semak pindahan', 'Revisar transferencia'],
     'Confirm transfer': ['确认转账', 'Sahkan pindahan', 'Confirmar transferencia'],
     'Both accounts need active verified wallets in the same currency.': [
@@ -23,12 +30,12 @@ export const transferCatalog = {
         'Ambas cuentas necesitan billeteras activas y verificadas en la misma moneda.',
     ],
     'Enter a valid account ID and an amount within the selected currency precision.': [
-        '请输入有效的账号 ID 和符合所选币种精度的金额。',
+        '请输入有效的账号 ID 和符合所选币种精度的数量。',
         'Masukkan ID akaun yang sah dan jumlah mengikut ketepatan mata wang dipilih.',
         'Introduce un ID válido y un importe con la precisión de la moneda seleccionada.',
     ],
     'Enter a positive transfer amount.': [
-        '请输入大于零且符合所选币种精度的转账金额。',
+        '请输入大于零且符合所选币种精度的转账数量。',
         'Masukkan jumlah pindahan positif mengikut ketepatan mata wang dipilih.',
         'Introduce un importe positivo con la precisión de la moneda seleccionada.',
     ],
@@ -64,7 +71,7 @@ export const transferCatalog = {
             'El destinatario recibirá el mismo importe sin comisión. Revisa el ID; las transferencias completadas no se pueden cancelar aquí.',
         ],
     'I have checked the recipient and amount and confirm this transfer.': [
-        '我已核对收款账号和金额，确认转账。',
+        '我已核对收款账号和数量，确认转账。',
         'Saya telah menyemak penerima dan jumlah serta mengesahkan pindahan ini.',
         'He comprobado el destinatario y el importe y confirmo esta transferencia.',
     ],

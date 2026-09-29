@@ -21,3 +21,5 @@ Schedule::command('wealth:recover')->everyMinute()->withoutOverlapping(30)->onOn
 Schedule::command('messages:recover')->everyMinute()->withoutOverlapping(5)->onOneServer();
 
 Schedule::command('images:recover')->everyMinute()->withoutOverlapping(5)->onOneServer();
+
+Schedule::command('images:replicate --limit=20')->everyMinute()->withoutOverlapping(10)->onOneServer();

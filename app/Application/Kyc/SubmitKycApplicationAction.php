@@ -143,7 +143,7 @@ final readonly class SubmitKycApplicationAction
             }
             foreach ($stored as $side => $objectKey) {
                 try {
-                    if (($side === 0 ? $front : $back) instanceof DirectKycImage) {
+                    if (($side === 0 ? $front : $back) instanceof DirectKycImage || ($side === 0 ? $front : $back) instanceof VerifiedDirectImage) {
                         $images->deferDiscard($disk, $objectKey);
                     } else {
                         $images->discard($disk, $objectKey);

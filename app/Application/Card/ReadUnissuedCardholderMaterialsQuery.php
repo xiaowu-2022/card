@@ -29,9 +29,7 @@ final readonly class ReadUnissuedCardholderMaterialsQuery
         }
         try {
             $saved = json_decode($this->materials->decrypt($holder->materials_encrypted), true, flags: JSON_THROW_ON_ERROR)['fields'];
-            $fields = array_intersect_key($saved, array_flip(['legal_first_name', 'legal_last_name', 'email', 'date_of_birth', 'nationality_country_code',
-                'cardholder_name_abbreviation', 'residential_address', 'residential_city', 'residential_state', 'residential_country_code', 'residential_postal_code', 'document_type', 'mobile']));
-            $fields['cardholder_name_abbreviation'] = $saved['cardholder_name_abbreviation'] ?? '';
+            $fields = array_intersect_key($saved, array_flip(['legal_first_name', 'legal_last_name', 'email', 'mobile']));
             $fields['mobile_country_code'] = '';
             if (! empty($saved['mobile']) && ! empty($saved['mobile_prefix'])) {
                 $phone = PhoneNumberUtil::getInstance();

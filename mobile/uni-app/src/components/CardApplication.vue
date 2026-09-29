@@ -124,22 +124,7 @@ async function edit() {
             'POST',
         );
         if (run !== generation) return;
-        const keys = [
-            'legal_first_name',
-            'legal_last_name',
-            'date_of_birth',
-            'email',
-            'mobile',
-            'mobile_country_code',
-            'nationality_country_code',
-            'residential_address',
-            'residential_city',
-            'residential_state',
-            'residential_country_code',
-            'residential_postal_code',
-            'document_type',
-            'cardholder_name_abbreviation',
-        ];
+        const keys = ['legal_first_name', 'legal_last_name', 'email', 'mobile', 'mobile_country_code'];
         fields.value = Object.fromEntries(
             keys.map((key) => {
                 if (typeof result.fields[key] !== 'string') throw new Error('Invalid fields');

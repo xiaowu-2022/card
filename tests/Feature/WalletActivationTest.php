@@ -27,7 +27,8 @@ beforeEach(function (): void {
 
 function approvePhaseFourUser(Tenant $tenant, User $user): void
 {
-    $application = app(SubmitKycApplicationAction::class)->execute($tenant, $user, 'MY', 'WALLET-'.$user->id, kycTestImage('wallet-front.png'), kycTestImage('wallet-back.png'));
+    fakeMatchingKycOcr('WALLET-'.$user->id);
+    $application = app(SubmitKycApplicationAction::class)->execute($tenant, $user, 'CN', 'WALLET-'.$user->id, kycTestImage('wallet-front.png'), kycTestImage('wallet-back.png'));
     $reviewer = AdminUser::query()->where('email', $tenant->slug === 'tenant-a' ? 'owner@a.localhost' : 'owner@b.localhost')->firstOrFail();
     app(ApproveKycAction::class)->execute($tenant->id, $application->id, $reviewer);
 }
@@ -105,6 +106,6 @@ it('keeps admin wallet and ledger reads tenant scoped and read only', function (
     $this->get("http://a.localhost/admin/users/{$userB->id}/wallet")->assertNotFound();
     $this->get("http://a.localhost/admin/users/{$userB->id}/ledger")->assertNotFound();
 
-    expect(collect(Route::getRoutes())->pluck('uri')->filter(fn (string $uri): bool => str_contains($uri, 'balance') || str_contains($uri, 'adjust'))->all())->toBe([])
+    expect(collect(Route::getRoutes())->pluck('uri')->filter(fn (string $uri): bool => ! str_starts_with($uri, 'platform/') && (str_contains($uri, 'balance') || str_contains($uri, 'adjust')))->all())->toBe([])
         ->and(LedgerAccount::query()->where('account_type', LedgerAccountType::UserAvailable)->value('balance'))->toBe('0.00000000');
 });

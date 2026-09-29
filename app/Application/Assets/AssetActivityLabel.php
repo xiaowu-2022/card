@@ -12,6 +12,7 @@ final class AssetActivityLabel
         }
 
         return match ($event) {
+            'WALLET_ADJUSTMENT' => 'Admin adjustment',
             'WALLET_TOPUP_CREDIT' => 'Wallet top up',
             'SECURITY_DEPOSIT_FUND' => 'Security deposit',
             'WITHDRAWAL_HOLD' => 'Withdrawal requested',

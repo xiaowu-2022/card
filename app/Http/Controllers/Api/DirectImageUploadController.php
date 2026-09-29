@@ -18,6 +18,14 @@ final class DirectImageUploadController extends Controller
             $data['purpose'], $data['field'], $data['mime']))->header('Cache-Control', 'private, no-store');
     }
 
+    public function backup(string $upload, Request $request, TenantContext $context, DirectImageUploads $uploads)
+    {
+        $request->validate(['file' => 'required|file|mimes:jpg,jpeg,png,webp|max:10240']);
+        $uploads->backup($context->id(), $request->attributes->get('consumer_user')->id, $upload, $request->file('file')->getContent());
+
+        return response()->noContent()->header('Cache-Control', 'private, no-store');
+    }
+
     public function complete(string $upload, Request $request, TenantContext $context, DirectImageUploads $uploads)
     {
         $uploads->complete($context->id(), $request->attributes->get('consumer_user')->id, $upload);

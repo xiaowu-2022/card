@@ -67,15 +67,10 @@ final readonly class UserCardManagementAction
             }
             $fields = [];
             if ($action === 'holder') {
-                foreach (['email' => 'email', 'date_of_birth' => 'dateOfBirth', 'nationality_country_code' => 'nationalityCountryCode',
-                    'residential_country_code' => 'residentialCountryCode', 'residential_state' => 'residentialState', 'residential_city' => 'residentialCity',
-                    'residential_address' => 'residentialAddress', 'residential_postal_code' => 'residentialPostalCode'] as $source => $target) {
+                foreach (['legal_first_name' => 'firstName', 'legal_last_name' => 'lastName', 'email' => 'email'] as $source => $target) {
                     if (isset($input[$source])) {
                         $fields[$target] = $input[$source];
                     }
-                }
-                if (isset($input['nationality_country_code'])) {
-                    $fields['certCountryCode'] = $input['nationality_country_code'];
                 }
                 if (isset($input['mobile'])) {
                     $phone = $this->geography->phone($input['mobile'], $input['mobile_country_code']);

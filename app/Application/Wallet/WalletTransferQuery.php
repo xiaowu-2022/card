@@ -3,15 +3,36 @@
 namespace App\Application\Wallet;
 
 use App\Domain\Assets\AssetCatalog;
+use App\Domain\Kyc\Enums\KycUserStatus;
+use App\Domain\Kyc\Services\KycStatusService;
 use App\Domain\Ledger\Models\LedgerAccount;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\User\Models\User;
 use App\Domain\Wallet\Models\Wallet;
 use App\Domain\Wallet\Models\WalletTransfer;
+use App\Support\Errors\DomainException;
 
 final readonly class WalletTransferQuery
 {
     public function __construct(private UserWalletQuery $wallets) {}
+
+    /** Exact same-company lookup for an authenticated transfer review; never writes money. */
+    public function recipient(string $tenantId, string $userId, string $accountId, string $asset): array
+    {
+        $unavailable = fn () => new DomainException('WALLET_TRANSFER_RECIPIENT_UNAVAILABLE', 'The recipient is unavailable. Check the account ID and company.');
+        $sender = $this->get($tenantId, $userId);
+        if (! collect($sender['assets'])->contains(fn ($a) => $a['asset'] === $asset && $a['available'])) {
+            throw $unavailable();
+        }
+        $recipient = User::where('tenant_id', $tenantId)->where('account_id', $accountId)->where('id', '<>', $userId)->where('status', 'ACTIVE')->first();
+        if (! $recipient || ! $recipient->email
+            || app(KycStatusService::class)->forUser($tenantId, $recipient->id) !== KycUserStatus::Approved
+            || ! Wallet::where('tenant_id', $tenantId)->where('user_id', $recipient->id)->where('asset_code', $asset)->where('status', 'ACTIVE')->exists()) {
+            throw $unavailable();
+        }
+
+        return ['accountId' => $recipient->account_id, 'email' => $recipient->email, 'asset' => $asset];
+    }
 
     public function get(string $tenantId, string $userId, ?string $transferId = null): array
     {

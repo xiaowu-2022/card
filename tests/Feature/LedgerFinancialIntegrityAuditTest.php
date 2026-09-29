@@ -271,19 +271,20 @@ it('detects controlled corruption without offering reconciliation repair', funct
 
 it('exposes no generic financial mutation route or permission', function (): void {
     $forbidden = [
-        'wallet.credit', 'wallet.debit', 'wallet.adjust',
+        'wallet.credit', 'wallet.debit',
         'ledger.create', 'ledger.edit', 'ledger.delete', 'ledger.reverse',
         'deposit.adjust',
     ];
     $routes = collect(Route::getRoutes())->filter(function ($route): bool {
         $uri = strtolower($route->uri());
 
-        return preg_match('/wallet|ledger|balance|adjust|credit|debit/', $uri) === 1
+        return ! in_array($uri, ['platform/tenants/{tenant}/users/{user}/wallet-adjustments', 'platform/tenants/{tenant}/cards/{card}/balance-limit'], true)
+            && preg_match('/wallet|ledger|balance|adjust|credit|debit/', $uri) === 1
             && collect($route->methods())->contains(fn (string $method): bool => ! in_array($method, ['GET', 'HEAD'], true));
     });
 
     expect(Permission::query()->whereIn('name', $forbidden)->exists())->toBeFalse()
-        ->and($routes->pluck('uri')->values()->all())->toBe([
+        ->and($routes->pluck('uri')->map(fn ($uri) => preg_replace('#^api/(?:mobile/)?v1/client/#', '', $uri))->unique()->values()->all())->toBe([
             'wallet/transfers', // Approved same-company transfer, not a generic adjustment.
             'wallet/activate',
             'wallet/top-ups',

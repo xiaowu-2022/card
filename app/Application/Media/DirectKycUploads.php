@@ -62,6 +62,9 @@ final class DirectKycUploads
 
     public function resolve(string $tenant, string $user, string $id, string $field, string $url): DirectKycImage
     {
+        if (ServerImages::enabled()) {
+            throw new DomainException('IMAGE_STORAGE_CHANGED', 'Image storage changed. Please select and upload the image again.', 409);
+        }
         $this->owner($tenant, $user);
         $upload = DirectImageUpload::whereKey($id)->where('tenant_id', $tenant)->where('user_id', $user)->firstOrFail();
         abort_unless($upload->upload_mode === 'kyc_url' && $upload->purpose === 'kyc' && $upload->field === $field, 422);

@@ -1,3 +1,7 @@
+## 2026-09-30 recipient confirmation
+
+The uni-app transfer review uses a modal showing the exact recipient account, server-resolved same-company email, quantity and currency. An authenticated, rate-limited read-only endpoint returns only eligible recipients; no global account search or directory is exposed. Changing the draft invalidates the review; unresolved transfer retries keep the original UUID and locked intent. Password/explicit confirmation, backend eligibility rechecks and Ledger accounting remain unchanged. UI wording uses 转账数量.
+
 # Same-company wallet transfers (approved 2026-09-11)
 
 On 2026-09-25 the user approved choosing USDT, USDC, ETH or BTC for transfers.

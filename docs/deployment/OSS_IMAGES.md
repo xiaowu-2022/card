@@ -1,3 +1,27 @@
+# 双份图片与自动降级（2026-09-29）
+
+部署后端、管理端资源与 public/h5 后运行：
+
+```sh
+php artisan migrate --force
+php artisan optimize:clear
+php artisan images:replicate --backfill --limit=100
+```
+
+保留现有每分钟 Laravel scheduler；新增 images:replicate --limit=20 定时任务
+负责待补传图片。首次 --backfill 可重复执行，每次处理有限数量；无法从 OSS 或原始
+本地备份读取的历史图片保留错误状态，恢复连接后重试。不回放实名认证、OCR、开卡
+或客服消息。存储目录 storage/app/private/image-replicas 必须可写、持久化并备份，
+与 APP_KEY 一同保护；多实例需共享该目录。不要公开整个 private 目录。
+
+消费者先上传原图到服务器副本接口，再上传 OSS 暂存对象；后台对两份内容做校验。
+OSS 不可用时使用服务器副本并标记待补传，不能描述为 OSS 已成功存储。
+OCR 使用应用生成的签名图片地址（原图），公网必须能访问 /media/images/*，
+Nginx 不得将该路径重写为 H5 页面；图片路由无需登录 Cookie，签名必需且绑定域名。
+图片展示与开卡优先 OSS，连接/请求超时分别 3/8 秒，再读取校验过的服务器副本。
+静态图片保留 H5 static 和 App 包内资源，OSS 加载失败自动切换。需重新打包 App
+才能包含新版双传客户端；旧包不会自动获得新的上传步骤。
+
 # OSS 图片部署、迁移与恢复
 
 1. 部署代码，执行 `composer install --no-dev --optimize-autoloader`、现有前端构建及 `php artisan migrate --force`。迁移只新增存储配置、文件映射和权限，不搬文件，不修改业务或 Ledger。

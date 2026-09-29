@@ -2,8 +2,6 @@
 
 namespace App\Application\Card;
 
-use App\Application\Media\ImageStorage;
-use App\Application\Media\VerifiedDirectImage;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Card\Enums\ProviderCardholderStatus;
 use App\Domain\Card\Models\CardIssueOrder;
@@ -29,9 +27,7 @@ use App\Domain\User\Enums\UserStatus;
 use App\Domain\User\Models\User;
 use App\Infrastructure\Providers\Card\LocalCardSimulation;
 use App\Support\Errors\DomainException;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -63,6 +59,9 @@ final readonly class SubmitProviderCardholderAction
         if (! in_array($formFactor, $product->supported_form_factors, true)) {
             throw new DomainException('CARD_FORM_UNAVAILABLE', 'This card type is not available.', 409);
         }
+        $account = app(AccountCardholderMaterials::class)->resolve($tenantId, $userId);
+        $data = array_intersect_key($data, array_flip(['request_id', 'card_product_id', 'form_factor', 'legal_first_name', 'legal_last_name', 'email', 'mobile', 'mobile_country_code'])) + $account['fields'];
+        $data['cardholder_name_abbreviation'] = strtoupper(trim($data['legal_first_name']).'/'.trim($data['legal_last_name']));
         $fields = [];
         foreach (['legal_first_name', 'legal_last_name', 'date_of_birth', 'email', 'nationality_country_code',
             'residential_address', 'residential_city', 'residential_state', 'residential_country_code',
@@ -75,7 +74,7 @@ final readonly class SubmitProviderCardholderAction
             }
             $fields[$key] = trim($value);
         }
-        // New forms omit the number. Keep optional legacy submissions replayable; never backfill from account KYC.
+        // Identity numbers are not part of the editable card form.
         $identityNumber = $data['identity_number'] ?? null;
         if ($identityNumber !== null && ! is_string($identityNumber)) {
             throw new DomainException('CARD_SETUP_INVALID', 'Enter valid cardholder details.');
@@ -94,114 +93,91 @@ final readonly class SubmitProviderCardholderAction
         }
         $this->geography->assertValid($fields);
         $fields += $this->geography->phone($data['mobile'] ?? null, $data['mobile_country_code'] ?? null);
-        [$front, $frontMime] = $this->image($data['front'] ?? null);
-        [$back, $backMime] = $fields['document_type'] === 'passport' && ! ($data['back'] ?? null)
-            ? [null, null] : $this->image($data['back'] ?? null);
+        [$front, $frontMime] = $account['images']['front'];
+        [$back, $backMime] = $account['images']['back'] ?? [null, null];
         $fingerprint = $this->materials->fingerprint($tenantId, $userId, $data['card_product_id'], json_encode([
             $formFactor, $fields, hash('sha256', $front), $back === null ? null : hash('sha256', $back),
         ], JSON_THROW_ON_ERROR));
-        if (($data['front'] ?? null) instanceof VerifiedDirectImage) {
-            $existing = ProviderCardholder::where('tenant_id', $tenantId)->where('user_id', $userId)
-                ->where('request_id', $data['request_id'])->first();
-            if ($existing && $existing->card_product_id === $data['card_product_id']
-                && $existing->form_factor === $formFactor && hash_equals($existing->request_hash, $fingerprint)) {
-                LiveCardReferenceGuard::forProduct(CardProduct::findOrFail($existing->card_product_id), $existing->provider_cardholder_id);
 
-                return $existing;
-            }
-        }
-        $images = app(ImageStorage::class);
-        $base = 'card-materials/'.$tenantId.'/'.$userId.'/'.Str::uuid();
-        $keys = [];
-        $committed = false;
-        try {
-            foreach (['front' => $front, 'back' => $back] as $side => $contents) {
-                if ($contents === null) {
-                    continue;
-                }
-                $key = $base.'/'.$side;
-                $images->putUpload($tenantId, 'private', $key, $data[$side], 'card', $data['request_id'], 'card');
-                $keys[$side] = $key;
-            }
-            $encrypted = $this->materials->encrypt(json_encode(['fields' => $fields, 'documents' => $keys], JSON_THROW_ON_ERROR));
-            $prepared = DB::transaction(function () use ($tenantId, $userId, $data, $fingerprint, $encrypted, $formFactor): array {
-                Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
-                User::query()->where('tenant_id', $tenantId)->whereKey($userId)->lockForUpdate()->firstOrFail();
-                RefundCardPolicy::assertAllowed($tenantId, $userId);
-                $this->assertOwner($tenantId, $userId);
-                $currentProduct = CardProduct::whereKey($data['card_product_id'])->lockForUpdate()->firstOrFail();
-                if (! in_array($formFactor, $currentProduct->supported_form_factors, true)) {
-                    throw new DomainException('CARD_FORM_UNAVAILABLE', 'This card type is not available.', 409);
-                }
-                $holder = ProviderCardholder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)
-                    ->where('request_id', $data['request_id'])->lockForUpdate()->first();
-                if ($holder) {
-                    LiveCardReferenceGuard::forProduct(CardProduct::findOrFail($holder->card_product_id), $holder->provider_cardholder_id);
-                    if ($holder->card_product_id !== $data['card_product_id'] || $holder->form_factor !== $formFactor) {
-                        throw new DomainException('IDEMPOTENCY_CONFLICT', 'This request was already used with different details.', 409);
-                    }
-                    if (hash_equals($holder->request_hash, $fingerprint)) {
-                        return ['holder' => $holder, 'send' => false, 'update' => false];
-                    }
-                    if (! in_array($holder->status, [ProviderCardholderStatus::Ready, ProviderCardholderStatus::ActionRequired], true) || ! $holder->provider_cardholder_id
-                        || CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('provider_cardholder_id', $holder->id)->exists()) {
-                        throw new DomainException('IDEMPOTENCY_CONFLICT', 'This request was already used with different details.', 409);
-                    }
-                } else {
-                    if (CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->whereIn('status', ['PENDING', 'PROCESSING', 'UNKNOWN'])->exists()) {
-                        throw new DomainException('CARD_SETUP_OUTSTANDING', 'Complete the current card application before starting another.', 409);
-                    }
-                    // Serialize new applications by owner. UNKNOWN cannot be bypassed with a new UUID.
-                    $outstanding = ProviderCardholder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->whereNotNull('request_id')
-                        ->when(! app()->environment('testing') && ! LocalCardSimulation::active(), fn ($query) => $query->withoutTestReferences())
-                        ->whereNotIn('status', ['REJECTED', 'DISABLED'])
-                        ->whereNotIn('id', CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->select('provider_cardholder_id'))->exists();
-                    if ($outstanding) {
-                        throw new DomainException('CARD_SETUP_OUTSTANDING', 'Complete the current card application before starting another.', 409);
-                    }
-                    $config = TenantCardProductConfig::query()->where('tenant_id', $tenantId)->where('card_product_id', $data['card_product_id'])->first();
-                    $product = CardProduct::query()->whereKey($data['card_product_id'])->lockForUpdate()->first();
-                    if ($product) {
-                        $this->router->assertNewBusiness($product);
-                        $this->router->assertConfigured($product);
-                    }
-                    if (! $config || $config->status !== TenantCardProductStatus::Active || ! $product || $product->status !== CardProductStatus::Active) {
-                        throw new DomainException('CARD_PRODUCT_UNAVAILABLE', 'This Card product is not available.', 409);
-                    }
-                    if (CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('card_product_id', $data['card_product_id'])->where('status', '!=', 'FAILED')->count() >= $config->max_cards_per_user) {
-                        throw new DomainException('CARD_LIMIT_REACHED', 'You have reached the maximum number of Cards for this product.', 409);
-                    }
-                    $holder = new ProviderCardholder;
-                    $holder->forceFill(['form_factor' => $formFactor, 'tenant_id' => $tenantId, 'user_id' => $userId, 'provider' => 'PHOTONPAY',
-                        'request_id' => $data['request_id'], 'card_product_id' => $data['card_product_id']]);
-                }
-                $update = $holder->exists;
-                $holder->forceFill([
-                    'status' => ProviderCardholderStatus::Submitting, 'safe_reason' => null,
-                    'request_hash' => $fingerprint, 'materials_encrypted' => $encrypted,
-                    'submission_version' => ($holder->submission_version ?? 0) + 1,
-                    'submitted_at' => now(), 'synced_at' => null,
-                ])->save();
+        $existing = ProviderCardholder::where('tenant_id', $tenantId)->where('user_id', $userId)
+            ->where('request_id', $data['request_id'])->first();
+        if ($existing && $existing->card_product_id === $data['card_product_id']
+            && $existing->form_factor === $formFactor && hash_equals($existing->request_hash, $fingerprint)) {
+            LiveCardReferenceGuard::forProduct(CardProduct::findOrFail($existing->card_product_id), $existing->provider_cardholder_id);
 
-                return ['holder' => $holder, 'send' => true, 'update' => $update];
-            }, 3);
-            $committed = $prepared['send'];
-        } finally {
-            if (! $committed) {
-                foreach ($keys as $key) {
-                    try {
-                        $images->discard('private', $key);
-                    } catch (Throwable) {
-                        Log::warning('Uncommitted card document cleanup failed.', ['tenant_id' => $tenantId]);
-                    }
-                }
-            }
+            return $existing;
         }
+
+        $keys = $account['keys'];
+
+        $encrypted = $this->materials->encrypt(json_encode(['fields' => $fields, 'documents' => $keys, 'document_disk' => config('kyc.document_disk', 'private'), 'document_codec' => 'plain'], JSON_THROW_ON_ERROR));
+        $prepared = DB::transaction(function () use ($tenantId, $userId, $data, $fingerprint, $encrypted, $formFactor): array {
+            Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
+            User::query()->where('tenant_id', $tenantId)->whereKey($userId)->lockForUpdate()->firstOrFail();
+            RefundCardPolicy::assertAllowed($tenantId, $userId);
+            $this->assertOwner($tenantId, $userId);
+            $currentProduct = CardProduct::whereKey($data['card_product_id'])->lockForUpdate()->firstOrFail();
+            if (! in_array($formFactor, $currentProduct->supported_form_factors, true)) {
+                throw new DomainException('CARD_FORM_UNAVAILABLE', 'This card type is not available.', 409);
+            }
+            $holder = ProviderCardholder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)
+                ->where('request_id', $data['request_id'])->lockForUpdate()->first();
+            if ($holder) {
+                LiveCardReferenceGuard::forProduct(CardProduct::findOrFail($holder->card_product_id), $holder->provider_cardholder_id);
+                if ($holder->card_product_id !== $data['card_product_id'] || $holder->form_factor !== $formFactor) {
+                    throw new DomainException('IDEMPOTENCY_CONFLICT', 'This request was already used with different details.', 409);
+                }
+                if (hash_equals($holder->request_hash, $fingerprint)) {
+                    return ['holder' => $holder, 'send' => false, 'update' => false];
+                }
+                if (! in_array($holder->status, [ProviderCardholderStatus::Ready, ProviderCardholderStatus::ActionRequired], true) || ! $holder->provider_cardholder_id
+                    || CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('provider_cardholder_id', $holder->id)->exists()) {
+                    throw new DomainException('IDEMPOTENCY_CONFLICT', 'This request was already used with different details.', 409);
+                }
+            } else {
+                if (CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->whereIn('status', ['PENDING', 'PROCESSING', 'UNKNOWN'])->exists()) {
+                    throw new DomainException('CARD_SETUP_OUTSTANDING', 'Complete the current card application before starting another.', 409);
+                }
+                // Serialize new applications by owner. UNKNOWN cannot be bypassed with a new UUID.
+                $outstanding = ProviderCardholder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->whereNotNull('request_id')
+                    ->when(! app()->environment('testing') && ! LocalCardSimulation::active(), fn ($query) => $query->withoutTestReferences())
+                    ->whereNotIn('status', ['REJECTED', 'DISABLED'])
+                    ->whereNotIn('id', CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->select('provider_cardholder_id'))->exists();
+                if ($outstanding) {
+                    throw new DomainException('CARD_SETUP_OUTSTANDING', 'Complete the current card application before starting another.', 409);
+                }
+                $config = TenantCardProductConfig::query()->where('tenant_id', $tenantId)->where('card_product_id', $data['card_product_id'])->first();
+                $product = CardProduct::query()->whereKey($data['card_product_id'])->lockForUpdate()->first();
+                if ($product) {
+                    $this->router->assertNewBusiness($product);
+                    $this->router->assertConfigured($product);
+                }
+                if (! $config || $config->status !== TenantCardProductStatus::Active || ! $product || $product->status !== CardProductStatus::Active) {
+                    throw new DomainException('CARD_PRODUCT_UNAVAILABLE', 'This Card product is not available.', 409);
+                }
+                if (CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('card_product_id', $data['card_product_id'])->where('status', '!=', 'FAILED')->count() >= $config->max_cards_per_user) {
+                    throw new DomainException('CARD_LIMIT_REACHED', 'You have reached the maximum number of Cards for this product.', 409);
+                }
+                $holder = new ProviderCardholder;
+                $holder->forceFill(['form_factor' => $formFactor, 'tenant_id' => $tenantId, 'user_id' => $userId, 'provider' => 'PHOTONPAY',
+                    'request_id' => $data['request_id'], 'card_product_id' => $data['card_product_id']]);
+            }
+            $update = $holder->exists;
+            $holder->forceFill([
+                'status' => ProviderCardholderStatus::Submitting, 'safe_reason' => null,
+                'request_hash' => $fingerprint, 'materials_encrypted' => $encrypted,
+                'submission_version' => ($holder->submission_version ?? 0) + 1,
+                'submitted_at' => now(), 'synced_at' => null,
+            ])->save();
+
+            return ['holder' => $holder, 'send' => true, 'update' => $update];
+        }, 3);
+
         $holder = $prepared['holder'];
         if (! $prepared['send']) {
             return $holder;
         }
-        // Only this card's freshly submitted materials are sent. Never read account identity documents.
+        // Send the scoped approved account documents without rewriting the KYC originals.
         $request = new CardholderRequestDTO(
             $fields['legal_first_name'], $fields['legal_last_name'], $fields['date_of_birth'], $fields['email'], $fields['mobile'], $fields['mobile_prefix'],
             $fields['nationality_country_code'], $fields['residential_address'], $fields['residential_city'],
@@ -231,17 +207,6 @@ final readonly class SubmitProviderCardholderAction
         if ($this->kycStatus->forUser($tenantId, $userId) !== KycUserStatus::Approved) {
             throw new DomainException('KYC_NOT_APPROVED', 'Approved identity verification is required before Card setup.', 403);
         }
-    }
-
-    /** @return array{string,string} */
-    private function image(mixed $file): array
-    {
-        if ((! $file instanceof UploadedFile && ! $file instanceof VerifiedDirectImage) || ! $file->isValid() || $file->getSize() > 6 * 1024 * 1024
-            || ! in_array($file->getMimeType(), ['image/jpeg', 'image/png'], true)) {
-            throw new DomainException('CARD_DOCUMENT_INVALID', 'Upload a PNG or JPEG document of at most 6 MB.');
-        }
-
-        return [$file->getContent(), $file->getMimeType()];
     }
 
     private function applyResult(ProviderCardholder $snapshot, ProviderCardholderDTO $result, ?string $requestId): ProviderCardholder

@@ -32,7 +32,7 @@ function client(platform, base = '/', initialAssets = {}) {
         return exports;
     }
     const sourceDir = resolve('mobile/uni-app/src/lib');
-    return { window, calls, origin: load(resolve(sourceDir, 'origin.ts')), api: load(resolve(sourceDir, 'api.ts')), navigation: load(resolve(sourceDir, 'navigation.ts')) };
+    return { window, calls, uni, origin: load(resolve(sourceDir, 'origin.ts')), api: load(resolve(sourceDir, 'api.ts')), navigation: load(resolve(sourceDir, 'navigation.ts')) };
 }
 
 test('H5 follows the current domain for links, image paths and internal navigation', () => {
@@ -51,7 +51,7 @@ test('H5 follows the current domain for links, image paths and internal navigati
 
 test('subdirectory H5 assets and invitation links remain inside the deployed H5', async () => {
     const c = client('h5', '/h5/');
-    assert.equal(c.origin.staticAsset('icons/Bell.svg'), '');
+    assert.equal(c.origin.staticAsset('icons/Bell.svg'), c.origin.webBase() + 'static/icons/Bell.svg');
     const invite = new URL(c.origin.invitationUrl('test+code'));
     assert.equal(invite.origin, c.window.location.origin);
     assert.equal(invite.pathname, '/h5/');
@@ -77,7 +77,7 @@ test('one relative build follows root, renamed directories and explicit index en
     for (const [entry, base] of [['/', '/'], ['/client/', '/client/'], ['/another/nested/index.html', '/another/nested/']]) {
         c.window.location.href = c.window.location.origin + entry + '#/pages/login/index';
         assert.equal(c.origin.webBase(), base);
-        assert.equal(c.origin.staticAsset('icons/Bell.svg'), '');
+        assert.equal(c.origin.staticAsset('icons/Bell.svg'), c.origin.webBase() + 'static/icons/Bell.svg');
         assert.equal(new URL(c.origin.invitationUrl('test')).pathname, base);
     }
 });
@@ -101,19 +101,31 @@ test('uses synchronized OSS artwork and icons while retaining startup resources'
     c.origin.setPublicAssets({ '/images/example.png': 'https://images.example.org/assets/hash/example.png?x-oss-process=image%2Fresize', '/icons/bell.svg': 'https://images.example.org/assets/hash/bell.svg' });
     assert.equal(c.origin.staticAsset('images/example.png'), 'https://images.example.org/assets/hash/example.png?x-oss-process=image%2Fresize');
     assert.equal(c.origin.staticAsset('icons/bell.svg'), 'https://images.example.org/assets/hash/bell.svg');
-    assert.equal(c.origin.staticAsset('icons/startup.svg'), '');
+    assert.equal(c.origin.staticAsset('icons/startup.svg'), '/static/icons/startup.svg');
 });
 
 
-test('empty or malformed bootstrap cannot erase the published H5 OSS map', () => {
+test('server bootstrap clears the previously published OSS map', () => {
     const url = 'https://images.example.org/assets/hash/spec-pay-gold-world.png';
     const c = client('h5', './', { '/images/marketing/spec-pay-gold-world.png': url });
     for (const manifest of [[], {}, undefined, null, { '/images/marketing/spec-pay-gold-world.png': '/static/local.png' }, { '/images/marketing/spec-pay-gold-world.png': 'https://user:secret@images.example.org/a.png' }]) {
         c.origin.setPublicAssets(manifest);
-        assert.equal(c.origin.staticAsset('images/marketing/spec-pay-gold-world.png'), url);
-        assert.equal(c.origin.staticAsset('images/missing.png'), '');
+        assert.equal(c.origin.staticAsset('images/marketing/spec-pay-gold-world.png'), '/static/images/marketing/spec-pay-gold-world.png');
+        assert.equal(c.origin.staticAsset('images/missing.png'), '/static/images/missing.png');
     }
     const next = 'https://images.example.org/assets/new/spec-pay-gold-world.png';
     c.origin.setPublicAssets({ '/images/marketing/spec-pay-gold-world.png': next });
     assert.equal(c.origin.staticAsset('images/marketing/spec-pay-gold-world.png'), next);
+});
+
+ test('failed OSS artwork switches to the local H5 copy without a retry loop', () => {
+    const c = client('h5', '/h5/');
+    let reject; let probes = 0;
+    c.uni.getImageInfo = options => { probes++; reject = options.fail; };
+    c.origin.setPublicAssets({ '/images/example.png': 'https://images.example.org/assets/hash/example.png' });
+    assert.equal(c.origin.staticAsset('images/example.png'), 'https://images.example.org/assets/hash/example.png');
+    reject();
+    assert.equal(c.origin.staticAsset('images/example.png'), '/h5/static/images/example.png');
+    assert.equal(c.origin.staticAsset('images/example.png'), '/h5/static/images/example.png');
+    assert.equal(probes, 1);
 });
