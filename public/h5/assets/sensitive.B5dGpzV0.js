@@ -1,0 +1,1 @@
+import{S as e,N as i}from"./index-DXFGje6U.js";function n(n){function t(){document.hidden&&n()}e(n),i(()=>{n(),document.removeEventListener("visibilitychange",t)}),document.addEventListener("visibilitychange",t)}export{n as u};
