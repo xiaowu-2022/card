@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useSensitiveScreen } from '../lib/sensitive';
-import { computed, reactive, onBeforeUnmount } from 'vue';
+import { computed, reactive } from 'vue';
 import { t, locale } from '../lib/i18n';
 import { useAction } from '../lib/client';
 import { go } from '../lib/navigation';
@@ -80,7 +80,7 @@ useSensitiveScreen(() => {
     form.identity_number = '';
     form.front = '';
     form.back = '';
-});
+}, { retainOnBackground: true });
 async function submit() {
     const files = [
         { name: 'front', path: form.front },

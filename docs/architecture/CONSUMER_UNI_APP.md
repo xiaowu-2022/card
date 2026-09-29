@@ -192,3 +192,13 @@ App update or restoring one known domain. There is no unrelated global discovery
 Offline validation: `tests/Frontend/consumer-domain-routing.mjs`, `consumer-origin.mjs`,
 `consumer-config.mjs`, `tests/Feature/ConsumerDomainsTest.php` and `ConsumerApiTest.php`.
 Native resource compilation does not replace signed Android/iOS network acceptance.
+
+### 2026-09-29 H5 KYC photo-picker lifecycle
+
+H5 photo/camera selection can emit document visibilitychange and uni-app page
+onHide/onShow. The mounted KYC form retains its number and photo references in
+memory during background/foreground transitions; it does not refetch its page DTO
+on that return or invalidate an in-flight load. Actual visible-page navigation,
+unmount and successful submission still clear the form. No identity data or photo
+bytes are added to persistent browser storage. Other sensitive screens retain
+background clearing. Regression: tests/Frontend/consumer-kyc-lifecycle.mjs.

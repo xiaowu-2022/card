@@ -42,6 +42,7 @@ const path = ref(''),
     errors = ref<Record<string, string>>({}),
     loading = ref(false);
 let generation = 0;
+let returningToKycDraft = false;
 const anchor = ref('');
 onLoad((options) => {
     const target = options?.path ? decodeURIComponent(options.path) : '/';
@@ -50,9 +51,21 @@ onLoad((options) => {
     anchor.value = parts[1] ?? '';
 });
 onShow(() => {
+    if (returningToKycDraft) {
+        returningToKycDraft = false;
+        // Keep the mounted form and any in-flight submit when returning from the photo picker.
+        if (data.value) return;
+    }
     if (path.value) void load();
 });
 onHide(() => {
+    // #ifdef H5
+    if (document.hidden && path.value.split('?')[0] === '/kyc') {
+        returningToKycDraft = true;
+        return;
+    }
+    // #endif
+    returningToKycDraft = false;
     generation++;
 });
 async function load() {
