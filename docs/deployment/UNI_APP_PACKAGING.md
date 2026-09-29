@@ -7,6 +7,14 @@ SaaS 后台继续使用 React/Inertia；线上入口是否完成切换以部署�
 [架构说明](../architecture/CONSUMER_UNI_APP.md)与[验收清单](../testing/uni-app/PARITY.md)。
 App 资源可编译，APK/IPA 云打包和真机验证仍需公司的 DCloud AppID 与签名材料。
 
+Android 的生成配置固定包含 `arm64-v8a`（64 位）和 `armeabi-v7a`（32 位），
+在 `app-plus.distribute.android.abiFilters` 中声明。修改持久来源
+`scripts/client/index.mjs`，不要只改会被 prepare/build 覆盖的生成 manifest。
+重新生成后通过 HBuilderX 云打包获取新的 APK；仅构建前端资源不会改变已有 APK。
+验收实际 APK 的 `lib/arm64-v8a/` 和 `lib/armeabi-v7a/`，并在目标设备验证安装。
+系统报告架构不匹配时，应比对实际下载文件、设备 ABI 和完整安装错误，
+不能仅凭提示认定所有安装失败都是缺少 64 位支持。
+
 新版 H5 官网首屏、手机菜单和页脚提供安卓版下载，链接始终为当前访问域名的
 `/specpay.apk`（不随 `/h5/` 等部署目录变化）。部署时需提供实际 APK，并确保该路径
 不被 H5 的 index 回退规则捕获。原生 App 不显示此下载入口。

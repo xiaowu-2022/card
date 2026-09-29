@@ -236,6 +236,7 @@ try {
                         distribute: {
                             android: {
                                 packagename: config.appId,
+                                abiFilters: ['arm64-v8a', 'armeabi-v7a'],
                                 permissions: [
                                     '<uses-permission android:name="android.permission.INTERNET"/>',
                                     '<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>',
