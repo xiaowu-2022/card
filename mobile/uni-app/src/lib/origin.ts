@@ -54,16 +54,31 @@ export function webBase(): string {
         : '/';
 }
 
+function validAssets(value: unknown): Record<string, string> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return Object.fromEntries(Object.entries(value).filter(([path, url]) => {
+        if (!path.startsWith('/') || typeof url !== 'string') return false;
+        try {
+            const parsed = new URL(url);
+            return parsed.protocol === 'https:' && !parsed.username && !parsed.password;
+        } catch { return false; }
+    })) as Record<string, string>;
+}
 const publicAssets = shallowRef<Record<string, string>>(
     import.meta.env.UNI_PLATFORM === 'h5'
-        ? ((window as unknown as { __PUBLIC_ASSETS__?: Record<string, string> }).__PUBLIC_ASSETS__ ?? {})
+        ? validAssets((window as unknown as { __PUBLIC_ASSETS__?: unknown }).__PUBLIC_ASSETS__)
         : {},
 );
-export function setPublicAssets(value: Record<string, string> = {}) { publicAssets.value = value; }
+export function setPublicAssets(value: unknown = {}) {
+    // A deployment may serve its versioned entry before the API manifest is published.
+    // Keep the entry's complete artwork map; valid newer URLs override individual keys.
+    publicAssets.value = { ...publicAssets.value, ...validAssets(value) };
+}
 export function staticAsset(path: string): string {
     const remote = publicAssets.value['/' + path];
-    if (remote && /^https:\/\//.test(remote)) return remote;
-    return webBase() + 'static/' + path;
+    if (remote) return remote;
+    // Native startup can be offline. H5 must never silently request local artwork.
+    return native ? '/static/' + path : '';
 }
 
 export function invitationUrl(code: string): string {

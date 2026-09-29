@@ -5,7 +5,7 @@ import { resolve, dirname } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 
-function client(platform, base = '/') {
+function client(platform, base = '/', initialAssets = {}) {
     const cache = new Map();
     const calls = [];
     const uni = { getLocale: () => 'en', getStorageSync: () => [], setStorageSync() {},
@@ -17,7 +17,7 @@ function client(platform, base = '/') {
         uploadFile(options) { calls.push(options); options.fail(); },
         downloadFile(options) { calls.push(options); options.fail(); },
     };
-    const window = { location: { origin: 'https://alternate.example.org', href: 'https://alternate.example.org/' } };
+    const window = { __PUBLIC_ASSETS__: initialAssets, location: { origin: 'https://alternate.example.org', href: 'https://alternate.example.org/' } };
     function load(path) {
         if (path === 'vue') return { shallowRef: (value) => ({ value }) };
         if (path.endsWith('company.json')) return { apiOrigin: 'https://primary.example.org', apiOrigins: ['https://primary.example.org'], tenantSlug: 'company-a', appId: 'test.cards.app', developmentOnly: false };
@@ -51,7 +51,7 @@ test('H5 follows the current domain for links, image paths and internal navigati
 
 test('subdirectory H5 assets and invitation links remain inside the deployed H5', async () => {
     const c = client('h5', '/h5/');
-    assert.equal(c.origin.staticAsset('icons/Bell.svg'), '/h5/static/icons/Bell.svg');
+    assert.equal(c.origin.staticAsset('icons/Bell.svg'), '');
     const invite = new URL(c.origin.invitationUrl('test+code'));
     assert.equal(invite.origin, c.window.location.origin);
     assert.equal(invite.pathname, '/h5/');
@@ -77,7 +77,7 @@ test('one relative build follows root, renamed directories and explicit index en
     for (const [entry, base] of [['/', '/'], ['/client/', '/client/'], ['/another/nested/index.html', '/another/nested/']]) {
         c.window.location.href = c.window.location.origin + entry + '#/pages/login/index';
         assert.equal(c.origin.webBase(), base);
-        assert.equal(c.origin.staticAsset('icons/Bell.svg'), base + 'static/icons/Bell.svg');
+        assert.equal(c.origin.staticAsset('icons/Bell.svg'), '');
         assert.equal(new URL(c.origin.invitationUrl('test')).pathname, base);
     }
 });
@@ -101,5 +101,19 @@ test('uses synchronized OSS artwork and icons while retaining startup resources'
     c.origin.setPublicAssets({ '/images/example.png': 'https://images.example.org/assets/hash/example.png?x-oss-process=image%2Fresize', '/icons/bell.svg': 'https://images.example.org/assets/hash/bell.svg' });
     assert.equal(c.origin.staticAsset('images/example.png'), 'https://images.example.org/assets/hash/example.png?x-oss-process=image%2Fresize');
     assert.equal(c.origin.staticAsset('icons/bell.svg'), 'https://images.example.org/assets/hash/bell.svg');
-    assert.equal(c.origin.staticAsset('icons/startup.svg'), '/static/icons/startup.svg');
+    assert.equal(c.origin.staticAsset('icons/startup.svg'), '');
+});
+
+
+test('empty or malformed bootstrap cannot erase the published H5 OSS map', () => {
+    const url = 'https://images.example.org/assets/hash/spec-pay-gold-world.png';
+    const c = client('h5', './', { '/images/marketing/spec-pay-gold-world.png': url });
+    for (const manifest of [[], {}, undefined, null, { '/images/marketing/spec-pay-gold-world.png': '/static/local.png' }, { '/images/marketing/spec-pay-gold-world.png': 'https://user:secret@images.example.org/a.png' }]) {
+        c.origin.setPublicAssets(manifest);
+        assert.equal(c.origin.staticAsset('images/marketing/spec-pay-gold-world.png'), url);
+        assert.equal(c.origin.staticAsset('images/missing.png'), '');
+    }
+    const next = 'https://images.example.org/assets/new/spec-pay-gold-world.png';
+    c.origin.setPublicAssets({ '/images/marketing/spec-pay-gold-world.png': next });
+    assert.equal(c.origin.staticAsset('images/marketing/spec-pay-gold-world.png'), next);
 });

@@ -46,8 +46,9 @@ npm run client -- build --company specpay --mode release --platform h5
 npm run client -- build --company specpay --mode release --platform h5
 ```
 
-把 `dist/clients/specpay/release/h5/` 内的产物同步到 `public/h5/`，先复制资源、
-最后替换 index.html，保留前一版哈希资源直到旧会话过期。默认 `--base ./`，资源和
+构建后按 `OSS_IMAGES.md` 执行 OSS 发布并验证 `index.oss.html`。
+将 `index.oss.html` 部署为 `public/h5/index.html`；不要用未注入清单的原始
+`index.html` 覆盖。保留前一版入口和哈希资源直到旧会话过期。默认 `--base ./`，资源和
 邀请链接自动跟随当前部署目录，邀请链接使用目录下的 hash 注册路由，无需单独配置
 注册页伪静态。API 始终使用根路径 `/api/v1/`。只有明确需要固定 URL 前缀时才传
 `--base /指定目录/`。

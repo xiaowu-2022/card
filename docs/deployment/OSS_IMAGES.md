@@ -56,3 +56,18 @@ JS 返回 application/javascript，CSS 返回 text/css，不下载成附件、�
 将它原子替换为部署目录的 `index.html`。保存原入口和原本地资源作回滚/启动资源，
 不删除旧 OSS 对象。后端 Vite 自动使用已经完整发布的 OSS 编译清单；开发热更新
 仍由本地开发服务器提供。签名原生包需重新构建/打包才能获得新的读取逻辑。
+
+### 空 bootstrap 清单回归修复（2026-09-29）
+
+`specpay.cc` 的 HTML 已包含 OSS 清单，但其 API 数据库的 `publicAssets` 为 `[]`。
+同时旧 Vite 配置未定义 `import.meta.env.UNI_PLATFORM`，生产 H5 无法进入读取
+HTML 清单的分支；现显式注入 uni CLI 的平台标识。旧客户端还会用空清单覆盖
+HTML 清单并回退本地静态图。客户端现保留入口内有效映射，
+只合并 API 返回的有效 HTTPS 地址；H5 缺失映射不再请求本地 static 目录。原生离线
+启动资源仍可使用包内文件。用 `OSS_EMPTY_BOOTSTRAP=1 node tests/Browser/oss-assets.mjs`
+复验 API 空清单的完整页面加载。新入口需部署到线上才能替换旧 JS 哈希。
+
+本次验收：7 项 origin 测试及 uni-app 类型检查通过。生产编译入口不再含未解析
+UNI_PLATFORM；空 bootstrap 浏览器测试通过，金色卡片背景样式为 HTTPS OSS 地址，
+65 个远程响应、0 个本地静态请求、0 个页面错误。更新了当前工作区
+`public/h5/index.html`；线上需部署该入口。旧内容哈希对象未覆盖。

@@ -25,7 +25,17 @@ const server = http.createServer((req, res) => {
     }
     if (req.url.startsWith('/api/v1/')) {
         const upstream = http.request({ hostname: '127.0.0.1', port: 8000, path: req.url, method: 'GET', headers: { accept: 'application/json', host: 'a.localhost', 'accept-language': 'en' } }, (response) => {
-            res.writeHead(response.statusCode ?? 502, response.headers); response.pipe(res);
+            if (process.env.OSS_EMPTY_BOOTSTRAP === '1' && req.url.split('?')[0] === '/api/v1/bootstrap') {
+                let body = '';
+                response.setEncoding('utf8');
+                response.on('data', (chunk) => { body += chunk; });
+                response.on('end', () => {
+                    const data = JSON.parse(body);
+                    data.publicAssets = [];
+                    res.writeHead(response.statusCode ?? 502, { 'content-type': 'application/json' });
+                    res.end(JSON.stringify(data));
+                });
+            } else { res.writeHead(response.statusCode ?? 502, response.headers); response.pipe(res); }
         });
         upstream.on('error', () => { res.writeHead(502); res.end(); });
         upstream.end(); return;
@@ -48,6 +58,10 @@ try {
     page.on('response', (response) => { if (!response.url().startsWith(origin)) responses.push({ type: response.request().resourceType(), status: response.status() }); });
     await page.goto(origin, { waitUntil: 'networkidle', timeout: 180000 });
     await page.locator('uni-page-body').waitFor({ timeout: 60000 });
+    const hero = page.locator('uni-image div[style*="spec-pay-gold-world.png"]');
+    await hero.waitFor({ timeout: 60000 });
+    assert.match(await hero.getAttribute('style'), /https:\/\//);
+    assert.ok(!(await hero.getAttribute('style')).includes('./static/images/marketing/spec-pay-gold-world.png'));
     await page.screenshot({ path: resolve('output/oss-verification/landing.png'), fullPage: true });
     await page.goto(origin + '/#/pages/login/index', { waitUntil: 'networkidle', timeout: 180000 });
     await page.locator('input[type=password]').waitFor({ timeout: 60000 });

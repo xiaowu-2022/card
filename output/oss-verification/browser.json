@@ -1,8 +1,8 @@
 {
   "passed": true,
-  "remoteResponses": 64,
+  "remoteResponses": 65,
   "scripts": 35,
-  "images": 17,
+  "images": 18,
   "localStaticRequests": 0,
   "pageErrors": 0
 }
