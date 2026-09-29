@@ -2,10 +2,14 @@
 
 ## 当前状态
 
-用户端页面和操作已迁移到 uni-app，生成 H5 用于与原版对照验收；原 H5 和 SaaS
-后台仍保持现有入口，没有自动切换。范围和验证边界见
+2026-09-29 用户确认官网及消费者页面使用新版 uni-app H5，旧 React H5 不再维护。
+SaaS 后台继续使用 React/Inertia；线上入口是否完成切换以部署验证为准。范围和验证边界见
 [架构说明](../architecture/CONSUMER_UNI_APP.md)与[验收清单](../testing/uni-app/PARITY.md)。
 App 资源可编译，APK/IPA 云打包和真机验证仍需公司的 DCloud AppID 与签名材料。
+
+新版 H5 官网首屏、手机菜单和页脚提供安卓版下载，链接始终为当前访问域名的
+`/specpay.apk`（不随 `/h5/` 等部署目录变化）。部署时需提供实际 APK，并确保该路径
+不被 H5 的 index 回退规则捕获。原生 App 不显示此下载入口。
 
 ## 本地开发
 
@@ -169,3 +173,27 @@ DNS／HTTPS 证书并指向同一套后端、数据库和会话缓存；网关�
 把 API 重定向成 H5 页面。SaaS 显示启用不代表证书和网络已经就绪。至少保留一个
 App 已知的内置或缓存入口可用；若全部失效，App 无法凭空获知新增入口，需要恢复
 一个旧入口或更新安装包。H5 仍同域访问，不参与 App 选线。
+
+## macOS HBuilderX Node 编译故障（2026-09-29）
+
+HBuilderX 使用 Bash login shell 查找 CLI 项目的 Node；仅配置 `.zshrc`
+可能提示找不到 Node。当前电脑的 `.bash_profile` 已配置 Node 路径。
+
+在 Apple Silicon 上运行 Intel 版 HBuilderX 5.26 时，本机验证：arm64 Node
+22.23.1 和 22.12.0 加载该 IDE 的 `uni_helpers` 后会 SIGSEGV；普通命令行
+编译没有加载 IDE 插件，成功不能代替编辑器编译验证。当前本机使用
+`~/.local/hbuilderx-node/bin/node`：检测到 `UNI_HBUILDERX_PLUGINS` 或
+`HX_Version` 时运行 HBuilderX 配套的 x64 Node，其余情况使用原生 Node 22.23.1。
+没有修改 HBuilderX 插件，也没有禁用插件校验。
+
+本机 node_modules 已补充与锁定依赖版本一致的 `@rollup/rollup-darwin-x64`
+4.63.5 和 `@esbuild/darwin-x64` 0.20.2，并保留 arm64 版本。
+重装 node_modules 后需重新安装相应架构的可选依赖；版本以当前锁文件为准。
+更换 HBuilderX 架构后应重新检查运行时架构，并更新或移除该本机适配配置。
+
+AppID 以公司配置为持久来源；HBuilderX 重新获取 AppID 后须同步
+`mobile/companies/specpay.json` 的 `dcloudAppId`，避免 prepare 覆盖。
+
+已使用 HBuilderX 5.26 CLI 的 `publish app --type appResource` 验证，
+2026-09-29 15:59 显示编译成功、导出成功；产物为
+`mobile/uni-app/unpackage/resources`。该验证没有提交云打包或生成签名 APK。

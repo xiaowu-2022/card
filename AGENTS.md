@@ -1,3 +1,9 @@
+On 2026-09-29 the user retired maintenance of the old React consumer H5 and selected
+the new uni-app H5 for the public website and consumer changes. Keep React/Inertia
+administration and Laravel APIs. The public H5 App download uses the current origin's
+`/specpay.apk`, independent of its deployment directory; do not show it inside the native App.
+See docs/architecture/CONSUMER_UNI_APP.md.
+
 On 2026-09-29 the user requested provider-returned transaction fees in card history.
 Preserve exact signed feeDeductionAmount/feeReturnAmount and their own currencies;
 USD displays $, CNY/RMB displays ￥, other currencies retain their code. Missing

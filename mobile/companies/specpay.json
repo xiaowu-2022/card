@@ -1,7 +1,7 @@
 {
   "name": "Spec Pay",
   "appId": "cc.specpay.cards",
-  "dcloudAppId": "",
+  "dcloudAppId": "__UNI__GBE57092",
   "tenantSlug": "tenant-a",
   "apiOrigin": "https://specpay.cc",
   "version": "0.1.0",

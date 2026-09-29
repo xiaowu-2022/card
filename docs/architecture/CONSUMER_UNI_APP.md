@@ -5,7 +5,15 @@
 The user selected **uni-app / Vue 3 / TypeScript with HBuilderX cloud packaging**,
 superseding the earlier React/Capacitor proposal. Apps are separately branded and
 packaged per company from shared source. Laravel and the existing React/Inertia
-administration remain. The existing consumer H5 has NOT been replaced.
+administration remain. On 2026-09-29 the user selected the new uni-app H5 as the
+maintained public/consumer frontend and retired old React consumer H5 maintenance.
+This supersedes the former old-H5 baseline; deployment state must still be verified separately.
+
+The public H5 landing page offers Android downloads in its hero, mobile menu and
+footer using a native download anchor to `/specpay.apk` on the current origin.
+The path is independent of the H5 deployment directory and API/native domain selection.
+These links are H5-only; native Apps omit them. APK distribution requires an actual
+package at that URL; adding the link does not build or sign a package.
 
 `mobile/uni-app` is an independently locked CLI project, also importable in
 HBuilderX. Root npm dependencies still belong to the existing React application.
@@ -29,7 +37,7 @@ same scoped API. Internal links stay in uni-app. Original approved images, four
 translation catalogs, precision helpers and geography data are bundled. App geography
 uses eager data imports because the App service bundle is an IIFE; H5 lazy-loads it.
 
-Original H5 remains the production baseline. Acceptance uses the **compiled** H5,
+The uni-app H5 is now the maintained baseline. Earlier acceptance used the **compiled** H5,
 not the dev server: isolated Pest DTOs plus explicitly synthetic read-model states
 are rendered by both React and uni-app, at 375/768/1440px in four languages. See
 `docs/testing/uni-app/PARITY.md` for the matrix and generated comparison gallery.

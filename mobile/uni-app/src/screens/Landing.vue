@@ -127,7 +127,13 @@ function toggle(index: number) {
                 ><text class="h3">{{ brand }}</text
                 ><button v-for="item in navigation" :key="item.id" @click="scroll(item.id)">
                     {{ t(item.title) }}</button
-                ><button @click="go('/login')">{{ t('Log in') }}</button></view
+                ><button @click="go('/login')">{{ t('Log in') }}</button>
+                <!-- #ifdef H5 -->
+                <a href="/specpay.apk" download="specpay.apk" @click="menuOpen = false">
+                    {{ t('Download Android app') }}
+                </a>
+                <!-- #endif -->
+                </view
             ></view
         >
         <view class="marketing-hero"
@@ -146,7 +152,13 @@ function toggle(index: number) {
                 ><view class="marketing-hero-action"
                     ><button class="marketing-cta" @click="go('/login')">
                         {{ t('Explore your account')
-                        }}<UiIcon name="arrow-up-right" :size="18" /></button></view></view
+                        }}<UiIcon name="arrow-up-right" :size="18" /></button>
+                    <!-- #ifdef H5 -->
+                    <a class="marketing-download" href="/specpay.apk" download="specpay.apk">
+                        <UiIcon name="download" :size="18" />{{ t('Download Android app') }}
+                    </a>
+                    <!-- #endif -->
+                    </view></view
             ><view class="marketing-hero-footer"
                 ><button
                     class="marketing-scroll"
@@ -278,7 +290,11 @@ function toggle(index: number) {
                 ><view
                     ><text class="h3">{{ t('Products') }}</text
                     ><text @click="go('/cards')">{{ t('Mastercard U Card') }}</text
-                    ><text @click="go('/wallet')">{{ t('Wallet') }}</text></view
+                    ><text @click="go('/wallet')">{{ t('Wallet') }}</text>
+                    <!-- #ifdef H5 -->
+                    <a href="/specpay.apk" download="specpay.apk">{{ t('Download Android app') }}</a>
+                    <!-- #endif -->
+                    </view
                 ><view
                     ><text class="h3">{{ t('Help') }}</text
                     ><text @click="scroll('faq')">{{ t('FAQ') }}</text></view

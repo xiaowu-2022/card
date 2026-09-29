@@ -588,6 +588,7 @@ export const catalog = {
     FAQ: ['常见问题', 'Soalan lazim', 'Preguntas frecuentes'],
     'Company sign in': ['公司后台登录', 'Log masuk syarikat', 'Acceso de empresa'],
     'Explore your account': ['进入我的账户', 'Terokai akaun anda', 'Explora tu cuenta'],
+    'Download Android app': ['下载安卓版 App', 'Muat turun aplikasi Android', 'Descargar app para Android'],
     'Explore products': ['了解产品', 'Terokai produk', 'Explorar productos'],
     'Your account. Your cards. One place.': [
         '账户与卡片，一站管理。',
