@@ -67,6 +67,8 @@ final class PhotonPayTransactionNormalizer
             if (preg_match('/\d{12,19}/', $merchant)) {
                 $merchant = ''; // Never surface card-like sensitive numbers as merchant copy.
             }
+            [$fee, $feeCurrency] = $this->fee($row, 'feeDeduction');
+            [$returnedFee, $returnedCurrency] = $this->fee($row, 'feeReturn');
             $items[] = new ProviderCardTransactionDTO($id, $this->amount($row['transactionAmount'] ?? null), $currency,
                 match ($row['transactionType'] ?? null) {
                     'auth' => 'purchase', 'verification' => 'verification',
@@ -82,10 +84,25 @@ final class PhotonPayTransactionNormalizer
                     'succeed' => 'completed', 'authorized' => 'authorized',
                     'failed' => 'declined', 'void' => 'reversed',
                     'pending', 'processing' => 'pending', default => 'confirming',
-                }, $when, $merchant === '' ? null : $merchant);
+                }, $when, $merchant === '' ? null : $merchant, $fee, $feeCurrency, $returnedFee, $returnedCurrency);
         }
 
         return new ProviderTransactionPageDTO($items, $page, $page * $size < $total);
+    }
+
+    /** @return array{?string, ?string} */
+    private function fee(array $row, string $prefix): array
+    {
+        $amount = $row[$prefix.'Amount'] ?? null;
+        $currency = $row[$prefix.'Currency'] ?? null;
+        if ($amount === null && ($currency === null || $currency === '')) {
+            return [null, null];
+        }
+        if (! is_string($currency) || ! preg_match('/^[A-Z]{3}$/D', $currency)) {
+            throw new ProviderUnknownResultException('Provider fee currency is invalid.');
+        }
+
+        return [$this->amount($amount), $currency];
     }
 
     private function text(mixed $value): string

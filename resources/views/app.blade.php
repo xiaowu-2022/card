@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title inertia>{{ config('app.name', 'Aperture Cards') }}</title>
+    <link rel="icon" href="{{ app(\App\Application\Media\PublicAssets::class)->manifest()['/favicon.ico'] ?? '/favicon.ico' }}">
     @viteReactRefresh
     @vite(['resources/js/app.tsx'])
     @inertiaHead

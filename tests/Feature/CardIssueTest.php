@@ -2367,9 +2367,13 @@ it('calculates reload capacity from combined balance and deduplicates the matchi
     $action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $third->id);
     $query = app(UserCardTransactionsQuery::class);
     $before = $query->get($this->tenant->id, $this->user->id, $card->id, 1)['items'];
-    $ids = app(RecordCardTransactionsAction::class)->execute($card, [new ProviderCardTransactionDTO('TX-SPLIT-OVERFLOW', '20.00000000', 'USD', 'transfer_in', 'completed', now()->format('Y-m-d H:i:s'), null)], CarbonImmutable::now());
-    expect($query->get($this->tenant->id, $this->user->id, $card->id, 1)['items'])->toBe($before);
+    $ids = app(RecordCardTransactionsAction::class)->execute($card, [new ProviderCardTransactionDTO('TX-SPLIT-OVERFLOW', '20.00000000', 'USD', 'transfer_in', 'completed', now()->format('Y-m-d H:i:s'), null, '-0.20000000', 'USD')], CarbonImmutable::now());
+    $after = $query->get($this->tenant->id, $this->user->id, $card->id, 1)['items'];
+    $withoutFees = fn (array $items) => array_map(fn ($item) => array_diff_key($item, array_flip(['feeAmount', 'feeCurrency'])), $items);
+    expect($withoutFees($after))->toBe($withoutFees($before));
+    expect(collect($after)->where('feeAmount', '-0.20000000'))->toHaveCount(1);
     $synced = $query->items($this->tenant->id, $this->user->id, $card->id, $ids);
+    expect($synced[0]['feeAmount'])->toBe('-0.20000000')->and($synced[0]['feeCurrency'])->toBe('USD');
     expect($synced[0]['amount'])->toBe('80.00000000')->and(collect($before)->pluck('id')->all())->toContain($synced[0]['id']);
     expect($card->fresh()->overflowBalance())->toBe('140.00000000');
     DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
@@ -2600,5 +2604,18 @@ it('includes confirmed card balances and overflow once in assets without provide
     $card->forceFill(['archived_at' => now()])->save();
     expect($query->get($this->tenant->id, $this->user->id, [])['estimate'])->toBe(Money::of($wallet, 'USDT')->add(Money::of('10', 'USDT'))->amount());
     expect(LedgerEntry::count())->toBe($entries);
+    Http::assertNothingSent();
+});
+
+it('persists provider fees and returns them on read-only scoped card history', function (): void {
+    [$card] = transactionReadFixture($this);
+    app(RecordCardTransactionsAction::class)->execute($card, [
+        new ProviderCardTransactionDTO('FEE-READ', '25.00000000', 'CNY', 'purchase', 'completed', '2026-09-29T09:00:00', null, '-0.12345678', 'USD', '0.01000000', 'CNY'),
+    ], CarbonImmutable::now());
+    Http::preventStrayRequests();
+    $this->actingAs($this->user, 'tenant_user')->getJson("http://a.localhost/cards/{$card->id}/transactions")
+        ->assertOk()->assertJsonPath('items.0.feeAmount', '-0.12345678')->assertJsonPath('items.0.feeCurrency', 'USD')
+        ->assertJsonPath('items.0.feeReturnAmount', '0.01000000')->assertJsonPath('items.0.feeReturnCurrency', 'CNY')
+        ->assertJsonPath('items.0.currency', 'CNY');
     Http::assertNothingSent();
 });

@@ -1,3 +1,4 @@
+import { usePublicAsset } from '@/lib/public-assets';
 import { cardDisplayName } from '@/lib/card-display-name';
 
 export function CardProductPreview({
@@ -9,9 +10,10 @@ export function CardProductPreview({
     currency: string;
     bin?: string;
 }) {
+    const publicAsset = usePublicAsset();
     return (
         <div className="user-card-product-preview-wrap">
-            <div className="user-card-visual user-card-product-preview">
+            <div className="user-card-visual user-card-product-preview" style={{ backgroundImage: `url("${publicAsset('/images/cards/spec-pay-gold-background.jpg')}")` }}>
                 <p className="user-card-brand">
                     <svg viewBox="0 0 50 64" aria-hidden="true">
                         <path d="M0 26 24 10 49 26 25 44Z" fill="currentColor" />
@@ -26,7 +28,7 @@ export function CardProductPreview({
                 </p>
                 <div className="user-card-chip-row">
                     <img
-                        src="/images/cards/gold-chip.svg"
+                        src={publicAsset("/images/cards/gold-chip.svg")}
                         alt=""
                         aria-hidden="true"
                         width="106"
@@ -43,7 +45,7 @@ export function CardProductPreview({
                         {bin ? ` · BIN ${bin}` : ''}
                     </p>
                     <img
-                        src="/images/cards/mastercard.svg"
+                        src={publicAsset("/images/cards/mastercard.svg")}
                         alt="Mastercard"
                         width="160"
                         height="100"

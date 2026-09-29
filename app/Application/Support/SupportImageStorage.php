@@ -4,6 +4,7 @@ namespace App\Application\Support;
 
 use App\Application\Media\ImageStorage;
 use App\Support\Errors\DomainException;
+use Illuminate\Http\Response;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
 
@@ -37,6 +38,11 @@ final class SupportImageStorage
     public function read(#[\SensitiveParameter] string $path): string
     {
         return app(ImageStorage::class)->read('private', $path, 'support');
+    }
+
+    public function response(string $path): Response
+    {
+        return app(ImageStorage::class)->displayResponse('private', $path, 'preview', 'support');
     }
 
     /** Only the caller's newly staged, proven-unreferenced object may be discarded. */

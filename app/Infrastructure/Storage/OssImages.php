@@ -27,11 +27,13 @@ class OssImages
             $client = $this->client($config);
             // Large validated images can exceed 30 seconds on a slow uplink.
             // Keep connection establishment bounded and retain the small-file timeout.
-            if (strlen($contents) > 1024 * 1024) {
+            if (str_starts_with($key, 'assets/')) {
+                $client->setTimeout(600);
+            } elseif (strlen($contents) > 1024 * 1024) {
                 $client->setTimeout(180);
             }
             $client->putObject($config->bucket, $key, $contents, [OssClient::OSS_HEADERS => [
-                'Content-Type' => $mime, 'Cache-Control' => 'no-store', 'x-oss-object-acl' => 'public-read', 'x-oss-server-side-encryption' => 'AES256',
+                'Content-Type' => $mime, 'Cache-Control' => str_starts_with($key, 'assets/') ? 'public, max-age=31536000, immutable' : 'no-store', 'x-oss-object-acl' => 'public-read', 'x-oss-server-side-encryption' => 'AES256',
             ]]);
         } catch (\Throwable) {
             throw new DomainException('IMAGE_STORAGE_UNAVAILABLE', 'Image storage is unavailable. Please try again.', 503);
@@ -41,7 +43,19 @@ class OssImages
     public function get(OssConfiguration $config, string $key): string
     {
         try {
-            return $this->client($config)->getObject($config->bucket, $key);
+            $client = $this->client($config);
+            $client->setTimeout(str_starts_with($key, 'assets/') ? 600 : 180);
+
+            return $client->getObject($config->bucket, $key);
+        } catch (\Throwable) {
+            throw new DomainException('IMAGE_STORAGE_UNAVAILABLE', 'Image storage is unavailable. Please try again.', 503);
+        }
+    }
+
+    public function display(OssConfiguration $config, string $key, string $process): string
+    {
+        try {
+            return $this->client($config)->getObject($config->bucket, $key, [OssClient::OSS_PROCESS => $process]);
         } catch (\Throwable) {
             throw new DomainException('IMAGE_STORAGE_UNAVAILABLE', 'Image storage is unavailable. Please try again.', 503);
         }

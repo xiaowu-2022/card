@@ -24,7 +24,7 @@ npm run client -- dev --company local
 H5 的 API、邀请链接及海报二维码使用当前访问域名，同一公司的多个域名可共用
 一份 H5；每个域名都必须由后端绑定同一公司并路由 `/api/v1` 到 Laravel。
 `tenantSlug` 仍与 bootstrap 的公司标识严格比对，不因切换域名放宽。
-App 继续使用 `apiOrigin`。`specpay.json` 已按用户确认保留 `tenant-a`，仅用于
+App 使用内置 `apiOrigins` 和上次缓存发现当前公司域名，并在每次启动／回到前台时同步测速选优。`specpay.json` 已按用户确认保留 `tenant-a`，仅用于
 该公司；其中原生包名尚未完成 App 发布验证。
 
 ```sh
@@ -140,3 +140,31 @@ App manifest 已显式包含相机／相册 Camera 和系统分享 Share 模块�
 [功能模块](https://uniapp.dcloud.io/tutorial/app-modules.html)、
 [系统分享](https://uniapp.dcloud.net.cn/share)、
 [manifest 权限描述](https://uniapp.dcloud.net.cn/tutorial/app-manifest)。
+
+## App 内置域名与自动选线
+
+在公司的 JSON 配置中填写 `apiOrigins` 数组，例如：
+
+```json
+"apiOrigin": "https://primary.your-company.com",
+"apiOrigins": [
+  "https://primary.your-company.com",
+  "https://backup.your-company.com"
+]
+```
+
+以上仅为格式示例，必须替换为该公司的真实域名。`apiOrigin` 也会自动加入初始列表，
+同时继续用于本地 H5 代理。specpay 配置按用户指定内置 `zb33333.com`、`specpay.cc`、
+`specpay.top`、`specpay.vip`、`113b.my`，全部使用 HTTPS。release 对每一个域名检查 HTTPS
+和非测试域名要求。修改后重新 prepare／打包。
+
+日常新增域名在 SaaS「系统设置 → 域名」中启用并分配给该公司，无需重新打包。
+App 从任意可用的已知入口获取该公司全部已启用域名，缓存完整列表，以最多六个
+并发请求测速（单个超时四秒），选择本次成功响应最快的入口。被停用、解绑或归属
+不符的域名不会入选。全不可用时显示现有网络错误，恢复后可重试。
+
+先部署包含 `/api/mobile/v1/domains` 的后端，再发布新 App。所有域名必须具备正确
+DNS／HTTPS 证书并指向同一套后端、数据库和会话缓存；网关应保留公司 Host，不得
+把 API 重定向成 H5 页面。SaaS 显示启用不代表证书和网络已经就绪。至少保留一个
+App 已知的内置或缓存入口可用；若全部失效，App 无法凭空获知新增入口，需要恢复
+一个旧入口或更新安装包。H5 仍同域访问，不参与 App 选线。

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { staticAsset } from '../lib/origin';
 import { computed, ref } from 'vue';
 import { session } from '../lib/session';
 import { photoUrl } from '../lib/api';
@@ -140,7 +141,7 @@ function toggle(index: number) {
                     ><view class="marketing-hero-card"
                         ><image
                             class="marketing-hero-card-artwork"
-                            src="/static/images/marketing/spec-pay-gold-world.png"
+                            :src="staticAsset('images/marketing/spec-pay-gold-world.png')"
                             mode="widthFix" /></view></view
                 ><view class="marketing-hero-action"
                     ><button class="marketing-cta" @click="go('/login')">
@@ -159,7 +160,7 @@ function toggle(index: number) {
         <view class="growth-campaign growth-campaign-public"
             ><image
                 class="growth-campaign-art"
-                src="/static/images/marketing/growth/poster-1114.jpg"
+                :src="staticAsset('images/marketing/growth/poster-1114.jpg')"
                 mode="widthFix"
                 :aria-label="t('Growth strategy announcement')" /><button
                 class="growth-campaign-action"

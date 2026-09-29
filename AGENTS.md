@@ -1,3 +1,25 @@
+On 2026-09-29 the user requested provider-returned transaction fees in card history.
+Preserve exact signed feeDeductionAmount/feeReturnAmount and their own currencies;
+USD displays $, CNY/RMB displays ￥, other currencies retain their code. Missing
+fees remain unknown, never inferred or charged again. Keep scoped read-only GET,
+existing callback/explicit sync, Ledger and balances unchanged. See
+docs/architecture/CARD_TRANSACTION_READS.md.
+
+On 2026-09-29 the user required all business images and built-in public page resources
+(images/icons/fonts/geography/JS/CSS) on OSS. Use OSS read-time bounded image resizing
+and WebP quality, never rewrite/compress originals. OCR/provider/checksums use originals.
+New runtime uploads require OSS; local writing is isolated-test-only. Public static
+assets use checksum-verified content versions and atomic compiled-manifest publication,
+retaining originals/older releases. Native executable/startup resources remain packaged;
+App artwork switches to the synchronized OSS manifest. See docs/architecture/OSS_IMAGES.md.
+
+On 2026-09-29 the user approved multiple packaged seed domains and native App
+startup/foreground synchronization of all active domains assigned to its company,
+with credential-free bounded probing and lowest measured response-time selection.
+Cache only public domain lists; verify the packaged company before sending credentials.
+Server tenant scope remains Host-owned. H5 remains same-origin. Never replay business
+mutations as part of domain selection. See docs/architecture/CONSUMER_UNI_APP.md.
+
 On 2026-09-27 the user approved a separate desktop SaaS support center with all-company
 conversation reads, scoped proactive customer contact and per-admin support nicknames.
 Platform support.read/send/agents.manage are granted incrementally to Owner/Admin;

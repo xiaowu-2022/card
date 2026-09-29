@@ -56,8 +56,7 @@ final class InvitationPosterController extends Controller
     {
         $path = $tenant->businessSettings->invitation_poster_background;
         abort_unless($path, 404);
-        $contents = app(ImageStorage::class)->read('private', $path);
 
-        return response($contents, 200, ['Content-Type' => (new \finfo(FILEINFO_MIME_TYPE))->buffer($contents), 'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
+        return app(ImageStorage::class)->displayResponse('private', $path, 'poster');
     }
 }

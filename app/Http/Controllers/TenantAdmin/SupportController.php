@@ -50,10 +50,6 @@ final class SupportController extends Controller
     {
         $image = $query->image($context->id(), $request->user('tenant_admin')->id, $message, true);
 
-        return response($images->read($image['path']), 200, [
-            'Content-Type' => $image['mime'], 'Cache-Control' => 'private, no-store',
-            'Content-Disposition' => 'inline; filename=support-image', 'X-Content-Type-Options' => 'nosniff',
-            'Referrer-Policy' => 'no-referrer', 'Content-Security-Policy' => "default-src 'none'; sandbox",
-        ]);
+        return $images->response($image['path']);
     }
 }

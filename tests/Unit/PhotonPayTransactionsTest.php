@@ -119,3 +119,30 @@ it('queries physical transactions using the saved form and refuses virtual rows'
     Http::assertSent(fn (Request $r) => $r['cardFormFactor'] === 'physical_card');
     expect(fn () => $provider->getTransactionPage('XR-OWNED', 1, 20))->toThrow(ProviderUnknownResultException::class);
 });
+
+it('retains exact signed provider fee and refund amounts in their own currencies', function (): void {
+    $row = photonTransactionRow(['feeDeductionAmount' => '-0.12345678', 'feeDeductionCurrency' => 'USD', 'feeReturnAmount' => '2.01', 'feeReturnCurrency' => 'CNY']);
+    $body = str_replace('"-0.12345678"', '-0.12345678', photonTransactionBody([$row]));
+    Http::fake(['*' => Http::response($body)]);
+    $item = $this->transactionProvider->getTransactionPage('XR-OWNED', 1, 20)->items[0];
+    expect($item->feeAmount)->toBe('-0.12345678')->and($item->feeCurrency)->toBe('USD')
+        ->and($item->feeReturnAmount)->toBe('2.01000000')->and($item->feeReturnCurrency)->toBe('CNY');
+});
+
+it('distinguishes missing fees from explicit zero fees', function (): void {
+    Http::fakeSequence()->push(photonTransactionBody([photonTransactionRow()]))
+        ->push(photonTransactionBody([photonTransactionRow(['feeDeductionAmount' => '0', 'feeDeductionCurrency' => 'USD'])]));
+    expect($this->transactionProvider->getTransactionPage('XR-OWNED', 1, 20)->items[0]->feeAmount)->toBeNull();
+    expect($this->transactionProvider->getTransactionPage('XR-OWNED', 1, 20)->items[0]->feeAmount)->toBe('0.00000000');
+});
+
+it('rejects incomplete malformed or overprecise provider fees without guessing currency', function (array $fields): void {
+    Http::fake(['*' => Http::response(photonTransactionBody([photonTransactionRow($fields)]))]);
+    expect(fn () => $this->transactionProvider->getTransactionPage('XR-OWNED', 1, 20))->toThrow(ProviderUnknownResultException::class);
+})->with([
+    [['feeDeductionAmount' => '1']],
+    [['feeDeductionCurrency' => 'USD']],
+    [['feeDeductionAmount' => '0.000000001', 'feeDeductionCurrency' => 'USD']],
+    [['feeReturnAmount' => 'NaN', 'feeReturnCurrency' => 'USD']],
+    [['feeReturnAmount' => '1', 'feeReturnCurrency' => '<USD>']],
+]);

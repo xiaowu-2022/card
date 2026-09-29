@@ -1,5 +1,5 @@
 import company from '../generated/company.json';
-import { companyOrigin } from './origin';
+import { companyOrigin, ensureCompanyOrigin } from './origin';
 export const native = import.meta.env.UNI_PLATFORM === 'app';
 // Until the native Keychain/Keystore bridge is independently verified, App tokens
 // stay in memory. Never downgrade credentials to uni storage/localStorage.
@@ -39,7 +39,7 @@ export class ApiError extends Error {
 function url(path: string) {
     if (!/^\/[a-z0-9/?=&_%+.,:-]+$/i.test(path) || path.startsWith('//') || path.includes('..'))
         throw new Error('Invalid API path');
-    return `${native ? company.apiOrigin : ''}${native ? '/api/mobile/v1' : '/api/v1'}${path}`;
+    return `${native ? companyOrigin() : ''}${native ? '/api/mobile/v1' : '/api/v1'}${path}`;
 }
 function headers() {
     const header: Record<string, string> = { Accept: 'application/json', 'X-Consumer-Page': page };
@@ -55,11 +55,14 @@ function capture(header: Record<string, unknown> | undefined) {
     );
     if (native && typeof entry?.[1] === 'string') flow = entry[1];
 }
-export function request<T>(
+export async function request<T>(
     path: string,
     method: 'GET' | 'POST' = 'GET',
     data?: Record<string, unknown>,
 ): Promise<T> {
+    await ensureCompanyOrigin().catch(() => {
+        throw new ApiError(0);
+    });
     return new Promise((resolve, reject) =>
         uni.request({
             url: url(path),
@@ -82,7 +85,14 @@ export function request<T>(
     );
 }
 export type Upload = { name: string; path: string };
-export function upload<T>(path: string, data: Record<string, string>, files: Upload[]): Promise<T> {
+export async function upload<T>(
+    path: string,
+    data: Record<string, string>,
+    files: Upload[],
+): Promise<T> {
+    await ensureCompanyOrigin().catch(() => {
+        throw new ApiError(0);
+    });
     return new Promise((resolve, reject) =>
         uni.uploadFile({
             url: url(path),
@@ -111,17 +121,23 @@ export function photoUrl(value: string | null) {
     if (!value) return '';
     const origin = companyOrigin();
     if (/[\\\r\n]/.test(value)) return '';
+    // These URLs come only from the server's branding DTO. OSS images are public,
+    // rendered without API Authorization or flow headers.
+    if (/^https:\/\/[a-z0-9.-]+(?::\d+)?\/[^\s]*$/i.test(value) && !value.startsWith(origin + '/')) return value;
     const path = value.startsWith(origin + '/') ? value.slice(origin.length) : value;
     if (!path.startsWith('/') || path.startsWith('//')) return '';
     return native ? origin + path : path;
 }
-export function privateImage(path: string): Promise<string> {
+export async function privateImage(path: string): Promise<string> {
     if (
         !/^\/support\/images\/[a-f0-9-]{36}$/i.test(path) &&
         path !== '/client/promotion/poster-background'
     )
         return Promise.reject(new ApiError(404));
-    const url = (native ? company.apiOrigin + '/api/mobile/v1' : '/api/v1') + path;
+    await ensureCompanyOrigin().catch(() => {
+        throw new ApiError(0);
+    });
+    const url = (native ? companyOrigin() + '/api/mobile/v1' : '/api/v1') + path;
     const header = headers();
     return new Promise((resolve, reject) =>
         uni.downloadFile({

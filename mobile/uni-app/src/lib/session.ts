@@ -9,8 +9,10 @@ import {
     setToken,
     clearFlow,
 } from './api';
+import { setPublicAssets } from './origin';
 import { configureLocale } from './i18n';
 export type Bootstrap = {
+    publicAssets?: Record<string, string>;
     tenant: {
         id: string;
         slug: string;
@@ -57,6 +59,7 @@ export async function bootstrap() {
             clearSession();
             throw new ApiError(403);
         }
+        setPublicAssets(data.publicAssets);
         session.value = data;
         Object.assign(unread, data.unread);
         setCsrf(data.csrfToken);

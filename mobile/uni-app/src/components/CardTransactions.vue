@@ -2,11 +2,10 @@
 import { computed, ref, watch, onBeforeUnmount } from 'vue';
 import { request } from '../lib/api';
 import { t, dateTime } from '../lib/i18n';
-import { systemMoney } from '../generated/system-money';
 import {
     mergeCardTransactions,
     transactionPage,
-    transactionAmount,
+    transactionMoney,
     transactionStates,
     transactionTitles,
     type CardTransaction,
@@ -99,11 +98,21 @@ function title(item: CardTransaction) {
                                 }}</text
                             ></view
                         ><view class="money"
-                            ><text>{{
-                                item.currency === 'USD'
-                                    ? systemMoney(item.amount)
-                                    : transactionAmount(item.amount) + ' ' + item.currency
-                            }}</text
+                            ><text>{{ transactionMoney(item.amount, item.currency) }}</text
+                            ><text class="small muted"
+                                >{{ t('Transaction fee') }}:
+                                {{
+                                    item.feeAmount != null && item.feeCurrency
+                                        ? transactionMoney(item.feeAmount, item.feeCurrency)
+                                        : '—'
+                                }}</text
+                            ><text
+                                v-if="item.feeReturnAmount != null && item.feeReturnCurrency"
+                                class="small muted"
+                                >{{ t('Fee refund') }}:
+                                {{
+                                    transactionMoney(item.feeReturnAmount, item.feeReturnCurrency)
+                                }}</text
                             ><text v-if="item.state !== 'completed'" class="small muted">{{
                                 t(transactionStates[item.state] ?? 'Confirming')
                             }}</text></view
@@ -112,7 +121,9 @@ function title(item: CardTransaction) {
                 ></view
             ></view
         ><view v-if="!loading && !failed && !items.length" class="empty"
-            ><UiIcon name="cards" :size="24" color="#68736e" /><text class="empty-title">{{ t('No card transactions yet') }}</text
+            ><UiIcon name="cards" :size="24" color="#68736e" /><text class="empty-title">{{
+                t('No card transactions yet')
+            }}</text
             ><text v-if="!singleCard" class="small muted">{{
                 t('Transactions from all your cards will appear here.')
             }}</text></view

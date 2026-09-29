@@ -1,3 +1,4 @@
+import { usePublicAsset } from '@/lib/public-assets';
 import { MessageBell, UnreadBadge, UnreadMessagesProvider } from '@/components/user/MessageBell';
 import { t, useClientTranslation } from '@/i18n';
 import { Link, usePage } from '@inertiajs/react';
@@ -17,12 +18,13 @@ export function UserLayout({
     children: ReactNode;
     handledSuccessMessage?: string;
 }) {
+    const publicAsset = usePublicAsset();
     useLocaleSync();
     useClientTranslation();
     const page = usePage<SharedProps>();
     const { tenant, auth, flash } = page.props;
     const companyName = tenant?.branding.brandName ?? 'Aperture Cards';
-    const style = userThemeStyle(tenant?.branding.primaryColor);
+    const style = { ...userThemeStyle(tenant?.branding.primaryColor), '--card-background-image': `url("${publicAsset('/images/cards/spec-pay-gold-background.jpg')}")` };
     const path = (page.url.split(/[?#]/)[0] ?? '').replace(/\/+$/, '') || '/';
     const navigationHome = userNavigation.some((item) => item.href === path);
     const promotionPage = path === '/promotion' || path.startsWith('/promotion/');

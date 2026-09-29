@@ -1,3 +1,4 @@
+import { usePublicAsset } from '@/lib/public-assets';
 import { useState } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
 import {
@@ -104,11 +105,12 @@ function CardArtwork({
     );
 }
 function HeroCardArtwork() {
+    const publicAsset = usePublicAsset();
     return (
         <div className="marketing-hero-card" aria-hidden="true">
             <img
                 className="marketing-hero-card-artwork"
-                src="/images/marketing/spec-pay-gold-world.png"
+                src={publicAsset("/images/marketing/spec-pay-gold-world.png")}
                 alt=""
                 width={1586}
                 height={992}

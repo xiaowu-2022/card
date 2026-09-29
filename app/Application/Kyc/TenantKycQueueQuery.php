@@ -56,7 +56,7 @@ final readonly class TenantKycQueueQuery
                 'maskedIdentityNumber' => $this->identities->maskEncrypted($application->identity_number_encrypted),
                 'documentsSubmitted' => true,
                 'ocrStatus' => $application->ocr_status->value,
-                'ocrSummary' => $ocr ? ['identityMatch' => $ocr['candidate_identity_match'] ?? 'UNKNOWN', 'candidateName' => $ocr['candidate_name'], 'confidence' => $ocr['confidence']] : null,
+                'ocrSummary' => $ocr ? ['identityMatch' => $ocr['candidate_identity_match'] ?? 'UNKNOWN', 'candidateName' => $ocr['candidate_name'] ?? null, 'confidence' => $ocr['confidence'] ?? null] : null,
                 'reviewStatus' => $application->review_status->value,
                 'reviewReasonCode' => $application->review_reason_code,
                 'reviewMessage' => $application->review_message,

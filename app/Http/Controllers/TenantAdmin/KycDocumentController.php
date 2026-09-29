@@ -35,20 +35,10 @@ final class KycDocumentController extends Controller
         abort_unless(is_string($key) && $key !== '', 404);
         $disk = (string) config('kyc.document_disk');
         try {
-            $contents = app(ImageStorage::class)->read($disk, $key);
+            return app(ImageStorage::class)->displayResponse($disk, $key, 'document')
+                ->header('Pragma', 'no-cache')->header('Content-Disposition', "inline; filename=identity-{$side}");
         } catch (Throwable) {
             abort(404, 'Identity document is unavailable.');
         }
-        $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($contents);
-        abort_unless(in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true), 415, 'The stored document type is not supported.');
-
-        return response($contents, 200, [
-            'Cache-Control' => 'private, no-store',
-            'Pragma' => 'no-cache',
-            'Content-Type' => $mime,
-            'Content-Disposition' => "inline; filename=identity-{$side}",
-            'X-Content-Type-Options' => 'nosniff',
-            'Referrer-Policy' => 'no-referrer',
-        ]);
     }
 }

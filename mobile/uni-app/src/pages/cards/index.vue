@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { staticAsset } from '../../lib/origin';
 import { computed, ref, nextTick } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import PageShell from '../../components/PageShell.vue';
@@ -115,7 +116,7 @@ function requirements() {
                     ><view class="intro-stage"
                         ><view class="intro-card"
                             ><image
-                                src="/static/images/marketing/spec-pay-application-card.png"
+                                :src="staticAsset('images/marketing/spec-pay-application-card.png')"
                                 mode="widthFix"
                                 :aria-label="t('Card design illustration')" /></view></view
                     ><button

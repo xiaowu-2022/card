@@ -8,13 +8,13 @@ Platform `/platform/settings/oss` 需要 `storage.manage`。增量迁移和种�
 
 每次保存生成新配置版本；测试执行合成 PNG 上传、鉴权下载校验、公开域名下载校验和删除。通过后才能启用。启用只切换后续上传，既有图片绑定原配置、Bucket、域名；旧配置不能删除或修改目标。SDK 使用兼容当前 Guzzle 8 依赖的官方 `aliyuncs/oss-sdk-php`，不降级现有 HTTP 栈。
 
-未首次启用 OSS 时，普通图片上传仍沿用现有本地磁盘；真实 Aliyun OCR 必须启用 OSS，不能用本地私有文件地址冒充可识别图片。启用后的 OSS 失败直接报错，没有自动本地降级。SDK 支持 HTTPS 阿里云区域端点；需要 CNAME 时 Endpoint 必须与明确配置的图片域名一致，采用 OSS V4 签名。新对象为 `images/{tenant_uuid}/{random_uuid}`，无姓名、邮箱、证件号。对象 ACL 为 public-read，写入要求服务端 RAM 凭证；设置 SSE-OSS AES256 与 `Cache-Control: no-store`。
+2026-09-29 起，所有运行环境的新业务图片上传必须启用 OSS；未配置时失败关闭。只有隔离自动测试可创建本地迁移夹具。真实 Aliyun OCR 必须启用 OSS，不能用本地私有文件地址冒充可识别图片。启用后的 OSS 失败直接报错，没有自动本地降级。SDK 支持 HTTPS 阿里云区域端点；需要 CNAME 时 Endpoint 必须与明确配置的图片域名一致，采用 OSS V4 签名。新对象为 `images/{tenant_uuid}/{random_uuid}`，无姓名、邮箱、证件号。对象 ACL 为 public-read，写入要求服务端 RAM 凭证；设置 SSE-OSS AES256 与 `Cache-Control: no-store`。
 
 `stored_images` 保存业务引用、公司、原磁盘/对象键、实际存储位置、配置版本、MIME、字节数和 SHA256。原业务字段作为稳定逻辑引用，不改写不可变 KYC 或开卡记录。无映射的历史图片按原磁盘/原加密算法读取。品牌 URL 统一解析；邀请海报、客服及后台 KYC 查看入口保留原接口和权限，但公开 OSS 对象 URL 本身不需要登录。
 
 ## 上传与 OCR
 
-接入 Logo/favicon、邀请海报、客服图片、KYC 正反面/护照、开卡图片。项目内置静态图、日志、`card-test-materials` 加密测试档案不迁移。
+接入 Logo/favicon、邀请海报、客服图片、KYC 正反面/护照、开卡图片。2026-09-29 起项目内置静态资源也迁入 OSS（见下文）；日志、密钥、`card-test-materials` 加密测试档案不发布。
 
 KYC 先校验现有资格、文件类型/尺寸，再写入存储；通过存储记录生成 URL，使用阿里云 `Url` 查询参数及空请求体调用 OCR。ACS3 签名包含 URL 参数。不会接受客户端任意图片 URL，不发送图片二进制或 Base64。大陆身份证分别识别正反面，护照一页；原号码匹配、校验位、失败分类及审批规则保留。队列 OCR 读取对象 URL，不读取图片字节。PhotonPay 的文件上传协议不变。
 
@@ -29,3 +29,43 @@ KYC 先校验现有资格、文件类型/尺寸，再写入存储；通过存储
 ## 验证边界
 
 离线测试替换 OSS 传输、阻止真实网络，验证权限/凭证脱敏、配置测试与启用、原版本读取、URL-only OCR、故障清理恢复、迁移内容校验及幂等。真实 OSS 凭证不写入测试文件；运行环境尚需用户配置并用后台合成图片连接测试完成联调。未提交真实证件或重放卡商/财务动作。
+
+
+## 全量公开资源与展示缩图（2026-09-29）
+
+业务原始图片仍通过原 `stored_images` 映射，`read`/`url`/`ocrUrl` 永远读取原图，
+卡商上传、OCR、迁移 SHA256 不使用缩图。展示 URL 使用 `x-oss-process`：
+品牌 512×512、普通预览 1600×1600、证件/海报预览 2048×2048；`m_lfit,limit_1`
+保持比例、只缩小，不裁切放大；输出 WebP，普通质量 80、证件/海报 85。
+原文件不覆盖、不重编码。大小是最大像素框与质量约束，不保证固定 KB 上限。
+ICO/SVG/字体/JS/CSS/JSON 不添加 IMG 参数。上传既有业务文件大小限制保持不变。
+参考 [OSS IMG 官方参数](https://www.alibabacloud.com/help/en/oss/user-guide/overview-17)。
+
+品牌图直接使用后端生成的 OSS 展示 URL；uni-app 允许这些 HTTPS 公开品牌地址，
+不向图片主机发送 API Token。客服、证件查看与海报画布入口保留权限/审计检查及
+同源响应，由 OSS 处理后转回展示内容，避免跨域凭据跳转及画布污染；不回退下载
+大原图。因保留同源媒体入口，这些受控读取会经过应用服务器，静态资源直接走 OSS。
+
+`media_storage_settings.public_assets` 保存全局公开静态资源的配置版本、对象键、
+MIME、SHA256，与公司上传图片分离。白名单源是 `public/images`、`public/favicon.ico`、
+`public/data/card-geography`、生成的 App SVG 图标，以及显式启用的 `public/build/assets`
+和 `dist/clients/<company>/<mode>/h5` 的 assets/static。不遍历项目根目录、storage、
+环境文件、源代码、source maps 或档案。当前项目无独立字体文件；字体扩展受白名单支持。
+
+`assets:publish-oss` 默认预览，`--execute` 逐个上传并下载验证 SHA256，保留本地
+原文件。CLI 最多六个独立上传进程，不传递凭据到命令行；失败可重跑。校验通过的
+编译资源持久保存为 `@staging/` 映射，读取端完全忽略；整个依赖图完成才原子发布。
+旧公开版本继续可读。Vite 使用相对依赖 URL；带内容哈希的脚本位于稳定同级目录，
+防止动态 import/CSS 相对引用丢失，拒绝同名编译资源内容被覆盖。
+普通文件使用 SHA256 对象键。只对 `assets/` 使用一年 immutable 缓存；业务证件
+仍 no-store。配置切换不会改变未重新发布文件的 Bucket/域名。
+
+Laravel Vite 通过清单解析 JS/CSS；React 页面使用共享清单，uni-app bootstrap 同步
+清单。H5 `index.oss.html` 指向远程脚本/样式并预置公开图片清单；发布时替换入口。
+原生可执行代码及首次启动资源按平台要求打包，页面获取配置后从 OSS 读取插画/图标。
+内联 SVG 绘制（包括动态图标颜色）不是远程文件，不引入请求。HTML/API 留在业务域名。
+
+必须先应用存储清单迁移、构建，再上传资源、验证跨域读取、最后发布 H5 入口。
+上传期间不得重建正在上传的目录；源校验会拒绝变化。原始文件和旧 OSS 版本不清理。
+OSS public-read 不是 CDN 配置的证明；可在既有公开域名前配置 CDN，现有域名需透传
+IMG 查询参数和正确 Content-Type/CORS。模块脚本、字体与 JSON 需要匿名跨域 GET。

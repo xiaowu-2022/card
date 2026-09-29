@@ -1,3 +1,4 @@
+import { usePublicAsset } from '@/lib/public-assets';
 import { useEffect, useState } from 'react';
 import type { SearchOption } from '@/components/ui/search-select';
 
@@ -7,6 +8,8 @@ export type Region = Place & { cities: Place[] };
 const cache = new Map<string, unknown>();
 
 export function useCardGeography<T>(file: string) {
+    const publicAsset = usePublicAsset();
+    const resource = publicAsset(`/data/card-geography/${file}.json`);
     const [result, setResult] = useState<{ file: string; data?: T; failed?: boolean }>({
         file: '',
     });
@@ -14,11 +17,11 @@ export function useCardGeography<T>(file: string) {
     useEffect(() => {
         if (!file) return;
         const controller = new AbortController();
-        if (cache.has(file)) {
-            setResult({ file, data: cache.get(file) as T });
+        if (cache.has(resource)) {
+            setResult({ file, data: cache.get(resource) as T });
             return;
         }
-        fetch(`/data/card-geography/${file}.json`, {
+        fetch(resource, {
             signal: controller.signal,
             credentials: 'omit',
         })
@@ -28,7 +31,7 @@ export function useCardGeography<T>(file: string) {
             })
             .then((data) => {
                 if (!controller.signal.aborted) {
-                    cache.set(file, data);
+                    cache.set(resource, data);
                     setResult({ file, data });
                 }
             })
@@ -36,7 +39,7 @@ export function useCardGeography<T>(file: string) {
                 if (!controller.signal.aborted) setResult({ file, failed: true });
             });
         return () => controller.abort();
-    }, [file, attempt]);
+    }, [file, attempt, resource]);
     return {
         data: result.file === file ? result.data : undefined,
         failed: result.file === file && result.failed,

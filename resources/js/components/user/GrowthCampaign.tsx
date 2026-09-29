@@ -1,3 +1,4 @@
+import { usePublicAsset } from '@/lib/public-assets';
 import { Link } from '@inertiajs/react';
 import { ArrowUpRight, Pause, Play } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -5,6 +6,7 @@ import { t, useClientTranslation } from '@/i18n';
 
 /** Public landing retains the approved portrait; Assets uses the compact carousel. */
 export function GrowthCampaign({ variant }: { variant: 'public' | 'account' }) {
+    const publicAsset = usePublicAsset();
     useClientTranslation();
     if (variant === 'account') return <AssetCampaignCarousel />;
     const description = [
@@ -19,8 +21,8 @@ export function GrowthCampaign({ variant }: { variant: 'public' | 'account' }) {
     const poster = (
         <img
             className="growth-campaign-art"
-            src="/images/marketing/growth/poster-1114.jpg"
-            srcSet="/images/marketing/growth/poster-770.jpg 770w, /images/marketing/growth/poster-1114.jpg 1114w"
+            src={publicAsset("/images/marketing/growth/poster-1114.jpg")}
+            srcSet={`${publicAsset("/images/marketing/growth/poster-770.jpg")} 770w, ${publicAsset("/images/marketing/growth/poster-1114.jpg")} 1114w`}
             sizes="(max-width: 767px) calc(100vw - 32px), 686px"
             width={1114}
             height={1412}
@@ -53,6 +55,7 @@ const campaigns = [
 ];
 
 function AssetCampaignCarousel() {
+    const publicAsset = usePublicAsset();
     useClientTranslation();
     const [active, setActive] = useState(0);
     const [paused, setPaused] = useState(false);
@@ -114,7 +117,7 @@ function AssetCampaignCarousel() {
             {campaigns.map((campaign, index) => (
                 <Link key={campaign.image} href={campaign.href} className="asset-campaign-slide"
                     hidden={index !== active} aria-label={t(campaign.title)}>
-                    <img src={`/images/marketing/growth/${index === 0 ? 'invitation-growth' : campaign.image}-banner.jpg`}
+                    <img src={publicAsset(`/images/marketing/growth/${index === 0 ? 'invitation-growth' : campaign.image}-banner.jpg`)}
                         width={1200} height={400} alt={index === 0 ? [
                             'Mastercard', t('Mastercard U Card'), t('Growth strategy announcement'),
                             t('Aim to reach 500 million users worldwide by 2030'),

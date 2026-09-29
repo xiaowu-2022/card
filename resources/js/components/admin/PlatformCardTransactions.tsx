@@ -19,11 +19,11 @@ import {
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import {
     transactionPage,
+    transactionMoney,
     transactionStates,
     transactionTitles,
     type CardTransactionPage,
 } from '@/lib/card-transactions';
-import { exactAmount } from '@/lib/exact-amount';
 
 type Card = {
     id: string;
@@ -133,6 +133,8 @@ export function PlatformCardTransactions({ card, onClose }: { card: Card; onClos
                                             'Type',
                                             'Merchant',
                                             'Amount',
+                                            'Transaction fee',
+                                            'Fee refund',
                                             'Status',
                                             'Time',
                                             'Operator',
@@ -155,7 +157,24 @@ export function PlatformCardTransactions({ card, onClose }: { card: Card; onClos
                                                 {item.merchant || '—'}
                                             </TableCell>
                                             <TableCell className="whitespace-nowrap font-medium tabular-nums">
-                                                {exactAmount(item.amount)} {item.currency}
+                                                {transactionMoney(item.amount, item.currency)}
+                                            </TableCell>
+                                            <TableCell className="whitespace-nowrap tabular-nums">
+                                                {item.feeAmount != null && item.feeCurrency
+                                                    ? transactionMoney(
+                                                          item.feeAmount,
+                                                          item.feeCurrency,
+                                                      )
+                                                    : '—'}
+                                            </TableCell>
+                                            <TableCell className="whitespace-nowrap tabular-nums">
+                                                {item.feeReturnAmount != null &&
+                                                item.feeReturnCurrency
+                                                    ? transactionMoney(
+                                                          item.feeReturnAmount,
+                                                          item.feeReturnCurrency,
+                                                      )
+                                                    : '—'}
                                             </TableCell>
                                             <TableCell>
                                                 <StatusBadge

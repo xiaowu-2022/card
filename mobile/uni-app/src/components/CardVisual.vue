@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { staticAsset } from '../lib/origin';
 import { computed } from 'vue';
 import { t } from '../lib/i18n';
 import { displayMoney } from '../generated/exact-amount';
@@ -21,6 +22,7 @@ const name = computed(() =>
     <view :class="{ 'user-card-product-preview-wrap': preview }"
         ><view
             class="user-card-visual"
+            :style="{ backgroundImage: `url(${staticAsset('images/cards/spec-pay-gold-background.jpg')})` }"
             :class="{
                 'user-card-product-preview': preview,
                 'user-card-visual-frozen': state === 'Frozen',
@@ -29,20 +31,20 @@ const name = computed(() =>
                 ><view class="user-card-brand"
                     ><image
                         class="brand-icon"
-                        src="/static/icons/spec-pay-mark.svg"
+                        :src="staticAsset('icons/spec-pay-mark.svg')"
                         mode="aspectFit"
                     /><text>Spec Pay</text></view
                 ><text v-if="!preview && state !== 'Normal'" class="user-card-state">{{
                     t(state ?? 'Awaiting confirmation')
                 }}</text></view
             ><view class="user-card-chip-row"
-                ><image src="/static/images/cards/gold-chip.svg" mode="widthFix" /><view
+                ><image :src="staticAsset('images/cards/gold-chip.svg')" mode="widthFix" /><view
                     ><text class="user-card-name">{{ name }}</text
                     ><text class="user-card-edition">SPEC U CARD</text></view
                 ></view
             ><view v-if="preview" class="user-card-preview-footer"
                 ><text>{{ currency }}{{ bin ? ' · BIN ' + bin : '' }}</text
-                ><image src="/static/images/cards/mastercard.svg" mode="widthFix" /></view
+                ><image :src="staticAsset('images/cards/mastercard.svg')" mode="widthFix" /></view
             ><template v-else
                 ><text class="user-card-number">{{ maskedPan }}</text
                 ><view class="user-card-face-footer"
@@ -60,7 +62,7 @@ const name = computed(() =>
                         ><text class="expiry">{{ expiry ?? '—' }}</text></view
                     ><image
                         class="user-card-network"
-                        src="/static/images/cards/mastercard.svg"
+                        :src="staticAsset('images/cards/mastercard.svg')"
                         mode="widthFix" /></view></template></view
     ></view>
 </template>
@@ -71,8 +73,10 @@ const name = computed(() =>
     aspect-ratio: 1.586;
     margin: auto;
     border-radius: 22px;
-    background: #111312 url('../static/images/cards/spec-pay-gold-background.jpg') center / 100% 100%
-        no-repeat;
+    background-color: #111312;
+    background-position: center;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
     color: #ecd5a3;
     box-shadow:
         inset 0 0 0 1px rgb(244 218 160 / 22%),

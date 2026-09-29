@@ -15,16 +15,20 @@ final readonly class UserCardTransactionsQuery
     {
         $provider = $this->rows($tenantId, $userId, $cardId)->reorder()
             ->where(fn ($q) => $q->whereNull('o.id')->orWhere('o.manual_funding_amount', 0))
-            ->select('card_transactions.id', 'card_transactions.card_id', 'card_transactions.provider_transaction_id', 'card_transactions.amount', 'card_transactions.currency', 'card_transactions.type', 'card_transactions.state', 'card_transactions.merchant')
+            ->select('card_transactions.id', 'card_transactions.card_id', 'card_transactions.provider_transaction_id', 'card_transactions.amount', 'card_transactions.currency', 'card_transactions.type', 'card_transactions.state', 'card_transactions.merchant', 'card_transactions.fee_amount', 'card_transactions.fee_currency', 'card_transactions.fee_return_amount', 'card_transactions.fee_return_currency')
             ->selectRaw('COALESCE(e.posted_at, card_transactions.created_at) AS display_at, e.id AS completed_entry_id');
         $loads = DB::table('card_management_orders as o')->join('ledger_entries as e', 'e.id', '=', 'o.settlement_entry_id')
+            ->leftJoin('card_transactions as t', function ($join): void {
+                $join->on('t.tenant_id', '=', 'o.tenant_id')->on('t.user_id', '=', 'o.user_id')
+                    ->on('t.card_id', '=', 'o.card_id')->on('t.provider_transaction_id', '=', 'o.provider_transaction_id');
+            })
             ->where('o.tenant_id', $tenantId)->where('o.user_id', $userId)->where('o.card_id', $cardId)
             ->where('e.tenant_id', $tenantId)->whereNotNull('e.sealed_at')->where('o.status', 'SUCCEEDED')->where('o.kind', 'LOAD')->where('o.manual_funding_amount', '>', 0)
-            ->selectRaw("o.id,o.card_id,'local-load:'||o.id AS provider_transaction_id,(o.arrival_amount+o.manual_funding_amount) AS amount,'USD' AS currency,'transfer_in' AS type,'completed' AS state,NULL::text AS merchant,e.posted_at AS display_at,e.id AS completed_entry_id");
+            ->selectRaw("o.id,o.card_id,'local-load:'||o.id AS provider_transaction_id,(o.arrival_amount+o.manual_funding_amount) AS amount,'USD' AS currency,'transfer_in' AS type,'completed' AS state,NULL::text AS merchant,t.fee_amount,t.fee_currency,t.fee_return_amount,t.fee_return_currency,e.posted_at AS display_at,e.id AS completed_entry_id");
         $spends = DB::table('card_overflow_movements as m')->join('ledger_entries as e', 'e.id', '=', 'm.ledger_entry_id')
             ->where('m.tenant_id', $tenantId)->where('m.user_id', $userId)->where('m.card_id', $cardId)->where('m.kind', 'SPEND')
             ->where('e.tenant_id', $tenantId)->whereNotNull('e.sealed_at')
-            ->selectRaw("m.id,m.card_id,'local-spend:'||m.id AS provider_transaction_id,m.amount,'USD' AS currency,'purchase' AS type,'completed' AS state,NULL::text AS merchant,e.posted_at AS display_at,e.id AS completed_entry_id");
+            ->selectRaw("m.id,m.card_id,'local-spend:'||m.id AS provider_transaction_id,m.amount,'USD' AS currency,'purchase' AS type,'completed' AS state,NULL::text AS merchant,NULL::numeric AS fee_amount,NULL::text AS fee_currency,NULL::numeric AS fee_return_amount,NULL::text AS fee_return_currency,e.posted_at AS display_at,e.id AS completed_entry_id");
         $last4 = UserCard::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->whereKey($cardId)->value('last4');
         $rows = DB::query()->fromSub($provider->toBase()->unionAll($loads)->unionAll($spends), 'activity')
             ->select('activity.*')->selectRaw('? AS last4', [$last4])->orderByDesc('display_at')->orderBy('id')
@@ -71,6 +75,8 @@ final readonly class UserCardTransactionsQuery
     {
         return ['id' => hash('sha256', $row->card_id."\0".$row->provider_transaction_id), 'cardId' => $row->card_id,
             'last4' => $row->last4, 'amount' => Money::of((string) $row->amount, 'USD')->amount(), 'currency' => $row->currency, 'type' => $row->type,
+            'feeAmount' => $row->fee_amount === null ? null : (string) $row->fee_amount, 'feeCurrency' => $row->fee_currency,
+            'feeReturnAmount' => $row->fee_return_amount === null ? null : (string) $row->fee_return_amount, 'feeReturnCurrency' => $row->fee_return_currency,
             'state' => $row->state, 'displayAt' => CarbonImmutable::parse($row->display_at)->utc()->toIso8601String(),
             'timeKind' => $row->completed_entry_id ? 'completed' : 'recorded', 'merchant' => $row->merchant];
     }

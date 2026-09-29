@@ -14,6 +14,8 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    'Transaction fee': ['交易手续费', 'Fi transaksi', 'Comisión de transacción'],
+    'Fee refund': ['手续费返还', 'Bayaran balik fi', 'Reembolso de comisión'],
     'Your promotion level is managed by the platform. No annual payment is needed. Contact support to change it.':
         [
             '您的代理等级由平台设置，无需支付年费。如需调整，请联系客服。',

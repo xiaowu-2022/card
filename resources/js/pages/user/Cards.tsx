@@ -1,3 +1,4 @@
+import { usePublicAsset } from '@/lib/public-assets';
 import { displayMoney } from '@/lib/exact-amount';
 import { t, useClientTranslation, errorMessage } from '@/i18n';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
@@ -623,6 +624,7 @@ function ProductIssue({
 }
 
 export default function Cards(props: Props) {
+    const publicAsset = usePublicAsset();
     useClientTranslation();
     const { errors, tenant } = usePage<SharedProps & { errors: { form?: string } }>().props;
     const unresolved = props.issueOrders.find(
@@ -663,7 +665,7 @@ export default function Cards(props: Props) {
                     <div className="user-card-stage">
                         <div className="user-card-preview">
                             <img
-                                src="/images/marketing/spec-pay-application-card.png"
+                                src={publicAsset("/images/marketing/spec-pay-application-card.png")}
                                 alt={t('Card design illustration')}
                                 width={613}
                                 height={353}
@@ -746,7 +748,7 @@ export default function Cards(props: Props) {
                                         </div>
                                         <div className="user-card-chip-row">
                                             <img
-                                                src="/images/cards/gold-chip.svg"
+                                                src={publicAsset("/images/cards/gold-chip.svg")}
                                                 alt=""
                                                 aria-hidden="true"
                                                 width="106"
@@ -783,7 +785,7 @@ export default function Cards(props: Props) {
                                             </div>
                                             <img
                                                 className="user-card-network"
-                                                src="/images/cards/mastercard.svg"
+                                                src={publicAsset("/images/cards/mastercard.svg")}
                                                 alt="Mastercard"
                                                 width="160"
                                                 height="100"

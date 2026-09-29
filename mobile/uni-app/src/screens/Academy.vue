@@ -76,9 +76,9 @@ const levels = computed(() => [
 function rankLabel(rank: number) {
     return rank ? t('Mastercard level {{rank}}', { rank }) : t('Ordinary member');
 }
-const poster = staticAsset('images/promotion/academy-level-benefits.png');
+const poster = computed(() => staticAsset('images/promotion/academy-level-benefits.png'));
 function preview() {
-    uni.previewImage({ urls: [poster] });
+    uni.previewImage({ urls: [poster.value] });
 }
 function jump(id: string) {
     const query = uni.createSelectorQuery();

@@ -2,6 +2,8 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Transaction fee': '交易手续费',
+    'Fee refund': '手续费返还',
     'OSS region must match the endpoint. For Beijing, use cn-beijing.':
         'OSS 地域必须与访问端点一致；北京请填写 cn-beijing，不能只填写 beijing。',
     'Testing connection…': '正在测试连接…',

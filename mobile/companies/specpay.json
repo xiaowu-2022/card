@@ -6,5 +6,12 @@
   "apiOrigin": "https://specpay.cc",
   "version": "0.1.0",
   "buildNumber": 1,
-  "developmentOnly": false
+  "developmentOnly": false,
+  "apiOrigins": [
+    "https://zb33333.com",
+    "https://specpay.cc",
+    "https://specpay.top",
+    "https://specpay.vip",
+    "https://113b.my"
+  ]
 }

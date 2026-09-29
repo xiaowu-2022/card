@@ -12,5 +12,9 @@ final readonly class ProviderCardTransactionDTO
         public string $state,
         public string $occurredAt,
         public ?string $merchant,
+        public ?string $feeAmount = null,
+        public ?string $feeCurrency = null,
+        public ?string $feeReturnAmount = null,
+        public ?string $feeReturnCurrency = null,
     ) {}
 }

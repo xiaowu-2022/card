@@ -68,8 +68,7 @@ final class SupportController extends Controller
     {
         $image = $query->platformImage($tenant->id, $r->user('platform_admin')->id, $message);
 
-        return response($images->read($image['path']), 200, ['Content-Type' => $image['mime'], 'Cache-Control' => 'private, no-store',
-            'X-Content-Type-Options' => 'nosniff', 'Referrer-Policy' => 'no-referrer', 'Content-Security-Policy' => "default-src 'none'; sandbox"]);
+        return $images->response($image['path']);
     }
 
     public function profile(Request $r, SupportProfiles $profiles)

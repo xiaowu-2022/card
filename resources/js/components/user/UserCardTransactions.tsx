@@ -1,9 +1,8 @@
-import { systemMoney } from '@/lib/system-money';
 import { CreditCard, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { t, dateTime, useClientTranslation } from '@/i18n';
 import { useCardTransactions } from '@/hooks/useCardTransactions';
-import { transactionAmount, transactionStates, transactionTitles } from '@/lib/card-transactions';
+import { transactionMoney, transactionStates, transactionTitles } from '@/lib/card-transactions';
 
 export function UserCardTransactions({
     cardIds,
@@ -80,10 +79,27 @@ export function UserCardTransactions({
                                             </div>
                                             <div className="max-w-full text-right">
                                                 <p className="break-all text-sm font-semibold tabular-nums">
-                                                    {item.currency === 'USD'
-                                                        ? systemMoney(item.amount)
-                                                        : `${transactionAmount(item.amount)} ${item.currency}`}
+                                                    {transactionMoney(item.amount, item.currency)}
                                                 </p>
+                                                <p className="mt-1 text-xs text-muted-foreground">
+                                                    {t('Transaction fee')}:{' '}
+                                                    {item.feeAmount != null && item.feeCurrency
+                                                        ? transactionMoney(
+                                                              item.feeAmount,
+                                                              item.feeCurrency,
+                                                          )
+                                                        : '—'}
+                                                </p>
+                                                {item.feeReturnAmount != null &&
+                                                    item.feeReturnCurrency && (
+                                                        <p className="mt-1 text-xs text-muted-foreground">
+                                                            {t('Fee refund')}:{' '}
+                                                            {transactionMoney(
+                                                                item.feeReturnAmount,
+                                                                item.feeReturnCurrency,
+                                                            )}
+                                                        </p>
+                                                    )}
                                                 {item.state !== 'completed' && (
                                                     <p className="mt-1 text-xs text-muted-foreground">
                                                         {t(

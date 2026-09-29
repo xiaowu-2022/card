@@ -7,9 +7,20 @@ import ts from 'typescript';
 
 function client(platform, base = '/') {
     const cache = new Map();
+    const calls = [];
+    const uni = { getLocale: () => 'en', getStorageSync: () => [], setStorageSync() {},
+        request(options) {
+            calls.push(options);
+            if (options.url.endsWith('/domains')) options.success({ statusCode: 200, data: { tenant: { id: 'tenant-a', slug: 'company-a' }, origins: ['https://primary.example.org'] } });
+            else options.fail();
+        },
+        uploadFile(options) { calls.push(options); options.fail(); },
+        downloadFile(options) { calls.push(options); options.fail(); },
+    };
     const window = { location: { origin: 'https://alternate.example.org', href: 'https://alternate.example.org/' } };
     function load(path) {
-        if (path.endsWith('company.json')) return { apiOrigin: 'https://primary.example.org' };
+        if (path === 'vue') return { shallowRef: (value) => ({ value }) };
+        if (path.endsWith('company.json')) return { apiOrigin: 'https://primary.example.org', apiOrigins: ['https://primary.example.org'], tenantSlug: 'company-a', appId: 'test.cards.app', developmentOnly: false };
         if (cache.has(path)) return cache.get(path);
         const exports = {};
         cache.set(path, exports);
@@ -17,11 +28,11 @@ function client(platform, base = '/') {
         const compiled = ts.transpileModule(source, {
             compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
         }).outputText;
-        runInNewContext(compiled, { exports, window, URL, require: (id) => load(resolve(dirname(path), id + (id.endsWith('.json') ? '' : '.ts'))) });
+        runInNewContext(compiled, { exports, window, URL, uni, require: (id) => id === 'vue' ? load('vue') : load(resolve(dirname(path), id + (id.endsWith('.json') ? '' : '.ts'))) });
         return exports;
     }
     const sourceDir = resolve('mobile/uni-app/src/lib');
-    return { window, origin: load(resolve(sourceDir, 'origin.ts')), api: load(resolve(sourceDir, 'api.ts')), navigation: load(resolve(sourceDir, 'navigation.ts')) };
+    return { window, calls, origin: load(resolve(sourceDir, 'origin.ts')), api: load(resolve(sourceDir, 'api.ts')), navigation: load(resolve(sourceDir, 'navigation.ts')) };
 }
 
 test('H5 follows the current domain for links, image paths and internal navigation', () => {
@@ -32,11 +43,13 @@ test('H5 follows the current domain for links, image paths and internal navigati
         assert.equal(c.api.photoUrl(domain + '/storage/image.png'), '/storage/image.png');
         assert.equal(c.navigation.internalUrl(domain + '/login'), '/pages/login/index');
         assert.throws(() => c.navigation.internalUrl('https://primary.example.org/login'));
-        assert.equal(c.api.photoUrl('https://unrelated.example.org/image.png'), '');
+        assert.equal(c.api.photoUrl('https://images.example.org/image.png?x-oss-process=image%2Fresize'), 'https://images.example.org/image.png?x-oss-process=image%2Fresize');
+        assert.equal(c.api.photoUrl('https://user:password@images.example.org/image.png'), '');
+        assert.equal(c.api.photoUrl('javascript:alert(1)'), '');
     }
 });
 
-test('subdirectory H5 assets and invitation links remain inside the deployed H5', () => {
+test('subdirectory H5 assets and invitation links remain inside the deployed H5', async () => {
     const c = client('h5', '/h5/');
     assert.equal(c.origin.staticAsset('icons/Bell.svg'), '/h5/static/icons/Bell.svg');
     const invite = new URL(c.origin.invitationUrl('test+code'));
@@ -44,12 +57,15 @@ test('subdirectory H5 assets and invitation links remain inside the deployed H5'
     assert.equal(invite.pathname, '/h5/');
     assert.equal(new URLSearchParams(invite.hash.split('?')[1]).get('path'), '/register?invite=test%2Bcode');
     const native = client('app', '/h5/');
+    await native.origin.ensureCompanyOrigin();
     assert.equal(native.origin.staticAsset('icons/Bell.svg'), '/static/icons/Bell.svg');
     assert.equal(native.origin.invitationUrl('test'), 'https://primary.example.org/register?invite=test');
 });
 
-test('native App retains its configured domain even when a browser-like global exists', () => {
+test('native App verifies its company domain before using it even when a browser-like global exists', async () => {
     const c = client('app');
+    assert.throws(() => c.origin.companyOrigin());
+    await c.origin.ensureCompanyOrigin();
     assert.equal(c.origin.companyOrigin(), 'https://primary.example.org');
     assert.equal(c.api.photoUrl('/storage/image.png'), 'https://primary.example.org/storage/image.png');
     assert.equal(c.navigation.internalUrl('https://primary.example.org/login'), '/pages/login/index');
@@ -64,4 +80,26 @@ test('one relative build follows root, renamed directories and explicit index en
         assert.equal(c.origin.staticAsset('icons/Bell.svg'), base + 'static/icons/Bell.svg');
         assert.equal(new URL(c.origin.invitationUrl('test')).pathname, base);
     }
+});
+
+
+test('native requests wait for credential-free discovery and failed mutations are never replayed', async () => {
+    const c = client('app');
+    c.api.setToken('secret');
+    const requests = [c.api.request('/login', 'POST', { password: 'secret' }), c.api.upload('/client/kyc/applications', {}, []), c.api.privateImage('/client/promotion/poster-background')];
+    await Promise.all(requests.map((request) => assert.rejects(request)));
+    assert.equal(c.calls.filter((call) => call.url.endsWith('/domains')).length, 1);
+    assert.equal(c.calls[0].header.Authorization, undefined);
+    assert.equal(c.calls[0].header['X-Consumer-Flow'], undefined);
+    assert.equal(c.calls.length, 4);
+    assert.ok(c.calls.slice(1).every((call) => call.header.Authorization === 'Bearer secret'));
+});
+
+
+test('uses synchronized OSS artwork and icons while retaining startup resources', () => {
+    const c = client('h5');
+    c.origin.setPublicAssets({ '/images/example.png': 'https://images.example.org/assets/hash/example.png?x-oss-process=image%2Fresize', '/icons/bell.svg': 'https://images.example.org/assets/hash/bell.svg' });
+    assert.equal(c.origin.staticAsset('images/example.png'), 'https://images.example.org/assets/hash/example.png?x-oss-process=image%2Fresize');
+    assert.equal(c.origin.staticAsset('icons/bell.svg'), 'https://images.example.org/assets/hash/bell.svg');
+    assert.equal(c.origin.staticAsset('icons/startup.svg'), '/static/icons/startup.svg');
 });

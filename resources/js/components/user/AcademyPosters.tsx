@@ -1,3 +1,4 @@
+import { usePublicAsset } from '@/lib/public-assets';
 import { t } from '@/i18n';
 import { Link } from '@inertiajs/react';
 import { ArrowUpRight } from 'lucide-react';
@@ -24,6 +25,7 @@ const topics = [
 ] as const;
 
 export function AcademyPosters() {
+    const publicAsset = usePublicAsset();
     return (
         <div className="academy-posters">
             {topics.map((topic, index) => (
@@ -37,7 +39,7 @@ export function AcademyPosters() {
                             {t('Read the guide')} <ArrowUpRight size={14} aria-hidden="true" />
                         </Link>
                     </div>
-                    <img src={`/images/academy/${topic.image}`} alt="" width={360} height={250} />
+                    <img src={publicAsset(`/images/academy/${topic.image}`)} alt="" width={360} height={250} />
                 </section>
             ))}
         </div>

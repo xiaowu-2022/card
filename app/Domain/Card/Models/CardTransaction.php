@@ -15,6 +15,6 @@ final class CardTransaction extends Model
 
     protected function casts(): array
     {
-        return ['amount' => 'decimal:8'];
+        return ['amount' => 'decimal:8', 'fee_amount' => 'decimal:8', 'fee_return_amount' => 'decimal:8'];
     }
 }

@@ -21,3 +21,12 @@ test('allows H5 releases without a DCloud appid while preserving App and domain 
         assert.throws(() => validateCompany({ ...h5, ...change }, 'release', 'h5'));
     assert.throws(() => validateCompany(h5, 'release', 'unknown'));
 });
+
+
+test('validates every packaged seed and normalizes duplicate domains', () => {
+    const config = validateCompany({ ...profile, apiOrigins: [profile.apiOrigin + '/', 'https://backup.example.org'] }, 'release');
+    assert.deepEqual(config.apiOrigins, [profile.apiOrigin, 'https://backup.example.org']);
+    for (const apiOrigins of [[], 'bad', [null], ['http://backup.example.org'], ['https://a.localhost'], ['https://backup.example.org/path'], ['https://secret:password@backup.example.org']]) {
+        assert.throws(() => validateCompany({ ...profile, apiOrigins }, 'release'));
+    }
+});

@@ -1,3 +1,4 @@
+import { usePublicAsset } from '@/lib/public-assets';
 import { Aperture } from 'lucide-react';
 import { useState } from 'react';
 import { t } from '@/i18n';
@@ -10,6 +11,7 @@ export function AuthBrand({
     tenant: TenantSharedProps | null;
     promotional?: boolean;
 }) {
+    const publicAsset = usePublicAsset();
     const name = tenant?.branding.brandName.trim() || tenant?.name;
     const logoUrl = tenant?.branding.logoUrl;
     const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
@@ -32,7 +34,7 @@ export function AuthBrand({
                     )}
                 </div>
                 <img
-                    src="/images/marketing/spec-pay-gold-world.png"
+                    src={publicAsset("/images/marketing/spec-pay-gold-world.png")}
                     alt={t('Mastercard U Card')}
                     width={1586}
                     height={992}

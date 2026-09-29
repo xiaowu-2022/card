@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use App\Application\Inbox\CaptureInboxEvent;
+use App\Application\Media\PublicAssets;
+use App\Domain\Audit\Models\AuditLog;
+use App\Domain\Card\Models\CardManagementOrder;
 use App\Domain\CardProvider\Contracts\CardProviderInterface;
 use App\Domain\CardProvider\Enums\MockProviderMode;
 use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
@@ -41,6 +45,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -133,14 +138,25 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        \App\Domain\Audit\Models\AuditLog::created(fn ($log) => app(\App\Application\Inbox\CaptureInboxEvent::class)->audit($log));
-        \App\Domain\Card\Models\CardManagementOrder::saved(fn ($order) => app(\App\Application\Inbox\CaptureInboxEvent::class)->card($order));
+        Vite::createAssetPathsUsing(function (string $path): string {
+            $request = request();
+            if (! $request->attributes->has('oss_asset_manifest')) {
+                $request->attributes->set('oss_asset_manifest', app(PublicAssets::class)->manifest(true));
+            }
+
+            return $request->attributes->get('oss_asset_manifest')['/'.ltrim($path, '/')] ?? asset($path);
+        });
+        AuditLog::created(fn ($log) => app(CaptureInboxEvent::class)->audit($log));
+        CardManagementOrder::saved(fn ($order) => app(CaptureInboxEvent::class)->card($order));
 
         Auth::provider('tenant-eloquent', fn ($app, array $config): TenantUserProvider => new TenantUserProvider(
             $app['hash'],
             $config['model'],
             $app->make(TenantContext::class),
         ));
+        // A large domain list must not exhaust one shared IP bucket while probing aliases.
+        RateLimiter::for('consumer-domains', fn ($request): Limit => Limit::perMinute(30)
+            ->by(hash('sha256', strtolower($request->getHost()).':'.$request->ip())));
         RateLimiter::for('kyc-documents', function ($request): Limit {
             $adminId = Auth::guard('tenant_admin')->id() ?? 'guest';
             $tenantId = app(TenantDomainRepository::class)

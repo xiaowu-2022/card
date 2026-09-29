@@ -1,3 +1,12 @@
+import { exactAmount } from './exact-amount';
+
+export function transactionMoney(amount: string, currency: string): string {
+    const value = exactAmount(amount);
+    const symbol = currency === 'USD' ? '$' : ['CNY', 'RMB'].includes(currency) ? '￥' : null;
+    if (!symbol) return `${value} ${currency}`;
+    return value.startsWith('-') ? `-${symbol}${value.slice(1)}` : `${symbol}${value}`;
+}
+
 export const transactionTitles: Record<string, string> = {
     purchase: 'Card purchase',
     verification: 'Card verification',
@@ -25,6 +34,10 @@ export type CardTransaction = {
     last4: string;
     amount: string;
     currency: string;
+    feeAmount?: string | null;
+    feeCurrency?: string | null;
+    feeReturnAmount?: string | null;
+    feeReturnCurrency?: string | null;
     type: string;
     state: string;
     displayAt: string;
@@ -46,6 +59,19 @@ export function transactionPage(value: unknown, cardId: string, page: number): C
     )
         throw new Error('Invalid transaction page');
     for (const item of data.items) {
+        for (const [amount, currency] of [
+            [item?.feeAmount, item?.feeCurrency],
+            [item?.feeReturnAmount, item?.feeReturnCurrency],
+        ]) {
+            if (amount == null && currency == null) continue;
+            if (
+                typeof amount !== 'string' ||
+                !/^-?\d{1,12}\.\d{8}$/.test(amount) ||
+                typeof currency !== 'string' ||
+                !/^[A-Z]{3}$/.test(currency)
+            )
+                throw new Error('Invalid transaction fee');
+        }
         if (
             !item ||
             item.cardId !== cardId ||

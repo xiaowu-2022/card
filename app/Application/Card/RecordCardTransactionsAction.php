@@ -21,6 +21,8 @@ final readonly class RecordCardTransactionsAction
             foreach ($items as $item) {
                 $now = CarbonImmutable::now();
                 $fields = ['amount' => $item->amount, 'currency' => $item->currency, 'type' => $item->type,
+                    'fee_amount' => $item->feeAmount, 'fee_currency' => $item->feeCurrency,
+                    'fee_return_amount' => $item->feeReturnAmount, 'fee_return_currency' => $item->feeReturnCurrency,
                     'state' => $item->state, 'occurred_at' => $item->occurredAt, 'merchant' => $item->merchant,
                     'refresh_generation' => $card->refresh_generation, 'updated_at' => $now->format('Y-m-d H:i:s.uP')];
                 DB::table('card_transactions')->insertOrIgnore($fields + ['id' => (string) Str::uuid(),

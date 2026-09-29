@@ -1,10 +1,12 @@
 <?php
 
 use App\Application\Kyc\SubmitKycApplicationAction;
+use App\Application\Media\ImagePresentation;
 use App\Application\Media\ImageReferences;
 use App\Application\Media\ImageStorage;
 use App\Application\Media\MigrateImages;
 use App\Application\Media\OssSettings;
+use App\Application\Media\PublicAssets;
 use App\Application\Support\SendSupportMessageAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Card\Services\CardholderMaterials;
@@ -55,6 +57,15 @@ beforeEach(function () {
         public function get(OssConfiguration $c, string $key): string
         {
             return $this->corrupt ? 'bad-checksum' : $this->objects[$c->id.'/'.$key];
+        }
+
+        public array $processes = [];
+
+        public function display(OssConfiguration $c, string $key, string $process): string
+        {
+            $this->processes[] = $process;
+
+            return $this->objects[$c->id.'/'.$key];
         }
 
         public function delete(OssConfiguration $c, string $key): void
@@ -291,4 +302,119 @@ it('allows bounded extra upload time for large images without changing OSS heade
         }
     };
     $adapter->put($config, 'images/large.png', $bytes, 'image/png');
+});
+
+it('generates bounded display URLs while preserving original bytes and OCR URLs', function () {
+    enableOssFixture($this);
+    $images = app(ImageStorage::class);
+    $key = 'kyc/'.$this->company->id.'/'.Str::uuid();
+    $bytes = kycTestImage()->getContent();
+    $images->put($this->company->id, 'private', $key, $bytes, 'kyc');
+    $original = $images->url('private', $key);
+    $url = $images->displayUrl('private', $key, 'document');
+    parse_str(parse_url($url, PHP_URL_QUERY), $query);
+    expect($query['x-oss-process'])->toBe('image/resize,m_lfit,w_2048,h_2048,limit_1/format,webp/quality,Q_85')
+        ->and($images->ocrUrl('private', $key))->toBe($original)
+        ->and($images->read('private', $key))->toBe($bytes)
+        ->and($images->record('private', $key)->sha256)->toBe(hash('sha256', $bytes));
+    expect(ImagePresentation::process('brand', 'image/png'))->toContain('w_512,h_512')
+        ->and(ImagePresentation::process('preview', 'image/png'))->toContain('w_1600,h_1600')
+        ->and(ImagePresentation::process('brand', 'image/x-icon'))->toBeNull();
+});
+
+it('retrieves processed bytes through OSS without altering the original object', function () {
+    $config = enableOssFixture($this);
+    $sdk = Mockery::mock(OssClient::class);
+    $process = ImagePresentation::process('preview', 'image/png');
+    $sdk->shouldReceive('getObject')->once()->with($config->bucket, 'images/example', [OssClient::OSS_PROCESS => $process])->andReturn('processed-bytes');
+    $adapter = new class($sdk) extends OssImages
+    {
+        public function __construct(private OssClient $sdk) {}
+
+        protected function client(OssConfiguration $config): OssClient
+        {
+            return $this->sdk;
+        }
+    };
+    expect($adapter->display($config, 'images/example', $process))->toBe('processed-bytes');
+});
+
+it('requires OSS for uploads outside isolated tests without creating a local file', function () {
+    $key = 'kyc/'.$this->company->id.'/'.Str::uuid();
+    app()->instance('env', 'production');
+    try {
+        expect(fn () => app(ImageStorage::class)->put($this->company->id, 'private', $key, kycTestImage()->getContent(), 'kyc'))->toThrow(DomainException::class);
+        Storage::disk('private')->assertMissing($key);
+        expect(StoredImage::count())->toBe(0);
+    } finally {
+        app()->instance('env', 'testing');
+    }
+});
+
+it('publishes all public assets idempotently with versioned mappings and untouched originals', function () {
+    $c = enableOssFixture($this);
+    $assets = app(PublicAssets::class);
+    $files = $assets->sources();
+    $hashes = array_map(fn ($file) => hash_file('sha256', $file), $files);
+    $first = $assets->publish();
+    expect($first['uploaded'])->toBe(count($files));
+    $puts = $this->oss->puts;
+    $second = $assets->publish();
+    expect($second['uploaded'])->toBe(0)->and($this->oss->puts)->toBe($puts)
+        ->and(array_map(fn ($file) => hash_file('sha256', $file), $files))->toBe($hashes);
+    $manifest = $assets->manifest();
+    expect($manifest['/images/cards/gold-chip.svg'])->not->toContain('x-oss-process')
+        ->and($manifest['/images/marketing/spec-pay-gold-world.png'])->toContain('x-oss-process');
+    $this->data['public_url'] = 'https://new.example.com';
+    enableOssFixture($this);
+    expect($assets->manifest())->toBe($manifest);
+});
+
+it('does not publish a mapping when uploaded public artwork fails checksum validation', function () {
+    enableOssFixture($this);
+    $this->oss->corrupt = true;
+    expect(fn () => app(PublicAssets::class)->publish())->toThrow(RuntimeException::class);
+    expect(app(PublicAssets::class)->manifest())->toBe([]);
+});
+
+it('uses processed OSS reads for scoped image responses and never rewrites originals', function () {
+    enableOssFixture($this);
+    $images = app(ImageStorage::class);
+    $key = 'support/'.$this->company->id.'/'.Str::uuid().'.enc';
+    $bytes = kycTestImage()->getContent();
+    $images->put($this->company->id, 'private', $key, $bytes, 'support');
+    $response = $images->displayResponse('private', $key, 'preview', 'support');
+    expect($response->getStatusCode())->toBe(200)
+        ->and($response->headers->get('Content-Type'))->toBe('image/png')
+        ->and($this->oss->processes)->toHaveCount(1)
+        ->and($this->oss->processes[0])->toContain('w_1600,h_1600')
+        ->and($images->read('private', $key))->toBe($bytes);
+});
+
+it('keeps staged compiled resources invisible to consumers and Vite until publication', function () {
+    $config = enableOssFixture($this);
+    DB::table('media_storage_settings')->where('id', 1)->update(['public_assets' => json_encode([
+        '@staging/example' => ['configuration_id' => $config->id, 'object_key' => 'assets/web/build/assets/pending-12345678.js', 'sha256' => str_repeat('a', 64), 'mime' => 'application/javascript'],
+        '/images/logo.png' => ['configuration_id' => $config->id, 'object_key' => 'assets/hash/logo.png', 'sha256' => str_repeat('b', 64), 'mime' => 'image/png'],
+    ])]);
+    $assets = app(PublicAssets::class);
+    expect(array_keys($assets->manifest(true)))->toBe(['/images/logo.png']);
+    $this->getJson('http://a.localhost/api/mobile/v1/bootstrap')->assertOk()->assertJsonMissingPath('publicAssets.@staging/example');
+});
+
+it('uses immutable caching and bounded long transfers only for public assets', function () {
+    $config = enableOssFixture($this);
+    $sdk = Mockery::mock(OssClient::class);
+    $sdk->shouldReceive('setTimeout')->once()->with(600);
+    $sdk->shouldReceive('putObject')->once()->with($config->bucket, 'assets/hash/icon.svg', '<svg/>', Mockery::on(fn ($options) => $options[OssClient::OSS_HEADERS]['Cache-Control'] === 'public, max-age=31536000, immutable'));
+    $adapter = new class($sdk) extends OssImages
+    {
+        public function __construct(private OssClient $sdk) {}
+
+        protected function client(OssConfiguration $config): OssClient
+        {
+            return $this->sdk;
+        }
+    };
+    $adapter->put($config, 'assets/hash/icon.svg', '<svg/>', 'image/svg+xml');
 });

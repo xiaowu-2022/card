@@ -7,6 +7,7 @@ use App\Domain\Media\OssConfiguration;
 use App\Domain\Media\StoredImage;
 use App\Infrastructure\Storage\OssImages;
 use App\Support\Errors\DomainException;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -38,6 +39,9 @@ final class ImageStorage
             throw new DomainException('IMAGE_INVALID', 'Use a supported image file.', 422);
         }
         $config = $this->active();
+        if (! $config?->verified_at && ! app()->environment('testing')) {
+            throw new DomainException('IMAGE_STORAGE_UNAVAILABLE', 'Image storage is unavailable. Please try again.', 503);
+        }
         $image = StoredImage::create(['tenant_id' => $tenant, 'source_disk' => $disk, 'source_key' => $key, 'purpose' => $purpose, 'business_reference' => $reference,
             'configuration_id' => $config?->id, 'object_key' => $config ? 'images/'.$tenant.'/'.Str::uuid() : $key,
             'codec' => $config ? 'plain' : $codec, 'mime' => $mime, 'size' => strlen($contents), 'sha256' => hash('sha256', $contents), 'state' => 'uploading', 'cleanup_after' => now()->addDay()]);
@@ -88,6 +92,34 @@ final class ImageStorage
         }
 
         return url(Storage::disk($disk)->url($key));
+    }
+
+    public function displayUrl(string $disk, ?string $key, string $profile = 'preview'): ?string
+    {
+        $url = $this->url($disk, $key);
+        $image = $key ? $this->record($disk, $key) : null;
+        $process = $image?->configuration_id ? ImagePresentation::process($profile, $image->mime) : null;
+
+        return $process ? $url.'?'.http_build_query(['x-oss-process' => $process], '', '&', PHP_QUERY_RFC3986) : $url;
+    }
+
+    /** Same-origin response for authenticated viewers and canvas downloads; OSS performs the resize. */
+    public function displayResponse(string $disk, string $key, string $profile = 'preview', string $legacyCodec = 'plain'): Response
+    {
+        $image = $this->record($disk, $key);
+        abort_if($image && $image->state !== 'ready', 404);
+        $process = $image?->configuration_id ? ImagePresentation::process($profile, $image->mime) : null;
+        $bytes = $process
+            ? $this->oss->display(OssConfiguration::findOrFail($image->configuration_id), $image->object_key, $process)
+            : $this->read($disk, $key, $legacyCodec);
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
+        abort_unless(in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'image/x-icon', 'image/vnd.microsoft.icon'], true), 415);
+
+        return response($bytes, 200, [
+            'Content-Type' => $mime, 'Cache-Control' => 'private, no-store',
+            'Content-Disposition' => 'inline; filename=image', 'X-Content-Type-Options' => 'nosniff',
+            'Referrer-Policy' => 'no-referrer', 'Content-Security-Policy' => "default-src 'none'; sandbox",
+        ]);
     }
 
     public function ocrUrl(string $disk, string $key): string

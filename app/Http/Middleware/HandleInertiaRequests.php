@@ -2,6 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\Application\Inbox\InboxQuery;
+use App\Application\Media\ImageStorage;
+use App\Application\Media\PublicAssets;
+use App\Application\Support\SupportUnread;
 use App\Domain\Admin\Enums\MembershipStatus;
 use App\Domain\Admin\Enums\ScopeType;
 use App\Domain\Admin\Models\AdminUser;
@@ -9,7 +13,6 @@ use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Middleware;
 
 final class HandleInertiaRequests extends Middleware
@@ -40,10 +43,11 @@ final class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
+            'publicAssets' => fn () => app(PublicAssets::class)->manifest(),
             'unreadSupport' => $user instanceof User && $tenant && $user->tenant_id === $tenant->id
-                ? app(\App\Application\Support\SupportUnread::class)->count($tenant->id, $user->id) : 0,
+                ? app(SupportUnread::class)->count($tenant->id, $user->id) : 0,
             'unreadMessages' => $user instanceof User && $tenant && $user->tenant_id === $tenant->id
-                ? app(\App\Application\Inbox\InboxQuery::class)->unread($tenant->id, $user->id) : 0,
+                ? app(InboxQuery::class)->unread($tenant->id, $user->id) : 0,
             'requestId' => $request->attributes->get('request_id'),
             'i18n' => [
                 'surface' => $request->attributes->get('locale_surface', 'user'),
@@ -57,7 +61,7 @@ final class HandleInertiaRequests extends Middleware
                 'branding' => [
                     'brandName' => $tenant->branding?->brand_name ?? $tenant->name,
                     'primaryColor' => $tenant->branding?->primary_color ?? '#39AD8D',
-                    'logoUrl' => $tenant->branding?->logo_object_key ? app(\App\Application\Media\ImageStorage::class)->url('public', $tenant->branding->logo_object_key) : null,
+                    'logoUrl' => $tenant->branding?->logo_object_key ? app(ImageStorage::class)->displayUrl('public', $tenant->branding->logo_object_key, 'brand') : null,
                 ],
                 'locales' => $tenant->locales->where('enabled', true)->pluck('locale')->values(),
             ] : null,

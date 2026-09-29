@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Application\Assets\AssetOverviewQuery;
 use App\Application\Card\UserCardCenterQuery;
 use App\Application\Inbox\InboxQuery;
+use App\Application\Media\ImageStorage;
+use App\Application\Media\PublicAssets;
 use App\Application\Promotion\AccountActivationStatus;
 use App\Application\Support\SendSupportMessageAction;
 use App\Application\Support\SupportChatQuery;
@@ -16,7 +18,9 @@ use App\Application\User\UpdateUserLocaleAction;
 use App\Application\Wallet\UserWalletQuery;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Kyc\Services\KycStatusService;
+use App\Domain\Tenant\Enums\TenantDomainStatus;
 use App\Domain\Tenant\Enums\TenantStatus;
+use App\Domain\Tenant\Models\TenantDomain;
 use App\Domain\Tenant\TenantContext;
 use App\Domain\User\Enums\UserStatus;
 use App\Domain\User\Models\User;
@@ -25,11 +29,28 @@ use App\Http\Requests\SendSupportMessageRequest;
 use App\Http\Requests\UserLoginRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 final class ConsumerController extends Controller
 {
+    public function domains(Request $request, TenantContext $context)
+    {
+        $origins = TenantDomain::query()
+            ->where('tenant_id', $context->id())
+            ->where('status', TenantDomainStatus::Active)
+            ->orderBy('hostname')->pluck('hostname')
+            ->map(fn (string $host): string => 'https://'.$host)->all();
+        // Local HTTP/ports are never advertised by deployed environments.
+        if (app()->environment(['local', 'testing'])) {
+            $origins[] = $request->getSchemeAndHttpHost();
+        }
+
+        return response()->json([
+            'tenant' => ['id' => $context->id(), 'slug' => $context->tenant()->slug],
+            'origins' => array_values(array_unique($origins)),
+        ]);
+    }
+
     public function assets(Request $request, TenantContext $context, AssetOverviewQuery $assets, UserWalletQuery $wallets)
     {
         $user = $request->attributes->get('consumer_user')->id;
@@ -52,8 +73,9 @@ final class ConsumerController extends Controller
 
         return response()->json([
             'apiVersion' => 1,
+            'publicAssets' => app(PublicAssets::class)->manifest(),
             'tenant' => ['id' => $tenant->id, 'slug' => $tenant->slug, 'name' => $tenant->branding?->brand_name ?? $tenant->name,
-                'logoUrl' => $tenant->branding?->logo_object_key ? app(\App\Application\Media\ImageStorage::class)->url('public', $tenant->branding->logo_object_key) : null,
+                'logoUrl' => $tenant->branding?->logo_object_key ? app(ImageStorage::class)->displayUrl('public', $tenant->branding->logo_object_key, 'brand') : null,
                 'primaryColor' => $tenant->branding?->primary_color ?? '#39AD8D'],
             'locale' => $request->attributes->get('client_locale', 'en'),
             'locales' => $request->attributes->get('client_locales', ['en']),
@@ -175,6 +197,6 @@ final class ConsumerController extends Controller
     {
         $image = $query->image($context->id(), $request->attributes->get('consumer_user')->id, $message, false);
 
-        return response($storage->read($image['path']), 200, ['Content-Type' => $image['mime'], 'Content-Security-Policy' => "default-src 'none'; sandbox"]);
+        return $storage->response($image['path']);
     }
 }

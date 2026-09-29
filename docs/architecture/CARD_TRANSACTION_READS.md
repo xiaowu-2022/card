@@ -1,5 +1,16 @@
 # Read-only Card transaction extension
 
+2026-09-29: Card histories (React, uni-app and Platform) show provider-returned
+`feeDeductionAmount` / `feeDeductionCurrency` and separate `feeReturnAmount` /
+`feeReturnCurrency`, verified against the published OpenAPI `vccTradeOrderResp`.
+These nullable read-model columns retain exact signed decimals, including explicit
+zero; missing data shows an em dash, never guessed USD/zero. No summation, FX, fee
+calculation or additional charge occurs. Display USD with `$`, CNY/RMB with `￥`,
+and other currencies with their code. Matched combined funding rows retain the
+exact provider fee through scoped transaction matching. Existing rows are not
+automatically re-fetched; normal verified refresh/explicit sync can populate them.
+Migration: `2026_09_29_180000_add_provider_fees_to_card_transactions`.
+
 2026-09-24 clarification: the consumer all-card and single-card history reads only
 persisted platform records. Opening the view, pagination and retry issue GET requests
 only; they never automatically call the separate provider sync endpoint. Provider

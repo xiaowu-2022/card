@@ -6,5 +6,8 @@
   "apiOrigin": "http://a.localhost:8000",
   "version": "0.1.0",
   "buildNumber": 1,
-  "developmentOnly": true
+  "developmentOnly": true,
+  "apiOrigins": [
+    "http://a.localhost:8000"
+  ]
 }

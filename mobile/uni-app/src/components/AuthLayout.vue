@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { staticAsset } from '../lib/origin';
 import { computed } from 'vue';
 import { session } from '../lib/session';
 import { photoUrl } from '../lib/api';
@@ -35,7 +36,7 @@ const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
                         class="auth-logo"
                         :aria-label="brand" /><text v-else class="auth-company">{{ brand }}</text
                     ><image
-                        src="/static/images/marketing/spec-pay-gold-world.png"
+                        :src="staticAsset('images/marketing/spec-pay-gold-world.png')"
                         class="auth-card"
                         mode="widthFix"
                         :aria-label="brand" /></view></view

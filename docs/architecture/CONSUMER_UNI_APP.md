@@ -112,8 +112,9 @@ token is written to audit/log output. Existing authentication audit is reused.
 
 Browser authentication remains independent. Root web/admin routes are unmodified;
 there is no broad CSRF exclusion or permissive cross-origin credential policy.
-The native client fixes API origin in its company configuration; bootstrap confirms
-the expected tenant slug, while server authorization relies on Host and stored IDs.
+The native client discovers company origins from packaged seeds and the cached public
+directory; bootstrap confirms the expected tenant slug, while server authorization
+relies on Host and stored IDs. See the domain routing contract below.
 
 ## Deployment and recovery
 
@@ -131,3 +132,46 @@ or identity records. Add a scoped maintenance command when native deployment beg
 Build and cloud packaging instructions: [UNI_APP_PACKAGING.md](../deployment/UNI_APP_PACKAGING.md).
 
 Latest bounded PhotonPay sandbox lifecycle evidence: `docs/testing/uni-app/ACCEPTANCE_H5_20260927_R3.md`; broad H5 acceptance remains recorded in R2. Public callback delivery is not yet confirmed. This does not replace production deployment, device, or signed App release checks.
+
+## Native company domain selection — 2026-09-29
+
+Each package includes `apiOrigins` seeds (plus the existing `apiOrigin` used for local
+H5 proxy configuration). On every App foreground event, including cold launch, the
+client calls credential-free `GET /api/mobile/v1/domains` against seeds/cached origins.
+The endpoint resolves the company from the active Host and returns only its ID, slug
+and complete set of ACTIVE assigned domain HTTPS origins. No caller tenant selector,
+unassigned/disabled domains, other-company domains, credentials or business data are
+returned. GET does not create a flow session, token or financial/audit record. The
+normal company availability gates and private/no-store response policy apply.
+Local/testing environments additionally advertise the current origin for local ports.
+Discovery has a separate 30/minute Host/IP throttle, so probing a large company domain
+list does not consume a shared alias bucket or login/business request allowances.
+
+Discovery uses at most six concurrent requests, four seconds per candidate. Candidates
+must return a valid directory containing themselves and the packaged company slug.
+The tenant ID is pinned for the running App session. The fastest valid initial response
+supplies the complete current directory; newly discovered origins are also measured.
+The selected origin has the lowest observed successful response time among the current
+directory, excluding invalid/wrong-company/unreachable responses. Timing is one HTTP
+sample per candidate per cycle, not a guarantee of future throughput. Large lists are
+processed in batches without truncation; many unreachable hosts can delay startup.
+
+The public directory replaces the app/company-scoped local cache; secrets are never
+stored there. Cached and packaged origins remain recovery entry points, but must pass
+fresh discovery before receiving business requests. All-offline discovery fails into
+the existing network error UI; a later request/foreground can retry. An already running
+selection is shared by concurrent callers. Requests, uploads and private downloads wait
+for selection and capture the selected origin when dispatched. In-flight operations
+continue on their original origin; selection never retries a business mutation. Bearer
+and X-Consumer-Flow remain in memory, tenant-scoped and shared across company aliases.
+H5 continues using its current origin with host-only cookie/CSRF rules.
+
+All aliases must serve the same backend/database, authentication/flow cache and correct
+TLS certificates. Domain ACTIVE is catalog membership, not proof of DNS/TLS readiness;
+client probing checks actual reachability. At least one packaged/cached domain must
+remain reachable to discover new domains. Losing every known entry point requires an
+App update or restoring one known domain. There is no unrelated global discovery host.
+
+Offline validation: `tests/Frontend/consumer-domain-routing.mjs`, `consumer-origin.mjs`,
+`consumer-config.mjs`, `tests/Feature/ConsumerDomainsTest.php` and `ConsumerApiTest.php`.
+Native resource compilation does not replace signed Android/iOS network acceptance.
