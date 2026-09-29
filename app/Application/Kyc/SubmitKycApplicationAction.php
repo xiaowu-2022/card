@@ -2,6 +2,7 @@
 
 namespace App\Application\Kyc;
 
+use App\Application\Media\DirectKycImage;
 use App\Application\Media\ImageStorage;
 use App\Application\Media\VerifiedDirectImage;
 use App\Domain\Audit\Services\AuditLogger;
@@ -34,7 +35,7 @@ final readonly class SubmitKycApplicationAction
 {
     public function __construct(private IdentityNumberProtector $identities, private AuditLogger $audit, private ApproveKycAction $approve) {}
 
-    public function execute(Tenant $tenant, User $user, string $country, string $identityNumber, UploadedFile|VerifiedDirectImage $front, UploadedFile|VerifiedDirectImage|null $back, ?string $requestId = null, KycDocumentType $documentType = KycDocumentType::NationalId): KycApplication
+    public function execute(Tenant $tenant, User $user, string $country, string $identityNumber, UploadedFile|VerifiedDirectImage|DirectKycImage $front, UploadedFile|VerifiedDirectImage|DirectKycImage|null $back, ?string $requestId = null, KycDocumentType $documentType = KycDocumentType::NationalId): KycApplication
     {
         $country = strtoupper(trim($country));
         if (preg_match('/^[A-Z]{2}$/', $country) !== 1) {
@@ -142,7 +143,11 @@ final readonly class SubmitKycApplicationAction
             }
             foreach ($stored as $side => $objectKey) {
                 try {
-                    $images->discard($disk, $objectKey);
+                    if (($side === 0 ? $front : $back) instanceof DirectKycImage) {
+                        $images->deferDiscard($disk, $objectKey);
+                    } else {
+                        $images->discard($disk, $objectKey);
+                    }
                 } catch (Throwable $cleanupException) {
                     Log::warning('KYC document cleanup failed.', [
                         'tenant_id' => $tenant->id,

@@ -1,15 +1,21 @@
 <?php
 
 use App\Application\Media\DirectImageUploads;
+use App\Application\Media\DirectKycUploads;
 use App\Application\Media\ImageStorage;
 use App\Application\Media\OssSettings;
 use App\Domain\Admin\Models\AdminUser;
+use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
+use App\Domain\Kyc\DTOs\KycOcrResultDTO;
+use App\Domain\Kyc\Enums\KycOcrOutcome;
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Media\DirectImageUpload;
 use App\Domain\Media\OssConfiguration;
+use App\Domain\Media\StoredImage;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use App\Infrastructure\Storage\OssImages;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -30,17 +36,30 @@ beforeEach(function () {
     {
         public array $objects = [];
 
+        public bool $denyNetwork = false;
+
+        public int $networkCalls = 0;
+
         public int $copies = 0;
 
         public array $published = [];
 
         public function metadata(OssConfiguration $c, string $key): array
         {
+            $this->networkCalls++;
+            if ($this->denyNetwork) {
+                throw new LogicException('OSS network access forbidden in KYC URL submission');
+            }
+
             return ['size' => strlen($this->objects[$key]), 'etag' => hash('sha256', $this->objects[$key])];
         }
 
         public function copyDirectImage(OssConfiguration $c, string $source, string $destination, string $etag, string $mime): void
         {
+            $this->networkCalls++;
+            if ($this->denyNetwork) {
+                throw new LogicException('OSS network access forbidden in KYC URL submission');
+            }
             expect(hash('sha256', $this->objects[$source]))->toBe($etag);
             $this->copies++;
             $this->objects[$destination] = $this->objects[$source];
@@ -48,21 +67,39 @@ beforeEach(function () {
 
         public function getBounded(OssConfiguration $c, string $key, int $maxBytes): string
         {
+            $this->networkCalls++;
+            if ($this->denyNetwork) {
+                throw new LogicException('OSS network access forbidden in KYC URL submission');
+            }
+
             return substr($this->objects[$key], 0, $maxBytes + 1);
         }
 
         public function get(OssConfiguration $c, string $key): string
         {
+            $this->networkCalls++;
+            if ($this->denyNetwork) {
+                throw new LogicException('OSS network access forbidden in KYC URL submission');
+            }
+
             return $this->objects[$key];
         }
 
         public function publishDirectImage(OssConfiguration $c, string $key): void
         {
+            $this->networkCalls++;
+            if ($this->denyNetwork) {
+                throw new LogicException('OSS network access forbidden in KYC URL submission');
+            }
             $this->published[] = $key;
         }
 
         public function delete(OssConfiguration $c, string $key): void
         {
+            $this->networkCalls++;
+            if ($this->denyNetwork) {
+                throw new LogicException('OSS network access forbidden in KYC URL submission');
+            }
             unset($this->objects[$key]);
         }
     };
@@ -143,16 +180,77 @@ it('does not accept a client-selected tenant or an unverified image', function (
     $this->postJson('http://b.localhost/api/mobile/v1/images/direct/'.$ticket['id'].'/complete')->assertUnauthorized();
 });
 
-it('submits direct KYC references through the existing OCR gate', function () {
-    fakeMatchingKycOcr('E12345678');
-    $flow = $this->getJson($this->base.'/bootstrap')->assertOk()->headers->get('X-Consumer-Flow');
-    $this->withHeader('X-Consumer-Flow', $flow)->withHeader('X-Consumer-Page', '/kyc');
+function kycUrlFlow($test): void
+{
+    $flow = $test->getJson($test->base.'/bootstrap')->assertOk()->headers->get('X-Consumer-Flow');
+    $test->withHeader('X-Consumer-Flow', $flow)->withHeader('X-Consumer-Page', '/kyc');
+    $test->oss->denyNetwork = true;
+}
+
+it('passes scoped uploaded URLs to OCR without any server OSS calls or invented checksums', function () {
+    kycUrlFlow($this);
     $ticket = directFixture($this, 'kyc', 'front');
-    $this->postJson($this->base.'/images/direct/'.$ticket['id'].'/complete')->assertNoContent();
+    expect($ticket['fields']['x-oss-object-acl'])->toBe('public-read');
+    $provider = Mockery::mock(KycOcrProviderInterface::class);
+    $provider->shouldReceive('name')->andReturn('TEST');
+    $provider->shouldReceive('extractIdentityDocument')->once()
+        ->with(Mockery::on(fn ($request) => $request->frontUrl === $ticket['imageUrl'] && $request->backUrl === ''))
+        ->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, 'E12345678'));
+    app()->instance(KycOcrProviderInterface::class, $provider);
+    $this->postJson($this->base.'/images/direct/'.$ticket['id'].'/complete')->assertUnprocessable();
     $this->postJson($this->base.'/client/kyc/applications', [
-        'document_type' => 'PASSPORT', 'document_country' => 'CN', 'identity_number' => 'E12345678', 'front_upload_id' => $ticket['id'],
+        'document_type' => 'PASSPORT', 'document_country' => 'CN', 'identity_number' => 'E12345678',
+        'front_upload_id' => $ticket['id'], 'front_url' => $ticket['imageUrl'],
     ])->assertSuccessful();
     $application = KycApplication::where('user_id', $this->user->id)->sole();
-    expect(app(ImageStorage::class)->read('private', $application->front_object_key))->toBe(kycTestImage()->getContent());
+    $record = app(ImageStorage::class)->record('private', $application->front_object_key);
+    expect(app(ImageStorage::class)->ocrUrl('private', $application->front_object_key))->toBe($ticket['imageUrl'])
+        ->and($record->sha256)->toBeNull()->and($record->size)->toBeNull()
+        ->and(DirectImageUpload::find($ticket['id'])->verified_at)->toBeNull()
+        ->and(DirectImageUpload::find($ticket['id'])->claimed_at)->not->toBeNull();
     Storage::disk('private')->assertMissing($application->front_object_key);
+    Http::assertNothingSent();
+    expect($this->oss->networkCalls)->toBe(0);
+});
+
+it('rejects arbitrary URLs field swaps missing URLs expired and foreign tickets before OCR', function () {
+    kycUrlFlow($this);
+    $provider = Mockery::mock(KycOcrProviderInterface::class);
+    $provider->shouldNotReceive('extractIdentityDocument');
+    app()->instance(KycOcrProviderInterface::class, $provider);
+    $front = directFixture($this, 'kyc', 'front');
+    $back = directFixture($this, 'kyc', 'back');
+    $data = ['document_type' => 'PASSPORT', 'document_country' => 'CN', 'identity_number' => 'E12345678', 'front_upload_id' => $front['id']];
+    foreach (['https://outside.example/image.png', $front['imageUrl'].'?x=1', $back['imageUrl'], null] as $url) {
+        $this->postJson($this->base.'/client/kyc/applications', $data + ['front_url' => $url])->assertUnprocessable();
+    }
+    expect(fn () => app(DirectKycUploads::class)->resolve(
+        $this->tenant->id, $this->user->id, $back['id'], 'front', $back['imageUrl']
+    ))->toThrow(HttpException::class);
+    $other = User::where('tenant_id', '!=', $this->tenant->id)->firstOrFail();
+    expect(fn () => app(DirectKycUploads::class)->resolve(
+        $other->tenant_id, $other->id, $front['id'], 'front', $front['imageUrl']
+    ))->toThrow(ModelNotFoundException::class);
+    $this->travel(16)->minutes();
+    $this->postJson($this->base.'/client/kyc/applications', $data + ['front_url' => $front['imageUrl']])->assertStatus(410);
+});
+
+it('keeps both national ID URLs and fails closed on OCR mismatch without synchronous OSS cleanup', function () {
+    kycUrlFlow($this);
+    $front = directFixture($this, 'kyc', 'front');
+    $back = directFixture($this, 'kyc', 'back');
+    $provider = Mockery::mock(KycOcrProviderInterface::class);
+    $provider->shouldReceive('extractIdentityDocument')->once()
+        ->with(Mockery::on(fn ($request) => $request->frontUrl === $front['imageUrl'] && $request->backUrl === $back['imageUrl']))
+        ->andReturn(new KycOcrResultDTO(KycOcrOutcome::Failed));
+    app()->instance(KycOcrProviderInterface::class, $provider);
+    $this->postJson($this->base.'/client/kyc/applications', [
+        'document_type' => 'NATIONAL_ID', 'document_country' => 'CN', 'identity_number' => '11010519491231002X',
+        'front_upload_id' => $front['id'], 'front_url' => $front['imageUrl'],
+        'back_upload_id' => $back['id'], 'back_url' => $back['imageUrl'],
+    ])->assertUnprocessable();
+    expect(KycApplication::where('user_id', $this->user->id)->count())->toBe(0);
+    expect(StoredImage::whereIn('id', DirectImageUpload::pluck('image_id'))->pluck('state')->unique()->all())->toBe(['cleanup_pending']);
+    expect(StoredImage::min('cleanup_after'))->not->toBeNull();
+    expect($this->oss->networkCalls)->toBe(0);
 });

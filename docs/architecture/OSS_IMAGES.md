@@ -77,3 +77,27 @@ uni-app 的 KYC、开卡材料和客服图片使用鉴权后的直传授权 API�
 新增 direct_image_uploads 保存 tenant/user、用途/字段、暂存及最终 stored_images 映射、大小上限、15 分钟期限、验证及领取时间。客户端只能上传到私有 staging 对象，不能写最终对象。完成接口按票据串行，以 ETag 条件复制到服务器专属随机最终 key，限量读取原始字节校验图片类型/尺寸/大小及 SHA256 后开放公开读；重复完成不再复制。原图不压缩、不落本地磁盘。业务提交仅携带票据 ID，校验归属、用途/字段和校验和后一次领取映射，原 KYC OCR、开卡和客服鉴权/幂等规则继续生效。客服已提交请求可复用相同票据返回原结果，新请求不能重复领取。
 
 服务器签名不访问 OSS，因此配置无需联网测试即可启用，但完成、原图校验、OCR/卡商流程及清理仍要求服务器连通 OSS。此变更不能绕过服务器 TLS 故障。未完成或失败对象由既有 images:recover 回收，staging 至少保留到签名过期；旧图始终绑定原配置。原 React H5/管理端上传入口保持既有上传流程。
+
+## 2026-09-29 KYC 地址直传修订（覆盖上文 KYC 完成校验要求）
+
+用户明确要求前端上传 OSS，取得地址交给后台，再由 OCR 读取该地址。uni-app H5/App
+的 KYC（身份证正反面及护照）授权改为 public-read 的随机最终对象，五分钟 V4 policy
+继续限制精确 key、Bucket、类型声明及文件大小，Secret 永不下发。前端收到 OSS 成功响应
+后直接提交 front/back_upload_id 及 front/back_url，不再调用 /complete。
+
+后台以 Host 公司和当前用户查询票据，检查 kyc_url 模式、正反面字段、期限、单次领取，
+并将提交地址与该票据原配置生成的 URL 完全比较。只接受精确地址，拒绝任意外链、
+其他用户地址、变更路径或查询参数；随后直接把该 URL 送给现有 Aliyun OCR。
+提交链路不再对 OSS 执行 HEAD/GET/COPY/ACL/DELETE，不会探测 OSS 连接。
+号码识别和匹配、身份证背面识别、账户/身份唯一性及审核规则不变。识别失败不批准。
+
+direct_image_uploads 新增 upload_mode，默认 verified_copy；新 KYC 为 kyc_url，
+image_id 与 staging_image_id 指向同一对象。stored_images.size/sha256 允许空值，表示
+没有服务端测量；MIME 为签名时的类型声明，verified_at 保持空。ready 仅表示已绑定
+可供 OCR 使用的地址，不代表服务端校验过原图或校验和。单次 claim 保留原配置映射。
+禁止把此模式交给旧完成/读取字节接口；卡材料与客服仍用原 verified_copy 流程。
+
+OSS 的 forbid-overwrite 仍随签名固定，但启用/暂停版本控制的 Bucket 可能接受后续版本，
+因此本模式不宣称服务器专属不可覆盖副本。原图不重写、不压缩；失败或放弃的图片延后
+由 images:recover 清理，等待授权过期，不阻塞提交响应。后台仍需能访问 OCR API，
+OCR 服务需能读取公开图片域名；后续管理员图片代理和异步清理仍可能需要服务器访问 OSS。

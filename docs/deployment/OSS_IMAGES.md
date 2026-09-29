@@ -86,3 +86,13 @@ UNI_PLATFORM；空 bootstrap 浏览器测试通过，金色卡片背景样式为
 扩展全量验收仍有既有夹具问题：部分 CardIssue 用例切换 local 环境但未配置 OSS，
 与运行时必须 OSS 的规则冲突；i18n 测试加载器的 public-assets 路径及 tokens 初始化失败。
 没有进行真实证件、OCR、卡商或财务联调。
+
+## KYC 地址提交版更新
+
+后端与 H5 必须一起更新，执行 `php artisan migrate --force` 应用
+2026_09_29_235000_add_kyc_url_upload_mode，然后替换最新 H5 入口。
+只更新 H5 或只执行此前的建表迁移不够。原生 App 使用相同代码，需重新打包生效。
+OSS 配置仍须启用；允许短期签名 PutObject 的 public-read、AES256 和禁止覆盖参数。
+图片域名必须供 OCR 公网读取。KYC 提交现在不测试/读取/复制 OSS 对象，服务器只调用
+OCR API。不能把前端成功响应当作身份通过；OCR 不可用或号码不匹配照常拒绝。
+本次新增 nullable 大小/校验和用于诚实记录未知值，不进行原图数据迁移。

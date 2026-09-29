@@ -64,8 +64,11 @@ final class ImageStorage
         return $key;
     }
 
-    public function putUpload(string $tenant, string $disk, string $key, UploadedFile|VerifiedDirectImage $file, string $purpose, ?string $reference = null, string $codec = 'plain'): string
+    public function putUpload(string $tenant, string $disk, string $key, UploadedFile|VerifiedDirectImage|DirectKycImage $file, string $purpose, ?string $reference = null, string $codec = 'plain'): string
     {
+        if ($file instanceof DirectKycImage) {
+            return app(DirectKycUploads::class)->claim($file, $tenant, $disk, $key, $purpose, $reference);
+        }
         if ($file instanceof VerifiedDirectImage) {
             return app(DirectImageUploads::class)->claim($file, $tenant, $disk, $key, $purpose, $reference);
         }
@@ -140,6 +143,12 @@ final class ImageStorage
         }
 
         return $this->url($disk, $key);
+    }
+
+    public function deferDiscard(string $disk, string $key): void
+    {
+        // No OSS request in the KYC response path. Wait past the upload policy before cleanup.
+        $this->record($disk, $key)?->update(['state' => 'cleanup_pending', 'cleanup_after' => now()->addMinutes(16)]);
     }
 
     // Call only for a staged object proven not to be referenced. Local migration backups are never deleted.

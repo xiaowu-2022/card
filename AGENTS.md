@@ -1,3 +1,12 @@
+On 2026-09-29 the user superseded server-copy/checksum verification for consumer
+KYC direct uploads: frontend uploads a public OSS object, then submits its issued
+upload ID and exact returned image URL; backend checks tenant/user/field/expiry
+and passes that configured URL directly to OCR without OSS HEAD/GET/COPY/ACL or
+synchronous cleanup. Keep short-lived bounded policies, permanent secrets server-only,
+single-use claims and mandatory OCR number matching. Size/checksum stay unknown
+when not measured; never claim server content verification. Card/support remain
+on the verified-copy flow. See docs/architecture/OSS_IMAGES.md.
+
 On 2026-09-29 the user approved uni-app direct OSS uploads for KYC/card/support
 using short-lived scoped POST policies, server-verified immutable final objects and
 single-use business binding. Never ship permanent secrets. OSS connection testing

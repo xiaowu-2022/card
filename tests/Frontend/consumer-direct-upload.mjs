@@ -12,7 +12,7 @@ function client(platform = 'app', uploadStatus = 204) {
         request(o) {
             calls.push(o);
             o.success({ statusCode: o.url.endsWith('/complete') ? 204 : 200, data: o.url.endsWith('/images/direct')
-                ? { id: 'ticket', url: 'https://bucket.example.org', fields: { policy: 'short-policy', key: 'staging/key' } }
+                ? { id: 'ticket', url: 'https://bucket.example.org', imageUrl: 'https://bucket.example.org/images/test', fields: { policy: 'short-policy', key: 'staging/key' } }
                 : { ok: true } });
         },
         uploadFile(o) { calls.push(o); o.success({ statusCode: uploadStatus }); },
@@ -44,3 +44,19 @@ test('failed OSS uploads never call completion or submit business mutations', as
     await assert.rejects(api.upload('/support/messages', { request_id: 'request' }, [{ name: 'support_image', path: 'local-image' }]));
     assert.equal(calls.length, 2);
 });
+
+for (const platform of ['app', 'h5']) {
+    test(platform + ' submits uploaded KYC URLs directly without a completion request', async () => {
+        const { api, calls } = client(platform);
+        await api.upload('/client/kyc/applications', { identity_number: 'synthetic' }, [
+            { name: 'front', path: 'blob:front' }, { name: 'back', path: 'blob:back' },
+        ]);
+        assert.equal(calls.length, 5);
+        assert.equal(calls.some(o => o.url.endsWith('/complete')), false);
+        assert.equal(calls[4].data.front_url, 'https://bucket.example.org/images/test');
+        assert.equal(calls[4].data.back_url, 'https://bucket.example.org/images/test');
+        assert.equal(calls[1].formData.identity_number, undefined);
+        assert.equal(calls[3].formData.identity_number, undefined);
+        assert.equal(calls[4].data.front_upload_id, 'ticket');
+    });
+}

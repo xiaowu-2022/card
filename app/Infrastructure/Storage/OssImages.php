@@ -22,7 +22,7 @@ class OssImages
     }
 
     /** Five-minute V4 POST policy: one staging object, bounded bytes, fixed metadata. */
-    public function directUploadPolicy(OssConfiguration $config, string $key, string $mime, int $maxBytes): array
+    public function directUploadPolicy(OssConfiguration $config, string $key, string $mime, int $maxBytes, bool $publicRead = false): array
     {
         $credentials = $config->credentials;
         $time = now()->utc();
@@ -32,7 +32,7 @@ class OssImages
             'x-oss-signature-version' => 'OSS4-HMAC-SHA256',
             'x-oss-credential' => $credentials['access_key_id'].'/'.$date.'/'.$config->region.'/oss/aliyun_v4_request',
             'x-oss-date' => $time->format('Ymd\THis\Z'),
-            'x-oss-object-acl' => 'private',
+            'x-oss-object-acl' => $publicRead ? 'public-read' : 'private',
             'x-oss-server-side-encryption' => 'AES256',
             'x-oss-forbid-overwrite' => 'true',
             'Cache-Control' => 'no-store',

@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Concerns;
 
 use App\Application\Media\DirectImageUploads;
+use App\Application\Media\DirectKycUploads;
 use Illuminate\Validation\Rule;
 
 trait AcceptsDirectImages
@@ -20,9 +21,11 @@ trait AcceptsDirectImages
         $data = $this->validated();
         foreach ($fields as $field) {
             if (! empty($data[$field.'_upload_id'])) {
-                $data[$field] = app(DirectImageUploads::class)->resolve($tenant, $user, $data[$field.'_upload_id'], $purpose, $field);
+                $data[$field] = $purpose === 'kyc'
+                    ? app(DirectKycUploads::class)->resolve($tenant, $user, $data[$field.'_upload_id'], $field, $data[$field.'_url'] ?? '')
+                    : app(DirectImageUploads::class)->resolve($tenant, $user, $data[$field.'_upload_id'], $purpose, $field);
             }
-            unset($data[$field.'_upload_id']);
+            unset($data[$field.'_upload_id'], $data[$field.'_url']);
         }
 
         return $data;

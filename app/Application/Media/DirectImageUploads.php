@@ -29,6 +29,9 @@ final class DirectImageUploads
 
     public function authorize(string $tenantId, string $userId, string $purpose, string $field, string $mime): array
     {
+        if ($purpose === 'kyc') {
+            return app(DirectKycUploads::class)->authorize($tenantId, $userId, $field, $mime);
+        }
         $this->owner($tenantId, $userId);
         $max = match ($purpose) {
             'kyc' => (int) config('kyc.document_max_mb') * 1024 * 1024,
@@ -73,6 +76,7 @@ final class DirectImageUploads
     {
         $this->owner($tenant, $user);
         $upload = $this->scoped($tenant, $user, $id);
+        abort_unless($upload->upload_mode === 'verified_copy', 422);
         $lock = Cache::lock('direct-image:'.$id, 180);
         abort_unless($lock->get(), 409);
         try {
@@ -124,6 +128,7 @@ final class DirectImageUploads
     {
         $this->owner($tenant, $user);
         $upload = $this->scoped($tenant, $user, $id);
+        abort_unless($upload->upload_mode === 'verified_copy', 422);
         abort_unless($upload->purpose === $purpose && $upload->field === $field, 422);
         abort_unless($upload->verified_at, 409);
         // Claimed references remain readable for an existing business request replay.

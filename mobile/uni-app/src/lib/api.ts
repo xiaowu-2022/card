@@ -118,7 +118,7 @@ export async function upload<T>(
                 mime = blob.type.toLowerCase();
             }
             if (!['image/jpeg', 'image/png', 'image/webp'].includes(mime)) throw new ApiError(422);
-            const ticket = await request<{ id: string; url: string; fields: Record<string, string> }>(
+            const ticket = await request<{ id: string; url: string; imageUrl?: string; fields: Record<string, string> }>(
                 '/images/direct', 'POST', { purpose, field: file.name, mime },
             );
             if (!/^https:\/\/[a-z0-9.-]+\/?$/i.test(ticket.url)) throw new ApiError(502);
@@ -134,7 +134,12 @@ export async function upload<T>(
                     ? resolve() : reject(new ApiError(502)),
                 fail: () => reject(new ApiError(0)),
             }));
-            await request('/images/direct/' + ticket.id + '/complete', 'POST');
+            if (purpose === 'kyc') {
+                if (!ticket.imageUrl || !/^https:\/\/[^\s]+$/.test(ticket.imageUrl)) throw new ApiError(502);
+                payload[file.name + '_url'] = ticket.imageUrl;
+            } else {
+                await request('/images/direct/' + ticket.id + '/complete', 'POST');
+            }
             payload[file.name + '_upload_id'] = ticket.id;
         }
         // Business submission is still authenticated and never replayed automatically.

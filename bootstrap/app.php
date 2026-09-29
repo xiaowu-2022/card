@@ -57,7 +57,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'sections', // Batched asset configuration can contain replace-only credentials.
             'new_contact', 'phone', 'code', 'otp', 'address', 'credential', 'api_key',
             'reset_contact',
-            'support_message', 'support_image', 'support_image_upload_id', 'front_upload_id', 'back_upload_id',
+            'support_message', 'support_image', 'support_image_upload_id', 'front_upload_id', 'back_upload_id', 'front_url', 'back_url',
             'access_key_id', 'access_key_secret',
             'smtp_token', 'test_email',
             'identity_number', 'front', 'back', 'portrait', 'reverse_side',
