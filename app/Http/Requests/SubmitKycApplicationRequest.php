@@ -3,11 +3,14 @@
 namespace App\Http\Requests;
 
 use App\Domain\Card\Services\CardholderGeography;
+use App\Http\Requests\Concerns\AcceptsDirectImages;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 final class SubmitKycApplicationRequest extends FormRequest
 {
+    use AcceptsDirectImages;
+
     public function authorize(): bool
     {
         return true;
@@ -22,8 +25,8 @@ final class SubmitKycApplicationRequest extends FormRequest
             'document_type' => ['required', 'in:NATIONAL_ID,PASSPORT'],
             'document_country' => ['required', 'string', 'size:2', 'regex:/^[A-Z]{2}$/', Rule::in(app(CardholderGeography::class)->countryCodes()), ...($this->input('document_type') === 'NATIONAL_ID' ? ['in:CN'] : [])],
             'identity_number' => ['required', 'string', 'min:3', 'max:128'],
-            'front' => ['required', 'file', 'image', 'mimetypes:image/jpeg,image/png,image/webp', "max:{$maxKilobytes}", 'dimensions:min_width=1,min_height=1'],
-            'back' => ['required_if:document_type,NATIONAL_ID', 'nullable', 'file', 'image', 'mimetypes:image/jpeg,image/png,image/webp', "max:{$maxKilobytes}", 'dimensions:min_width=1,min_height=1'],
+            ...$this->imageRules('front', true, ['file', 'image', 'mimetypes:image/jpeg,image/png,image/webp', "max:{$maxKilobytes}", 'dimensions:min_width=1,min_height=1']),
+            ...$this->imageRules('back', $this->input('document_type') === 'NATIONAL_ID', ['file', 'image', 'mimetypes:image/jpeg,image/png,image/webp', "max:{$maxKilobytes}", 'dimensions:min_width=1,min_height=1']),
         ];
     }
 }

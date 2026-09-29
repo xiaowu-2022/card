@@ -2,6 +2,7 @@
 
 namespace App\Application\Support;
 
+use App\Application\Media\VerifiedDirectImage;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Support\Models\SupportConversation;
 use App\Domain\Support\Models\SupportMessage;
@@ -19,12 +20,12 @@ final readonly class SendSupportMessageAction
 {
     public function __construct(private SupportAccess $access, private SupportImageStorage $images) {}
 
-    public function user(string $tenantId, string $userId, string $requestId, #[\SensitiveParameter] string $message, #[\SensitiveParameter] ?UploadedFile $image = null): string
+    public function user(string $tenantId, string $userId, string $requestId, #[\SensitiveParameter] string $message, #[\SensitiveParameter] UploadedFile|VerifiedDirectImage|null $image = null): string
     {
         return $this->send($tenantId, $userId, null, null, $requestId, $message, $image);
     }
 
-    public function admin(string $tenantId, string $adminId, string $conversationId, string $requestId, #[\SensitiveParameter] string $message, #[\SensitiveParameter] ?UploadedFile $image = null): string
+    public function admin(string $tenantId, string $adminId, string $conversationId, string $requestId, #[\SensitiveParameter] string $message, #[\SensitiveParameter] UploadedFile|VerifiedDirectImage|null $image = null): string
     {
         $this->access->admin($tenantId, $adminId);
         $conversation = SupportConversation::query()->where('tenant_id', $tenantId)->whereKey($conversationId)->firstOrFail();
@@ -32,7 +33,7 @@ final readonly class SendSupportMessageAction
         return $this->send($tenantId, $conversation->user_id, $adminId, $conversationId, $requestId, $message, $image);
     }
 
-    public function platform(string $tenantId, string $adminId, string $userId, string $requestId, #[\SensitiveParameter] string $message, #[\SensitiveParameter] ?UploadedFile $image = null): string
+    public function platform(string $tenantId, string $adminId, string $userId, string $requestId, #[\SensitiveParameter] string $message, #[\SensitiveParameter] UploadedFile|VerifiedDirectImage|null $image = null): string
     {
         $this->access->platform($adminId, 'support.send');
         User::query()->where('tenant_id', $tenantId)->whereKey($userId)->firstOrFail();
@@ -40,7 +41,7 @@ final readonly class SendSupportMessageAction
         return $this->send($tenantId, $userId, $adminId, null, $requestId, $message, $image, true);
     }
 
-    private function send(string $tenantId, string $userId, ?string $adminId, ?string $conversationId, string $requestId, #[\SensitiveParameter] string $message, #[\SensitiveParameter] ?UploadedFile $upload, bool $platform = false): string
+    private function send(string $tenantId, string $userId, ?string $adminId, ?string $conversationId, string $requestId, #[\SensitiveParameter] string $message, #[\SensitiveParameter] UploadedFile|VerifiedDirectImage|null $upload, bool $platform = false): string
     {
         $message = trim($message);
         $image = $this->images->prepare($upload);
@@ -59,6 +60,20 @@ final readonly class SendSupportMessageAction
             $platform ? $this->access->platform($adminId, 'support.send') : $this->access->admin($tenantId, $adminId);
         } else {
             abort_unless($user->status === UserStatus::Active, 403);
+        }
+        // A completed direct-upload retry must reuse the existing message before claiming its image again.
+        if ($upload instanceof VerifiedDirectImage) {
+            $existing = SupportMessage::where('tenant_id', $tenantId)->where('sender_user_id', $userId)
+                ->where('request_id', $requestId)->first();
+            if ($existing && ! $adminId) {
+                $conversation = SupportConversation::where('tenant_id', $tenantId)->where('user_id', $userId)->first();
+                if ($existing->conversation_id !== $conversation?->id || ! hash_equals($existing->support_message, $message)
+                    || ! hash_equals($existing->image_hash ?? '', $image['hash'] ?? '')) {
+                    throw new DomainException('SUPPORT_REQUEST_REUSED', 'This message request was already used. Refresh before sending a new message.', 409);
+                }
+
+                return $existing->conversation_id;
+            }
         }
         $messageId = (string) Str::uuid();
         $stagedPath = $image ? $this->images->store($tenantId, $image, $messageId) : null;

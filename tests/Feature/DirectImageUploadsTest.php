@@ -1,0 +1,158 @@
+<?php
+
+use App\Application\Media\DirectImageUploads;
+use App\Application\Media\ImageStorage;
+use App\Application\Media\OssSettings;
+use App\Domain\Admin\Models\AdminUser;
+use App\Domain\Kyc\Models\KycApplication;
+use App\Domain\Media\DirectImageUpload;
+use App\Domain\Media\OssConfiguration;
+use App\Domain\Tenant\Models\Tenant;
+use App\Domain\User\Models\User;
+use App\Infrastructure\Storage\OssImages;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+
+beforeEach(function () {
+    $this->seed();
+    Http::preventStrayRequests();
+    Storage::fake('private');
+    $this->tenant = Tenant::where('slug', 'tenant-a')->firstOrFail();
+    $this->user = User::where('tenant_id', $this->tenant->id)->where('email', 'user@a.localhost')->firstOrFail();
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $this->config = app(OssSettings::class)->save(['region' => 'cn-beijing', 'bucket' => 'test-images',
+        'endpoint' => 'https://oss-cn-beijing.aliyuncs.com', 'public_url' => 'https://test-images.oss-cn-beijing.aliyuncs.com',
+        'access_key_id' => 'synthetic-key', 'access_key_secret' => 'synthetic-secret'], $actor);
+    app(OssSettings::class)->activate($this->config, $actor);
+    $this->oss = new class extends OssImages
+    {
+        public array $objects = [];
+
+        public int $copies = 0;
+
+        public array $published = [];
+
+        public function metadata(OssConfiguration $c, string $key): array
+        {
+            return ['size' => strlen($this->objects[$key]), 'etag' => hash('sha256', $this->objects[$key])];
+        }
+
+        public function copyDirectImage(OssConfiguration $c, string $source, string $destination, string $etag, string $mime): void
+        {
+            expect(hash('sha256', $this->objects[$source]))->toBe($etag);
+            $this->copies++;
+            $this->objects[$destination] = $this->objects[$source];
+        }
+
+        public function getBounded(OssConfiguration $c, string $key, int $maxBytes): string
+        {
+            return substr($this->objects[$key], 0, $maxBytes + 1);
+        }
+
+        public function get(OssConfiguration $c, string $key): string
+        {
+            return $this->objects[$key];
+        }
+
+        public function publishDirectImage(OssConfiguration $c, string $key): void
+        {
+            $this->published[] = $key;
+        }
+
+        public function delete(OssConfiguration $c, string $key): void
+        {
+            unset($this->objects[$key]);
+        }
+    };
+    app()->instance(OssImages::class, $this->oss);
+    $this->service = app(DirectImageUploads::class);
+    $this->base = 'http://a.localhost/api/mobile/v1';
+    $token = $this->postJson($this->base.'/login', ['identifier' => 'user@a.localhost', 'password' => 'local-password', 'device_name' => 'Offline test'])->assertCreated()->json('token');
+    $this->withToken($token);
+});
+
+function directFixture($test, string $purpose = 'support', string $field = 'support_image'): array
+{
+    $ticket = $test->postJson($test->base.'/images/direct', ['purpose' => $purpose, 'field' => $field, 'mime' => 'image/png'])->assertOk()->json();
+    $test->oss->objects[$ticket['fields']['key']] = kycTestImage()->getContent();
+
+    return $ticket;
+}
+
+it('signs an exact private five-minute staging policy without exposing its secret', function () {
+    $this->freezeTime();
+    $ticket = directFixture($this);
+    expect(json_encode($ticket))->not->toContain('synthetic-secret');
+    expect($ticket['url'])->toBe('https://test-images.oss-cn-beijing.aliyuncs.com');
+    $policy = json_decode(base64_decode($ticket['fields']['policy']), true);
+    expect($policy['expiration'])->toBe(now()->utc()->addMinutes(5)->format('Y-m-d\TH:i:s.000\Z'));
+    expect($policy['conditions'])->toContain(['content-length-range', 1, 5 * 1024 * 1024], ['x-oss-object-acl' => 'private'], ['key' => $ticket['fields']['key']]);
+    $key = hash_hmac('sha256', now()->utc()->format('Ymd'), 'aliyun_v4synthetic-secret', true);
+    foreach (['cn-beijing', 'oss', 'aliyun_v4_request'] as $part) {
+        $key = hash_hmac('sha256', $part, $key, true);
+    }
+    expect($ticket['fields']['x-oss-signature'])->toBe(hash_hmac('sha256', $ticket['fields']['policy'], $key));
+    expect($this->config->fresh()->verified_at)->toBeNull();
+    Http::assertNothingSent();
+});
+
+it('binds verified originals and makes completion immune to staging overwrites', function () {
+    $ticket = directFixture($this);
+    $this->postJson($this->base.'/images/direct/'.$ticket['id'].'/complete')->assertNoContent();
+    $this->oss->objects[$ticket['fields']['key']] = 'later malicious bytes';
+    $this->postJson($this->base.'/images/direct/'.$ticket['id'].'/complete')->assertNoContent();
+    $file = $this->service->resolve($this->tenant->id, $this->user->id, $ticket['id'], 'support', 'support_image');
+    $key = 'support/'.$this->tenant->id.'/'.Str::uuid().'.enc';
+    app(ImageStorage::class)->putUpload($this->tenant->id, 'private', $key, $file, 'support');
+    expect(app(ImageStorage::class)->read('private', $key))->toBe(kycTestImage()->getContent());
+    expect($this->oss->copies)->toBe(1)->and(DirectImageUpload::find($ticket['id'])->claimed_at)->not->toBeNull();
+    Storage::disk('private')->assertMissing($key);
+    expect(fn () => app(ImageStorage::class)->putUpload($this->tenant->id, 'private', 'support/'.$this->tenant->id.'/'.Str::uuid(), $file, 'support'))->toThrow(HttpException::class);
+});
+
+it('rejects wrong users purposes expired tickets and non-images before publishing', function () {
+    $ticket = directFixture($this);
+    $this->oss->objects[$ticket['fields']['key']] = '<script>bad</script>';
+    $this->postJson($this->base.'/images/direct/'.$ticket['id'].'/complete')->assertUnprocessable();
+    expect($this->oss->published)->toBe([]);
+    expect(fn () => $this->service->complete($this->tenant->id, (string) Str::uuid(), $ticket['id']))->toThrow(HttpException::class);
+    $this->oss->objects[$ticket['fields']['key']] = kycTestImage()->getContent();
+    $this->postJson($this->base.'/images/direct/'.$ticket['id'].'/complete')->assertNoContent();
+    expect(fn () => $this->service->resolve($this->tenant->id, $this->user->id, $ticket['id'], 'kyc', 'front'))->toThrow(HttpException::class);
+    $this->travel(16)->minutes();
+    expect(fn () => $this->service->resolve($this->tenant->id, $this->user->id, $ticket['id'], 'support', 'support_image'))->toThrow(HttpException::class);
+});
+
+it('sends a support image without multipart bytes and preserves request replay', function () {
+    $ticket = directFixture($this);
+    $this->postJson($this->base.'/images/direct/'.$ticket['id'].'/complete')->assertNoContent();
+    $payload = ['request_id' => (string) Str::uuid(), 'support_image_upload_id' => $ticket['id']];
+    $this->postJson($this->base.'/support/messages', $payload)->assertSuccessful();
+    $this->travel(16)->minutes();
+    $this->postJson($this->base.'/support/messages', $payload)->assertSuccessful();
+    expect(DirectImageUpload::find($ticket['id'])->claimed_at)->not->toBeNull();
+    $this->postJson($this->base.'/support/messages', ['request_id' => (string) Str::uuid(), 'support_image_upload_id' => $ticket['id']])->assertStatus(409);
+});
+
+it('does not accept a client-selected tenant or an unverified image', function () {
+    $this->postJson($this->base.'/images/direct', ['purpose' => 'support', 'field' => 'support_image', 'mime' => 'image/png', 'tenant_id' => $this->tenant->id])->assertUnprocessable();
+    $ticket = directFixture($this);
+    $this->postJson($this->base.'/support/messages', ['request_id' => (string) Str::uuid(), 'support_image_upload_id' => $ticket['id']])->assertStatus(409);
+    $this->postJson('http://b.localhost/api/mobile/v1/images/direct/'.$ticket['id'].'/complete')->assertUnauthorized();
+});
+
+it('submits direct KYC references through the existing OCR gate', function () {
+    fakeMatchingKycOcr('E12345678');
+    $flow = $this->getJson($this->base.'/bootstrap')->assertOk()->headers->get('X-Consumer-Flow');
+    $this->withHeader('X-Consumer-Flow', $flow)->withHeader('X-Consumer-Page', '/kyc');
+    $ticket = directFixture($this, 'kyc', 'front');
+    $this->postJson($this->base.'/images/direct/'.$ticket['id'].'/complete')->assertNoContent();
+    $this->postJson($this->base.'/client/kyc/applications', [
+        'document_type' => 'PASSPORT', 'document_country' => 'CN', 'identity_number' => 'E12345678', 'front_upload_id' => $ticket['id'],
+    ])->assertSuccessful();
+    $application = KycApplication::where('user_id', $this->user->id)->sole();
+    expect(app(ImageStorage::class)->read('private', $application->front_object_key))->toBe(kycTestImage()->getContent());
+    Storage::disk('private')->assertMissing($application->front_object_key);
+});

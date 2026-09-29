@@ -3,6 +3,7 @@
 namespace App\Application\Card;
 
 use App\Application\Media\ImageStorage;
+use App\Application\Media\VerifiedDirectImage;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Card\Enums\ProviderCardholderStatus;
 use App\Domain\Card\Models\CardIssueOrder;
@@ -99,6 +100,16 @@ final readonly class SubmitProviderCardholderAction
         $fingerprint = $this->materials->fingerprint($tenantId, $userId, $data['card_product_id'], json_encode([
             $formFactor, $fields, hash('sha256', $front), $back === null ? null : hash('sha256', $back),
         ], JSON_THROW_ON_ERROR));
+        if (($data['front'] ?? null) instanceof VerifiedDirectImage) {
+            $existing = ProviderCardholder::where('tenant_id', $tenantId)->where('user_id', $userId)
+                ->where('request_id', $data['request_id'])->first();
+            if ($existing && $existing->card_product_id === $data['card_product_id']
+                && $existing->form_factor === $formFactor && hash_equals($existing->request_hash, $fingerprint)) {
+                LiveCardReferenceGuard::forProduct(CardProduct::findOrFail($existing->card_product_id), $existing->provider_cardholder_id);
+
+                return $existing;
+            }
+        }
         $images = app(ImageStorage::class);
         $base = 'card-materials/'.$tenantId.'/'.$userId.'/'.Str::uuid();
         $keys = [];
@@ -109,7 +120,7 @@ final readonly class SubmitProviderCardholderAction
                     continue;
                 }
                 $key = $base.'/'.$side;
-                $images->put($tenantId, 'private', $key, $contents, 'card', $data['request_id'], 'card');
+                $images->putUpload($tenantId, 'private', $key, $data[$side], 'card', $data['request_id'], 'card');
                 $keys[$side] = $key;
             }
             $encrypted = $this->materials->encrypt(json_encode(['fields' => $fields, 'documents' => $keys], JSON_THROW_ON_ERROR));
@@ -225,7 +236,7 @@ final readonly class SubmitProviderCardholderAction
     /** @return array{string,string} */
     private function image(mixed $file): array
     {
-        if (! $file instanceof UploadedFile || ! $file->isValid() || $file->getSize() > 6 * 1024 * 1024
+        if ((! $file instanceof UploadedFile && ! $file instanceof VerifiedDirectImage) || ! $file->isValid() || $file->getSize() > 6 * 1024 * 1024
             || ! in_array($file->getMimeType(), ['image/jpeg', 'image/png'], true)) {
             throw new DomainException('CARD_DOCUMENT_INVALID', 'Upload a PNG or JPEG document of at most 6 MB.');
         }

@@ -91,7 +91,7 @@ export default function OssSettings({
             <div className="space-y-6">
                 <p className="text-sm text-muted-foreground">
                     {t(
-                        'Images use public read access, including identity documents. Anyone with an image URL can view it. Upload and delete require server credentials.',
+                        'Verified images use public read access, including identity documents. Phones upload with short-lived authorization; permanent secrets stay on the server.',
                     )}
                 </p>
                 <Card className="max-w-3xl">
@@ -101,7 +101,7 @@ export default function OssSettings({
                     <CardContent>
                         <p className="mb-4 text-sm text-muted-foreground">
                             {t(
-                                'Saving creates a new version. Test it, then enable it for new uploads. Existing images keep their original storage configuration.',
+                                'Saving creates a new version that can be enabled without a connection test. Testing is optional. Existing images keep their original storage configuration.',
                             )}
                         </p>
                         <form
@@ -195,7 +195,6 @@ export default function OssSettings({
                                         <Button
                                             disabled={
                                                 busy !== null ||
-                                                !config.verified_at ||
                                                 config.id === activeId
                                             }
                                             onClick={() => action(config.id, 'activate')}

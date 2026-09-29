@@ -70,7 +70,10 @@ export async function request<T>(
             data,
             header: headers(),
             withCredentials: !native,
-            timeout: 20000,
+            timeout: path.split('?')[0] === '/client/kyc/applications' ? 300000
+                : path.split('?')[0] === '/client/cards/cardholder' ? 180000
+                : path.split('?')[0] === '/support/messages' ? 60000
+                : /^\/images\/direct\/[^/]+\/complete$/.test(path) ? 150000 : 20000,
             success(response) {
                 capture(response.header);
                 if (response.statusCode >= 200 && response.statusCode < 300)
@@ -93,6 +96,50 @@ export async function upload<T>(
     await ensureCompanyOrigin().catch(() => {
         throw new ApiError(0);
     });
+    const purpose = ({
+        '/client/kyc/applications': 'kyc',
+        '/client/cards/cardholder': 'card',
+        '/support/messages': 'support',
+    } as Record<string, string>)[path.split('?')[0]];
+    if (purpose && files.length) {
+        const payload: Record<string, string> = { ...data };
+        for (const file of files) {
+            const info = await new Promise<UniApp.GetImageInfoSuccessData>((resolve, reject) =>
+                uni.getImageInfo({ src: file.path, success: resolve, fail: () => reject(new ApiError(422)) }),
+            );
+            const kind = info.type?.toLowerCase();
+            let mime = kind === 'jpg' || kind === 'jpeg' ? 'image/jpeg'
+                : kind === 'png' ? 'image/png' : kind === 'webp' ? 'image/webp' : '';
+            // H5 getImageInfo supplies dimensions but no type; selected images are local blobs.
+            if (!mime && !native && /^(blob:|data:image\/)/i.test(file.path)) {
+                const blob = await fetch(file.path).then((response) => response.blob()).catch(() => {
+                    throw new ApiError(422);
+                });
+                mime = blob.type.toLowerCase();
+            }
+            if (!['image/jpeg', 'image/png', 'image/webp'].includes(mime)) throw new ApiError(422);
+            const ticket = await request<{ id: string; url: string; fields: Record<string, string> }>(
+                '/images/direct', 'POST', { purpose, field: file.name, mime },
+            );
+            if (!/^https:\/\/[a-z0-9.-]+\/?$/i.test(ticket.url)) throw new ApiError(502);
+            await new Promise<void>((resolve, reject) => uni.uploadFile({
+                url: ticket.url,
+                filePath: file.path,
+                name: 'file',
+                formData: ticket.fields,
+                // Never forward API bearer tokens, session cookies or business fields to OSS.
+                header: {},
+                timeout: 120000,
+                success: (response) => response.statusCode >= 200 && response.statusCode < 300
+                    ? resolve() : reject(new ApiError(502)),
+                fail: () => reject(new ApiError(0)),
+            }));
+            await request('/images/direct/' + ticket.id + '/complete', 'POST');
+            payload[file.name + '_upload_id'] = ticket.id;
+        }
+        // Business submission is still authenticated and never replayed automatically.
+        return request<T>(path, 'POST', payload);
+    }
     return new Promise((resolve, reject) =>
         uni.uploadFile({
             url: url(path),

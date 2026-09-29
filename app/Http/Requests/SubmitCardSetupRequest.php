@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Domain\Card\Services\CardholderGeography;
+use App\Http\Requests\Concerns\AcceptsDirectImages;
 use App\Support\Errors\DomainException;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
@@ -10,6 +11,8 @@ use Illuminate\Validation\Rule;
 
 final class SubmitCardSetupRequest extends FormRequest
 {
+    use AcceptsDirectImages;
+
     /** @return array<string,mixed> */
     public function rules(): array
     {
@@ -58,8 +61,8 @@ final class SubmitCardSetupRequest extends FormRequest
             'document_type' => ['required', 'in:id_card,passport,resident_permit'],
             'document_country' => ['prohibited'],
             'identity_number' => ['nullable', 'string', 'min:3', 'max:64'],
-            'front' => ['required', 'file', 'image', 'mimetypes:image/jpeg,image/png', 'max:6144', 'dimensions:min_width=1,min_height=1,max_width=12000,max_height=12000'],
-            'back' => ['required_unless:document_type,passport', 'nullable', 'file', 'image', 'mimetypes:image/jpeg,image/png', 'max:6144', 'dimensions:min_width=1,min_height=1,max_width=12000,max_height=12000'],
+            ...$this->imageRules('front', true, ['file', 'image', 'mimetypes:image/jpeg,image/png', 'max:6144', 'dimensions:min_width=1,min_height=1,max_width=12000,max_height=12000']),
+            ...$this->imageRules('back', $this->input('document_type') !== 'passport', ['file', 'image', 'mimetypes:image/jpeg,image/png', 'max:6144', 'dimensions:min_width=1,min_height=1,max_width=12000,max_height=12000']),
             'tenant_id' => ['prohibited'],
             'user_id' => ['prohibited'],
             'provider' => ['prohibited'],

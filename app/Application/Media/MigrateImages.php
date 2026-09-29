@@ -15,8 +15,8 @@ final class MigrateImages
     public function migrate(array $ref): StoredImage
     {
         $config = $this->images->active();
-        if (! $config?->verified_at) {
-            throw new \RuntimeException('Verified active OSS required');
+        if (! $config) {
+            throw new \RuntimeException('Active OSS required');
         }
         $record = $this->images->record($ref['disk'], $ref['key']);
         if ($record && $record->tenant_id !== $ref['tenant']) {

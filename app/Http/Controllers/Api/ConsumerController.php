@@ -188,7 +188,7 @@ final class ConsumerController extends Controller
     public function supportSend(SendSupportMessageRequest $request, TenantContext $context, SendSupportMessageAction $action)
     {
         $action->user($context->id(), $request->attributes->get('consumer_user')->id, $request->validated('request_id'),
-            $request->validated('support_message') ?? '', $request->file('support_image'));
+            $request->validated('support_message') ?? '', $request->resolvedImages($context->id(), $request->attributes->get('consumer_user')->id, 'support', ['support_image'])['support_image'] ?? null);
 
         return response()->noContent();
     }

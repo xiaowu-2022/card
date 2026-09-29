@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AuthorizeAdminScope;
+use App\Http\Middleware\ConsumerApiContext;
 use App\Http\Middleware\EnforceTenantUserSessionScope;
 use App\Http\Middleware\EnsureAuthenticatedTenantUser;
 use App\Http\Middleware\EnsureOperationalUser;
@@ -23,8 +24,8 @@ use Symfony\Component\HttpFoundation\Response;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         using: function (): void {
-            Route::prefix('api/v1')->middleware(['web', 'tenant', 'user.session-scope', \App\Http\Middleware\ConsumerApiContext::class.':web', 'user.locale'])->group(base_path('routes/consumer-api.php'));
-            Route::prefix('api/mobile/v1')->middleware(['api', 'tenant', \App\Http\Middleware\ConsumerApiContext::class.':mobile', 'user.locale'])->group(base_path('routes/consumer-api.php'));
+            Route::prefix('api/v1')->middleware(['web', 'tenant', 'user.session-scope', ConsumerApiContext::class.':web', 'user.locale'])->group(base_path('routes/consumer-api.php'));
+            Route::prefix('api/mobile/v1')->middleware(['api', 'tenant', ConsumerApiContext::class.':mobile', 'user.locale'])->group(base_path('routes/consumer-api.php'));
             Route::middleware('web')->group(base_path('routes/public.php'));
             Route::middleware(['web', 'tenant', 'user.session-scope', 'user.locale', 'inertia'])->group(base_path('routes/user.php'));
             Route::middleware(['web', 'tenant', 'user.session-scope', 'admin.locale', 'inertia'])->group(base_path('routes/admin.php'));
@@ -56,7 +57,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'sections', // Batched asset configuration can contain replace-only credentials.
             'new_contact', 'phone', 'code', 'otp', 'address', 'credential', 'api_key',
             'reset_contact',
-            'support_message', 'support_image',
+            'support_message', 'support_image', 'support_image_upload_id', 'front_upload_id', 'back_upload_id',
             'access_key_id', 'access_key_secret',
             'smtp_token', 'test_email',
             'identity_number', 'front', 'back', 'portrait', 'reverse_side',

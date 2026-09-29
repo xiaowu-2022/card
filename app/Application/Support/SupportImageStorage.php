@@ -3,6 +3,7 @@
 namespace App\Application\Support;
 
 use App\Application\Media\ImageStorage;
+use App\Application\Media\VerifiedDirectImage;
 use App\Support\Errors\DomainException;
 use Illuminate\Http\Response;
 use Illuminate\Http\UploadedFile;
@@ -10,7 +11,7 @@ use Illuminate\Support\Str;
 
 final class SupportImageStorage
 {
-    public function prepare(#[\SensitiveParameter] ?UploadedFile $image): ?array
+    public function prepare(#[\SensitiveParameter] UploadedFile|VerifiedDirectImage|null $image): ?array
     {
         if (! $image) {
             return null;
@@ -24,13 +25,13 @@ final class SupportImageStorage
             throw new DomainException('SUPPORT_IMAGE_INVALID', 'Use a JPG, PNG or WebP image up to 5 MB and 20 megapixels.');
         }
 
-        return ['contents' => $contents, 'mime' => $mime, 'hash' => hash_hmac('sha256', $contents, (string) config('app.key'))];
+        return ['upload' => $image, 'contents' => $contents, 'mime' => $mime, 'hash' => hash_hmac('sha256', $contents, (string) config('app.key'))];
     }
 
     public function store(string $tenantId, #[\SensitiveParameter] array $image, ?string $reference = null): string
     {
         $path = 'support/'.$tenantId.'/'.Str::uuid().'.enc';
-        app(ImageStorage::class)->put($tenantId, 'private', $path, $image['contents'], 'support', $reference, 'support');
+        app(ImageStorage::class)->putUpload($tenantId, 'private', $path, $image['upload'], 'support', $reference, 'support');
 
         return $path;
     }

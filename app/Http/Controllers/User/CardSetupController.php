@@ -29,7 +29,7 @@ final class CardSetupController extends Controller
     {
         /** @var User $user */
         $user = Auth::guard('tenant_user')->user();
-        $holder = $action->execute($context->id(), $user->id, $request->validated(), $request->attributes->get('request_id'));
+        $holder = $action->execute($context->id(), $user->id, $request->resolvedImages($context->id(), $user->id, 'card'), $request->attributes->get('request_id'));
 
         return $this->submissionResponse($holder);
     }

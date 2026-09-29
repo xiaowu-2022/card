@@ -3,6 +3,7 @@
 namespace App\Application\Kyc;
 
 use App\Application\Media\ImageStorage;
+use App\Application\Media\VerifiedDirectImage;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
 use App\Domain\Kyc\DTOs\KycOcrRequestDTO;
@@ -33,7 +34,7 @@ final readonly class SubmitKycApplicationAction
 {
     public function __construct(private IdentityNumberProtector $identities, private AuditLogger $audit, private ApproveKycAction $approve) {}
 
-    public function execute(Tenant $tenant, User $user, string $country, string $identityNumber, UploadedFile $front, ?UploadedFile $back, ?string $requestId = null, KycDocumentType $documentType = KycDocumentType::NationalId): KycApplication
+    public function execute(Tenant $tenant, User $user, string $country, string $identityNumber, UploadedFile|VerifiedDirectImage $front, UploadedFile|VerifiedDirectImage|null $back, ?string $requestId = null, KycDocumentType $documentType = KycDocumentType::NationalId): KycApplication
     {
         $country = strtoupper(trim($country));
         if (preg_match('/^[A-Z]{2}$/', $country) !== 1) {
@@ -65,10 +66,10 @@ final readonly class SubmitKycApplicationAction
         $images = app(ImageStorage::class);
 
         try {
-            $images->put($tenant->id, $disk, $frontKey, $front->getContent(), 'kyc', $applicationId);
+            $images->putUpload($tenant->id, $disk, $frontKey, $front, 'kyc', $applicationId);
             $stored[] = $frontKey;
             if ($back && $backKey) {
-                $images->put($tenant->id, $disk, $backKey, $back->getContent(), 'kyc', $applicationId);
+                $images->putUpload($tenant->id, $disk, $backKey, $back, 'kyc', $applicationId);
                 $stored[] = $backKey;
             }
             $frontUrl = $images->ocrUrl($disk, $frontKey);

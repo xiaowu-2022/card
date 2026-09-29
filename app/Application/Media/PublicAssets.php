@@ -72,8 +72,8 @@ final class PublicAssets
     public function publish(bool $web = false, ?string $h5 = null, ?\Closure $progress = null): array
     {
         $config = app(ImageStorage::class)->active();
-        if (! $config?->verified_at) {
-            throw new \RuntimeException('Verified active OSS required');
+        if (! $config) {
+            throw new \RuntimeException('Active OSS required');
         }
         if (! DB::selectOne('select pg_try_advisory_lock(20260929, 160000) as acquired')->acquired) {
             throw new \RuntimeException('Asset publication already running');

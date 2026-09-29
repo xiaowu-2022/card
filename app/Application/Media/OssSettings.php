@@ -108,9 +108,7 @@ final class OssSettings
         DB::transaction(function () use ($config, $actor) {
             DB::table('media_storage_settings')->where('id', 1)->lockForUpdate()->first();
             app(PaidPromotionRules::class)->platform($actor, 'storage.manage');
-            if (! $config->fresh()->verified_at) {
-                throw new DomainException('OSS_NOT_VERIFIED', 'Test this OSS configuration before enabling it.', 422);
-            }
+            $this->validateRegion($config->region, $config->endpoint, $config->public_url);
             DB::table('media_storage_settings')->where('id', 1)->update(['active_configuration_id' => $config->id, 'updated_at' => now()]);
             app(AuditLogger::class)->record(null, 'ADMIN', $actor->id, 'OSS_CONFIGURATION_ENABLED', 'oss_configuration', $config->id);
         });

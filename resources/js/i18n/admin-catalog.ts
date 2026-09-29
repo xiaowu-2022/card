@@ -48,13 +48,13 @@ export const adminCatalog: Record<string, string> = {
     'Image migration': '历史图片迁移',
     'Ready images': '已就绪图片',
     'Pending cleanup': '待清理图片',
-    'Images use public read access, including identity documents. Anyone with an image URL can view it. Upload and delete require server credentials.':
-        '所有上传图片公开读取，包括身份证件；持有图片地址的人可以查看。上传和删除仅由后端执行。',
-    'Saving creates a new version. Test it, then enable it for new uploads. Existing images keep their original storage configuration.':
-        '保存后生成新版本，测试通过后可启用。既有图片保留原存储配置。',
+    'Verified images use public read access, including identity documents. Phones upload with short-lived authorization; permanent secrets stay on the server.':
+        '核验后的图片公开可读，包括身份证件。手机使用短期授权直传，长期密钥仅保存在服务器。',
+    'Saving creates a new version that can be enabled without a connection test. Testing is optional. Existing images keep their original storage configuration.':
+        '保存后生成新版本，可直接启用，连接测试为可选诊断。既有图片保留原存储配置。',
     'Preview historical images before migration. Verified copies switch to OSS; local backups are retained.':
         '请先预览历史图片，再执行迁移。校验成功后切换至 OSS，本地备份保留。',
-    'OSS configuration saved. Test it before enabling.': 'OSS 配置已保存，请先测试连接再启用。',
+    'OSS configuration saved. You can enable it now; connection testing is optional.': 'OSS 配置已保存，可直接启用；连接测试为可选操作。',
     'OSS connection verified.': 'OSS 连接测试通过。',
     'OSS enabled for new uploads.': '已启用 OSS，后续图片将上传至 OSS。',
     'Image storage is unavailable. Please try again.': '图片存储服务暂不可用，请稍后重试。',

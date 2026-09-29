@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\ConsumerController;
+use App\Http\Controllers\Api\DirectImageUploadController;
 use App\Http\Middleware\ConsumerFlowSession;
 use App\Http\Middleware\ConsumerPageResponse;
 use App\Http\Middleware\RequireConsumerApiUser;
@@ -25,6 +26,8 @@ Route::middleware(RequireConsumerApiUser::class)->group(function (): void {
     Route::post('support/read', [ConsumerController::class, 'supportRead'])->middleware('throttle:120,1');
 });
 Route::middleware(RequireConsumerApiUser::class.':operational')->group(function (): void {
+    Route::post('images/direct', [DirectImageUploadController::class, 'store'])->middleware('throttle:20,1');
+    Route::post('images/direct/{upload}/complete', [DirectImageUploadController::class, 'complete'])->whereUuid('upload')->middleware('throttle:30,1');
     Route::get('assets', [ConsumerController::class, 'assets']);
     Route::get('cards', [ConsumerController::class, 'cards']);
     Route::get('support', [ConsumerController::class, 'support'])->middleware('throttle:60,1');

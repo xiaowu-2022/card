@@ -6,7 +6,7 @@
 
 Platform `/platform/settings/oss` 需要 `storage.manage`。增量迁移和种子均授予 PLATFORM_OWNER / PLATFORM_ADMIN；公司管理员不能配置。更新保留现有会话、CSRF、频率限制及操作审计，不重复验证密码。AccessKey ID/Secret 只写入加密配置，不回显，不写审计、日志或验证错误闪存。
 
-每次保存生成新配置版本；测试执行合成 PNG 上传、鉴权下载校验、公开域名下载校验和删除。通过后才能启用。启用只切换后续上传，既有图片绑定原配置、Bucket、域名；旧配置不能删除或修改目标。SDK 使用兼容当前 Guzzle 8 依赖的官方 `aliyuncs/oss-sdk-php`，不降级现有 HTTP 栈。
+每次保存生成新配置版本；测试执行合成 PNG 上传、鉴权下载校验、公开域名下载校验和删除。测试为可选诊断，保存后可直接启用；启用仍保留 Platform 权限、格式与地域检查。启用只切换后续上传，既有图片绑定原配置、Bucket、域名；旧配置不能删除或修改目标。SDK 使用兼容当前 Guzzle 8 依赖的官方 `aliyuncs/oss-sdk-php`，不降级现有 HTTP 栈。
 
 2026-09-29 起，所有运行环境的新业务图片上传必须启用 OSS；未配置时失败关闭。只有隔离自动测试可创建本地迁移夹具。真实 Aliyun OCR 必须启用 OSS，不能用本地私有文件地址冒充可识别图片。启用后的 OSS 失败直接报错，没有自动本地降级。SDK 支持 HTTPS 阿里云区域端点；需要 CNAME 时 Endpoint 必须与明确配置的图片域名一致，采用 OSS V4 签名。新对象为 `images/{tenant_uuid}/{random_uuid}`，无姓名、邮箱、证件号。对象 ACL 为 public-read，写入要求服务端 RAM 凭证；设置 SSE-OSS AES256 与 `Cache-Control: no-store`。
 
@@ -69,3 +69,11 @@ Laravel Vite 通过清单解析 JS/CSS；React 页面使用共享清单，uni-ap
 上传期间不得重建正在上传的目录；源校验会拒绝变化。原始文件和旧 OSS 版本不清理。
 OSS public-read 不是 CDN 配置的证明；可在既有公开域名前配置 CDN，现有域名需透传
 IMG 查询参数和正确 Content-Type/CORS。模块脚本、字体与 JSON 需要匿名跨域 GET。
+
+## 2026-09-29 手机直传
+
+uni-app 的 KYC、开卡材料和客服图片使用鉴权后的直传授权 API；H5 同源 API 和原生 Host 所属公司均由服务器解析。永久 Secret 只在服务器，返回的五分钟 OSS V4 POST policy 绑定唯一 staging key、Bucket、MIME、最大字节数、private ACL、AES256 和禁止覆盖字段；不附带业务 API Token、业务字段或身份号码。授权限流且每用户最多十个未领取有效票据。
+
+新增 direct_image_uploads 保存 tenant/user、用途/字段、暂存及最终 stored_images 映射、大小上限、15 分钟期限、验证及领取时间。客户端只能上传到私有 staging 对象，不能写最终对象。完成接口按票据串行，以 ETag 条件复制到服务器专属随机最终 key，限量读取原始字节校验图片类型/尺寸/大小及 SHA256 后开放公开读；重复完成不再复制。原图不压缩、不落本地磁盘。业务提交仅携带票据 ID，校验归属、用途/字段和校验和后一次领取映射，原 KYC OCR、开卡和客服鉴权/幂等规则继续生效。客服已提交请求可复用相同票据返回原结果，新请求不能重复领取。
+
+服务器签名不访问 OSS，因此配置无需联网测试即可启用，但完成、原图校验、OCR/卡商流程及清理仍要求服务器连通 OSS。此变更不能绕过服务器 TLS 故障。未完成或失败对象由既有 images:recover 回收，staging 至少保留到签名过期；旧图始终绑定原配置。原 React H5/管理端上传入口保持既有上传流程。

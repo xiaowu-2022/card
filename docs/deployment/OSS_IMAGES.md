@@ -3,7 +3,7 @@
 1. 部署代码，执行 `composer install --no-dev --optimize-autoloader`、现有前端构建及 `php artisan migrate --force`。迁移只新增存储配置、文件映射和权限，不搬文件，不修改业务或 Ledger。
 2. 在阿里云创建 Bucket 和专用 RAM 用户，授予此 Bucket 的 PutObject/GetObject/DeleteObject 及写入 public-read 对象所需权限。所有图片按已批准方案公开可读；Bucket 的阻止公共访问设置不能阻止这些对象 ACL。无需开放匿名写入或匿名列举。
 3. 在 SaaS「控制 → OSS 存储配置」填写 Region、Bucket、区域 HTTPS Endpoint、HTTPS 图片访问域名和 RAM 凭证。默认 OSS 域名能公开返回图片时可使用 `https://<bucket>.oss-<region>.aliyuncs.com`；需要 CNAME 的 Bucket 配置绑定图片域名和 HTTPS；若上传/下载 API 也要求 CNAME，将 Endpoint 填为同一个图片域名，SDK 自动按 CNAME 签名。不带处理参数的图片域名必须原样返回原文件，不跳转、不要求 Cookie、Referer 或签名，以便 OCR 拉取；展示请求的 `x-oss-process` 参数必须透传给 OSS。
-4. 保存 → 测试连接 → 启用。连接测试使用随机合成 PNG，验证写、读、匿名域名读取与删除；不提交 OCR 或真实身份资料。Endpoint 支持同地域 `-internal` 后端访问，图片域名仍必须公网可读。
+4. 保存 → 启用；测试连接为可选诊断。连接测试使用随机合成 PNG，验证写、读、匿名域名读取与删除；不提交 OCR 或真实身份资料。Endpoint 支持同地域 `-internal` 后端访问，图片域名仍必须公网可读。
 5. 保留原应用 APP_KEY、KYC/Card 加密密钥、私有/公共磁盘原目录，以及所有历史配置版本；这些是读取旧图片和解密迁移的必要条件。启用后新图存 OSS，历史图保持原读取位置直至迁移完成。
 
 SDK 建连超时 10 秒，普通展示请求超时 30 秒；超过 1 MiB 的业务图片上传及原图读取允许最多 180 秒。公开静态资源的离线发布上传/下载校验允许最多 600 秒，使用六个独立工作进程，单文件相同内容最多重试三次。慢链路下较大图片可能超过原来的 30 秒，不能仅凭超时认定远端没有收到文件。迁移保留目标键与原本地文件，按下述失败重试命令恢复，下载校验通过后才切换映射。Web 上传还需检查 PHP、反向代理和负载均衡的请求时限；SDK 时限不会自动修改这些配置。
@@ -30,7 +30,7 @@ php artisan images:recover
 
 ## 静态资源发布与图片展示（2026-09-29）
 
-新上传必须有已验证启用的 OSS 配置。原始文件保留，展示端使用 OSS 缩图/WebP；
+新上传必须有已启用的 OSS 配置；不要求连接测试通过。原始文件保留，展示端使用 OSS 缩图/WebP；
 无需重传既有业务图，也不实际压缩存储原图。先应用
 `2026_09_29_160000_add_public_assets_to_media_storage`，该迁移只增加 JSON 清单列。
 
@@ -71,3 +71,18 @@ HTML 清单并回退本地静态图。客户端现保留入口内有效映射，
 UNI_PLATFORM；空 bootstrap 浏览器测试通过，金色卡片背景样式为 HTTPS OSS 地址，
 65 个远程响应、0 个本地静态请求、0 个页面错误。更新了当前工作区
 `public/h5/index.html`；线上需部署该入口。旧内容哈希对象未覆盖。
+
+## 手机直传部署
+
+- 执行新增迁移：`php artisan migrate --force`，部署后端与管理端构建；重新编译 uni-app/App。
+- RAM 权限需要 PutObject、GetObject、DeleteObject、PutObjectAcl，且允许源对象读取及最终对象复制。policy 只授权客户端写单个私有 staging key；不要把 Secret 放进 App。
+- uni-app H5 使用直传时，Bucket CORS 允许实际 H5 来源的 POST（按实际域名设置），允许所需请求头。原生 App 不受浏览器 CORS 限制。
+- 在手机上用合成图片验收上传、最终确认及业务绑定；服务器仍需能够 HTTPS 访问 OSS。未测试配置可启用不代表实际上传/读取成功。
+- 保持 `images:recover` 运行清理过期暂存。若 Bucket 启用了版本控制，还需为 staging/ 配置非当前版本生命周期，避免过期历史版本积累。
+
+本次离线验收：直传/OSS/KYC/客服/Consumer 90 项，开卡材料定向回归 19 项，
+直传与域名前端 10 项通过；管理端与 uni-app 类型检查、管理端/App/H5 构建通过。
+本地已执行 direct_image_uploads 迁移，未部署远程服务器或生成新的签名 APK。
+扩展全量验收仍有既有夹具问题：部分 CardIssue 用例切换 local 环境但未配置 OSS，
+与运行时必须 OSS 的规则冲突；i18n 测试加载器的 public-assets 路径及 tokens 初始化失败。
+没有进行真实证件、OCR、卡商或财务联调。

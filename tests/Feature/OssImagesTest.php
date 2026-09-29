@@ -86,7 +86,7 @@ function enableOssFixture($test): OssConfiguration
 
     return $c;
 }
-it('protects settings permissions and secrets and requires verified activation', function () {
+it('protects settings permissions and secrets while allowing activation without a connection test', function () {
     $base = 'http://admin.localhost/platform/settings/oss';
     $this->get($base)->assertRedirect();
     $tenantAdmin = AdminUser::where('email', 'owner@a.localhost')->firstOrFail();
@@ -95,10 +95,11 @@ it('protects settings permissions and secrets and requires verified activation',
     $c = OssConfiguration::sole();
     expect(DB::table('oss_configurations')->value('credentials'))->not->toContain('synthetic-secret', 'synthetic-key');
     $this->get($base)->assertOk()->assertDontSee('synthetic-secret')->assertDontSee('synthetic-key');
-    $this->post($base.'/'.$c->id.'/activate')->assertSessionHasErrors();
-    expect(app(ImageStorage::class)->active())->toBeNull();
+    $this->post($base.'/'.$c->id.'/activate')->assertSessionHasNoErrors();
+    expect(app(ImageStorage::class)->active()->id)->toBe($c->id)->and($c->fresh()->verified_at)->toBeNull();
+    Http::assertNothingSent();
 });
-it('checks upload read public access delete before enabling a configuration', function () {
+it('optionally checks upload read public access and delete', function () {
     $c = app(OssSettings::class)->save($this->data, $this->owner);
     $bytes = kycTestImage()->getContent();
     Http::fake(['images.example.com/*' => Http::response($bytes, 200)]);

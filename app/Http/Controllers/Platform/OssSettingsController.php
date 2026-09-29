@@ -25,7 +25,7 @@ final class OssSettingsController extends Controller
     {
         $settings->save($request->only(['region', 'bucket', 'endpoint', 'public_url', 'access_key_id', 'access_key_secret']), $request->user('platform_admin'));
 
-        return back()->with('success', 'OSS configuration saved. Test it before enabling.');
+        return back()->with('success', 'OSS configuration saved. You can enable it now; connection testing is optional.');
     }
 
     public function check(OssConfiguration $configuration, Request $request, OssSettings $settings)

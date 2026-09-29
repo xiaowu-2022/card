@@ -8,6 +8,7 @@ use App\Domain\Media\StoredImage;
 use App\Infrastructure\Storage\OssImages;
 use App\Support\Errors\DomainException;
 use Illuminate\Http\Response;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -39,7 +40,7 @@ final class ImageStorage
             throw new DomainException('IMAGE_INVALID', 'Use a supported image file.', 422);
         }
         $config = $this->active();
-        if (! $config?->verified_at && ! app()->environment('testing')) {
+        if (! $config && ! app()->environment('testing')) {
             throw new DomainException('IMAGE_STORAGE_UNAVAILABLE', 'Image storage is unavailable. Please try again.', 503);
         }
         $image = StoredImage::create(['tenant_id' => $tenant, 'source_disk' => $disk, 'source_key' => $key, 'purpose' => $purpose, 'business_reference' => $reference,
@@ -61,6 +62,15 @@ final class ImageStorage
         }
 
         return $key;
+    }
+
+    public function putUpload(string $tenant, string $disk, string $key, UploadedFile|VerifiedDirectImage $file, string $purpose, ?string $reference = null, string $codec = 'plain'): string
+    {
+        if ($file instanceof VerifiedDirectImage) {
+            return app(DirectImageUploads::class)->claim($file, $tenant, $disk, $key, $purpose, $reference);
+        }
+
+        return $this->put($tenant, $disk, $key, $file->getContent(), $purpose, $reference, $codec);
     }
 
     public function read(string $disk, string $key, string $legacyCodec = 'plain'): string

@@ -1,3 +1,10 @@
+On 2026-09-29 the user approved uni-app direct OSS uploads for KYC/card/support
+using short-lived scoped POST policies, server-verified immutable final objects and
+single-use business binding. Never ship permanent secrets. OSS connection testing
+is optional for activation; preserve permission/format checks, original checksums,
+OCR and tenant/user isolation. Server verification still requires OSS connectivity.
+See docs/architecture/OSS_IMAGES.md.
+
 On 2026-09-29 the user retired maintenance of the old React consumer H5 and selected
 the new uni-app H5 for the public website and consumer changes. Keep React/Inertia
 administration and Laravel APIs. The public H5 App download uses the current origin's
