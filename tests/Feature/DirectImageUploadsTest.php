@@ -295,7 +295,7 @@ it('serves encrypted replicas during OSS outages and repairs only the image late
     $file = $this->service->resolve($this->tenant->id, $this->user->id, $ticket['id'], 'support', 'support_image');
     $key = 'support/'.$this->tenant->id.'/'.Str::uuid();
     app(ImageStorage::class)->putUpload($this->tenant->id, 'private', $key, $file, 'support');
-    $url = app(ImageStorage::class)->displayUrl('private', $key);
+    $url = app(ImageStorage::class)->gatewayUrl(app(ImageStorage::class)->record('private', $key), 'preview');
     $this->get($url)->assertOk()->assertHeader('Content-Type', 'image/png');
     $this->get($url.'&profile=original')->assertForbidden();
     expect(app(ImageStorage::class)->read('private', $key))->toBe(kycTestImage()->getContent());

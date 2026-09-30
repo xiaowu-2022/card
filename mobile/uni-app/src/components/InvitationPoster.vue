@@ -2,7 +2,7 @@
 import { getCurrentInstance, nextTick, ref } from 'vue';
 import qrcode from 'qrcode-generator';
 import Modal from './Modal.vue';
-import { privateImage, native } from '../lib/api';
+import { privateImage, native, photoUrl } from '../lib/api';
 import { t } from '../lib/i18n';
 const props = defineProps<{ link: string; code: string; background: string | null }>();
 const open = ref(false),
@@ -22,7 +22,7 @@ async function generate() {
     try {
         let picture: { path: string; width: number; height: number } | null = null;
         if (props.background) {
-            const path = await privateImage('/client/promotion/poster-background');
+            const path = /^https:\/\//i.test(props.background) ? photoUrl(props.background) : await privateImage('/client/promotion/poster-background');
             picture = await new Promise((resolve, reject) =>
                 uni.getImageInfo({
                     src: path,
@@ -63,6 +63,7 @@ async function generate() {
             if (picture) {
                 const image = new Image();
                 await new Promise<void>((resolve, reject) => {
+                    image.crossOrigin = 'anonymous';
                     image.onload = () => resolve();
                     image.onerror = () => reject(new Error('Poster background unavailable'));
                     image.src = picture!.path;

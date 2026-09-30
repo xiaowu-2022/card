@@ -138,7 +138,7 @@ final class ImageStorage
         if ($image) {
             $config = $this->active();
 
-            return ! $config || $image->backup_key
+            return ! $config
                 ? $this->gatewayUrl($image)
                 : $this->oss->url($config, $image->object_key);
         }
@@ -151,6 +151,12 @@ final class ImageStorage
         $url = $this->url($disk, $key);
         $image = $key ? $this->record($disk, $key) : null;
         if ($image) {
+            if ($this->active()) {
+                $process = $profile === 'original' ? null : ImagePresentation::process($profile, $image->mime);
+
+                return $url.($process ? '?x-oss-process='.rawurlencode($process) : '');
+            }
+
             return $this->gatewayUrl($image, $profile);
         }
 

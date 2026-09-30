@@ -2,6 +2,7 @@
 
 namespace App\Application\Support;
 
+use App\Application\Media\ImageStorage;
 use App\Domain\Support\Models\SupportConversation;
 use App\Domain\Support\Models\SupportMessage;
 use App\Domain\Tenant\Models\Tenant;
@@ -50,7 +51,7 @@ final readonly class SupportChatQuery
         $conversation = SupportConversation::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->first();
         $chat = $this->thread($tenantId, $conversation, $before, true);
         foreach ($chat['messages'] as &$message) {
-            if ($message['imageUrl']) {
+            if ($message['imageUrl'] && str_starts_with($message['imageUrl'], '/admin/')) {
                 $message['imageUrl'] = '/platform/tenants/'.$tenantId.'/support/images/'.$message['id'];
             }
         }
@@ -99,7 +100,9 @@ final readonly class SupportChatQuery
                 'fromSupport' => $message->sender_admin_id !== null,
                 'supportName' => $message->sender_admin_id ? $message->support_name : null,
                 'text' => $message->support_message, 'createdAt' => $message->created_at->toIso8601String(),
-                'imageUrl' => $message->image_mime ? ($admin ? '/admin/support/images/' : '/support/images/').$message->id : null,
+                'imageUrl' => $message->image_mime ? (app(ImageStorage::class)->active()
+                    ? app(ImageStorage::class)->displayUrl('private', $message->image_object_key)
+                    : ($admin ? '/admin/support/images/' : '/support/images/').$message->id) : null,
             ])->all(),
         ];
     }

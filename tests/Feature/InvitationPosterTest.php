@@ -1,5 +1,6 @@
 <?php
 
+use App\Application\Media\ImageStorage;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
@@ -18,7 +19,7 @@ beforeEach(function () {
 it('saves and serves only the current company poster with administrator provenance', function () {
     $this->actingAs($this->platform, 'platform_admin')->post($this->base, ['background' => posterTestImage()])->assertRedirect()->assertSessionHasNoErrors();
     $path = $this->company->businessSettings()->value('invitation_poster_background');
-    Storage::disk('private')->assertExists($path);
+    expect(app(ImageStorage::class)->read('private', $path))->toBe(posterTestImage()->getContent());
     expect($this->other->businessSettings()->value('invitation_poster_background'))->toBeNull();
     $this->get($this->base.'/background')->assertOk()->assertHeader('Content-Type', 'image/png');
     $user = User::where('tenant_id', $this->company->id)->firstOrFail();
@@ -41,5 +42,6 @@ function posterTestImage(): UploadedFile
     $png = "\x89PNG\r\n\x1a\n".$chunk('IHDR', pack('NNCCCCC', 600, 900, 8, 2, 0, 0, 0))
         .$chunk('IDAT', gzcompress(str_repeat("\0".str_repeat("\x20\x60\x50", 600), 900)))
         .$chunk('IEND', '');
+
     return UploadedFile::fake()->createWithContent('poster.png', $png);
 }

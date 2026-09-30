@@ -6,6 +6,7 @@ use App\Application\Support\SupportImageStorage;
 use App\Domain\Admin\Models\AdminMembership;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Admin\Models\Role;
+use App\Domain\Media\StoredImage;
 use App\Domain\Support\Models\SupportConversation;
 use App\Domain\Support\Models\SupportMessage;
 use App\Domain\Tenant\Models\Tenant;
@@ -113,7 +114,7 @@ it('keeps retries idempotent including image bytes and rejects changed intent', 
     $first = $this->action->user($this->company->id, $this->customer->id, $requestId, 'image', kycTestImage());
     expect($this->action->user($this->company->id, $this->customer->id, $requestId, 'image', kycTestImage()))->toBe($first)
         ->and(SupportMessage::query()->count())->toBe(1)
-        ->and(count(Storage::disk('private')->allFiles('support')))->toBe(1);
+        ->and(StoredImage::where('purpose', 'support')->where('state', 'ready')->count())->toBe(1);
     expect(fn () => $this->action->user($this->company->id, $this->customer->id, $requestId, 'changed', kycTestImage()))->toThrow(DomainException::class);
     expect(fn () => $this->action->user($this->company->id, $this->customer->id, $requestId, 'image'))->toThrow(DomainException::class);
 });
@@ -158,9 +159,9 @@ it('retains an image if failure is reported after the transaction body completed
         $connection->setEventDispatcher($dispatcher);
     }
     $message = SupportMessage::query()->sole();
-    Storage::disk('private')->assertExists($message->image_object_key);
+    expect(app(SupportImageStorage::class)->read($message->image_object_key))->toBe(kycTestImage()->getContent());
     $this->action->user($this->company->id, $this->customer->id, $requestId, 'keep on uncertainty', kycTestImage());
-    expect(SupportMessage::query()->count())->toBe(1)->and(Storage::disk('private')->allFiles('support'))->toHaveCount(1);
+    expect(SupportMessage::query()->count())->toBe(1)->and(StoredImage::where('purpose', 'support')->where('state', 'ready')->count())->toBe(1);
 });
 
 it('bounds history with stable sequence cursors', function (): void {

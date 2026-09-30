@@ -14,6 +14,8 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    'Verify again': ['重新认证', 'Sahkan semula', 'Verificar de nuevo'],
+    'Upload new identity documents. Your current verification remains valid until approval.': ['请上传新的身份证件，审核通过前保留原认证信息。', 'Muat naik dokumen baharu. Pengesahan semasa kekal sehingga diluluskan.', 'Sube documentos nuevos. La verificación actual se conserva hasta la aprobación.'],
     'Enter the cardholder first name.': ['请填写用卡人的名。', 'Masukkan nama pertama pemegang kad.', 'Introduce el nombre del titular.'],
     'Enter the cardholder last name.': ['请填写用卡人的姓。', 'Masukkan nama keluarga pemegang kad.', 'Introduce el apellido del titular.'],
     'The card application has expired. Please close it and select the card again.': ['开卡申请信息已失效，请关闭后重新选择卡片。', 'Permohonan kad telah luput. Tutup dan pilih kad semula.', 'La solicitud de tarjeta ha caducado. Ciérrala y vuelve a seleccionar la tarjeta.'],

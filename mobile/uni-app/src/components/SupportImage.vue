@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
-import { privateImage } from '../lib/api';
+import { privateImage, photoUrl } from '../lib/api';
 import { t } from '../lib/i18n';
 const props = defineProps<{ path: string }>();
 const src = ref('');
@@ -9,7 +9,7 @@ let alive = true;
 async function load() {
     failed.value = false;
     try {
-        const file = await privateImage(props.path);
+        const file = /^https:\/\//i.test(props.path) ? photoUrl(props.path) : await privateImage(props.path);
         if (alive) src.value = file;
     } catch {
         failed.value = true;

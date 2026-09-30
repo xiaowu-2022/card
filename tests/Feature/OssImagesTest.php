@@ -8,7 +8,9 @@ use App\Application\Media\ImageStorage;
 use App\Application\Media\MigrateImages;
 use App\Application\Media\OssSettings;
 use App\Application\Media\PublicAssets;
+use App\Application\Promotion\PromotionQuery;
 use App\Application\Support\SendSupportMessageAction;
+use App\Application\Support\SupportChatQuery;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Card\Services\CardholderMaterials;
 use App\Domain\Kyc\Enums\KycDocumentType;
@@ -136,7 +138,7 @@ it('keeps stored objects bound to immutable configuration versions and retains a
     $url = $images->url('private', $key);
     $this->data['public_url'] = 'https://new.example.com';
     enableOssFixture($this);
-    expect($images->url('private', $key))->toBe($url)->and($images->read('private', $key))->toBe($bytes)->and($images->record('private', $key)->configuration_id)->toBe($c->id);
+    expect($images->url('private', $key))->toBe('https://new.example.com/'.$images->record('private', $key)->object_key)->and($images->read('private', $key))->toBe($bytes)->and($images->record('private', $key)->configuration_id)->toBe($c->id);
     $this->oss->failPut = true;
     $failed = 'kyc/'.$this->company->id.'/'.Str::uuid();
     $images->put($this->company->id, 'private', $failed, $bytes, 'kyc');
@@ -329,8 +331,9 @@ it('generates bounded display URLs while preserving original bytes and OCR URLs'
     $original = $images->url('private', $key);
     $url = $images->displayUrl('private', $key, 'document');
     parse_str(parse_url($url, PHP_URL_QUERY), $query);
-    expect($query['profile'])->toBe('document')
-        ->and($query['signature'])->not->toBeEmpty()
+    expect($url)->toStartWith('https://images.example.com/')
+        ->and($query['x-oss-process'])->toBe(ImagePresentation::process('document', 'image/png'))
+        ->and($query)->not->toHaveKey('signature')
         ->and($images->ocrUrl('private', $key))->toBe($this->oss->url($images->active(), $images->record('private', $key)->object_key))
         ->and($images->read('private', $key))->toBe($bytes)
         ->and($images->record('private', $key)->sha256)->toBe(hash('sha256', $bytes));
@@ -594,4 +597,21 @@ it('uses the current OSS original for OCR despite replicas and refuses unfinishe
     $image->update(['oss_pending' => false, 'state' => 'cleanup_pending']);
     expect(fn () => $images->ocrUrl('private', $key))->toThrow(HttpException::class);
     expect(fn () => $images->ocrUrl('private', 'missing'))->toThrow(DomainException::class);
+});
+
+it('returns direct current OSS URLs for support and poster DTOs without reading remote bytes', function () {
+    enableOssFixture($this);
+    $id = app(SendSupportMessageAction::class)->user($this->company->id, $this->user->id, (string) Str::uuid(), 'image', kycTestImage());
+    $images = app(ImageStorage::class);
+    $key = 'invitation-posters/'.$this->company->id.'/'.Str::uuid();
+    $images->put($this->company->id, 'private', $key, kycTestImage()->getContent(), 'poster');
+    $this->company->businessSettings()->update(['invitation_poster_background' => $key]);
+    $reads = count($this->oss->reads);
+    $chat = app(SupportChatQuery::class)->user($this->company->id, $this->user->id);
+    expect($chat['messages'][0]['imageUrl'])->toStartWith('https://images.example.com/images/')->toContain('x-oss-process=');
+    $platform = app(SupportChatQuery::class)->platform($this->company->id, $this->owner->id, $this->user->id);
+    expect($platform['messages'][0]['imageUrl'])->toBe($chat['messages'][0]['imageUrl']);
+    $home = app(PromotionQuery::class)->home($this->company->id, $this->user->id);
+    expect($home['posterBackground'])->toStartWith('https://images.example.com/images/')->toContain('x-oss-process=');
+    expect(count($this->oss->reads))->toBe($reads);
 });

@@ -36,7 +36,7 @@ final readonly class SubmitKycApplicationAction
 {
     public function __construct(private IdentityNumberProtector $identities, private AuditLogger $audit, private ApproveKycAction $approve) {}
 
-    public function execute(Tenant $tenant, User $user, string $country, string $identityNumber, UploadedFile|VerifiedDirectImage|DirectKycImage $front, UploadedFile|VerifiedDirectImage|DirectKycImage|null $back, ?string $requestId = null, KycDocumentType $documentType = KycDocumentType::NationalId): KycApplication
+    public function execute(Tenant $tenant, User $user, string $country, string $identityNumber, UploadedFile|VerifiedDirectImage|DirectKycImage $front, UploadedFile|VerifiedDirectImage|DirectKycImage|null $back, ?string $requestId = null, KycDocumentType $documentType = KycDocumentType::NationalId, bool $reverify = false): KycApplication
     {
         $country = strtoupper(trim($country));
         if (preg_match('/^[A-Z]{2}$/', $country) !== 1) {
@@ -52,11 +52,11 @@ final readonly class SubmitKycApplicationAction
         if ($user->tenant_id !== $tenant->id) {
             abort(404);
         }
-        if (IdentityRecord::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->exists()) {
+        if (! $reverify && IdentityRecord::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->exists()) {
             throw new DomainException('KYC_ALREADY_APPROVED', 'Your identity is already verified.');
         }
         $latest = KycApplication::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->latest('submitted_at')->first();
-        if ($latest && $latest->review_status !== KycReviewStatus::ResubmissionRequired) {
+        if ($latest && $latest->review_status !== KycReviewStatus::ResubmissionRequired && ! ($reverify && in_array($latest->review_status, [KycReviewStatus::Approved, KycReviewStatus::Rejected], true))) {
             throw new DomainException('KYC_ALREADY_PENDING', 'Identity verification is already under review.');
         }
         $applicationId = (string) Str::uuid();
@@ -98,7 +98,7 @@ final readonly class SubmitKycApplicationAction
             }
             $protected = $this->identities->protect($tenant->id, $documentType->value, $country, $identityNumber);
 
-            $application = DB::transaction(function () use ($tenant, $user, $country, $applicationId, $frontKey, $backKey, $protected, $requestId, $documentType, $ocr, $provider): KycApplication {
+            $application = DB::transaction(function () use ($tenant, $user, $country, $applicationId, $frontKey, $backKey, $protected, $requestId, $documentType, $ocr, $provider, $reverify): KycApplication {
                 $currentTenant = Tenant::query()->whereKey($tenant->id)->lockForUpdate()->firstOrFail();
                 $currentUser = User::query()->where('tenant_id', $tenant->id)->whereKey($user->id)->lockForUpdate()->firstOrFail();
                 $latest = KycApplication::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->latest('submitted_at')->lockForUpdate()->first();
@@ -106,15 +106,19 @@ final readonly class SubmitKycApplicationAction
                 if ($currentTenant->status !== TenantStatus::Active || $currentUser->status !== UserStatus::Active || ! $settings->enabled || ! in_array($settings->review_mode, [KycReviewMode::Manual, KycReviewMode::Automatic], true)) {
                     throw new DomainException('KYC_SUBMISSION_UNAVAILABLE', 'Identity verification submission is not currently available.', 403);
                 }
-                if (IdentityRecord::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->exists()) {
+                if (! $reverify && IdentityRecord::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->exists()) {
                     throw new DomainException('KYC_ALREADY_APPROVED', 'Your identity is already verified.');
                 }
 
-                if ($latest && $latest->review_status !== KycReviewStatus::ResubmissionRequired) {
+                if ($latest && $latest->review_status !== KycReviewStatus::ResubmissionRequired && ! ($reverify && in_array($latest->review_status, [KycReviewStatus::Approved, KycReviewStatus::Rejected], true))) {
                     throw new DomainException(
                         $latest->review_status === KycReviewStatus::Pending ? 'KYC_ALREADY_PENDING' : 'KYC_RESUBMISSION_NOT_ALLOWED',
                         $latest->review_status === KycReviewStatus::Pending ? 'Identity verification is already under review.' : 'A new submission is not available for this application.',
                     );
+                }
+
+                if ($reverify) {
+                    IdentityRecord::where('tenant_id', $tenant->id)->where('user_id', $user->id)->firstOrFail();
                 }
 
                 $application = new KycApplication;

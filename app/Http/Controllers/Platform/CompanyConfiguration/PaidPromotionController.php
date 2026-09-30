@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Platform\CompanyConfiguration;
 
+use App\Application\Media\ImageStorage;
 use App\Application\Promotion\ConfigurePaidPromotion;
 use App\Application\Promotion\PaidPromotionQuery;
 use App\Application\Promotion\PaidPromotionRules;
@@ -18,7 +19,7 @@ final class PaidPromotionController extends Controller
         $rules->platform($request->user('platform_admin'), 'tenant.manage');
         $page = max(1, min(100000, $request->integer('page', 1)));
 
-        return Inertia::render('platform/PaidPromotion', ['paid' => $query->platform($tenant->id, $page), 'posterBackground' => $tenant->businessSettings->invitation_poster_background ? '/platform/tenants/'.$tenant->id.'/configuration/invitation-poster/background?v='.hash('sha256', $tenant->businessSettings->invitation_poster_background) : null]);
+        return Inertia::render('platform/PaidPromotion', ['paid' => $query->platform($tenant->id, $page), 'posterBackground' => $tenant->businessSettings->invitation_poster_background ? (app(ImageStorage::class)->active() ? app(ImageStorage::class)->displayUrl('private', $tenant->businessSettings->invitation_poster_background, 'poster') : '/platform/tenants/'.$tenant->id.'/configuration/invitation-poster/background?v='.hash('sha256', $tenant->businessSettings->invitation_poster_background)) : null]);
     }
 
     public function batch(Tenant $tenant, Request $request, ConfigurePaidPromotion $configure)

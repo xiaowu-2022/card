@@ -1,3 +1,16 @@
+## 2026-09-30 user-initiated identity re-verification
+
+Approved users may explicitly submit new images with reverify=true, including a
+different identity. OCR and current manual/automatic review remain required. Only
+one pending application is allowed under tenant/user locks. Failed OCR, pending
+review or rejection leaves the current identity in effect. Approval atomically
+updates the existing identity projection after the identity-account limit check
+(excluding the current user), appends KYC_IDENTITY_REBOUND audit links and preserves
+all prior applications. The generic IdentityRecord update/delete guards remain;
+only this approval action performs the scoped projection update. Existing cardholder
+snapshots/cards/ledger are never rewritten. The consumer offers Verify again and
+Cancel; images/identity fields come from the newly approved source after approval.
+
 On 2026-09-30 the user removed consumer document-number entry. New submissions
 derive the identity number exclusively from successful server-side OCR and normalize,
 encrypt and hash that result. Client identity_number is excluded from validated input.

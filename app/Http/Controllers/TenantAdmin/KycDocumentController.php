@@ -23,6 +23,13 @@ final class KycDocumentController extends Controller
         /** @var AdminUser $admin */
         $admin = Auth::guard('tenant_admin')->user();
         $audit->record($context->id(), 'ADMIN', $admin->id, 'KYC_DOCUMENT_VIEWED', 'kyc_application', $application->id, null, ['document_side' => strtoupper($side)], $request->attributes->get('request_id'));
+        $images = app(ImageStorage::class);
+        if ($images->active()) {
+            $key = $application->{$side.'_object_key'};
+            abort_unless($key, 404);
+
+            return redirect()->away($images->displayUrl((string) config('kyc.document_disk'), $key, 'document'));
+        }
         $url = URL::temporarySignedRoute('tenant-admin.kyc.documents.show', now()->addSeconds((int) config('kyc.document_access_ttl_seconds')), ['kyc' => $application->id, 'side' => $side]);
 
         return redirect()->away($url);

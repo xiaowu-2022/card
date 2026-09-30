@@ -1,3 +1,14 @@
+## 2026-09-30 direct OSS display for all image DTOs
+
+OSS mode image URL/display URL builders now return current public OSS URLs even
+when replicas exist. Branding, support threads (consumer/tenant/platform), poster
+backgrounds and authorized KYC photo links use these builders. Local mode retains
+its existing scoped image routes. No server OSS read is performed to generate a
+URL; old signed routes remain available for existing links. Public static manifests
+already provide direct OSS URLs. Poster canvas loading uses anonymous CORS and
+requires the configured OSS/CDN domain to permit the H5 origin; no API credentials
+are sent to the image host. Originals, checksums and provider byte reads are unchanged.
+
 Approved consumer KYC details now return current OSS display URLs directly in OSS
 mode, including for images with local replicas. URL generation does not read OSS.
 User/company scoping and masked identity data are retained; pending/unmapped images

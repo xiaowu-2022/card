@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useSensitiveScreen } from '../lib/sensitive';
-import { computed, reactive } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { t, locale, dateTime } from '../lib/i18n';
 import { useAction } from '../lib/client';
 import { photoUrl } from '../lib/api';
@@ -15,6 +15,7 @@ const props = defineProps<{
     page: {
         kyc: {
             status: string;
+            reverificationPending?: boolean;
             reviewMessage: string | null;
             documentType?: string | null;
             documentCountry?: string | null;
@@ -25,12 +26,20 @@ const props = defineProps<{
             backUrl?: string | null;
         };
         canSubmit: boolean;
+        canReverify?: boolean;
         maxDocumentMb: number;
         backHref: string;
     };
 }>();
 const emit = defineEmits<{ reload: [] }>();
 const action = useAction();
+const reverifying = ref(false);
+function reverify() {
+    resetFiles();
+    form.document_type = props.page.kyc.documentType ?? 'NATIONAL_ID';
+    form.document_country = props.page.kyc.documentCountry ?? 'CN';
+    reverifying.value = true;
+}
 const form = reactive({
     document_type: 'NATIONAL_ID',
     document_country: 'CN',
@@ -103,12 +112,14 @@ async function submit() {
         {
             document_type: form.document_type,
             document_country: form.document_country,
+            reverify: reverifying.value,
         },
         {
             files,
             navigate: false,
             success: () => {
                 resetFiles();
+                reverifying.value = false;
                 emit('reload');
             },
         },
@@ -125,7 +136,7 @@ async function submit() {
                     : t(state.description)
             "
             :tone="state.tone"
-        /><view v-if="page.kyc.status === 'APPROVED'" class="kyc-card">
+        /><view v-if="page.kyc.status === 'APPROVED' && !reverifying" class="kyc-card">
             <text class="kyc-title">{{ t('Identity verified') }}</text>
             <view class="verified-row"
                 ><text>{{ t('Document type') }}</text
@@ -182,8 +193,11 @@ async function submit() {
                     />
                     <text v-else class="muted">{{ t('Image unavailable') }}</text>
                 </view>
-            </view> </view
-        ><view v-else-if="page.canSubmit" class="kyc-card"
+            </view>
+            <button v-if="page.canReverify" class="primary" @click="reverify">{{ t('Verify again') }}</button>
+            <text v-if="page.kyc.reverificationPending" class="muted">{{ t('Verification under review') }}</text>
+            </view
+        ><view v-else-if="page.canSubmit || reverifying" class="kyc-card"
             ><text class="kyc-title">{{
                 t(
                     page.kyc.status === 'RESUBMISSION_REQUIRED'
@@ -197,6 +211,8 @@ async function submit() {
                     ><text @click="go('/support')">{{ t('Online support') }}</text></view
                 ></view
             >
+            <text v-if="reverifying" class="muted">{{ t('Upload new identity documents. Your current verification remains valid until approval.') }}</text>
+            <button v-if="reverifying" class="secondary" :disabled="action.pending.value" @click="reverifying = false; resetFiles()">{{ t('Cancel') }}</button>
             <form @submit="submit">
                 <SelectField
                     v-model="form.document_type"

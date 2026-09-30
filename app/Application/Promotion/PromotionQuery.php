@@ -2,6 +2,7 @@
 
 namespace App\Application\Promotion;
 
+use App\Application\Media\ImageStorage;
 use App\Domain\Kyc\Enums\KycUserStatus;
 use App\Domain\Kyc\Services\KycStatusService;
 use App\Domain\Ledger\ValueObjects\Money;
@@ -26,7 +27,8 @@ final readonly class PromotionQuery
 
         return [
             'paid' => app(PaidPromotionQuery::class)->benefits($tenantId, $userId),
-            'posterBackground' => TenantBusinessSetting::where('tenant_id', $tenantId)->value('invitation_poster_background') ? '/promotion/poster-background' : null,
+            'posterBackground' => ($poster = TenantBusinessSetting::where('tenant_id', $tenantId)->value('invitation_poster_background'))
+                ? (app(ImageStorage::class)->active() ? app(ImageStorage::class)->displayUrl('private', $poster, 'poster') : '/promotion/poster-background') : null,
             'invitationCode' => $member->invitation_code,
             'canPurchase' => $tenant->default_asset === 'USDT'
                 && Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', 'USDT')->where('status', 'ACTIVE')->exists()

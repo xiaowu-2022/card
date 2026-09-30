@@ -51,18 +51,38 @@ final readonly class ApproveKycAction
                     throw new DomainException('KYC_SUBMISSION_UNAVAILABLE', 'Identity verification submission is not currently available.', 403);
                 }
                 DB::select('SELECT pg_advisory_xact_lock(?)', [$this->hashes->advisoryLockKey($application->identity_hash)]);
-                $count = IdentityRecord::query()->where('tenant_id', $tenantId)->where('identity_hash', $application->identity_hash)->count();
+                $existing = IdentityRecord::where('tenant_id', $tenantId)->where('user_id', $application->user_id)->first();
+                $count = IdentityRecord::query()->where('tenant_id', $tenantId)->where('identity_hash', $application->identity_hash)->where('user_id', '<>', $application->user_id)->count();
                 if ($count >= $settings->max_accounts_per_identity) {
                     throw new DomainException('IDENTITY_ACCOUNT_LIMIT_REACHED', 'This identity has reached the Tenant account limit.', 409);
                 }
 
-                $identity = new IdentityRecord;
-                $identity->forceFill([
-                    'id' => (string) Str::uuid(), 'tenant_id' => $tenantId, 'user_id' => $application->user_id,
-                    'source_kyc_application_id' => $application->id, 'document_type' => $application->document_type,
-                    'document_country' => $application->document_country, 'identity_number_encrypted' => $application->identity_number_encrypted,
-                    'identity_hash' => $application->identity_hash, 'verified_at' => now(),
-                ])->save();
+                if ($existing) {
+                    abort_unless($application->resubmission_of_id, 409);
+                    // Explicit re-verification replaces only the current identity projection.
+                    // Prior applications, cardholder snapshots and ledger records are retained.
+                    DB::table('identity_records')->where('id', $existing->id)->where('tenant_id', $tenantId)
+                        ->where('user_id', $application->user_id)->update([
+                            'source_kyc_application_id' => $application->id,
+                            'document_type' => $application->document_type->value,
+                            'document_country' => $application->document_country,
+                            'identity_number_encrypted' => $application->identity_number_encrypted,
+                            'identity_hash' => $application->identity_hash, 'verified_at' => now(), 'updated_at' => now(),
+                        ]);
+                    $this->audit->record($tenantId, $reviewer ? 'ADMIN' : 'SYSTEM', $reviewer?->id, 'KYC_IDENTITY_REBOUND', 'identity_record', $existing->id,
+                        ['source_kyc_application_id' => $existing->source_kyc_application_id], ['source_kyc_application_id' => $application->id], $requestId);
+                    $existing->refresh();
+                }
+                $identity = $existing;
+                if (! $identity) {
+                    $identity = new IdentityRecord;
+                    $identity->forceFill([
+                        'id' => (string) Str::uuid(), 'tenant_id' => $tenantId, 'user_id' => $application->user_id,
+                        'source_kyc_application_id' => $application->id, 'document_type' => $application->document_type,
+                        'document_country' => $application->document_country, 'identity_number_encrypted' => $application->identity_number_encrypted,
+                        'identity_hash' => $application->identity_hash, 'verified_at' => now(),
+                    ])->save();
+                }
                 $application->forceFill([
                     'review_status' => KycReviewStatus::Approved, 'reviewed_by_admin_user_id' => $reviewer?->id,
                     'automatically_approved' => $reviewer === null,

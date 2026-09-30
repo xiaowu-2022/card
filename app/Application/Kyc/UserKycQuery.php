@@ -24,6 +24,7 @@ final readonly class UserKycQuery
             ? IdentityRecord::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->first()
             : null;
 
+        $reverificationPending = $identity && $application?->review_status?->value === 'PENDING';
         if ($identity) {
             $application = KycApplication::where('tenant_id', $tenantId)->where('user_id', $userId)
                 ->whereKey($identity->source_kyc_application_id)->firstOrFail();
@@ -33,12 +34,13 @@ final readonly class UserKycQuery
 
         return [
             'status' => $status->value,
+            'reverificationPending' => (bool) $reverificationPending,
             'documentType' => $identity?->document_type?->value ?? $application?->document_type?->value,
             'frontUrl' => $identity && $application?->front_object_key ? $this->photoUrl($images, $tenantId, $disk, $application->front_object_key) : null,
             'backUrl' => $identity && $application?->back_object_key ? $this->photoUrl($images, $tenantId, $disk, $application->back_object_key) : null,
             'reviewMessage' => $application?->review_message,
             'submittedAt' => $application?->submitted_at?->toIso8601String(),
-            'verifiedAt' => $identity?->verified_at?->toIso8601String(),
+            'verifiedAt' => $identity ? ($application?->reviewed_at ?? $identity->verified_at)?->toIso8601String() : null,
             'documentCountry' => $identity?->document_country ?? $application?->document_country,
             'maskedIdentityNumber' => $identity ? $this->identities->maskEncrypted($identity->identity_number_encrypted) : null,
         ];
