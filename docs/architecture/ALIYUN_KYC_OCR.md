@@ -125,3 +125,20 @@ logging. No image URL, number, name or response body is logged. Failure logging 
 approve or leak an exception. Without a matching production diagnostic the cause
 of a particular user submission remains unconfirmed; never replay real KYC to test.
 Deploy backend changes and rebuilt `public/h5`; no migration or credentials change.
+
+## 2026-09-30 Platform identity detail and photos
+
+User approved Platform viewing identity metadata and photos. Customer rows link to
+that company/user's filtered KYC list; each application links to a company-scoped
+read-only detail. The page shows document type/country, masked number, status and
+timestamps. It does not introduce approval or full-number reveal operations.
+`kyc.read` gates metadata; `kyc.document.view` additionally gates photos. The additive
+004000 migration grants the existing photo permission to Platform Owner/Admin only.
+An explicit POST verifies the current Platform password (15-minute scoped recent
+authentication), audits each photo access, and returns short-lived signed URLs.
+Photo GET requires the same active Platform viewer, both permissions, unexpired
+recent authentication and signature. GET does not write audit or identity records.
+ImageStorage serves current storage with no-store headers; storage errors show an
+unavailable state. Front and back are shown separately, passport uses its one page.
+Deploy backend and compiled public/build, run migrations. Existing Tenant Admin
+photo/review behavior is unchanged.

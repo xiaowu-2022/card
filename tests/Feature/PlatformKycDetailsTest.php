@@ -21,7 +21,7 @@ beforeEach(function () {
     $this->kyc = new KycApplication;
     $this->kyc->forceFill(['tenant_id' => $this->tenant->id, 'user_id' => $user->id, 'document_type' => 'NATIONAL_ID', 'document_country' => 'CN',
         'identity_number_encrypted' => app(KycDataCipher::class)->encrypt('11010519491231002X'), 'identity_hash' => hash('sha256', 'synthetic'),
-        'front_object_key' => 'kyc/test-front', 'back_object_key' => 'kyc/test-back', 'review_status' => 'APPROVED', 'ocr_status' => 'SUCCEEDED', 'submitted_at' => now()])->save();
+        'front_object_key' => 'kyc/test-front', 'back_object_key' => 'kyc/test-back', 'review_status' => 'APPROVED', 'reviewed_at' => now(), 'automatically_approved' => true, 'ocr_status' => 'SUCCEEDED', 'submitted_at' => now()])->save();
     Storage::disk('private')->put('kyc/test-front', kycTestImage()->getContent());
     Storage::disk('private')->put('kyc/test-back', kycTestImage()->getContent());
     $this->base = 'https://admin.localhost/platform/tenants/'.$this->tenant->id.'/kyc/'.$this->kyc->id;

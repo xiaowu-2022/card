@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Head, Link } from '@inertiajs/react';
-import axios from 'axios';
 import { useAdminTranslation, t, dateTime, countryName, errorMessage } from '@/i18n/admin';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -32,29 +31,61 @@ export default function KycDetail({
     const [failed, setFailed] = useState<Record<string, boolean>>({});
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
+    const generation = useRef(0);
+    useEffect(() => {
+        generation.current++;
+        setDocuments({});
+        setPassword('');
+        setError('');
+        setFailed({});
+        setBusy(false);
+        return () => {
+            generation.current++;
+        };
+    }, [application.id, company.id]);
     async function showPhotos() {
         if (busy) return;
+        const current = generation.current;
         setBusy(true);
         setError('');
         try {
-            const response = await axios.post(
+            const response = await fetch(
                 `/platform/tenants/${company.id}/kyc/${application.id}/documents`,
-                { password },
+                {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN':
+                            document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')
+                                ?.content ?? '',
+                    },
+                    body: JSON.stringify({ password }),
+                },
             );
-            setDocuments(response.data.documents);
-            setFailed({});
-        } catch (e) {
-            const data = axios.isAxiosError(e) ? e.response?.data : null;
-            setError(
-                errorMessage(
+            const data = await response.json();
+            if (generation.current !== current) return;
+            if (!response.ok)
+                throw new Error(
                     data?.errors?.password?.[0] ??
                         data?.error?.message ??
                         'Unable to load. Please try again.',
-                ),
+                );
+            setDocuments(data.documents);
+            setFailed({});
+        } catch (e) {
+            if (generation.current !== current) return;
+            setError(
+                errorMessage(
+                    e instanceof Error ? e.message : 'Unable to load. Please try again.',
+                ) ?? t('Unable to load. Please try again.'),
             );
         } finally {
-            setPassword('');
-            setBusy(false);
+            if (generation.current === current) {
+                setPassword('');
+                setBusy(false);
+            }
         }
     }
     return (
@@ -83,7 +114,7 @@ export default function KycDetail({
                         ],
                     ].map(([label, value]) => (
                         <div key={label}>
-                            <dt className="text-sm text-muted-foreground">{t(label)}</dt>
+                            <dt className="text-sm text-muted-foreground">{t(label ?? '')}</dt>
                             <dd className="mt-1 break-all">{value}</dd>
                         </div>
                     ))}
