@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Platform;
 
 use App\Application\Admin\PlatformAdminRecentAuthentication;
 use App\Application\Kyc\TenantKycQueueQuery;
+use App\Application\Media\ImagePresentation;
 use App\Application\Media\ImageStorage;
 use App\Domain\Admin\Enums\ScopeType;
 use App\Domain\Admin\Services\AuthorizationService;
@@ -11,6 +12,7 @@ use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Tenant\Models\Tenant;
 use App\Http\Controllers\Controller;
+use App\Infrastructure\Storage\OssImages;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\URL;
@@ -45,6 +47,19 @@ final class KycDetailController extends Controller
                 continue;
             }
             $audit->record($tenant->id, 'ADMIN', $admin->id, 'KYC_DOCUMENT_VIEWED', 'kyc_application', $application->id, null, ['document_side' => strtoupper($side)], $request->attributes->get('request_id'));
+            $storage = app(ImageStorage::class);
+            $image = $storage->record((string) config('kyc.document_disk'), $application->{$side.'_object_key'});
+            abort_if($image && ($image->tenant_id !== $tenant->id || $image->state !== 'ready'), 404);
+            $config = $storage->active();
+            // Public-read OSS images load in the browser; never proxy them through
+            // the server's unreliable OSS connection just to display a document.
+            if ($config && $image && ! $image->oss_pending) {
+                $url = app(OssImages::class)->url($config, $image->object_key);
+                $process = ImagePresentation::process('document', $image->mime);
+                $documents[$side] = $url.($process ? '?x-oss-process='.rawurlencode($process) : '');
+
+                continue;
+            }
             $documents[$side] = URL::temporarySignedRoute('platform.kyc.documents.show', now()->addSeconds((int) config('kyc.document_access_ttl_seconds')), ['tenant' => $tenant->id, 'kyc' => $kyc, 'side' => $side, 'viewer' => $admin->id]);
         }
 

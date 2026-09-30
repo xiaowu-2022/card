@@ -2,6 +2,9 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Verify your password to view photos. Photos load directly from the configured storage.': '验证管理员密码后，照片直接从当前图片存储加载。',
+    'Photo could not load. Retry or check that the original still exists.': '照片加载失败，请重试或检查原图是否存在。',
+
     'Reviewed at': '认证审核时间',
     'Passport information page': '护照资料页',
     'ID card back': '身份证国徽面',

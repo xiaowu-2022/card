@@ -143,7 +143,7 @@ export default function KycDetail({
                         </form>
                         <p className="text-sm text-muted-foreground">
                             {t(
-                                'Verify your password to view photos. Access is temporary and audited.',
+                                'Verify your password to view photos. Photos load directly from the configured storage.',
                             )}
                         </p>
                         {error && (
@@ -166,7 +166,7 @@ export default function KycDetail({
                                     {failed[side] ? (
                                         <p className="text-sm text-red-600">
                                             {t(
-                                                'Photo unavailable. Verify access again or check image storage.',
+                                                'Photo could not load. Retry or check that the original still exists.',
                                             )}
                                         </p>
                                     ) : (

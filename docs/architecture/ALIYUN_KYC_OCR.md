@@ -142,3 +142,15 @@ ImageStorage serves current storage with no-store headers; storage errors show a
 unavailable state. Front and back are shown separately, passport uses its one page.
 Deploy backend and compiled public/build, run migrations. Existing Tenant Admin
 photo/review behavior is unchanged.
+
+### Direct Platform photo display (2026-09-30)
+
+After the user reported proxy failures and requested simpler viewing, photo-access
+POST now returns the current public OSS domain/object mapping with the existing
+bounded document display transform. It performs no OSS fetch or checksum download.
+Only ready same-company mappings without pending OSS upload use this path; server
+storage/unmapped/local-only files retain the authenticated signed local endpoint.
+Existing Platform permissions, recent password verification and access audit remain.
+OSS photos are already public-read by prior authorization; their returned direct
+URLs are not temporary access grants and cannot be revoked by the admin session.
+No originals, OCR input, provider documents or storage settings are changed.

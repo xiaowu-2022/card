@@ -3,8 +3,11 @@
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Kyc\Services\KycDataCipher;
+use App\Domain\Media\OssConfiguration;
+use App\Domain\Media\StoredImage;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
+use App\Infrastructure\Storage\OssImages;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -48,4 +51,24 @@ it('rejects cross-company paths and permission revocation', function () {
     DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'kyc.document.view')->value('id'))->delete();
     $this->actingAs($this->admin->fresh(), 'platform_admin')->get($url)->assertForbidden();
     $this->postJson($this->base.'/documents', ['password' => 'synthetic-password'])->assertForbidden();
+});
+
+it('returns the current OSS domain without server reads even when a local backup exists', function () {
+    $config = OssConfiguration::create(['region' => 'cn-beijing', 'bucket' => 'test-images',
+        'endpoint' => 'https://oss-cn-beijing.aliyuncs.com', 'public_url' => 'https://images.example.com',
+        'credentials' => ['access_key_id' => 'synthetic', 'access_key_secret' => 'synthetic'], 'created_by' => $this->admin->id]);
+    DB::table('media_storage_settings')->where('id', 1)->update(['storage_driver' => 'oss', 'active_configuration_id' => $config->id]);
+    foreach (['front', 'back'] as $side) {
+        StoredImage::create(['tenant_id' => $this->tenant->id, 'source_disk' => 'private', 'source_key' => 'kyc/test-'.$side,
+            'purpose' => 'kyc', 'configuration_id' => $config->id, 'object_key' => 'images/test-'.$side.'.png', 'mime' => 'image/png',
+            'size' => 68, 'sha256' => hash('sha256', kycTestImage()->getContent()), 'state' => 'ready', 'backup_key' => 'unused-backup']);
+    }
+    $oss = Mockery::mock(OssImages::class)->makePartial();
+    $oss->shouldNotReceive('get');
+    $oss->shouldNotReceive('getBounded');
+    $oss->shouldNotReceive('display');
+    app()->instance(OssImages::class, $oss);
+    $r = $this->postJson($this->base.'/documents', ['password' => 'synthetic-password'])->assertOk();
+    expect($r->json('documents.front'))->toStartWith('https://images.example.com/images/test-front.png?x-oss-process=')
+        ->and($r->json('documents.back'))->toStartWith('https://images.example.com/images/test-back.png?x-oss-process=');
 });
