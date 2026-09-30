@@ -1,3 +1,8 @@
+Approved consumer KYC details now return current OSS display URLs directly in OSS
+mode, including for images with local replicas. URL generation does not read OSS.
+User/company scoping and masked identity data are retained; pending/unmapped images
+have no display URL. Server mode continues to use the signed application gateway.
+
 ## 2026-09-30 KYC direct URL flow restored
 
 New KYC tickets in OSS mode use `kyc_url`. The consumer uploads the original with

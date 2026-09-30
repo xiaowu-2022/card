@@ -2,12 +2,14 @@
 
 namespace App\Application\Kyc;
 
+use App\Application\Media\ImagePresentation;
 use App\Application\Media\ImageStorage;
 use App\Domain\Kyc\Enums\KycUserStatus;
 use App\Domain\Kyc\Models\IdentityRecord;
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Kyc\Services\IdentityNumberProtector;
 use App\Domain\Kyc\Services\KycStatusService;
+use App\Infrastructure\Storage\OssImages;
 
 final readonly class UserKycQuery
 {
@@ -32,13 +34,29 @@ final readonly class UserKycQuery
         return [
             'status' => $status->value,
             'documentType' => $identity?->document_type?->value ?? $application?->document_type?->value,
-            'frontUrl' => $identity && $application?->front_object_key ? $images->displayUrl($disk, $application->front_object_key, 'document') : null,
-            'backUrl' => $identity && $application?->back_object_key ? $images->displayUrl($disk, $application->back_object_key, 'document') : null,
+            'frontUrl' => $identity && $application?->front_object_key ? $this->photoUrl($images, $tenantId, $disk, $application->front_object_key) : null,
+            'backUrl' => $identity && $application?->back_object_key ? $this->photoUrl($images, $tenantId, $disk, $application->back_object_key) : null,
             'reviewMessage' => $application?->review_message,
             'submittedAt' => $application?->submitted_at?->toIso8601String(),
             'verifiedAt' => $identity?->verified_at?->toIso8601String(),
             'documentCountry' => $identity?->document_country ?? $application?->document_country,
             'maskedIdentityNumber' => $identity ? $this->identities->maskEncrypted($identity->identity_number_encrypted) : null,
         ];
+    }
+
+    private function photoUrl(ImageStorage $images, string $tenant, string $disk, string $key): ?string
+    {
+        $config = $images->active();
+        if (! $config) {
+            return $images->displayUrl($disk, $key, 'document');
+        }
+        $image = $images->record($disk, $key);
+        if (! $image || $image->tenant_id !== $tenant || $image->state !== 'ready' || $image->oss_pending) {
+            return null;
+        }
+        $url = app(OssImages::class)->url($config, $image->object_key);
+        $process = ImagePresentation::process('document', $image->mime);
+
+        return $url.($process ? '?x-oss-process='.rawurlencode($process) : '');
     }
 }

@@ -3,9 +3,12 @@
 use App\Application\Kyc\ApproveKycAction;
 use App\Application\Kyc\SubmitKycApplicationAction;
 use App\Application\Kyc\UserKycQuery;
+use App\Application\Media\ImageStorage;
+use App\Application\Media\OssSettings;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
+use App\Infrastructure\Storage\OssImages;
 use Illuminate\Support\Facades\Storage;
 
 it('shows only the current users approved identity information and photos without changing it', function () {
@@ -28,5 +31,26 @@ it('shows only the current users approved identity information and photos withou
     $other = User::where('tenant_id', '<>', $tenant->id)->firstOrFail();
     expect($query->get($other->tenant_id, $other->id)['frontUrl'])->toBeNull();
     expect($query->get($other->tenant_id, $user->id)['backUrl'])->toBeNull();
+    expect($application->fresh()->getAttributes())->toBe($before);
+
+    $settings = app(OssSettings::class);
+    $owner = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $config = $settings->save(['region' => 'cn-beijing', 'bucket' => 'test-images',
+        'endpoint' => 'https://oss-cn-beijing.aliyuncs.com', 'public_url' => 'https://images.example.com',
+        'access_key_id' => 'synthetic-key', 'access_key_secret' => 'synthetic-secret'], $owner);
+    $settings->activate($config, $owner);
+    config(['media.storage' => 'oss']);
+    $oss = Mockery::mock(OssImages::class)->makePartial();
+    foreach (['get', 'getBounded', 'display', 'put'] as $method) {
+        $oss->shouldNotReceive($method);
+    }
+    app()->instance(OssImages::class, $oss);
+    $photos = $query->get($tenant->id, $user->id);
+    foreach (['front', 'back'] as $side) {
+        $image = app(ImageStorage::class)->record('private', $application->{$side.'_object_key'});
+        expect($image->backup_key)->not->toBeEmpty();
+        expect($photos[$side.'Url'])->toStartWith('https://images.example.com/'.$image->object_key.'?x-oss-process=')
+            ->not->toContain('/media/images/', 'signature=');
+    }
     expect($application->fresh()->getAttributes())->toBe($before);
 });
