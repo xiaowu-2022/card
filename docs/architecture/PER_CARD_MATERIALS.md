@@ -175,3 +175,14 @@ is historical only. Sandbox acceptance is not production identity verification.
 Physical applications now include a persisted card form and validated card-face name.
 See [physical cards and recipients](PHOTONPAY_PHYSICAL_CARDS.md) for the approved
 2026-09-24 extension, encrypted shipping snapshot and activation/PIN rules.
+
+### 2026-09-30 Four-field assembly diagnostics
+
+The account resolver now supplies the complete hidden field set, including document
+country. Submission starts from that server-owned set and adds only the visible
+names/email and normalized phone. Hidden client data cannot fill or override it.
+The original canonical field order is retained for retry fingerprints. Missing
+visible names, invalid application identifiers and unavailable account birth dates
+have distinct actionable messages instead of the generic invalid-materials error.
+The actual four-field HTTP submission is covered with an isolated mock provider;
+no live issuing or account/history rewrite is performed. Deploy backend and H5 together.

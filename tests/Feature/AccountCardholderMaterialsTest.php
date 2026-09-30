@@ -55,6 +55,10 @@ it('uses scoped approved originals and the fixed address without changing identi
     $holder = app(SubmitProviderCardholderAction::class)->execute($this->tenant->id, $this->user->id, $this->input);
     expect($holder->status->value)->toBe('READY');
     $saved = json_decode(app(CardholderMaterials::class)->decrypt($holder->materials_encrypted), true);
+    expect(array_keys($saved['fields']))->toBe(['legal_first_name', 'legal_last_name', 'date_of_birth', 'email',
+        'nationality_country_code', 'residential_address', 'residential_city', 'residential_state',
+        'residential_country_code', 'residential_postal_code', 'document_type', 'document_country',
+        'cardholder_name_abbreviation', 'identity_number', 'mobile', 'mobile_prefix']);
     expect($saved['fields']['date_of_birth'])->toBe('1990-03-07')
         ->and($saved['fields']['nationality_country_code'])->toBe('CN')
         ->and($saved['fields']['residential_state'])->toBe('Fujian')
@@ -97,5 +101,33 @@ it('never resolves another tenant account identity', function () {
 it('rejects missing originals before creating a provider holder', function () {
     Storage::disk('private')->delete($this->application->front_object_key);
     expect(fn () => app(SubmitProviderCardholderAction::class)->execute($this->tenant->id, $this->user->id, $this->input))->toThrow(DomainException::class);
+    expect(ProviderCardholder::count())->toBe(0);
+});
+
+it('completes every hidden field from account records despite empty stale client values', function () {
+    $input = $this->input + array_fill_keys(['date_of_birth', 'nationality_country_code', 'residential_country_code',
+        'residential_state', 'residential_city', 'residential_address', 'residential_postal_code',
+        'document_country', 'document_type', 'identity_number'], '');
+    $holder = app(SubmitProviderCardholderAction::class)->execute($this->tenant->id, $this->user->id, $input);
+    $saved = json_decode(app(CardholderMaterials::class)->decrypt($holder->materials_encrypted), true)['fields'];
+    expect($holder->status->value)->toBe('READY')
+        ->and($saved['document_country'])->toBe('CN')->and($saved['document_type'])->toBe('id_card')
+        ->and($saved['date_of_birth'])->toBe('1990-03-07')->and($saved['identity_number'])->toBeNull();
+    Http::assertNothingSent();
+});
+
+it('accepts the actual four-field HTTP form and fills all remaining provider materials', function () {
+    $this->actingAs($this->user, 'tenant_user')->postJson('https://a.localhost/api/v1/client/cards/cardholder', $this->input)
+        ->assertSuccessful();
+    $holder = ProviderCardholder::where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->firstOrFail();
+    expect($holder->status->value)->toBe('READY')->and(CardIssueOrder::count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('identifies a missing visible name instead of reporting generic invalid materials', function () {
+    $input = $this->input;
+    $input['legal_first_name'] = '  ';
+    expect(fn () => app(SubmitProviderCardholderAction::class)->execute($this->tenant->id, $this->user->id, $input))
+        ->toThrow(DomainException::class, 'Enter the cardholder first name.');
     expect(ProviderCardholder::count())->toBe(0);
 });

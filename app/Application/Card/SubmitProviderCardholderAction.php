@@ -48,7 +48,7 @@ final readonly class SubmitProviderCardholderAction
         RefundCardPolicy::assertAllowed($tenantId, $userId);
         $this->assertOwner($tenantId, $userId);
         if (! Str::isUuid($data['request_id'] ?? '') || ! Str::isUuid($data['card_product_id'] ?? '')) {
-            throw new DomainException('CARD_SETUP_INVALID', 'Enter valid cardholder details.');
+            throw new DomainException('CARD_SETUP_INVALID', 'The card application has expired. Please close it and select the card again.');
         }
         $product = CardProduct::query()->whereKey($data['card_product_id'])->firstOrFail();
         $provider = $this->router->forProduct($product);
@@ -60,39 +60,32 @@ final readonly class SubmitProviderCardholderAction
             throw new DomainException('CARD_FORM_UNAVAILABLE', 'This card type is not available.', 409);
         }
         $account = app(AccountCardholderMaterials::class)->resolve($tenantId, $userId);
-        $data = array_intersect_key($data, array_flip(['request_id', 'card_product_id', 'form_factor', 'legal_first_name', 'legal_last_name', 'email', 'mobile', 'mobile_country_code'])) + $account['fields'];
-        $data['cardholder_name_abbreviation'] = strtoupper(trim($data['legal_first_name']).'/'.trim($data['legal_last_name']));
-        $fields = [];
-        foreach (['legal_first_name', 'legal_last_name', 'date_of_birth', 'email', 'nationality_country_code',
-            'residential_address', 'residential_city', 'residential_state', 'residential_country_code',
-            'residential_postal_code', 'document_type', 'document_country'] as $key) {
-            // Issuing country follows this cardholder's nationality, never a separate client value.
-            // Preserve canonical field ordering so unchanged material keeps its request fingerprint.
-            $value = $key === 'document_country' ? ($data['nationality_country_code'] ?? null) : ($data[$key] ?? null);
+        // Fixed/identity-derived fields have one authoritative source. They are not
+        // merged with form values, including empty or outdated client fields.
+        $fields = $account['fields'];
+        foreach (['legal_first_name' => 'Enter the cardholder first name.',
+            'legal_last_name' => 'Enter the cardholder last name.',
+            'email' => 'Enter a valid email address.'] as $key => $message) {
+            $value = $data[$key] ?? null;
             if (! is_string($value) || trim($value) === '') {
-                throw new DomainException('CARD_SETUP_INVALID', 'Enter valid cardholder details.');
+                throw new DomainException('CARD_SETUP_INVALID', $message);
             }
             $fields[$key] = trim($value);
         }
-        // Identity numbers are not part of the editable card form.
-        $identityNumber = $data['identity_number'] ?? null;
-        if ($identityNumber !== null && ! is_string($identityNumber)) {
-            throw new DomainException('CARD_SETUP_INVALID', 'Enter valid cardholder details.');
-        }
-        $identityNumber = $identityNumber === null ? null : trim($identityNumber);
-        if ($identityNumber !== null && $identityNumber !== '' && (mb_strlen($identityNumber) < 3 || mb_strlen($identityNumber) > 64)) {
-            throw new DomainException('CARD_SETUP_INVALID', 'Enter valid cardholder details.');
-        }
-        $fields['cardholder_name_abbreviation'] = $formFactor === 'physical_card' ? ($data['cardholder_name_abbreviation'] ?? '') : null;
-        if ($formFactor === 'physical_card' && (! is_string($fields['cardholder_name_abbreviation']) || strlen($fields['cardholder_name_abbreviation']) > 26 || ! preg_match('/^[A-Z]+(?: [A-Z]+)*\/[A-Z]+(?: [A-Z]+)*$/D', $fields['cardholder_name_abbreviation']))) {
+        $fields['cardholder_name_abbreviation'] = $formFactor === 'physical_card'
+            ? strtoupper($fields['legal_first_name'].'/'.$fields['legal_last_name']) : null;
+        if ($formFactor === 'physical_card' && (strlen($fields['cardholder_name_abbreviation']) > 26 || ! preg_match('/^[A-Z]+(?: [A-Z]+)*\/[A-Z]+(?: [A-Z]+)*$/D', $fields['cardholder_name_abbreviation']))) {
             throw new DomainException('CARD_SETUP_INVALID', 'Enter the uppercase cardholder name as FIRST/LAST.');
         }
-        $fields['identity_number'] = $identityNumber === '' ? null : $identityNumber;
-        if (! in_array($fields['document_type'], ['id_card', 'passport', 'resident_permit'], true)) {
-            throw new DomainException('CARD_SETUP_INVALID', 'Enter valid cardholder details.');
-        }
+        // The simplified form never accepts or forwards a client identity number.
+        $fields['identity_number'] = null;
         $this->geography->assertValid($fields);
         $fields += $this->geography->phone($data['mobile'] ?? null, $data['mobile_country_code'] ?? null);
+        // Preserve the established serialization order for immutable retry fingerprints.
+        $fields = array_replace(array_fill_keys(['legal_first_name', 'legal_last_name', 'date_of_birth', 'email',
+            'nationality_country_code', 'residential_address', 'residential_city', 'residential_state',
+            'residential_country_code', 'residential_postal_code', 'document_type', 'document_country',
+            'cardholder_name_abbreviation', 'identity_number', 'mobile', 'mobile_prefix'], null), $fields);
         [$front, $frontMime] = $account['images']['front'];
         [$back, $backMime] = $account['images']['back'] ?? [null, null];
         $fingerprint = $this->materials->fingerprint($tenantId, $userId, $data['card_product_id'], json_encode([

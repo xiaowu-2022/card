@@ -33,6 +33,8 @@ final class SubmitCardSetupRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'legal_first_name.required' => 'Enter the cardholder first name.',
+            'legal_last_name.required' => 'Enter the cardholder last name.',
             'email.required' => 'This field is required.',
             'mobile.required' => 'This field is required.',
             'mobile_country_code.required' => 'Select a calling code and enter a valid mobile number.',

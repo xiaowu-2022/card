@@ -29,7 +29,7 @@ final class AccountCardholderMaterials
         }
         if (! is_string($birth) || ! preg_match('/^(\d{4})-(\d{2})-(\d{2})$/D', $birth, $parts)
             || ! checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]) || $birth >= now()->format('Y-m-d')) {
-            throw new DomainException('CARD_SETUP_INVALID', 'Enter a valid birth date before today.', 422);
+            throw new DomainException('CARD_SETUP_INVALID', 'The birth date could not be obtained from your verified identity. Please contact support.', 422);
         }
         $keys = ['front' => $application->front_object_key];
         if ($identity->document_type->value !== 'PASSPORT') {
@@ -67,6 +67,7 @@ final class AccountCardholderMaterials
             'residential_country_code' => 'CN', 'residential_state' => 'Fujian', 'residential_city' => 'Fuzhou',
             'residential_address' => '西湖花园3#304', 'residential_postal_code' => '351000',
             'document_type' => $identity->document_type->value === 'PASSPORT' ? 'passport' : 'id_card',
+            'document_country' => 'CN',
         ], 'keys' => $keys, 'images' => $images];
     }
 }

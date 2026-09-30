@@ -14,6 +14,10 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    'Enter the cardholder first name.': ['请填写用卡人的名。', 'Masukkan nama pertama pemegang kad.', 'Introduce el nombre del titular.'],
+    'Enter the cardholder last name.': ['请填写用卡人的姓。', 'Masukkan nama keluarga pemegang kad.', 'Introduce el apellido del titular.'],
+    'The card application has expired. Please close it and select the card again.': ['开卡申请信息已失效，请关闭后重新选择卡片。', 'Permohonan kad telah luput. Tutup dan pilih kad semula.', 'La solicitud de tarjeta ha caducado. Ciérrala y vuelve a seleccionar la tarjeta.'],
+    'The birth date could not be obtained from your verified identity. Please contact support.': ['无法从已认证资料获取有效出生日期，请联系客服处理。', 'Tarikh lahir tidak dapat diperoleh daripada identiti yang disahkan. Hubungi sokongan.', 'No se pudo obtener una fecha de nacimiento válida de tu identidad verificada. Contacta con soporte.'],
     'Upload the portrait side in the front photo field.': ['身份证正面请上传带人像和号码的一面。', 'Muat naik bahagian potret pada ruang foto hadapan.', 'Sube el lado con la foto en el campo del anverso.'],
     'Upload the national emblem side in the back photo field.': ['身份证反面请上传带国徽、签发机关和有效期的一面。', 'Muat naik bahagian lambang negara pada ruang foto belakang.', 'Sube el lado con el emblema nacional en el campo del reverso.'],
     'The issuing authority or validity period could not be recognized. Please upload the complete back of the ID card.': ['未识别到签发机关或有效期，请重新上传完整的身份证反面。', 'Pihak pengeluar atau tempoh sah tidak dikenal pasti. Muat naik bahagian belakang kad pengenalan yang lengkap.', 'No se pudo reconocer la autoridad emisora o la vigencia. Sube el reverso completo del documento.'],
