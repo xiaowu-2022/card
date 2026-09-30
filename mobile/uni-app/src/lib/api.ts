@@ -125,6 +125,19 @@ export async function upload<T>(
                 '/images/direct', 'POST', { purpose, field: file.name, mime },
             );
             if (ticket.mode !== 'server' && !/^https:\/\/[a-z0-9.-]+\/?$/i.test(ticket.url)) throw new ApiError(502);
+            if (ticket.mode === 'kyc_url') {
+                if (purpose !== 'kyc' || !ticket.imageUrl || !/^https:\/\//i.test(ticket.imageUrl)) throw new ApiError(502);
+                await new Promise<void>((resolve, reject) => uni.uploadFile({
+                    url: ticket.url, filePath: file.path, name: 'file', formData: ticket.fields,
+                    header: {}, timeout: 120000,
+                    success: response => response.statusCode >= 200 && response.statusCode < 300
+                        ? resolve() : reject(new ApiError(502)),
+                    fail: () => reject(new ApiError(0)),
+                }));
+                payload[file.name + '_upload_id'] = ticket.id;
+                payload[file.name + '_url'] = ticket.imageUrl;
+                continue;
+            }
             // The private same-origin copy is validated before any business binding.
             await new Promise<void>((resolve, reject) => uni.uploadFile({
                 url: url('/images/direct/' + ticket.id + '/backup'),

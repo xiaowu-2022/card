@@ -208,7 +208,8 @@ function kycUrlFlow($test): void
 
 it('passes scoped uploaded URLs to OCR without any server OSS calls or invented checksums', function () {
     kycUrlFlow($this);
-    $ticket = directFixture($this, 'kyc', 'front');
+    $ticket = $this->postJson($this->base.'/images/direct', ['purpose' => 'kyc', 'field' => 'front', 'mime' => 'image/png'])->assertOk()->json();
+    expect($ticket['mode'])->toBe('kyc_url');
     expect($ticket['fields']['x-oss-object-acl'])->toBe('public-read');
     $provider = Mockery::mock(KycOcrProviderInterface::class);
     $provider->shouldReceive('name')->andReturn('TEST');
@@ -309,7 +310,7 @@ it('serves encrypted replicas during OSS outages and repairs only the image late
 
 it('rejects pending OSS originals before OCR even when a local replica exists', function () {
     kycUrlFlow($this);
-    $ticket = $this->postJson($this->base.'/images/direct', ['purpose' => 'kyc', 'field' => 'front', 'mime' => 'image/png'])->assertOk()->json();
+    $ticket = app(DirectImageUploads::class)->authorize($this->tenant->id, $this->user->id, 'kyc', 'front', 'image/png');
     $this->post($this->base.'/images/direct/'.$ticket['id'].'/backup', ['file' => kycTestImage()])->assertNoContent();
     $this->postJson($this->base.'/images/direct/'.$ticket['id'].'/complete')->assertNoContent();
     $provider = Mockery::mock(KycOcrProviderInterface::class);

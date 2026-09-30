@@ -1,3 +1,14 @@
+## 2026-09-30 KYC direct URL flow restored
+
+New KYC tickets in OSS mode use `kyc_url`. The consumer uploads the original with
+its scoped POST policy and submits the ticket plus exact imageUrl only after OSS
+returns success. It skips backup and complete; failed client uploads stop submission.
+The backend checks company/user/side, expiry, exact URL and single-use binding, then
+calls OCR with the original OSS URL. No HEAD/GET/COPY/ACL request or local backup is
+required in this KYC path. Server mode, card/support dual-copy flows remain unchanged.
+These URL-only objects have no server-verified checksum/size or guaranteed replica;
+no checksum is invented and no original is rewritten. OCR failure never approves KYC.
+
 ## 2026-09-30 OCR follows the storage selector
 
 In OSS mode, OCR uses the current configuration's public original object URL,

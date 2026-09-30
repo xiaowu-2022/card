@@ -55,7 +55,7 @@ final class DirectKycUploads
         });
         $image = StoredImage::findOrFail($upload->image_id);
 
-        return ['id' => $upload->id, 'imageUrl' => $this->oss->url($config, $image->object_key),
+        return ['id' => $upload->id, 'mode' => 'kyc_url', 'imageUrl' => $this->oss->url($config, $image->object_key),
             'expiresAt' => now()->addMinutes(5)->toIso8601String()]
             + $this->oss->directUploadPolicy($config, $image->object_key, $mime, $max, publicRead: true);
     }
