@@ -12,7 +12,7 @@ copied, compressed or deleted by setup cleanup. The submitted envelope remains
 encrypted. CN national IDs supply their encoded birth date; passport accounts require
 an existing profile birth date. Missing/invalid birth information fails closed rather
 than supplying a fictitious date. Chinese nationality and billing address are fixed:
-CN / Fujian / Fuzhou / 西湖花园3#304 / 351000. Client overrides are prohibited.
+CN / Fujian / Fuzhou / 西湖花园3栋304室 / 351000. Client overrides are prohibited.
 Physical-card face names derive uppercase FIRST/LAST from the entered names and
 still must satisfy the provider's Latin-name/26-character rule.
 
@@ -186,3 +186,17 @@ visible names, invalid application identifiers and unavailable account birth dat
 have distinct actionable messages instead of the generic invalid-materials error.
 The actual four-field HTTP submission is covered with an isolated mock provider;
 no live issuing or account/history rewrite is performed. Deploy backend and H5 together.
+
+### 2026-09-30 Live sandbox address rejection and correction
+
+User authorized one test-material cardholder creation to diagnose the production
+VCC1092. With archived test documents, both uploads returned 0000; addCardholder
+returned VCC1092 with the exact billing-address character restriction (only . - , /
+as special characters). The configured # in the apartment address was rejected.
+The server constant now uses equivalent Chinese wording 西湖花园3栋304室. After
+that definitive rejection, a corrected sandbox creation returned 0000 / READY,
+provider holder CH2105262153505886208. No card issue, funding or financial mutation
+was attempted. The created holder is retained; do not repeat the test. Encrypted
+receipts are retained locally under private/diagnostics/create-test-holder-20260930*
+with distinct original and address-fixed attempts. This confirms the sandbox failure
+reason; production still requires deployment and its own provider acceptance.

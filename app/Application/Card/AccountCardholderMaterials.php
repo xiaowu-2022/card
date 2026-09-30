@@ -65,7 +65,7 @@ final class AccountCardholderMaterials
         return ['fields' => [
             'date_of_birth' => $birth, 'nationality_country_code' => 'CN',
             'residential_country_code' => 'CN', 'residential_state' => 'Fujian', 'residential_city' => 'Fuzhou',
-            'residential_address' => '西湖花园3#304', 'residential_postal_code' => '351000',
+            'residential_address' => '西湖花园3栋304室', 'residential_postal_code' => '351000',
             'document_type' => $identity->document_type->value === 'PASSPORT' ? 'passport' : 'id_card',
             'document_country' => 'CN',
         ], 'keys' => $keys, 'images' => $images];

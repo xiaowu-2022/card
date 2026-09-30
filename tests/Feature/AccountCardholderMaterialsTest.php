@@ -63,7 +63,7 @@ it('uses scoped approved originals and the fixed address without changing identi
         ->and($saved['fields']['nationality_country_code'])->toBe('CN')
         ->and($saved['fields']['residential_state'])->toBe('Fujian')
         ->and($saved['fields']['residential_city'])->toBe('Fuzhou')
-        ->and($saved['fields']['residential_address'])->toBe('西湖花园3#304')
+        ->and($saved['fields']['residential_address'])->toBe('西湖花园3栋304室')
         ->and($saved['fields']['residential_postal_code'])->toBe('351000')
         ->and($saved['documents']['front'])->toBe($this->application->front_object_key)
         ->and(Storage::disk('private')->allFiles())->toBe($before)
