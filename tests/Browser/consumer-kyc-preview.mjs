@@ -51,7 +51,7 @@ try {
     };
     await select('ID front');
     await page.getByText(number, { exact: true }).waitFor();
-    assert.equal(await page.locator('.verified-row input').count(), 0);
+    assert.equal(await page.locator('.recognized-number input').count(), 0);
     assert.equal(calls.filter(c => c.path === '/client/kyc/recognize-front').length, 1);
     await select('ID back');
     assert.equal(calls.filter(c => c.path === '/client/kyc/recognize-front').length, 1);

@@ -257,13 +257,13 @@ it('rejects arbitrary URLs field swaps missing URLs expired and foreign tickets 
     $this->postJson($this->base.'/client/kyc/applications', $data + ['front_url' => $front['imageUrl']])->assertStatus(410);
 });
 
-it('keeps both national ID URLs and fails closed on OCR mismatch without synchronous OSS cleanup', function () {
+it('keeps both national ID originals but sends only the front to OCR and fails closed without synchronous OSS cleanup', function () {
     kycUrlFlow($this);
     $front = directFixture($this, 'kyc', 'front');
     $back = directFixture($this, 'kyc', 'back');
     $provider = Mockery::mock(KycOcrProviderInterface::class);
     $provider->shouldReceive('extractIdentityDocument')->once()
-        ->with(Mockery::on(fn ($request) => $request->frontUrl === $front['imageUrl'] && $request->backUrl === $back['imageUrl']))
+        ->with(Mockery::on(fn ($request) => $request->frontUrl === $front['imageUrl'] && $request->backUrl === ''))
         ->andReturn(new KycOcrResultDTO(KycOcrOutcome::Failed));
     app()->instance(KycOcrProviderInterface::class, $provider);
     $this->postJson($this->base.'/client/kyc/applications', [

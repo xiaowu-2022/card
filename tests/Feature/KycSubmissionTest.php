@@ -56,7 +56,9 @@ it('recognizes a mainland national id before saving private documents without di
         ->and($application->front_object_key)->toStartWith("kyc/{$this->tenant->id}/{$this->user->id}/{$application->id}/front/")
         ->and($application->front_object_key)->not->toContain('user@', '1234', 'personal-front')
         ->and($application->back_object_key)->not->toContain('user@', '5678', 'personal-back');
-    Storage::disk('private')->assertExists([$application->front_object_key, $application->back_object_key]);
+    $replicas = StoredImage::where('business_reference', $application->id)->pluck('backup_key')->all();
+    expect($replicas)->toHaveCount(2);
+    Storage::disk('private')->assertExists($replicas);
     Storage::disk('public')->assertMissing([$application->front_object_key, $application->back_object_key]);
     expect($application->ocr_status->value)->toBe('SUCCEEDED');
     Queue::assertNotPushed(ProcessKycOcrJob::class);
@@ -122,13 +124,15 @@ it('keeps one pending application and cleans files uploaded by a failed duplicat
 
     expect(KycApplication::query()->count())->toBe(1)
         ->and(Storage::disk('private')->allFiles())->toHaveCount(2)
-        ->and(Storage::disk('private')->allFiles())->toContain($first->front_object_key, $first->back_object_key);
+        ->and(Storage::disk('private')->allFiles())->toEqualCanonicalizing(StoredImage::where('business_reference', $first->id)->pluck('backup_key')->all());
 });
 
 it('cleans a successful front upload when the back upload fails', function (): void {
     fakeMatchingKycOcr('PARTIAL-1');
     $disk = Mockery::mock(FilesystemAdapter::class);
     $disk->shouldReceive('put')->twice()->andReturn(true, false);
+    $disk->shouldReceive('move')->once()->andReturn(true);
+    $disk->shouldReceive('exists')->andReturn(false);
     $disk->shouldReceive('delete')->twice()->andReturn(true);
     Storage::shouldReceive('disk')->atLeast()->once()->with('private')->andReturn($disk);
 
@@ -141,6 +145,8 @@ it('preserves the primary failure and queues safe cleanup records when deletion 
     fakeMatchingKycOcr('CLEANUP-SECRET');
     $disk = Mockery::mock(FilesystemAdapter::class);
     $disk->shouldReceive('put')->twice()->andReturn(true, false);
+    $disk->shouldReceive('move')->once()->andReturn(true);
+    $disk->shouldReceive('exists')->andReturn(false);
     $disk->shouldReceive('delete')->twice()->andThrow(new RuntimeException('unsafe provider path detail'));
     Storage::shouldReceive('disk')->atLeast()->once()->with('private')->andReturn($disk);
     Log::spy();
@@ -148,7 +154,7 @@ it('preserves the primary failure and queues safe cleanup records when deletion 
     expect(fn () => app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', 'CLEANUP-SECRET', kycTestImage('front.jpg'), kycTestImage('back.jpg')))
         ->toThrow(DomainException::class, 'Image storage is unavailable.');
     $records = StoredImage::where('state', 'cleanup_pending')->get();
-    expect($records)->toHaveCount(2);
+    expect($records)->toHaveCount(1);
     foreach ($records as $record) {
         expect($record->last_error)->toBe('DELETE_FAILED');
     }

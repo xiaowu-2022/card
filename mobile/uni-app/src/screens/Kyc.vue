@@ -282,7 +282,7 @@ async function submit() {
                     :disabled="action.pending.value"
                     searchable
                 /><view class="document-grid"
-                    ><UploadField
+                    ><view><UploadField
                         v-model="form.front"
                         :label="
                             t(
@@ -292,18 +292,20 @@ async function submit() {
                             )
                         "
                         :max-mb="page.maxDocumentMb"
-                        :disabled="action.pending.value" /><UploadField
+                        :disabled="action.pending.value" />
+                        <text v-if="recognizing" class="muted" role="status">{{ t('Recognizing document number…') }}</text>
+                        <FormErrors v-if="Object.keys(recognitionErrors).length" :errors="recognitionErrors" />
+                        <view v-if="recognized" class="recognized-number" aria-live="polite">
+                            <text>{{ t('Recognized document number') }}</text>
+                            <text>{{ recognized.identityNumber }}</text>
+                        </view>
+                    </view><UploadField
                         v-if="form.document_type === 'NATIONAL_ID'"
                         v-model="form.back"
                         :label="t('ID back')"
                         :max-mb="page.maxDocumentMb"
                         :disabled="action.pending.value" /></view
-                ><text v-if="recognizing" class="muted" role="status">{{ t('Recognizing document number…') }}</text>
-                <FormErrors v-if="Object.keys(recognitionErrors).length" :errors="recognitionErrors" />
-                <view v-if="recognized" class="verified-row" aria-live="polite">
-                    <text>{{ t('Recognized document number') }}</text>
-                    <text>{{ recognized.identityNumber }}</text>
-                </view>
+                >
                 <button
                     class="primary submit-button"
                     form-type="submit"
@@ -329,6 +331,22 @@ async function submit() {
     >
 </template>
 <style scoped>
+.recognized-number {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0 0 20px;
+    padding: 12px;
+    background: #f3f6f3;
+    border-radius: 12px;
+    font-size: 14px;
+}
+.recognized-number > text:last-child {
+    font-size: 17px;
+    font-family: monospace;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
 .verified-row {
     display: flex;
     justify-content: space-between;

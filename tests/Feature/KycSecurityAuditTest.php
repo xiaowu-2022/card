@@ -110,7 +110,8 @@ it('never resolves the mock OCR provider in production', function (): void {
 });
 
 it('prevents submitted identity data and reviewed decisions from being rewritten', function (): void {
-    $application = app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'MY', 'IMMUTABLE-123', kycTestImage('front.jpg'), kycTestImage('back.jpg'));
+    fakeMatchingKycOcr('IMMUTABLE-123');
+    $application = app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', 'IMMUTABLE-123', kycTestImage('front.jpg'), kycTestImage('back.jpg'));
     expect(fn () => $application->forceFill(['document_country' => 'SG'])->save())->toThrow(LogicException::class);
 
     $application->refresh()->forceFill([
