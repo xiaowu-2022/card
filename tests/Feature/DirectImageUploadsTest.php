@@ -307,22 +307,17 @@ it('serves encrypted replicas during OSS outages and repairs only the image late
     expect(app(ImageStorage::class)->read('private', $key))->toBe(kycTestImage()->getContent());
 });
 
-it('uses signed original-image URLs for mirrored KYC while OSS is unavailable', function () {
+it('rejects pending OSS originals before OCR even when a local replica exists', function () {
     kycUrlFlow($this);
     $ticket = $this->postJson($this->base.'/images/direct', ['purpose' => 'kyc', 'field' => 'front', 'mime' => 'image/png'])->assertOk()->json();
     $this->post($this->base.'/images/direct/'.$ticket['id'].'/backup', ['file' => kycTestImage()])->assertNoContent();
     $this->postJson($this->base.'/images/direct/'.$ticket['id'].'/complete')->assertNoContent();
     $provider = Mockery::mock(KycOcrProviderInterface::class);
     $provider->shouldReceive('name')->andReturn('TEST');
-    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(function ($request) {
-        expect($request->frontUrl)->toContain('/media/images/', 'signature=', 'profile=original');
-        $this->get($request->frontUrl)->assertOk()->assertContent(kycTestImage()->getContent());
-
-        return $request->backUrl === '';
-    }))->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, 'E12345678'));
+    $provider->shouldNotReceive('extractIdentityDocument');
     app()->instance(KycOcrProviderInterface::class, $provider);
     $this->postJson($this->base.'/client/kyc/applications', ['document_type' => 'PASSPORT', 'document_country' => 'CN',
-        'identity_number' => 'E12345678', 'front_upload_id' => $ticket['id']])->assertSuccessful();
+        'identity_number' => 'E12345678', 'front_upload_id' => $ticket['id']])->assertStatus(503);
     $record = StoredImage::find(DirectImageUpload::find($ticket['id'])->image_id);
     expect($record->sha256)->toBe(hash('sha256', kycTestImage()->getContent()))->and($record->oss_pending)->toBeTrue();
 });

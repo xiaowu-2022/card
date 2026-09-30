@@ -26,6 +26,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use OSS\Core\OssException;
 use OSS\OssClient;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 beforeEach(function () {
     config(['media.storage' => 'oss']);
@@ -142,22 +143,22 @@ it('keeps stored objects bound to immutable configuration versions and retains a
     expect($images->record('private', $failed)->oss_pending)->toBeTrue()->and($images->read('private', $failed))->toBe($bytes);
     Storage::disk('private')->assertMissing($failed);
 });
-it('sends OCR only signed image gateway URLs and no image bytes', function () {
+it('sends OCR only direct OSS original URLs and no image bytes', function () {
     enableOssFixture($this);
     config(['kyc.ocr_driver' => 'aliyun', 'kyc.aliyun.access_key_id' => 'ocr-key', 'kyc.aliyun.access_key_secret' => 'ocr-secret']);
     Http::fake(['ocr-api.cn-hangzhou.aliyuncs.com/*' => Http::response(['Data' => json_encode(['data' => ['passportNumber' => 'E12345678']])])]);
     $app = app(SubmitKycApplicationAction::class)->execute($this->company, $this->user, 'CN', 'E12345678', kycTestImage(), null, documentType: KycDocumentType::Passport);
-    Http::assertSent(function ($request) {
+    Http::assertSent(function ($request) use ($app) {
         parse_str(parse_url($request->url(), PHP_URL_QUERY), $query);
 
-        return $request->body() === '' && str_contains($query['Url'] ?? '', '/media/images/') && str_contains($query['Url'] ?? '', 'signature=') && $request->hasHeader('x-acs-content-sha256', hash('sha256', ''));
+        return $request->body() === '' && ($query['Url'] ?? '') === app(ImageStorage::class)->ocrUrl('private', $app->front_object_key) && $request->hasHeader('x-acs-content-sha256', hash('sha256', ''));
     });
     expect(count($this->oss->objects))->toBe(1)->and($app->front_object_key)->not->toContain('E12345678');
     Storage::disk('private')->assertMissing($app->front_object_key);
 });
 it('persists cleanup work when OCR fails and deletes only unreferenced uploads on recovery', function () {
     enableOssFixture($this);
-    fakeMatchingKycOcr('DIFFERENT');
+    fakeMatchingKycOcr('');
     $this->oss->failDelete = true;
     expect(fn () => app(SubmitKycApplicationAction::class)->execute($this->company, $this->user, 'CN', 'E12345678', kycTestImage(), null, documentType: KycDocumentType::Passport))->toThrow(DomainException::class);
     expect(KycApplication::count())->toBe(0)->and(StoredImage::sole()->state)->toBe('cleanup_pending')->and(StoredImage::sole()->last_error)->toBe('DELETE_FAILED');
@@ -330,7 +331,7 @@ it('generates bounded display URLs while preserving original bytes and OCR URLs'
     parse_str(parse_url($url, PHP_URL_QUERY), $query);
     expect($query['profile'])->toBe('document')
         ->and($query['signature'])->not->toBeEmpty()
-        ->and($images->ocrUrl('private', $key))->toBe($original)
+        ->and($images->ocrUrl('private', $key))->toBe($this->oss->url($images->active(), $images->record('private', $key)->object_key))
         ->and($images->read('private', $key))->toBe($bytes)
         ->and($images->record('private', $key)->sha256)->toBe(hash('sha256', $bytes));
     expect(ImagePresentation::process('brand', 'image/png'))->toContain('w_512,h_512')
@@ -574,4 +575,23 @@ it('classifies upload failures without returning SDK secrets', function () {
             });
         }
     }
+});
+
+it('uses the current OSS original for OCR despite replicas and refuses unfinished objects', function () {
+    $config = enableOssFixture($this);
+    $images = app(ImageStorage::class);
+    $key = 'kyc/'.$this->company->id.'/'.Str::uuid();
+    $images->put($this->company->id, 'private', $key, kycTestImage()->getContent(), 'kyc');
+    $image = $images->record('private', $key);
+    expect($image->backup_key)->not->toBeEmpty();
+    $this->data['public_url'] = 'https://current-images.example.com';
+    enableOssFixture($this);
+    $reads = count($this->oss->reads);
+    expect($images->ocrUrl('private', $key))->toBe('https://current-images.example.com/'.$image->object_key)
+        ->and(count($this->oss->reads))->toBe($reads);
+    $image->update(['oss_pending' => true]);
+    expect(fn () => $images->ocrUrl('private', $key))->toThrow(DomainException::class);
+    $image->update(['oss_pending' => false, 'state' => 'cleanup_pending']);
+    expect(fn () => $images->ocrUrl('private', $key))->toThrow(HttpException::class);
+    expect(fn () => $images->ocrUrl('private', 'missing'))->toThrow(DomainException::class);
 });

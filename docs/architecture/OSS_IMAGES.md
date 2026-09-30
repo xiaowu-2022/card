@@ -1,3 +1,13 @@
+## 2026-09-30 OCR follows the storage selector
+
+In OSS mode, OCR uses the current configuration's public original object URL,
+without display processing or the application image gateway, even when a local
+replica exists. URL generation makes no OSS request. Missing mappings, non-ready
+objects and pending OSS uploads fail closed; they never silently select a local
+OCR URL. Server mode retains its signed original gateway. Switching domains does
+not copy objects; originals must exist at the configured destination. This supersedes
+the OCR gateway fallback described below. No OCR submission is replayed.
+
 On 2026-09-30 the user required image reads and public asset URL prefixes to follow
 the current storage selection/configuration, including existing images. Store object
 keys, not replaceable domain prefixes in business rows. Signed image gateways resolve

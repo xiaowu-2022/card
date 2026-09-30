@@ -27,6 +27,7 @@ beforeEach(function () {
     foreach (['put', 'get', 'getBounded', 'display', 'delete', 'metadata', 'directUploadPolicy', 'copyDirectImage', 'publishDirectImage'] as $method) {
         $oss->shouldNotReceive($method);
     }
+    $oss->shouldReceive('url')->andReturnUsing(fn ($config, $key) => rtrim($config->public_url, '/').'/'.$key);
     app()->instance(OssImages::class, $oss);
     $this->tenant = Tenant::where('slug', 'tenant-a')->firstOrFail();
     $this->user = User::where('tenant_id', $this->tenant->id)->firstOrFail();
@@ -117,7 +118,7 @@ it('persists a permission scoped storage choice without contacting OSS and rejec
     $activeOss->shouldReceive('getBounded')->once()->andThrow(new RuntimeException('current OSS missing object'));
     app()->instance(OssImages::class, $activeOss);
 
-    expect($images->ocrUrl('private', $key))->toContain('/media/images/')->toContain('signature=');
+    expect($images->ocrUrl('private', $key))->toBe('https://images.example.com/'.$key);
     $this->get($originalUrl)->assertOk()->assertContent($this->bytes);
 
     $this->post($url, ['storage_driver' => 'server', 'expected_revision' => 0])->assertSessionHasErrors('storage_driver');
