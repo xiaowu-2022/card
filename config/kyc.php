@@ -3,8 +3,11 @@
 return [
     'data_encryption_key' => env('KYC_DATA_ENCRYPTION_KEY'),
     'identity_hash_key' => env('KYC_IDENTITY_HASH_KEY'),
-    'ocr_driver' => env('KYC_OCR_DRIVER', 'ocr_space'),
-    'ocr_space' => ['api_key_encrypted' => env('OCR_SPACE_API_KEY_ENCRYPTED')],
+    // Retired deployment values select the replacement; no old OCR service remains.
+    'ocr_driver' => match (env('KYC_OCR_DRIVER', 'image_url')) {
+        'aliyun', 'ocr_space' => 'image_url',
+        default => env('KYC_OCR_DRIVER', 'image_url'),
+    },
     'mock_ocr_mode' => env('KYC_MOCK_OCR_MODE', 'SUCCESS'),
     'document_disk' => env('KYC_DOCUMENT_DISK', 'private'),
     'document_max_mb' => (int) env('KYC_DOCUMENT_MAX_MB', 10),

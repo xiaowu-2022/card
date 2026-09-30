@@ -14,10 +14,12 @@ final class DirectImageUploadController extends Controller
     public function store(Request $request, TenantContext $context, DirectImageUploads $uploads)
     {
         $data = $request->validate(['purpose' => 'required|in:kyc,card,support', 'field' => 'required|in:front,back,support_image',
-            'mime' => 'required|in:image/jpeg,image/png,image/webp', 'tenant_id' => 'prohibited', 'user_id' => 'prohibited']);
+            'mime' => 'required|in:image/jpeg,image/png,image/webp', 'tenant_id' => 'prohibited', 'user_id' => 'prohibited', 'recognize_front' => 'sometimes|boolean']);
 
         $user = $request->attributes->get('consumer_user')->id;
-        $ticket = $data['purpose'] === 'kyc' && ! ServerImages::enabled()
+        $preview = (bool) ($data['recognize_front'] ?? false);
+        abort_if($preview && ($data['purpose'] !== 'kyc' || $data['field'] !== 'front'), 422);
+        $ticket = $data['purpose'] === 'kyc' && ! $preview && ! ServerImages::enabled()
             ? app(DirectKycUploads::class)->authorize($context->id(), $user, $data['field'], $data['mime'])
             : $uploads->authorize($context->id(), $user, $data['purpose'], $data['field'], $data['mime']);
 

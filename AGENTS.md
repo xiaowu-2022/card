@@ -1,3 +1,13 @@
+On 2026-10-01 the user replaced all runtime KYC OCR services with the fixed
+GET http://202.95.12.185:9601/ocr?image=<server-generated-original-url> endpoint,
+whose response contains a texts string array. The first/front upload is recognized
+immediately and displays the validated document number read-only; the back is
+uploaded and retained without OCR. Persist encrypted, tenant/user/upload/checksum-
+bound short-lived recognition evidence and reuse it on submission, never trust a
+client number or re-recognize historical images. Preserve national-ID format/date/
+checksum validation, identity-account limits and encrypted evidence. Old Aliyun and
+OCR.Space configurations cannot call retired services. See docs/architecture/IMAGE_URL_KYC.md.
+
 On 2026-09-30 the user replaced Aliyun KYC OCR with OCR.Space and then
 clarified that national ID recognition only needs the identity number. New national
 ID submissions OCR the front once, extract a unique number and validate its format

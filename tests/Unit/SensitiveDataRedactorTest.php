@@ -6,6 +6,12 @@ use Illuminate\Log\Logger;
 use Monolog\Handler\TestHandler;
 use Monolog\Logger as MonologLogger;
 
+it('redacts nested OCR original URLs and encrypted preview evidence', function (): void {
+    $redactor = new SensitiveDataRedactor;
+    expect($redactor->redactString('http://example.test/ocr?image=https%3A%2F%2Fprivate.test%2Fimage%3Fsignature%3Dsecret'))->toBe('http://example.test/ocr?image=[REDACTED]');
+    expect($redactor->redact(['image' => 'signed-original-url', 'kyc_ocr_evidence_encrypted' => 'ciphertext']))->each->toBe('[REDACTED]');
+});
+
 it('redacts SMTP tokens test recipients and transport transcripts', function (): void {
     expect((new SensitiveDataRedactor)->redact(['smtp_token' => 'test-token', 'test_email' => 'test@example.test', 'recipient_hash' => 'test-hash',
         'smtp_transcript' => 'AUTH and DATA', 'smtpDebug' => 'AUTH and DATA']))->each->toBe('[REDACTED]');

@@ -7,10 +7,7 @@ use App\Application\Media\ImageStorage;
 use App\Application\Media\VerifiedDirectImage;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
-use App\Domain\Kyc\DTOs\KycOcrRequestDTO;
 use App\Domain\Kyc\Enums\KycDocumentType;
-use App\Domain\Kyc\Enums\KycOcrFailureReason;
-use App\Domain\Kyc\Enums\KycOcrOutcome;
 use App\Domain\Kyc\Enums\KycOcrStatus;
 use App\Domain\Kyc\Enums\KycReviewStatus;
 use App\Domain\Kyc\Models\IdentityRecord;
@@ -67,6 +64,9 @@ final readonly class SubmitKycApplicationAction
         $stored = [];
         $images = app(ImageStorage::class);
 
+        $preview = $front instanceof VerifiedDirectImage
+            ? app(PreviewKycNumber::class)->resultFor($front, $documentType, $country) : null;
+
         try {
             $images->putUpload($tenant->id, $disk, $frontKey, $front, 'kyc', $applicationId);
             $stored[] = $frontKey;
@@ -74,28 +74,9 @@ final readonly class SubmitKycApplicationAction
                 $images->putUpload($tenant->id, $disk, $backKey, $back, 'kyc', $applicationId);
                 $stored[] = $backKey;
             }
-            $frontUrl = $images->ocrUrl($disk, $frontKey);
-            $backUrl = $backKey ? $images->ocrUrl($disk, $backKey) : '';
             $provider = app(KycOcrProviderInterface::class);
-            try {
-                $ocr = $provider->extractIdentityDocument(new KycOcrRequestDTO($documentType, $country, $frontUrl, $backUrl));
-            } catch (Throwable) {
-                throw new DomainException('KYC_OCR_UNAVAILABLE', 'Document recognition is temporarily unavailable. Please try again later.', 503);
-            }
-            if ($ocr->outcome !== KycOcrOutcome::Success || ! $ocr->candidateIdentityNumber) {
-                throw new DomainException('KYC_OCR_MISMATCH', match ($ocr->failureReason) {
-                    KycOcrFailureReason::FrontSide => 'Upload the portrait side in the front photo field.',
-                    KycOcrFailureReason::BackSide => 'Upload the national emblem side in the back photo field.',
-                    KycOcrFailureReason::BackFields => 'The issuing authority or validity period could not be recognized. Please upload the complete back of the ID card.',
-                    KycOcrFailureReason::NumberFormat, KycOcrFailureReason::NumberChecksum => 'The recognized document number did not pass validation. Please retake the number area without glare.',
-                    default => 'The document number could not be recognized. Please upload a clear document image.',
-                });
-            }
-            try {
-                $identityNumber = app(IdentityNumberNormalizer::class)->normalize($ocr->candidateIdentityNumber);
-            } catch (DomainException) {
-                throw new DomainException('KYC_OCR_MISMATCH', 'The document number could not be recognized. Please upload a clear document image.');
-            }
+            $ocr = $preview ?? app(RecognizeKycNumber::class)->execute($documentType, $country, $images->ocrUrl($disk, $frontKey));
+            $identityNumber = app(IdentityNumberNormalizer::class)->normalize($ocr->candidateIdentityNumber);
             $protected = $this->identities->protect($tenant->id, $documentType->value, $country, $identityNumber);
 
             $application = DB::transaction(function () use ($tenant, $user, $country, $applicationId, $frontKey, $backKey, $protected, $requestId, $documentType, $ocr, $provider, $reverify): KycApplication {

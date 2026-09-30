@@ -34,8 +34,8 @@ use App\Infrastructure\Providers\Card\PhotonPayCardResponseNormalizer;
 use App\Infrastructure\Providers\Card\UnavailableCardProvider;
 use App\Infrastructure\Providers\Domain\DnsDomainVerificationService;
 use App\Infrastructure\Providers\Domain\LocalDomainVerificationService;
+use App\Infrastructure\Providers\Kyc\ImageUrlKycOcrProvider;
 use App\Infrastructure\Providers\Kyc\MockKycOcrProvider;
-use App\Infrastructure\Providers\Kyc\OcrSpaceKycOcrProvider;
 use App\Infrastructure\Providers\Kyc\UnavailableKycOcrProvider;
 use App\Infrastructure\Providers\Payment\MockPaymentProvider;
 use App\Infrastructure\Providers\Payment\UnavailablePaymentProvider;
@@ -122,8 +122,8 @@ class AppServiceProvider extends ServiceProvider
             return new UnavailableCardProvider;
         });
         $this->app->bind(KycOcrProviderInterface::class, function (): KycOcrProviderInterface {
-            if (config('kyc.ocr_driver') === 'ocr_space') {
-                return new OcrSpaceKycOcrProvider;
+            if (config('kyc.ocr_driver') === 'image_url') {
+                return new ImageUrlKycOcrProvider;
             }
             if (config('kyc.ocr_driver') === 'mock' && app()->environment(['local', 'testing'])) {
                 return new MockKycOcrProvider((string) config('kyc.mock_ocr_mode'));

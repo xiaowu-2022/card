@@ -1,3 +1,5 @@
+> Superseded for new submissions on 2026-10-01 by [Image URL KYC](IMAGE_URL_KYC.md). The configuration below is historical.
+
 # OCR.Space KYC (2026-09-30)
 
 User selected OCR.Space instead of Aliyun and clarified that mainland national ID

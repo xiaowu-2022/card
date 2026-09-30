@@ -72,7 +72,7 @@ export async function request<T>(
             data,
             header: headers(),
             withCredentials: !native,
-            timeout: path.split('?')[0] === '/client/kyc/applications' ? 300000
+            timeout: ['/client/kyc/applications', '/client/kyc/recognize-front'].includes(path.split('?')[0]) ? 300000
                 : path.split('?')[0] === '/client/cards/cardholder' ? 180000
                 : path.split('?')[0] === '/support/messages' ? 60000
                 : /^\/images\/direct\/[^/]+\/complete$/.test(path) ? 150000 : 20000,
@@ -104,6 +104,7 @@ export async function upload<T>(
     });
     const purpose = ({
         '/client/kyc/applications': 'kyc',
+        '/client/kyc/recognize-front': 'kyc',
         '/client/cards/cardholder': 'card',
         '/support/messages': 'support',
     } as Record<string, string>)[path.split('?')[0]];
@@ -128,7 +129,9 @@ export async function upload<T>(
             }
             if (!['image/jpeg', 'image/png', 'image/webp'].includes(mime)) throw new ApiError(422);
             const ticket = await request<UploadTicket>(
-                '/images/direct', 'POST', { purpose, field: file.name, mime },
+                '/images/direct', 'POST', { purpose, field: file.name, mime,
+                    ...(path.split('?')[0] === '/client/kyc/recognize-front' ? { recognize_front: true } : {}),
+                },
             );
             if (ticket.mode !== 'server' && !/^https:\/\/[a-z0-9.-]+\/?$/i.test(ticket.url)) throw new ApiError(502);
             prepared.push({ file, ticket });
@@ -188,7 +191,7 @@ export async function upload<T>(
         uni.uploadFile({
             url: url(path),
             header: headers(),
-            timeout: path.split('?')[0] === '/client/kyc/applications' ? 300000 : 60000,
+            timeout: ['/client/kyc/applications', '/client/kyc/recognize-front'].includes(path.split('?')[0]) ? 300000 : 60000,
             formData: Object.fromEntries(Object.entries(data).map(([key, value]) => [key, typeof value === 'boolean' ? (value ? '1' : '0') : String(value ?? '')])),
             files: files.map((file) => ({ name: file.name, uri: file.path })),
             success(response) {

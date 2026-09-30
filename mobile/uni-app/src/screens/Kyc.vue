@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { useSensitiveScreen } from '../lib/sensitive';
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { t, locale, dateTime } from '../lib/i18n';
-import { useAction } from '../lib/client';
-import { photoUrl } from '../lib/api';
+import { useAction, explainError } from '../lib/client';
+import { photoUrl, upload, sessionGeneration } from '../lib/api';
 import { go } from '../lib/navigation';
 import ProcessingOverlay from '../components/ProcessingOverlay.vue';
 import type { UploadProgress } from '../lib/api';
@@ -35,9 +35,13 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ reload: [] }>();
 const action = useAction();
+const recognizing = ref(false);
+const recognized = ref<{ identityNumber: string; frontUploadId: string; expiresAt: string } | null>(null);
+const recognitionErrors = ref<Record<string, string>>({});
+let recognitionVersion = 0;
 const progress = ref<UploadProgress>({ stage: 'uploading', completed: 0, total: 2 });
 const processingMessage = computed(() => progress.value.stage === 'submitting'
-    ? t('Recognizing and submitting identity verification…')
+    ? t('Submitting…')
     : t('Uploading documents ({{completed}}/{{total}})', { completed: progress.value.completed, total: progress.value.total }));
 const reverifying = ref(false);
 function reverify() {
@@ -96,22 +100,54 @@ const countryOptions = computed(() => {
         });
 });
 function resetFiles() {
+    clearRecognition();
     form.document_country = 'CN';
     form.front = '';
     form.back = '';
 }
 useSensitiveScreen(
     () => {
+        clearRecognition();
         form.front = '';
         form.back = '';
     },
     { retainOnBackground: true },
 );
+function clearRecognition() {
+    recognitionVersion++;
+    recognizing.value = false;
+    recognized.value = null;
+    recognitionErrors.value = {};
+}
+watch(() => [form.front, form.document_type, form.document_country], async () => {
+    clearRecognition();
+    if (!form.front) return;
+    const version = recognitionVersion;
+    const generation = sessionGeneration;
+    recognizing.value = true;
+    try {
+        const result = await upload<{ identityNumber: string; frontUploadId: string; expiresAt: string }>(
+            '/client/kyc/recognize-front',
+            { document_type: form.document_type, document_country: form.document_country, reverify: reverifying.value },
+            [{ name: 'front', path: form.front }],
+        );
+        if (version !== recognitionVersion || generation !== sessionGeneration) return;
+        recognized.value = result;
+    } catch (error) {
+        if (version === recognitionVersion && generation === sessionGeneration) recognitionErrors.value = explainError(error);
+    } finally {
+        if (version === recognitionVersion) recognizing.value = false;
+    }
+});
 async function submit() {
-    if (action.pending.value) return;
-    progress.value = { stage: 'uploading', completed: 0, total: form.document_type === 'NATIONAL_ID' ? 2 : 1 };
+    if (action.pending.value || recognizing.value || !recognized.value) return;
+    if (Date.parse(recognized.value.expiresAt) <= Date.now()) {
+        clearRecognition();
+        recognitionErrors.value = { form: t('Please select and recognize the front image again.') };
+        return;
+    }
+    progress.value = { stage: 'uploading', completed: 0, total: form.document_type === 'NATIONAL_ID' ? 1 : 0 };
     const files = [
-        { name: 'front', path: form.front },
         ...(form.document_type === 'NATIONAL_ID' ? [{ name: 'back', path: form.back }] : []),
     ].filter((file) => file.path);
     await action.submit(
@@ -121,6 +157,7 @@ async function submit() {
             document_type: form.document_type,
             document_country: form.document_country,
             reverify: reverifying.value,
+            front_upload_id: recognized.value.frontUploadId,
         },
         {
             files,
@@ -133,6 +170,11 @@ async function submit() {
             },
         },
     );
+    // A failed submission may already have consumed its single-use upload reference.
+    if (action.failureStatus.value) {
+        clearRecognition();
+        recognitionErrors.value = { form: t('Please select and recognize the front image again.') };
+    }
 }
 </script>
 <template>
@@ -256,11 +298,18 @@ async function submit() {
                         :label="t('ID back')"
                         :max-mb="page.maxDocumentMb"
                         :disabled="action.pending.value" /></view
-                ><button
+                ><text v-if="recognizing" class="muted" role="status">{{ t('Recognizing document number…') }}</text>
+                <FormErrors v-if="Object.keys(recognitionErrors).length" :errors="recognitionErrors" />
+                <view v-if="recognized" class="verified-row" aria-live="polite">
+                    <text>{{ t('Recognized document number') }}</text>
+                    <text>{{ recognized.identityNumber }}</text>
+                </view>
+                <button
                     class="primary submit-button"
                     form-type="submit"
                     :disabled="
                         action.pending.value ||
+                        recognizing || !recognized ||
                         !form.front ||
                         (form.document_type === 'NATIONAL_ID' && !form.back)
                     "

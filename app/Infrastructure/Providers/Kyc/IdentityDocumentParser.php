@@ -10,7 +10,7 @@ use App\Domain\Kyc\Enums\KycOcrOutcome;
 use Illuminate\Support\Facades\Log;
 
 /** Text extraction is not document authenticity or holder verification. */
-final class OcrSpaceDocumentParser
+final class IdentityDocumentParser
 {
     public function parse(#[\SensitiveParameter] KycOcrRequestDTO $request, callable $recognize): KycOcrResultDTO
     {
@@ -95,7 +95,7 @@ final class OcrSpaceDocumentParser
     private function reject(KycOcrFailureReason $reason): KycOcrResultDTO
     {
         try {
-            Log::warning('OCR.Space KYC OCR rejected', ['reason' => $reason->value]);
+            Log::warning('KYC number validation rejected', ['reason' => $reason->value]);
         } catch (\Throwable) {
         }
 

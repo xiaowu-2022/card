@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\User;
 
+use App\Application\Kyc\PreviewKycNumber;
 use App\Application\Kyc\SubmitKycApplicationAction;
 use App\Application\Kyc\UserKycQuery;
 use App\Domain\Kyc\Enums\KycDocumentType;
@@ -11,7 +12,9 @@ use App\Domain\Tenant\TenantContext;
 use App\Domain\User\Enums\UserStatus;
 use App\Domain\User\Models\User;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\RecognizeKycFrontRequest;
 use App\Http\Requests\SubmitKycApplicationRequest;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,6 +23,15 @@ use Inertia\Response;
 
 final class KycController extends Controller
 {
+    public function recognizeFront(RecognizeKycFrontRequest $request, TenantContext $context, PreviewKycNumber $action): JsonResponse
+    {
+        $data = $request->validated();
+        $user = Auth::guard('tenant_user')->user();
+
+        return response()->json($action->execute($context->tenant(), $user, $data['front_upload_id'], KycDocumentType::from($data['document_type']), $data['document_country'], (bool) ($data['reverify'] ?? false)))
+            ->header('Cache-Control', 'private, no-store');
+    }
+
     public function show(Request $request, TenantContext $context, UserKycQuery $query): Response
     {
         /** @var User $user */

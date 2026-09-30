@@ -4,7 +4,7 @@ namespace App\Support\Logging;
 
 final class SensitiveDataRedactor
 {
-    private const SENSITIVE_KEY_PATTERN = '/^(?:apikey|ocr_space_api_key_encrypted|access_key_id|phone_numbers|template_param|materials_encrypted|request_hash|front|back|cert_id|first_name|last_name|legal_first_name|legal_last_name|date_of_birth|residential_address|email|mobile|phone|code|code_hash|verification_code|verification_code_hash|identity_number_encrypted|identity_hash|ocr_result|ocr_result_encrypted|document_url|signed_url|front_object_key|back_object_key|portrait|reverse_side|withdrawal_address|address_ciphertext|address_hash|card_no|card_number|x_pd_token|x_pd_authorization|private_key|(?:.*_)?(?:password(?:_confirmation)?|otp|identity_number|identity_document|api_key|secret|token|pan|cvv|authorization|cookie|set_cookie))$/';
+    private const SENSITIVE_KEY_PATTERN = '/^(?:image|kyc_ocr_evidence_encrypted|apikey|ocr_space_api_key_encrypted|access_key_id|phone_numbers|template_param|materials_encrypted|request_hash|front|back|cert_id|first_name|last_name|legal_first_name|legal_last_name|date_of_birth|residential_address|email|mobile|phone|code|code_hash|verification_code|verification_code_hash|identity_number_encrypted|identity_hash|ocr_result|ocr_result_encrypted|document_url|signed_url|front_object_key|back_object_key|portrait|reverse_side|withdrawal_address|address_ciphertext|address_hash|card_no|card_number|x_pd_token|x_pd_authorization|private_key|(?:.*_)?(?:password(?:_confirmation)?|otp|identity_number|identity_document|api_key|secret|token|pan|cvv|authorization|cookie|set_cookie))$/';
 
     /** @param array<string, mixed> $data @return array<string, mixed> */
     public function redact(array $data): array
@@ -28,7 +28,7 @@ final class SensitiveDataRedactor
         $value = preg_replace('/\bBearer\s+[^\s,;]+/i', 'Bearer [REDACTED]', $value) ?? $value;
         $value = preg_replace('/ACS3-HMAC-SHA256\s+Credential=[^\r\n]+/i', 'ACS3-HMAC-SHA256 [REDACTED]', $value) ?? $value;
 
-        return preg_replace('/([?&](?:apikey|PhoneNumbers|TemplateParam|AccessKeyId|AccessKeySecret)=)[^&\s]+/i', '$1[REDACTED]', $value) ?? $value;
+        return preg_replace('/([?&](?:image|apikey|PhoneNumbers|TemplateParam|AccessKeyId|AccessKeySecret)=)[^&\s]+/i', '$1[REDACTED]', $value) ?? $value;
     }
 
     private function normalizeKey(string $key): string
