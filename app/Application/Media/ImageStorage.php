@@ -210,8 +210,11 @@ final class ImageStorage
                 throw new DomainException('KYC_DOCUMENT_STORAGE_FAILED', 'Image storage is unavailable. Please try again.', 503);
             }
 
-            // OCR reads the unchanged original directly, even when a server replica exists.
-            return $this->oss->url($config, $image->object_key);
+            // The selected OCR service requires HTTP for OSS originals. Display/upload
+            // URLs retain their configured scheme; signed server URLs are not rewritten.
+            $url = $this->oss->url($config, $image->object_key);
+
+            return preg_replace('/^https:\/\//i', 'http://', $url);
         }
         if (! ServerImages::enabled() && ! $image?->configuration_id && ! $image?->backup_key && ! app()->environment('testing') && config('kyc.ocr_driver') !== 'mock') {
             throw new DomainException('KYC_DOCUMENT_STORAGE_FAILED', 'Configure and enable OSS before identity verification.', 503);
