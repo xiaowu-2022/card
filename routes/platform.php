@@ -129,7 +129,12 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::post('/card-providers', [CardProviderController::class, 'store'])->name('card-providers.store');
         Route::put('/card-providers/{reference}', [CardProviderController::class, 'update'])->whereUuid('reference')->name('card-providers.update');
     });
+    Route::middleware(['admin.scope:platform,kyc.read', 'admin.scope:platform,kyc.document.view'])->group(function (): void {
+        Route::post('/tenants/{tenant}/kyc/{kyc}/documents', [\App\Http\Controllers\Platform\KycDetailController::class, 'access'])->whereUuid(['tenant', 'kyc'])->middleware('throttle:5,1')->name('kyc.documents.access');
+        Route::get('/tenants/{tenant}/kyc/{kyc}/documents/{side}', [\App\Http\Controllers\Platform\KycDetailController::class, 'image'])->whereUuid(['tenant', 'kyc'])->whereIn('side', ['front', 'back'])->middleware('signed')->name('kyc.documents.show');
+    });
     Route::middleware('admin.scope:platform,kyc.read')->group(function (): void {
+        Route::get('/tenants/{tenant}/kyc/{kyc}', [\App\Http\Controllers\Platform\KycDetailController::class, 'show'])->whereUuid(['tenant', 'kyc'])->name('kyc.show');
         Route::get('/kyc', [AccountOperationsController::class, 'index'])->name('kyc.index');
         Route::get('/tenants/{tenant}/kyc', [AccountOperationsController::class, 'kyc'])->whereUuid('tenant')->name('kyc.company');
     });

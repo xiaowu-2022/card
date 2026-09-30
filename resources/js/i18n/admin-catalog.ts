@@ -2,6 +2,19 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Reviewed at': '认证审核时间',
+    'Passport information page': '护照资料页',
+    'ID card back': '身份证国徽面',
+    'ID card front': '身份证人像面',
+    'View details': '查看详情',
+    'View identity verification': '查看实名认证',
+    'View identity information and document photos.': '查看用户实名信息及证件照片。',
+    'Identity verification details': '实名认证详情',
+    'Identity document photos': '实名证件照片',
+    'View photos': '查看照片',
+    'Verify your password to view photos. Access is temporary and audited.': '验证当前管理员密码后查看照片，访问临时有效并记录审计。',
+    'Photo unavailable. Verify access again or check image storage.': '照片暂不可用，请重新验证查看权限或检查图片存储服务。',
+
     'Edit this configuration directly. Test checks the current form without saving; save applies it without a separate activation step.':
         '直接编辑当前配置。测试只检查表单内容、不保存；保存后直接应用，无需再次启用。',
     'Server storage is active. You can save and test OSS here; using OSS requires IMAGE_STORAGE_DRIVER=oss.':

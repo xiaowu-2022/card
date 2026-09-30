@@ -29,8 +29,10 @@ export default function Users({
     filters,
     financialAccess,
     canAdjustWallet,
+    canViewKyc,
 }: {
     canAdjustWallet: boolean;
+    canViewKyc: boolean;
     users: AccountPage<User>;
     companies: { id: string; name: string }[];
     filters: { company?: string; search?: string; status?: string };
@@ -156,6 +158,21 @@ export default function Users({
                                 />
                             ),
                         },
+                        ...(canViewKyc
+                            ? [
+                                  {
+                                      label: 'KYC',
+                                      render: (row: User) => (
+                                          <Link
+                                              className="text-primary underline"
+                                              href={`/platform/kyc?company=${row.companyId}&search=${row.id}`}
+                                          >
+                                              {t('View identity verification')}
+                                          </Link>
+                                      ),
+                                  },
+                              ]
+                            : []),
                         ...(canAdjustWallet
                             ? [
                                   {

@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { useAdminTranslation, t, dateTime, countryName } from '@/i18n/admin';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
@@ -8,6 +8,7 @@ import { PlatformLayout } from '@/layouts/PlatformLayout';
 type Application = {
     id: string;
     companyName: string;
+    companyId: string;
     user: { displayName: string | null; contact: string | null };
     documentCountry: string;
     reviewStatus: string;
@@ -31,9 +32,7 @@ export default function Kyc({
                 <PageHeader
                     eyebrow={t('Operations')}
                     title={t('KYC')}
-                    description={t(
-                        'Read-only identity application status. Document access and review remain in the company backend.',
-                    )}
+                    description={t('View identity information and document photos.')}
                 />
                 <PlatformAccountTable
                     key={JSON.stringify(filters)}
@@ -77,6 +76,17 @@ export default function Kyc({
                                     }
                                     label={t(row.reviewStatus)}
                                 />
+                            ),
+                        },
+                        {
+                            label: 'Actions',
+                            render: (row) => (
+                                <Link
+                                    className="text-primary underline"
+                                    href={`/platform/tenants/${row.companyId}/kyc/${row.id}`}
+                                >
+                                    {t('View details')}
+                                </Link>
                             ),
                         },
                         { label: 'Submitted', render: (row) => dateTime(row.submittedAt) },
