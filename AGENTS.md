@@ -1,3 +1,12 @@
+On 2026-09-30 the user replaced Aliyun KYC OCR with OCR.Space and then
+clarified that national ID recognition only needs the identity number. New national
+ID submissions OCR the front once, extract a unique number and validate its format
+and checksum; name and back-side authority/validity recognition are no longer gates.
+Existing document uploads and tenant/user/account-limit/encrypted-evidence rules remain.
+OCR receives server-generated original URLs only. No historical re-recognition or
+identity rewrite. Credentials are encrypted server-side; never log keys or OCR text.
+See docs/architecture/OCR_SPACE_KYC.md.
+
 On 2026-09-30 the user removed consumer document-number entry. New submissions
 derive the identity number exclusively from successful server-side OCR and normalize,
 encrypt and hash that result. Client identity_number is excluded from validated input.

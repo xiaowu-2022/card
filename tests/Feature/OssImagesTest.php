@@ -21,6 +21,7 @@ use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use App\Infrastructure\Storage\OssImages;
 use App\Support\Errors\DomainException;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -147,13 +148,11 @@ it('keeps stored objects bound to immutable configuration versions and retains a
 });
 it('sends OCR only direct OSS original URLs and no image bytes', function () {
     enableOssFixture($this);
-    config(['kyc.ocr_driver' => 'aliyun', 'kyc.aliyun.access_key_id' => 'ocr-key', 'kyc.aliyun.access_key_secret' => 'ocr-secret']);
-    Http::fake(['ocr-api.cn-hangzhou.aliyuncs.com/*' => Http::response(['Data' => json_encode(['data' => ['passportNumber' => 'E12345678']])])]);
+    config(['kyc.ocr_driver' => 'ocr_space', 'kyc.ocr_space.api_key_encrypted' => Crypt::encryptString('ocr-key')]);
+    Http::fake(['api.ocr.space/*' => Http::response(['OCRExitCode' => 1, 'IsErroredOnProcessing' => false, 'ParsedResults' => [['FileParseExitCode' => 1, 'ParsedText' => 'Passport No: E12345678']]])]);
     $app = app(SubmitKycApplicationAction::class)->execute($this->company, $this->user, 'CN', 'E12345678', kycTestImage(), null, documentType: KycDocumentType::Passport);
     Http::assertSent(function ($request) use ($app) {
-        parse_str(parse_url($request->url(), PHP_URL_QUERY), $query);
-
-        return $request->body() === '' && ($query['Url'] ?? '') === app(ImageStorage::class)->ocrUrl('private', $app->front_object_key) && $request->hasHeader('x-acs-content-sha256', hash('sha256', ''));
+        return $request->hasFile('url', app(ImageStorage::class)->ocrUrl('private', $app->front_object_key)) && $request->hasHeader('apikey', 'ocr-key') && ! $request->hasFile('file') && ! $request->hasFile('base64Image');
     });
     expect(count($this->oss->objects))->toBe(1)->and($app->front_object_key)->not->toContain('E12345678');
     Storage::disk('private')->assertMissing($app->front_object_key);

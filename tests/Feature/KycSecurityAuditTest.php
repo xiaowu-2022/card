@@ -100,6 +100,7 @@ it('migrates legacy APP_KEY ciphertext and hashes without exposing plaintext', f
 });
 
 it('never resolves the mock OCR provider in production', function (): void {
+    config(['kyc.ocr_driver' => 'mock']);
     $this->app->detectEnvironment(fn (): string => 'production');
     try {
         expect(app(KycOcrProviderInterface::class))->toBeInstanceOf(UnavailableKycOcrProvider::class);

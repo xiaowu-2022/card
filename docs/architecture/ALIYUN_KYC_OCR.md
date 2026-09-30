@@ -1,3 +1,6 @@
+> Superseded for new submissions on 2026-09-30 by [OCR.Space KYC](OCR_SPACE_KYC.md).
+> Aliyun runtime adapter and credentials are retired. Historical evidence remains unchanged.
+
 ## 2026-09-30 user-initiated identity re-verification
 
 Approved users may explicitly submit new images with reverify=true, including a

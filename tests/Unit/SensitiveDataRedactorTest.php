@@ -134,3 +134,9 @@ it('redacts context and bearer credentials at the logging processor boundary', f
     expect($record->message)->toBe('Request used Bearer [REDACTED]')
         ->and($record->context)->toBe(['Authorization' => '[REDACTED]']);
 });
+
+it('redacts OCR Space headers encrypted settings and query keys', function () {
+    $redactor = new SensitiveDataRedactor;
+    expect($redactor->redact(['apikey' => 'test', 'apiKey' => 'test', 'OCR_SPACE_API_KEY_ENCRYPTED' => 'cipher']))->each->toBe('[REDACTED]');
+    expect($redactor->redactString('https://example.test?apikey=test'))->toBe('https://example.test?apikey=[REDACTED]');
+});
