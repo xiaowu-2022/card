@@ -16,6 +16,15 @@ final class SubmitKycApplicationRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        // JSON uses booleans; form/older clients may serialize the same flag as text.
+        $value = $this->input('reverify');
+        if ($value === 'true' || $value === 'false') {
+            $this->merge(['reverify' => $value === 'true']);
+        }
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {

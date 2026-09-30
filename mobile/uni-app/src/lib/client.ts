@@ -1,5 +1,5 @@
-import { ref } from 'vue';
-import { ApiError, native, request, setCsrf, setToken, upload, type Upload } from './api';
+import { ref, onScopeDispose } from 'vue';
+import { ApiError, native, request, setCsrf, setToken, upload, type Upload, type UploadProgress } from './api';
 import { bootstrap, session } from './session';
 import { t, errorMessage } from './i18n';
 import { go } from './navigation';
@@ -22,6 +22,8 @@ export function requestId(): string {
     });
 }
 export function useAction() {
+    let disposed = false;
+    onScopeDispose(() => { disposed = true; });
     const pending = ref(false);
     const errors = ref<Record<string, string>>({});
     const failureStatus = ref<number | null>(null);
@@ -30,11 +32,12 @@ export function useAction() {
         data: Record<string, unknown>,
         options: {
             files?: Upload[];
+            onProgress?: (progress: UploadProgress) => void;
             navigate?: boolean;
             success?: () => void | Promise<void>;
         } = {},
     ) {
-        if (pending.value) return;
+        if (pending.value || disposed) return;
         pending.value = true;
         errors.value = {};
         failureStatus.value = null;
@@ -42,12 +45,12 @@ export function useAction() {
             const response = options.files?.length
                 ? await upload<ActionResult>(
                       '/client' + path,
-                      Object.fromEntries(
-                          Object.entries(data).map(([k, v]) => [k, String(v ?? '')]),
-                      ),
+                      data,
                       options.files,
+                      (progress) => { if (!disposed) options.onProgress?.(progress); },
                   )
                 : await request<ActionResult>('/client' + path, 'POST', data);
+            if (disposed) return;
             if (response?.csrfToken) setCsrf(response.csrfToken);
             if (response?.token && native) {
                 setToken(response.token);
@@ -64,6 +67,7 @@ export function useAction() {
             if (options.navigate !== false && response?.redirect) go(response.redirect, true);
             return response;
         } catch (error) {
+            if (disposed) return;
             failureStatus.value = error instanceof ApiError ? error.status : 0;
             errors.value = explainError(error);
         } finally {

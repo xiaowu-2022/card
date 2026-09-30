@@ -10,6 +10,7 @@ export type CardOperation = {
     createdAt: string;
 };
 export type ManagedCard = {
+    expiry?: string | null;
     balance: string | null;
     pendingOperationCount?: number;
     state?: string;

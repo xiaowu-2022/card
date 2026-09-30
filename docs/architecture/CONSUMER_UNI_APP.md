@@ -221,3 +221,16 @@ or retry. Missing/invalid/unreachable release data fails closed; newer installed
 builds are never downgraded. A concurrent check is shared, successful checks expire
 in 60 seconds, and H5 is unaffected. No business mutation is replayed. Release
 publication and first-install requirements are in UNI_APP_PACKAGING.md.
+
+
+## 2026-09-30 KYC and card processing feedback
+
+KYC and card application mutations display a blocking ProcessingOverlay above modals,
+with actual waiting seconds and a 15-second slow-processing hint. KYC reports completed
+uploads then recognition/submission; cardholder, recipient and issuing steps use distinct
+messages. Only KYC `kyc_url` uploads run concurrently, at most two; all started uploads
+settle before failures propagate and no business request runs after a failed upload.
+Local/dual-copy uploads stay sequential. useAction preserves JSON scalar types and
+ignores progress/completion after scope disposal. No automatic mutation retry, timeout
+change, OCR/provider bypass or financial change is introduced. Native packaging still
+requires HBuilderX; build:app only compiles resources.

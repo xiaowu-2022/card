@@ -19,7 +19,7 @@ function client(platform = 'app', ossStatus = 204, backupStatus = 204, serverOnl
     runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
         { exports, uni, fetch: async () => ({ blob: async () => ({ type: 'image/png' }) }),
             require: id => id.includes('company.json') ? {} : { ensureLatestApp: async () => {}, companyOrigin: () => 'https://app.example.org', ensureCompanyOrigin: async () => {} } });
-    exports.setToken('private-token'); return { api: exports, calls };
+    exports.setToken('private-token'); return { api: exports, calls, uni };
 }
 for (const platform of ['app', 'h5']) {
     test(platform + ' saves same image on server and OSS without leaking API credentials to OSS', async () => {
@@ -39,7 +39,7 @@ for (const platform of ['app', 'h5']) {
         await api.upload('/client/kyc/applications', { identity_number: 'synthetic' }, [{ name: 'front', path: 'blob:front' }, { name: 'back', path: 'blob:back' }]);
         assert.equal(calls.length, 5);
         assert.equal(calls.filter(o => /\/(backup|complete)$/.test(o.url)).length, 0);
-        assert.deepEqual(Object.keys(calls[1].header), []);
+        assert.deepEqual(Object.keys(calls[2].header), []);
         assert.equal(calls[4].data.front_upload_id, 'ticket');
         assert.equal(calls[4].data.front_url, 'https://bucket.example.org/images/original');
         assert.equal(calls[4].data.back_url, 'https://bucket.example.org/images/original');
@@ -75,5 +75,45 @@ for (const platform of ['app', 'h5']) {
         await assert.rejects(api.upload('/client/kyc/applications', {}, [{ name: 'front', path: 'blob:front' }]));
         assert.equal(calls.length, 2);
         assert.equal(calls[1].url, 'https://bucket.example.org');
+    });
+}
+
+for (const platform of ['app', 'h5']) {
+    for (const fail of [false, true]) test(platform + ' parallel KYC waits for both uploads and preserves fields, failure=' + fail, async () => {
+        const { api, calls, uni } = client(platform);
+        const pending = [], progress = [];
+        const original = uni.request;
+        uni.request = o => {
+            if (o.url.endsWith('/images/direct')) {
+                calls.push(o);
+                const side = o.data.field;
+                o.success({ statusCode: 200, data: { id: side, mode: 'kyc_url', url: 'https://bucket.example.org', imageUrl: 'https://bucket.example.org/' + side, fields: { key: side } } });
+            } else original(o);
+        };
+        uni.uploadFile = o => { calls.push(o); pending.push(o); };
+        let settled = false;
+        const promise = api.upload('/client/kyc/applications', { reverify: true }, [{ name: 'front', path: 'blob:front' }, { name: 'back', path: 'blob:back' }], p => progress.push(p));
+        const result = promise.then(v => { settled = true; return v; }, e => { settled = true; return e; });
+        while (pending.length < 2) await new Promise(resolve => setImmediate(resolve));
+        assert.equal(pending.length, 2);
+        assert.equal(pending[0].formData.key, 'front');
+        assert.equal(pending[1].formData.key, 'back');
+        pending[1].success({ statusCode: fail ? 403 : 204 });
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(settled, false);
+        pending[0].success({ statusCode: 204 });
+        await result;
+        const submissions = calls.filter(c => c.url.endsWith('/client/kyc/applications'));
+        assert.equal(submissions.length, fail ? 0 : 1);
+        if (!fail) {
+            assert.equal(submissions[0].data.reverify, true);
+            assert.equal(submissions[0].data.front_url, 'https://bucket.example.org/front');
+            assert.equal(submissions[0].data.back_upload_id, 'back');
+            assert.equal(progress.at(-1).stage, 'submitting');
+        }
+        const count = progress.length;
+        pending[0].success({ statusCode: 204 });
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(progress.length, count);
     });
 }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import ProcessingOverlay from './ProcessingOverlay.vue';
 import Modal from './Modal.vue';
 import CardholderMaterials from './CardholderMaterials.vue';
 import CardRecipient from './CardRecipient.vue';
@@ -185,6 +186,7 @@ function changeAmount() {
 }
 </script>
 <template>
+    <ProcessingOverlay :open="open && busy" :message="t(materialsBusy ? 'Submitting cardholder details…' : recipientBusy ? 'Submitting recipient details…' : loading ? 'Loading cardholder information…' : reviewing ? 'Processing card opening…' : 'Checking processing result…')" />
     <Modal
         wide
         :open="open"

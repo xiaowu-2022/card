@@ -14,6 +14,14 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    'Waiting {{seconds}}s': ['已等待 {{seconds}} 秒', 'Menunggu {{seconds}}s', 'Esperando {{seconds}} s'],
+    'Processing is taking longer. Please do not submit again.': ['处理时间较长，请勿重复提交。', 'Pemprosesan mengambil masa lebih lama. Jangan hantar semula.', 'El proceso está tardando más. No vuelvas a enviar.'],
+    'Uploading documents ({{completed}}/{{total}})': ['正在上传证件照片（{{completed}}/{{total}}）', 'Memuat naik dokumen ({{completed}}/{{total}})', 'Subiendo documentos ({{completed}}/{{total}})'],
+    'Recognizing and submitting identity verification…': ['正在识别并提交认证…', 'Mengenal pasti dan menghantar pengesahan…', 'Reconociendo y enviando la verificación…'],
+    'Submitting cardholder details…': ['正在提交用卡人资料…', 'Menghantar maklumat pemegang kad…', 'Enviando datos del titular…'],
+    'Submitting recipient details…': ['正在提交收件信息…', 'Menghantar maklumat penerima…', 'Enviando datos del destinatario…'],
+    'Processing card opening…': ['正在处理开卡申请…', 'Memproses permohonan kad…', 'Procesando la solicitud de tarjeta…'],
+    'Checking processing result…': ['正在查询处理结果…', 'Menyemak hasil pemprosesan…', 'Consultando el resultado…'],
     'Verify again': ['重新认证', 'Sahkan semula', 'Verificar de nuevo'],
     'Upload new identity documents. Your current verification remains valid until approval.': ['请上传新的身份证件，审核通过前保留原认证信息。', 'Muat naik dokumen baharu. Pengesahan semasa kekal sehingga diluluskan.', 'Sube documentos nuevos. La verificación actual se conserva hasta la aprobación.'],
     'Enter the cardholder first name.': ['请填写用卡人的名。', 'Masukkan nama pertama pemegang kad.', 'Introduce el nombre del titular.'],

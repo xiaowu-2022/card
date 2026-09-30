@@ -89,11 +89,14 @@ export async function request<T>(
         }),
     );
 }
+type UploadTicket = { id: string; mode?: string; url: string; imageUrl?: string; fields: Record<string, string> };
+export type UploadProgress = { stage: 'uploading' | 'submitting'; completed: number; total: number };
 export type Upload = { name: string; path: string };
 export async function upload<T>(
     path: string,
-    data: Record<string, string>,
+    data: Record<string, unknown>,
     files: Upload[],
+    onProgress?: (progress: UploadProgress) => void,
 ): Promise<T> {
     await ensureLatestApp().catch(() => { throw new ApiError(426); });
     await ensureCompanyOrigin().catch(() => {
@@ -105,7 +108,10 @@ export async function upload<T>(
         '/support/messages': 'support',
     } as Record<string, string>)[path.split('?')[0]];
     if (purpose && files.length) {
-        const payload: Record<string, string> = { ...data };
+        const payload: Record<string, unknown> = { ...data };
+        let completed = 0;
+        onProgress?.({ stage: 'uploading', completed, total: files.length });
+        const prepared: { file: Upload; ticket: UploadTicket }[] = [];
         for (const file of files) {
             const info = await new Promise<UniApp.GetImageInfoSuccessData>((resolve, reject) =>
                 uni.getImageInfo({ src: file.path, success: resolve, fail: () => reject(new ApiError(422)) }),
@@ -121,10 +127,13 @@ export async function upload<T>(
                 mime = blob.type.toLowerCase();
             }
             if (!['image/jpeg', 'image/png', 'image/webp'].includes(mime)) throw new ApiError(422);
-            const ticket = await request<{ id: string; mode?: string; url: string; imageUrl?: string; fields: Record<string, string> }>(
+            const ticket = await request<UploadTicket>(
                 '/images/direct', 'POST', { purpose, field: file.name, mime },
             );
             if (ticket.mode !== 'server' && !/^https:\/\/[a-z0-9.-]+\/?$/i.test(ticket.url)) throw new ApiError(502);
+            prepared.push({ file, ticket });
+        }
+        const send = async ({ file, ticket }: typeof prepared[number]) => {
             if (ticket.mode === 'kyc_url') {
                 if (purpose !== 'kyc' || !ticket.imageUrl || !/^https:\/\//i.test(ticket.imageUrl)) throw new ApiError(502);
                 await new Promise<void>((resolve, reject) => uni.uploadFile({
@@ -136,7 +145,9 @@ export async function upload<T>(
                 }));
                 payload[file.name + '_upload_id'] = ticket.id;
                 payload[file.name + '_url'] = ticket.imageUrl;
-                continue;
+                completed++;
+                onProgress?.({ stage: 'uploading', completed, total: files.length });
+                return;
             }
             // The private same-origin copy is validated before any business binding.
             await new Promise<void>((resolve, reject) => uni.uploadFile({
@@ -160,7 +171,16 @@ export async function upload<T>(
             })).catch(() => { /* Server copy remains available; completion records OSS retry. */ });
             await request('/images/direct/' + ticket.id + '/complete', 'POST');
             payload[file.name + '_upload_id'] = ticket.id;
+            completed++;
+            onProgress?.({ stage: 'uploading', completed, total: files.length });
+        };
+        const concurrency = purpose === 'kyc' && prepared.every(({ ticket }) => ticket.mode === 'kyc_url') ? 2 : 1;
+        for (let index = 0; index < prepared.length; index += concurrency) {
+            const results = await Promise.allSettled(prepared.slice(index, index + concurrency).map(send));
+            const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+            if (failed) throw failed.reason;
         }
+        onProgress?.({ stage: 'submitting', completed, total: files.length });
         // Business submission is still authenticated and never replayed automatically.
         return request<T>(path, 'POST', payload);
     }
@@ -169,7 +189,7 @@ export async function upload<T>(
             url: url(path),
             header: headers(),
             timeout: path.split('?')[0] === '/client/kyc/applications' ? 300000 : 60000,
-            formData: data,
+            formData: Object.fromEntries(Object.entries(data).map(([key, value]) => [key, typeof value === 'boolean' ? (value ? '1' : '0') : String(value ?? '')])),
             files: files.map((file) => ({ name: file.name, uri: file.path })),
             success(response) {
                 let result;

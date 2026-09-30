@@ -5,6 +5,8 @@ import { t, locale, dateTime } from '../lib/i18n';
 import { useAction } from '../lib/client';
 import { photoUrl } from '../lib/api';
 import { go } from '../lib/navigation';
+import ProcessingOverlay from '../components/ProcessingOverlay.vue';
+import type { UploadProgress } from '../lib/api';
 import PageShell from '../components/PageShell.vue';
 import StatusBanner from '../components/StatusBanner.vue';
 import FormErrors from '../components/FormErrors.vue';
@@ -33,6 +35,10 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ reload: [] }>();
 const action = useAction();
+const progress = ref<UploadProgress>({ stage: 'uploading', completed: 0, total: 2 });
+const processingMessage = computed(() => progress.value.stage === 'submitting'
+    ? t('Recognizing and submitting identity verification…')
+    : t('Uploading documents ({{completed}}/{{total}})', { completed: progress.value.completed, total: progress.value.total }));
 const reverifying = ref(false);
 function reverify() {
     resetFiles();
@@ -102,6 +108,8 @@ useSensitiveScreen(
     { retainOnBackground: true },
 );
 async function submit() {
+    if (action.pending.value) return;
+    progress.value = { stage: 'uploading', completed: 0, total: form.document_type === 'NATIONAL_ID' ? 2 : 1 };
     const files = [
         { name: 'front', path: form.front },
         ...(form.document_type === 'NATIONAL_ID' ? [{ name: 'back', path: form.back }] : []),
@@ -116,6 +124,7 @@ async function submit() {
         },
         {
             files,
+            onProgress: (value) => { progress.value = value; },
             navigate: false,
             success: () => {
                 resetFiles();
@@ -127,6 +136,7 @@ async function submit() {
 }
 </script>
 <template>
+    <ProcessingOverlay :open="action.pending.value" :message="processingMessage" />
     <PageShell :title="t('Identity verification')" :back="page.backHref" active="account"
         ><StatusBanner
             :title="t(state.title)"

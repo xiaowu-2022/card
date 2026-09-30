@@ -278,7 +278,7 @@ async function copy(part: 'pan' | 'cvv' | 'all') {
     copyNotice.value = '';
     const data =
         part === 'all'
-            ? t('Card number') + ': ' + details.value.pan + '\nCVV: ' + details.value.cvv
+            ? t('Card number') + ': ' + details.value.pan + '\n' + t('Expiry') + ': ' + (props.card.expiry || '—') + '\nCVV: ' + details.value.cvv
             : details.value[part];
     try {
         await new Promise<void>((resolve, reject) =>
@@ -459,6 +459,10 @@ async function copy(part: 'pan' | 'cvv' | 'all') {
                             ><button class="secondary" @click="copy('pan')">
                                 {{ t('Copy card number') }}
                             </button></view
+                        ><view class="detail-line">
+                            <view><text class="muted">{{ t('Expiry') }}</text>
+                            <text class="cvv" selectable>{{ card.expiry || '—' }}</text></view>
+                        </view
                         ><view class="detail-line"
                             ><view
                                 ><text class="muted">CVV</text

@@ -8,10 +8,12 @@ use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
 use App\Domain\Kyc\DTOs\KycOcrResultDTO;
 use App\Domain\Kyc\Enums\KycOcrOutcome;
+use App\Domain\Kyc\Models\IdentityRecord;
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Media\DirectImageUpload;
 use App\Domain\Media\OssConfiguration;
 use App\Domain\Media\StoredImage;
+use App\Domain\Tenant\Models\PlatformKycSetting;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use App\Infrastructure\Storage\OssImages;
@@ -332,4 +334,34 @@ it('backs up multipart originals and rejects damaged local replicas', function (
     expect($image->oss_pending)->toBeTrue()->and($storage->read('public', $key))->toBe(kycTestImage()->getContent());
     Storage::disk('private')->put($image->backup_key, 'corrupted');
     expect(fn () => $storage->read('public', $key))->toThrow(RuntimeException::class);
+});
+
+it('accepts boolean reverify through the consumer HTTP endpoint and replaces identity only after approval', function (bool $textFlag) {
+    kycUrlFlow($this);
+    PlatformKycSetting::current()->update(['review_mode' => 'AUTOMATIC']);
+    foreach (['E12345678', 'E87654321'] as $index => $number) {
+        fakeMatchingKycOcr($number);
+        $ticket = directFixture($this, 'kyc', 'front');
+        $this->postJson($this->base.'/client/kyc/applications', [
+            'document_type' => 'PASSPORT', 'document_country' => 'CN', 'reverify' => $textFlag ? ($index > 0 ? 'true' : 'false') : $index > 0,
+            'front_upload_id' => $ticket['id'], 'front_url' => $ticket['imageUrl'],
+        ])->assertSuccessful();
+        $this->travel(1)->seconds();
+    }
+    expect(KycApplication::where('user_id', $this->user->id)->count())->toBe(2);
+    expect(IdentityRecord::where('user_id', $this->user->id)->sole()->source_kyc_application_id)
+        ->toBe(KycApplication::where('user_id', $this->user->id)->latest('submitted_at')->first()->id);
+    expect($this->oss->networkCalls)->toBe(0);
+})->with([false, true]);
+
+it('rejects invalid reverification flags before OCR', function () {
+    kycUrlFlow($this);
+    $ticket = directFixture($this, 'kyc', 'front');
+    $provider = Mockery::mock(KycOcrProviderInterface::class);
+    $provider->shouldNotReceive('extractIdentityDocument');
+    app()->instance(KycOcrProviderInterface::class, $provider);
+    $this->postJson($this->base.'/client/kyc/applications', [
+        'document_type' => 'PASSPORT', 'document_country' => 'CN', 'reverify' => 'invalid',
+        'front_upload_id' => $ticket['id'], 'front_url' => $ticket['imageUrl'],
+    ])->assertUnprocessable()->assertJsonValidationErrors('reverify');
 });
