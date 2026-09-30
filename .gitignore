@@ -38,3 +38,5 @@ Homestead.yaml
 Thumbs.db
 
 /artifacts/uni-parity/
+
+/public/app-releases/

@@ -237,8 +237,32 @@ it('enforces the restored ten MiB boundary on every document side before OCR', f
 it('allows time for document upload and OCR without retrying the request', function (): void {
     Http::fake(function ($request, array $options) {
         expect($options['connect_timeout'])->toBe(10)->and($options['timeout'])->toBe(120);
+
         return Http::response(['Data' => json_encode(['data' => ['passportNumber' => 'E12345678']])]);
     });
     app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', 'E12345678', kycTestImage(), null, documentType: KycDocumentType::Passport);
     Http::assertSentCount(1);
 });
+
+it('distinguishes document side, number and back-field failures without logging identity content', function (array $front, ?array $back, string $reason, string $message) {
+    Log::spy();
+    $responses = Http::sequence()->push(['Data' => json_encode(['data' => $front])]);
+    if ($back !== null) {
+        $responses->push(['Data' => json_encode(['data' => $back])]);
+    }
+    Http::fake(['*' => $responses]);
+    try {
+        app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', '', kycTestImage('front.jpg'), kycTestImage('back.jpg'));
+        $this->fail('Expected OCR rejection');
+    } catch (DomainException $error) {
+        expect($error->errorCode)->toBe('KYC_OCR_MISMATCH')->and($error->getMessage())->toBe($message);
+    }
+    Log::shouldHaveReceived('warning')->with('Aliyun KYC OCR rejected', ['reason' => $reason, 'provider_request_id' => null])->once();
+    expect(IdentityRecord::count())->toBe(0)->and(KycApplication::count())->toBe(0);
+})->with([
+    [['back' => ['data' => ['issueAuthority' => 'PRIVATE']]], null, 'FRONT_SIDE', 'Upload the portrait side in the front photo field.'],
+    [['face' => ['data' => ['idNumber' => 'PRIVATE']]], null, 'NUMBER_FORMAT', 'The recognized document number did not pass validation. Please retake the number area without glare.'],
+    [['face' => ['data' => ['idNumber' => '110105194912310021']]], null, 'NUMBER_CHECKSUM', 'The recognized document number did not pass validation. Please retake the number area without glare.'],
+    [['face' => ['data' => ['idNumber' => '11010519491231002X']]], ['face' => ['data' => ['idNumber' => 'PRIVATE']]], 'BACK_SIDE', 'Upload the national emblem side in the back photo field.'],
+    [['face' => ['data' => ['idNumber' => '11010519491231002X']]], ['back' => ['data' => ['issueAuthority' => 'PRIVATE']]], 'BACK_FIELDS', 'The issuing authority or validity period could not be recognized. Please upload the complete back of the ID card.'],
+]);

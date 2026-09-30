@@ -207,3 +207,42 @@ AppID 以公司配置为持久来源；HBuilderX 重新获取 AppID 后须同步
 已使用 HBuilderX 5.26 CLI 的 `publish app --type appResource` 验证，
 2026-09-29 15:59 显示编译成功、导出成功；产物为
 `mobile/uni-app/unpackage/resources`。该验证没有提交云打包或生成签名 APK。
+
+## Mandatory Android updates (2026-09-30)
+
+The App checks the installed native `appVersionCode` at startup, foreground and
+before API work (successful results are shared for at most 60 seconds). A newer
+published version blocks consumer operations and presents Download update. Network,
+missing release and invalid metadata errors block operations with Retry. H5 is unchanged.
+Requests already dispatched are not cancelled or replayed by version checking.
+The download opens the system browser; the user completes Android installation.
+
+First deploy the backend and publish the signed APK **before** distributing this
+update-aware App. Earlier installed Apps without this code cannot gain detection
+remotely and must be updated once manually. Native resources compiling successfully
+is not a signed APK or device installation test.
+
+Each company has its own release selected by the active Host. Publish using the
+company slug and the actual signed APK metadata (DCloud appid, not Android package
+name). Current Spec Pay source is 2.3.57 / 2357. On the server:
+
+```sh
+cd /www/wwwroot/card
+/www/server/php/84/bin/php artisan app:publish-android tenant-a /path/to/signed-specpay.apk --code=2357 --release-version=2.3.57 --appid=__UNI__GBE57092
+```
+
+Replace `tenant-a` with the deployed company's actual slug if different. Keep the
+same Android package name and signing certificate for upgrade installation, and
+confirm APK metadata in HBuilderX before publishing; this command does not inspect
+Android signing certificates or parse APK manifest metadata. Each distinct APK must
+increase versionCode; update `mobile/companies/specpay.json` before prepare/packaging
+and confirm the generated manifest matches. Do not advertise an unsigned/test APK.
+
+The command checksum-verifies the copied APK at an immutable
+`public/app-releases/<tenant UUID>/<sha256>.apk`, then atomically publishes the
+private `storage/app/app-releases/<tenant UUID>/android.json` pointer under a lock.
+Old APKs remain. These directories are deployment data and must survive code uploads.
+All active company domains must serve these same files, with HTTPS and APK downloads
+allowed. The public GET `/api/mobile/v1/app-release` contains no secrets/session
+creation; unavailable releases return 503. The existing H5 `/specpay.apk` download
+is independent; replace that file with the same signed APK when releasing for H5.

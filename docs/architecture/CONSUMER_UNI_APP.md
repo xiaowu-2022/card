@@ -211,3 +211,13 @@ on that return or invalidate an in-flight load. Actual visible-page navigation,
 unmount and successful submission still clear the form. No identity data or photo
 bytes are added to persistent browser storage. Other sensitive screens retain
 background clearing. Regression: tests/Frontend/consumer-kyc-lifecycle.mjs.
+
+### Mandatory App version checks — 2026-09-30
+
+Native startup/foreground and API entry points enforce the latest company-published
+Android versionCode, using credential-free release reads only after company origin
+validation. A blocking PageShell gate offers a same-origin immutable APK download
+or retry. Missing/invalid/unreachable release data fails closed; newer installed
+builds are never downgraded. A concurrent check is shared, successful checks expire
+in 60 seconds, and H5 is unaffected. No business mutation is replayed. Release
+publication and first-install requirements are in UNI_APP_PACKAGING.md.

@@ -9,6 +9,7 @@ use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
 use App\Domain\Kyc\DTOs\KycOcrRequestDTO;
 use App\Domain\Kyc\Enums\KycDocumentType;
+use App\Domain\Kyc\Enums\KycOcrFailureReason;
 use App\Domain\Kyc\Enums\KycOcrOutcome;
 use App\Domain\Kyc\Enums\KycOcrStatus;
 use App\Domain\Kyc\Enums\KycReviewStatus;
@@ -82,7 +83,13 @@ final readonly class SubmitKycApplicationAction
                 throw new DomainException('KYC_OCR_UNAVAILABLE', 'Document recognition is temporarily unavailable. Please try again later.', 503);
             }
             if ($ocr->outcome !== KycOcrOutcome::Success || ! $ocr->candidateIdentityNumber) {
-                throw new DomainException('KYC_OCR_MISMATCH', 'The document number could not be recognized. Please upload a clear document image.');
+                throw new DomainException('KYC_OCR_MISMATCH', match ($ocr->failureReason) {
+                    KycOcrFailureReason::FrontSide => 'Upload the portrait side in the front photo field.',
+                    KycOcrFailureReason::BackSide => 'Upload the national emblem side in the back photo field.',
+                    KycOcrFailureReason::BackFields => 'The issuing authority or validity period could not be recognized. Please upload the complete back of the ID card.',
+                    KycOcrFailureReason::NumberFormat, KycOcrFailureReason::NumberChecksum => 'The recognized document number did not pass validation. Please retake the number area without glare.',
+                    default => 'The document number could not be recognized. Please upload a clear document image.',
+                });
             }
             try {
                 $identityNumber = app(IdentityNumberNormalizer::class)->normalize($ocr->candidateIdentityNumber);

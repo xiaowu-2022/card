@@ -6,6 +6,7 @@ use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
 use App\Domain\Kyc\DTOs\KycOcrRequestDTO;
 use App\Domain\Kyc\DTOs\KycOcrResultDTO;
 use App\Domain\Kyc\Enums\KycDocumentType;
+use App\Domain\Kyc\Enums\KycOcrFailureReason;
 use App\Domain\Kyc\Enums\KycOcrOutcome;
 use App\Infrastructure\Sms\AliyunAcs3Signer;
 use GuzzleHttp\Exception\ConnectException;
@@ -34,13 +35,20 @@ final class AliyunKycOcrProvider implements KycOcrProviderInterface
             return new KycOcrResultDTO(KycOcrOutcome::Failed);
         }
         $result = $this->recognize($passport ? (in_array($request->documentCountry, ['CN', 'HK', 'MO', 'TW'], true) ? 'RecognizeChinesePassport' : 'RecognizePassport') : 'RecognizeIdcard', $request->frontUrl);
+        if (! $passport && ! isset($result['data']['face']) && isset($result['data']['back'])) {
+            return $this->rejected(KycOcrFailureReason::FrontSide, $result);
+        }
         $data = $passport ? ($result['data'] ?? []) : ($result['data']['face']['data'] ?? []);
         $number = $data[$passport ? 'passportNumber' : 'idNumber'] ?? null;
         if (is_int($number)) {
             $number = (string) $number;
         }
-        if (! is_string($number) || ! preg_match($passport ? '/^[A-Z0-9]{3,20}$/D' : '/^[1-9][0-9]{16}[0-9X]$/D', strtoupper($number))) {
-            return new KycOcrResultDTO(KycOcrOutcome::Failed);
+        if (! is_string($number) || trim($number) === '') {
+            return $this->rejected(KycOcrFailureReason::NumberMissing, $result);
+        }
+        $number = trim($number);
+        if (! preg_match($passport ? '/^[A-Z0-9]{3,20}$/D' : '/^[1-9][0-9]{16}[0-9X]$/D', strtoupper($number))) {
+            return $this->rejected(KycOcrFailureReason::NumberFormat, $result);
         }
         if (! $passport) {
             $number = strtoupper($number);
@@ -49,15 +57,35 @@ final class AliyunKycOcrProvider implements KycOcrProviderInterface
                 $sum += (int) $number[$i] * $weight;
             }
             if ($number[17] !== '10X98765432'[$sum % 11]) {
-                return new KycOcrResultDTO(KycOcrOutcome::Failed);
+                return $this->rejected(KycOcrFailureReason::NumberChecksum, $result);
             }
             $back = $this->recognize('RecognizeIdcard', $request->backUrl);
+            if (! isset($back['data']['back']) && isset($back['data']['face'])) {
+                return $this->rejected(KycOcrFailureReason::BackSide, $back);
+            }
             if (empty($back['data']['back']['data']['issueAuthority']) || empty($back['data']['back']['data']['validPeriod'])) {
-                return new KycOcrResultDTO(KycOcrOutcome::Failed);
+                return $this->rejected(KycOcrFailureReason::BackFields, $back);
             }
         }
 
         return new KycOcrResultDTO(KycOcrOutcome::Success, strtoupper($number), $data['name'] ?? $data['nameEn'] ?? null, providerReference: $result['_requestId'] ?? null);
+    }
+
+    private function rejected(KycOcrFailureReason $reason, #[\SensitiveParameter] array $result): KycOcrResultDTO
+    {
+        $reference = $result['_requestId'] ?? null;
+        $reference = is_string($reference) && Str::isUuid($reference)
+            && ! in_array($reference, [config('kyc.aliyun.access_key_id'), config('kyc.aliyun.access_key_secret')], true) ? $reference : null;
+        try {
+            // Empty results already carry an upstream rejection diagnostic.
+            if ($result !== []) {
+                Log::warning('Aliyun KYC OCR rejected', ['reason' => $reason->value, 'provider_request_id' => $reference]);
+            }
+        } catch (\Throwable) {
+            // Diagnostics never change the fail-closed result or retain document content.
+        }
+
+        return new KycOcrResultDTO(KycOcrOutcome::Failed, providerReference: $reference, failureReason: $reason);
     }
 
     private function recognize(string $action, #[\SensitiveParameter] string $url): array

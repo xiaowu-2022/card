@@ -1,3 +1,4 @@
+import { ensureLatestApp } from './app-update';
 import company from '../generated/company.json';
 import { companyOrigin, ensureCompanyOrigin } from './origin';
 export const native = import.meta.env.UNI_PLATFORM === 'app';
@@ -60,6 +61,7 @@ export async function request<T>(
     method: 'GET' | 'POST' = 'GET',
     data?: Record<string, unknown>,
 ): Promise<T> {
+    await ensureLatestApp().catch(() => { throw new ApiError(426); });
     await ensureCompanyOrigin().catch(() => {
         throw new ApiError(0);
     });
@@ -93,6 +95,7 @@ export async function upload<T>(
     data: Record<string, string>,
     files: Upload[],
 ): Promise<T> {
+    await ensureLatestApp().catch(() => { throw new ApiError(426); });
     await ensureCompanyOrigin().catch(() => {
         throw new ApiError(0);
     });
@@ -189,6 +192,7 @@ export async function privateImage(path: string): Promise<string> {
         path !== '/client/promotion/poster-background'
     )
         return Promise.reject(new ApiError(404));
+    await ensureLatestApp().catch(() => { throw new ApiError(426); });
     await ensureCompanyOrigin().catch(() => {
         throw new ApiError(0);
     });

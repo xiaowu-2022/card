@@ -14,6 +14,15 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    'Upload the portrait side in the front photo field.': ['身份证正面请上传带人像和号码的一面。', 'Muat naik bahagian potret pada ruang foto hadapan.', 'Sube el lado con la foto en el campo del anverso.'],
+    'Upload the national emblem side in the back photo field.': ['身份证反面请上传带国徽、签发机关和有效期的一面。', 'Muat naik bahagian lambang negara pada ruang foto belakang.', 'Sube el lado con el emblema nacional en el campo del reverso.'],
+    'The issuing authority or validity period could not be recognized. Please upload the complete back of the ID card.': ['未识别到签发机关或有效期，请重新上传完整的身份证反面。', 'Pihak pengeluar atau tempoh sah tidak dikenal pasti. Muat naik bahagian belakang kad pengenalan yang lengkap.', 'No se pudo reconocer la autoridad emisora o la vigencia. Sube el reverso completo del documento.'],
+    'The recognized document number did not pass validation. Please retake the number area without glare.': ['识别出的证件号码未通过校验，请重新拍摄号码区域，避免反光。', 'Nombor dokumen yang dikenal pasti tidak lulus pengesahan. Ambil semula foto kawasan nombor tanpa silau.', 'El número reconocido no pasó la validación. Fotografía de nuevo la zona del número sin reflejos.'],
+    'App update': ['应用更新', 'Kemas kini aplikasi', 'Actualizar aplicación'],
+    'Install the latest version to continue using the app.': ['请安装最新版本后继续使用。', 'Pasang versi terkini untuk terus menggunakan aplikasi.', 'Instala la última versión para continuar.'],
+    'Download update': ['下载更新', 'Muat turun kemas kini', 'Descargar actualización'],
+    'Checking app version…': ['正在检查应用版本…', 'Menyemak versi aplikasi…', 'Comprobando la versión…'],
+    'Unable to check the app version. Check your connection and retry.': ['无法检查应用版本，请检查网络后重试。', 'Tidak dapat menyemak versi aplikasi. Semak sambungan dan cuba lagi.', 'No se pudo comprobar la versión. Comprueba la conexión e inténtalo de nuevo.'],
     'Image storage changed. Please select and upload the image again.': [
         '图片存储方式已变更，请重新选择并上传图片。',
         'Storan imej berubah. Sila pilih dan muat naik imej semula.',

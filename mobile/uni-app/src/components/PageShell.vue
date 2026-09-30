@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppUpdateGate from './AppUpdateGate.vue';
 import { computed } from 'vue';
 import { t } from '../lib/i18n';
 import { unread, session } from '../lib/session';
@@ -54,6 +55,7 @@ function open(path: string) {
 }
 </script>
 <template>
+    <AppUpdateGate />
     <view class="user-root" :style="{ '--user-primary': session?.tenant.primaryColor || '#39ad8d' }"
         ><view
             class="shell"

@@ -7,6 +7,7 @@ use App\Http\Middleware\ConsumerPageResponse;
 use App\Http\Middleware\RequireConsumerApiUser;
 use Illuminate\Support\Facades\Route;
 
+Route::get('app-release', \App\Http\Controllers\Api\AppReleaseController::class)->middleware('throttle:120,1,consumer-release:');
 Route::get('domains', [ConsumerController::class, 'domains'])->middleware('throttle:consumer-domains');
 Route::get('bootstrap', [ConsumerController::class, 'bootstrap'])->middleware(['throttle:120,1,consumer-bootstrap:', ConsumerFlowSession::class]);
 Route::prefix('client')->middleware([

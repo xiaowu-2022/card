@@ -8,10 +8,11 @@ import ts from 'typescript';
 function client(platform, base = '/', initialAssets = {}) {
     const cache = new Map();
     const calls = [];
-    const uni = { getLocale: () => 'en', getStorageSync: () => [], setStorageSync() {},
+    const uni = { getAppBaseInfo: () => ({ appId: '__UNI__TEST', appVersionCode: '2' }), getLocale: () => 'en', getStorageSync: () => [], setStorageSync() {},
         request(options) {
             calls.push(options);
             if (options.url.endsWith('/domains')) options.success({ statusCode: 200, data: { tenant: { id: 'tenant-a', slug: 'company-a' }, origins: ['https://primary.example.org'] } });
+            else if (options.url.endsWith('/app-release')) options.success({ statusCode: 200, data: { tenantSlug: 'company-a', appId: '__UNI__TEST', versionCode: 2, versionName: '1.0.1', path: '/app-releases/abcd/' + 'a'.repeat(64) + '.apk' } });
             else options.fail();
         },
         uploadFile(options) { calls.push(options); options.fail(); },
@@ -19,7 +20,7 @@ function client(platform, base = '/', initialAssets = {}) {
     };
     const window = { __PUBLIC_ASSETS__: initialAssets, location: { origin: 'https://alternate.example.org', href: 'https://alternate.example.org/' } };
     function load(path) {
-        if (path === 'vue') return { shallowRef: (value) => ({ value }) };
+        if (path === 'vue') return { ref: (value) => ({ value }), shallowRef: (value) => ({ value }) };
         if (path.endsWith('company.json')) return { apiOrigin: 'https://primary.example.org', apiOrigins: ['https://primary.example.org'], tenantSlug: 'company-a', appId: 'test.cards.app', developmentOnly: false };
         if (cache.has(path)) return cache.get(path);
         const exports = {};
@@ -91,8 +92,11 @@ test('native requests wait for credential-free discovery and failed mutations ar
     assert.equal(c.calls.filter((call) => call.url.endsWith('/domains')).length, 1);
     assert.equal(c.calls[0].header.Authorization, undefined);
     assert.equal(c.calls[0].header['X-Consumer-Flow'], undefined);
-    assert.equal(c.calls.length, 4);
-    assert.ok(c.calls.slice(1).every((call) => call.header.Authorization === 'Bearer secret'));
+    assert.equal(c.calls.length, 5);
+    assert.ok(c.calls[1].url.endsWith('/app-release'));
+    assert.equal(c.calls[1].header.Authorization, undefined);
+    assert.equal(c.calls[1].header['X-Consumer-Flow'], undefined);
+    assert.ok(c.calls.slice(2).every((call) => call.header.Authorization === 'Bearer secret'));
 });
 
 

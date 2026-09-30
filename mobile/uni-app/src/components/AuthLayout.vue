@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppUpdateGate from './AppUpdateGate.vue';
 import { staticAsset } from '../lib/origin';
 import { computed } from 'vue';
 import { session } from '../lib/session';
@@ -14,6 +15,7 @@ const brand = computed(() => session.value?.tenant.name ?? '');
 const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
 </script>
 <template>
+    <AppUpdateGate />
     <view
         class="auth-root"
         :class="{ recovery }"

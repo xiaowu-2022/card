@@ -110,3 +110,18 @@ as well. docker/php/uploads.ini is updated; deployed panel settings require sepa
 configuration. Application HTTP timeouts cannot override an earlier gateway timeout.
 
 2026-09-27 存储配置、迁移及 URL 识别细节见 [OSS_IMAGES.md](OSS_IMAGES.md)。旧的二进制图片传输说明已被此方案取代。
+
+## 2026-09-30 Recognition rejection diagnostics
+
+The generic document-number error formerly also covered unreadable back-side
+issuing-authority/validity fields. New responses distinguish front/back reversal,
+number format/checksum rejection and missing back fields. Boundary whitespace in
+OCR numbers is trimmed before unchanged format/checksum validation. No checksum,
+side requirement, OCR gate or account identity gate is relaxed.
+Successful API responses failing local validation log `Aliyun KYC OCR rejected`
+with a fixed reason enum and an optional validated provider UUID only. Upstream
+rejections retain the existing `Aliyun KYC OCR failed` diagnostic without duplicate
+logging. No image URL, number, name or response body is logged. Failure logging cannot
+approve or leak an exception. Without a matching production diagnostic the cause
+of a particular user submission remains unconfirmed; never replay real KYC to test.
+Deploy backend changes and rebuilt `public/h5`; no migration or credentials change.

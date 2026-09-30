@@ -2,6 +2,7 @@
 
 namespace App\Domain\Kyc\DTOs;
 
+use App\Domain\Kyc\Enums\KycOcrFailureReason;
 use App\Domain\Kyc\Enums\KycOcrOutcome;
 
 final readonly class KycOcrResultDTO
@@ -12,5 +13,6 @@ final readonly class KycOcrResultDTO
         public ?string $candidateName = null,
         public ?string $confidence = null,
         public ?string $providerReference = null,
+        public ?KycOcrFailureReason $failureReason = null,
     ) {}
 }
