@@ -2,10 +2,24 @@
 import { t, dateTime } from '../lib/i18n';
 import { exactAmount } from '../generated/exact-amount';
 import UiIcon from './UiIcon.vue';
-defineProps<{
-    items: { id: string; asset: string; kind: string; amount: string; time: string }[];
+import Modal from './Modal.vue';
+import { ref, watch } from 'vue';
+import { useSensitiveScreen } from '../lib/sensitive';
+type Activity = { id: string; asset: string; kind: string; amount: string; time: string };
+const selected = ref<Activity | null>(null);
+useSensitiveScreen(() => {
+    selected.value = null;
+});
+const props = defineProps<{
+    items: Activity[];
     hidden?: boolean;
 }>();
+watch(
+    () => props.items,
+    () => {
+        selected.value = null;
+    },
+);
 function signed(value: string) {
     const amount = exactAmount(value);
     return value.startsWith('-') || amount === '0' ? amount : '+' + amount;
@@ -13,8 +27,14 @@ function signed(value: string) {
 </script>
 <template>
     <view v-if="!items.length" class="activity-empty">{{ t('No activity yet') }}</view
-    ><view v-for="row in items" :key="row.id" class="activity-row"
-        ><view class="activity-icon" :class="{ debit: row.amount.startsWith('-') }"
+    ><button
+        v-for="row in items"
+        :key="row.id"
+        class="activity-row"
+        :aria-label="t('Funds movement details') + ': ' + t(row.kind)"
+        @click="selected = row"
+    >
+        <view class="activity-icon" :class="{ debit: row.amount.startsWith('-') }"
             ><UiIcon
                 :name="row.amount.startsWith('-') ? 'arrow-up-right' : 'arrow-down-left'"
                 :size="16" /></view
@@ -31,8 +51,38 @@ function signed(value: string) {
                     t(row.amount.startsWith('-') ? 'Wallet debit' : 'Wallet credit')
                 }}</text></view
             ></view
-        ></view
-    >
+        ><UiIcon name="chevron-right" :size="16" />
+    </button>
+    <Modal :open="!!selected" :title="t('Funds movement details')" @close="selected = null">
+        <view v-if="selected" class="movement-details">
+            <view
+                ><text class="muted">{{ t('Transaction type') }}</text
+                ><text>{{ t(selected.kind) }}</text></view
+            >
+            <view
+                ><text class="muted">{{ t('Direction') }}</text
+                ><text>{{
+                    t(selected.amount.startsWith('-') ? 'Wallet debit' : 'Wallet credit')
+                }}</text></view
+            >
+            <view
+                ><text class="muted">{{ t('Quantity') }}</text
+                ><text>{{ hidden ? '••••••' : signed(selected.amount) }}</text></view
+            >
+            <view
+                ><text class="muted">{{ t('Currency') }}</text
+                ><text>{{ selected.asset }}</text></view
+            >
+            <view
+                ><text class="muted">{{ t('Time') }}</text
+                ><text>{{ dateTime(selected.time) }}</text></view
+            >
+            <view
+                ><text class="muted">{{ t('Funds reference') }}</text
+                ><text selectable>{{ selected.id }}</text></view
+            >
+        </view>
+    </Modal>
 </template>
 <style scoped>
 .activity-empty {
@@ -41,7 +91,25 @@ function signed(value: string) {
     font-size: 14px;
     color: #68736e;
 }
+.movement-details > view {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 14px 0;
+    border-bottom: 1px solid #e2e7e4;
+    font-size: 14px;
+}
+.movement-details > view > text:last-child {
+    text-align: right;
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
 .activity-row {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border-radius: 0;
     display: flex;
     align-items: flex-start;
     gap: 12px;
