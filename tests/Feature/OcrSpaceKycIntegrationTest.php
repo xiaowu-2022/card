@@ -80,18 +80,41 @@ it('supports passport labelled numbers and TD3 MRZ without guessing unrelated te
     ["Passport No: E12345678\nPassport No: E99999999", false],
 ]);
 
-it('fails closed on HTTP malformed partial and page errors without logging sensitive content', function ($body, $status) {
+it('fails closed on HTTP malformed partial and page errors without logging sensitive content', function ($body, $status, $reason, $diagnostics = []) {
     Log::spy();
     Http::fake(['*' => Http::response($body, $status)]);
     expect(fn () => submitOcrSpace($this))->toThrow(DomainException::class, 'Document recognition is temporarily unavailable.');
     expect(IdentityRecord::count())->toBe(0)->and(KycApplication::count())->toBe(0);
-    Log::shouldHaveReceived('warning')->once()->with('OCR.Space KYC OCR failed', ['phase' => 'response', 'http_status' => $status]);
+    Log::shouldHaveReceived('warning')->once()->with('OCR.Space KYC OCR failed', ['phase' => 'response', 'http_status' => $status, 'reason' => $reason] + $diagnostics);
 })->with([
-    [['ErrorMessage' => 'PRIVATE synthetic-key'], 403], [['ErrorMessage' => 'PRIVATE'], 429], ['PRIVATE html', 200],
-    [array_replace(ocrSpaceResult('11010519491231002X'), ['OCRExitCode' => 2]), 200],
-    [array_replace(ocrSpaceResult('11010519491231002X'), ['IsErroredOnProcessing' => true]), 200],
-    [['OCRExitCode' => 1, 'IsErroredOnProcessing' => false, 'ParsedResults' => [['FileParseExitCode' => -20, 'ParsedText' => '11010519491231002X']]], 200],
-    [array_replace(ocrSpaceResult('11010519491231002X'), ['ErrorMessage' => 'PRIVATE']), 200],
+    [['ErrorMessage' => 'PRIVATE synthetic-key'], 403, 'http_error'], [['ErrorMessage' => 'PRIVATE'], 429, 'http_error'], ['PRIVATE html', 200, 'invalid_json'],
+    [array_replace(ocrSpaceResult('11010519491231002X'), ['OCRExitCode' => 2]), 200, 'provider_result_rejected', ['ocr_exit_code' => 2, 'file_parse_exit_code' => 1, 'provider_error_category' => 'unclassified']],
+    [array_replace(ocrSpaceResult('11010519491231002X'), ['IsErroredOnProcessing' => true]), 200, 'provider_result_rejected', ['ocr_exit_code' => 1, 'file_parse_exit_code' => 1, 'provider_error_category' => 'unclassified']],
+    [['OCRExitCode' => 1, 'IsErroredOnProcessing' => false, 'ParsedResults' => [['FileParseExitCode' => -20, 'ParsedText' => '11010519491231002X']]], 200, 'page_result_rejected', ['ocr_exit_code' => 1, 'file_parse_exit_code' => -20, 'provider_error_category' => 'unclassified']],
+    [array_replace(ocrSpaceResult('11010519491231002X'), ['ErrorMessage' => 'PRIVATE']), 200, 'provider_result_rejected', ['ocr_exit_code' => 1, 'file_parse_exit_code' => 1, 'provider_error_category' => 'unclassified']],
+]);
+
+it('logs only fixed categories and allowlisted codes for provider errors returned with HTTP 200', function ($message, $category) {
+    Log::spy();
+    Http::fake(['*' => Http::response([
+        'OCRExitCode' => '99', 'IsErroredOnProcessing' => true,
+        'ErrorMessage' => [$message.' PRIVATE synthetic-key https://private.example/image?signature=secret'],
+        'ErrorDetails' => ['unexpected' => ['nested private data']],
+        'ParsedResults' => [['FileParseExitCode' => '11010519491231002X', 'ParsedText' => 'PRIVATE ID text']],
+    ])]);
+    expect(fn () => submitOcrSpace($this))->toThrow(DomainException::class);
+    expect(IdentityRecord::count())->toBe(0)->and(KycApplication::count())->toBe(0);
+    Log::shouldHaveReceived('warning')->once()->with('OCR.Space KYC OCR failed', [
+        'phase' => 'response', 'http_status' => 200, 'reason' => 'provider_result_rejected',
+        'ocr_exit_code' => 99, 'file_parse_exit_code' => null, 'provider_error_category' => $category,
+    ]);
+    Http::assertSentCount(1);
+})->with([
+    ['Invalid API key', 'api_key_rejected'], ['API key is invalid', 'api_key_rejected'],
+    ['Maximum number of requests exceeded', 'quota_or_rate_limit'],
+    ['File size limit exceeded', 'file_size_limit'], ['Unable to recognize the file type', 'file_type_error'],
+    ['Unable to download the file', 'image_download_failed'], ['Processing timed out', 'provider_timeout'],
+    ['Unexpected provider failure', 'unclassified'],
 ]);
 
 it('does not send requests with missing or corrupt encrypted credentials', function ($encrypted) {

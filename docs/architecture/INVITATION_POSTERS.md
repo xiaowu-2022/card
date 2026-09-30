@@ -19,3 +19,14 @@ replacement poster. Reopening retries generation.
 Verification: tests/Feature/InvitationPosterTest.php covers upload, audit,
 company-scoped reads, rejected formats and Platform authority. Frontend typecheck,
 i18n checks and build apply. Default PNG generation verified in local browser.
+
+## 2026-09-30 Storage read recovery
+
+Platform previews and consumer poster DTOs always reference their existing authenticated
+company-scoped image routes, including in OSS mode. Generating page data performs no
+remote reads. Image GET resolves the current storage configuration via ImageStorage:
+OSS processing is preferred, with checksum-verified encrypted server-original fallback
+for pending uploads or read/processing failures. Changed configurations retain the
+existing original-checksum gate. This also avoids cross-origin canvas image access.
+GET does not upload, repair, rewrite mappings or replay business operations. Existing
+posters work without re-upload; backend deployment only, no migration or asset rebuild.

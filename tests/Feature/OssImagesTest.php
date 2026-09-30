@@ -598,7 +598,7 @@ it('uses the current OSS original for OCR despite replicas and refuses unfinishe
     expect(fn () => $images->ocrUrl('private', 'missing'))->toThrow(DomainException::class);
 });
 
-it('returns direct current OSS URLs for support and poster DTOs without reading remote bytes', function () {
+it('returns direct current OSS support URLs and authenticated poster URLs without reading remote bytes', function () {
     enableOssFixture($this);
     $id = app(SendSupportMessageAction::class)->user($this->company->id, $this->user->id, (string) Str::uuid(), 'image', kycTestImage());
     $images = app(ImageStorage::class);
@@ -611,6 +611,6 @@ it('returns direct current OSS URLs for support and poster DTOs without reading 
     $platform = app(SupportChatQuery::class)->platform($this->company->id, $this->owner->id, $this->user->id);
     expect($platform['messages'][0]['imageUrl'])->toBe($chat['messages'][0]['imageUrl']);
     $home = app(PromotionQuery::class)->home($this->company->id, $this->user->id);
-    expect($home['posterBackground'])->toStartWith('https://images.example.com/images/')->toContain('x-oss-process=');
+    expect($home['posterBackground'])->toBe('/promotion/poster-background');
     expect(count($this->oss->reads))->toBe($reads);
 });

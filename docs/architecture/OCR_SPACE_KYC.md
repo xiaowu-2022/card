@@ -23,8 +23,19 @@ Only successful extraction reaches the existing normalization, encryption, HMAC,
 tenant identity-account lock and approval workflow. Client identity_number remains
 excluded. New evidence records `ocr_space` and the existing encrypted OCR-source flag.
 Old applications, identity records, documents and evidence are never rewritten.
-Logs contain fixed phase/reason and HTTP status only, never text, URLs, raw errors,
-exception chains or keys. No financial/provider operations are introduced.
+Logs contain fixed phase/reason, HTTP status, allowlisted OCR/page exit codes and a
+fixed provider-error category only, never text, URLs, raw errors, exception chains
+or keys. Error categories are diagnostic hints from known upstream error phrases;
+unknown messages stay `unclassified` and never change approval decisions.
+No financial/provider operations are introduced.
+
+For deployment troubleshooting, `phase=configuration` means the local encrypted key
+is missing, empty or cannot be decrypted. `phase=response,http_status=200` means an
+HTTP response arrived, not that the API key or OCR was accepted. The additional
+`reason` distinguishes invalid JSON, invalid provider results and invalid page results.
+`provider_error_category` can identify key rejection, quota, file size/type, download
+or timeout messages without retaining upstream content. Deploy the adapter and reload
+PHP workers to obtain these diagnostics on future submissions; do not replay history.
 
 ## Configuration and deployment
 
