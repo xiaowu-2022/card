@@ -1,3 +1,12 @@
+On 2026-09-30 the user requested preserving card-application progress across
+backgrounding and screen lock. Card selection, application, holder contacts and
+recipient drafts remain in component memory until the form is closed/unmounted;
+no draft is written to persistent storage. Foreground onShow skips automatic card
+page reload while an application/selection/verification dialog is open. Explicit
+post-submission refresh still runs. Request UUIDs, uncertain submission state,
+server validation and PIN clearing in other screens remain unchanged. OS process
+termination and a full browser reload are not covered by in-memory retention.
+
 # uni-app consumer migration
 
 ## Native launch entry — 2026-09-29

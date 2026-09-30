@@ -60,6 +60,7 @@ const rails = computed(
             props.page.mode === 'deposit' ? r.deposit : r.withdrawal,
         ) ?? [],
 );
+form.rail = props.page.mode === 'exchange' ? '' : (rails.value[0]?.code ?? '');
 const rail = computed(() => rails.value.find((r) => r.code === form.rail));
 const calculatedFee = computed(() =>
     withdrawalPercentageFee(form.amount, rail.value?.feePercent ?? null, form.asset),
@@ -112,7 +113,7 @@ function intentChanged() {
 }
 function chooseAsset(value: string) {
     form.asset = value;
-    form.rail = '';
+    form.rail = props.page.mode === 'exchange' ? '' : (rails.value[0]?.code ?? '');
     form.amount = '';
     form.address = '';
     form.expected_fee = '';

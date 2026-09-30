@@ -33,6 +33,46 @@ const props = defineProps<{
         receipt: Receipt | null;
     };
 }>();
+type HistoryItem = Omit<Receipt, 'requestId'>;
+const historyOpen = ref(false),
+    historyLoading = ref(false),
+    historyFailed = ref(false);
+const historyItems = ref<HistoryItem[]>([]),
+    historyPage = ref(1),
+    historyMore = ref(false);
+const historyDetail = ref<HistoryItem | null>(null);
+let historyGeneration = 0;
+async function loadHistory(page = 1) {
+    const run = ++historyGeneration;
+    historyLoading.value = true;
+    historyFailed.value = false;
+    try {
+        const data = await request<{ items: HistoryItem[]; page: number; hasMore: boolean }>(
+            '/client/wallet/transfers?page=' + page,
+        );
+        if (run !== historyGeneration) return;
+        historyItems.value = data.items;
+        historyPage.value = data.page;
+        historyMore.value = data.hasMore;
+    } catch {
+        if (run === historyGeneration) historyFailed.value = true;
+    } finally {
+        if (run === historyGeneration) historyLoading.value = false;
+    }
+}
+function openHistory() {
+    historyOpen.value = true;
+    historyDetail.value = null;
+    historyItems.value = [];
+    void loadHistory();
+}
+useSensitiveScreen(() => {
+    historyGeneration++;
+    historyOpen.value = false;
+    historyDetail.value = null;
+    historyItems.value = [];
+    historyLoading.value = false;
+});
 const scales: Record<string, number> = { USDT: 8, USDC: 6, ETH: 18, BTC: 8 };
 const key = `wallet-transfer:${session.value?.tenant.id}:${props.page.accountId}`;
 function validAmount(amount: string, asset: string) {
@@ -67,7 +107,7 @@ const form = reactive({
     request_id: draft?.request_id ?? requestId(),
     recipient_account_id: draft?.recipient_account_id ?? '',
     amount: draft?.amount ?? '',
-    asset: draft?.asset ?? 'USDT',
+    asset: draft?.asset ?? props.page.assets[0]?.asset ?? '',
     current_password: '',
     confirmed: false,
 });
@@ -165,6 +205,8 @@ async function submit() {
 </script>
 <template>
     <PageShell :title="t('Transfer')" back="/dashboard" active="assets"
+        ><template #header-right
+            ><button class="history-link" @click="openHistory">{{ t('Records') }}</button></template
         ><view v-if="page.receipt" class="transfer-receipt"
             ><view class="receipt-summary"
                 ><view class="receipt-icon"><UiIcon name="circle-check" :size="40" /></view
@@ -295,10 +337,96 @@ async function submit() {
                     )
                 }}</text></Modal
             >
-        </form></PageShell
-    >
+        </form>
+        <Modal
+            :open="historyOpen"
+            :title="t(historyDetail ? 'Transfer details' : 'Transfer records')"
+            @close="historyOpen = false"
+        >
+            <view v-if="historyDetail" class="receipt-details">
+                <button class="history-link" @click="historyDetail = null">{{ t('Back') }}</button>
+                <view
+                    v-for="row in [
+                        { label: 'Status', value: t('Completed') },
+                        {
+                            label: 'Transfer quantity',
+                            value: exactAmount(historyDetail.amount) + ' ' + historyDetail.asset,
+                        },
+                        { label: 'Sender account ID', value: historyDetail.senderAccountId },
+                        { label: 'Recipient account ID', value: historyDetail.recipientAccountId },
+                        { label: 'Time', value: dateTime(historyDetail.createdAt) },
+                        { label: 'Transfer reference', value: historyDetail.id },
+                    ]"
+                    :key="row.label"
+                    ><text>{{ t(row.label) }}</text
+                    ><text selectable>{{ row.value }}</text></view
+                >
+            </view>
+            <view v-else>
+                <text v-if="historyLoading">{{ t('Loading…') }}</text>
+                <view v-else-if="historyFailed"
+                    ><text>{{ t('Unable to load. Please try again.') }}</text
+                    ><button class="secondary" @click="loadHistory(historyPage)">
+                        {{ t('Retry') }}
+                    </button></view
+                >
+                <view v-else>
+                    <text v-if="!historyItems.length">{{ t('No transfer records yet') }}</text>
+                    <button
+                        v-for="item in historyItems"
+                        :key="item.id"
+                        class="history-row"
+                        @click="historyDetail = item"
+                    >
+                        <view
+                            >{{ t(item.sent ? 'Transfer sent' : 'Transfer received') }} ·
+                            {{ item.sent ? item.recipientAccountId : item.senderAccountId }}</view
+                        >
+                        <view
+                            >{{ item.sent ? '-' : '+' }}{{ exactAmount(item.amount) }}
+                            {{ item.asset }}</view
+                        >
+                        <text class="muted">{{ dateTime(item.createdAt) }}</text>
+                    </button>
+                    <view class="receipt-actions">
+                        <button
+                            v-if="historyPage > 1"
+                            class="secondary"
+                            @click="loadHistory(historyPage - 1)"
+                        >
+                            {{ t('Previous') }}
+                        </button>
+                        <button
+                            v-if="historyMore"
+                            class="secondary"
+                            @click="loadHistory(historyPage + 1)"
+                        >
+                            {{ t('Next') }}
+                        </button>
+                    </view>
+                </view>
+            </view>
+        </Modal>
+    </PageShell>
 </template>
 <style scoped>
+.history-link {
+    background: transparent;
+    font-size: 14px;
+    padding: 0 4px;
+    min-width: 44px;
+}
+.history-row {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    font-size: 14px;
+    line-height: 24px;
+    padding: 16px 0;
+    border-bottom: 1px solid #e2e7e4;
+    border-radius: 0;
+    overflow-wrap: anywhere;
+}
 .transfer-balance {
     margin-bottom: 20px;
 }

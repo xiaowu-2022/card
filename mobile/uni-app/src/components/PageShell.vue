@@ -97,18 +97,19 @@ function open(path: string) {
                     ><button v-if="back" class="icon" :aria-label="t('Back')" @click="open(back)">
                         <UiIcon name="arrow-left" :size="20" /></button
                     ><view v-else /><text class="header-title">{{ title }}</text
-                    ><button
-                        v-if="!guest && session?.user && !hideMessages"
-                        class="icon"
-                        :aria-label="t('Messages')"
-                        @click="go('/messages')"
-                    >
-                        <UiIcon name="bell" :size="20" /><text
-                            v-if="unread.messages"
-                            class="badge"
-                            >{{ badge(unread.messages) }}</text
-                        ></button
-                    ><view v-else /></view
+                    ><slot name="header-right"
+                        ><button
+                            v-if="!guest && session?.user && !hideMessages"
+                            class="icon"
+                            :aria-label="t('Messages')"
+                            @click="go('/messages')"
+                        >
+                            <UiIcon name="bell" :size="20" /><text
+                                v-if="unread.messages"
+                                class="badge"
+                                >{{ badge(unread.messages) }}</text
+                            ></button
+                        ><view v-else /></slot></view
                 ><slot /></view
             ><view v-if="!guest && session?.user && !article" class="tabs"
                 ><button

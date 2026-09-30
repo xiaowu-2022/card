@@ -1,19 +1,29 @@
 <script setup lang="ts">
 import { useSensitiveScreen } from '../lib/sensitive';
 import { computed, reactive } from 'vue';
-import { t, locale } from '../lib/i18n';
+import { t, locale, dateTime } from '../lib/i18n';
 import { useAction } from '../lib/client';
+import { photoUrl } from '../lib/api';
 import { go } from '../lib/navigation';
 import PageShell from '../components/PageShell.vue';
 import StatusBanner from '../components/StatusBanner.vue';
-import FormField from '../components/FormField.vue';
 import FormErrors from '../components/FormErrors.vue';
 import SelectField from '../components/SelectField.vue';
 import UploadField from '../components/UploadField.vue';
 import countries from '../generated/countries.json';
 const props = defineProps<{
     page: {
-        kyc: { status: string; reviewMessage: string | null };
+        kyc: {
+            status: string;
+            reviewMessage: string | null;
+            documentType?: string | null;
+            documentCountry?: string | null;
+            maskedIdentityNumber?: string | null;
+            submittedAt?: string | null;
+            verifiedAt?: string | null;
+            frontUrl?: string | null;
+            backUrl?: string | null;
+        };
         canSubmit: boolean;
         maxDocumentMb: number;
         backHref: string;
@@ -24,7 +34,6 @@ const action = useAction();
 const form = reactive({
     document_type: 'NATIONAL_ID',
     document_country: 'CN',
-    identity_number: '',
     front: '',
     back: '',
 });
@@ -76,11 +85,13 @@ function resetFiles() {
     form.front = '';
     form.back = '';
 }
-useSensitiveScreen(() => {
-    form.identity_number = '';
-    form.front = '';
-    form.back = '';
-}, { retainOnBackground: true });
+useSensitiveScreen(
+    () => {
+        form.front = '';
+        form.back = '';
+    },
+    { retainOnBackground: true },
+);
 async function submit() {
     const files = [
         { name: 'front', path: form.front },
@@ -92,13 +103,11 @@ async function submit() {
         {
             document_type: form.document_type,
             document_country: form.document_country,
-            identity_number: form.identity_number,
         },
         {
             files,
             navigate: false,
             success: () => {
-                form.identity_number = '';
                 resetFiles();
                 emit('reload');
             },
@@ -116,7 +125,65 @@ async function submit() {
                     : t(state.description)
             "
             :tone="state.tone"
-        /><view v-if="page.canSubmit" class="kyc-card"
+        /><view v-if="page.kyc.status === 'APPROVED'" class="kyc-card">
+            <text class="kyc-title">{{ t('Identity verified') }}</text>
+            <view class="verified-row"
+                ><text>{{ t('Document type') }}</text
+                ><text>{{
+                    t(
+                        page.kyc.documentType === 'PASSPORT'
+                            ? 'Passport'
+                            : 'Mainland China identity card',
+                    )
+                }}</text></view
+            >
+            <view class="verified-row"
+                ><text>{{ t('Document country') }}</text
+                ><text>{{
+                    page.kyc.documentCountry
+                        ? new Intl.DisplayNames([locale], { type: 'region' }).of(
+                              page.kyc.documentCountry,
+                          )
+                        : '—'
+                }}</text></view
+            >
+            <view class="verified-row"
+                ><text>{{ t('Identity number') }}</text
+                ><text>{{ page.kyc.maskedIdentityNumber ?? '—' }}</text></view
+            >
+            <view class="verified-row"
+                ><text>{{ t('Verification time') }}</text
+                ><text>{{ page.kyc.verifiedAt ? dateTime(page.kyc.verifiedAt) : '—' }}</text></view
+            >
+            <view class="document-grid">
+                <view
+                    ><text class="label">{{
+                        t(
+                            page.kyc.documentType === 'PASSPORT'
+                                ? 'Passport information page'
+                                : 'ID front',
+                        )
+                    }}</text>
+                    <image
+                        v-if="page.kyc.frontUrl"
+                        :src="photoUrl(page.kyc.frontUrl) ?? ''"
+                        mode="widthFix"
+                        class="verified-photo"
+                    />
+                    <text v-else class="muted">{{ t('Image unavailable') }}</text>
+                </view>
+                <view v-if="page.kyc.documentType !== 'PASSPORT'"
+                    ><text class="label">{{ t('ID back') }}</text>
+                    <image
+                        v-if="page.kyc.backUrl"
+                        :src="photoUrl(page.kyc.backUrl) ?? ''"
+                        mode="widthFix"
+                        class="verified-photo"
+                    />
+                    <text v-else class="muted">{{ t('Image unavailable') }}</text>
+                </view>
+            </view> </view
+        ><view v-else-if="page.canSubmit" class="kyc-card"
             ><text class="kyc-title">{{
                 t(
                     page.kyc.status === 'RESUBMISSION_REQUIRED'
@@ -146,13 +213,6 @@ async function submit() {
                     :options="countryOptions"
                     :disabled="action.pending.value"
                     searchable
-                /><FormField
-                    v-model="form.identity_number"
-                    :label="t('Identity number')"
-                    :description="
-                        t('Enter the document number exactly as shown in the uploaded image.')
-                    "
-                    :disabled="action.pending.value"
                 /><view class="document-grid"
                     ><UploadField
                         v-model="form.front"
@@ -175,7 +235,6 @@ async function submit() {
                     form-type="submit"
                     :disabled="
                         action.pending.value ||
-                        !form.identity_number ||
                         !form.front ||
                         (form.document_type === 'NATIONAL_ID' && !form.back)
                     "
@@ -195,6 +254,22 @@ async function submit() {
     >
 </template>
 <style scoped>
+.verified-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 0;
+    font-size: 14px;
+}
+.verified-row > text:last-child {
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+.verified-photo {
+    width: 100%;
+    display: block;
+    border-radius: 12px;
+}
 .kyc-card {
     border: 1px solid #e2e7e4;
     border-radius: 24px;

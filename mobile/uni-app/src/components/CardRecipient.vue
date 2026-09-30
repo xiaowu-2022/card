@@ -42,7 +42,7 @@ let generation = 0;
 useSensitiveScreen(() => {
     generation++;
     fields.value = {};
-});
+}, { retainUntilUnmount: true });
 async function send(inspect = false) {
     if (busy.value) return;
     const run = generation;

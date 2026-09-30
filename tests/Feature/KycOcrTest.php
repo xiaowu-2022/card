@@ -36,7 +36,7 @@ function submitCurrentOcr($test): KycApplication
 {
     return app(SubmitKycApplicationAction::class)->execute($test->tenant, $test->user, 'CN', 'OCR-1234', kycTestImage('front.png'), kycTestImage('back.png'));
 }
-it('runs synchronous OCR before the submission transaction and stores only encrypted match evidence', function () {
+it('runs synchronous OCR before the submission transaction and stores only encrypted recognition evidence', function () {
     $provider = new class implements KycOcrProviderInterface
     {
         public int $transactionLevel = -1;
@@ -58,17 +58,17 @@ it('runs synchronous OCR before the submission transaction and stores only encry
     $a = submitCurrentOcr($this);
     expect($provider->transactionLevel)->toBe($outer)->and($a->ocr_status)->toBe(KycOcrStatus::Succeeded)
         ->and($a->review_status)->toBe(KycReviewStatus::Pending)
-        ->and(json_decode(app(KycDataCipher::class)->decrypt($a->ocr_result_encrypted), true))->toBe(['candidate_identity_match' => 'MATCH'])
+        ->and(json_decode(app(KycDataCipher::class)->decrypt($a->ocr_result_encrypted), true))->toBe(['identity_number_source' => 'OCR', 'identity_number_recognized' => true])
         ->and($a->ocr_result_encrypted)->not->toContain('OCR-1234', 'TEST PERSON');
     Queue::assertNotPushed(ProcessKycOcrJob::class);
 });
-it('fails closed before storage when recognition fails or mismatches', function ($outcome, $number) {
+it('fails closed before storage when recognition fails or returns an invalid number', function ($outcome, $number) {
     $p = Mockery::mock(KycOcrProviderInterface::class);
     $p->shouldReceive('extractIdentityDocument')->once()->andReturn(new KycOcrResultDTO($outcome, $number));
     app()->instance(KycOcrProviderInterface::class, $p);
-    expect(fn () => submitCurrentOcr($this))->toThrow(DomainException::class, 'could not be recognized or does not match');
+    expect(fn () => submitCurrentOcr($this))->toThrow(DomainException::class, 'could not be recognized');
     expect(KycApplication::count())->toBe(0)->and(IdentityRecord::count())->toBe(0)->and(Storage::disk('private')->allFiles())->toBe([]);
-})->with([[KycOcrOutcome::Failed, null], [KycOcrOutcome::Success, 'WRONG'], [KycOcrOutcome::Success, '']]);
+})->with([[KycOcrOutcome::Failed, null], [KycOcrOutcome::Success, '   '], [KycOcrOutcome::Success, '']]);
 it('allows a safe resubmission after upstream timeout without queued retries or orphaned documents', function () {
     $p = Mockery::mock(KycOcrProviderInterface::class);
     $p->shouldReceive('extractIdentityDocument')->once()->andThrow(new RuntimeException('secret upstream details'));
@@ -105,3 +105,18 @@ it('rejects untrusted identity output instead of retaining it as approved eviden
     expect(fn () => submitCurrentOcr($this))->toThrow(DomainException::class);
     expect(KycApplication::count())->toBe(0)->and(IdentityRecord::count())->toBe(0)->and(Storage::disk('private')->allFiles())->toBe([]);
 });
+
+it('uses OCR as the only source of identity numbers when submitting without the input field', function ($supplied) {
+    fakeMatchingKycOcr('11010519491231002X');
+    $data = [
+        'document_type' => 'NATIONAL_ID', 'document_country' => 'CN',
+        'front' => kycTestImage('front.png'), 'back' => kycTestImage('back.png'),
+    ];
+    if ($supplied !== null) $data['identity_number'] = $supplied;
+    $this->actingAs($this->user, 'tenant_user')->post('http://a.localhost/kyc/applications', $data)
+        ->assertRedirect()->assertSessionHasNoErrors();
+    $application = KycApplication::where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->sole();
+    expect(app(IdentityNumberProtector::class)->decrypt($application->identity_number_encrypted))->toBe('11010519491231002X');
+    app(ApproveKycAction::class)->execute($this->tenant->id, $application->id, AdminUser::where('email', 'owner@a.localhost')->firstOrFail());
+    expect(IdentityRecord::where('user_id', $this->user->id)->count())->toBe(1);
+})->with([null, 'CLIENT-CANNOT-OVERRIDE-OCR']);

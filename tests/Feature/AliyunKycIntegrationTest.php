@@ -42,11 +42,11 @@ it('recognizes passport number before approving and stores only one private imag
     Http::assertSent(fn ($request) => $request->hasHeader('x-acs-action', 'RecognizeChinesePassport') && $request->hasHeader('Authorization'));
 });
 
-it('rejects missing or mismatched recognized numbers without creating an approved identity', function (string $number): void {
+it('rejects missing recognized numbers without creating an approved identity', function (string $number): void {
     aliyunKycFake($number);
     expect(fn () => app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', 'E12345678', kycTestImage('passport.jpg'), null, documentType: KycDocumentType::Passport))->toThrow(DomainException::class);
     expect(IdentityRecord::count())->toBe(0)->and(KycApplication::count())->toBe(0)->and(Storage::disk('private')->allFiles())->toBe([]);
-})->with(['', 'E99999999']);
+})->with(['']);
 
 it('fails closed on upstream failure without exposing raw errors', function (): void {
     Http::fake(['*' => Http::response(['Code' => 'noPermission', 'Message' => 'sensitive-marker'], 403)]);
@@ -149,7 +149,7 @@ it('reports documented image rejections as unrecognized documents without storin
         $this->fail('Expected document rejection');
     } catch (DomainException $error) {
         expect($error->errorCode)->toBe('KYC_OCR_MISMATCH')->and($error->httpStatus)->toBe(422)
-            ->and($error->getMessage())->toBe('The document number could not be recognized or does not match. Please upload a clear document image.');
+            ->and($error->getMessage())->toBe('The document number could not be recognized. Please upload a clear document image.');
     }
     Http::assertSentCount(1);
     Log::shouldHaveReceived('warning')->once()->withArgs(fn ($message, $context) => $message === 'Aliyun KYC OCR failed'

@@ -20,6 +20,14 @@ final class WalletTransferController extends Controller
         return Inertia::render('user/Transfer', $query->get($context->id(), $request->user('tenant_user')->id, $transfer));
     }
 
+    public function history(Request $request, TenantContext $context, WalletTransferQuery $query): JsonResponse
+    {
+        $data = $request->validate(['page' => ['sometimes', 'integer', 'min:1', 'max:100000']]);
+
+        return response()->json($query->history($context->id(), $request->user('tenant_user')->id, (int) ($data['page'] ?? 1)))
+            ->header('Cache-Control', 'private, no-store');
+    }
+
     public function recipient(Request $request, TenantContext $context, WalletTransferQuery $query): JsonResponse
     {
         $data = $request->validate(['recipient_account_id' => ['required', 'string', 'regex:/^[0-9]{12}$/D'], 'asset' => ['required', 'in:USDT,USDC,ETH,BTC']]);

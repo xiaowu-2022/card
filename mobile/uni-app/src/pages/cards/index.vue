@@ -54,7 +54,7 @@ const { loading, failed, refresh } = useScreen(async () => {
         uni.pageScrollTo({ selector: '#' + entryAnchor, duration: 0 });
         entryAnchor = '';
     }
-});
+}, { refreshOnShow: () => !page.value || (!applicationProduct.value && !choosing.value && !verification.value) });
 const unresolved = computed(() =>
         page.value?.issueOrders.find((o) => ['creating', 'unknown'].includes(o.state)),
     ),
@@ -80,7 +80,7 @@ const cardKey = computed(
 useSensitiveScreen(() => {
     choosing.value = false;
     applicationProduct.value = null;
-});
+}, { retainUntilUnmount: true });
 async function syncIssue() {
     if (!unresolved.value) return;
     await action.submit(

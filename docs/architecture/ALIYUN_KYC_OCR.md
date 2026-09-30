@@ -1,3 +1,12 @@
+On 2026-09-30 the user removed consumer document-number entry. New submissions
+derive the identity number exclusively from successful server-side OCR and normalize,
+encrypt and hash that result. Client identity_number is excluded from validated input.
+This supersedes comparison against a user-entered number. Empty/invalid/failed OCR
+still fails closed; document-side validation, account identity limits, tenant/user
+isolation, immutable approved history and encrypted evidence remain. New evidence
+records OCR as the recognized-number source; historical MATCH evidence stays valid
+for its original records. No historical re-recognition or identity rewrite is authorized.
+
 # 阿里云证件 OCR
 
 2026-09-24 用户批准大陆身份证和护照识别，替代原来上传合法图片就自动认证的规则。

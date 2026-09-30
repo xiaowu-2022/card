@@ -23,6 +23,20 @@ final readonly class ActivateUserWalletAction
         private AuditLogger $audit,
     ) {}
 
+    public function ensure(string $tenantId, string $userId, ?string $requestId = null): void
+    {
+        DB::transaction(function () use ($tenantId, $userId, $requestId) {
+            $tenant = Tenant::whereKey($tenantId)->lockForUpdate()->firstOrFail();
+            $user = User::where('tenant_id', $tenantId)->whereKey($userId)->lockForUpdate()->firstOrFail();
+            if ($tenant->status !== TenantStatus::Active || $user->status !== UserStatus::Active
+                || Wallet::where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', $tenant->default_asset)->exists()
+                || $this->kycStatus->forUser($tenantId, $userId) !== KycUserStatus::Approved) {
+                return;
+            }
+            $this->execute($tenantId, $userId, $requestId);
+        }, 3);
+    }
+
     public function execute(string $tenantId, string $userId, ?string $requestId = null): WalletActivationResult
     {
         return DB::transaction(function () use ($tenantId, $userId, $requestId): WalletActivationResult {

@@ -34,6 +34,22 @@ final readonly class WalletTransferQuery
         return ['accountId' => $recipient->account_id, 'email' => $recipient->email, 'asset' => $asset];
     }
 
+    public function history(string $tenantId, string $userId, int $page): array
+    {
+        $rows = WalletTransfer::query()->where('tenant_id', $tenantId)
+            ->where(fn ($q) => $q->where('sender_user_id', $userId)->orWhere('recipient_user_id', $userId))
+            ->orderByDesc('created_at')->orderByDesc('id')->simplePaginate(20, ['*'], 'page', $page);
+        $senders = User::where('tenant_id', $tenantId)->whereIn('id', $rows->getCollection()->pluck('sender_user_id'))->pluck('account_id', 'id');
+
+        return ['items' => $rows->getCollection()->map(fn ($transfer) => [
+            'id' => $transfer->id, 'amount' => $transfer->amount, 'asset' => $transfer->asset_code,
+            'sent' => $transfer->sender_user_id === $userId,
+            'senderAccountId' => $senders[$transfer->sender_user_id] ?? null,
+            'recipientAccountId' => $transfer->recipient_account_id,
+            'createdAt' => $transfer->created_at->toIso8601String(),
+        ])->values()->all(), 'page' => $rows->currentPage(), 'hasMore' => $rows->hasMorePages()];
+    }
+
     public function get(string $tenantId, string $userId, ?string $transferId = null): array
     {
         $wallet = $this->wallets->get($tenantId, $userId);

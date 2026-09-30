@@ -2,7 +2,7 @@ import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { ApiError } from './api';
 import { clearSession, requireUser } from './session';
-export function useScreen(load: () => Promise<void>) {
+export function useScreen(load: () => Promise<void>, options: { refreshOnShow?: () => boolean } = {}) {
     const loading = ref(true);
     const failed = ref(false);
     async function refresh() {
@@ -21,6 +21,7 @@ export function useScreen(load: () => Promise<void>) {
         }
     }
     onShow(() => {
+        if (options.refreshOnShow && !options.refreshOnShow()) return;
         void refresh();
     });
     return { loading, failed, refresh };

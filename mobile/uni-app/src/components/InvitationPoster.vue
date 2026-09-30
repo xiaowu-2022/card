@@ -8,6 +8,7 @@ const props = defineProps<{ link: string; code: string; background: string | nul
 const open = ref(false),
     preview = ref(''),
     failed = ref(false),
+    width = ref(900),
     height = ref(1000),
     saving = ref(false),
     instance = getCurrentInstance();
@@ -31,22 +32,61 @@ async function generate() {
             );
         }
         if (run !== generation || !open.value) return;
-        height.value = picture
-            ? Math.ceil(Math.min(1600, Math.max(600, (900 * picture.height) / picture.width)))
-            : 1000;
+        width.value = picture?.width ?? 900;
+        height.value = picture?.height ?? 1000;
+        const qr = qrcode(0, 'M');
+        qr.addData(props.link, 'Byte');
+        qr.make();
+        const count = qr.getModuleCount(), quiet = 4, total = count + quiet * 2;
+        const cell = Math.max(1, Math.floor(Math.min(width.value * 0.28, height.value * 0.3) / total));
+        const size = cell * total;
+        const x = Math.floor((width.value - size) / 2);
+        const y = height.value - size - Math.round(height.value * 0.04);
+        function drawQr(fill: (color: string) => void, rect: (x: number, y: number, w: number, h: number) => void) {
+            fill('#ffffff');
+            rect(x, y, size, size);
+            fill('#000000');
+            for (let row = 0; row < count; row++)
+                for (let col = 0; col < count; col++)
+                    if (qr.isDark(row, col)) rect(x + (col + quiet) * cell, y + (row + quiet) * cell, cell, cell);
+        }
+        // #ifdef H5
+        // Draw on an explicitly sized bitmap, independent of offscreen uni-canvas layout.
+        if (!native) {
+            const canvas = document.createElement('canvas');
+            canvas.width = width.value;
+            canvas.height = height.value;
+            const context = canvas.getContext('2d');
+            if (!context) throw new Error('Canvas unavailable');
+            context.fillStyle = '#163e34';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            if (picture) {
+                const image = new Image();
+                await new Promise<void>((resolve, reject) => {
+                    image.onload = () => resolve();
+                    image.onerror = () => reject(new Error('Poster background unavailable'));
+                    image.src = picture!.path;
+                });
+                context.drawImage(image, 0, 0, canvas.width, canvas.height);
+            } else {
+                context.fillStyle = '#e2d7a9';
+                context.textAlign = 'center';
+                context.font = '60px sans-serif';
+                context.fillText(t('Invitation to join'), 450, 420, 800);
+                context.font = '32px sans-serif';
+                context.fillText(t('Share your invitation link with a friend.'), 450, 500, 780);
+            }
+            drawQr(color => { context.fillStyle = color; }, (x, y, w, h) => context.fillRect(x, y, w, h));
+            if (run === generation && open.value) preview.value = canvas.toDataURL('image/png');
+            return;
+        }
+        // #endif
         await nextTick();
         const ctx = uni.createCanvasContext(canvasId, instance?.proxy);
         ctx.setFillStyle('#163e34');
-        ctx.fillRect(0, 0, 900, height.value);
+        ctx.fillRect(0, 0, width.value, height.value);
         if (picture) {
-            const scale = Math.min(900 / picture.width, height.value / picture.height);
-            ctx.drawImage(
-                picture.path,
-                (900 - picture.width * scale) / 2,
-                (height.value - picture.height * scale) / 2,
-                picture.width * scale,
-                picture.height * scale,
-            );
+            ctx.drawImage(picture.path, 0, 0, width.value, height.value);
         } else {
             ctx.setFillStyle('#e2d7a9');
             ctx.setFontSize(60);
@@ -55,44 +95,15 @@ async function generate() {
             ctx.setFontSize(32);
             ctx.fillText(t('Share your invitation link with a friend.'), 450, 500, 780);
         }
-        const qr = qrcode(0, 'M');
-        qr.addData(props.link, 'Byte');
-        qr.make();
-        const count = qr.getModuleCount(),
-            size = 220,
-            quiet = 4,
-            total = count + quiet * 2,
-            x = 340,
-            y = height.value - 330;
-        ctx.setFillStyle('#ffffff');
-        ctx.fillRect(x, y, size, size);
-        ctx.setFillStyle('#000000');
-        for (let row = 0; row < count; row++)
-            for (let col = 0; col < count; col++)
-                if (qr.isDark(row, col)) {
-                    const left = Math.round(((col + quiet) * size) / total),
-                        top = Math.round(((row + quiet) * size) / total);
-                    ctx.fillRect(
-                        x + left,
-                        y + top,
-                        Math.round(((col + quiet + 1) * size) / total) - left,
-                        Math.round(((row + quiet + 1) * size) / total) - top,
-                    );
-                }
-        ctx.setFillStyle('#e2d7a9');
-        ctx.setFontSize(26);
-        ctx.setTextAlign('center');
-        ctx.setTextBaseline('middle');
-        ctx.setShadow(0, 0, 6, 'rgba(0,0,0,0.6)');
-        ctx.fillText(t('Scan with your browser'), 450, height.value - 78, 600);
+        drawQr(color => ctx.setFillStyle(color), (x, y, w, h) => ctx.fillRect(x, y, w, h));
         await new Promise<void>((resolve) => ctx.draw(false, () => resolve()));
         const output = await new Promise<string>((resolve, reject) =>
             uni.canvasToTempFilePath(
                 {
                     canvasId,
-                    width: 900,
+                    width: width.value,
                     height: height.value,
-                    destWidth: 900,
+                    destWidth: width.value,
                     destHeight: height.value,
                     fileType: 'png',
                     success: (r) => resolve(r.tempFilePath),
@@ -144,7 +155,7 @@ defineExpose({ generate });
         :canvas-id="canvasId"
         :id="canvasId"
         class="poster-canvas"
-        :style="{ width: '900px', height: height + 'px' }"
+        :style="{ width: width + 'px', height: height + 'px' }"
     /><Modal
         :open="open"
         :title="t('Invitation poster')"

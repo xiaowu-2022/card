@@ -270,3 +270,24 @@ it('hides cross-company self and unavailable transfer recipient emails', functio
     $this->recipient->update(['status' => 'SUSPENDED']);
     expect(fn () => app(WalletTransferQuery::class)->recipient($this->tenant->id, $this->sender->id, $this->recipient->account_id, 'USDT'))->toThrow(DomainException::class);
 });
+
+it('lists only owned same-company transfer history without changing balances', function () {
+    $transfer = $this->action->execute($this->tenant->id, $this->sender->id, $this->recipient->account_id, '10.25', $this->payload['request_id'], 'USDT');
+    $before = LedgerAccount::orderBy('id')->pluck('balance', 'id')->all();
+    $url = 'http://a.localhost/api/v1/client/wallet/transfers';
+    $this->actingAs($this->sender, 'tenant_user')->getJson($url)->assertOk()
+        ->assertJsonCount(1, 'items')->assertJsonPath('items.0.id', $transfer->id)
+        ->assertJsonPath('items.0.sent', true)->assertJsonPath('items.0.asset', 'USDT')
+        ->assertJsonPath('items.0.recipientAccountId', $this->recipient->account_id)
+        ->assertJsonPath('hasMore', false);
+    $this->getJson($url.'?page=2')->assertOk()->assertJsonCount(0, 'items');
+    $this->getJson($url.'?page=0')->assertUnprocessable();
+    $this->actingAs($this->recipient, 'tenant_user')->getJson($url)->assertOk()
+        ->assertJsonPath('items.0.sent', false)->assertJsonPath('items.0.senderAccountId', $this->sender->account_id);
+    $unrelated = $this->sender->replicate(['account_id']);
+    $unrelated->forceFill(['email' => 'unrelated-history@example.test'])->save();
+    expect(app(WalletTransferQuery::class)->history($this->tenant->id, $unrelated->id, 1)['items'])->toBe([]);
+    $other = User::where('tenant_id', '<>', $this->tenant->id)->firstOrFail();
+    expect(app(WalletTransferQuery::class)->history($other->tenant_id, $this->sender->id, 1)['items'])->toBe([]);
+    expect(LedgerAccount::orderBy('id')->pluck('balance', 'id')->all())->toBe($before);
+});

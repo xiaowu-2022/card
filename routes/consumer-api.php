@@ -15,6 +15,7 @@ Route::prefix('client')->middleware([
 ])->group(base_path('routes/consumer-client.php'));
 Route::post('login', [ConsumerController::class, 'login'])->middleware('throttle:20,1,consumer-login:');
 Route::middleware(RequireConsumerApiUser::class)->group(function (): void {
+    Route::post('wallet/ensure', [ConsumerController::class, 'ensureWallet'])->middleware('throttle:120,1');
     Route::post('logout', [ConsumerController::class, 'logout']);
     Route::post('locale', [ConsumerController::class, 'locale'])->middleware('throttle:30,1,consumer-locale:');
     Route::get('account', [ConsumerController::class, 'account']);

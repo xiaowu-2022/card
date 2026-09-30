@@ -25,7 +25,7 @@ const fields = ref<Record<string, string>>({
 let id = requestId();
 useSensitiveScreen(() => {
     for (const key of Object.keys(fields.value)) fields.value[key] = '';
-});
+}, { retainUntilUnmount: true });
 async function submit() {
     if (busy.value) return;
     busy.value = true;

@@ -2,6 +2,7 @@
 
 namespace App\Application\Kyc;
 
+use App\Application\Media\ImageStorage;
 use App\Domain\Kyc\Enums\KycUserStatus;
 use App\Domain\Kyc\Models\IdentityRecord;
 use App\Domain\Kyc\Models\KycApplication;
@@ -21,8 +22,18 @@ final readonly class UserKycQuery
             ? IdentityRecord::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->first()
             : null;
 
+        if ($identity) {
+            $application = KycApplication::where('tenant_id', $tenantId)->where('user_id', $userId)
+                ->whereKey($identity->source_kyc_application_id)->firstOrFail();
+        }
+        $images = app(ImageStorage::class);
+        $disk = (string) config('kyc.document_disk');
+
         return [
             'status' => $status->value,
+            'documentType' => $identity?->document_type?->value ?? $application?->document_type?->value,
+            'frontUrl' => $identity && $application?->front_object_key ? $images->displayUrl($disk, $application->front_object_key, 'document') : null,
+            'backUrl' => $identity && $application?->back_object_key ? $images->displayUrl($disk, $application->back_object_key, 'document') : null,
             'reviewMessage' => $application?->review_message,
             'submittedAt' => $application?->submitted_at?->toIso8601String(),
             'verifiedAt' => $identity?->verified_at?->toIso8601String(),

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import PageShell from '../../components/PageShell.vue';
 import LoadState from '../../components/LoadState.vue';
 import { request } from '../../lib/api';
@@ -19,6 +19,10 @@ const page = ref(1);
 const items = ref<Message[]>([]);
 const hasMore = ref(false);
 let generation = 0;
+let markOnEntry = true;
+onShow(() => {
+    markOnEntry = true;
+});
 onLoad((query) => {
     if (filters.some((f) => f.key === query?.filter)) filter.value = query!.filter;
     const number = Number(query?.page);
@@ -26,6 +30,13 @@ onLoad((query) => {
 });
 async function load() {
     const run = ++generation;
+    if (markOnEntry) {
+        await request('/messages/read-all', 'POST', {});
+        if (run !== generation) return;
+        markOnEntry = false;
+        await refreshUnread();
+        if (run !== generation) return;
+    }
     const data = await request<{ items: Message[]; hasMore: boolean }>(
         `/messages?filter=${filter.value}&page=${page.value}`,
     );

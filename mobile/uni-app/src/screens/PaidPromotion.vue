@@ -134,9 +134,6 @@ async function submit() {
     if (!available.value.some((l) => l.id === form.level_id)) return;
     await action.submit('/promotion/quotes', { ...form });
 }
-async function activate() {
-    await action.submit('/wallet/activate', {}, { navigate: false, success: () => emit('reload') });
-}
 </script>
 <template>
     <PageShell :title="title" back="/promotion" active="account"
@@ -159,15 +156,7 @@ async function activate() {
                 :title="t('Complete identity verification')"
                 :description="t('Verify your identity before using financial services.')"
                 :action="{ label: t('Verify now'), href: '/kyc' }"
-            /><view v-else-if="!ready" class="panel"
-                ><button
-                    v-if="p.paymentAccess.canCreateWallet"
-                    class="primary"
-                    :disabled="action.pending.value"
-                    @click="activate"
-                >
-                    {{ t('Activate wallet') }}</button
-                ><text v-else>{{ t('Wallet access is restricted') }}</text></view
+            /><view v-else-if="!ready" class="panel"><text>{{ t('Wallet access is restricted') }}</text></view
             ><Modal
                 :open="verificationOpen && !p.paymentAccess.verified"
                 :title="t('Complete identity verification')"

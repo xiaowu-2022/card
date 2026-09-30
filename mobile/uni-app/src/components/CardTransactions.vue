@@ -11,6 +11,42 @@ import {
     type CardTransaction,
 } from '../generated/card-transactions';
 import UiIcon from './UiIcon.vue';
+import Modal from './Modal.vue';
+import { useSensitiveScreen } from '../lib/sensitive';
+const selected = ref<CardTransaction | null>(null);
+useSensitiveScreen(() => {
+    selected.value = null;
+});
+const details = computed(() => {
+    const item = selected.value;
+    if (!item) return [];
+    return [
+        [t('Card'), ending(item)],
+        [t('Transaction type'), t(transactionTitles[item.type] ?? 'Card transaction')],
+        [t('Status'), t(transactionStates[item.state] ?? 'Confirming')],
+        [t('Transaction amount'), transactionMoney(item.amount, item.currency)],
+        [
+            t('Transaction fee'),
+            item.feeAmount != null && item.feeCurrency
+                ? transactionMoney(item.feeAmount, item.feeCurrency)
+                : '—',
+        ],
+        [
+            t('Fee refund'),
+            item.feeReturnAmount != null && item.feeReturnCurrency
+                ? transactionMoney(item.feeReturnAmount, item.feeReturnCurrency)
+                : '—',
+        ],
+        [
+            t(item.timeKind === 'completed' ? 'Completion time' : 'Recorded time'),
+            dateTime(item.displayAt),
+        ],
+        ...(item.merchant && item.merchant !== 'TEST / LOCAL MOCK'
+            ? [[t('Merchant'), item.merchant]]
+            : []),
+        ...(item.note ? [[t('Transaction note'), item.note]] : []),
+    ];
+});
 const props = defineProps<{ cardIds: string[]; singleCard?: boolean }>(),
     items = ref<CardTransaction[]>([]),
     loading = ref(false),
@@ -20,6 +56,7 @@ let generation = 0,
     states: { id: string; page: number; more: boolean; failed: boolean }[] = [];
 const key = computed(() => [...props.cardIds].sort().join(','));
 function start() {
+    selected.value = null;
     generation++;
     states = props.cardIds.map((id) => ({ id, page: 1, more: true, failed: false }));
     items.value = [];
@@ -82,8 +119,14 @@ function title(item: CardTransaction) {
                 {{ t('Retry') }}
             </button></view
         ><view v-if="items.length" class="list"
-            ><view v-for="item in items" :key="item.id" class="item"
-                ><view class="icon"><UiIcon name="cards" :size="16" /></view
+            ><button
+                v-for="item in items"
+                :key="item.id"
+                class="item"
+                :aria-label="t('Transaction details') + ': ' + title(item)"
+                @click="selected = item"
+            >
+                <view class="icon"><UiIcon name="cards" :size="16" /></view
                 ><view class="body"
                     ><view class="top"
                         ><view class="merchant"
@@ -118,8 +161,7 @@ function title(item: CardTransaction) {
                             }}</text></view
                         ></view
                     ><text class="time muted">{{ dateTime(item.displayAt) }}</text></view
-                ></view
-            ></view
+                ><UiIcon name="chevron-right" :size="16" /></button></view
         ><view v-if="!loading && !failed && !items.length" class="empty"
             ><UiIcon name="cards" :size="24" color="#68736e" /><text class="empty-title">{{
                 t('No card transactions yet')
@@ -132,6 +174,14 @@ function title(item: CardTransaction) {
             {{ t('Load more transactions') }}
         </button></view
     >
+    <Modal :open="!!selected" :title="t('Transaction details')" @close="selected = null">
+        <view v-if="selected" class="detail-list">
+            <view v-for="[label, value] in details" :key="label" class="detail-row">
+                <text class="muted">{{ label }}</text
+                ><text class="detail-value" selectable>{{ value }}</text>
+            </view>
+        </view>
+    </Modal>
 </template>
 <style scoped>
 .transactions {
@@ -149,7 +199,27 @@ function title(item: CardTransaction) {
     border-radius: 16px;
     padding: 0 16px;
 }
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 14px 0;
+    border-bottom: 1px solid #e2e7e4;
+    font-size: 14px;
+}
+.detail-value {
+    text-align: right;
+    overflow-wrap: anywhere;
+    min-width: 0;
+    flex: 1;
+    white-space: pre-wrap;
+}
 .item {
+    width: 100%;
+    background: transparent;
+    text-align: left;
+    border-radius: 0;
+    align-items: center;
     display: flex;
     min-width: 0;
     gap: 12px;

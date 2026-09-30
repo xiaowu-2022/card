@@ -1,3 +1,20 @@
+On 2026-09-30 the user removed consumer document-number entry. New submissions
+derive the identity number exclusively from successful server-side OCR and normalize,
+encrypt and hash that result. Client identity_number is excluded from validated input.
+This supersedes comparison against a user-entered number. Empty/invalid/failed OCR
+still fails closed; document-side validation, account identity limits, tenant/user
+isolation, immutable approved history and encrypted evidence remain. New evidence
+records OCR as the recognized-number source; historical MATCH evidence stays valid
+for its original records. No historical re-recognition or identity rewrite is authorized.
+
+On 2026-09-30 the user removed manual consumer wallet activation. Uni-app ensures
+the default wallet through an authenticated tenant/user-scoped POST before loading
+authenticated pages. Eligible active users with approved KYC receive a missing
+zero-balance wallet automatically, with existing locking and activation audit.
+GET remains read-only; existing wallets (including disabled ones), balances and
+Ledger entries are never rewritten or reactivated. This supersedes manual-only
+activation requirements for this workflow.
+
 On 2026-09-30 the user required image reads and public asset URL prefixes to follow
 the current storage selection/configuration, including existing images. Store object
 keys, not replaceable domain prefixes in business rows. Signed image gateways resolve

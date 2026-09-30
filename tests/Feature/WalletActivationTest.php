@@ -109,3 +109,29 @@ it('keeps admin wallet and ledger reads tenant scoped and read only', function (
     expect(collect(Route::getRoutes())->pluck('uri')->filter(fn (string $uri): bool => ! str_starts_with($uri, 'platform/') && (str_contains($uri, 'balance') || str_contains($uri, 'adjust')))->all())->toBe([])
         ->and(LedgerAccount::query()->where('account_type', LedgerAccountType::UserAvailable)->value('balance'))->toBe('0.00000000');
 });
+
+it('automatically ensures eligible wallets through a scoped idempotent POST only', function () {
+    $url = 'http://a.localhost/api/v1/wallet/ensure';
+    $this->actingAs($this->user, 'tenant_user')->postJson($url)->assertNoContent();
+    expect(Wallet::count())->toBe(0);
+    approvePhaseFourUser($this->tenant, $this->user);
+    $this->getJson($url)->assertStatus(405);
+    expect(Wallet::count())->toBe(0);
+    $this->postJson($url, ['tenant_id' => 'ignored', 'user_id' => 'ignored'])->assertNoContent();
+    $wallet = Wallet::where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->firstOrFail();
+    $this->postJson($url)->assertNoContent();
+    expect(Wallet::count())->toBe(1);
+    expect(AuditLog::where('action', 'USER_WALLET_ACTIVATED')->count())->toBe(1);
+    expect(LedgerAccount::where('wallet_id', $wallet->id)->where('balance', '<>', 0)->count())->toBe(0);
+    $before = $wallet->getAttributes();
+    $this->user->update(['status' => UserStatus::Suspended]);
+    app(ActivateUserWalletAction::class)->ensure($this->tenant->id, $this->user->id);
+    expect($wallet->fresh()->getAttributes())->toBe($before);
+});
+
+it('does not automatically provision a wallet for an inactive user', function () {
+    approvePhaseFourUser($this->tenant, $this->user);
+    $this->user->update(['status' => UserStatus::Suspended]);
+    app(ActivateUserWalletAction::class)->ensure($this->tenant->id, $this->user->id);
+    expect(Wallet::count())->toBe(0);
+});

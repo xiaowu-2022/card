@@ -68,7 +68,7 @@ const inactiveDescription = computed(() =>
 );
 const inactiveAction = computed(() =>
     e.value.kycStatus === 'APPROVED' && e.value.canActivate
-        ? { label: t('Activate wallet'), href: '/security-deposit' }
+        ? undefined
         : ['NOT_SUBMITTED', 'RESUBMISSION_REQUIRED'].includes(e.value.kycStatus)
           ? { label: t('Identity verification'), href: '/kyc' }
           : undefined,

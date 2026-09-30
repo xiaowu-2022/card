@@ -115,5 +115,6 @@ export async function requireUser() {
         uni.reLaunch({ url: '/pages/login/index' });
         return false;
     }
+    await request('/wallet/ensure', 'POST', {});
     return true;
 }

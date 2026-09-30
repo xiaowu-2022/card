@@ -81,10 +81,13 @@ final readonly class SubmitKycApplicationAction
             } catch (Throwable) {
                 throw new DomainException('KYC_OCR_UNAVAILABLE', 'Document recognition is temporarily unavailable. Please try again later.', 503);
             }
-            $normalizer = app(IdentityNumberNormalizer::class);
-            if ($ocr->outcome !== KycOcrOutcome::Success || ! $ocr->candidateIdentityNumber
-                || ! hash_equals($normalizer->normalize($identityNumber), $normalizer->normalize($ocr->candidateIdentityNumber))) {
-                throw new DomainException('KYC_OCR_MISMATCH', 'The document number could not be recognized or does not match. Please upload a clear document image.');
+            if ($ocr->outcome !== KycOcrOutcome::Success || ! $ocr->candidateIdentityNumber) {
+                throw new DomainException('KYC_OCR_MISMATCH', 'The document number could not be recognized. Please upload a clear document image.');
+            }
+            try {
+                $identityNumber = app(IdentityNumberNormalizer::class)->normalize($ocr->candidateIdentityNumber);
+            } catch (DomainException) {
+                throw new DomainException('KYC_OCR_MISMATCH', 'The document number could not be recognized. Please upload a clear document image.');
             }
             $protected = $this->identities->protect($tenant->id, $documentType->value, $country, $identityNumber);
 
@@ -122,7 +125,7 @@ final readonly class SubmitKycApplicationAction
                     'ocr_status' => KycOcrStatus::Succeeded,
                     'ocr_provider' => $provider->name(),
                     'ocr_reference' => $ocr->providerReference,
-                    'ocr_result_encrypted' => app(KycDataCipher::class)->encrypt(json_encode(['candidate_identity_match' => 'MATCH'], JSON_THROW_ON_ERROR)),
+                    'ocr_result_encrypted' => app(KycDataCipher::class)->encrypt(json_encode(['identity_number_source' => 'OCR', 'identity_number_recognized' => true], JSON_THROW_ON_ERROR)),
                     'review_status' => KycReviewStatus::Pending,
                     'submitted_at' => now(),
                 ])->save();

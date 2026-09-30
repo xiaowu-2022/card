@@ -26,7 +26,7 @@ final class SubmitKycApplicationRequest extends FormRequest
             'document_country' => ['required', 'string', 'size:2', 'regex:/^[A-Z]{2}$/', Rule::in(app(CardholderGeography::class)->countryCodes()), ...($this->input('document_type') === 'NATIONAL_ID' ? ['in:CN'] : [])],
             'front_url' => ['nullable', Rule::prohibitedIf(! $this->filled('front_upload_id')), 'url:https', 'max:2048'],
             'back_url' => ['nullable', Rule::prohibitedIf(! $this->filled('back_upload_id')), 'url:https', 'max:2048'],
-            'identity_number' => ['required', 'string', 'min:3', 'max:128'],
+            'identity_number' => ['exclude'],
             ...$this->imageRules('front', true, ['file', 'image', 'mimetypes:image/jpeg,image/png,image/webp', "max:{$maxKilobytes}", 'dimensions:min_width=1,min_height=1']),
             ...$this->imageRules('back', $this->input('document_type') === 'NATIONAL_ID', ['file', 'image', 'mimetypes:image/jpeg,image/png,image/webp', "max:{$maxKilobytes}", 'dimensions:min_width=1,min_height=1']),
         ];

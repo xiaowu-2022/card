@@ -43,7 +43,7 @@ final readonly class ApproveKycAction
                     throw new DomainException('KYC_ALREADY_REVIEWED', 'This application has already been reviewed.', 409);
                 }
                 $evidence = $application->ocr_result_encrypted ? json_decode(app(KycDataCipher::class)->decrypt($application->ocr_result_encrypted), true) : [];
-                if ($application->ocr_status !== KycOcrStatus::Succeeded || ($evidence['candidate_identity_match'] ?? null) !== 'MATCH') {
+                if ($application->ocr_status !== KycOcrStatus::Succeeded || (($evidence['candidate_identity_match'] ?? null) !== 'MATCH' && ! (($evidence['identity_number_source'] ?? null) === 'OCR' && ($evidence['identity_number_recognized'] ?? false) === true))) {
                     throw new DomainException('KYC_OCR_REQUIRED', 'Document recognition must succeed and match before approval.', 409);
                 }
                 $settings = PlatformKycSetting::current(true);

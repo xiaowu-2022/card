@@ -111,7 +111,7 @@ useSensitiveScreen(() => {
     reviewing.value = false;
     recipientSummary.value = '';
     emit('close');
-});
+}, { retainUntilUnmount: true });
 async function edit() {
     if (!props.application?.id || busy.value) return;
     const run = ++generation;

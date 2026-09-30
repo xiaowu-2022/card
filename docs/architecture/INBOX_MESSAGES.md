@@ -1,3 +1,9 @@
+On 2026-09-30 the user requested automatic read-all when opening the uni-app
+message list. Each page onShow sends the existing authenticated read-all POST
+before listing; pagination/filter changes do not mark subsequent arrivals read.
+Failures remain retryable and do not fabricate read status. Existing recipient
+scope, server watermark protection and separate support unread counts remain.
+
 # In-app messages
 
 Approved 2026-09-26. In-app delivery only: no email, SMS, browser push or support-chat import. No historical order backfill.

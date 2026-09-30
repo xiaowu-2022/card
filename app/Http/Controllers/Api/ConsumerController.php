@@ -15,6 +15,7 @@ use App\Application\Support\SupportUnread;
 use App\Application\User\AuthenticateUserAction;
 use App\Application\User\IssueConsumerDeviceToken;
 use App\Application\User\UpdateUserLocaleAction;
+use App\Application\Wallet\ActivateUserWalletAction;
 use App\Application\Wallet\UserWalletQuery;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Kyc\Services\KycStatusService;
@@ -33,6 +34,13 @@ use Illuminate\Validation\ValidationException;
 
 final class ConsumerController extends Controller
 {
+    public function ensureWallet(Request $request, TenantContext $context, ActivateUserWalletAction $action)
+    {
+        $action->ensure($context->id(), $request->attributes->get('consumer_user')->id, $request->attributes->get('request_id'));
+
+        return response()->noContent();
+    }
+
     public function domains(Request $request, TenantContext $context)
     {
         $origins = TenantDomain::query()

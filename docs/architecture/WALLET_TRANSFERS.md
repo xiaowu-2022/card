@@ -1,3 +1,10 @@
+On 2026-09-30 the user requested a Records action in place of the transfer-page
+notification bell. The uni-app transfer screen opens paginated incoming/outgoing
+history and a record detail dialog, keeping the transfer form mounted. GET
+/client/wallet/transfers returns only the current tenant/user's completed transfer
+rows, exact native amounts, account IDs, time and reference. No balances, Ledger,
+idempotency or transfer submission rules change; records never replay transfers.
+
 ## 2026-09-30 recipient confirmation
 
 The uni-app transfer review uses a modal showing the exact recipient account, server-resolved same-company email, quantity and currency. An authenticated, rate-limited read-only endpoint returns only eligible recipients; no global account search or directory is exposed. Changing the draft invalidates the review; unresolved transfer retries keep the original UUID and locked intent. Password/explicit confirmation, backend eligibility rechecks and Ledger accounting remain unchanged. UI wording uses 转账数量.
