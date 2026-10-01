@@ -153,7 +153,7 @@ it('sends OCR only direct OSS original URLs and no image bytes', function () {
     Http::assertSent(function ($request) use ($app) {
         parse_str(parse_url($request->url(), PHP_URL_QUERY), $query);
 
-        return $request->method() === 'GET' && $query === ['image' => app(ImageStorage::class)->ocrUrl('private', $app->front_object_key)] && $request->body() === '';
+        return $request->method() === 'GET' && $query === ['image' => 'http://images.example.com/'.app(ImageStorage::class)->record('private', $app->front_object_key)->object_key] && $request->body() === '';
     });
     expect(count($this->oss->objects))->toBe(1)->and($app->front_object_key)->not->toContain('E12345678');
     Storage::disk('private')->assertMissing($app->front_object_key);
@@ -334,7 +334,8 @@ it('generates bounded display URLs while preserving original bytes and OCR URLs'
     expect($url)->toStartWith('https://images.example.com/')
         ->and($query['x-oss-process'])->toBe(ImagePresentation::process('document', 'image/png'))
         ->and($query)->not->toHaveKey('signature')
-        ->and($images->ocrUrl('private', $key))->toBe($this->oss->url($images->active(), $images->record('private', $key)->object_key))
+        ->and($original)->toBe('https://images.example.com/'.$images->record('private', $key)->object_key)
+        ->and($images->ocrUrl('private', $key))->toBe('http://images.example.com/'.$images->record('private', $key)->object_key)
         ->and($images->read('private', $key))->toBe($bytes)
         ->and($images->record('private', $key)->sha256)->toBe(hash('sha256', $bytes));
     expect(ImagePresentation::process('brand', 'image/png'))->toContain('w_512,h_512')
@@ -590,7 +591,7 @@ it('uses the current OSS original for OCR despite replicas and refuses unfinishe
     $this->data['public_url'] = 'https://current-images.example.com';
     enableOssFixture($this);
     $reads = count($this->oss->reads);
-    expect($images->ocrUrl('private', $key))->toBe('https://current-images.example.com/'.$image->object_key)
+    expect($images->ocrUrl('private', $key))->toBe('http://current-images.example.com/'.$image->object_key)
         ->and(count($this->oss->reads))->toBe($reads);
     $image->update(['oss_pending' => true]);
     expect(fn () => $images->ocrUrl('private', $key))->toThrow(DomainException::class);

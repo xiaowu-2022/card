@@ -1,3 +1,8 @@
+On 2026-10-01 the user required OSS original URLs passed to OCR to use HTTP,
+not HTTPS. Rewrite only the scheme in ImageStorage::ocrUrl for the current OSS
+original; preserve display/upload URLs, object keys, checksums and signed server
+URLs. No image relocation or historical recognition is authorized.
+
 On 2026-10-01 the user replaced all runtime KYC OCR services with the fixed
 GET http://202.95.12.185:9601/ocr?image=<server-generated-original-url> endpoint,
 whose response contains a texts string array. The first/front upload is recognized
