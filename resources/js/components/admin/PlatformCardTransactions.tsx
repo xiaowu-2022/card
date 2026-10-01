@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { t, useAdminTranslation } from '@/i18n/admin';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,13 +35,86 @@ type Card = {
 };
 type Page = CardTransactionPage & { timezone: string };
 
-export function PlatformCardTransactions({ card, onClose }: { card: Card; onClose: () => void }) {
+export function PlatformCardTransactions({
+    card,
+    canSync,
+    onClose,
+}: {
+    card: Card;
+    canSync: boolean;
+    onClose: () => void;
+}) {
     const { i18n } = useAdminTranslation();
     const [page, setPage] = useState(1);
     const [attempt, setAttempt] = useState(0);
     const [data, setData] = useState<Page | null>(null);
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState(false);
+
+    const [syncing, setSyncing] = useState(false);
+    const [syncMessage, setSyncMessage] = useState('');
+    const [nextSyncPage, setNextSyncPage] = useState<number | null>(null);
+    const syncRequest = useRef<AbortController | null>(null);
+    useEffect(() => () => syncRequest.current?.abort(), []);
+
+    const sync = async (providerPage: number) => {
+        if (syncRequest.current) return;
+        const controller = new AbortController();
+        syncRequest.current = controller;
+        setSyncing(true);
+        setSyncMessage('');
+        try {
+            const xsrf = document.cookie
+                .split('; ')
+                .find((cookie) => cookie.startsWith('XSRF-TOKEN='))
+                ?.slice(11);
+            const token = xsrf
+                ? decodeURIComponent(xsrf)
+                : document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content;
+            if (!token) throw new Error('CSRF token unavailable');
+            const response = await fetch(
+                `/platform/tenants/${card.tenantId}/cards/${card.id}/transactions/sync`,
+                {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        [xsrf ? 'X-XSRF-TOKEN' : 'X-CSRF-TOKEN']: token,
+                    },
+                    body: JSON.stringify({ page: providerPage }),
+                    signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]),
+                },
+            );
+            if (!response.ok) throw new Error('Transaction sync failed');
+            const result: unknown = await response.json();
+            if (
+                !result ||
+                typeof result !== 'object' ||
+                !('page' in result) ||
+                result.page !== providerPage ||
+                !('hasMore' in result) ||
+                typeof result.hasMore !== 'boolean'
+            )
+                throw new Error('Invalid sync response');
+            if (controller.signal.aborted) return;
+            setNextSyncPage(result.hasMore && providerPage < 100000 ? providerPage + 1 : null);
+            setSyncMessage(
+                result.hasMore
+                    ? 'Page synced. You can sync the next page.'
+                    : 'Sync completed. No more provider records.',
+            );
+            setPage(1);
+            setAttempt((value) => value + 1);
+        } catch {
+            if (!controller.signal.aborted)
+                setSyncMessage('Card transactions could not be updated. Please try again later.');
+        } finally {
+            syncRequest.current = null;
+            if (!controller.signal.aborted) setSyncing(false);
+        }
+    };
 
     useEffect(() => {
         const controller = new AbortController();
@@ -103,6 +176,27 @@ export function PlatformCardTransactions({ card, onClose }: { card: Card; onClos
                         {data ? ` · ${t('Timezone')}: ${data.timezone}` : ''}
                     </p>
                 </DialogHeader>
+                {canSync && (
+                    <div className="shrink-0 space-y-2">
+                        <div className="flex gap-2">
+                            <Button disabled={syncing} onClick={() => void sync(1)}>
+                                {t(syncing ? 'Syncing transactions…' : 'Sync latest transactions')}
+                            </Button>
+                            {nextSyncPage !== null && (
+                                <Button
+                                    variant="secondary"
+                                    disabled={syncing}
+                                    onClick={() => void sync(nextSyncPage)}
+                                >
+                                    {t('Sync next page')} · {nextSyncPage}
+                                </Button>
+                            )}
+                        </div>
+                        <p className="text-xs text-muted-foreground" role="status">
+                            {t(syncMessage || 'Each click syncs up to 20 provider records.')}
+                        </p>
+                    </div>
+                )}
                 <div className="min-h-24 min-w-0 flex-1 overflow-auto" aria-busy={loading}>
                     {loading ? (
                         <p role="status" className="py-8 text-center text-sm">

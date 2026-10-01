@@ -2619,3 +2619,55 @@ it('persists provider fees and returns them on read-only scoped card history', f
         ->assertJsonPath('items.0.currency', 'CNY');
     Http::assertNothingSent();
 });
+
+it('manually syncs platform card transaction pages with audit and without money changes', function (): void {
+    [$card, $provider] = transactionReadFixture($this);
+    $provider->shouldReceive('getTransactionPage')->with('XR-TRANSACTION-FIXTURE', 1, 20)->twice()
+        ->andReturn(new ProviderTransactionPageDTO([
+            new ProviderCardTransactionDTO('PLATFORM-SYNC', '12.34000000', 'USD', 'purchase', 'completed', '2026-09-11T09:05:04', 'Example shop'),
+        ], 1, true));
+    $provider->shouldReceive('getTransactionPage')->with('XR-TRANSACTION-FIXTURE', 2, 20)->once()
+        ->andReturn(new ProviderTransactionPageDTO([], 2, false));
+    $tables = ['user_cards', 'wallets', 'ledger_accounts', 'ledger_entries', 'ledger_postings'];
+    $before = collect($tables)->mapWithKeys(fn ($table) => [$table => DB::table($table)->orderBy('id')->get()->toJson()]);
+    $platform = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $url = "http://admin.localhost/platform/tenants/{$this->tenant->id}/cards/{$card->id}/transactions";
+    $this->actingAs($platform, 'platform_admin')->getJson($url)->assertOk()->assertJsonCount(0, 'items');
+    foreach ([1, 1, 2] as $page) {
+        $this->postJson($url.'/sync', ['page' => $page])->assertOk()
+            ->assertHeader('Cache-Control', 'no-store, private')->assertExactJson(['page' => $page, 'hasMore' => $page === 1]);
+    }
+    $this->getJson($url)->assertOk()->assertJsonCount(1, 'items')->assertJsonPath('items.0.amount', '12.34000000');
+    expect(DB::table('audit_logs')->where('action', 'CARD_TRANSACTIONS_SYNCED')->where('actor_id', $platform->id)->where('resource_id', $card->id)->count())->toBe(3);
+    foreach ($tables as $table) {
+        expect(DB::table($table)->orderBy('id')->get()->toJson())->toBe($before[$table]);
+    }
+});
+
+it('guards platform transaction sync scope selectors and management permission', function (): void {
+    [$card, $provider] = transactionReadFixture($this);
+    $provider->shouldNotReceive('getTransactionPage');
+    $platform = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $url = "http://admin.localhost/platform/tenants/{$this->tenant->id}/cards/{$card->id}/transactions/sync";
+    $this->actingAs($platform, 'platform_admin');
+    $other = Tenant::query()->where('id', '!=', $this->tenant->id)->firstOrFail();
+    $this->postJson("http://admin.localhost/platform/tenants/{$other->id}/cards/{$card->id}/transactions/sync")->assertNotFound();
+    foreach (['page' => 0, 'tenant_id' => $other->id, 'user_id' => $this->user->id, 'provider_card_id' => 'other', 'page_size' => 1000] as $key => $value) {
+        $this->postJson($url, [$key => $value])->assertUnprocessable();
+    }
+    DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'card_product.manage')->value('id'))->delete();
+    $this->actingAs($platform->fresh(), 'platform_admin')->postJson($url)->assertForbidden();
+});
+
+it('keeps stored platform transactions readable when manual provider sync fails', function (): void {
+    [$card, $provider] = transactionReadFixture($this);
+    $provider->shouldReceive('getTransactionPage')->once()->andThrow(new ProviderUnknownResultException('secret-provider-details'));
+    app(RecordCardTransactionsAction::class)->execute($card, [
+        new ProviderCardTransactionDTO('PLATFORM-OFFLINE', '1.00000000', 'USD', 'purchase', 'completed', '2026-09-11T09:05:04', null),
+    ], CarbonImmutable::now());
+    $platform = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
+    $url = "http://admin.localhost/platform/tenants/{$this->tenant->id}/cards/{$card->id}/transactions";
+    $response = $this->actingAs($platform, 'platform_admin')->postJson($url.'/sync')->assertStatus(503);
+    expect($response->getContent())->not->toContain('secret-provider-details');
+    $this->getJson($url)->assertOk()->assertJsonCount(1, 'items');
+});

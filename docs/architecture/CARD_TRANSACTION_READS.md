@@ -1,3 +1,19 @@
+## Platform manual sync — 2026-10-01
+
+The Platform card transaction dialog now offers “Sync latest transactions” and,
+when the provider has more records, “Sync next page”. Each explicit POST to
+`/platform/tenants/{tenant}/cards/{card}/transactions/sync` reads one provider page
+of 20; provider paging is separate from local display paging. Successful sync
+reloads local page one. Failures preserve existing rows and allow manual retry.
+
+Both `cards.read` and existing `card_product.manage` are required; read-only
+administrators cannot sync. The server resolves the user from the tenant-scoped
+card and reuses `SyncUserCardTransactionsAction` with its mapped provider account,
+validation, deduplication and stale-observation rules. `CARD_TRANSACTIONS_SYNCED`
+audits the actor/card/page/count without provider payloads. Opening or paging the
+dialog remains a local-only GET. No balance, wallet, Ledger or provider financial
+operation is changed. Deploy backend routes and rebuilt admin assets; no migration.
+
 # Read-only Card transaction extension
 
 2026-09-29: Card histories (React, uni-app and Platform) show provider-returned

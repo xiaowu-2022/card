@@ -2,6 +2,14 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Card transactions could not be updated. Please try again later.': '流水同步失败，请稍后重试。',
+    'Sync latest transactions': '同步最新流水',
+    'Syncing transactions…': '正在同步流水…',
+    'Sync next page': '同步下一页',
+    'Each click syncs up to 20 provider records.': '每次点击最多同步 20 条渠道流水。',
+    'Page synced. You can sync the next page.': '本页同步成功，可继续同步下一页。',
+    'Sync completed. No more provider records.': '同步完成，已无更多渠道流水。',
+
     'Verify your password to view photos. Photos load directly from the configured storage.': '验证管理员密码后，照片直接从当前图片存储加载。',
     'Photo could not load. Retry or check that the original still exists.': '照片加载失败，请重试或检查原图是否存在。',
 

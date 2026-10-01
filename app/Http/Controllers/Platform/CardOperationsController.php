@@ -7,6 +7,7 @@ use App\Application\Card\PlatformCardQuery;
 use App\Application\Card\PlatformCardTransactionsQuery;
 use App\Application\Card\RecordCardOverflowSpend;
 use App\Application\Card\RefreshManagedCardAction;
+use App\Application\Card\SyncUserCardTransactionsAction;
 use App\Application\Tenant\PlatformListFilters;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Card\Models\CardManagementOrder;
@@ -114,6 +115,18 @@ final class CardOperationsController extends Controller
     public function transactions(CardTransactionsRequest $request, Tenant $tenant, string $card, PlatformCardTransactionsQuery $query): JsonResponse
     {
         return response()->json($query->get($tenant->id, $card, $request->integer('page', 1)))
+            ->header('Cache-Control', 'private, no-store');
+    }
+
+    public function syncTransactions(CardTransactionsRequest $request, Tenant $tenant, string $card, SyncUserCardTransactionsAction $sync): JsonResponse
+    {
+        $owned = UserCard::query()->where('tenant_id', $tenant->id)->whereKey($card)->firstOrFail();
+        $result = $sync->execute($tenant->id, $owned->user_id, $owned->id, $request->integer('page', 1));
+        app(AuditLogger::class)->record($tenant->id, 'ADMIN', $request->user('platform_admin')->id,
+            'CARD_TRANSACTIONS_SYNCED', 'user_card', $owned->id, null,
+            ['page' => $result['page'], 'has_more' => $result['hasMore'], 'record_count' => count($result['items'])]);
+
+        return response()->json(['page' => $result['page'], 'hasMore' => $result['hasMore']])
             ->header('Cache-Control', 'private, no-store');
     }
 

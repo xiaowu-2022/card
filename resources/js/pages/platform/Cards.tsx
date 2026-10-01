@@ -276,6 +276,7 @@ export default function Cards({
                 <PlatformCardTransactions
                     key={`${selectedCard.tenantId}:${selectedCard.id}`}
                     card={selectedCard}
+                    canSync={Boolean(canManage)}
                     onClose={() => setSelectedCard(null)}
                 />
             )}

@@ -1,3 +1,10 @@
+On 2026-10-01 the user approved Platform manual PhotonPay card transaction sync.
+The transaction dialog offers explicit latest/next-page POSTs (20 records each),
+requiring cards.read and card_product.manage. Derive the owner from the scoped card,
+reuse the existing account-routed reader/recorder and audit the administrator.
+GET remains local-only; no automatic page loops, balance/Ledger changes or live tests.
+See docs/architecture/CARD_TRANSACTION_READS.md.
+
 On 2026-10-01 the user required OSS original URLs passed to OCR to use HTTP,
 not HTTPS. Rewrite only the scheme in ImageStorage::ocrUrl for the current OSS
 original; preserve display/upload URLs, object keys, checksums and signed server
