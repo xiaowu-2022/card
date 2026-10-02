@@ -2,6 +2,15 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Session expired. Refresh the page and sign in again.': '登录状态已失效，请刷新页面并重新登录。',
+    'You do not have permission to sync transactions.': '当前账号没有同步流水权限。',
+    'Sync endpoint or card unavailable. Check deployment and refresh route cache.': '同步接口或卡片不存在，请检查代码部署并刷新路由缓存。',
+    'Too many sync requests. Wait one minute and retry.': '同步过于频繁，请等待一分钟后重试。',
+    'Provider sync unavailable. Check the server logs using the request ID.': '渠道同步暂不可用，请用下方请求编号查询服务器日志。',
+    'Invalid sync response. Check deployment and server logs.': '同步响应格式异常，请检查代码部署和服务器日志。',
+    'Sync timed out. Check recorded transactions before retrying.': '同步请求超时，请先查看已记录流水再重试。',
+    'Network request failed. Check your connection and retry.': '网络请求失败，请检查网络后重试。',
+
     'Card transactions could not be updated. Please try again later.': '流水同步失败，请稍后重试。',
     'Sync latest transactions': '同步最新流水',
     'Syncing transactions…': '正在同步流水…',

@@ -8,6 +8,7 @@ use App\Domain\CardProvider\Exceptions\ProviderUnknownResultException;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use DateTimeImmutable;
+use Illuminate\Support\Facades\Log;
 
 final class PhotonPayTransactionNormalizer
 {
@@ -15,7 +16,7 @@ final class PhotonPayTransactionNormalizer
     public function decode(string $body): array
     {
         if (strlen($body) > 2097152 || ! json_validate($body)) {
-            throw new ProviderUnknownResultException('Provider transaction response is invalid.');
+            throw $this->invalid('response');
         }
         // Validate syntax first, then quote numeric tokens OUTSIDE strings before decoding.
         // Provider JSON decimals must never pass through a PHP float, even for display.
@@ -23,7 +24,7 @@ final class PhotonPayTransactionNormalizer
             static fn (array $match): string => '"'.$match[0].'"', $body);
         $data = json_decode($quoted ?? '', true, 512, JSON_THROW_ON_ERROR);
         if (! is_array($data)) {
-            throw new ProviderUnknownResultException('Provider transaction response is invalid.');
+            throw $this->invalid('response');
         }
 
         return $data;
@@ -37,30 +38,35 @@ final class PhotonPayTransactionNormalizer
         if ($this->integer($response['pageIndex'] ?? null) !== $page || $this->integer($response['pageSize'] ?? null) !== $size
             || ! is_array($rows) || ! array_is_list($rows) || count($rows) > $size
             || count($rows) !== min($size, max(0, $total - ($page - 1) * $size))) {
-            throw new ProviderUnknownResultException('Provider transaction pagination is inconsistent.');
+            throw $this->invalid('pagination_consistency');
         }
         $items = [];
         $seen = [];
         foreach ($rows as $row) {
-            if (! is_array($row) || ($row['cardId'] ?? null) !== $cardId || ($row['cardType'] ?? null) !== 'recharge'
-                || ($row['cardCurrency'] ?? $verifiedCardCurrency) !== 'USD' || ($row['cardFormFactor'] ?? null) !== $expectedFormFactor) {
-                throw new ProviderUnknownResultException('Provider transaction ownership is inconsistent.');
+            if (! is_array($row)) {
+                throw $this->invalid('row_shape');
+            }
+            foreach (['cardId' => $cardId, 'cardType' => 'recharge', 'cardCurrency' => 'USD', 'cardFormFactor' => $expectedFormFactor] as $field => $expected) {
+                $actual = $field === 'cardCurrency' ? ($row[$field] ?? $verifiedCardCurrency) : ($row[$field] ?? null);
+                if ($actual !== $expected) {
+                    throw $this->invalid('ownership', $field);
+                }
             }
             $id = $this->text($row['transactionId'] ?? null);
             if (isset($seen[$id])) {
-                throw new ProviderUnknownResultException('Provider returned duplicate transactions.');
+                throw $this->invalid('duplicate_transaction');
             }
             $seen[$id] = true;
             $currency = $this->text($row['transactionCurrency'] ?? null);
             if (! preg_match('/^[A-Z]{3}$/', $currency)) {
-                throw new ProviderUnknownResultException('Provider transaction currency is invalid.');
+                throw $this->invalid('transaction_currency');
             }
             // The documented timestamp has no offset. Preserve provider wall time;
             // never invent UTC or convert it through the browser's local timezone.
             $when = $row['txnDate'] ?? $row['createdAt'] ?? null;
             $date = is_string($when) ? DateTimeImmutable::createFromFormat('!Y-m-d\TH:i:s', $when) : false;
             if (! $date || $date->format('Y-m-d\TH:i:s') !== $when) {
-                throw new ProviderUnknownResultException('Provider transaction time is invalid.');
+                throw $this->invalid('transaction_time');
             }
             $merchant = is_string($row['merchantNameLocation'] ?? null) ? trim($row['merchantNameLocation']) : '';
             $merchant = mb_substr(preg_replace('/[\p{C}]/u', '', $merchant) ?? '', 0, 120);
@@ -90,6 +96,18 @@ final class PhotonPayTransactionNormalizer
         return new ProviderTransactionPageDTO($items, $page, $page * $size < $total);
     }
 
+    private function invalid(string $reason, ?string $field = null): ProviderUnknownResultException
+    {
+        // Reasons and fields are internal constants. Never include row values or raw responses.
+        Log::warning('PhotonPay transaction validation failed', [
+            'request_id' => request()->attributes->get('request_id'),
+            'reason' => $reason,
+            'field' => $field,
+        ]);
+
+        return new ProviderUnknownResultException('Provider transaction validation failed.');
+    }
+
     /** @return array{?string, ?string} */
     private function fee(array $row, string $prefix): array
     {
@@ -99,7 +117,7 @@ final class PhotonPayTransactionNormalizer
             return [null, null];
         }
         if (! is_string($currency) || ! preg_match('/^[A-Z]{3}$/D', $currency)) {
-            throw new ProviderUnknownResultException('Provider fee currency is invalid.');
+            throw $this->invalid('fee_currency');
         }
 
         return [$this->amount($amount), $currency];
@@ -108,7 +126,7 @@ final class PhotonPayTransactionNormalizer
     private function text(mixed $value): string
     {
         if (! is_string($value) || trim($value) === '' || strlen($value) > 180) {
-            throw new ProviderUnknownResultException('Provider transaction field is invalid.');
+            throw $this->invalid('required_text');
         }
 
         return trim($value);
@@ -117,7 +135,7 @@ final class PhotonPayTransactionNormalizer
     private function integer(mixed $value): int
     {
         if (! is_string($value) || ! preg_match('/^(0|[1-9]\d{0,8})$/', $value)) {
-            throw new ProviderUnknownResultException('Provider transaction pagination is invalid.');
+            throw $this->invalid('pagination_integer');
         }
 
         return (int) $value;
@@ -126,7 +144,7 @@ final class PhotonPayTransactionNormalizer
     private function amount(mixed $value): string
     {
         if (! is_string($value) || ! preg_match('/^-?(?:0|[1-9]\d{0,15})(?:\.\d{1,16})?(?:[eE][+-]?\d{1,2})?$/', $value)) {
-            throw new ProviderUnknownResultException('Provider transaction amount is invalid.');
+            throw $this->invalid('amount');
         }
         try {
             $amount = BigDecimal::of($value)->toScale(8, RoundingMode::Unnecessary);
@@ -136,7 +154,7 @@ final class PhotonPayTransactionNormalizer
 
             return (string) $amount;
         } catch (\Throwable) {
-            throw new ProviderUnknownResultException('Provider transaction amount is invalid.');
+            throw $this->invalid('amount');
         }
     }
 }

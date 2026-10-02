@@ -53,6 +53,7 @@ export function PlatformCardTransactions({
 
     const [syncing, setSyncing] = useState(false);
     const [syncMessage, setSyncMessage] = useState('');
+    const [syncDetails, setSyncDetails] = useState('');
     const [nextSyncPage, setNextSyncPage] = useState<number | null>(null);
     const syncRequest = useRef<AbortController | null>(null);
     useEffect(() => () => syncRequest.current?.abort(), []);
@@ -63,6 +64,8 @@ export function PlatformCardTransactions({
         syncRequest.current = controller;
         setSyncing(true);
         setSyncMessage('');
+        setSyncDetails('');
+        let failureMessage = 'Card transactions could not be updated. Please try again later.';
         try {
             const xsrf = document.cookie
                 .split('; ')
@@ -71,7 +74,10 @@ export function PlatformCardTransactions({
             const token = xsrf
                 ? decodeURIComponent(xsrf)
                 : document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content;
-            if (!token) throw new Error('CSRF token unavailable');
+            if (!token) {
+                failureMessage = 'Session expired. Refresh the page and sign in again.';
+                throw new Error('CSRF token unavailable');
+            }
             const response = await fetch(
                 `/platform/tenants/${card.tenantId}/cards/${card.id}/transactions/sync`,
                 {
@@ -87,7 +93,27 @@ export function PlatformCardTransactions({
                     signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]),
                 },
             );
-            if (!response.ok) throw new Error('Transaction sync failed');
+            const requestId = response.headers.get('X-Request-ID');
+            if (!controller.signal.aborted)
+                setSyncDetails(
+                    `HTTP ${response.status}${requestId && /^[a-f0-9-]{36}$/i.test(requestId) ? ` · ${requestId}` : ''}`,
+                );
+            if (!response.ok || response.redirected) {
+                failureMessage =
+                    response.redirected || [401, 419].includes(response.status)
+                        ? 'Session expired. Refresh the page and sign in again.'
+                        : response.status === 403
+                          ? 'You do not have permission to sync transactions.'
+                          : [404, 405].includes(response.status)
+                            ? 'Sync endpoint or card unavailable. Check deployment and refresh route cache.'
+                            : response.status === 429
+                              ? 'Too many sync requests. Wait one minute and retry.'
+                              : response.status === 503
+                                ? 'Provider sync unavailable. Check the server logs using the request ID.'
+                                : 'Card transactions could not be updated. Please try again later.';
+                throw new Error('Transaction sync failed');
+            }
+            failureMessage = 'Invalid sync response. Check deployment and server logs.';
             const result: unknown = await response.json();
             if (
                 !result ||
@@ -99,6 +125,7 @@ export function PlatformCardTransactions({
             )
                 throw new Error('Invalid sync response');
             if (controller.signal.aborted) return;
+            setSyncDetails('');
             setNextSyncPage(result.hasMore && providerPage < 100000 ? providerPage + 1 : null);
             setSyncMessage(
                 result.hasMore
@@ -107,9 +134,14 @@ export function PlatformCardTransactions({
             );
             setPage(1);
             setAttempt((value) => value + 1);
-        } catch {
-            if (!controller.signal.aborted)
-                setSyncMessage('Card transactions could not be updated. Please try again later.');
+        } catch (error) {
+            if (!controller.signal.aborted) {
+                if (error instanceof DOMException && error.name === 'TimeoutError')
+                    failureMessage = 'Sync timed out. Check recorded transactions before retrying.';
+                else if (error instanceof TypeError)
+                    failureMessage = 'Network request failed. Check your connection and retry.';
+                setSyncMessage(failureMessage);
+            }
         } finally {
             syncRequest.current = null;
             if (!controller.signal.aborted) setSyncing(false);
@@ -194,6 +226,9 @@ export function PlatformCardTransactions({
                         </div>
                         <p className="text-xs text-muted-foreground" role="status">
                             {t(syncMessage || 'Each click syncs up to 20 provider records.')}
+                            {syncDetails && (
+                                <span className="block select-text">{syncDetails}</span>
+                            )}
                         </p>
                     </div>
                 )}

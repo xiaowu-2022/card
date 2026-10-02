@@ -2660,6 +2660,7 @@ it('guards platform transaction sync scope selectors and management permission',
 });
 
 it('keeps stored platform transactions readable when manual provider sync fails', function (): void {
+    \Illuminate\Support\Facades\Log::spy();
     [$card, $provider] = transactionReadFixture($this);
     $provider->shouldReceive('getTransactionPage')->once()->andThrow(new ProviderUnknownResultException('secret-provider-details'));
     app(RecordCardTransactionsAction::class)->execute($card, [
@@ -2669,5 +2670,6 @@ it('keeps stored platform transactions readable when manual provider sync fails'
     $url = "http://admin.localhost/platform/tenants/{$this->tenant->id}/cards/{$card->id}/transactions";
     $response = $this->actingAs($platform, 'platform_admin')->postJson($url.'/sync')->assertStatus(503);
     expect($response->getContent())->not->toContain('secret-provider-details');
+    \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->once()->with('Card transaction sync failed', Mockery::on(fn (array $context): bool => $context['card_id'] === $card->id && $context['failure'] === 'unknown_result' && is_string($context['request_id']) && ! str_contains(json_encode($context), 'secret-provider-details')));
     $this->getJson($url)->assertOk()->assertJsonCount(1, 'items');
 });

@@ -7,6 +7,7 @@ use App\Infrastructure\Providers\Card\PhotonPayCardResponseNormalizer;
 use App\Infrastructure\Providers\Card\PhotonPayTransactionNormalizer;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 uses(TestCase::class);
@@ -145,4 +146,20 @@ it('rejects incomplete malformed or overprecise provider fees without guessing c
     [['feeDeductionAmount' => '0.000000001', 'feeDeductionCurrency' => 'USD']],
     [['feeReturnAmount' => 'NaN', 'feeReturnCurrency' => 'USD']],
     [['feeReturnAmount' => '1', 'feeReturnCurrency' => '<USD>']],
+]);
+
+it('logs only safe validation reasons for incompatible transaction fields', function (array $overrides, string $reason, ?string $field): void {
+    Log::spy();
+    $normalizer = new PhotonPayTransactionNormalizer;
+    $body = $normalizer->decode(photonTransactionBody([photonTransactionRow($overrides)]));
+    expect(fn () => $normalizer->page($body, 'XR-OWNED', 1, 20))->toThrow(ProviderUnknownResultException::class);
+    Log::shouldHaveReceived('warning')->once()->with('PhotonPay transaction validation failed', [
+        'request_id' => request()->attributes->get('request_id'), 'reason' => $reason, 'field' => $field,
+    ]);
+})->with([
+    [['cardId' => 'PRIVATE-FOREIGN-CARD'], 'ownership', 'cardId'],
+    [['cardFormFactor' => 'unknown'], 'ownership', 'cardFormFactor'],
+    [['txnDate' => 'PRIVATE-BAD-DATE'], 'transaction_time', null],
+    [['transactionAmount' => 'PRIVATE-BAD-AMOUNT'], 'amount', null],
+    [['feeDeductionAmount' => '1.00', 'feeDeductionCurrency' => 'bad'], 'fee_currency', null],
 ]);
