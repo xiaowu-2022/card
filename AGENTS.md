@@ -1,3 +1,7 @@
+On 2026-10-02 the user fixed all public H5 Android download links to
+https://zb33333.com/specpay.apk, superseding the current-origin /specpay.apk rule.
+Keep the links H5-only; native Apps still omit them.
+
 On 2026-10-01 the user approved Platform manual PhotonPay card transaction sync.
 The transaction dialog offers explicit latest/next-page POSTs (20 records each),
 requiring cards.read and card_product.manage. Derive the owner from the scoped card,
