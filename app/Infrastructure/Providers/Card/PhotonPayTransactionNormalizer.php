@@ -113,8 +113,12 @@ final class PhotonPayTransactionNormalizer
     {
         $amount = $row[$prefix.'Amount'] ?? null;
         $currency = $row[$prefix.'Currency'] ?? null;
-        if ($amount === null && ($currency === null || $currency === '')) {
-            return [null, null];
+        if ($currency === null || $currency === '') {
+            // PhotonPay uses a zero amount with no currency for an absent fee leg.
+            // Preserve it as unavailable instead of inventing the card/transaction currency.
+            if ($amount === null || BigDecimal::of($this->amount($amount))->isZero()) {
+                return [null, null];
+            }
         }
         if (! is_string($currency) || ! preg_match('/^[A-Z]{3}$/D', $currency)) {
             throw $this->invalid('fee_currency');

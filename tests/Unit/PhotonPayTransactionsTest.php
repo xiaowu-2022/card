@@ -143,6 +143,9 @@ it('rejects incomplete malformed or overprecise provider fees without guessing c
     expect(fn () => $this->transactionProvider->getTransactionPage('XR-OWNED', 1, 20))->toThrow(ProviderUnknownResultException::class);
 })->with([
     [['feeDeductionAmount' => '1']],
+    [['feeReturnAmount' => '-0.01', 'feeReturnCurrency' => '']],
+    [['feeDeductionAmount' => 'not-a-number', 'feeDeductionCurrency' => '']],
+    [['feeReturnAmount' => '0.000000001', 'feeReturnCurrency' => '']],
     [['feeDeductionCurrency' => 'USD']],
     [['feeDeductionAmount' => '0.000000001', 'feeDeductionCurrency' => 'USD']],
     [['feeReturnAmount' => 'NaN', 'feeReturnCurrency' => 'USD']],
@@ -187,4 +190,37 @@ it('captures exact transaction query and raw response before failed normalizatio
         'cardType' => 'recharge', 'cardFormFactor' => 'virtual_card', 'pageIndex' => 1, 'pageSize' => 20,
     ])->and(base64_decode($response['body_base64']))->toBe($body)
         ->and($records[0]['span_id'])->toBe($records[1]['span_id']);
+});
+
+it('accepts zero fee placeholders without inventing a currency', function (string $zero, ?string $currency): void {
+    Http::fake(['*' => Http::response(photonTransactionBody([photonTransactionRow([
+        'feeDeductionAmount' => $zero, 'feeDeductionCurrency' => $currency,
+        'feeReturnAmount' => $zero, 'feeReturnCurrency' => $currency,
+    ])]))]);
+    $item = $this->transactionProvider->getTransactionPage('XR-OWNED', 1, 20)->items[0];
+    expect($item->feeAmount)->toBeNull()->and($item->feeCurrency)->toBeNull()
+        ->and($item->feeReturnAmount)->toBeNull()->and($item->feeReturnCurrency)->toBeNull();
+})->with([['0', ''], ['0.0', ''], ['-0.00', ''], ['0e0', null]]);
+
+it('reads a full page with zero refund placeholders and verified card currency', function (): void {
+    $rows = [];
+    for ($i = 0; $i < 20; $i++) {
+        $row = photonTransactionRow([
+            'transactionId' => 'SYNTHETIC-'.$i,
+            'transactionCurrency' => 'CNY', 'transactionAmount' => '6.0',
+            'feeDeductionAmount' => $i === 19 ? '0.0' : '-0.31',
+            'feeDeductionCurrency' => $i === 19 ? '' : 'USD',
+            'feeReturnAmount' => '0.0', 'feeReturnCurrency' => '',
+        ]);
+        unset($row['cardCurrency']);
+        $rows[] = $row;
+    }
+    $normalizer = new PhotonPayTransactionNormalizer;
+    $body = str_replace('"0.0"', '0.0', photonTransactionBody($rows, 1, 20, 22));
+    $result = $normalizer->page($normalizer->decode($body), 'XR-OWNED', 1, 20, 'USD');
+    expect($result->items)->toHaveCount(20)->and($result->hasMore)->toBeTrue()
+        ->and($result->items[0]->feeAmount)->toBe('-0.31000000')
+        ->and($result->items[0]->feeCurrency)->toBe('USD')
+        ->and($result->items[0]->feeReturnAmount)->toBeNull()
+        ->and($result->items[19]->feeAmount)->toBeNull();
 });

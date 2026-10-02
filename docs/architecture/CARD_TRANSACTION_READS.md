@@ -1,3 +1,12 @@
+## 2026-10-02 Empty-currency zero fee placeholders
+
+Observed PhotonPay responses use a zero feeDeductionAmount/feeReturnAmount with
+an empty currency for absent fee legs. Normalize only missing or exactly zero
+amounts with missing/empty currency to null/null (display unavailable). Do not
+invent USD or use the transaction currency. Nonzero amounts without currency,
+malformed amounts and excess precision still fail closed. Explicit zero amounts
+with a valid currency retain their exact zero and currency. No Ledger changes.
+
 ## Platform manual sync — 2026-10-01
 
 The Platform card transaction dialog now offers “Sync latest transactions” and,
