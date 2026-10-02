@@ -219,6 +219,7 @@ trait PhotonPayCardManagement
     {
         return PhotonPayLog::run('request', ['method' => $method, 'endpoint' => $path, 'provider_request_ref' => PhotonPayLog::reference(isset($payload['requestId']) && is_string($payload['requestId']) ? $payload['requestId'] : null), 'connection_ref' => PhotonPayLog::reference($this->baseUrl."\0".$this->appId)], function (PhotonPayLog $trace) use ($method, $path, $payload, $allowEmpty, $envelope): array {
             $this->assertAvailable();
+            $trace->requestPayload($payload);
             try {
                 $body = $method === 'POST' ? json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) : null;
                 $client = Http::timeout($this->timeoutSeconds)->connectTimeout(5)->withoutRedirecting()->withHeaders($this->authorizationHeaders($body));

@@ -253,3 +253,16 @@ size limits, logging failure isolation and correlation with rejected HTTP callba
 离线授权解密使用独立密钥与 Laravel Encrypter 的 aes-256-gcm 模式，对
 `encrypted_envelope` 解密后解析 JSON，`body_base64` 解码得到业务请求或原始响应。
 不要将解密后的个人资料粘贴到公开工单或普通日志。
+
+## 2026-10-02 完整业务报文补漏
+
+流水分页和卡片管理现在在发请求前保存完整业务参数；后台账户连接检查、
+商户报表的实际 HTTP 请求也接入同一追踪。响应在业务解析前加密记录，
+因此解析失败仍可查看原始响应。摘要和加密报文通过 request_id/span_id 关联。
+鉴权只记录空请求及安全响应摘要，Token/PIN/CVV 和上传二进制排除规则不变。
+没有有效独立日志密钥时会明确记录 payload_unavailable，不能恢复此前漏记的数据。
+
+服务器上可按请求号解密查看（只读、不重放请求、不写明文文件）：
+`php artisan photonpay:request-log <request-id> --date=2026-10-02`
+输出含业务隐私数据，仅在受控服务器终端查看；不要将整份结果贴到公开工单。
+配置 PHOTONPAY_REQUEST_LOG_ENCRYPTION_KEY 后刷新配置缓存；保留原密钥以读取历史。

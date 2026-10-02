@@ -5,6 +5,7 @@ use App\Domain\CardProvider\Exceptions\ProviderUnknownResultException;
 use App\Infrastructure\Providers\Card\PhotonPayCardProvider;
 use App\Infrastructure\Providers\Card\PhotonPayCardResponseNormalizer;
 use App\Infrastructure\Providers\Card\PhotonPayTransactionNormalizer;
+use Illuminate\Encryption\Encrypter;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -163,3 +164,27 @@ it('logs only safe validation reasons for incompatible transaction fields', func
     [['transactionAmount' => 'PRIVATE-BAD-AMOUNT'], 'amount', null],
     [['feeDeductionAmount' => '1.00', 'feeDeductionCurrency' => 'bad'], 'fee_currency', null],
 ]);
+
+it('captures exact transaction query and raw response before failed normalization', function (): void {
+    $key = random_bytes(32);
+    config(['card-provider.photonpay.request_log_key' => 'base64:'.base64_encode($key)]);
+    $records = [];
+    $logger = Mockery::mock();
+    $logger->shouldReceive('info')->twice()->andReturnUsing(function ($event, $context) use (&$records): void {
+        $records[] = $context;
+    });
+    Log::shouldReceive('channel')->with('photonpay_requests')->andReturn($logger);
+    Log::shouldReceive('channel')->with('photonpay')->andReturn(Mockery::mock()->shouldIgnoreMissing());
+    Log::shouldReceive('warning')->once();
+    $body = photonTransactionBody([photonTransactionRow(['txnDate' => 'synthetic-invalid-date'])]);
+    Http::fake(['*' => Http::response($body)]);
+    expect(fn () => $this->transactionProvider->getTransactionPage('XR-OWNED', 1, 20))->toThrow(ProviderUnknownResultException::class);
+    $cipher = new Encrypter($key, 'aes-256-gcm');
+    $request = json_decode($cipher->decryptString($records[0]['encrypted_envelope']), true);
+    $response = json_decode($cipher->decryptString($records[1]['encrypted_envelope']), true);
+    expect(json_decode(base64_decode($request['body_base64']), true))->toBe([
+        'memberId' => 'MEMBER-TEST', 'matrixAccount' => 'MATRIX-TEST', 'cardId' => 'XR-OWNED',
+        'cardType' => 'recharge', 'cardFormFactor' => 'virtual_card', 'pageIndex' => 1, 'pageSize' => 20,
+    ])->and(base64_decode($response['body_base64']))->toBe($body)
+        ->and($records[0]['span_id'])->toBe($records[1]['span_id']);
+});

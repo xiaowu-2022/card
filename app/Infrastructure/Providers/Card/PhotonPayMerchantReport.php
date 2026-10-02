@@ -2,6 +2,7 @@
 
 namespace App\Infrastructure\Providers\Card;
 
+use App\Support\Logging\PhotonPayLog;
 use Brick\Math\BigDecimal;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
@@ -47,10 +48,10 @@ final class PhotonPayMerchantReport
                 return $cache->lock($key.':lock', 60)->block(5, function () use ($cache, $key, $connection, $base, $sandbox, $bins): array {
                     $token = $cache->get($key.':token');
                     if (! is_string($token)) {
-                        $auth = $this->decode(Http::connectTimeout(5)->timeout(12)->withoutRedirecting()->withHeaders([
+                        $auth = $this->decode(PhotonPayLog::http(Http::connectTimeout(5)->timeout(12)->withoutRedirecting()->withHeaders([
                             'Authorization' => 'basic '.base64_encode($connection['app_id'].'/'.$connection['app_secret']),
                             'Content-Type' => 'application/json', 'Accept' => 'application/json',
-                        ])->withBody('', 'application/json')->post($base.'/oauth2/token/accessToken'));
+                        ])->withBody('', 'application/json'), 'POST', $base.'/oauth2/token/accessToken'));
                         $value = $auth['data']['token'] ?? null;
                         $expiry = $auth['data']['expiresIn'] ?? null;
                         if (! is_string($value) || $value === '' || ! is_string($expiry) || ! ctype_digit($expiry) || strlen($expiry) > 13) {
@@ -66,8 +67,7 @@ final class PhotonPayMerchantReport
                     try {
                         $headers = ['X-PD-TOKEN' => Crypt::decryptString($token), 'Accept' => 'application/json'];
                         if ($bins) {
-                            $rows = $this->decode(Http::connectTimeout(5)->timeout(12)->withoutRedirecting()->withHeaders($headers)
-                                ->get($base.'/vcc/openApi/v4/getCardBin', array_filter(['cardCurrency' => 'USD', 'cardType' => 'recharge', 'memberId' => $connection['member_id'] ?? null, 'matrixAccount' => $connection['matrix_account'] ?? null])))['data'] ?? null;
+                            $rows = $this->decode(PhotonPayLog::http(Http::connectTimeout(5)->timeout(12)->withoutRedirecting()->withHeaders($headers), 'GET', $base.'/vcc/openApi/v4/getCardBin', array_filter(['cardCurrency' => 'USD', 'cardType' => 'recharge', 'memberId' => $connection['member_id'] ?? null, 'matrixAccount' => $connection['matrix_account'] ?? null])))['data'] ?? null;
                             if (! is_array($rows) || ! array_is_list($rows)) {
                                 throw new RuntimeException('BIN catalog unavailable.');
                             }
@@ -98,8 +98,7 @@ final class PhotonPayMerchantReport
 
                             return ['bins' => array_values($options)];
                         }
-                        $account = $this->decode(Http::connectTimeout(5)->timeout(12)->withoutRedirecting()->withHeaders($headers)
-                            ->get($base.'/wallet/openApi/v4/account/single', array_filter(['currency' => 'USD', 'accountType' => 'FT10001', 'memberId' => $connection['member_id'] ?? null, 'matrixAccount' => $connection['matrix_account'] ?? null])))['data'] ?? [];
+                        $account = $this->decode(PhotonPayLog::http(Http::connectTimeout(5)->timeout(12)->withoutRedirecting()->withHeaders($headers), 'GET', $base.'/wallet/openApi/v4/account/single', array_filter(['currency' => 'USD', 'accountType' => 'FT10001', 'memberId' => $connection['member_id'] ?? null, 'matrixAccount' => $connection['matrix_account'] ?? null])))['data'] ?? [];
                         $amount = $account['realTimeBalance'] ?? null;
                         $member = $account['memberId'] ?? null;
                         if (($account['currency'] ?? null) !== 'USD' || ($account['accountType'] ?? null) !== 'FT10001'
@@ -112,8 +111,7 @@ final class PhotonPayMerchantReport
                         }
                         $balance = (string) BigDecimal::of($amount)->toScale(8);
                         // Pin the card query to the same merchant as the authoritative account.
-                        $cards = $this->decode(Http::connectTimeout(5)->timeout(12)->withoutRedirecting()->withHeaders($headers)
-                            ->get($base.'/vcc/openApi/v4/pagingVccCard', ['pageIndex' => 1, 'pageSize' => 1, 'memberId' => $member]));
+                        $cards = $this->decode(PhotonPayLog::http(Http::connectTimeout(5)->timeout(12)->withoutRedirecting()->withHeaders($headers), 'GET', $base.'/vcc/openApi/v4/pagingVccCard', ['pageIndex' => 1, 'pageSize' => 1, 'memberId' => $member]));
                         $count = $cards['total'] ?? null;
                         if (! is_string($count) || ! preg_match('/^\d{1,15}$/D', $count)
                             || ($cards['pageIndex'] ?? null) !== '1' || ($cards['pageSize'] ?? null) !== '1'

@@ -12,6 +12,7 @@ use Closure;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -23,6 +24,17 @@ final class PhotonPayLog
     private array $context;
 
     private static array $scope = [];
+
+    /** Trace business data without capturing authentication headers. */
+    public static function http(PendingRequest $client, string $method, string $url, #[\SensitiveParameter] array $payload = []): Response
+    {
+        return self::run('request', ['method' => $method, 'endpoint' => parse_url($url, PHP_URL_PATH), 'connection_ref' => self::reference($url)], function (self $trace) use ($client, $method, $url, $payload): Response {
+            $trace->requestPayload($payload);
+            $response = $method === 'GET' ? $client->get($url, $payload) : $client->post($url);
+
+            return $trace->response($response);
+        });
+    }
 
     /** Bind diagnostics for this execution only, including nested provider calls. */
     public static function withContext(array $context, Closure $callback): mixed

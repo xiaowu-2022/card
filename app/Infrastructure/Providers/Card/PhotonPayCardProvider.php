@@ -336,13 +336,15 @@ final class PhotonPayCardProvider implements CardProviderInterface, PhysicalCard
             if (trim($providerCardId) === '' || $page < 1 || $page > 100000 || $pageSize < 1 || $pageSize > 100) {
                 throw new ProviderRejectedException('Invalid transaction query.');
             }
+            $query = array_filter([
+                'memberId' => $this->memberId, 'matrixAccount' => $this->matrixAccount,
+                'cardId' => $providerCardId, 'cardType' => 'recharge', 'cardFormFactor' => $this->formFactor,
+                'pageIndex' => $page, 'pageSize' => $pageSize,
+            ], fn (mixed $value): bool => $value !== null && $value !== '');
+            $trace->requestPayload($query);
             try {
                 $response = Http::timeout($this->timeoutSeconds)->withHeaders($this->authorizationHeaders())
-                    ->get($this->url('/vcc/openApi/v4/pagingVccTradeOrder'), array_filter([
-                        'memberId' => $this->memberId, 'matrixAccount' => $this->matrixAccount,
-                        'cardId' => $providerCardId, 'cardType' => 'recharge', 'cardFormFactor' => $this->formFactor,
-                        'pageIndex' => $page, 'pageSize' => $pageSize,
-                    ], fn (mixed $value): bool => $value !== null && $value !== ''));
+                    ->get($this->url('/vcc/openApi/v4/pagingVccTradeOrder'), $query);
                 $trace->response($response);
                 $normalizer = new PhotonPayTransactionNormalizer;
                 $decoded = $normalizer->decode($response->body());
@@ -473,6 +475,7 @@ final class PhotonPayCardProvider implements CardProviderInterface, PhysicalCard
 
                             return $saved;
                         }
+                        $trace->requestPayload([]);
                         $response = Http::connectTimeout(5)->timeout($this->timeoutSeconds)->withoutRedirecting()
                             ->withHeaders(['Authorization' => 'basic '.base64_encode($this->appId.'/'.$this->appSecret)])
                             ->withBody('', 'application/json')->post($this->url('/oauth2/token/accessToken'));

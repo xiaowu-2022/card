@@ -10,6 +10,7 @@ use App\Domain\CardProduct\Models\CardProduct;
 use App\Domain\CardProviderDirectory\Models\CardProviderReference;
 use App\Infrastructure\Providers\Card\PhotonPayMerchantReport;
 use App\Infrastructure\Providers\Card\PhotonPayTransactionNormalizer;
+use App\Support\Logging\PhotonPayLog;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -129,11 +130,11 @@ final class PhotonPayAccounts
             if (! in_array($c['base_url'], self::BASES, true)) {
                 throw new \RuntimeException;
             }
-            $auth = Http::connectTimeout(5)->timeout(15)->withoutRedirecting()->withHeaders(['Authorization' => 'basic '.base64_encode($c['app_id'].'/'.$c['app_secret'])])->withBody('', 'application/json')->post($c['base_url'].'/oauth2/token/accessToken');
+            $auth = PhotonPayLog::http(Http::connectTimeout(5)->timeout(15)->withoutRedirecting()->withHeaders(['Authorization' => 'basic '.base64_encode($c['app_id'].'/'.$c['app_secret'])])->withBody('', 'application/json'), 'POST', $c['base_url'].'/oauth2/token/accessToken');
             if (! $auth->successful() || $auth->json('code') !== '0000' || ! is_string($auth->json('data.token'))) {
                 throw new \RuntimeException;
             }
-            $a = Http::connectTimeout(5)->timeout(15)->withoutRedirecting()->withHeaders(['X-PD-TOKEN' => $auth->json('data.token')])->get($c['base_url'].'/wallet/openApi/v4/account/single', array_filter(['currency' => 'USD', 'accountType' => 'FT10001', 'memberId' => $c['member_id'], 'matrixAccount' => $c['matrix_account'] ?? null], fn ($v) => $v !== null && $v !== ''));
+            $a = PhotonPayLog::http(Http::connectTimeout(5)->timeout(15)->withoutRedirecting()->withHeaders(['X-PD-TOKEN' => $auth->json('data.token')]), 'GET', $c['base_url'].'/wallet/openApi/v4/account/single', array_filter(['currency' => 'USD', 'accountType' => 'FT10001', 'memberId' => $c['member_id'], 'matrixAccount' => $c['matrix_account'] ?? null], fn ($v) => $v !== null && $v !== ''));
             $accountResponse = (new PhotonPayTransactionNormalizer)->decode($a->body());
             if (! $a->successful() || ($accountResponse['code'] ?? null) !== '0000' || ($accountResponse['data']['accountNo'] ?? null) !== $c['account_id'] || ($accountResponse['data']['memberId'] ?? null) !== $c['member_id'] || ($accountResponse['data']['currency'] ?? null) !== 'USD' || ($accountResponse['data']['accountType'] ?? null) !== 'FT10001') {
                 throw new \RuntimeException;
