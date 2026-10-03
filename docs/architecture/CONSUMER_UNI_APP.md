@@ -235,3 +235,7 @@ Local/dual-copy uploads stay sequential. useAction preserves JSON scalar types a
 ignores progress/completion after scope disposal. No automatic mutation retry, timeout
 change, OCR/provider bypass or financial change is introduced. Native packaging still
 requires HBuilderX; build:app only compiles resources.
+
+
+### 2026-10-03 fixed consumer navigation
+PageShell title/brand headers stay fixed at the viewport top, with reserved content space and top safe-area padding. Existing bottom tabs remain fixed with bottom safe-area and content clearance. Avoid containment or transforms on navigation ancestors that would make fixed elements scroll with content. Authentication topbars and the public landing header follow the same fixed behavior; guest/article pages retain their existing tab visibility. H5 needs rebuilt assets; native clients require repackaging. This changes consumer navigation only, not desktop administration.

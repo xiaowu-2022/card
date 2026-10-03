@@ -62,6 +62,25 @@ const more = computed(() =>
                     }}</text></view
                 ></view
             ><view class="panel"
+                ><text class="heading">{{ t('Account balance reconciliation') }}</text
+                ><view
+                    v-for="[key, label] in [
+                        ['theoretical', 'Theoretical account balance'],
+                        ['actual', 'Actual account balance'],
+                        ['difference', 'Account balance difference'],
+                    ]"
+                    :key="key"
+                    class="row"
+                    ><text>{{ t(label) }}</text
+                    ><text>{{
+                        value(r.accountBalance[key as 'theoretical' | 'actual' | 'difference'])
+                    }}</text></view
+                ><text class="muted small">{{
+                    t(
+                        'Theoretical balance = personal net advances + activation commissions received + annual fee commissions received − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
+                    )
+                }}</text></view
+            ><view class="panel"
                 ><text class="heading">{{ t('Team alerts') }}</text
                 ><view
                     v-for="[label, amount] in [

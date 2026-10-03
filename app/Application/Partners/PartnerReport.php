@@ -67,8 +67,32 @@ final class PartnerReport
 
             return ['updatedAt' => $at->toIso8601String(), 'timezone' => $company->timezone, 'partnerId' => $partner->id, 'accountId' => DB::table('users')->where('id', $user)->value('account_id'), 'sharePercent' => $partner->share_percent, 'totals' => $totals,
                 'stock' => $feeTotals->missing ? null : $this->decimal($stock), 'share' => $feeTotals->missing ? null : $this->decimal($stock->multipliedBy($partner->share_percent)->dividedBy(100, 8, RoundingMode::HalfUp)), 'negative' => ! $feeTotals->missing && $stock->isNegative(), 'missingRates' => (int) $feeTotals->missing,
+                'accountBalance' => $this->accountBalance($tenant, $user, $partner->id),
                 'trends' => $trends, 'risks' => $risks, 'journal' => $this->page($journalPage), 'unvalued' => $this->page($missing)];
         });
+    }
+
+    private function accountBalance(string $tenant, string $user, string $partner): array
+    {
+        $journal = DB::table('partner_journal_entries')->where('tenant_id', $tenant)->where('partner_id', $partner)
+            ->selectRaw("COALESCE(SUM(CASE WHEN reverses_id IS NULL THEN amount ELSE -amount END) FILTER(WHERE kind='ADVANCE'),0) AS advances,
+                COALESCE(SUM(CASE WHEN reverses_id IS NULL THEN amount ELSE -amount END) FILTER(WHERE kind='REIMBURSEMENT'),0) AS reimbursements")->first();
+        $income = app(PromotionReportQuery::class)->income($tenant, $user)
+            ->selectRaw("COALESCE(SUM(amount) FILTER(WHERE kind IN ('activation','legacy')),0) AS activation,
+                COALESCE(SUM(amount) FILTER(WHERE kind='annual'),0) AS annual")->first();
+        $actual = DB::table('ledger_accounts')->where('tenant_id', $tenant)->where('user_id', $user)
+            ->where('asset_code', 'USDT')->where('account_type', 'USER_AVAILABLE')->sum('balance');
+        $theoretical = BigDecimal::of($journal->advances)->plus($income->activation)->plus($income->annual)->minus($journal->reimbursements);
+
+        return [
+            'advances' => $this->decimal($journal->advances),
+            'activationCommission' => $this->decimal($income->activation),
+            'annualCommission' => $this->decimal($income->annual),
+            'reimbursements' => $this->decimal($journal->reimbursements),
+            'theoretical' => $this->decimal($theoretical),
+            'actual' => $this->decimal($actual),
+            'difference' => $this->decimal($theoretical->minus((string) $actual)),
+        ];
     }
 
     private function trend(Builder $query, string $time, string $amount, CarbonImmutable $today, CarbonImmutable $at): array

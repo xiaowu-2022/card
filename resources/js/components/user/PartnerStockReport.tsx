@@ -35,6 +35,15 @@ export type StockReport = {
     share: string | null;
     negative: boolean;
     missingRates: number;
+    accountBalance: {
+        advances: string;
+        activationCommission: string;
+        annualCommission: string;
+        reimbursements: string;
+        theoretical: string;
+        actual: string;
+        difference: string;
+    };
     totals: Record<string, string>;
     trends: Record<string, Record<string, string>>;
     risks: {
@@ -141,6 +150,28 @@ export function PartnerStockReport({
                         </div>
                     ))}
                 </dl>
+            </section>
+            <section className="stock-panel">
+                <h2>{t('Account balance reconciliation')}</h2>
+                <dl>
+                    {(
+                        [
+                            ['theoretical', 'Theoretical account balance'],
+                            ['actual', 'Actual account balance'],
+                            ['difference', 'Account balance difference'],
+                        ] as const
+                    ).map(([key, label]) => (
+                        <div key={key}>
+                            <dt>{t(label)}</dt>
+                            <dd>{value(r.accountBalance[key])}</dd>
+                        </div>
+                    ))}
+                </dl>
+                <p className="stock-muted">
+                    {t(
+                        'Theoretical balance = personal net advances + activation commissions received + annual fee commissions received − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
+                    )}
+                </p>
             </section>
             <section className="stock-panel">
                 <h2>{t('Team alerts')}</h2>

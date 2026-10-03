@@ -65,7 +65,7 @@ const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
     max-width: 750px;
     margin: 0 auto;
     min-height: 100vh;
-    padding-top: env(safe-area-inset-top);
+    padding-top: calc(68px + env(safe-area-inset-top));
     padding-bottom: env(safe-area-inset-bottom);
 }
 .auth-shell.designed {
@@ -75,7 +75,22 @@ const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
     padding: 12px 24px 0;
     background: radial-gradient(ellipse at 70% 45%, #e9ddbc70, transparent 70%);
 }
+.auth-shell.designed .auth-topbar {
+    max-width: 520px;
+}
 .auth-topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    margin-inline: auto;
+    width: 100%;
+    max-width: 750px;
+    height: calc(68px + env(safe-area-inset-top));
+    padding: calc(12px + env(safe-area-inset-top)) 24px 12px;
+    z-index: 50;
+    background: #f7f6f0;
+    box-shadow: 0 1px 0 #171c190d;
     display: flex;
     align-items: center;
     justify-content: space-between;

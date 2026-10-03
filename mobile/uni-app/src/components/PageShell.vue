@@ -65,6 +65,7 @@ function open(path: string) {
                 'overview-shell': overview,
                 'white-shell': white,
                 'chat-shell': chat,
+                'home-shell': isHome,
             }"
             ><view v-if="isHome" class="brand-header"
                 ><view class="brand" @click="home()"
@@ -156,12 +157,15 @@ function open(path: string) {
     --user-text-secondary: #68736e;
 }
 .shell {
-    container-type: inline-size;
+    --shell-header-height: clamp(64px, 12vw, 90px);
     max-width: 750px;
     min-height: 100vh;
     margin: auto;
     background: #f7f6f0;
-    padding: env(safe-area-inset-top) 0 0;
+    padding: calc(var(--shell-header-height) + env(safe-area-inset-top)) 0 0;
+}
+.home-shell {
+    --shell-header-height: clamp(64px, 11.867vw, 89px);
 }
 .account-shell,
 .white-shell {
@@ -210,7 +214,7 @@ function open(path: string) {
 }
 .shell-brand-logo {
     display: block;
-    max-width: 48cqw;
+    max-width: min(48vw, 360px);
     width: 180px;
     height: clamp(40px, 8cqw, 60px);
 }
@@ -243,18 +247,34 @@ function open(path: string) {
     font-weight: 600;
     overflow-wrap: anywhere;
 }
-.sticky-header {
-    position: sticky;
-    top: env(safe-area-inset-top);
+.header,
+.brand-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    margin-inline: auto;
+    width: 100%;
+    max-width: 750px;
+    height: calc(var(--shell-header-height) + env(safe-area-inset-top));
+    min-height: 0;
+    margin: 0 auto;
+    padding: env(safe-area-inset-top) min(4.267vw, 32px) 0;
     z-index: 50;
     background: #f7f6f0;
-    margin-top: calc(-1 * min(3.2cqw, 24px));
-    margin-left: calc(-1 * min(4.267cqw, 32px));
-    margin-right: calc(-1 * min(4.267cqw, 32px));
-    padding: min(3.2cqw, 24px) min(4.267cqw, 32px);
+    box-shadow: 0 1px 0 #171c190d;
 }
-.white-shell .sticky-header {
+.white-shell .header,
+.account-shell .brand-header {
     background: #fff;
+}
+.overview-shell .brand-header {
+    background: #e6f4ee;
+}
+.header-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .icon {
     display: flex;
@@ -270,9 +290,11 @@ function open(path: string) {
 }
 .tabs {
     position: fixed;
+    transform: none;
     bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
+    left: 0;
+    right: 0;
+    margin-inline: auto;
     max-width: 750px;
     width: 100%;
     height: calc(clamp(64px, 14.133cqw, 106px) + env(safe-area-inset-bottom));

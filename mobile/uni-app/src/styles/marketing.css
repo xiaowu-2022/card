@@ -1,3 +1,6 @@
+.marketing-home {
+    padding-top: calc(88px + env(safe-area-inset-top));
+}
 .marketing-home button {
     background: transparent;
     color: inherit;
@@ -94,18 +97,20 @@
     font-size: 14px;
 }
 .marketing-header {
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: 0;
+    right: 0;
     z-index: 30;
     background: #d6bd79;
     color: #252118;
     border-bottom: 1px solid #25211826;
-    min-height: 88px;
+    height: calc(88px + env(safe-area-inset-top));
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 24px;
-    padding: 20px 3%;
+    padding: calc(20px + env(safe-area-inset-top)) 3% 20px;
 }
 .marketing-brand {
     display: inline-flex;
@@ -765,13 +770,16 @@
     }
 }
 @media (max-width: 767px) {
+    .marketing-home {
+        padding-top: calc(78px + env(safe-area-inset-top));
+    }
     .marketing-notice {
         font-size: 11px;
         padding: 8px 14px;
     }
     .marketing-header {
-        min-height: 78px;
-        padding: 14px 18px;
+        height: calc(78px + env(safe-area-inset-top));
+        padding: calc(14px + env(safe-area-inset-top)) 18px 14px;
         gap: 12px;
     }
     .marketing-brand {

@@ -444,3 +444,7 @@ allowlisted presentation fields for up to 100 nodes. It survives a descendant-pa
 refresh and is also used when returning from commission details. Fresh downward
 navigation still uses the node's default direct list. Return URLs are rebuilt on
 the fixed local route, and server subtree authorization remains mandatory.
+
+
+### 2026-10-03 report day boundary correction
+Daily activity and commission report ranges bind explicit ISO-8601 offsets when comparing PostgreSQL timestamptz values. Laravel DateTime bindings otherwise omit the offset, allowing non-UTC database sessions to shift company-day boundaries. The inclusive selected dates remain start-of-first-day through exclusive start-of-next-day in the company timezone. This is a read-query correction only; no historical events, awards or Ledger entries are rewritten. Regression coverage checks 23:09 on the previous day, both selected-day edges and next midnight under UTC and UTC+8 database sessions.

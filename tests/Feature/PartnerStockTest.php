@@ -478,3 +478,90 @@ it('deducts each posted annual commission once by source team including outside 
         ->and(DB::table('ledger_entries')->count())->toBe($entries);
     DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
 });
+
+it('reconciles only personal journal net amounts and available USDT without creating wallets', function () {
+    $partner = stockPartner($this, $this->user);
+    $child = stockChild($this->user);
+    $nested = stockPartner($this, $child);
+    $this->management->journal($this->admin, $this->tenant->id, $nested->id, stockEntry('ADVANCE', '900'));
+    $this->management->journal($this->admin, $this->tenant->id, $nested->id, stockEntry('REIMBURSEMENT', '800'));
+    $advance = $this->management->journal($this->admin, $this->tenant->id, $partner->id, stockEntry('ADVANCE', '100.00000001'));
+    $expense = $this->management->journal($this->admin, $this->tenant->id, $partner->id, stockEntry('REIMBURSEMENT', '10'));
+    $wallets = DB::table('wallets')->count();
+    $ledger = DB::table('ledger_entries')->count();
+    $r = $this->report->read($this->tenant->id, $this->user->id);
+    expect($r['accountBalance'])->toBe([
+        'advances' => '100.00000001', 'activationCommission' => '0.00000000',
+        'annualCommission' => '0.00000000', 'reimbursements' => '10.00000000',
+        'theoretical' => '90.00000001', 'actual' => '0.00000000', 'difference' => '90.00000001',
+    ])->and($r['totals']['advances'])->toBe('1000.00000001')
+        ->and($r['totals']['reimbursements'])->toBe('810.00000000')
+        ->and(DB::table('wallets')->count())->toBe($wallets)
+        ->and(DB::table('ledger_entries')->count())->toBe($ledger);
+    $this->management->journal($this->admin, $this->tenant->id, $partner->id, stockEntry('ADVANCE', '100.00000001') + ['reverses_id' => $advance->id]);
+    $this->management->journal($this->admin, $this->tenant->id, $partner->id, stockEntry('REIMBURSEMENT', '10') + ['reverses_id' => $expense->id]);
+    expect($this->report->read($this->tenant->id, $this->user->id)['accountBalance']['theoretical'])->toBe('0.00000000');
+    stockFundWallet($this, $this->user);
+    stockFundWallet($this, $child);
+    $before = DB::table('ledger_entries')->count();
+    $r = $this->report->read($this->tenant->id, $this->user->id);
+    expect($r['accountBalance']['actual'])->toBe('500000.00000000')
+        ->and($r['accountBalance']['difference'])->toBe('-500000.00000000')
+        ->and(DB::table('ledger_entries')->count())->toBe($before);
+    Http::assertNothingSent();
+});
+
+it('adds only posted commissions received by the report owner to theoretical balance', function () {
+    stockFundWallet($this, $this->user);
+    stockBuy($this, $this->user, 8);
+    stockPartner($this, $this->user);
+    $child = stockChild($this->user);
+    stockFundWallet($this, $child);
+    stockPartner($this, $child);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
+    stockBuy($this, $child, 1);
+    $r = $this->report->read($this->tenant->id, $this->user->id);
+    $a = $r['accountBalance'];
+    expect(BigDecimal::of($a['activationCommission'])->isPositive())->toBeTrue()
+        ->and(BigDecimal::of($a['annualCommission'])->isPositive())->toBeTrue()
+        ->and($a['theoretical'])->toBe((string) BigDecimal::of($a['activationCommission'])->plus($a['annualCommission'])->toScale(8));
+    $childReport = $this->report->read($this->tenant->id, $child->id);
+    // The child's team generated payments to its ancestor; they are not the child's income.
+    expect(BigDecimal::of($childReport['totals']['annualCommission'])->isPositive())->toBeTrue()
+        ->and($childReport['accountBalance']['annualCommission'])->toBe('0.00000000')
+        ->and($childReport['accountBalance']['activationCommission'])->toBe('0.00000000');
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+});
+
+it('returns the agreed 140 theoretical 125 actual and 15 difference example', function () {
+    $level = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->where('rank', 1)->first();
+    app(ConfigurePaidPromotion::class)->execute($this->tenant->id, $this->admin, $level->id, [
+        'fee' => '1000', 'percent' => 3, 'reward' => 20, 'target' => $level->target,
+        'revision' => $level->revision, 'enabled' => true,
+    ]);
+    stockFundWallet($this, $this->user);
+    stockBuy($this, $this->user, 1);
+    $partner = stockPartner($this, $this->user);
+    $this->management->journal($this->admin, $this->tenant->id, $partner->id, stockEntry('ADVANCE', '100'));
+    $this->management->journal($this->admin, $this->tenant->id, $partner->id, stockEntry('REIMBURSEMENT', '10'));
+    $depositChild = stockChild($this->user);
+    stockFundWallet($this, $depositChild);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $depositChild->id, (string) Str::uuid(), '50');
+    $annualChild = stockChild($this->user);
+    stockFundWallet($this, $annualChild);
+    stockBuy($this, $annualChild, 1);
+    $available = LedgerAccount::where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->where('asset_code', 'USDT')->where('account_type', 'USER_AVAILABLE')->firstOrFail();
+    $clearing = LedgerAccount::where('tenant_id', $this->tenant->id)->where('asset_code', 'USDT')->where('account_type', 'TENANT_TOPUP_CLEARING')->firstOrFail();
+    $delta = BigDecimal::of('125')->minus(DB::table('ledger_accounts')->where('id', $available->id)->value('balance'));
+    app(LedgerWriter::class)->post(new LedgerPostingPlan($this->tenant->id, 'USDT', 'stock-example:'.Str::uuid(), 'TEST_TOPUP', null, null, null, [
+        new LedgerPostingInstruction($available->id, Money::of((string) $delta, 'USDT')),
+        new LedgerPostingInstruction($clearing->id, Money::of((string) $delta->negated(), 'USDT')),
+    ]));
+    $before = DB::table('ledger_entries')->count();
+    expect($this->report->read($this->tenant->id, $this->user->id)['accountBalance'])->toBe([
+        'advances' => '100.00000000', 'activationCommission' => '20.00000000',
+        'annualCommission' => '30.00000000', 'reimbursements' => '10.00000000',
+        'theoretical' => '140.00000000', 'actual' => '125.00000000', 'difference' => '15.00000000',
+    ])->and(DB::table('ledger_entries')->count())->toBe($before);
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+});

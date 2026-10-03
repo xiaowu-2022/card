@@ -62,8 +62,10 @@ final class PromotionReportQuery
     private function period(Builder $query, array $context, string $column = 'occurred_at'): Builder
     {
         if ($context['dateFrom'] !== null) {
-            $query->where($column, '>=', CarbonImmutable::createFromFormat('!Y-m-d', $context['dateFrom'], $context['timezone'])->utc())
-                ->where($column, '<', CarbonImmutable::createFromFormat('!Y-m-d', $context['dateTo'], $context['timezone'])->addDay()->utc());
+            // DateTime bindings lose their offset in Laravel. Explicit ISO offsets
+            // keep timestamptz comparisons independent of the database session zone.
+            $query->where($column, '>=', CarbonImmutable::createFromFormat('!Y-m-d', $context['dateFrom'], $context['timezone'])->utc()->toIso8601String())
+                ->where($column, '<', CarbonImmutable::createFromFormat('!Y-m-d', $context['dateTo'], $context['timezone'])->addDay()->utc()->toIso8601String());
         }
 
         return $query;

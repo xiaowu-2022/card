@@ -1,4 +1,22 @@
 export const partnerCatalog = {
+    'Account balance reconciliation': [
+        '账户余额核对',
+        'Semakan baki akaun',
+        'Conciliación del saldo de la cuenta',
+    ],
+    'Theoretical account balance': [
+        '账户理论余额',
+        'Baki akaun teori',
+        'Saldo teórico de la cuenta',
+    ],
+    'Actual account balance': ['账户实际余额', 'Baki akaun sebenar', 'Saldo real de la cuenta'],
+    'Account balance difference': ['差额', 'Perbezaan', 'Diferencia'],
+    'Theoretical balance = personal net advances + activation commissions received + annual fee commissions received − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.':
+        [
+            '理论余额＝本人预支净额＋已到账激活佣金＋已到账年费佣金－本人报销净额。实际余额为本人 USDT 钱包可用余额。差额＝理论余额－实际余额。',
+            'Baki teori = pendahuluan bersih peribadi + komisen pengaktifan diterima + komisen yuran tahunan diterima − pembayaran balik perbelanjaan bersih peribadi. Baki sebenar ialah baki dompet USDT tersedia anda. Perbezaan = teori − sebenar.',
+            'Saldo teórico = anticipos netos personales + comisiones de activación recibidas + comisiones de cuotas anuales recibidas − reembolsos netos personales. El saldo real es el saldo disponible de su monedero USDT. Diferencia = teórico − real.',
+        ],
     'Add partner': ['添加合伙人', 'Tambah rakan kongsi', 'Añadir socio'],
     'Edit partner': ['编辑合伙人', 'Edit rakan kongsi', 'Editar socio'],
     'Partner list': ['合伙人列表', 'Senarai rakan kongsi', 'Lista de socios'],

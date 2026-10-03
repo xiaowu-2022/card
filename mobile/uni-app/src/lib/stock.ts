@@ -32,6 +32,15 @@ export type StockReport = {
     share: string | null;
     negative: boolean;
     missingRates: number;
+    accountBalance: {
+        advances: string;
+        activationCommission: string;
+        annualCommission: string;
+        reimbursements: string;
+        theoretical: string;
+        actual: string;
+        difference: string;
+    };
     totals: Record<string, string>;
     trends: Record<string, Record<string, string>>;
     risks: {
