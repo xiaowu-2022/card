@@ -21,6 +21,7 @@ final class UpdateTenantBrandingRequest extends FormRequest
             'support_url' => ['nullable', 'url:http,https', 'max:2048'],
             'copyright_text' => ['nullable', 'string', 'max:255'],
             'logo' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
+            'apk_logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048', 'dimensions:min_width=192,min_height=192,ratio=1/1'],
             'favicon' => ['nullable', 'file', 'mimes:png,ico', 'max:512'],
         ];
     }

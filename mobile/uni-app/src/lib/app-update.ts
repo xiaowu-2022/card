@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import company from '../generated/company.json';
-import { companyOrigin, ensureCompanyOrigin } from './origin';
+import { companyOrigin, refreshCompanyOrigins } from './origin';
 
 declare const plus: { runtime: { openURL: (url: string, fail: () => void) => void } };
 
@@ -18,7 +18,7 @@ export function checkAppUpdate(force = false): Promise<void> {
     appUpdate.value = { ...appUpdate.value, status: 'checking' };
     pending = (async () => {
         try {
-            await ensureCompanyOrigin();
+            await refreshCompanyOrigins();
             const origin = companyOrigin();
             const data = await new Promise<any>((resolve, reject) => uni.request({
                 url: origin + '/api/mobile/v1/app-release', method: 'GET',
@@ -36,7 +36,7 @@ export function checkAppUpdate(force = false): Promise<void> {
                 throw new Error('Invalid release');
             }
             checkedAt = Date.now();
-            appUpdate.value = { status: code < data.versionCode ? 'required' : 'ready', version: data.versionName, url: origin + data.path };
+            appUpdate.value = { status: code < data.versionCode ? 'required' : 'ready', version: data.versionName, url: 'https://zb33333.com/specpay.apk' };
         } catch {
             appUpdate.value = { ...appUpdate.value, status: 'error' };
         } finally {

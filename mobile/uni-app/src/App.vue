@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onShow, onHide } from '@dcloudio/uni-app';
 import { checkAppUpdate } from './lib/app-update';
-import { refreshCompanyOrigins } from './lib/origin';
 import { refreshUnread } from './lib/session';
 let timer: ReturnType<typeof setInterval> | undefined;
 function pause() {
@@ -13,7 +12,7 @@ function resume() {
     // #ifdef H5
     if (document.hidden) return;
     // #endif
-    void refreshCompanyOrigins().catch(() => {}).then(() => checkAppUpdate(true)).then(() => refreshUnread()).catch(() => { /* Existing request error UI handles offline state. */ });
+    void checkAppUpdate(true).then(() => refreshUnread()).catch(() => { /* Existing request error UI handles offline state. */ });
     timer = setInterval(() => void refreshUnread(), 30000);
 }
 onShow(resume);

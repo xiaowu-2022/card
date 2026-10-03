@@ -1,3 +1,17 @@
+On 2026-10-03 the user required an independent company APK Logo, separate from
+website branding. Platform branding upload stores apk_logo_object_key through
+existing scoped image storage/audit. Native packaging verifies the public company
+bootstrap and reads apkLogoUrl only, then generates Android icons and centered
+white splash images. Missing/unavailable APK Logo blocks packaging, without company
+logo or HBuilder defaults. Deploy the migration/admin assets before configuring.
+
+On 2026-10-02 the user clarified zb33333.com is a static APK distribution host,
+not an API server. Native startup/foreground/update retry must refresh the full
+company domain directory through embedded API seeds and verified company domains,
+then check releases on the selected API origin. Never probe the static host even
+from old cached lists. Native update downloads use https://zb33333.com/specpay.apk.
+Keep company/app identity and mandatory version checks; do not bypass failed checks.
+
 On 2026-10-02 the user fixed all public H5 Android download links to
 https://zb33333.com/specpay.apk, superseding the current-origin /specpay.apk rule.
 Keep the links H5-only; native Apps still omit them.

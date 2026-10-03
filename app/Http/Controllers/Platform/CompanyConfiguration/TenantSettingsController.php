@@ -44,7 +44,7 @@ final class TenantSettingsController extends Controller
     {
         /** @var AdminUser $actor */
         $actor = $request->user('platform_admin');
-        $update->execute($tenant, $request->safe()->except(['logo', 'favicon']), $request->file('logo'), $request->file('favicon'), $actor, $request->attributes->get('request_id'));
+        $update->execute($tenant, $request->safe()->except(['logo', 'favicon', 'apk_logo']), $request->file('logo'), $request->file('favicon'), $actor, $request->attributes->get('request_id'), $request->file('apk_logo'));
 
         return back()->with('success', 'Branding updated.');
     }

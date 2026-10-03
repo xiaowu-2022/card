@@ -14,7 +14,7 @@ final class ImageReferences
     public function all(?string $tenant = null): \Generator
     {
         foreach (DB::table('tenant_branding')->when($tenant, fn ($q) => $q->where('tenant_id', $tenant))->orderBy('tenant_id')->cursor() as $row) {
-            foreach (['logo_object_key', 'favicon_object_key'] as $field) {
+            foreach (['logo_object_key', 'favicon_object_key', 'apk_logo_object_key'] as $field) {
                 if ($row->$field) {
                     yield $this->ref($row->tenant_id, 'public', $row->$field, 'branding', $row->tenant_id);
                 }

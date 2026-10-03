@@ -22,6 +22,7 @@ final class TenantSettingsQuery
                 'supportUrl' => $tenant->branding->support_url,
                 'copyrightText' => $tenant->branding->copyright_text,
                 'logoUrl' => $tenant->branding->logo_object_key ? app(ImageStorage::class)->displayUrl('public', $tenant->branding->logo_object_key, 'brand') : null,
+                'apkLogoUrl' => $tenant->branding->apk_logo_object_key ? app(ImageStorage::class)->displayUrl('public', $tenant->branding->apk_logo_object_key, 'original') : null,
                 'faviconUrl' => $tenant->branding->favicon_object_key ? app(ImageStorage::class)->displayUrl('public', $tenant->branding->favicon_object_key, 'brand') : null,
             ],
             'locales' => $tenant->locales->map(fn ($locale) => ['locale' => $locale->locale, 'enabled' => $locale->enabled, 'default' => $locale->is_default]),

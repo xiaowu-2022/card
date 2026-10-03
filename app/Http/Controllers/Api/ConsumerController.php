@@ -84,6 +84,7 @@ final class ConsumerController extends Controller
             'publicAssets' => app(PublicAssets::class)->manifest(),
             'tenant' => ['id' => $tenant->id, 'slug' => $tenant->slug, 'name' => $tenant->branding?->brand_name ?? $tenant->name,
                 'logoUrl' => $tenant->branding?->logo_object_key ? app(ImageStorage::class)->displayUrl('public', $tenant->branding->logo_object_key, 'brand') : null,
+                'apkLogoUrl' => $tenant->branding?->apk_logo_object_key ? app(ImageStorage::class)->displayUrl('public', $tenant->branding->apk_logo_object_key, 'original') : null,
                 'primaryColor' => $tenant->branding?->primary_color ?? '#39AD8D'],
             'locale' => $request->attributes->get('client_locale', 'en'),
             'locales' => $request->attributes->get('client_locales', ['en']),

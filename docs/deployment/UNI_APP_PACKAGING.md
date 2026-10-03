@@ -224,11 +224,11 @@ is not a signed APK or device installation test.
 
 Each company has its own release selected by the active Host. Publish using the
 company slug and the actual signed APK metadata (DCloud appid, not Android package
-name). Current Spec Pay source is 2.3.57 / 2357. On the server:
+name). Current Spec Pay source is 2.3.58 / 2358. On the server:
 
 ```sh
 cd /www/wwwroot/card
-/www/server/php/84/bin/php artisan app:publish-android tenant-a /path/to/signed-specpay.apk --code=2357 --release-version=2.3.57 --appid=__UNI__GBE57092
+/www/server/php/84/bin/php artisan app:publish-android tenant-a /path/to/signed-specpay.apk --code=2358 --release-version=2.3.58 --appid=__UNI__GBE57092
 ```
 
 Replace `tenant-a` with the deployed company's actual slug if different. Keep the
@@ -246,3 +246,42 @@ All active company domains must serve these same files, with HTTPS and APK downl
 allowed. The public GET `/api/mobile/v1/app-release` contains no secrets/session
 creation; unavailable releases return 503. The existing H5 `/specpay.apk` download
 is independent; replace that file with the same signed APK when releasing for H5.
+
+
+### 2026-10-02 Static distribution host and API routing
+
+`zb33333.com` hosts the static APK only. It is removed from Spec Pay API seeds and
+ignored even if present in an old cached/server domain list. Startup, foreground
+and explicit update retries refresh the full company directory, select a verified
+API origin, then fetch `/api/mobile/v1/app-release` there. Downloads open the fixed
+`https://zb33333.com/specpay.apk`; upload the same signed release to that static
+host. The API still requires published company release metadata and its retained
+release artifact (use `app:publish-android` on the API server). A static APK upload
+alone does not publish metadata. Do not query the static host for app-release.
+Recompile and cloud-package the native app; an H5 deployment cannot patch an
+already installed APK. This supersedes the API-host download URL above.
+
+### Online Android branding (2026-10-03)
+
+`client prepare/build --platform app` now reads `/api/mobile/v1/bootstrap` from
+configured company API seeds, verifies `tenant.slug` and a nonempty tenant ID,
+then downloads the public configured `tenant.apkLogoUrl` without credentials. The
+static APK host is never queried for configuration. Failed/unconfigured branding
+stops native preparation before overwriting the manifest; stale local branding is
+not a fallback. H5 builds do not fetch branding.
+
+Upload the separate **APK Logo** in Platform company branding settings first.
+It never falls back to the website/company Logo. The APK Logo is
+contained without distortion on a white square for Android density icons, and
+centered on white portrait splash images. Generated resources live under
+`src/static/native-branding/`; the manifest receives `app-plus.distribute.icons`
+and `app-plus.distribute.splashscreen` on every native preparation. A SHA-256
+provenance file records the source API/company, never signed image URLs or secrets.
+This uses DCloud's classic uni-app manifest schema:
+https://uniapp.dcloud.net.cn/tutorial/app-manifest
+
+Run `npm ci`, then `npm run client -- build --company specpay --mode release --platform app`.
+Repackage with HBuilderX cloud packaging and install the resulting APK; existing
+installed icons cannot be changed by editing server configuration. Android resource
+compilation is not a signed APK or a device installation verification. iOS branding
+is outside this Android change. Do not cloud-package stale output after a failed build.

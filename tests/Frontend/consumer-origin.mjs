@@ -21,7 +21,7 @@ function client(platform, base = '/', initialAssets = {}) {
     const window = { __PUBLIC_ASSETS__: initialAssets, location: { origin: 'https://alternate.example.org', href: 'https://alternate.example.org/' } };
     function load(path) {
         if (path === 'vue') return { ref: (value) => ({ value }), shallowRef: (value) => ({ value }) };
-        if (path.endsWith('company.json')) return { apiOrigin: 'https://primary.example.org', apiOrigins: ['https://primary.example.org'], tenantSlug: 'company-a', appId: 'test.cards.app', developmentOnly: false };
+        if (path.endsWith('company.json')) return { apiOrigin: 'https://primary.example.org', apiOrigins: ['https://zb33333.com', 'https://primary.example.org'], tenantSlug: 'company-a', appId: 'test.cards.app', developmentOnly: false };
         if (cache.has(path)) return cache.get(path);
         const exports = {};
         cache.set(path, exports);
@@ -132,4 +132,11 @@ test('server bootstrap clears the previously published OSS map', () => {
     assert.equal(c.origin.staticAsset('images/example.png'), '/h5/static/images/example.png');
     assert.equal(c.origin.staticAsset('images/example.png'), '/h5/static/images/example.png');
     assert.equal(probes, 1);
+});
+
+test('native discovery never probes the static APK host even from old packaged seeds', async () => {
+    const c = client('app');
+    await c.origin.refreshCompanyOrigins();
+    assert.equal(c.origin.companyOrigin(), 'https://primary.example.org');
+    assert.equal(c.calls.some(call => call.url.startsWith('https://zb33333.com/')), false);
 });

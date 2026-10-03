@@ -4,11 +4,10 @@
   "dcloudAppId": "__UNI__GBE57092",
   "tenantSlug": "tenant-a",
   "apiOrigin": "https://specpay.cc",
-  "version": "2.3.57",
-  "buildNumber": 2357,
+  "version": "2.3.58",
+  "buildNumber": 2358,
   "developmentOnly": false,
   "apiOrigins": [
-    "https://zb33333.com",
     "https://specpay.cc",
     "https://specpay.top",
     "https://specpay.vip",

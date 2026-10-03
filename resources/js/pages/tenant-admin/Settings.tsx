@@ -36,6 +36,7 @@ type SettingsData = {
         supportUrl: string | null;
         copyrightText: string | null;
         logoUrl: string | null;
+        apkLogoUrl: string | null;
         faviconUrl: string | null;
     };
     locales: { locale: string; enabled: boolean; default: boolean }[];
@@ -162,6 +163,7 @@ function BrandingForm({ settings }: { settings: SettingsData }) {
         support_url: string;
         copyright_text: string;
         logo: File | null;
+        apk_logo: File | null;
         favicon: File | null;
     }>({
         brand_name: settings.branding.brandName,
@@ -170,6 +172,7 @@ function BrandingForm({ settings }: { settings: SettingsData }) {
         support_url: settings.branding.supportUrl ?? '',
         copyright_text: settings.branding.copyrightText ?? '',
         logo: null,
+        apk_logo: null,
         favicon: null,
     });
     return (
@@ -267,6 +270,30 @@ function BrandingForm({ settings }: { settings: SettingsData }) {
                                 accept=".png,.jpg,.jpeg,.webp"
                                 onChange={(event) =>
                                     form.setData('logo', event.target.files?.[0] ?? null)
+                                }
+                            />
+                        </FormField>
+                        <FormField
+                            id="apk-logo"
+                            label={t('APK Logo')}
+                            description={t(
+                                'Square PNG, JPG or WEBP, at least 192 × 192, up to 2 MB. Used for Android icon and splash; rebuild the APK after changes.',
+                            )}
+                            error={errorMessage(form.errors.apk_logo)}
+                        >
+                            {settings.branding.apkLogoUrl && (
+                                <img
+                                    src={settings.branding.apkLogoUrl}
+                                    alt={t('APK Logo')}
+                                    className="mb-2 h-16 w-16 object-contain"
+                                />
+                            )}
+                            <Input
+                                id="apk-logo"
+                                type="file"
+                                accept=".png,.jpg,.jpeg,.webp"
+                                onChange={(event) =>
+                                    form.setData('apk_logo', event.target.files?.[0] ?? null)
                                 }
                             />
                         </FormField>

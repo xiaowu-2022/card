@@ -12,6 +12,7 @@ import {
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readCompany } from './config.mjs';
+import { prepareBranding } from './branding.mjs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { icons } from 'lucide-react';
@@ -56,6 +57,7 @@ try {
         if ((h5Base !== './' && !/^\/(?:[a-zA-Z0-9_-]+\/)*$/.test(h5Base)) || (flags['--base'] && platform !== 'h5'))
             throw new Error('Use --base ./, / or /directory/ with platform h5.');
         const config = readCompany(root, company, mode, platform);
+        const branding = platform === 'app' ? await prepareBranding(config, project) : {};
         const generated = resolve(project, 'src/generated');
         mkdirSync(generated, { recursive: true });
         writeFileSync(resolve(generated, 'company.json'), JSON.stringify(config, null, 2));
@@ -234,6 +236,7 @@ try {
                         },
                         modules: { Camera: {}, Share: {} },
                         distribute: {
+                            ...branding,
                             android: {
                                 packagename: config.appId,
                                 abiFilters: ['arm64-v8a', 'armeabi-v7a'],

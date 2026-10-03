@@ -16,8 +16,10 @@ const router = new DomainRouter(
     company.apiOrigins,
     company.tenantSlug,
     company.developmentOnly,
-    (origin) =>
-        new Promise((resolve, reject) =>
+    (origin) => {
+        // The APK distribution host is static-only, including in old cached directories.
+        if (origin === 'https://zb33333.com' || origin === 'http://zb33333.com') return Promise.reject(new Error('Static download host'));
+        return new Promise((resolve, reject) =>
             uni.request({
                 url: origin + '/api/mobile/v1/domains',
                 method: 'GET',
@@ -30,7 +32,8 @@ const router = new DomainRouter(
                         : reject(new Error('Domain unavailable')),
                 fail: reject,
             }),
-        ),
+        );
+    },
     cached,
     (origins) => uni.setStorageSync(cacheKey, origins),
 );

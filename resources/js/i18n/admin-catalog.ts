@@ -2,6 +2,8 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'APK Logo': 'APK 专用图标',
+    'Square PNG, JPG or WEBP, at least 192 × 192, up to 2 MB. Used for Android icon and splash; rebuild the APK after changes.': '正方形 PNG、JPG 或 WEBP，至少 192 × 192，不超过 2 MB。用于安卓图标和启动页，修改后需重新打包 APK。',
     'Session expired. Refresh the page and sign in again.': '登录状态已失效，请刷新页面并重新登录。',
     'You do not have permission to sync transactions.': '当前账号没有同步流水权限。',
     'Sync endpoint or card unavailable. Check deployment and refresh route cache.': '同步接口或卡片不存在，请检查代码部署并刷新路由缓存。',

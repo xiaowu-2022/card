@@ -6,21 +6,22 @@ import ts from 'typescript';
 function setup(platform = 'app') {
     const exports = {};
     let response = { tenantSlug: 'tenant-a', appId: '__UNI__TEST', versionCode: 2, versionName: '1.0.1', path: '/app-releases/abcd/' + 'a'.repeat(64) + '.apk' };
+    let discoveries = 0;
     let requests = 0, opened = '';
-    const uni = { getAppBaseInfo: () => ({ appId: '__UNI__TEST', appVersionCode: '1' }), request: args => { requests++; assert.equal(args.withCredentials, false); assert.equal(args.header.Authorization, undefined); args.success({ statusCode: 200, data: response }); } };
+    const uni = { getAppBaseInfo: () => ({ appId: '__UNI__TEST', appVersionCode: '1' }), request: args => { requests++; assert.ok(discoveries > 0); assert.equal(args.url, 'https://company.example/api/mobile/v1/app-release'); assert.equal(args.withCredentials, false); assert.equal(args.header.Authorization, undefined); args.success({ statusCode: 200, data: response }); } };
     const source = readFileSync('mobile/uni-app/src/lib/app-update.ts', 'utf8').replaceAll('import.meta.env.UNI_PLATFORM', JSON.stringify(platform));
     runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText, {
         exports, uni, plus: { runtime: { openURL: url => { opened = url; } } },
-        require: name => name === 'vue' ? { ref: value => ({ value }) } : name.includes('company.json') ? { tenantSlug: 'tenant-a' } : { companyOrigin: () => 'https://company.example', ensureCompanyOrigin: async () => {} },
+        require: name => name === 'vue' ? { ref: value => ({ value }) } : name.includes('company.json') ? { tenantSlug: 'tenant-a' } : { companyOrigin: () => 'https://company.example', refreshCompanyOrigins: async () => { discoveries++; } },
     });
-    return { exports, uni, response, requests: () => requests, opened: () => opened };
+    return { exports, uni, response, requests: () => requests, discoveries: () => discoveries, opened: () => opened };
 }
-test('old apps cannot continue; update opens only the validated company APK', async () => {
+test('old apps cannot continue; update metadata uses the company API and download uses the static host', async () => {
     const c = setup();
     await assert.rejects(c.exports.ensureLatestApp());
     assert.equal(c.exports.appUpdate.value.status, 'required');
     c.exports.downloadAppUpdate();
-    assert.equal(c.opened(), 'https://company.example' + c.response.path);
+    assert.equal(c.opened(), 'https://zb33333.com/specpay.apk');
 });
 test('current and newer apps pass and concurrent checks share one request', async () => {
     const c = setup(); c.uni.getAppBaseInfo = () => ({ appId: '__UNI__TEST', appVersionCode: '2' });
@@ -47,4 +48,12 @@ test('wrong company, app, URL and invalid versions fail closed and can retry', a
 test('H5 does not perform native release checks', async () => {
     const c = setup('h5'); await c.exports.ensureLatestApp();
     assert.equal(c.requests(), 0); assert.equal(c.exports.appUpdate.value.status, 'ready');
+});
+
+test('foreground and manual retries refresh the company directory before release checks', async () => {
+    const c = setup();
+    await c.exports.checkAppUpdate(true);
+    await c.exports.checkAppUpdate(true);
+    assert.equal(c.discoveries(), 2);
+    assert.equal(c.requests(), 2);
 });
