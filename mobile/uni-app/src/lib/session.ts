@@ -18,6 +18,7 @@ export type Bootstrap = {
         slug: string;
         name: string;
         logoUrl: string | null;
+        logoSources?: string[];
         primaryColor: string;
     };
     user: {

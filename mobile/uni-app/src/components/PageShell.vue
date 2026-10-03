@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PreviewImage from './PreviewImage.vue';
 import AppUpdateGate from './AppUpdateGate.vue';
 import { computed } from 'vue';
 import { t } from '../lib/i18n';
@@ -67,7 +68,8 @@ function open(path: string) {
             }"
             ><view v-if="isHome" class="brand-header"
                 ><view class="brand" @click="home()"
-                    ><image
+                    ><PreviewImage
+                        :sources="session?.tenant.logoSources"
                         v-if="logo"
                         class="shell-brand-logo"
                         :src="logo"

@@ -11,6 +11,7 @@ use Illuminate\Http\Response;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
@@ -163,36 +164,106 @@ final class ImageStorage
         return $url;
     }
 
-    /** Same-origin response for authenticated viewers and canvas downloads; OSS performs the resize. */
-    public function displayResponse(string $disk, string $key, string $profile = 'preview', string $legacyCodec = 'plain'): Response
+    /** Browser candidates only; URL generation never contacts storage. */
+    public function previewSources(string $disk, ?string $key, string $profile = 'preview'): array
+    {
+        if (! $key) {
+            return [];
+        }
+        $image = $this->record($disk, $key);
+        $sources = [$this->displayUrl($disk, $key, $profile)];
+        if ($image && $this->active()) {
+            $sources[] = $this->url($disk, $key);
+            if ($image->backup_key) {
+                $sources[] = URL::temporarySignedRoute('media.image', now()->addHours(12), [
+                    'image' => $image->id, 'profile' => 'original', 'delivery' => 'replica',
+                ]);
+            }
+        }
+
+        return array_values(array_unique(array_filter($sources)));
+    }
+
+    private function previewFailure(?StoredImage $image, string $stage, \Throwable $error): void
+    {
+        Log::warning('Image preview failed', [
+            'request_id' => request()->attributes->get('request_id'),
+            'image_id' => $image?->id, 'stage' => $stage,
+            'reason' => $error instanceof DomainException ? $error->errorCode : 'read_or_validation_failed',
+        ]);
+    }
+
+    /** Same-origin response for authenticated viewers and canvas downloads. */
+    public function displayResponse(string $disk, string $key, string $profile = 'preview', string $legacyCodec = 'plain', bool $replicaOnly = false): Response
     {
         $image = $this->record($disk, $key);
         abort_if($image && $image->state !== 'ready', 404);
         $config = $this->active();
         $process = $config && $image && $profile !== 'original' ? ImagePresentation::process($profile, $image->mime) : null;
-        try {
-            if ($config && $image?->oss_pending && $image->configuration_id === $config->id) {
-                throw new \RuntimeException;
+        $allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/x-icon', 'image/vnd.microsoft.icon'];
+        $validate = static function (string $bytes) use ($allowed): array {
+            $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
+            if (! in_array($mime, $allowed, true)) {
+                throw new \RuntimeException('Invalid preview media');
             }
-            // A different bucket/configuration must not substitute unrelated bytes at the same key.
-            if ($process && $image->configuration_id !== $config->id) {
-                $original = $this->oss->getBounded($config, $image->object_key, max(1, $image->size ?? 20 * 1024 * 1024));
-                if (! $image->sha256 || ! hash_equals($image->sha256, hash('sha256', $original))) {
-                    throw new \RuntimeException;
+
+            return [$bytes, $mime];
+        };
+        $original = null;
+        $originalAttempted = false;
+        $result = null;
+        $integrityFailed = false;
+        if (! $replicaOnly && $config && $image) {
+            $readOriginal = function () use ($config, $image, &$original, &$originalAttempted, &$integrityFailed): string {
+                if ($original === null) {
+                    if ($originalAttempted) {
+                        throw new \RuntimeException('Original read already failed');
+                    }
+                    $originalAttempted = true;
+                    $original = $this->oss->getBounded($config, $image->object_key, max(1, $image->size ?? 20 * 1024 * 1024));
+                    if ($image->sha256 && ! hash_equals($image->sha256, hash('sha256', $original))) {
+                        $integrityFailed = true;
+                        throw new \RuntimeException('Original checksum mismatch');
+                    }
+                }
+
+                return $original;
+            };
+            if ($process) {
+                try {
+                    // Changed configurations must prove original identity before processing.
+                    if ($image->configuration_id !== $config->id) {
+                        if (! $image->sha256) {
+                            $integrityFailed = true;
+                            throw new \RuntimeException('Missing original checksum');
+                        }
+                        $readOriginal();
+                    }
+                    $result = $validate($this->oss->display($config, $image->object_key, $process));
+                } catch (\Throwable $error) {
+                    $this->previewFailure($image, 'processed', $error);
                 }
             }
-            $bytes = $process
-                ? $this->oss->display($config, $image->object_key, $process)
-                : $this->read($disk, $key, $legacyCodec);
-            if (! in_array((new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes), ['image/jpeg', 'image/png', 'image/webp', 'image/x-icon', 'image/vnd.microsoft.icon'], true)) {
-                throw new \RuntimeException;
+            if ($result === null && ! $integrityFailed) {
+                try {
+                    $result = $validate($readOriginal());
+                } catch (\Throwable $error) {
+                    $this->previewFailure($image, 'original', $error);
+                }
             }
-        } catch (\Throwable) {
-            abort_unless($image?->backup_key, 503);
-            $bytes = app(ImageReplicas::class)->read($image);
         }
-        $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
-        abort_unless(in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'image/x-icon', 'image/vnd.microsoft.icon'], true), 415);
+        if ($result === null) {
+            try {
+                $bytes = $image?->backup_key
+                    ? app(ImageReplicas::class)->read($image)
+                    : (($replicaOnly || ($config && $image)) ? throw new \RuntimeException('Replica unavailable') : $this->read($disk, $key, $legacyCodec));
+                $result = $validate($bytes);
+            } catch (\Throwable $error) {
+                $this->previewFailure($image, 'replica', $error);
+                abort(503, 'Image could not be loaded. Please retry.');
+            }
+        }
+        [$bytes, $mime] = $result;
 
         return response($bytes, 200, [
             'Content-Type' => $mime, 'Cache-Control' => 'private, no-store',

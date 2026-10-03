@@ -42,6 +42,7 @@ final class KycDetailController extends Controller
             $recent->mark($request->session(), $admin, $tenant->id);
         }
         $documents = [];
+        $documentSources = [];
         foreach (['front', 'back'] as $side) {
             if (! $application->{$side.'_object_key'}) {
                 continue;
@@ -53,17 +54,18 @@ final class KycDetailController extends Controller
             $config = $storage->active();
             // Public-read OSS images load in the browser; never proxy them through
             // the server's unreliable OSS connection just to display a document.
-            if ($config && $image && ! $image->oss_pending) {
+            if ($config && $image) {
                 $url = app(OssImages::class)->url($config, $image->object_key);
                 $process = ImagePresentation::process('document', $image->mime);
                 $documents[$side] = $url.($process ? '?x-oss-process='.rawurlencode($process) : '');
+                $documentSources[$side] = array_values(array_unique([$documents[$side], $url, URL::temporarySignedRoute('platform.kyc.documents.show', now()->addSeconds((int) config('kyc.document_access_ttl_seconds')), ['tenant' => $tenant->id, 'kyc' => $kyc, 'side' => $side, 'viewer' => $admin->id, 'delivery' => 'replica'])]));
 
                 continue;
             }
             $documents[$side] = URL::temporarySignedRoute('platform.kyc.documents.show', now()->addSeconds((int) config('kyc.document_access_ttl_seconds')), ['tenant' => $tenant->id, 'kyc' => $kyc, 'side' => $side, 'viewer' => $admin->id]);
         }
 
-        return response()->json(['documents' => $documents])->header('Cache-Control', 'private, no-store');
+        return response()->json(['documents' => $documents, 'documentSources' => $documentSources])->header('Cache-Control', 'private, no-store');
     }
 
     public function image(Tenant $tenant, string $kyc, string $side, Request $request, PlatformAdminRecentAuthentication $recent)
@@ -73,8 +75,9 @@ final class KycDetailController extends Controller
         $application = KycApplication::where('tenant_id', $tenant->id)->findOrFail($kyc);
         $key = $application->{$side.'_object_key'};
         abort_unless(is_string($key) && $key !== '', 404);
+        abort_unless(in_array($request->query('delivery'), [null, 'replica'], true), 404);
         try {
-            return app(ImageStorage::class)->displayResponse((string) config('kyc.document_disk'), $key, 'document')
+            return app(ImageStorage::class)->displayResponse((string) config('kyc.document_disk'), $key, 'document', replicaOnly: $request->query('delivery') === 'replica')
                 ->header('Cache-Control', 'private, no-store')->header('Pragma', 'no-cache');
         } catch (\Throwable) {
             abort(503, 'Identity document is unavailable.');

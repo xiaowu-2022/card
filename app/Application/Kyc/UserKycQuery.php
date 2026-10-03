@@ -38,6 +38,8 @@ final readonly class UserKycQuery
             'documentType' => $identity?->document_type?->value ?? $application?->document_type?->value,
             'frontUrl' => $identity && $application?->front_object_key ? $this->photoUrl($images, $tenantId, $disk, $application->front_object_key) : null,
             'backUrl' => $identity && $application?->back_object_key ? $this->photoUrl($images, $tenantId, $disk, $application->back_object_key) : null,
+            'frontSources' => $identity && $application?->front_object_key ? $images->previewSources($disk, $application->front_object_key, 'document') : [],
+            'backSources' => $identity && $application?->back_object_key ? $images->previewSources($disk, $application->back_object_key, 'document') : [],
             'reviewMessage' => $application?->review_message,
             'submittedAt' => $application?->submitted_at?->toIso8601String(),
             'verifiedAt' => $identity ? ($application?->reviewed_at ?? $identity->verified_at)?->toIso8601String() : null,
@@ -53,7 +55,7 @@ final readonly class UserKycQuery
             return $images->displayUrl($disk, $key, 'document');
         }
         $image = $images->record($disk, $key);
-        if (! $image || $image->tenant_id !== $tenant || $image->state !== 'ready' || $image->oss_pending) {
+        if (! $image || $image->tenant_id !== $tenant || $image->state !== 'ready') {
             return null;
         }
         $url = app(OssImages::class)->url($config, $image->object_key);

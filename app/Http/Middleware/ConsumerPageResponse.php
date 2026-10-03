@@ -28,6 +28,7 @@ final class ConsumerPageResponse
                 'brandName' => $tenant->branding?->brand_name ?? $tenant->name,
                 'primaryColor' => $tenant->branding?->primary_color ?? '#39AD8D',
                 'logoUrl' => $tenant->branding?->logo_object_key ? app(ImageStorage::class)->displayUrl('public', $tenant->branding->logo_object_key, 'brand') : null,
+                'logoSources' => app(ImageStorage::class)->previewSources('public', $tenant->branding?->logo_object_key, 'brand'),
             ]],
             'auth' => ['user' => $user ? ['id' => $user->id, 'accountId' => $user->account_id,
                 'displayName' => $user->profile?->display_name, 'email' => $user->email,

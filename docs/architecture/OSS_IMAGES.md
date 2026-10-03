@@ -193,3 +193,9 @@ OSS 的 forbid-overwrite 仍随签名固定，但启用/暂停版本控制的 Bu
 因此本模式不宣称服务器专属不可覆盖副本。原图不重写、不压缩；失败或放弃的图片延后
 由 images:recover 清理，等待授权过期，不阻塞提交响应。后台仍需能访问 OCR API，
 OCR 服务需能读取公开图片域名；后续管理员图片代理和异步清理仍可能需要服务器访问 OSS。
+
+
+### 2026-10-03 preview fallback
+Ordinary browser previews try current OSS processed URL, current original URL, then a signed server-replica-only URL. Candidates are deduplicated and stop after failure; explicit inline retry restarts them. URL generation performs no storage requests and pending replication does not block preview or change on reads.
+Protected delivery retains authorization and changed-configuration original checksum checks. Each original is fetched at most once per response; processing failure may use the original before the verified replica. Platform KYC fallback retains viewer, recent authentication and short expiry. Preview warnings include request/image IDs, stage and safe classification, never upstream text or signed URLs.
+Upload validation, OCR/provider originals and replication remain unchanged. Deploy PHP and rebuilt admin/H5 together; native preview changes require a new HBuilderX package. No schema or configuration migration is required.

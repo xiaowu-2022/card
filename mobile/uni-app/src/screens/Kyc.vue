@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PreviewImage from '../components/PreviewImage.vue';
 import { useSensitiveScreen } from '../lib/sensitive';
 import { computed, reactive, ref, watch } from 'vue';
 import { t, locale, dateTime } from '../lib/i18n';
@@ -25,6 +26,8 @@ const props = defineProps<{
             submittedAt?: string | null;
             verifiedAt?: string | null;
             frontUrl?: string | null;
+            frontSources?: string[];
+            backSources?: string[];
             backUrl?: string | null;
         };
         canSubmit: boolean;
@@ -227,7 +230,8 @@ async function submit() {
                                 : 'ID front',
                         )
                     }}</text>
-                    <image
+                    <PreviewImage
+                        :sources="page.kyc.frontSources"
                         v-if="page.kyc.frontUrl"
                         :src="photoUrl(page.kyc.frontUrl) ?? ''"
                         mode="widthFix"
@@ -237,7 +241,8 @@ async function submit() {
                 </view>
                 <view v-if="page.kyc.documentType !== 'PASSPORT'"
                     ><text class="label">{{ t('ID back') }}</text>
-                    <image
+                    <PreviewImage
+                        :sources="page.kyc.backSources"
                         v-if="page.kyc.backUrl"
                         :src="photoUrl(page.kyc.backUrl) ?? ''"
                         mode="widthFix"

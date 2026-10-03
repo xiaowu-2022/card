@@ -1,3 +1,4 @@
+import { PreviewImage } from '@/components/shared/PreviewImage';
 import { useCompanyConfigurationUrl } from '@/hooks/useCompanyConfigurationUrl';
 import { ConfigurationForm } from '@/components/admin/CompanyConfiguration';
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
@@ -37,6 +38,7 @@ type SettingsData = {
         copyrightText: string | null;
         logoUrl: string | null;
         apkLogoUrl: string | null;
+        apkLogoSources?: string[];
         faviconUrl: string | null;
     };
     locales: { locale: string; enabled: boolean; default: boolean }[];
@@ -282,7 +284,8 @@ function BrandingForm({ settings }: { settings: SettingsData }) {
                             error={errorMessage(form.errors.apk_logo)}
                         >
                             {settings.branding.apkLogoUrl && (
-                                <img
+                                <PreviewImage
+                                    sources={settings.branding.apkLogoSources}
                                     src={settings.branding.apkLogoUrl}
                                     alt={t('APK Logo')}
                                     className="mb-2 h-16 w-16 object-contain"

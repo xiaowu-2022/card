@@ -1,4 +1,5 @@
 export const clientPolishCatalog: Record<string, [string, string, string]> = {
+    'Image failed to load. Click to retry.': ['加载失败，点击重试', 'Imej gagal dimuatkan. Ketik untuk cuba lagi.', 'No se pudo cargar la imagen. Pulsa para reintentar.'],
     'Loading…': ['加载中…', 'Memuatkan…', 'Cargando…'],
     'Latest transactions': ['最新交易', 'Transaksi terkini', 'Últimas transacciones'],
     'Featured services': ['精选服务', 'Perkhidmatan pilihan', 'Servicios destacados'],

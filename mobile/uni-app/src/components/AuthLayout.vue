@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PreviewImage from './PreviewImage.vue';
 import AppUpdateGate from './AppUpdateGate.vue';
 import { staticAsset } from '../lib/origin';
 import { computed } from 'vue';
@@ -32,7 +33,8 @@ const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
                         <UiIcon name="arrow-left" :size="recovery ? 20 : 28" /></button
                     ><LanguagePicker /></view
                 ><view v-if="!recovery" class="auth-promotion"
-                    ><image
+                    ><PreviewImage
+                        :sources="session?.tenant.logoSources"
                         v-if="logo"
                         :src="logo"
                         mode="aspectFit"

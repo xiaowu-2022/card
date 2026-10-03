@@ -1,3 +1,4 @@
+import { PreviewImage } from '@/components/shared/PreviewImage';
 import { useSupportRead } from './useSupportRead';
 import { router, useForm } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
@@ -21,6 +22,7 @@ export type SupportChat = {
         text: string;
         createdAt: string;
         imageUrl: string | null;
+        imageSources?: string[];
     }[];
 };
 
@@ -51,6 +53,7 @@ export function SupportThread({
     });
     const [preview, setPreview] = useState<string | null>(null);
     const [enlarged, setEnlarged] = useState<string | null>(null);
+    const [enlargedSources, setEnlargedSources] = useState<string[]>([]);
     const [failed, setFailed] = useState(false);
     const fileInput = useRef<HTMLInputElement>(null);
     const messages = useRef<HTMLDivElement>(null);
@@ -144,10 +147,11 @@ export function SupportThread({
                                     <button
                                         type="button"
                                         className="support-image-button"
-                                        onClick={() => setEnlarged(message.imageUrl)}
+                                        onClick={() => { setEnlarged(message.imageUrl); setEnlargedSources(message.imageSources ?? []); }}
                                         aria-label={t('View image')}
                                     >
-                                        <img
+                                        <PreviewImage
+                                            sources={message.imageSources}
                                             src={message.imageUrl}
                                             alt={t('Chat image')}
                                             loading="lazy"
@@ -327,7 +331,8 @@ export function SupportThread({
                 >
                     <DialogTitle>{t('Chat image')}</DialogTitle>
                     {enlarged && (
-                        <img
+                        <PreviewImage
+                                    sources={enlargedSources}
                             className="mt-4 max-h-[75dvh] w-full object-contain"
                             src={enlarged}
                             alt={t('Chat image')}

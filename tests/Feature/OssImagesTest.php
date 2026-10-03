@@ -50,6 +50,8 @@ beforeEach(function () {
 
         public bool $failPut = false;
 
+        public bool $failDisplay = false;
+
         public bool $failDelete = false;
 
         public bool $corrupt = false;
@@ -79,6 +81,9 @@ beforeEach(function () {
         public function display(OssConfiguration $c, string $key, string $process): string
         {
             $this->processes[] = $process;
+            if ($this->failDisplay) {
+                throw new RuntimeException('SECRET-UPSTREAM');
+            }
 
             return $this->objects[$c->id.'/'.$key];
         }
@@ -615,4 +620,49 @@ it('returns direct current OSS support URLs and authenticated poster URLs withou
     $home = app(PromotionQuery::class)->home($this->company->id, $this->user->id);
     expect($home['posterBackground'])->toBe('/promotion/poster-background');
     expect(count($this->oss->reads))->toBe($reads);
+});
+
+it('previews extensionless pending PNGs without probes and falls back from processing to original once', function () {
+    enableOssFixture($this);
+    $images = app(ImageStorage::class);
+    $key = 'images/'.$this->company->id.'/'.Str::uuid();
+    $bytes = kycTestImage()->getContent();
+    $images->put($this->company->id, 'private', $key, $bytes, 'kyc');
+    $record = $images->record('private', $key);
+    $record->update(['oss_pending' => true]);
+    $this->oss->reads = [];
+    $puts = $this->oss->puts;
+    $sources = $images->previewSources('private', $key);
+    expect($sources)->toHaveCount(3)
+        ->and($sources[0])->toContain('x-oss-process')
+        ->and($sources[1])->toBe('https://images.example.com/'.$record->object_key)
+        ->and($sources[2])->toContain('delivery=replica')
+        ->and($this->oss->reads)->toBe([]);
+    $this->oss->failDisplay = true;
+    $response = $images->displayResponse('private', $key);
+    expect($response->getContent())->toBe($bytes)
+        ->and($response->headers->get('Content-Type'))->toBe('image/png')
+        ->and($this->oss->reads)->toHaveCount(1)
+        ->and($this->oss->processes)->toHaveCount(1)
+        ->and($this->oss->puts)->toBe($puts)
+        ->and($record->fresh()->oss_pending)->toBeTrue();
+});
+
+it('falls back to verified replica and terminates when both storage copies fail', function () {
+    enableOssFixture($this);
+    $images = app(ImageStorage::class);
+    $key = 'images/'.$this->company->id.'/'.Str::uuid();
+    $bytes = kycTestImage()->getContent();
+    $images->put($this->company->id, 'private', $key, $bytes, 'kyc');
+    $this->oss->reads = [];
+    $this->oss->failDisplay = true;
+    $this->oss->corrupt = true;
+    expect($images->displayResponse('private', $key)->getContent())->toBe($bytes)
+        ->and($this->oss->reads)->toHaveCount(1);
+    $this->oss->reads = [];
+    $images->displayResponse('private', $key, replicaOnly: true);
+    expect($this->oss->reads)->toBe([]);
+    $images->record('private', $key)->update(['backup_key' => null]);
+    expect(fn () => $images->displayResponse('private', $key))->toThrow(HttpException::class)
+        ->and($this->oss->reads)->toHaveCount(1);
 });

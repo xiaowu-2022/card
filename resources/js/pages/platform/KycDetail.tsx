@@ -1,3 +1,4 @@
+import { PreviewImage } from '@/components/shared/PreviewImage';
 import { useEffect, useRef, useState } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import { useAdminTranslation, t, dateTime, countryName, errorMessage } from '@/i18n/admin';
@@ -28,7 +29,7 @@ export default function KycDetail({
     useAdminTranslation();
     const [password, setPassword] = useState('');
     const [documents, setDocuments] = useState<Record<string, string>>({});
-    const [failed, setFailed] = useState<Record<string, boolean>>({});
+    const [documentSources, setDocumentSources] = useState<Record<string, string[]>>({});
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const generation = useRef(0);
@@ -37,7 +38,7 @@ export default function KycDetail({
         setDocuments({});
         setPassword('');
         setError('');
-        setFailed({});
+        setDocumentSources({});
         setBusy(false);
         return () => {
             generation.current++;
@@ -64,7 +65,12 @@ export default function KycDetail({
                     body: JSON.stringify({ password }),
                 },
             );
-            const data = await response.json();
+            const data = (await response.json()) as {
+                documents: Record<string, string>;
+                documentSources?: Record<string, string[]>;
+                errors?: { password?: string[] };
+                error?: { message?: string };
+            };
             if (generation.current !== current) return;
             if (!response.ok)
                 throw new Error(
@@ -73,7 +79,7 @@ export default function KycDetail({
                         'Unable to load. Please try again.',
                 );
             setDocuments(data.documents);
-            setFailed({});
+            setDocumentSources(data.documentSources ?? {});
         } catch (e) {
             if (generation.current !== current) return;
             setError(
@@ -163,24 +169,12 @@ export default function KycDetail({
                                                   : 'ID card back',
                                         )}
                                     </h3>
-                                    {failed[side] ? (
-                                        <p className="text-sm text-red-600">
-                                            {t(
-                                                'Photo could not load. Retry or check that the original still exists.',
-                                            )}
-                                        </p>
-                                    ) : (
-                                        <a href={url} target="_blank" rel="noreferrer">
-                                            <img
-                                                className="max-h-96 w-full object-contain"
-                                                src={url}
-                                                alt={t('Identity document photos')}
-                                                onError={() =>
-                                                    setFailed((old) => ({ ...old, [side]: true }))
-                                                }
-                                            />
-                                        </a>
-                                    )}
+                                    <PreviewImage
+                                        className="max-h-96 w-full object-contain"
+                                        src={url}
+                                        sources={documentSources[side]}
+                                        alt={t('Identity document photos')}
+                                    />
                                 </div>
                             ))}
                         </div>

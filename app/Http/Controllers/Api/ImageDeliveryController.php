@@ -17,6 +17,8 @@ final class ImageDeliveryController extends Controller
         $profile = $request->query('profile', 'original');
         abort_unless(in_array($profile, ['original', 'brand', 'preview', 'document', 'poster'], true), 422);
 
-        return $images->displayResponse($record->source_disk, $record->source_key, $profile, $record->codec);
+        abort_unless(in_array($request->query('delivery'), [null, 'replica'], true), 422);
+
+        return $images->displayResponse($record->source_disk, $record->source_key, $profile, $record->codec, $request->query('delivery') === 'replica');
     }
 }

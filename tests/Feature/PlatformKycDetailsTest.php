@@ -61,7 +61,7 @@ it('returns the current OSS domain without server reads even when a local backup
     foreach (['front', 'back'] as $side) {
         StoredImage::create(['tenant_id' => $this->tenant->id, 'source_disk' => 'private', 'source_key' => 'kyc/test-'.$side,
             'purpose' => 'kyc', 'configuration_id' => $config->id, 'object_key' => 'images/test-'.$side.'.png', 'mime' => 'image/png',
-            'size' => 68, 'sha256' => hash('sha256', kycTestImage()->getContent()), 'state' => 'ready', 'backup_key' => 'unused-backup']);
+            'size' => 68, 'sha256' => hash('sha256', kycTestImage()->getContent()), 'state' => 'ready', 'oss_pending' => true, 'backup_key' => 'unused-backup']);
     }
     $oss = Mockery::mock(OssImages::class)->makePartial();
     $oss->shouldNotReceive('get');
@@ -69,6 +69,9 @@ it('returns the current OSS domain without server reads even when a local backup
     $oss->shouldNotReceive('display');
     app()->instance(OssImages::class, $oss);
     $r = $this->postJson($this->base.'/documents', ['password' => 'synthetic-password'])->assertOk();
-    expect($r->json('documents.front'))->toStartWith('https://images.example.com/images/test-front.png?x-oss-process=')
+    expect($r->json('documentSources.front'))->toHaveCount(3)
+        ->and($r->json('documentSources.front.1'))->toBe('https://images.example.com/images/test-front.png')
+        ->and($r->json('documentSources.front.2'))->toContain('delivery=replica')
+        ->and($r->json('documents.front'))->toStartWith('https://images.example.com/images/test-front.png?x-oss-process=')
         ->and($r->json('documents.back'))->toStartWith('https://images.example.com/images/test-back.png?x-oss-process=');
 });

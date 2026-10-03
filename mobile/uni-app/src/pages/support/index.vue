@@ -17,6 +17,7 @@ type Chat = {
         text: string | null;
         createdAt: string;
         imageUrl: string | null;
+        imageSources?: string[];
     }[];
     olderCursor: number | null;
 };
@@ -271,7 +272,7 @@ function scrolled(e: { detail: { scrollHeight: number; scrollTop: number } }) {
                         message.fromSupport ? (message.supportName || t('Customer support')) : t('You')
                     }}</text
                     ><view class="support-bubble"
-                        ><SupportImage v-if="message.imageUrl" :path="message.imageUrl" /><text
+                        ><SupportImage v-if="message.imageUrl" :path="message.imageUrl" :sources="message.imageSources" /><text
                             v-if="message.text"
                             class="support-text"
                             >{{ message.text }}</text

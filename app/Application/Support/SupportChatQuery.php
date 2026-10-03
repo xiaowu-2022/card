@@ -100,6 +100,7 @@ final readonly class SupportChatQuery
                 'fromSupport' => $message->sender_admin_id !== null,
                 'supportName' => $message->sender_admin_id ? $message->support_name : null,
                 'text' => $message->support_message, 'createdAt' => $message->created_at->toIso8601String(),
+                'imageSources' => $message->image_object_key ? app(ImageStorage::class)->previewSources('private', $message->image_object_key) : [],
                 'imageUrl' => $message->image_mime ? (app(ImageStorage::class)->active()
                     ? app(ImageStorage::class)->displayUrl('private', $message->image_object_key)
                     : ($admin ? '/admin/support/images/' : '/support/images/').$message->id) : null,
