@@ -1,5 +1,6 @@
 <?php
 
+use App\Application\Assets\FundsQuery;
 use App\Application\Kyc\ApproveKycAction;
 use App\Application\Kyc\SubmitKycApplicationAction;
 use App\Application\Promotion\CompanyFundBookQuery;
@@ -289,5 +290,24 @@ it('lists only owned same-company transfer history without changing balances', f
     expect(app(WalletTransferQuery::class)->history($this->tenant->id, $unrelated->id, 1)['items'])->toBe([]);
     $other = User::where('tenant_id', '<>', $this->tenant->id)->firstOrFail();
     expect(app(WalletTransferQuery::class)->history($other->tenant_id, $this->sender->id, 1)['items'])->toBe([]);
+    expect(LedgerAccount::orderBy('id')->pluck('balance', 'id')->all())->toBe($before);
+});
+
+it('shows scoped transfer counterparties and current emails in funds details without changing money', function () {
+    $transfer = $this->action->execute($this->tenant->id, $this->sender->id, $this->recipient->account_id, '10.25', $this->payload['request_id'], 'USDT');
+    $before = LedgerAccount::orderBy('id')->pluck('balance', 'id')->all();
+    foreach ([[$this->sender, $this->recipient, 'recipient'], [$this->recipient, $this->sender, 'sender']] as [$viewer, $other, $role]) {
+        $funds = app(FundsQuery::class)->get($this->tenant->id, $viewer->id);
+        $detail = collect($funds['rows']->items())->firstWhere('details.reference', $transfer->id)['details'];
+        expect($detail['counterparty'])->toBe(['role' => $role, 'accountId' => $other->account_id, 'email' => $other->email]);
+        expect($detail['reason'])->toBe($role === 'recipient' ? 'Funds transferred to the recipient.' : 'Funds received from the sender.');
+        $receipt = app(WalletTransferQuery::class)->get($this->tenant->id, $viewer->id, $transfer->id)['receipt'];
+        expect($receipt['recipientEmail'])->toBe($this->recipient->email)->and($receipt['senderEmail'])->toBe($this->sender->email);
+    }
+    $this->recipient->update(['email' => 'updated-recipient@example.test']);
+    $history = app(WalletTransferQuery::class)->history($this->tenant->id, $this->sender->id, 1);
+    expect($history['items'][0]['recipientEmail'])->toBe('updated-recipient@example.test');
+    $otherTenant = Tenant::where('id', '<>', $this->tenant->id)->firstOrFail();
+    expect(app(FundsQuery::class)->get($otherTenant->id, $this->sender->id)['rows']->items())->toBe([]);
     expect(LedgerAccount::orderBy('id')->pluck('balance', 'id')->all())->toBe($before);
 });

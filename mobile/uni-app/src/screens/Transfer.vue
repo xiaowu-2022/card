@@ -22,6 +22,8 @@ type Receipt = {
     asset: string;
     sent: boolean;
     senderAccountId: string;
+    senderEmail: string | null;
+    recipientEmail: string | null;
     recipientAccountId: string;
     createdAt: string;
 };
@@ -219,6 +221,8 @@ async function submit() {
                     v-for="item in [
                         { label: 'Sender account ID', value: page.receipt.senderAccountId },
                         { label: 'Recipient account ID', value: page.receipt.recipientAccountId },
+                        { label: 'Sender current email', value: page.receipt.senderEmail ?? t('Unavailable') },
+                        { label: 'Recipient current email', value: page.receipt.recipientEmail ?? t('Unavailable') },
                         { label: 'Time', value: dateTime(page.receipt.createdAt) },
                         { label: 'Transfer reference', value: page.receipt.id },
                     ]"
@@ -354,6 +358,8 @@ async function submit() {
                         },
                         { label: 'Sender account ID', value: historyDetail.senderAccountId },
                         { label: 'Recipient account ID', value: historyDetail.recipientAccountId },
+                        { label: 'Sender current email', value: historyDetail.senderEmail ?? t('Unavailable') },
+                        { label: 'Recipient current email', value: historyDetail.recipientEmail ?? t('Unavailable') },
                         { label: 'Time', value: dateTime(historyDetail.createdAt) },
                         { label: 'Transfer reference', value: historyDetail.id },
                     ]"

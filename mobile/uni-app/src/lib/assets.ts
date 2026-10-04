@@ -1,3 +1,9 @@
+export type MovementDetails = {
+    reason: string;
+    reference: string | null;
+    counterparty: { role: 'recipient' | 'sender'; accountId: string | null; email: string | null } | null;
+};
+export type FundsMovement = { id: string; kind: string; amount: string; time: string; details?: MovementDetails };
 export type AssetAccount = {
     asset: string;
     available: string;
@@ -14,7 +20,7 @@ export type AssetAccount = {
         feePercent: string | null;
         minimum: string | null;
     }[];
-    activity: { id: string; kind: string; amount: string; time: string }[];
+    activity: FundsMovement[];
     orders?: { id: string; mode: string; amount: string; state: string; time: string }[];
 };
 export type AssetOverview = {

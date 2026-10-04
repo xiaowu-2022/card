@@ -39,12 +39,14 @@ final readonly class WalletTransferQuery
         $rows = WalletTransfer::query()->where('tenant_id', $tenantId)
             ->where(fn ($q) => $q->where('sender_user_id', $userId)->orWhere('recipient_user_id', $userId))
             ->orderByDesc('created_at')->orderByDesc('id')->simplePaginate(20, ['*'], 'page', $page);
-        $senders = User::where('tenant_id', $tenantId)->whereIn('id', $rows->getCollection()->pluck('sender_user_id'))->pluck('account_id', 'id');
+        $parties = User::where('tenant_id', $tenantId)->whereIn('id', $rows->getCollection()->pluck('sender_user_id')->merge($rows->getCollection()->pluck('recipient_user_id')))->get(['id', 'account_id', 'email'])->keyBy('id');
 
         return ['items' => $rows->getCollection()->map(fn ($transfer) => [
             'id' => $transfer->id, 'amount' => $transfer->amount, 'asset' => $transfer->asset_code,
             'sent' => $transfer->sender_user_id === $userId,
-            'senderAccountId' => $senders[$transfer->sender_user_id] ?? null,
+            'senderAccountId' => $parties->get($transfer->sender_user_id)?->account_id,
+            'senderEmail' => $parties->get($transfer->sender_user_id)?->email,
+            'recipientEmail' => $parties->get($transfer->recipient_user_id)?->email,
             'recipientAccountId' => $transfer->recipient_account_id,
             'createdAt' => $transfer->created_at->toIso8601String(),
         ])->values()->all(), 'page' => $rows->currentPage(), 'hasMore' => $rows->hasMorePages()];
@@ -71,10 +73,13 @@ final readonly class WalletTransferQuery
         if ($transferId !== null) {
             $transfer = WalletTransfer::query()->where('tenant_id', $tenantId)->whereKey($transferId)
                 ->where(fn ($q) => $q->where('sender_user_id', $userId)->orWhere('recipient_user_id', $userId))->firstOrFail();
+            $parties = User::where('tenant_id', $tenantId)->whereIn('id', [$transfer->sender_user_id, $transfer->recipient_user_id])->get(['id', 'account_id', 'email'])->keyBy('id');
             $receipt = ['id' => $transfer->id, 'requestId' => $transfer->request_id,
                 'amount' => $transfer->amount, 'asset' => $transfer->asset_code, 'sent' => $transfer->sender_user_id === $userId,
                 'recipientAccountId' => $transfer->recipient_account_id,
-                'senderAccountId' => User::query()->where('tenant_id', $tenantId)->whereKey($transfer->sender_user_id)->value('account_id'),
+                'senderAccountId' => $parties->get($transfer->sender_user_id)?->account_id,
+                'senderEmail' => $parties->get($transfer->sender_user_id)?->email,
+                'recipientEmail' => $parties->get($transfer->recipient_user_id)?->email,
                 'createdAt' => $transfer->created_at->toIso8601String()];
         }
 

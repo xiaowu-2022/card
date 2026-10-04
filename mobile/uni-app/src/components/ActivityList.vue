@@ -5,7 +5,8 @@ import UiIcon from './UiIcon.vue';
 import Modal from './Modal.vue';
 import { ref, watch } from 'vue';
 import { useSensitiveScreen } from '../lib/sensitive';
-type Activity = { id: string; asset: string; kind: string; amount: string; time: string };
+import type { FundsMovement } from '../lib/assets';
+type Activity = FundsMovement & { asset: string };
 const selected = ref<Activity | null>(null);
 useSensitiveScreen(() => {
     selected.value = null;
@@ -59,6 +60,24 @@ function signed(value: string) {
                 ><text class="muted">{{ t('Transaction type') }}</text
                 ><text>{{ t(selected.kind) }}</text></view
             >
+            <view v-if="selected.details">
+                <text class="muted">{{ t('Purpose') }}</text>
+                <text>{{ t(selected.details.reason) }}</text>
+            </view>
+            <template v-if="selected.details?.counterparty">
+                <view>
+                    <text class="muted">{{ t(selected.details.counterparty.role === 'recipient' ? 'Recipient account ID' : 'Sender account ID') }}</text>
+                    <text selectable>{{ selected.details.counterparty.accountId ?? t('Unavailable') }}</text>
+                </view>
+                <view>
+                    <text class="muted">{{ t(selected.details.counterparty.role === 'recipient' ? 'Recipient current email' : 'Sender current email') }}</text>
+                    <text selectable>{{ selected.details.counterparty.email ?? t('Unavailable') }}</text>
+                </view>
+            </template>
+            <view v-if="selected.details?.reference">
+                <text class="muted">{{ t('Business reference') }}</text>
+                <text selectable>{{ selected.details.reference }}</text>
+            </view>
             <view
                 ><text class="muted">{{ t('Direction') }}</text
                 ><text>{{

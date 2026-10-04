@@ -403,3 +403,16 @@ least the configured confirmation count (minimum six). Exact receipt, finality,
 review, UNKNOWN and Ledger rules remain unchanged; unavailable public evidence
 never completes a payout. Page reads make no network calls. Deposit scanner state,
 checkpoints and history are not initialized or reset by this change.
+
+## Consumer funds movement context (2026-10-04)
+
+Funds history and asset overview rows include consumer-safe `details`: a localized
+purpose key, business reference, and (for an owned same-company transfer) the
+counterparty role, account ID and current email. Transfer evidence must match both
+its reference type and immutable ledger entry. These lookups are batched per page;
+no wallet, Ledger or historical receipt is changed. Missing emails display unavailable.
+Transfer receipts/history also expose senderEmail/recipientEmail, only to participants.
+Emails are current account contacts, not historical snapshots, and are labeled so.
+Internal adjustment/commission reasons and administrator identities remain private.
+Deploy the backend and H5 resources together. Native consumers need a rebuilt App;
+there is no migration or historical data correction.

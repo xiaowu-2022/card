@@ -22,8 +22,12 @@ final class FundsQuery
             $rows->where('a.asset_code', $selectedAsset);
         }
 
-        return ['selectedAsset' => $selectedAsset, 'balances' => $balances, 'rows' => $rows->orderByDesc('e.posted_at')->orderByDesc('p.id')
-            ->select(['p.id', 'p.delta', 'a.asset_code', 'e.posted_at', 'e.event_type'])->paginate(25)->withPath('/funds')->appends(['asset' => $selectedAsset])
-            ->through(fn ($r) => ['id' => $r->id, 'asset' => $r->asset_code, 'amount' => Money::of($r->delta, $r->asset_code)->amount(), 'time' => $r->posted_at, 'kind' => AssetActivityLabel::for($r->event_type, $r->delta)])];
+        $page = $rows->orderByDesc('e.posted_at')->orderByDesc('p.id')
+            ->select(['p.id', 'p.delta', 'a.asset_code', 'e.posted_at', 'e.event_type', 'e.id as entry_id', 'e.reference_id', 'e.reference_type'])
+            ->paginate(25)->withPath('/funds')->appends(['asset' => $selectedAsset]);
+        $details = app(AssetActivityDetails::class)->forRows($tenantId, $userId, $page->getCollection());
+
+        return ['selectedAsset' => $selectedAsset, 'balances' => $balances, 'rows' => $page
+            ->through(fn ($r) => ['id' => $r->id, 'asset' => $r->asset_code, 'amount' => Money::of($r->delta, $r->asset_code)->amount(), 'time' => $r->posted_at, 'kind' => AssetActivityLabel::for($r->event_type, $r->delta), 'details' => $details->get($r->id)])];
     }
 }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import type { FundsMovement } from '../lib/assets';
 import PageShell from '../components/PageShell.vue';
 import SelectField from '../components/SelectField.vue';
 import ActivityList from '../components/ActivityList.vue';
@@ -11,7 +12,7 @@ const props = defineProps<{
         selectedAsset: string;
         balances: { asset: string; available: string }[];
         rows: {
-            data: { asset: string; id: string; amount: string; time: string; kind: string }[];
+            data: (FundsMovement & { asset: string })[];
             next_page_url: string | null;
             prev_page_url: string | null;
         };
