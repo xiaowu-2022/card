@@ -22,7 +22,20 @@ type Risk = {
     pending: string;
     ends_at: string;
 };
+export type StockFlowDetails = StockPage<{
+    id: string;
+    source: string;
+    account_id: string;
+    email: string;
+    direct_account_id: string;
+    direct_email: string;
+    asset_code: string;
+    amount: string;
+    amountUsdt: string | null;
+    posted_at: string;
+}> & { direction: 'inflow' | 'outflow' };
 export type StockReport = {
+    flowDetails?: StockFlowDetails | null;
     version: 'partner' | 'standard';
     cashFlow: null | {
         rateObservedAt: string | null;
@@ -48,7 +61,7 @@ export type StockReport = {
         advances: string;
         activationCommission: string;
         annualCommission: string;
-        manualCommission: string;
+        unclassifiedCommission: string;
         reimbursements: string;
         theoretical: string;
         actual: string;

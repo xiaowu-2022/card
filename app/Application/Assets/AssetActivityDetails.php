@@ -11,6 +11,10 @@ final class AssetActivityDetails
 {
     public function forRows(string $tenantId, string $userId, Collection $rows): Collection
     {
+        $commissions = \App\Application\Promotion\CommissionDisplay::events($tenantId, $userId, $rows->where('event_type', 'MANUAL_COMMISSION')->pluck('entry_id'));
+        foreach ($rows as $row) {
+            if ($row->event_type === 'MANUAL_COMMISSION') $row->event_type = $commissions[$row->entry_id] ?? 'COMMISSION';
+        }
         $transfers = WalletTransfer::where('tenant_id', $tenantId)
             ->whereIn('id', $rows->where('event_type', 'WALLET_TRANSFER')->pluck('reference_id')->filter())
             ->where(fn ($q) => $q->where('sender_user_id', $userId)->orWhere('recipient_user_id', $userId))
@@ -46,8 +50,9 @@ final class AssetActivityDetails
             'SECURITY_DEPOSIT_REFUND' => 'Security deposit returned to the wallet.',
             'PROMOTION_ANNUAL_FEE' => 'Wallet funds used to pay the promotion annual fee.',
             'PROMOTION_FEE_REBATE' => 'Annual fee rebate credited to the wallet.',
-            'COMMISSION_EARN' => 'Activation commission credited to the wallet.',
-            'PROMOTION_ANNUAL_COMMISSION' => 'Annual fee commission credited to the wallet.',
+            'COMMISSION_EARN' => str_starts_with($amount, '-') ? 'Activation commission deducted from the wallet.' : 'Activation commission credited to the wallet.',
+            'PROMOTION_ANNUAL_COMMISSION' => str_starts_with($amount, '-') ? 'Annual fee commission deducted from the wallet.' : 'Annual fee commission credited to the wallet.',
+            'LEGACY_COMMISSION', 'COMMISSION' => str_starts_with($amount, '-') ? 'Commission deducted from the wallet.' : 'Commission credited to the wallet.',
             'WEALTH_DEPOSIT' => 'Wallet funds used for a wealth deposit.',
             'WEALTH_INTEREST' => 'Wealth interest credited to the wallet.',
             'WEALTH_MATURITY' => 'Matured wealth principal returned to the wallet.',
@@ -65,7 +70,7 @@ final class AssetActivityDetails
             'WITHDRAWAL_HOLD', 'ASSET_WITHDRAWAL_HOLD' => 'Funds reserved for a withdrawal.',
             'WITHDRAWAL_SETTLE', 'ASSET_WITHDRAWAL_SETTLE' => 'Reserved funds used to complete a withdrawal.',
             'WITHDRAWAL_RELEASE', 'ASSET_WITHDRAWAL_RELEASE' => 'Reserved withdrawal funds returned to the wallet.',
-            'MANUAL_COMMISSION' => str_starts_with($amount, '-') ? 'Manual commission deducted from the wallet.' : 'Manual commission credited to the wallet.',
+            'MANUAL_COMMISSION' => str_starts_with($amount, '-') ? 'Commission deducted from the wallet.' : 'Commission credited to the wallet.',
             'WALLET_ADJUSTMENT' => str_starts_with($amount, '-') ? 'Platform balance deduction.' : 'Platform balance credit.',
             default => AssetActivityLabel::for($event, $amount),
         };

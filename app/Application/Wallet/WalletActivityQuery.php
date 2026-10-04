@@ -20,8 +20,12 @@ final readonly class WalletActivityQuery
         $keys = (clone $base)->selectRaw("$keySql AS activity_key, MAX(posted_at) AS activity_time")
             ->groupByRaw($keySql)->orderByDesc('activity_time')->orderBy('activity_key')->limit(20)->pluck('activity_key');
 
-        return (clone $base)->whereIn(DB::raw($keySql), $keys)->with('postings.account')->orderByDesc('posted_at')->orderByDesc('id')->get()
-            ->groupBy(fn ($entry) => in_array($entry->reference_type, $types, true) && $entry->reference_id ? $entry->reference_type.':'.$entry->reference_id : $entry->id)
+        $entries = (clone $base)->whereIn(DB::raw($keySql), $keys)->with('postings.account')->orderByDesc('posted_at')->orderByDesc('id')->get();
+        $display = \App\Application\Promotion\CommissionDisplay::events($tenantId, $userId, $entries->where('event_type', 'MANUAL_COMMISSION')->pluck('id'));
+        foreach ($entries as $entry) {
+            if ($entry->event_type === 'MANUAL_COMMISSION') $entry->event_type = $display[$entry->id] ?? 'COMMISSION';
+        }
+        return $entries->groupBy(fn ($entry) => in_array($entry->reference_type, $types, true) && $entry->reference_id ? $entry->reference_type.':'.$entry->reference_id : $entry->id)
             ->map(function ($events) use ($tenantId, $userId): array {
                 $latest = $events->first();
                 $net = Money::of('0', $latest->asset_code);

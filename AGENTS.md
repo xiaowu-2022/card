@@ -1,3 +1,19 @@
+On 2026-10-04 the user revised partner stock to include only non-partner descendants.
+Exclude the owner and each currently enabled same-company descendant partner personally;
+continue traversing through partners and include their non-partner descendants. Do not
+exclude whole branches. Apply the same scope to totals and incoming/outgoing details.
+Enabling/disabling partner status changes lifetime report inclusion on the next read,
+without rewriting relationships, orders or Ledger. Standard reports remain unchanged.
+See docs/architecture/PARTNER_STOCK.md.
+
+On 2026-10-04 the user approved partner stock incoming/outgoing detail lists.
+Reuse the exact completed external-order/Ledger evidence behind totals, exclude the owner,
+and expose only transaction member account/email, current first-level branch account/email,
+native amount, posting time and same-report current USDT valuation. Keep consumer identity
+server-owned, partner-only detail access, company isolation and read-only paginated GETs.
+No historical relation rewrite, financial replay or new money operation is authorized.
+See docs/architecture/PARTNER_STOCK.md.
+
 On 2026-10-04 the user replaced new SaaS card-transaction sync queue execution with
 browser-driven bounded POSTs. Support one card, selected cards, or whole-company scope,
 date presets, automatic pagination, visible progress and failed-card retry. Each advance

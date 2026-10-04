@@ -6,13 +6,23 @@ Approved 2026-09-25. Local implementation only; no live partner designations, ex
 
 Authenticated company users can open stock reports. The server selects `version=partner` only for an enabled partner configuration in that company; all other users receive `version=standard`. Request parameters cannot choose a different identity or version. SaaS uses the same report service for the selected company/account.
 
-- Partner: **all descendant external deposits − all descendant gross withdrawal requests**, using completed financial evidence only. Exclude the report owner even if a corrupt referral cycle leads back to them; retain nested partner branches. Merge credited legacy/TRON top-ups and multi-asset deposits, successful legacy/TRON withdrawals and completed multi-asset withdrawals. Require matching company/currency Ledger evidence. Pending/failed/cancelled orders, internal transfers, card reloads, commissions, annual fees, guarantee movements and offline journals do not change this stock.
+- Partner: **non-partner descendant external deposits − non-partner descendant gross withdrawal requests**, using completed financial evidence only. Exclude the report owner even if a corrupt referral cycle leads back to them; exclude each currently enabled same-company descendant partner personally, while retaining traversal through them and including their non-partner descendants. Merge credited legacy/TRON top-ups and multi-asset deposits, successful legacy/TRON withdrawals and completed multi-asset withdrawals. Require matching company/currency Ledger evidence. Pending/failed/cancelled orders, internal transfers, card reloads, commissions, annual fees, guarantee movements and offline journals do not change this stock.
 - Value native totals using **one fresh public OKX spot quote per read** (USDT=1; USDC/ETH/BTC use their direct USDT rates). Show rate observation time and native inflow/outflow/rate breakdown. This is a current-market estimate and changes with prices; it is not historical realized profit. Quotes are read-only, never saved to market snapshots. Invalid/unavailable rates make total, share and converted totals unavailable, with native amounts retained. No stale or parity fallback. USDT-only/empty reports need no upstream quote.
 - Standard: preserve `annual + deposits + fees - activation - annualCommission - rebates - reimbursements`, scoped to the owner and descendants, including the existing fixed withdrawal-fee valuations. This path makes no market calls. Ordinary consumers receive no cooperation journal notes/operator identities, no reference share, and no partner-only personal reconciliation.
 
 Partner personal account reconciliation and team alerts remain separate informational sections; they do not enter external-flow stock. Old commission/annual-fee trends are not displayed as partner cash-flow trends. Standard reports retain those trends. All financial reads use one read-only repeatable-read database snapshot. The only new outbound read is public pricing; no provider, OCR, payment, wallet creation, Ledger writes or financial replay occurs.
 
 No migration or historical correction is required. Deploy PHP (including `LegacyStockReport` and `PartnerCashFlow`), admin assets and H5 together. Rebuild native App resources and repackage for the new UI. Test `PartnerStockTest`, `MultiAssetTest` and offline `consumer-stock-versions.mjs` for both browser engines.
+
+## 2026-10-04: partner external-flow drilldown
+
+Partner composition rows open paginated incoming/outgoing details via `flow=inflow|outflow` and independent `flow_page` (20 records). Consumer identity remains authenticated and host-owned; standard/disabled partners cannot request these details. Platform retains `partners.manage` and selected company/partner scope. Opening and pagination use GET only.
+
+`PartnerCashFlow` now shares a single successful-order/evidence union for totals and detail rows. Every descendant carries its first-level branch from the report owner; tenant scoping, owner exclusion and cycle termination apply at all depths. Filter enabled same-company partners after traversal so only their own transactions are excluded, never their whole branch. Totals and detail pagination share this filter. Detail fields are limited to member account/email, current direct-branch account/email, native asset/amount, Ledger posting time, and the USDT estimate using the same quote as that response's totals. No addresses, provider payloads or staff fields are exposed. A direct child's own transactions explicitly belong to that child's branch. Branches follow current relationships, including after approved referral changes; no historical relationship reconstruction is claimed.
+
+Order is stable by posting time, source and ID. Outgoing amount remains gross successful withdrawal amount, not net payout. Native precision survives missing rates; converted amounts are unavailable rather than zero. Opening another page performs a fresh read, so current-rate estimates and current-team membership may change. Per-row USDT rounding can differ slightly from rounding native totals once.
+
+Uni-app H5/App and shared SaaS report provide drilldown, empty state, pagination and four-language copy. No database migration, funds operation or backfill. Deploy PHP plus admin/H5 resources; native UI changes require repackaging.
 
 ## Access and surfaces
 
@@ -25,7 +35,7 @@ Platform uses the independent `partners.manage` permission. Migration grants it 
 - `POST /platform/tenants/{tenant}/partners/{partner}/journal`: append reimbursement/advance or linked reversal.
 - `POST /platform/tenants/{tenant}/fee-valuations/{valuation}`: one-time audited completion of a missing fixed rate with dated evidence.
 
-Tenant administrators and partner users cannot mutate any of these resources. Disabling a partner only revokes consumer viewing; its records remain in ancestor reports and Platform can still inspect them.
+Tenant administrators and partner users cannot mutate any of these resources. Disabling a partner switches their report to standard and restores their own completed external flows in ancestor partner reports. Enabling excludes those flows on the next read, including lifetime historical evidence. Their non-partner descendants remain included in both cases. No financial records or relationships are rewritten; Platform can still inspect the account.
 
 ## Three additive storage categories
 

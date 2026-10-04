@@ -364,3 +364,11 @@
         margin-top: 8px;
     }
 }
+
+.stock-flow-row {
+    padding: 16px 0;
+    border-bottom: 1px solid #edf0ed;
+    font-size: 14px;
+    line-height: 1.8;
+    overflow-wrap: anywhere;
+}

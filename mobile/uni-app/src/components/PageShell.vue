@@ -13,6 +13,7 @@ const props = withDefaults(
         title?: string;
         active?: string;
         back?: string;
+        replaceBack?: boolean;
         guest?: boolean;
         article?: boolean;
         overview?: boolean;
@@ -50,9 +51,9 @@ function tabActive(name: string) {
           : path.startsWith('/account') || path.startsWith('/kyc');
 }
 const badge = (n: number) => (n > 99 ? '99+' : String(n));
-function open(path: string) {
+function open(path: string, replace = false) {
     if (path.startsWith('/pages/')) uni.navigateTo({ url: path });
-    else go(path);
+    else go(path, replace);
 }
 </script>
 <template>
@@ -99,7 +100,12 @@ function open(path: string) {
                 class="shell-main"
                 :class="{ 'overview-main': overview, 'article-main': article }"
                 ><view v-if="!isHome" class="header" :class="{ 'sticky-header': stickyHeader }"
-                    ><button v-if="back" class="icon" :aria-label="t('Back')" @click="open(back)">
+                    ><button
+                        v-if="back"
+                        class="icon"
+                        :aria-label="t('Back')"
+                        @click="open(back, replaceBack)"
+                    >
                         <UiIcon name="arrow-left" :size="20" /></button
                     ><view v-else /><text class="header-title">{{ title }}</text
                     ><slot name="header-right"

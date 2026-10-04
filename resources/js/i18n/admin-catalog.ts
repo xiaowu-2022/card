@@ -2,6 +2,8 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Company / User': '公司 / 用户',
+    'Product / Card': '产品 / 卡片',
     "Keep this page open while syncing. After leaving, select Continue sync to resume. Your latest 20 tasks are saved.": "同步时请保持此页面打开；离开后可点击“继续同步”恢复。这里保留最近 20 个任务。",
     "Waiting to continue": "待继续",
     "Pause": "暂停",

@@ -17,13 +17,13 @@ export type IncomeTotals = {
     annual: string;
     activation: string;
     legacy: string;
-    manual?: string;
+    commission?: string;
 };
 export const incomeLabels: Record<string, string> = {
     annual: 'Annual fee commission',
     activation: 'Activation commission',
     legacy: 'Legacy commission',
-    manual: 'Manual commission',
+    commission: 'Commission',
 };
 export const relationLabel = (relation: string) =>
     t(

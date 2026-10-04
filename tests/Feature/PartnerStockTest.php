@@ -627,7 +627,7 @@ it('values partner descendant external flows with one current snapshot and gross
     stockPartner($this, $this->user);
     $child = stockChild($this->user);
     $grandchild = stockChild($child);
-    stockPartner($this, $child); // Independent partner branches remain descendants.
+    stockPartner($this, $child, false); // Disabled configurations still count as non-partners.
     stockExternal($child, 'USDT', '100', true, true, true);
     stockExternal($grandchild, 'USDT', '50');
     stockExternal($child, 'USDT', '15', false);
@@ -687,5 +687,127 @@ it('keeps exact USDT negative partner stock and standard formula separate', func
     $r = $query->read($this->tenant->id, $this->user->id);
     expect($r['version'])->toBe('standard')->and($r['cashFlow'])->toBeNull()->and($r['accountBalance'])->toBeNull()
         ->and($r['stock'])->toBe('0.10000000')->and($r['journal']['items'])->toBe([]);
+    Http::assertNothingSent();
+});
+
+it('opens partner cash flow details using the same totals and current first-level branch', function () {
+    stockPartner($this, $this->user);
+    $direct = stockChild($this->user);
+    $grandchild = stockChild($direct);
+    $deep = stockChild($grandchild);
+    $otherBranch = stockChild($this->user);
+    stockPartner($this, $grandchild);
+    stockExternal($direct, 'USDT', '100', true, true, true);
+    stockExternal($deep, 'ETH', '0.25');
+    stockExternal($otherBranch, 'USDT', '30');
+    stockExternal($grandchild, 'USDT', '12', false, true, true);
+    stockExternal($deep, 'ETH', '0.2', false);
+    stockExternal($deep, 'USDT', '999', true, false);
+    stockExternal($this->user, 'USDT', '555');
+    $outside = User::where('tenant_id', '<>', $this->tenant->id)->firstOrFail();
+    stockExternal($outside, 'USDT', '777');
+    $before = DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all();
+    $entries = DB::table('ledger_entries')->count();
+    stockMarket();
+    $query = app(PartnerReport::class);
+    $report = $query->read($this->tenant->id, $this->user->id, true, 1, 'inflow');
+    $rows = collect($report['flowDetails']['items'])->keyBy('account_id');
+    expect($report['totals']['inflow'])->toBe('630.00000000')->and($report['flowDetails']['total'])->toBe(3)
+        ->and($rows[$deep->account_id]['direct_account_id'])->toBe($direct->account_id)
+        ->and($rows[$deep->account_id]['direct_email'])->toBe($direct->email)
+        ->and($rows[$deep->account_id]['email'])->toBe($deep->email)
+        ->and($rows[$deep->account_id]['amountUsdt'])->toBe('500.00000000')
+        ->and($rows[$direct->account_id]['direct_account_id'])->toBe($direct->account_id)
+        ->and($rows[$otherBranch->account_id]['direct_account_id'])->toBe($otherBranch->account_id);
+    expect(array_keys($rows[$deep->account_id]))->toBe(['id', 'source', 'asset_code', 'amount', 'posted_at', 'account_id', 'email', 'direct_account_id', 'direct_email', 'amountUsdt']);
+    Http::assertSentCount(1); // Details reuse the report's quote, never get their own.
+    $out = $query->read($this->tenant->id, $this->user->id, true, 1, 'outflow');
+    expect($out['totals']['outflow'])->toBe('400.00000000')->and($out['flowDetails']['total'])->toBe(1);
+    $sum = collect($out['flowDetails']['items'])->reduce(fn ($sum, $row) => $sum->plus($row['amountUsdt']), BigDecimal::zero());
+    expect((string) $sum->toScale(8))->toBe($out['totals']['outflow'])
+        ->and(DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all())->toBe($before)
+        ->and(DB::table('ledger_entries')->count())->toBe($entries);
+});
+
+it('paginates partner cash flow details without duplicates and keeps native precision when rates fail', function () {
+    stockPartner($this, $this->user);
+    $direct = stockChild($this->user);
+    for ($i = 0; $i < 21; $i++) {
+        stockExternal($direct, 'USDT', '1.00000001');
+    }
+    $query = app(PartnerReport::class);
+    $first = $query->read($this->tenant->id, $this->user->id, true, 1, 'inflow');
+    $second = $query->read($this->tenant->id, $this->user->id, true, 1, 'inflow', 2);
+    expect($first['flowDetails']['total'])->toBe(21)->and($first['flowDetails']['items'])->toHaveCount(20)
+        ->and($first['flowDetails']['hasMore'])->toBeTrue()->and($second['flowDetails']['items'])->toHaveCount(1)
+        ->and($second['flowDetails']['hasMore'])->toBeFalse()
+        ->and(array_intersect(array_column($first['flowDetails']['items'], 'id'), array_column($second['flowDetails']['items'], 'id')))->toBe([])
+        ->and($first['totals']['inflow'])->toBe('21.00000021');
+    $empty = $query->read($this->tenant->id, $this->user->id, true, 1, 'outflow');
+    expect($empty['flowDetails']['items'])->toBe([])->and($empty['flowDetails']['total'])->toBe(0);
+    Http::assertNothingSent();
+    stockExternal($direct, 'ETH', '0.123456789123456789', false);
+    Http::fake(['*okx.com*' => Http::response([], 503)]);
+    $missing = $query->read($this->tenant->id, $this->user->id, true, 1, 'outflow');
+    expect($missing['flowDetails']['items'][0]['amount'])->toBe('0.123456789123456789')
+        ->and($missing['flowDetails']['items'][0]['amountUsdt'])->toBeNull();
+});
+
+it('protects partner cash flow drilldown identity and rejects ordinary users', function () {
+    stockPartner($this, $this->user);
+    $direct = stockChild($this->user);
+    stockExternal($direct, 'USDT', '5');
+    $this->actingAs($this->user, 'tenant_user');
+    $url = 'http://a.localhost/promotion/stock';
+    $this->getJson($url.'?flow=inflow')->assertOk()->assertJsonPath('flowDetails.total', 1)
+        ->assertHeader('Cache-Control', 'no-store, private');
+    $this->getJson($url.'?flow=invalid')->assertUnprocessable();
+    $this->getJson($url.'?flow=inflow&flow_page=0')->assertUnprocessable();
+    $this->getJson($url.'?flow=inflow&user_id='.$direct->id)->assertUnprocessable();
+    $this->getJson($url.'?flow=inflow&tenant_id='.$this->tenant->id)->assertUnprocessable();
+    $this->actingAs($direct, 'tenant_user')->getJson($url.'?flow=inflow')->assertForbidden();
+    $this->actingAs($this->admin, 'platform_admin')->get('http://admin.localhost/platform/partners?tenant='.$this->tenant->id.'&partner='.DB::table('partner_configurations')->where('user_id', $this->user->id)->value('id').'&flow=inflow')
+        ->assertOk()->assertInertia(fn (Assert $page) => $page->where('report.flowDetails.total', 1));
+    Http::assertNothingSent();
+});
+
+it('recalculates lifetime totals and details when descendant partner status changes without pruning branches', function () {
+    stockPartner($this, $this->user);
+    $direct = stockChild($this->user);
+    $nested = stockChild($direct);
+    $leaf = stockChild($nested);
+    foreach ([[$direct, '100', '20'], [$nested, '50', '10'], [$leaf, '30', '5']] as [$member, $in, $out]) {
+        stockExternal($member, 'USDT', $in, true, true, true);
+        stockExternal($member, 'USDT', $out, false);
+    }
+    $query = app(PartnerReport::class);
+    $balances = DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all();
+    $entries = DB::table('ledger_entries')->count();
+    $standard = $query->read($this->tenant->id, $leaf->id);
+    $check = function (string $in, string $out, array $members) use ($query, $direct) {
+        foreach (['inflow' => $in, 'outflow' => $out] as $flow => $total) {
+            $r = $query->read($this->tenant->id, $this->user->id, true, 1, $flow);
+            expect($r['totals'][$flow])->toBe($total)
+                ->and($r['stock'])->toBe((string) BigDecimal::of($in)->minus($out)->toScale(8))
+                ->and($r['flowDetails']['total'])->toBe(count($members))
+                ->and(array_column($r['flowDetails']['items'], 'account_id'))->toEqualCanonicalizing(array_map(fn ($m) => $m->account_id, $members));
+            foreach ($r['flowDetails']['items'] as $row) {
+                expect($row['direct_account_id'])->toBe($direct->account_id)
+                    ->and($row['direct_email'])->toBe($direct->email);
+            }
+        }
+    };
+    $check('180.00000000', '35.00000000', [$direct, $nested, $leaf]);
+    stockPartner($this, $direct);
+    $check('80.00000000', '15.00000000', [$nested, $leaf]);
+    stockPartner($this, $nested);
+    $check('30.00000000', '5.00000000', [$leaf]);
+    stockPartner($this, $direct, false);
+    $check('130.00000000', '25.00000000', [$direct, $leaf]);
+    stockPartner($this, $nested, false);
+    $check('180.00000000', '35.00000000', [$direct, $nested, $leaf]);
+    expect($query->read($this->tenant->id, $leaf->id)['totals'])->toBe($standard['totals'])
+        ->and(DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all())->toBe($balances)
+        ->and(DB::table('ledger_entries')->count())->toBe($entries);
     Http::assertNothingSent();
 });

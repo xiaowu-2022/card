@@ -13,12 +13,12 @@ export type ReportPeriod = {
     timezone: string;
     presets: Record<string, string>;
 };
-export type IncomeTotals = { total: string; annual: string; activation: string; legacy: string; manual?: string };
+export type IncomeTotals = { total: string; annual: string; activation: string; legacy: string; commission?: string };
 export const incomeLabels: Record<string, string> = {
     annual: 'Annual fee commission',
     activation: 'Activation commission',
     legacy: 'Legacy commission',
-    manual: 'Manual commission',
+    commission: 'Commission',
 };
 export const relationLabel = (relation: string) =>
     t(

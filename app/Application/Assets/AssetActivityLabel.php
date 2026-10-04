@@ -12,7 +12,8 @@ final class AssetActivityLabel
         }
 
         return match ($event) {
-            'MANUAL_COMMISSION' => 'Manual commission',
+            'MANUAL_COMMISSION', 'COMMISSION' => 'Commission',
+            'LEGACY_COMMISSION' => 'Legacy commission',
             'WALLET_ADJUSTMENT' => 'Admin adjustment',
             'WALLET_TOPUP_CREDIT' => 'Wallet top up',
             'SECURITY_DEPOSIT_FUND' => 'Security deposit',

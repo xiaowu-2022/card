@@ -5,6 +5,7 @@ namespace App\Application\Partners;
 use App\Application\Assets\MarketPrices;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 final class PartnerReport
@@ -15,11 +16,11 @@ final class PartnerReport
     }
 
     /** The version is server-owned; callers cannot select another account or version. */
-    public function read(string $tenant, string $user, bool $consumer = true, int $page = 1): array
+    public function read(string $tenant, string $user, bool $consumer = true, int $page = 1, ?string $flow = null, int $flowPage = 1): array
     {
         $outer = DB::transactionLevel();
 
-        return DB::transaction(function () use ($tenant, $user, $consumer, $page, $outer) {
+        return DB::transaction(function () use ($tenant, $user, $consumer, $page, $outer, $flow, $flowPage) {
             if ($outer === 0) {
                 DB::statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
             }
@@ -27,6 +28,9 @@ final class PartnerReport
             $partner = $this->enabled($tenant, $user);
             $report['version'] = $partner ? 'partner' : 'standard';
             $report['cashFlow'] = null;
+            $report['flowDetails'] = null;
+            abort_if($flow !== null && ! $partner, 403);
+            abort_unless($flow === null || in_array($flow, ['inflow', 'outflow'], true), 422);
             if (! $partner) {
                 $report['accountBalance'] = null;
                 $report['share'] = null;
@@ -83,6 +87,16 @@ final class PartnerReport
             $report['missingRates'] = $missing;
             $report['totals'] = ['inflow' => $missing ? null : $this->decimal($inflow), 'outflow' => $missing ? null : $this->decimal($outflow), 'advances' => $report['totals']['advances']];
             $report['cashFlow'] = ['rateObservedAt' => $observed, 'assets' => $assets];
+            if ($flow !== null) {
+                $details = app(PartnerCashFlow::class)->details($tenant, $user, $flow, max(1, $flowPage));
+                foreach ($details['items'] as &$item) {
+                    $rate = $rates[$item['asset_code']] ?? null;
+                    $item['amountUsdt'] = $rate ? $this->decimal(BigDecimal::of($item['amount'])->multipliedBy($rate)) : null;
+                    $item['posted_at'] = CarbonImmutable::parse($item['posted_at'])->toIso8601String();
+                }
+                unset($item);
+                $report['flowDetails'] = $details;
+            }
             $report['trends'] = [];
             $report['unvalued'] = ['items' => [], 'page' => $page, 'total' => 0, 'hasMore' => false];
 

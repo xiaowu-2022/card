@@ -14,6 +14,11 @@ export default function PartnerStock({ report }: { report: StockReport }) {
                 <PartnerStockReport
                     report={report}
                     showShare={false}
+                    onFlow={(flow, page = 1) =>
+                        router.get('/promotion/stock', flow ? { flow, flow_page: page } : {}, {
+                            preserveScroll: false,
+                        })
+                    }
                     onPage={(page) =>
                         router.get('/promotion/stock', { page }, { preserveScroll: true })
                     }

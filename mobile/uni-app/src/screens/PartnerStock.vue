@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import PageShell from '../components/PageShell.vue';
+import StockFlowDetails from '../components/StockFlowDetails.vue';
 import ReportPagination from '../components/ReportPagination.vue';
 import { t, dateTime } from '../lib/i18n';
 import { go } from '../lib/navigation';
@@ -44,8 +45,33 @@ const more = computed(() =>
 );
 </script>
 <template>
-    <PageShell :title="t('Stock data')" back="/promotion/daily" active="account" white
-        ><view class="stock"
+    <PageShell
+        :title="
+            t(
+                r.flowDetails
+                    ? r.flowDetails.direction === 'inflow'
+                        ? 'Team deposit details'
+                        : 'Team withdrawal details'
+                    : 'Stock data',
+            )
+        "
+        :replace-back="!!r.flowDetails"
+        :back="r.flowDetails ? '/promotion/stock' : '/promotion/daily'"
+        active="account"
+        white
+    >
+        <StockFlowDetails
+            v-if="r.flowDetails"
+            :report="r"
+            @page="
+                (page) =>
+                    go(
+                        '/promotion/stock?flow=' + r.flowDetails!.direction + '&flow_page=' + page,
+                        true,
+                    )
+            "
+        />
+        <view v-else class="stock"
             ><text class="muted small"
                 >{{ t('Updated') }}: {{ dateTime(r.updatedAt) }} · {{ r.timezone }} · USDT</text
             ><text class="heading">{{
@@ -66,9 +92,20 @@ const more = computed(() =>
             ><text v-if="r.negative" class="warning">{{ t('Total stock is negative.') }}</text
             ><view class="panel"
                 ><text class="heading">{{ t('Stock composition') }}</text
-                ><view v-for="[key, label, sign] in lines" :key="key" class="row"
-                    ><text>{{ sign }} {{ t(label) }}</text
-                    ><text>{{
+                ><view
+                    v-for="[key, label, sign] in lines"
+                    :key="key"
+                    class="row"
+                    @click="r.version === 'partner' && go('/promotion/stock?flow=' + key, true)"
+                    ><button
+                        v-if="r.version === 'partner'"
+                        class="flow-link"
+                        @click.stop="go('/promotion/stock?flow=' + key, true)"
+                    >
+                        <text>{{ sign }} {{ t(label) }}</text
+                        ><text class="small">{{ t('View details') }} ›</text></button
+                    ><text v-else>{{ sign }} {{ t(label) }}</text>
+                    <text>{{
                         key === 'fees' && r.missingRates
                             ? t('Incomplete valuation')
                             : value(r.totals[key])
@@ -79,7 +116,7 @@ const more = computed(() =>
             ><view v-if="r.cashFlow" class="panel">
                 <text class="muted small">{{
                     t(
-                        'Partner stock = descendant deposits − descendant gross withdrawals. Your own deposits and withdrawals are excluded. Commissions, annual fees, deposits held and internal transfers are not stock components.',
+                        'Partner stock = non-partner descendant deposits − non-partner descendant gross withdrawals. Your own deposits and withdrawals are excluded. Commissions, annual fees, deposits held and internal transfers are not stock components.',
                     )
                 }}</text>
                 <text class="muted small">{{
@@ -117,7 +154,7 @@ const more = computed(() =>
                     }}</text></view
                 ><text class="muted small">{{
                     t(
-                        'Theoretical balance = personal net advances + activation commissions received + annual fee commissions received + net manual commissions − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
+                        'Theoretical balance = personal net advances + activation commissions received + annual fee commissions received + unclassified commission net − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
                     )
                 }}</text></view
             ><view class="panel"
@@ -200,7 +237,7 @@ const more = computed(() =>
             /><text class="muted small">{{
                 t(
                     r.version === 'partner'
-                        ? 'Includes all descendants, including partner branches, but excludes your own external deposits and withdrawals. Teams overlap; do not add reports together. Historical totals use current team relationships.'
+                        ? 'Excludes you and enabled descendant partners personally; their non-partner descendants remain included. Historical totals use current team relationships and partner status. Teams overlap; do not add reports together.'
                         : 'Includes this account and all descendants. Historical totals use current team relationships.',
                 )
             }}</text></view
@@ -257,6 +294,22 @@ const more = computed(() =>
     padding: 10px 0;
     border-bottom: 1px solid #edf0e9;
     font-size: 13px;
+}
+.flow-link {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    padding: 0;
+    margin: 0;
+    background: none;
+    color: #176957;
+    text-align: left;
+    font-size: inherit;
+    line-height: 24px;
+}
+.flow-link::after {
+    border: 0;
 }
 .row > text:last-child {
     font-weight: 500;

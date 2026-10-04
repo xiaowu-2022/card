@@ -81,16 +81,16 @@ final class LegacyStockReport
                 COALESCE(SUM(CASE WHEN reverses_id IS NULL THEN amount ELSE -amount END) FILTER(WHERE kind='REIMBURSEMENT'),0) AS reimbursements")->first();
         $income = app(PromotionReportQuery::class)->income($tenant, $user)
             ->selectRaw("COALESCE(SUM(amount) FILTER(WHERE kind IN ('activation','legacy')),0) AS activation,
-                COALESCE(SUM(amount) FILTER(WHERE kind='annual'),0) AS annual, COALESCE(SUM(amount) FILTER(WHERE kind='manual'),0) AS manual")->first();
+                COALESCE(SUM(amount) FILTER(WHERE kind='annual'),0) AS annual, COALESCE(SUM(amount) FILTER(WHERE kind='commission'),0) AS unclassified")->first();
         $actual = DB::table('ledger_accounts')->where('tenant_id', $tenant)->where('user_id', $user)
             ->where('asset_code', 'USDT')->where('account_type', 'USER_AVAILABLE')->sum('balance');
-        $theoretical = BigDecimal::of($journal->advances)->plus($income->activation)->plus($income->annual)->plus($income->manual)->minus($journal->reimbursements);
+        $theoretical = BigDecimal::of($journal->advances)->plus($income->activation)->plus($income->annual)->plus($income->unclassified)->minus($journal->reimbursements);
 
         return [
             'advances' => $this->decimal($journal->advances),
             'activationCommission' => $this->decimal($income->activation),
             'annualCommission' => $this->decimal($income->annual),
-            'manualCommission' => $this->decimal($income->manual),
+            'unclassifiedCommission' => $this->decimal($income->unclassified),
             'reimbursements' => $this->decimal($journal->reimbursements),
             'theoretical' => $this->decimal($theoretical),
             'actual' => $this->decimal($actual),

@@ -29,6 +29,7 @@ final class AdjustManualCommission
         $asset = 'USDT';
         $reason = trim($data['reason']);
         if (! in_array($asset, ['USDT'], true)
+            || ! in_array($data['commission_type'] ?? null, ['activation', 'annual', 'legacy'], true)
             || ! in_array($data['direction'], ['INCREASE', 'DECREASE'], true)
             || ! Str::isUuid($data['request_id']) || $reason === '' || mb_strlen($reason) > 500
             || ! preg_match('/^(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,'.Money::scale($asset).'})?$/D', $data['amount'])) {
@@ -49,7 +50,7 @@ final class AdjustManualCommission
 
             $old = DB::table('manual_commission_adjustments')->where('tenant_id', $tenant)->where('user_id', $user)->where('request_id', $data['request_id'])->first();
             if ($old) {
-                if ($old->actor_id !== $actor->id || $old->asset_code !== $asset || $old->direction !== $data['direction'] || $old->reason !== $reason || Money::of($old->amount, $asset)->compare($amount) !== 0) {
+                if (DB::table('commission_adjustment_classifications')->where('adjustment_id', $old->id)->value('kind') !== $data['commission_type'] || $old->actor_id !== $actor->id || $old->asset_code !== $asset || $old->direction !== $data['direction'] || $old->reason !== $reason || Money::of($old->amount, $asset)->compare($amount) !== 0) {
                     throw new DomainException('MANUAL_COMMISSION_CONFLICT', 'This request was already used with different details.', 409);
                 }
 
@@ -69,6 +70,11 @@ final class AdjustManualCommission
                 throw new DomainException('MANUAL_COMMISSION_INVALID', 'The adjustment exceeds the supported balance range.');
             }
             $commissionAfter = $commissionBefore->add($delta);
+            $kindBefore = $this->categoryNet($tenant, $user, $data['commission_type']);
+            $kindAfter = $kindBefore->add($delta);
+            if ($kindAfter->isNegative()) {
+                throw new DomainException('COMMISSION_CATEGORY_LIMIT', 'The decrease exceeds this commission category balance.');
+            }
             if ($commissionAfter->isNegative()) {
                 throw new DomainException('MANUAL_COMMISSION_LIMIT', 'The decrease exceeds cumulative net commission.');
             }
@@ -84,9 +90,52 @@ final class AdjustManualCommission
             ]));
             DB::table('manual_commission_adjustments')->insert(['id' => $id, 'tenant_id' => $tenant, 'user_id' => $user, 'wallet_id' => $wallet->id, 'actor_id' => $actor->id, 'actor_name' => $actor->name,
                 'request_id' => $data['request_id'], 'asset_code' => $asset, 'direction' => $data['direction'], 'amount' => $amount->amount(), 'balance_before' => $before->amount(), 'balance_after' => $after->amount(), 'commission_before' => $commissionBefore->amount(), 'commission_after' => $commissionAfter->amount(), 'reason' => $reason, 'ledger_entry_id' => $entry->id, 'created_at' => now()]);
+            $this->recordClassification($tenant, $user, $id, $actor, $data, $kindBefore, $kindAfter);
             app(AuditLogger::class)->record($tenant, 'ADMIN', $actor->id, 'MANUAL_COMMISSION', 'manual_commission_adjustment', $id, ['balance' => $before->amount()], ['balance' => $after->amount(), 'asset' => $asset, 'direction' => $data['direction']]);
 
             return DB::table('manual_commission_adjustments')->where('id', $id)->first();
         }, 3);
     }
+    public function categoryNet(string $tenant, string $user, string $kind): Money
+    {
+        return Money::of((string) app(PromotionReportQuery::class)->income($tenant, $user)->where('kind', $kind)->sum('amount'), 'USDT');
+    }
+
+    public function classify(string $tenant, string $user, string $id, AdminUser $actor, array $data): void
+    {
+        abort_unless(in_array($data['commission_type'], ['activation', 'annual', 'legacy'], true) && Str::isUuid($data['request_id']) && trim($data['reason']) !== '', 422);
+        DB::transaction(function () use ($tenant, $user, $id, $actor, $data) {
+            Tenant::whereKey($tenant)->lockForUpdate()->firstOrFail();
+            User::where('tenant_id', $tenant)->whereKey($user)->lockForUpdate()->firstOrFail();
+            $actor->refresh();
+            $auth = app(AuthorizationService::class);
+            abort_unless($actor->status === AdminUserStatus::Active && $auth->allows($actor, ScopeType::Platform, null, 'commissions.adjust')
+                && $auth->allows($actor, ScopeType::Platform, null, 'users.read') && $auth->allows($actor, ScopeType::Platform, null, 'wallet.read'), 403);
+            $adjustment = DB::table('manual_commission_adjustments')->where('tenant_id', $tenant)->where('user_id', $user)->where('id', $id)->first();
+            abort_unless($adjustment, 404);
+            $old = DB::table('commission_adjustment_classifications')->where('tenant_id', $tenant)->where('user_id', $user)
+                ->where(fn ($q) => $q->where('adjustment_id', $id)->orWhere('request_id', $data['request_id']))->first();
+            if ($old) {
+                abort_unless($old->adjustment_id === $id && $old->request_id === $data['request_id'] && $old->kind === $data['commission_type'] && $old->actor_id === $actor->id && $old->reason === trim($data['reason']), 409);
+                return;
+            }
+            $before = $this->categoryNet($tenant, $user, $data['commission_type']);
+            $after = $before->add(Money::of(($adjustment->direction === 'DECREASE' ? '-' : '').$adjustment->amount, 'USDT'));
+            if ($after->isNegative()) throw new DomainException('COMMISSION_CATEGORY_LIMIT', 'The decrease exceeds this commission category balance.');
+            $this->recordClassification($tenant, $user, $id, $actor, $data, $before, $after);
+        }, 3);
+    }
+
+    private function recordClassification(string $tenant, string $user, string $id, AdminUser $actor, array $data, Money $before, Money $after): void
+    {
+        DB::table('commission_adjustment_classifications')->insert([
+            'id' => (string) Str::uuid(), 'adjustment_id' => $id, 'tenant_id' => $tenant, 'user_id' => $user,
+            'kind' => $data['commission_type'], 'kind_before' => $before->amount(), 'kind_after' => $after->amount(),
+            'actor_id' => $actor->id, 'actor_name' => $actor->name, 'reason' => trim($data['reason']),
+            'request_id' => $data['request_id'], 'created_at' => now(),
+        ]);
+        app(AuditLogger::class)->record($tenant, 'ADMIN', $actor->id, 'COMMISSION_CLASSIFIED', 'manual_commission_adjustment', $id,
+            ['category_balance' => $before->amount()], ['kind' => $data['commission_type'], 'category_balance' => $after->amount()], $data['request_id']);
+    }
+
 }

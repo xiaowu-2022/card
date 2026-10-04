@@ -44,13 +44,14 @@ final class PromotionReportQuery
                 f.id AS source_id, l.posted_at AS occurred_at, f.funded_at AS business_at");
 
         $manual = DB::table('manual_commission_adjustments as a')
+            ->leftJoin('commission_adjustment_classifications as c', fn ($j) => $j->on('c.adjustment_id', '=', 'a.id')->on('c.tenant_id', '=', 'a.tenant_id')->on('c.user_id', '=', 'a.user_id'))
             ->join('ledger_entries as l', fn ($j) => $j->on('l.id', '=', 'a.ledger_entry_id')->on('l.tenant_id', '=', 'a.tenant_id'))
             ->where('a.tenant_id', $tenant)->when($user !== null, fn ($q) => $q->where('a.user_id', $user))
-            ->selectRaw("a.id, 'manual' AS kind, CASE WHEN a.direction='INCREASE' THEN a.amount ELSE -a.amount END AS amount,
+            ->selectRaw("a.id, COALESCE(c.kind, 'commission') AS kind, CASE WHEN a.direction='INCREASE' THEN a.amount ELSE -a.amount END AS amount,
                 NULL::uuid AS source_user_id, NULL::text AS source_account_id, NULL::integer AS source_rank,
                 NULL::integer AS beneficiary_rank, NULL::integer AS depth, NULL::numeric AS source_amount,
                 NULL::numeric AS rate, NULL::integer AS standard, NULL::integer AS covered,
-                a.id AS source_id, l.posted_at AS occurred_at, l.posted_at AS business_at");
+                NULL::uuid AS source_id, l.posted_at AS occurred_at, l.posted_at AS business_at");
 
         return DB::query()->fromSub($paid->unionAll($legacy)->unionAll($manual), 'income');
     }
@@ -86,7 +87,7 @@ final class PromotionReportQuery
             COALESCE(SUM(amount) FILTER (WHERE kind='annual'),0)::text AS annual,
             COALESCE(SUM(amount) FILTER (WHERE kind='activation'),0)::text AS activation,
             COALESCE(SUM(amount) FILTER (WHERE kind='legacy'),0)::text AS legacy,
-            COALESCE(SUM(amount) FILTER (WHERE kind='manual'),0)::text AS manual")->first();
+            COALESCE(SUM(amount) FILTER (WHERE kind='commission'),0)::text AS commission")->first();
 
         return (array) $row;
     }
@@ -204,10 +205,10 @@ final class PromotionReportQuery
                 CASE WHEN o.previous_tariff>0 THEN 'upgrade' WHEN EXISTS(SELECT 1 FROM paid_promotion_cycles prior
                   WHERE prior.tenant_id=o.tenant_id AND prior.user_id=o.user_id AND prior.id<>o.cycle_id AND prior.ends_at<=o.completed_at)
                   THEN 'renewal' ELSE 'purchase' END AS purchase_kind");
-        $manual = $this->income($tenant, $user)->where('kind', 'manual')->selectRaw("id,'manual' AS kind,NULL::text AS account_id,NULL::integer AS depth,NULL::integer AS source_rank,NULL::numeric AS source_amount,amount AS commission,occurred_at AS posted_at,occurred_at,false AS first_funding,NULL::text AS purchase_kind");
+        $manual = $this->income($tenant, $user)->whereNull('source_user_id')->selectRaw("id,kind,NULL::text AS account_id,NULL::integer AS depth,NULL::integer AS source_rank,NULL::numeric AS source_amount,amount AS commission,occurred_at AS posted_at,occurred_at,false AS first_funding,NULL::text AS purchase_kind");
         $movements = $this->period(DB::query()->fromSub($invites->unionAll($funds)->unionAll($annual)->unionAll($manual), 'movements'), $context);
         $counts = (clone $movements)->selectRaw("COUNT(*) FILTER (WHERE kind='invitation') AS invited,
-            COUNT(*) FILTER (WHERE kind='activation') AS funded,COUNT(*) FILTER (WHERE kind='annual') AS orders")->first();
+            COUNT(*) FILTER (WHERE kind='activation' AND account_id IS NOT NULL) AS funded,COUNT(*) FILTER (WHERE kind='annual' AND account_id IS NOT NULL) AS orders")->first();
         $totals = $this->totals($this->period($this->income($tenant, $user), $context));
         if (($filters['activity'] ?? 'all') !== 'all') {
             $movements->where('kind', $filters['activity']);

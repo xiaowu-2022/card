@@ -1,4 +1,52 @@
 export const partnerCatalog = {
+    'Team deposit details': [
+        '团队入金明细',
+        'Butiran deposit pasukan',
+        'Detalles de depósitos del equipo',
+    ],
+    'Team withdrawal details': [
+        '团队出金明细',
+        'Butiran pengeluaran pasukan',
+        'Detalles de retiros del equipo',
+    ],
+    'Back to stock': ['返回存量数据', 'Kembali ke baki', 'Volver al saldo'],
+    'Transaction member': ['交易用户', 'Ahli transaksi', 'Usuario de la transacción'],
+    'Direct branch member': [
+        '所属直属下级',
+        'Ahli langsung bagi cabang',
+        'Miembro directo de la rama',
+    ],
+    'Direct member themself': [
+        '直属下级本人',
+        'Ahli langsung sendiri',
+        'El propio miembro directo',
+    ],
+    'Current USDT estimate': [
+        '当前 USDT 估值',
+        'Anggaran USDT semasa',
+        'Estimación actual en USDT',
+    ],
+    'Posted at': ['入账时间', 'Masa dicatatkan', 'Fecha de contabilización'],
+    'Total records': ['记录总数', 'Jumlah rekod', 'Total de registros'],
+    'Deposit amount': ['充值金额', 'Amaun deposit', 'Importe del depósito'],
+    'Gross withdrawal amount': [
+        '提现申请总额',
+        'Amaun kasar pengeluaran',
+        'Importe bruto solicitado del retiro',
+    ],
+    'View details': ['查看明细', 'Lihat butiran', 'Ver detalles'],
+    'No completed transactions in this team.': [
+        '暂无符合统计口径的已完成交易。',
+        'Tiada transaksi selesai yang layak dalam pasukan ini.',
+        'No hay transacciones completadas que cumplan los criterios en este equipo.',
+    ],
+    'Branch ownership follows current referral relationships. Direct members belong to their own branch.':
+        [
+            '所属直属下级按当前推荐关系确定；直属下级本人的交易归入其本人分支。',
+            'Cabang mengikut hubungan rujukan semasa. Transaksi ahli langsung tergolong dalam cabang mereka sendiri.',
+            'La rama se determina por las relaciones de referencia actuales. Las transacciones de miembros directos pertenecen a su propia rama.',
+        ],
+
     'Partner account commissions are excluded from stock.': [
         '合伙人账号佣金不计入存量',
         'Komisen akaun rakan kongsi tidak dikira dalam baki.',
@@ -23,17 +71,17 @@ export const partnerCatalog = {
         'Semua mata wang menggunakan kadar USDT semasa yang sama. Penilaian berubah mengikut harga pasaran.',
         'Todas las monedas usan los mismos tipos de cambio actuales a USDT. La valoración varía con el mercado.',
     ],
-    'Partner stock = descendant deposits − descendant gross withdrawals. Your own deposits and withdrawals are excluded. Commissions, annual fees, deposits held and internal transfers are not stock components.':
+    'Partner stock = non-partner descendant deposits − non-partner descendant gross withdrawals. Your own deposits and withdrawals are excluded. Commissions, annual fees, deposits held and internal transfers are not stock components.':
         [
-            '合伙人存量＝下级团队总入金－总出金（提现申请总额）。排除本人充值和提现；佣金、年费、保证金和内部转账不单独计入存量。',
-            'Baki rakan kongsi = deposit ahli bawahan − pengeluaran kasar mereka. Deposit dan pengeluaran anda sendiri dikecualikan. Komisen, yuran tahunan, deposit jaminan dan pindahan dalaman bukan komponen baki.',
-            'Saldo del socio = depósitos de los descendientes − retiros brutos de los descendientes. Se excluyen tus propios depósitos y retiros. Las comisiones, cuotas anuales, garantías y transferencias internas no se contabilizan por separado.',
+            '合伙人存量＝非合伙人下级总入金－总出金（已完成提现总额）。排除本人充值和提现；佣金、年费、保证金和内部转账不单独计入存量。',
+            'Baki rakan kongsi = deposit ahli bawahan bukan rakan kongsi − pengeluaran kasar mereka. Deposit dan pengeluaran anda sendiri dikecualikan. Komisen, yuran tahunan, deposit jaminan dan pindahan dalaman bukan komponen baki.',
+            'Saldo del socio = depósitos de descendientes que no son socios − sus retiros brutos. Se excluyen tus propios depósitos y retiros. Las comisiones, cuotas anuales, garantías y transferencias internas no se contabilizan por separado.',
         ],
-    'Includes all descendants, including partner branches, but excludes your own external deposits and withdrawals. Teams overlap; do not add reports together. Historical totals use current team relationships.':
+    'Excludes you and enabled descendant partners personally; their non-partner descendants remain included. Historical totals use current team relationships and partner status. Teams overlap; do not add reports together.':
         [
-            '包含全部下级及下级合伙人团队，排除本人外部充值和提现。团队存在重叠，请勿相加各报表；历史累计按当前团队关系统计。',
-            'Termasuk semua ahli bawahan dan cabang rakan kongsi, kecuali deposit dan pengeluaran anda sendiri. Pasukan bertindih; jangan jumlahkan laporan. Jumlah sejarah menggunakan hubungan pasukan semasa.',
-            'Incluye todos los descendientes y ramas de socios, pero excluye tus propios depósitos y retiros externos. Los equipos se superponen; no sumes informes. Los totales históricos usan las relaciones actuales.',
+            '排除本人及已启用的下级合伙人本人，其非合伙人下级仍计入。历史累计按当前团队关系和合伙人身份统计。团队存在重叠，请勿相加各报表。',
+            'Anda dan ahli bawahan yang merupakan rakan kongsi aktif dikecualikan secara individu; ahli bawahan mereka yang bukan rakan kongsi masih dikira. Jumlah sejarah menggunakan hubungan pasukan dan status rakan kongsi semasa. Pasukan bertindih; jangan jumlahkan laporan.',
+            'Te excluye a ti y a los descendientes que son socios habilitados, pero incluye a sus descendientes que no son socios. Los totales históricos usan las relaciones y el estado de socio actuales. Los equipos se superponen; no sumes informes.',
         ],
     'Includes this account and all descendants. Historical totals use current team relationships.':
         [

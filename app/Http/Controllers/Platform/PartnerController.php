@@ -15,13 +15,13 @@ final class PartnerController extends Controller
 {
     public function index(Request $request)
     {
-        $request->validate(['tenant' => 'nullable|uuid', 'partner' => 'nullable|uuid', 'page' => 'nullable|integer|min:1']);
+        $request->validate(['tenant' => 'nullable|uuid', 'partner' => 'nullable|uuid', 'page' => 'nullable|integer|min:1', 'flow' => 'nullable|in:inflow,outflow', 'flow_page' => 'nullable|integer|min:1|max:100000']);
         $tenant = $request->query('tenant');
         $selected = null;
         $report = null;
         if ($request->filled('partner')) {
             $selected = DB::table('partner_configurations')->where('tenant_id', $tenant)->where('id', $request->query('partner'))->firstOrFail();
-            $report = app(PartnerReport::class)->read($tenant, $selected->user_id, false, $request->integer('page', 1));
+            $report = app(PartnerReport::class)->read($tenant, $selected->user_id, false, $request->integer('page', 1), $request->query('flow'), $request->integer('flow_page', 1));
         }
 
         return Inertia::render('platform/Partners', [

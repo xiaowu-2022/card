@@ -264,21 +264,45 @@ export default function Cards({
                                       ]
                                     : []),
 
-                                { label: 'Tenant', render: (row) => row.companyName },
-                                { label: 'User', render: (row) => row.userEmail },
-                                { label: 'Product', render: (row) => row.productName },
                                 {
-                                    label: 'Card',
+                                    label: 'Company / User',
                                     render: (row) => (
-                                        <span className="font-mono">
-                                            {row.maskedPan}
-                                            <span className="block text-xs font-sans">
-                                                {t(
-                                                    row.formFactor === 'physical_card'
-                                                        ? 'Physical card'
-                                                        : 'Virtual card',
-                                                )}
-                                            </span>
+                                        <div className="max-w-52 space-y-1">
+                                            <div
+                                                className="truncate font-medium"
+                                                title={row.companyName}
+                                            >
+                                                {row.companyName}
+                                            </div>
+                                            <div
+                                                className="truncate text-xs text-muted-foreground"
+                                                title={row.userEmail}
+                                            >
+                                                {row.userEmail}
+                                            </div>
+                                        </div>
+                                    ),
+                                },
+                                {
+                                    label: 'Product / Card',
+                                    render: (row) => (
+                                        <div className="max-w-52 space-y-1">
+                                            <div
+                                                className="truncate font-medium"
+                                                title={row.productName}
+                                            >
+                                                {row.productName}
+                                            </div>
+                                            <div className="flex items-center gap-2 whitespace-nowrap text-xs">
+                                                <span className="font-mono">{row.maskedPan}</span>
+                                                <span className="text-muted-foreground">
+                                                    {t(
+                                                        row.formFactor === 'physical_card'
+                                                            ? 'Physical card'
+                                                            : 'Virtual card',
+                                                    )}
+                                                </span>
+                                            </div>
                                             {row.produceStatus && (
                                                 <span className="block text-xs">
                                                     {t(
@@ -289,11 +313,14 @@ export default function Cards({
                                                 </span>
                                             )}
                                             {row.trackingNumber && (
-                                                <span className="block text-xs">
+                                                <span
+                                                    className="block truncate text-xs"
+                                                    title={row.trackingNumber}
+                                                >
                                                     {t('Tracking number')}: {row.trackingNumber}
                                                 </span>
                                             )}
-                                        </span>
+                                        </div>
                                     ),
                                 },
                                 {

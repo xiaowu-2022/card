@@ -58,10 +58,15 @@ export default function Partners({
     const [editing, setEditing] = useState<Partner | null>(null);
     const [feeId, setFeeId] = useState('');
     const fx = useForm({ rate: '', observed_at: '', evidence: '', request_id: requestId() });
-    const visit = (partner?: string, page = 1) =>
+    const visit = (partner?: string, page = 1, flow?: string | null, flowPage = 1) =>
         router.get(
             '/platform/partners',
-            { tenant: companyId, ...(partner ? { partner } : {}), page },
+            {
+                tenant: companyId,
+                ...(partner ? { partner } : {}),
+                page,
+                ...(flow ? { flow, flow_page: flowPage } : {}),
+            },
             { preserveScroll: true, preserveState: true },
         );
     const edit = (p: Partner) => {
@@ -511,6 +516,9 @@ export default function Partners({
                                     report={report}
                                     onPage={(page) => visit(report.partnerId, page)}
                                     onReverse={reverse}
+                                    onFlow={(flow, page) =>
+                                        visit(report.partnerId, report.journal.page, flow, page)
+                                    }
                                 />
                             </>
                         )}
