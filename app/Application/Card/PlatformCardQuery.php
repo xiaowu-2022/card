@@ -4,6 +4,8 @@ namespace App\Application\Card;
 
 use App\Domain\Card\Models\CardIssueOrder;
 use App\Domain\Card\Models\UserCard;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 
 final class PlatformCardQuery
 {
@@ -30,12 +32,17 @@ final class PlatformCardQuery
                 'asset' => $order->wallet_asset, 'status' => $order->status->value,
                 'requestedAt' => $order->requested_at->toIso8601String(),
             ]),
-            'cards' => $scope(UserCard::query(), 'user_cards')->paginate(20, ['*'], 'cards_page')->withQueryString()->through(fn (UserCard $card): array => [
+            'cards' => $scope(UserCard::query(), 'user_cards')->selectSub(
+                DB::table('card_transaction_sync_items')->selectRaw('MAX(updated_at)')
+                    ->whereColumn('card_id', 'user_cards.id')->whereColumn('tenant_id', 'user_cards.tenant_id')->where('status', 'SUCCEEDED'),
+                'last_transaction_sync_at'
+            )->paginate(20, ['*'], 'cards_page')->withQueryString()->through(fn (UserCard $card): array => [
                 'id' => $card->id, 'tenantId' => $card->tenant_id, 'companyName' => $card->company_name,
                 'userEmail' => $card->user_email, 'productName' => $card->product->name,
                 'maskedPan' => $card->masked_pan, 'currency' => $card->card_currency,
                 'balance' => $card->availableBalance(), 'providerBalance' => $card->provider_balance, 'overflowBalance' => $card->overflowBalance(), 'balanceLimit' => $card->balance_limit, 'effectiveBalanceLimit' => $card->effectiveBalanceLimit(), 'providerStatus' => $card->provider_status, 'formFactor' => $card->form_factor, 'produceStatus' => $card->produce_status, 'trackingNumber' => $card->tracking_number,
                 'balanceUpdatedAt' => $card->provider_balance_synced_at?->toIso8601String(),
+                'lastTransactionSyncAt' => $card->last_transaction_sync_at ? CarbonImmutable::parse($card->last_transaction_sync_at)->toIso8601String() : null,
             ]),
         ];
     }

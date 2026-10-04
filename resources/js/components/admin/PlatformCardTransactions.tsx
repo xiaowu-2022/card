@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { t, useAdminTranslation } from '@/i18n/admin';
 import { Button } from '@/components/ui/button';
 import {
@@ -37,11 +37,13 @@ type Page = CardTransactionPage & { timezone: string };
 
 export function PlatformCardTransactions({
     card,
-    canSync,
+    onSync,
+    refreshKey = 0,
     onClose,
 }: {
     card: Card;
-    canSync: boolean;
+    onSync?: () => void;
+    refreshKey?: number;
     onClose: () => void;
 }) {
     const { i18n } = useAdminTranslation();
@@ -50,103 +52,6 @@ export function PlatformCardTransactions({
     const [data, setData] = useState<Page | null>(null);
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState(false);
-
-    const [syncing, setSyncing] = useState(false);
-    const [syncMessage, setSyncMessage] = useState('');
-    const [syncDetails, setSyncDetails] = useState('');
-    const [nextSyncPage, setNextSyncPage] = useState<number | null>(null);
-    const syncRequest = useRef<AbortController | null>(null);
-    useEffect(() => () => syncRequest.current?.abort(), []);
-
-    const sync = async (providerPage: number) => {
-        if (syncRequest.current) return;
-        const controller = new AbortController();
-        syncRequest.current = controller;
-        setSyncing(true);
-        setSyncMessage('');
-        setSyncDetails('');
-        let failureMessage = 'Card transactions could not be updated. Please try again later.';
-        try {
-            const xsrf = document.cookie
-                .split('; ')
-                .find((cookie) => cookie.startsWith('XSRF-TOKEN='))
-                ?.slice(11);
-            const token = xsrf
-                ? decodeURIComponent(xsrf)
-                : document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content;
-            if (!token) {
-                failureMessage = 'Session expired. Refresh the page and sign in again.';
-                throw new Error('CSRF token unavailable');
-            }
-            const response = await fetch(
-                `/platform/tenants/${card.tenantId}/cards/${card.id}/transactions/sync`,
-                {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    cache: 'no-store',
-                    headers: {
-                        Accept: 'application/json',
-                        'Content-Type': 'application/json',
-                        [xsrf ? 'X-XSRF-TOKEN' : 'X-CSRF-TOKEN']: token,
-                    },
-                    body: JSON.stringify({ page: providerPage }),
-                    signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]),
-                },
-            );
-            const requestId = response.headers.get('X-Request-ID');
-            if (!controller.signal.aborted)
-                setSyncDetails(
-                    `HTTP ${response.status}${requestId && /^[a-f0-9-]{36}$/i.test(requestId) ? ` · ${requestId}` : ''}`,
-                );
-            if (!response.ok || response.redirected) {
-                failureMessage =
-                    response.redirected || [401, 419].includes(response.status)
-                        ? 'Session expired. Refresh the page and sign in again.'
-                        : response.status === 403
-                          ? 'You do not have permission to sync transactions.'
-                          : [404, 405].includes(response.status)
-                            ? 'Sync endpoint or card unavailable. Check deployment and refresh route cache.'
-                            : response.status === 429
-                              ? 'Too many sync requests. Wait one minute and retry.'
-                              : response.status === 503
-                                ? 'Provider sync unavailable. Check the server logs using the request ID.'
-                                : 'Card transactions could not be updated. Please try again later.';
-                throw new Error('Transaction sync failed');
-            }
-            failureMessage = 'Invalid sync response. Check deployment and server logs.';
-            const result: unknown = await response.json();
-            if (
-                !result ||
-                typeof result !== 'object' ||
-                !('page' in result) ||
-                result.page !== providerPage ||
-                !('hasMore' in result) ||
-                typeof result.hasMore !== 'boolean'
-            )
-                throw new Error('Invalid sync response');
-            if (controller.signal.aborted) return;
-            setSyncDetails('');
-            setNextSyncPage(result.hasMore && providerPage < 100000 ? providerPage + 1 : null);
-            setSyncMessage(
-                result.hasMore
-                    ? 'Page synced. You can sync the next page.'
-                    : 'Sync completed. No more provider records.',
-            );
-            setPage(1);
-            setAttempt((value) => value + 1);
-        } catch (error) {
-            if (!controller.signal.aborted) {
-                if (error instanceof DOMException && error.name === 'TimeoutError')
-                    failureMessage = 'Sync timed out. Check recorded transactions before retrying.';
-                else if (error instanceof TypeError)
-                    failureMessage = 'Network request failed. Check your connection and retry.';
-                setSyncMessage(failureMessage);
-            }
-        } finally {
-            syncRequest.current = null;
-            if (!controller.signal.aborted) setSyncing(false);
-        }
-    };
 
     useEffect(() => {
         const controller = new AbortController();
@@ -184,7 +89,7 @@ export function PlatformCardTransactions({
             }
         })();
         return () => controller.abort();
-    }, [card.id, card.tenantId, page, attempt]);
+    }, [card.id, card.tenantId, page, attempt, refreshKey]);
 
     return (
         <Dialog
@@ -208,26 +113,12 @@ export function PlatformCardTransactions({
                         {data ? ` · ${t('Timezone')}: ${data.timezone}` : ''}
                     </p>
                 </DialogHeader>
-                {canSync && (
-                    <div className="shrink-0 space-y-2">
-                        <div className="flex gap-2">
-                            <Button disabled={syncing} onClick={() => void sync(1)}>
-                                {t(syncing ? 'Syncing transactions…' : 'Sync latest transactions')}
-                            </Button>
-                            {nextSyncPage !== null && (
-                                <Button
-                                    variant="secondary"
-                                    disabled={syncing}
-                                    onClick={() => void sync(nextSyncPage)}
-                                >
-                                    {t('Sync next page')} · {nextSyncPage}
-                                </Button>
-                            )}
-                        </div>
-                        <p className="text-xs text-muted-foreground" role="status">
-                            {t(syncMessage || 'Each click syncs up to 20 provider records.')}
-                            {syncDetails && (
-                                <span className="block select-text">{syncDetails}</span>
+                {onSync && (
+                    <div className="shrink-0 pb-3">
+                        <Button onClick={onSync}>{t('Sync this card')}</Button>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                            {t(
+                                'Choose dates once. This browser automatically processes all pages through the server. Keep this page open.',
                             )}
                         </p>
                     </div>

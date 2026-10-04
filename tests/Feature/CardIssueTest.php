@@ -2836,3 +2836,119 @@ it('bulk sync rejects incomplete pagination without treating it as empty success
     $sync->process(DB::table('card_transaction_sync_items')->where('batch_id', $batch)->value('id'));
     expect(DB::table('card_transaction_sync_items')->where('batch_id', $batch)->value('error_code'))->toBe('invalid_pagination');
 });
+
+it('selected card sync validates exact scope and persists canonical idempotent selection', function () {
+    $this->withoutMiddleware(ThrottleRequests::class);
+    $this->travelTo(CarbonImmutable::parse('2026-10-04T08:00:00+08:00'));
+    [$card, $provider] = transactionReadFixture($this);
+    $provider->shouldReceive('issueCard')->once()->andReturnUsing(function ($request) {
+        $result = new ProviderCardDTO('XR-SECOND-TRANSACTION-FIXTURE', '', '•••• 8888', '8888', 8, 2029, 'USD', 'normal', false, '20.00000000');
+        return new ProviderOperationDTO($request->idempotencyKey, ProviderOperationStatus::Succeeded, $result->providerCardId, card: $result);
+    });
+    $this->holder = phaseTenHolder($this);
+    $secondOrder = phaseTenIssue($this);
+    $second = UserCard::where('card_issue_order_id', $secondOrder->id)->firstOrFail();
+    $provider->shouldNotReceive('getTransactionPage');
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $base = 'http://admin.localhost/platform/card-transaction-batches';
+    $input = transactionBatchInput($this) + ['card_ids' => [$card->id]];
+    $this->actingAs($actor, 'platform_admin');
+    $this->postJson($base.'/preview', ['tenant_id' => $this->tenant->id, 'card_ids' => [$card->id]])->assertOk()->assertJsonPath('total', 1);
+    expect(DB::table('card_transaction_sync_batches')->count())->toBe(0);
+    $otherTenant = Tenant::where('id', '<>', $this->tenant->id)->firstOrFail();
+    $this->postJson($base, array_replace($input, ['tenant_id' => $otherTenant->id]))->assertUnprocessable();
+    $this->postJson($base, array_replace($input, ['card_ids' => []]))->assertUnprocessable();
+    $this->postJson($base, array_replace($input, ['card_ids' => [$card->id, strtoupper($card->id)]]))->assertUnprocessable();
+    $this->postJson($base, array_replace($input, ['card_ids' => [(string) Str::uuid()]]))->assertUnprocessable();
+    $batch = $this->postJson($base, $input)->assertAccepted()->json('id');
+    expect(DB::table('card_transaction_sync_items')->where('batch_id', $batch)->pluck('card_id')->all())->toBe([$card->id]);
+    $this->postJson($base, array_replace($input, ['card_ids' => [strtoupper($card->id)]]))->assertAccepted()->assertJsonPath('id', $batch);
+    $this->postJson($base, array_replace($input, ['card_ids' => [$second->id]]))->assertStatus(409);
+    $this->postJson($base, array_diff_key($input, ['card_ids' => true]))->assertStatus(409);
+    $input['request_id'] = (string) Str::uuid();
+    $input['card_ids'] = [$second->id, $card->id];
+    $both = $this->postJson($base, $input)->assertAccepted()->json('id');
+    $input['card_ids'] = array_reverse($input['card_ids']);
+    $this->postJson($base, $input)->assertAccepted()->assertJsonPath('id', $both);
+    $listed = collect($this->getJson($base)->assertOk()->json('items'))->firstWhere('id', $both);
+    expect($listed['scope'])->toBe('selected')->and($listed['counts']['total'])->toBe(2)->and($listed['status'])->toBe('RUNNING');
+});
+
+it('selected card sync restores progress and reports last success without changing funds', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-04T08:00:00+08:00'));
+    [$card, $provider] = transactionReadFixture($this);
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $sync = app(BatchCardTransactionSync::class);
+    $batch = $sync->create($actor, transactionBatchInput($this) + ['card_ids' => [$card->id]]);
+    $item = DB::table('card_transaction_sync_items')->where('batch_id', $batch)->value('id');
+    $before = LedgerEntry::count();
+    $wallet = phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance;
+    $provider->shouldReceive('getTransactionPage')->once()->andReturn(new ProviderTransactionPageDTO([], 1, false));
+    $query = app(\App\Application\Card\PlatformCardQuery::class);
+    expect($query->get($this->tenant->id)['cards']->items()[0]['lastTransactionSyncAt'])->toBeNull();
+    $sync->process($item);
+    $last = $query->get($this->tenant->id)['cards']->items()[0]['lastTransactionSyncAt'];
+    expect($last)->toBe(CarbonImmutable::now()->toIso8601String());
+    $this->actingAs($actor, 'platform_admin')->getJson('http://admin.localhost/platform/card-transaction-batches')->assertOk()
+        ->assertJsonPath('items.0.status', 'COMPLETED')->assertJsonPath('items.0.counts.succeeded', 1)->assertJsonPath('items.0.counts.pages', 1);
+    $failed = $sync->create($actor, transactionBatchInput($this) + ['card_ids' => [$card->id]]);
+    DB::table('card_transaction_sync_items')->where('batch_id', $failed)->update(['status' => 'FAILED', 'updated_at' => now()->addMinute(), 'error_code' => 'provider_read_failed']);
+    expect($query->get($this->tenant->id)['cards']->items()[0]['lastTransactionSyncAt'])->toBe($last)
+        ->and(LedgerEntry::count())->toBe($before)->and(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe($wallet);
+    DB::table('card_transaction_sync_batches')->where('id', $failed)->update(['actor_id' => $this->owner->id]);
+    $this->getJson('http://admin.localhost/platform/card-transaction-batches')->assertOk()->assertJsonCount(1, 'items');
+    $this->getJson('http://admin.localhost/platform/card-transaction-batches/'.$failed)->assertNotFound();
+    $this->postJson('http://admin.localhost/platform/card-transaction-batches/'.$failed.'/retry')->assertNotFound();
+});
+
+it('browser sync advances one checkpoint at a time and never dispatches queue work', function () {
+    $this->withoutMiddleware(ThrottleRequests::class);
+    $this->travelTo(CarbonImmutable::parse('2026-10-04T08:00:00+08:00'));
+    [$card, $provider] = transactionReadFixture($this);
+    Queue::fake();
+    $calls = 0;
+    $provider->shouldReceive('getTransactionPage')->twice()->andReturnUsing(function ($id, $page) use (&$calls) {
+        $calls++;
+        return new ProviderTransactionPageDTO([
+            new ProviderCardTransactionDTO('BROWSER-'.$page, '1.00000000', 'USD', 'purchase', 'completed', '2026-10-03T12:00:00', null),
+        ], $page, $page === 1);
+    });
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $base = 'http://admin.localhost/platform/card-transaction-batches';
+    $batch = $this->actingAs($actor, 'platform_admin')->postJson($base, transactionBatchInput($this) + ['card_ids' => [$card->id]])->assertAccepted()->json('id');
+    $sync = app(BatchCardTransactionSync::class);
+    $item = DB::table('card_transaction_sync_items')->where('batch_id', $batch)->value('id');
+    $sync->recover($batch);
+    (new \App\Jobs\SyncCardTransactionPage($item))->handle($sync);
+    $this->getJson($base)->assertOk()->assertJsonPath('items.0.execution_mode', 'browser');
+    $this->getJson($base.'/'.$batch)->assertOk()->assertJsonPath('counts.pages', 0);
+    expect($calls)->toBe(0);
+    Queue::assertNothingPushed();
+    $this->postJson($base.'/'.$batch.'/advance')->assertOk()->assertJsonPath('status', 'RUNNING');
+    $this->postJson($base.'/'.$batch.'/advance')->assertOk()->assertJsonPath('status', 'RUNNING');
+    expect($calls)->toBe(1);
+    $this->travel(2)->seconds();
+    // A new request resumes from the database, without the browser submitting a page number.
+    $this->postJson($base.'/'.$batch.'/advance')->assertOk()->assertJsonPath('status', 'COMPLETED');
+    $this->postJson($base.'/'.$batch.'/advance')->assertOk()->assertJsonPath('status', 'COMPLETED');
+    expect($calls)->toBe(2)->and(CardTransaction::where('card_id', $card->id)->count())->toBe(2);
+    Queue::assertNothingPushed();
+    $this->actingAs($this->owner, 'platform_admin')->postJson($base.'/'.$batch.'/advance')->assertForbidden();
+});
+
+it('browser sync leaves rate limit backoff persisted for manual continuation without workers', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-04T08:00:00+08:00'));
+    [$card, $provider] = transactionReadFixture($this);
+    Queue::fake();
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $sync = app(BatchCardTransactionSync::class);
+    $batch = $sync->create($actor, transactionBatchInput($this));
+    $provider->shouldReceive('getTransactionPage')->once()->andThrow(new ProviderRateLimitException('synthetic'));
+    $result = $sync->advance($actor, $batch);
+    expect($result)->toMatchArray(['status' => 'RUNNING', 'waitMs' => 30000]);
+    $sync->advance($actor, $batch); // Does not read again before the persisted backoff.
+    $this->travel(31)->seconds();
+    $provider->shouldReceive('getTransactionPage')->once()->andReturn(new ProviderTransactionPageDTO([], 1, false));
+    expect($sync->advance($actor, $batch)['status'])->toBe('COMPLETED');
+    Queue::assertNothingPushed();
+});

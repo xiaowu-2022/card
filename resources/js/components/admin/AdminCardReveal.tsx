@@ -4,8 +4,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-export function AdminCardReveal({ card }: { card: { id: string; tenantId: string } }) {
-    const [open, setOpen] = useState(false);
+export function AdminCardReveal({
+    card,
+    open: controlledOpen,
+    onOpenChange,
+}: {
+    card: { id: string; tenantId: string };
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+}) {
+    const [localOpen, setLocalOpen] = useState(false);
+    const open = controlledOpen ?? localOpen;
+    function setOpen(value: boolean) {
+        setLocalOpen(value);
+        onOpenChange?.(value);
+    }
     const [password, setPassword] = useState('');
     const [details, setDetails] = useState<{ pan: string; expiry: string; cvv: string } | null>(
         null,
@@ -39,16 +52,23 @@ export function AdminCardReveal({ card }: { card: { id: string; tenantId: string
     }, [details]);
     return (
         <>
-            <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
-                {t('View card information')}
-            </Button>
+            {controlledOpen === undefined && (
+                <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
+                    {t('View card information')}
+                </Button>
+            )}
             <Dialog
                 open={open}
                 onOpenChange={(value) => {
                     if (!value) clear();
                 }}
             >
-                <DialogContent aria-describedby={undefined}>
+                <DialogContent
+                    onCloseAutoFocus={(event) => {
+                        if (controlledOpen !== undefined) event.preventDefault();
+                    }}
+                    aria-describedby={undefined}
+                >
                     <DialogHeader>
                         <DialogTitle>{t('View card information')}</DialogTitle>
                     </DialogHeader>

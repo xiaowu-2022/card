@@ -1,3 +1,13 @@
+On 2026-10-04 the user replaced new SaaS card-transaction sync queue execution with
+browser-driven bounded POSTs. Support one card, selected cards, or whole-company scope,
+date presets, automatic pagination, visible progress and failed-card retry. Each advance
+handles at most one provider page; persisted checkpoints remain server-owned. Closing,
+refreshing or leaving the page stops further requests; opening only reads progress and
+requires explicit Continue. New execution_mode=browser batches must never run via queue
+jobs/recovery; historical queue batches retain their existing mode. Preserve permission,
+actor/company/card binding checks, idempotency, rate limits and read-only financial semantics.
+See docs/deployment/CARD_TRANSACTION_BATCH_SYNC.md.
+
 On 2026-10-04 the user split stock reports by current company partner status.
 Enabled partners use descendant-only successful external deposits minus gross
 completed withdrawals, excluding their own account and all internal/commission

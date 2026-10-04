@@ -1,3 +1,10 @@
+import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuTrigger,
+    DropdownMenuContent,
+    DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { Head, Link } from '@inertiajs/react';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -162,68 +169,68 @@ export default function Users({
                                 />
                             ),
                         },
-                        ...(canViewKyc
-                            ? [
-                                  {
-                                      label: 'KYC',
-                                      render: (row: User) => (
-                                          <Link
-                                              className="text-primary underline"
-                                              href={`/platform/kyc?company=${row.companyId}&search=${row.id}`}
-                                          >
-                                              {t('View identity verification')}
-                                          </Link>
-                                      ),
-                                  },
-                              ]
-                            : []),
-                        ...(canAdjustWallet
-                            ? [
-                                  {
-                                      label: 'Actions',
-                                      render: (row: User) => (
-                                          <Link
-                                              className="text-primary underline"
-                                              href={`/platform/tenants/${row.companyId}/users/${row.id}/wallet-adjustments`}
-                                          >
-                                              {t('Wallet adjustment')}
-                                          </Link>
-                                      ),
-                                  },
-                              ]
-                            : []),
-                        ...(canChangeReferrer || canAdjustCommission
-                            ? [
-                                  {
-                                      label: 'Actions',
-                                      render: (row: User) => (
-                                          <div className="flex flex-col gap-2">
-                                              {canChangeReferrer && (
-                                                  <Link
-                                                      className="text-primary underline"
-                                                      href={`/platform/tenants/${row.companyId}/users/${row.id}/referrer`}
-                                                  >
-                                                      {t('Change referrer')}
-                                                  </Link>
-                                              )}
-                                              {canAdjustCommission && (
-                                                  <Link
-                                                      className="text-primary underline"
-                                                      href={`/platform/tenants/${row.companyId}/users/${row.id}/manual-commissions`}
-                                                  >
-                                                      {t('Manual commission')}
-                                                  </Link>
-                                              )}
-                                          </div>
-                                      ),
-                                  },
-                              ]
-                            : []),
                         { label: 'Created', render: (row) => dateTime(row.createdAt) },
                         {
                             label: 'Last login',
                             render: (row) => (row.lastLoginAt ? dateTime(row.lastLoginAt) : '—'),
                         },
+                        ...(canViewKyc ||
+                        canAdjustWallet ||
+                        canChangeReferrer ||
+                        canAdjustCommission
+                            ? [
+                                  {
+                                      label: 'Actions',
+                                      render: (row: User) => (
+                                          <DropdownMenu>
+                                              <DropdownMenuTrigger asChild>
+                                                  <Button variant="secondary" size="sm">
+                                                      {t('More actions')}
+                                                  </Button>
+                                              </DropdownMenuTrigger>
+                                              <DropdownMenuContent align="end">
+                                                  {canViewKyc && (
+                                                      <DropdownMenuItem asChild>
+                                                          <Link
+                                                              href={`/platform/kyc?company=${row.companyId}&search=${row.id}`}
+                                                          >
+                                                              {t('View identity verification')}
+                                                          </Link>
+                                                      </DropdownMenuItem>
+                                                  )}
+                                                  {canAdjustWallet && (
+                                                      <DropdownMenuItem asChild>
+                                                          <Link
+                                                              href={`/platform/tenants/${row.companyId}/users/${row.id}/wallet-adjustments`}
+                                                          >
+                                                              {t('Wallet adjustment')}
+                                                          </Link>
+                                                      </DropdownMenuItem>
+                                                  )}
+                                                  {canChangeReferrer && (
+                                                      <DropdownMenuItem asChild>
+                                                          <Link
+                                                              href={`/platform/tenants/${row.companyId}/users/${row.id}/referrer`}
+                                                          >
+                                                              {t('Change referrer')}
+                                                          </Link>
+                                                      </DropdownMenuItem>
+                                                  )}
+                                                  {canAdjustCommission && (
+                                                      <DropdownMenuItem asChild>
+                                                          <Link
+                                                              href={`/platform/tenants/${row.companyId}/users/${row.id}/manual-commissions`}
+                                                          >
+                                                              {t('Manual commission')}
+                                                          </Link>
+                                                      </DropdownMenuItem>
+                                                  )}
+                                              </DropdownMenuContent>
+                                          </DropdownMenu>
+                                      ),
+                                  },
+                              ]
+                            : []),
                     ]}
                 />
             </div>

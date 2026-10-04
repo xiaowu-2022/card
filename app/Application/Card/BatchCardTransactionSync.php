@@ -14,9 +14,11 @@ use App\Domain\CardProvider\Exceptions\ProviderUnknownResultException;
 use App\Domain\CardProvider\ProviderReference;
 use App\Jobs\SyncCardTransactionPage;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 final class BatchCardTransactionSync
 {
@@ -52,11 +54,12 @@ final class BatchCardTransactionSync
             $card->form_factor, $this->accountKey($card)]));
     }
 
-    public function preview(?string $tenant): array
+    public function preview(?string $tenant, ?array $selected = null): array
     {
+        $cards = $this->cardScope($tenant, $selected);
         $total = 0;
         $eligible = 0;
-        foreach (UserCard::when($tenant, fn ($q) => $q->where('tenant_id', $tenant))->cursor() as $card) {
+        foreach ($cards->cursor() as $card) {
             $total++;
             $eligible += (int) $this->eligible($card);
         }
@@ -71,22 +74,30 @@ final class BatchCardTransactionSync
         return DB::transaction(function () use ($actor, $input) {
             // Serialize idempotent submissions for this operator.
             AdminUser::whereKey($actor->id)->lockForUpdate()->firstOrFail();
+            $selected = $input['card_ids'] ?? null;
+            if ($selected !== null) {
+                $selected = array_map('strtolower', $selected);
+                sort($selected, SORT_STRING);
+            }
             $old = DB::table('card_transaction_sync_batches')->where('actor_id', $actor->id)->where('request_id', $input['request_id'])->first();
             if ($old) {
                 abort_unless($old->tenant_id === ($input['tenant_id'] ?? null)
-                    && $old->date_from === $input['date_from'] && $old->date_to === $input['date_to'], 409);
+                    && $old->date_from === $input['date_from'] && $old->date_to === $input['date_to']
+                    && ($old->card_ids === null ? null : json_decode($old->card_ids, true)) === $selected, 409);
 
                 return $old->id;
             }
+            $scope = $this->cardScope($input['tenant_id'] ?? null, $selected);
             $id = (string) Str::uuid();
             $now = CarbonImmutable::now();
             DB::table('card_transaction_sync_batches')->insert([
                 'id' => $id, 'actor_id' => $actor->id, 'request_id' => $input['request_id'],
+                'execution_mode' => 'browser', 'card_ids' => $selected === null ? null : json_encode($selected),
                 'tenant_id' => $input['tenant_id'] ?? null, 'date_from' => $input['date_from'], 'date_to' => $input['date_to'],
                 'created_at' => $now, 'updated_at' => $now,
             ]);
             // One SELECT fixes the complete card set before chunked binding reads.
-            $cardIds = UserCard::when($input['tenant_id'] ?? null, fn ($q, $tenant) => $q->where('tenant_id', $tenant))->pluck('id');
+            $cardIds = $scope->pluck('id');
             foreach ($cardIds->chunk(200) as $ids) {
                 $cards = UserCard::with('product.cardProviderReference')->whereIn('id', $ids)->get();
                 foreach ($cards as $card) {
@@ -108,13 +119,45 @@ final class BatchCardTransactionSync
         });
     }
 
+    private function cardScope(?string $tenant, ?array $selected): Builder
+    {
+        $query = UserCard::when($tenant, fn ($q) => $q->where('tenant_id', $tenant));
+        if ($selected !== null) {
+            $query->whereIn('id', $selected);
+            if ($selected === [] || count($selected) > 500 || $query->count() !== count($selected)) {
+                throw ValidationException::withMessages(['card_ids' => 'Selected cards are unavailable in this company.']);
+            }
+        }
+
+        return $query;
+    }
+
     public function recover(?string $batch = null): void
     {
-        DB::table('card_transaction_sync_items')->where('status', 'PENDING')
+        DB::table('card_transaction_sync_items')->whereIn('batch_id', DB::table('card_transaction_sync_batches')->where('execution_mode', 'queue')->select('id'))->where('status', 'PENDING')
             ->where('next_attempt_at', '<=', now()->toIso8601String())
             ->when($batch, fn ($q) => $q->where('batch_id', $batch))
             ->orderBy('next_attempt_at')->limit(500)->get(['id'])
             ->each(fn ($item) => SyncCardTransactionPage::dispatch($item->id)->onConnection('database')->onQueue('card-transaction-sync'));
+    }
+
+    /** One browser request advances at most one page, using persisted checkpoints. */
+    public function advance(AdminUser $actor, string $batch): array
+    {
+        abort_unless($this->allowed($actor), 403);
+        $row = DB::table('card_transaction_sync_batches')->where('actor_id', $actor->id)->where('id', $batch)->first();
+        abort_unless($row, 404);
+        abort_unless($row->execution_mode === 'browser', 409);
+        $pending = DB::table('card_transaction_sync_items')->where('batch_id', $batch)->where('status', 'PENDING');
+        $item = (clone $pending)->where('next_attempt_at', '<=', now()->toIso8601String())->orderBy('next_attempt_at')->orderBy('updated_at')->orderBy('id')->value('id');
+        if ($item) {
+            $this->process($item);
+        }
+        $next = (clone $pending)->min('next_attempt_at');
+        $failed = DB::table('card_transaction_sync_items')->where('batch_id', $batch)->where('status', 'FAILED')->exists();
+
+        return ['status' => $next ? 'RUNNING' : ($failed ? 'PARTIAL_FAILED' : 'COMPLETED'),
+            'waitMs' => $next ? max(1100, min(30000, (int) now()->diffInMilliseconds(CarbonImmutable::parse($next), false))) : 0];
     }
 
     public function retry(AdminUser $actor, string $batch): void
@@ -146,7 +189,7 @@ final class BatchCardTransactionSync
         try {
             foreach (['card:'.$item->card_id, 'account:'.$item->account_key] as $key) {
                 if (! DB::selectOne('SELECT pg_try_advisory_lock(hashtextextended(?, 0)) AS acquired', ['card-transaction-sync:'.$key])->acquired) {
-                    return; // The periodic recovery dispatches any outstanding item.
+                    return; // A later browser step or legacy queue recovery resumes the item.
                 }
                 $locks[] = $key;
             }
@@ -229,7 +272,7 @@ final class BatchCardTransactionSync
                     ]);
                 });
                 Log::info('Card transaction batch page completed', $context + ['records_written' => count($items)]);
-                if ($result->hasMore) {
+                if ($result->hasMore && $batch->execution_mode === 'queue') {
                     SyncCardTransactionPage::dispatch($id)->onConnection('database')->onQueue('card-transaction-sync')->delay(now()->addSecond());
                 }
             } catch (\Throwable $error) {
@@ -242,7 +285,9 @@ final class BatchCardTransactionSync
                         'next_attempt_at' => now()->addSeconds($delay), 'updated_at' => now(),
                     ]);
                     Log::warning('Card transaction batch page retry scheduled', $context + ['failure' => $code]);
-                    SyncCardTransactionPage::dispatch($id)->onConnection('database')->onQueue('card-transaction-sync')->delay(now()->addSeconds($delay));
+                    if ($batch->execution_mode === 'queue') {
+                        SyncCardTransactionPage::dispatch($id)->onConnection('database')->onQueue('card-transaction-sync')->delay(now()->addSeconds($delay));
+                    }
                 } else {
                     $this->failed($item, $code, $context);
                 }

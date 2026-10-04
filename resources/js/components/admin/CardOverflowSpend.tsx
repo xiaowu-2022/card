@@ -8,10 +8,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 
 export function CardOverflowSpend({
     card,
+    open: controlledOpen,
+    onOpenChange,
 }: {
     card: { id: string; tenantId: string; overflowBalance: string };
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
 }) {
-    const [open, setOpen] = useState(false);
+    const [localOpen, setLocalOpen] = useState(false);
+    const open = controlledOpen ?? localOpen;
+    function setOpen(value: boolean) {
+        setLocalOpen(value);
+        onOpenChange?.(value);
+    }
     const form = useForm({
         amount: '',
         note: '',
@@ -20,11 +29,18 @@ export function CardOverflowSpend({
     });
     return (
         <>
-            <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
-                {t('Record overflow consumption')}
-            </Button>
+            {controlledOpen === undefined && (
+                <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
+                    {t('Record overflow consumption')}
+                </Button>
+            )}
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent closeLabel={t('Close')}>
+                <DialogContent
+                    onCloseAutoFocus={(event) => {
+                        if (controlledOpen !== undefined) event.preventDefault();
+                    }}
+                    closeLabel={t('Close')}
+                >
                     <DialogHeader>
                         <DialogTitle>{t('Record overflow consumption')}</DialogTitle>
                     </DialogHeader>

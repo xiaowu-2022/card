@@ -1,4 +1,7 @@
-import { CardTransactionBatchSync } from '@/components/admin/CardTransactionBatchSync';
+import {
+    CardTransactionBatchSync,
+    type SyncScope,
+} from '@/components/admin/CardTransactionBatchSync';
 import { AdminCardReveal } from '@/components/admin/AdminCardReveal';
 import { CardOverflowSpend } from '@/components/admin/CardOverflowSpend';
 import { CardBalanceLimit } from '@/components/admin/CardBalanceLimit';
@@ -9,7 +12,14 @@ import { displayMoney } from '@/lib/exact-amount';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
-import { useState } from 'react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useEffect, useRef, useState } from 'react';
+import {
+    DropdownMenu,
+    DropdownMenuTrigger,
+    DropdownMenuContent,
+    DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
 import { StatusBadge, type StatusTone } from '@/components/shared/StatusBadge';
@@ -36,6 +46,7 @@ type UserCard = {
     effectiveBalanceLimit: string | null;
     currency: string;
     balanceUpdatedAt: string | null;
+    lastTransactionSyncAt: string | null;
     companyName: string;
     userEmail: string;
     productName: string;
@@ -70,7 +81,31 @@ export default function Cards({
     useAdminTranslation();
     const canManage =
         usePage<SharedProps>().props.auth.admin?.permissions.includes('card_product.manage');
-    const [tab, setTab] = useState(filters.tab ?? 'orders');
+    const tab = filters.tab ?? 'orders';
+    const [selected, setSelected] = useState<Record<string, UserCard>>({});
+    const [syncScope, setSyncScope] = useState<SyncScope | null>(null);
+    const [transactionRefresh, setTransactionRefresh] = useState(0);
+    useEffect(() => {
+        setSelected({});
+    }, [filters.company, filters.search]);
+    const selection = Object.values(selected);
+    const pageSelected = cards.data.length > 0 && cards.data.every((card) => selected[card.id]);
+    function selectPage(checked: boolean) {
+        setSelected((previous) => {
+            const next = { ...previous };
+            for (const card of cards.data) {
+                if (!checked) delete next[card.id];
+                else if (Object.keys(next).length < 500) next[card.id] = card;
+            }
+            return next;
+        });
+    }
+    function completedSync() {
+        router.reload({
+            only: ['cards'],
+            onSuccess: () => setTransactionRefresh((value) => value + 1),
+        });
+    }
     const [selectedCard, setSelectedCard] = useState<UserCard | null>(null);
     const [refreshing, setRefreshing] = useState<string | null>(null);
     const [refreshError, setRefreshError] = useState('');
@@ -85,7 +120,16 @@ export default function Cards({
                         'Review card orders and balances, and manage individual card balance limits.',
                     )}
                 />
-                <Tabs value={tab} onValueChange={setTab}>
+                <Tabs
+                    value={tab}
+                    onValueChange={(value) =>
+                        router.get(
+                            '/platform/cards',
+                            { ...filters, tab: value },
+                            { preserveState: true, preserveScroll: true, replace: true },
+                        )
+                    }
+                >
                     <TabsList>
                         <TabsTrigger value="orders">{t('Issue orders')}</TabsTrigger>
                         <TabsTrigger value="loads">{t('Card reload orders')}</TabsTrigger>
@@ -126,10 +170,40 @@ export default function Cards({
                     </TabsContent>
                     <TabsContent value="cards">
                         {canManage && (
-                            <CardTransactionBatchSync
-                                companies={companies}
-                                company={filters.company}
-                            />
+                            <>
+                                <div className="mb-3 flex flex-wrap items-center gap-2">
+                                    <Button
+                                        onClick={() => setSyncScope({ company: filters.company })}
+                                    >
+                                        {t('Bulk sync card transactions')}
+                                    </Button>
+                                    <Button
+                                        variant="secondary"
+                                        disabled={!selection.length}
+                                        onClick={() => setSyncScope({ cards: selection })}
+                                    >
+                                        {t('Sync selected cards ({{count}})', {
+                                            count: selection.length,
+                                        })}
+                                    </Button>
+                                    {selection.length > 0 && (
+                                        <Button variant="ghost" onClick={() => setSelected({})}>
+                                            {t('Clear selection')}
+                                        </Button>
+                                    )}
+                                    <span className="text-xs text-muted-foreground">
+                                        {t(
+                                            'Select up to 500 cards across pages. Changing filters clears the selection.',
+                                        )}
+                                    </span>
+                                </div>
+                                <CardTransactionBatchSync
+                                    companies={companies}
+                                    scope={syncScope}
+                                    onClose={() => setSyncScope(null)}
+                                    onCompleted={completedSync}
+                                />
+                            </>
                         )}
                         {refreshError && (
                             <p role="alert" className="mb-3 text-sm text-destructive">
@@ -145,6 +219,51 @@ export default function Cards({
                             extraQuery={{ tab: 'cards' }}
                             searchLabel={t('Search account ID, email or phone')}
                             columns={[
+                                ...(canManage
+                                    ? [
+                                          {
+                                              label: 'Select',
+                                              header: (
+                                                  <Checkbox
+                                                      aria-label={t('Select this page')}
+                                                      checked={
+                                                          pageSelected
+                                                              ? true
+                                                              : cards.data.some(
+                                                                      (card) => selected[card.id],
+                                                                  )
+                                                                ? 'indeterminate'
+                                                                : false
+                                                      }
+                                                      onCheckedChange={(checked) =>
+                                                          selectPage(checked === true)
+                                                      }
+                                                  />
+                                              ),
+                                              render: (row: UserCard) => (
+                                                  <Checkbox
+                                                      aria-label={t('Select card {{card}}', {
+                                                          card: row.maskedPan,
+                                                      })}
+                                                      checked={Boolean(selected[row.id])}
+                                                      disabled={
+                                                          !selected[row.id] &&
+                                                          selection.length >= 500
+                                                      }
+                                                      onCheckedChange={(checked) =>
+                                                          setSelected((previous) => {
+                                                              const next = { ...previous };
+                                                              if (checked) next[row.id] = row;
+                                                              else delete next[row.id];
+                                                              return next;
+                                                          })
+                                                      }
+                                                  />
+                                              ),
+                                          },
+                                      ]
+                                    : []),
+
                                 { label: 'Tenant', render: (row) => row.companyName },
                                 { label: 'User', render: (row) => row.userEmail },
                                 { label: 'Product', render: (row) => row.productName },
@@ -222,19 +341,24 @@ export default function Cards({
                                     ),
                                 },
                                 {
+                                    label: 'Last successful sync',
+                                    render: (row) => (
+                                        <span
+                                            className="text-xs"
+                                            title={t(
+                                                'Latest completed date-range sync. This is separate from balance refresh.',
+                                            )}
+                                        >
+                                            {row.lastTransactionSyncAt
+                                                ? dateTime(row.lastTransactionSyncAt)
+                                                : t('Not yet synced')}
+                                        </span>
+                                    ),
+                                },
+                                {
                                     label: 'Actions',
                                     render: (row) => (
-                                        <div className="flex flex-wrap gap-2">
-                                            {canManage && (
-                                                <>
-                                                    <AdminCardReveal card={row} />
-                                                    <CardOverflowSpend card={row} />
-                                                    <CardBalanceLimit
-                                                        key={`${row.id}:${row.balanceLimit}`}
-                                                        card={row}
-                                                    />
-                                                </>
-                                            )}
+                                        <div className="flex items-center gap-2">
                                             <Button
                                                 variant="secondary"
                                                 size="sm"
@@ -242,11 +366,25 @@ export default function Cards({
                                             >
                                                 {t('View transactions')}
                                             </Button>
-                                            <Button
-                                                variant="secondary"
-                                                size="sm"
-                                                disabled={refreshing !== null}
-                                                onClick={() => {
+                                            {canManage && (
+                                                <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        setSyncScope({
+                                                            company: row.tenantId,
+                                                            cards: [row],
+                                                        })
+                                                    }
+                                                >
+                                                    {t('Sync')}
+                                                </Button>
+                                            )}
+                                            <CardRowActions
+                                                card={row}
+                                                canManage={Boolean(canManage)}
+                                                refreshing={refreshing !== null}
+                                                onRefresh={() => {
                                                     setRefreshing(row.id);
                                                     setRefreshError('');
                                                     router.post(
@@ -264,13 +402,7 @@ export default function Cards({
                                                         },
                                                     );
                                                 }}
-                                            >
-                                                {t(
-                                                    refreshing === row.id
-                                                        ? 'Refreshing'
-                                                        : 'Refresh balance',
-                                                )}
-                                            </Button>
+                                            />
                                         </div>
                                     ),
                                 },
@@ -283,10 +415,79 @@ export default function Cards({
                 <PlatformCardTransactions
                     key={`${selectedCard.tenantId}:${selectedCard.id}`}
                     card={selectedCard}
-                    canSync={Boolean(canManage)}
+                    refreshKey={transactionRefresh}
+                    onSync={
+                        canManage
+                            ? () => {
+                                  setSyncScope({
+                                      company: selectedCard.tenantId,
+                                      cards: [selectedCard],
+                                  });
+                                  setSelectedCard(null);
+                              }
+                            : undefined
+                    }
                     onClose={() => setSelectedCard(null)}
                 />
             )}
         </PlatformLayout>
+    );
+}
+
+function CardRowActions({
+    card,
+    canManage,
+    refreshing,
+    onRefresh,
+}: {
+    card: UserCard;
+    canManage: boolean;
+    refreshing: boolean;
+    onRefresh: () => void;
+}) {
+    const [action, setAction] = useState<'reveal' | 'limit' | 'overflow' | null>(null);
+    const trigger = useRef<HTMLButtonElement>(null);
+    const close = (open: boolean) => {
+        if (!open) {
+            setAction(null);
+            requestAnimationFrame(() => trigger.current?.focus());
+        }
+    };
+    return (
+        <>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button ref={trigger} variant="secondary" size="sm">
+                        {t('More actions')}
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                    align="end"
+                    onCloseAutoFocus={(event) => {
+                        if (action) event.preventDefault();
+                    }}
+                >
+                    <DropdownMenuItem disabled={refreshing} onSelect={onRefresh}>
+                        {t(refreshing ? 'Refreshing' : 'Refresh balance')}
+                    </DropdownMenuItem>
+                    {canManage && (
+                        <>
+                            <DropdownMenuItem onSelect={() => setAction('reveal')}>
+                                {t('View card information')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => setAction('limit')}>
+                                {t('Balance limit')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => setAction('overflow')}>
+                                {t('Record overflow consumption')}
+                            </DropdownMenuItem>
+                        </>
+                    )}
+                </DropdownMenuContent>
+            </DropdownMenu>
+            {action === 'reveal' && <AdminCardReveal card={card} open onOpenChange={close} />}
+            {action === 'limit' && <CardBalanceLimit card={card} open onOpenChange={close} />}
+            {action === 'overflow' && <CardOverflowSpend card={card} open onOpenChange={close} />}
+        </>
     );
 }

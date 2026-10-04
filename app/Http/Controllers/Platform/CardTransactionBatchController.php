@@ -13,9 +13,10 @@ final class CardTransactionBatchController extends Controller
 {
     public function preview(Request $request, BatchCardTransactionSync $sync)
     {
-        $input = $request->validate(['tenant_id' => ['nullable', 'uuid', 'exists:tenants,id']]);
+        $input = $request->validate(['tenant_id' => ['nullable', 'uuid', 'exists:tenants,id'],
+            'card_ids' => ['sometimes', 'array', 'min:1', 'max:500'], 'card_ids.*' => ['required', 'uuid', 'distinct:ignore_case']]);
 
-        return response()->json($sync->preview($input['tenant_id'] ?? null))->header('Cache-Control', 'private, no-store');
+        return response()->json($sync->preview($input['tenant_id'] ?? null, $input['card_ids'] ?? null))->header('Cache-Control', 'private, no-store');
     }
 
     public function store(Request $request, BatchCardTransactionSync $sync)
@@ -23,6 +24,8 @@ final class CardTransactionBatchController extends Controller
         $input = $request->validate([
             'tenant_id' => ['nullable', 'uuid', 'exists:tenants,id'],
             'request_id' => ['required', 'uuid'],
+            'card_ids' => ['sometimes', 'array', 'min:1', 'max:500'],
+            'card_ids.*' => ['required', 'uuid', 'distinct:ignore_case'],
             'date_from' => ['required', 'date_format:Y-m-d'],
             'date_to' => ['required', 'date_format:Y-m-d', 'after_or_equal:date_from', 'before_or_equal:'.now('Asia/Shanghai')->format('Y-m-d')],
         ]);
@@ -36,9 +39,29 @@ final class CardTransactionBatchController extends Controller
 
     public function index(Request $request)
     {
-        return response()->json(['items' => DB::table('card_transaction_sync_batches')->where('actor_id', $request->user('platform_admin')->id)
-            ->orderByDesc('created_at')->limit(20)->get(['id', 'tenant_id', 'date_from', 'date_to', 'created_at'])])
-            ->header('Cache-Control', 'private, no-store');
+        $batches = DB::table('card_transaction_sync_batches')->where('actor_id', $request->user('platform_admin')->id)
+            ->orderByDesc('created_at')->orderByDesc('id')->limit(20)->get(['id', 'tenant_id', 'date_from', 'date_to', 'created_at', 'card_ids', 'execution_mode']);
+        $counts = DB::table('card_transaction_sync_items')->whereIn('batch_id', $batches->pluck('id'))
+            ->selectRaw("batch_id, COUNT(*) AS total,
+                COUNT(*) FILTER(WHERE status='PENDING') AS pending,
+                COUNT(*) FILTER(WHERE status='SUCCEEDED') AS succeeded,
+                COUNT(*) FILTER(WHERE status='FAILED') AS failed,
+                COUNT(*) FILTER(WHERE status='SKIPPED') AS skipped,
+                COALESCE(SUM(pages_processed),0) AS pages, COALESCE(SUM(records_written),0) AS records")
+            ->groupBy('batch_id')->get()->keyBy('batch_id');
+
+        return response()->json(['items' => $batches->map(function ($row) use ($counts) {
+            $values = [];
+            foreach (['total', 'pending', 'succeeded', 'failed', 'skipped', 'pages', 'records'] as $key) {
+                $values[$key] = (int) ($counts->get($row->id)?->$key ?? 0);
+            }
+
+            return ['id' => $row->id, 'tenant_id' => $row->tenant_id, 'date_from' => $row->date_from,
+                'date_to' => $row->date_to, 'created_at' => $row->created_at,
+                'scope' => $row->card_ids !== null ? 'selected' : ($row->tenant_id ? 'company' : 'all'),
+                'execution_mode' => $row->execution_mode, 'counts' => $values,
+                'status' => $values['pending'] > 0 ? 'RUNNING' : ($values['failed'] > 0 ? 'PARTIAL_FAILED' : 'COMPLETED')];
+        })])->header('Cache-Control', 'private, no-store');
     }
 
     public function show(Request $request, string $batch)
@@ -63,6 +86,12 @@ final class CardTransactionBatchController extends Controller
         return response()->json(['batch' => $row, 'counts' => $counts,
             'status' => $counts->pending > 0 ? 'RUNNING' : ($counts->failed > 0 ? 'PARTIAL_FAILED' : 'COMPLETED'),
             'details' => ['items' => $details->items(), 'page' => $details->currentPage(), 'hasMore' => $details->hasMorePages()]])
+            ->header('Cache-Control', 'private, no-store');
+    }
+
+    public function advance(Request $request, string $batch, BatchCardTransactionSync $sync)
+    {
+        return response()->json($sync->advance($request->user('platform_admin'), $batch))
             ->header('Cache-Control', 'private, no-store');
     }
 

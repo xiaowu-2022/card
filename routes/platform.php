@@ -46,9 +46,11 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware(['admin.scope:platform,cards.read', 'admin.scope:platform,card_product.manage'])->prefix('card-transaction-batches')->group(function (): void {
         Route::get('/preview', [CardTransactionBatchController::class, 'preview'])->middleware('throttle:30,1');
+        Route::post('/preview', [CardTransactionBatchController::class, 'preview'])->middleware('throttle:30,1');
         Route::get('/', [CardTransactionBatchController::class, 'index']);
         Route::post('/', [CardTransactionBatchController::class, 'store'])->middleware('throttle:5,1');
         Route::get('/{batch}', [CardTransactionBatchController::class, 'show'])->whereUuid('batch');
+        Route::post('/{batch}/advance', [CardTransactionBatchController::class, 'advance'])->whereUuid('batch')->middleware('throttle:60,1');
         Route::post('/{batch}/retry', [CardTransactionBatchController::class, 'retry'])->whereUuid('batch')->middleware('throttle:5,1');
     });
 

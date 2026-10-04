@@ -162,3 +162,23 @@ The consumer card operation-history dialog likewise reads only scoped persisted
 validate live provider identities. Tenant/user activity, ownership and existing
 refund restrictions remain. Balance-refresh and provider-result buttons are not
 part of this read-only dialog; mutation/synchronization endpoints keep their guards.
+
+## Browser-driven SaaS synchronization (2026-10-04 override)
+
+Admin synchronization now creates a scoped, persistent batch for one card, an explicit selection
+(maximum 500), or an entire company/all companies. The frontend sends one bounded advance POST
+at a time; it never receives provider credentials or chooses the persisted next page. New batches
+use `execution_mode=browser`; only historical `queue` batches participate in queue recovery/jobs.
+Closing or leaving the page stops further requests, while an in-flight page can finish. Reload
+only reads progress and requires an explicit Continue action. The original single-page sync
+endpoint remains compatible, but the SaaS dialog no longer requires manual page-by-page clicks.
+
+`card_transaction_sync_batches.card_ids` stores the canonical original selected intent for UUID
+idempotency; null retains whole-scope selection. Existing per-card records hold the immutable
+binding snapshot/checkpoint. List progress is actor-scoped; last successful per-card sync reads
+the latest SUCCEEDED item timestamp and never updates card balances or financial history.
+
+Every advance checks permission and batch ownership, then reuses provider/account/card locks,
+one-second spacing, exact date filtering, atomic page writes and checkpoint updates, and bounded
+retry backoff. GET and preview never enqueue or read the provider. Details and diagnostic logs
+retain the existing safe classification/encrypted payload rules. See deployment/CARD_TRANSACTION_BATCH_SYNC.md.

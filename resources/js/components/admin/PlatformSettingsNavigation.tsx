@@ -29,7 +29,10 @@ export function PlatformSettingsNavigation() {
     const permissions = props.auth.admin?.permissions ?? [];
     const path = url.split('?')[0];
     return (
-        <nav aria-label={t('System settings')} className="flex gap-1 border-b">
+        <nav
+            aria-label={t('System settings')}
+            className="flex min-w-0 gap-1 overflow-x-auto border-b"
+        >
             {platformSettingsTabs
                 .filter((tab) => permissions.includes(tab.permission))
                 .map((tab) => (

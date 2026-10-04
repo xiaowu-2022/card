@@ -234,12 +234,14 @@ export function PlatformLayout({ children }: { children: ReactNode }) {
                 </div>
             </header>
             <main className="min-w-0 p-4 sm:p-6 lg:ml-64 lg:p-8 xl:p-10">
-                {flash.success && (
-                    <Alert className="mb-6 border-emerald-200 bg-emerald-50">
-                        <AlertDescription>{t(flash.success)}</AlertDescription>
-                    </Alert>
-                )}
-                {children}
+                <div className="mx-auto min-w-0 w-full max-w-[1600px]">
+                    {flash.success && (
+                        <Alert className="mb-6 border-emerald-200 bg-emerald-50">
+                            <AlertDescription>{t(flash.success)}</AlertDescription>
+                        </Alert>
+                    )}
+                    {children}
+                </div>
             </main>
         </div>
     );

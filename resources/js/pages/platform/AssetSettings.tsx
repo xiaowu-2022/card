@@ -190,7 +190,7 @@ function AssetSettingsForm(p: Props) {
                         }}
                         className="space-y-3"
                     >
-                        <div className="sticky top-3 z-20 space-y-3 rounded-xl border bg-surface p-5 shadow-sm">
+                        <div className="sticky top-20 z-20 space-y-3 rounded-xl border bg-surface p-5 shadow-sm">
                             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                                 <label className="block w-full space-y-2 text-sm sm:max-w-sm">
                                     <span>{t('Company')}</span>

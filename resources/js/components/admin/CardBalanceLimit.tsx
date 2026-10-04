@@ -7,20 +7,35 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 
 export function CardBalanceLimit({
     card,
+    open: controlledOpen,
+    onOpenChange,
 }: {
     card: { id: string; tenantId: string; balanceLimit: string | null };
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
 }) {
-    const [open, setOpen] = useState(false);
+    const [localOpen, setLocalOpen] = useState(false);
+    const open = controlledOpen ?? localOpen;
+    function setOpen(value: boolean) {
+        setLocalOpen(value);
+        onOpenChange?.(value);
+    }
     const form = useForm({
         balance_limit: card.balanceLimit === null ? '' : card.balanceLimit.replace(/\.?0+$/, ''),
     });
     return (
         <>
-            <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
-                {t('Balance limit')}
-            </Button>
+            {controlledOpen === undefined && (
+                <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
+                    {t('Balance limit')}
+                </Button>
+            )}
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent>
+                <DialogContent
+                    onCloseAutoFocus={(event) => {
+                        if (controlledOpen !== undefined) event.preventDefault();
+                    }}
+                >
                     <DialogHeader>
                         <DialogTitle>{t('Balance limit')}</DialogTitle>
                     </DialogHeader>

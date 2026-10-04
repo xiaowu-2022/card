@@ -44,7 +44,12 @@ export function PlatformAccountTable<T extends { id: string }>({
 }: {
     page: AccountPage<T>;
     rowKey?: (row: T) => string;
-    columns: { label: string; className?: string; render: (row: T) => ReactNode }[];
+    columns: {
+        label: string;
+        header?: ReactNode;
+        className?: string;
+        render: (row: T) => ReactNode;
+    }[];
     url: string;
     filters: {
         search?: string;
@@ -71,7 +76,7 @@ export function PlatformAccountTable<T extends { id: string }>({
         return parsed.pathname + parsed.search;
     };
     return (
-        <div className="overflow-hidden rounded-xl border bg-surface">
+        <div className="min-w-0 max-w-full overflow-hidden rounded-xl border bg-surface">
             {showFilters && (
                 <form
                     className="flex flex-wrap gap-3 border-b p-4"
@@ -158,38 +163,46 @@ export function PlatformAccountTable<T extends { id: string }>({
                     </Button>
                 </form>
             )}
-            <div className="overflow-x-auto">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            {columns.map((column) => (
-                                <TableHead
-                                    className={cn('whitespace-nowrap', column.className)}
-                                    key={column.label}
-                                >
-                                    {t(column.label)}
-                                </TableHead>
-                            ))}
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {page.data.length
-                            ? page.data.map((row) => (
-                                  <TableRow key={rowKey(row)}>
-                                      {columns.map((column) => (
-                                          <TableCell
-                                              className={cn('whitespace-nowrap', column.className)}
-                                              key={column.label}
-                                          >
-                                              {column.render(row)}
-                                          </TableCell>
-                                      ))}
-                                  </TableRow>
-                              ))
-                            : null}
-                    </TableBody>
-                </Table>
-            </div>
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        {columns.map((column, index) => (
+                            <TableHead
+                                className={cn(
+                                    'whitespace-nowrap',
+                                    column.label === 'Actions' &&
+                                        'sticky right-0 z-10 w-px bg-surface shadow-[-1px_0_0_var(--color-border)]',
+                                    column.className,
+                                )}
+                                key={`${column.label}:${index}`}
+                            >
+                                {column.header ?? t(column.label)}
+                            </TableHead>
+                        ))}
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {page.data.length
+                        ? page.data.map((row) => (
+                              <TableRow key={rowKey(row)}>
+                                  {columns.map((column, index) => (
+                                      <TableCell
+                                          className={cn(
+                                              'whitespace-nowrap',
+                                              column.label === 'Actions' &&
+                                                  'sticky right-0 z-10 w-px bg-surface shadow-[-1px_0_0_var(--color-border)]',
+                                              column.className,
+                                          )}
+                                          key={`${column.label}:${index}`}
+                                      >
+                                          {renderCell(column.render(row))}
+                                      </TableCell>
+                                  ))}
+                              </TableRow>
+                          ))
+                        : null}
+                </TableBody>
+            </Table>
             {page.data.length === 0 && (
                 <p className="px-4 py-12 text-center text-sm text-muted-foreground">
                     {t('No matching records.')}
@@ -225,5 +238,14 @@ export function PlatformAccountTable<T extends { id: string }>({
                 </div>
             </div>
         </div>
+    );
+}
+
+function renderCell(value: ReactNode) {
+    if (typeof value !== 'string') return value;
+    return (
+        <span className="block max-w-52 truncate" title={value}>
+            {value}
+        </span>
     );
 }
