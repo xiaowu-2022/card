@@ -29,6 +29,11 @@ page {
     color-scheme: only light;
 }
 /* #ifdef H5 */
+/* uni-app mounts pickers under uni-app, outside our body-teleported dialogs.
+   Keep the entire picker (mask, wheel and actions) above Modal's layer 1000. */
+uni-app .uni-picker-container {
+    z-index: 1100;
+}
 :root {
     color-scheme: light;
     color-scheme: only light;

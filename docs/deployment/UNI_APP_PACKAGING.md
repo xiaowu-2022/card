@@ -307,6 +307,11 @@ This does not replace acceptance on the affected physical iPhone.
 Publish rebuilt H5 JS/CSS and its matching entry to apply the browser fix; clear CDN
 entry caches as appropriate. Updating only PHP or an APK does not update H5 browsers.
 
+H5 的 uni-app 选择器整体使用层级 1100，高于筛选弹窗的 1000，避免滚轮和
+确认按钮被弹窗遮罩挡住。`tests/Browser/consumer-picker-layer.mjs` 使用离线
+每日数据验证 Chromium/WebKit 的触摸滑动、确认、取消及页面滚动锁恢复。
+此修复仅需发布 H5 入口及配套资源，无需重新打包 APK。
+
 ### 身份认证图片缩略图与刷新（2026-10-04）
 
 认证结果页使用 OSS `thumbnail` 展示策略（最长边 480px、JPEG、质量 75），固定小图框；点击才加载原图弹窗。缩略图失败依次尝试原图和服务器副本，每个地址一次，单次加载超过 15 秒也进入回退；全部失败显示图片不可用及刷新按钮。刷新重新尝试并通过只读认证查询更新签名地址。原图、认证记录、OCR 和补传状态不变。
