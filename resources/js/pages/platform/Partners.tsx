@@ -14,6 +14,8 @@ import '../../../css/partner-stock.css';
 type Page<T> = { data: T[]; current_page: number; last_page: number; total: number };
 type Partner = {
     id: string;
+    tenant_id: string;
+    company_name: string;
     enabled: boolean;
     share_percent: string;
     account_id: string;
@@ -21,6 +23,8 @@ type Partner = {
 };
 type Fee = {
     id: string;
+    tenant_id: string;
+    company_name: string;
     withdrawal_id: string;
     asset_code: string;
     original_amount: string;
@@ -31,12 +35,14 @@ const date = () => new Date().toISOString().slice(0, 10);
 export default function Partners({
     companies,
     companyId,
+    reportCompanyId,
     partners,
     report,
     pendingFees,
 }: {
     companies: { id: string; name: string }[];
     companyId: string | null;
+    reportCompanyId: string | null;
     partners: Page<Partner> | null;
     report: StockReport | null;
     pendingFees: Page<Fee> | null;
@@ -51,18 +57,20 @@ export default function Partners({
         request_id: requestId(),
         reverses_id: null as string | null,
     });
+    const [targetCompany, setTargetCompany] = useState(companyId ?? '');
     const [journalPartner, setJournalPartner] = useState('');
     const [journalAccount, setJournalAccount] = useState('');
     const [journalOpen, setJournalOpen] = useState(false);
     const [configurationOpen, setConfigurationOpen] = useState(false);
     const [editing, setEditing] = useState<Partner | null>(null);
     const [feeId, setFeeId] = useState('');
+    const [feeCompany, setFeeCompany] = useState('');
     const fx = useForm({ rate: '', observed_at: '', evidence: '', request_id: requestId() });
     const visit = (partner?: string, page = 1, flow?: string | null, flowPage = 1) =>
         router.get(
             '/platform/partners',
             {
-                tenant: companyId,
+                company: companyId,
                 ...(partner ? { partner } : {}),
                 page,
                 ...(flow ? { flow, flow_page: flowPage } : {}),
@@ -70,54 +78,66 @@ export default function Partners({
             { preserveScroll: true, preserveState: true },
         );
     const edit = (p: Partner) => {
-        configuration.setData({
+        setTargetCompany(p.tenant_id);
+        const values = {
             account_id: p.account_id,
             enabled: p.enabled,
             share_percent: p.share_percent,
-        });
+        };
+        configuration.setDefaults(values);
+        configuration.setData(values);
         setEditing(p);
         configuration.clearErrors();
         setConfigurationOpen(true);
     };
     const add = () => {
+        setTargetCompany(companyId ?? '');
         setEditing(null);
-        configuration.setData({ account_id: '', enabled: true, share_percent: '40' });
+        const values = { account_id: '', enabled: true, share_percent: '40' };
+        configuration.setDefaults(values);
+        configuration.setData(values);
         configuration.clearErrors();
         setConfigurationOpen(true);
     };
     const record = (p: Partner) => {
+        setTargetCompany(p.tenant_id);
         setJournalPartner(p.id);
         setJournalAccount(p.account_id);
-        journal.setData({
+        const values = {
             kind: 'REIMBURSEMENT',
             amount: '',
             business_date: date(),
             note: '',
             request_id: requestId(),
             reverses_id: null,
-        });
+        };
+        journal.setDefaults(values);
+        journal.setData(values);
         journal.clearErrors();
         setJournalOpen(true);
     };
     const reverse = (row: JournalRow) => {
+        setTargetCompany(reportCompanyId ?? '');
         setJournalPartner(row.partner_id);
         setJournalAccount(row.account_id);
         journal.clearErrors();
         setJournalOpen(true);
-        journal.setData({
+        const values = {
             kind: row.kind,
             amount: row.amount,
             business_date: date(),
             note: '',
             request_id: requestId(),
             reverses_id: row.id,
-        });
+        };
+        journal.setDefaults(values);
+        journal.setData(values);
     };
     const submitJournal = (e: FormEvent) => {
         e.preventDefault();
-        if (companyId && (journalPartner || report?.partnerId))
+        if (targetCompany && (journalPartner || report?.partnerId))
             journal.post(
-                `/platform/tenants/${companyId}/partners/${journalPartner || report?.partnerId}/journal`,
+                `/platform/tenants/${targetCompany}/partners/${journalPartner || report?.partnerId}/journal`,
                 {
                     preserveScroll: true,
                     onSuccess: () => {
@@ -135,12 +155,7 @@ export default function Partners({
             <main className="partner-admin">
                 <div className="partner-list-header">
                     <h1>{t('Partners')}</h1>
-                    <button
-                        type="button"
-                        className="partner-admin-action"
-                        disabled={!companyId}
-                        onClick={add}
-                    >
+                    <button type="button" className="partner-admin-action" onClick={add}>
                         + {t('Add partner')}
                     </button>
                 </div>
@@ -150,10 +165,10 @@ export default function Partners({
                         <select
                             value={companyId ?? ''}
                             onChange={(e) =>
-                                router.get('/platform/partners', { tenant: e.target.value })
+                                router.get('/platform/partners', { company: e.target.value })
                             }
                         >
-                            <option value="">{t('Select company')}</option>
+                            <option value="">{t('All companies')}</option>
                             {companies.map((c) => (
                                 <option key={c.id} value={c.id}>
                                     {c.name}
@@ -162,7 +177,7 @@ export default function Partners({
                         </select>
                     </label>
                 </div>
-                {companyId && (
+                {
                     <>
                         <section className="partner-list-panel" aria-label={t('Partner list')}>
                             <div className="partner-list-count">
@@ -172,6 +187,7 @@ export default function Partners({
                                 <table className="partner-table">
                                     <thead>
                                         <tr>
+                                            <th>{t('Company')}</th>
                                             <th>{t('Platform account ID')}</th>
                                             <th>{t('Nickname')}</th>
                                             <th>{t('Partner share')}</th>
@@ -182,6 +198,7 @@ export default function Partners({
                                     <tbody>
                                         {partners.data.map((p) => (
                                             <tr key={p.id}>
+                                                <td>{p.company_name}</td>
                                                 <td data-label={t('Platform account ID')}>
                                                     <strong>{p.account_id}</strong>
                                                 </td>
@@ -202,7 +219,12 @@ export default function Partners({
                                                     <div className="partner-row-actions">
                                                         <button
                                                             type="button"
-                                                            onClick={() => visit(p.id)}
+                                                            onClick={() =>
+                                                                router.get('/platform/partners', {
+                                                                    company: p.tenant_id,
+                                                                    partner: p.id,
+                                                                })
+                                                            }
                                                         >
                                                             {t('View report')}
                                                         </button>
@@ -244,7 +266,13 @@ export default function Partners({
                         <Dialog
                             open={configurationOpen}
                             onOpenChange={(open) => {
-                                if (!configuration.processing) setConfigurationOpen(open);
+                                if (
+                                    !configuration.processing &&
+                                    (open ||
+                                        !configuration.isDirty ||
+                                        confirm(t('Discard unsaved changes?')))
+                                )
+                                    setConfigurationOpen(open);
                             }}
                         >
                             <DialogContent
@@ -263,7 +291,7 @@ export default function Partners({
                                     onSubmit={(e) => {
                                         e.preventDefault();
                                         configuration.post(
-                                            `/platform/tenants/${companyId}/partners`,
+                                            `/platform/tenants/${targetCompany}/partners`,
                                             {
                                                 preserveScroll: true,
                                                 onSuccess: () => setConfigurationOpen(false),
@@ -271,6 +299,25 @@ export default function Partners({
                                         );
                                     }}
                                 >
+                                    <label>
+                                        {t('Company')}
+                                        <select
+                                            required
+                                            disabled={!!editing || configuration.processing}
+                                            value={targetCompany}
+                                            onChange={(e) => {
+                                                setTargetCompany(e.target.value);
+                                                configuration.setData('account_id', '');
+                                            }}
+                                        >
+                                            <option value="">{t('Choose a company')}</option>
+                                            {companies.map((c) => (
+                                                <option key={c.id} value={c.id}>
+                                                    {c.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
                                     <div className="partner-member-field">
                                         <label htmlFor="partner-user">{t('Select member')}</label>
                                         {editing ? (
@@ -280,8 +327,8 @@ export default function Partners({
                                             </div>
                                         ) : (
                                             <PartnerUserSelect
-                                                key={companyId + String(configurationOpen)}
-                                                companyId={companyId}
+                                                key={targetCompany + String(configurationOpen)}
+                                                companyId={targetCompany}
                                                 value={configuration.data.account_id}
                                                 onChange={(value) =>
                                                     configuration.setData('account_id', value)
@@ -321,6 +368,7 @@ export default function Partners({
                                     <button
                                         disabled={
                                             configuration.processing ||
+                                            !targetCompany ||
                                             !configuration.data.account_id
                                         }
                                     >
@@ -333,7 +381,13 @@ export default function Partners({
                         <Dialog
                             open={journalOpen}
                             onOpenChange={(open) => {
-                                if (!journal.processing) setJournalOpen(open);
+                                if (
+                                    !journal.processing &&
+                                    (open ||
+                                        !journal.isDirty ||
+                                        confirm(t('Discard unsaved changes?')))
+                                )
+                                    setJournalOpen(open);
                             }}
                         >
                             <DialogContent
@@ -433,68 +487,122 @@ export default function Partners({
                                     <span>
                                         {f.original_amount} {f.asset_code}
                                     </span>
-                                    <small>{f.withdrawal_id}</small>
+                                    <small>
+                                        {f.company_name} · {f.withdrawal_id}
+                                    </small>
                                     <button
                                         type="button"
                                         onClick={() => {
                                             setFeeId(f.id);
-                                            fx.reset();
-                                            fx.setData('request_id', requestId());
+                                            setFeeCompany(f.tenant_id);
+                                            const values = {
+                                                rate: '',
+                                                observed_at: '',
+                                                evidence: '',
+                                                request_id: requestId(),
+                                            };
+                                            fx.setDefaults(values);
+                                            fx.setData(values);
                                         }}
                                     >
                                         {t('Complete fixed rate')}
                                     </button>
                                 </div>
                             ))}
-                            <Pager page={pendingFees} onPage={(p) => visit(report?.partnerId, p)} />
-                            {feeId && (
-                                <form
-                                    className="partner-form"
-                                    onSubmit={(e) => {
-                                        e.preventDefault();
-                                        fx.transform((data) => ({
-                                            ...data,
-                                            observed_at: new Date(data.observed_at).toISOString(),
-                                        }));
-                                        fx.post(
-                                            `/platform/tenants/${companyId}/fee-valuations/${feeId}`,
-                                            { preserveScroll: true, onSuccess: () => setFeeId('') },
-                                        );
-                                    }}
+                            <Pager
+                                page={pendingFees}
+                                onPage={(p) =>
+                                    router.get(
+                                        '/platform/partners',
+                                        {
+                                            company: companyId,
+                                            partner: report?.partnerId,
+                                            page: partners?.current_page,
+                                            fees_page: p,
+                                        },
+                                        { preserveScroll: true, preserveState: true },
+                                    )
+                                }
+                            />
+                            <Dialog
+                                open={!!feeId}
+                                onOpenChange={(open) => {
+                                    if (
+                                        !open &&
+                                        !fx.processing &&
+                                        (!fx.isDirty || confirm(t('Discard unsaved changes?')))
+                                    )
+                                        setFeeId('');
+                                }}
+                            >
+                                <DialogContent
+                                    className="max-w-2xl"
+                                    closeDisabled={fx.processing}
+                                    aria-describedby={undefined}
                                 >
-                                    <label>
-                                        {t('Fixed USDT rate')}
-                                        <input
-                                            required
-                                            inputMode="decimal"
-                                            value={fx.data.rate}
-                                            onChange={(e) => fx.setData('rate', e.target.value)}
-                                        />
-                                    </label>
-                                    <label>
-                                        {t('Market observation time')}
-                                        <input
-                                            required
-                                            type="datetime-local"
-                                            value={fx.data.observed_at}
-                                            onChange={(e) =>
-                                                fx.setData('observed_at', e.target.value)
-                                            }
-                                        />
-                                    </label>
-                                    <label>
-                                        {t('Rate evidence')}
-                                        <textarea
-                                            required
-                                            maxLength={2000}
-                                            value={fx.data.evidence}
-                                            onChange={(e) => fx.setData('evidence', e.target.value)}
-                                        />
-                                    </label>
-                                    <button disabled={fx.processing}>{t('Save fixed rate')}</button>
-                                    <Errors values={fx.errors} />
-                                </form>
-                            )}
+                                    <DialogHeader>
+                                        <DialogTitle>
+                                            {t('Complete fixed rate')} ·{' '}
+                                            {companies.find((c) => c.id === feeCompany)?.name}
+                                        </DialogTitle>
+                                    </DialogHeader>
+                                    <form
+                                        className="partner-form"
+                                        onSubmit={(e) => {
+                                            e.preventDefault();
+                                            fx.transform((data) => ({
+                                                ...data,
+                                                observed_at: new Date(
+                                                    data.observed_at,
+                                                ).toISOString(),
+                                            }));
+                                            fx.post(
+                                                `/platform/tenants/${feeCompany}/fee-valuations/${feeId}`,
+                                                {
+                                                    preserveScroll: true,
+                                                    onSuccess: () => setFeeId(''),
+                                                },
+                                            );
+                                        }}
+                                    >
+                                        <label>
+                                            {t('Fixed USDT rate')}
+                                            <input
+                                                required
+                                                inputMode="decimal"
+                                                value={fx.data.rate}
+                                                onChange={(e) => fx.setData('rate', e.target.value)}
+                                            />
+                                        </label>
+                                        <label>
+                                            {t('Market observation time')}
+                                            <input
+                                                required
+                                                type="datetime-local"
+                                                value={fx.data.observed_at}
+                                                onChange={(e) =>
+                                                    fx.setData('observed_at', e.target.value)
+                                                }
+                                            />
+                                        </label>
+                                        <label>
+                                            {t('Rate evidence')}
+                                            <textarea
+                                                required
+                                                maxLength={2000}
+                                                value={fx.data.evidence}
+                                                onChange={(e) =>
+                                                    fx.setData('evidence', e.target.value)
+                                                }
+                                            />
+                                        </label>
+                                        <button disabled={fx.processing}>
+                                            {t('Save fixed rate')}
+                                        </button>
+                                        <Errors values={fx.errors} />
+                                    </form>
+                                </DialogContent>
+                            </Dialog>
                         </details>
                         {report && (
                             <>
@@ -523,7 +631,7 @@ export default function Partners({
                             </>
                         )}
                     </>
-                )}
+                }
             </main>
         </PlatformLayout>
     );

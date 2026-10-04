@@ -2,6 +2,7 @@
 
 namespace App\Application\Assets;
 
+use App\Application\Promotion\CommissionDisplay;
 use App\Domain\User\Models\User;
 use App\Domain\Wallet\Models\WalletTransfer;
 use Illuminate\Support\Collection;
@@ -11,9 +12,11 @@ final class AssetActivityDetails
 {
     public function forRows(string $tenantId, string $userId, Collection $rows): Collection
     {
-        $commissions = \App\Application\Promotion\CommissionDisplay::events($tenantId, $userId, $rows->where('event_type', 'MANUAL_COMMISSION')->pluck('entry_id'));
+        $commissions = CommissionDisplay::events($tenantId, $userId, $rows->where('event_type', 'MANUAL_COMMISSION')->pluck('entry_id'));
         foreach ($rows as $row) {
-            if ($row->event_type === 'MANUAL_COMMISSION') $row->event_type = $commissions[$row->entry_id] ?? 'COMMISSION';
+            if ($row->event_type === 'MANUAL_COMMISSION') {
+                $row->event_type = $commissions[$row->entry_id] ?? 'COMMISSION';
+            }
         }
         $transfers = WalletTransfer::where('tenant_id', $tenantId)
             ->whereIn('id', $rows->where('event_type', 'WALLET_TRANSFER')->pluck('reference_id')->filter())

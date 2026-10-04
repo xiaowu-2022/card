@@ -70,7 +70,7 @@ final class TenantManagementController extends Controller
         if ($authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'tenant.manage')) {
             Tenant::query()->findOrFail($tenant);
 
-            return redirect('/platform/tenants/'.$tenant.'/configuration/card-products');
+            return redirect('/platform/company-configurations?company='.$tenant);
         }
 
         return Inertia::render('platform/TenantDetail', ['tenantRecord' => $query->execute($tenant)]);

@@ -27,12 +27,12 @@ return new class extends Migration
         DB::unprepared(<<<'SQL'
             ALTER TABLE commission_adjustment_classifications ADD CHECK (kind IN ('activation','annual','legacy') AND kind_before>=0 AND kind_after>=0 AND length(trim(reason))>0);
             CREATE TRIGGER commission_classification_immutable BEFORE UPDATE OR DELETE ON commission_adjustment_classifications FOR EACH ROW EXECUTE FUNCTION protect_manual_commission_adjustment();
-            CREATE FUNCTION verify_commission_classification() RETURNS trigger LANGUAGE plpgsql AS $$
+            CREATE OR REPLACE FUNCTION verify_commission_classification() RETURNS trigger LANGUAGE plpgsql AS $$
             DECLARE a manual_commission_adjustments%ROWTYPE;
             BEGIN
                 SELECT * INTO a FROM manual_commission_adjustments WHERE id=NEW.adjustment_id;
                 IF a.id IS NULL OR a.tenant_id<>NEW.tenant_id OR a.user_id<>NEW.user_id
-                    OR NEW.kind_after-NEW.kind_before <> CASE WHEN a.direction='INCREASE' THEN a.amount ELSE -a.amount END
+                    OR NEW.kind_after-NEW.kind_before <> (CASE WHEN a.direction='INCREASE' THEN a.amount ELSE -a.amount END)
                     THEN RAISE EXCEPTION 'Commission classification scope or amount mismatch'; END IF;
                 RETURN NEW;
             END $$;

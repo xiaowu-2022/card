@@ -1,4 +1,5 @@
-import { Head, Link, useForm } from '@inertiajs/react';
+import { useForm } from '@/components/admin/editor-context';
+import { Head, Link } from '@inertiajs/react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';

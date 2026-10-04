@@ -81,7 +81,7 @@ test('fixed withdrawal fee previews use exact decimal arithmetic and confirmed q
     }
     const form = readFileSync('resources/js/pages/user/Withdraw.tsx', 'utf8');
     assert.ok(form.includes('expected_fee: reviewedFee'));
-    assert.ok(form.includes('setReviewedFee(calculatedFee!)'));
+    assert.match(form, /setReviewedFee\(calculatedFee!?\)/);
     assert.equal((form.match(/<WithdrawalAmounts/g) ?? []).length, 2);
     const summary = readFileSync('resources/js/components/user/WithdrawalAmounts.tsx', 'utf8');
     for (const key of [

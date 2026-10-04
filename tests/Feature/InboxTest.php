@@ -96,6 +96,9 @@ it('sends an immutable recipient snapshot, retries safely and reports delivery a
     $intent = $data + ['request_id' => $id, 'token' => $preview['token'], 'confirmed' => true];
     $service->send($this->owner, $this->tenant->id, $intent);
     $service->send($this->owner, $this->tenant->id, $intent);
+    $this->actingAs($this->owner, 'platform_admin')->from('http://admin.localhost/platform/notifications?page=2')
+        ->post('http://admin.localhost/platform/tenants/'.$this->tenant->id.'/notifications', $intent)
+        ->assertRedirect('http://admin.localhost/platform/notifications?page=2');
     $late = User::create(['tenant_id' => $this->tenant->id, 'email' => 'after-broadcast@example.test', 'password_hash' => bcrypt('test-password'), 'status' => 'ACTIVE']);
     expect(DB::table('inbox_events')->where('broadcast_id', $id)->count())->toBe($preview['count']);
     expect(DB::table('inbox_events')->where('broadcast_id', $id)->where('user_id', $late->id)->count())->toBe(0);

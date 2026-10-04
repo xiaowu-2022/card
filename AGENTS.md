@@ -1,3 +1,15 @@
+On 2026-10-05 the user approved SaaS list-first navigation and lazy modal editors.
+Company-owned Platform lists default to all authorized companies; explicit invalid
+company filters fail closed. Tenant administration and consumer scopes remain unchanged.
+Existing routes, permissions and business locks own all mutations; dialog headers only
+select transport format. Preserve URL filters, dirty-input warnings and read-only GET.
+New commission adjustments choose activation/annual/legacy; deductions cannot make the
+selected category, total commission or available wallet balance negative. This supersedes
+the earlier negative-manual-category allowance for new typed adjustments. Classification
+is append-only; historical manual rows require explicit one-time classification without
+moving money or rewriting posted times. Consumers see ordinary typed/generic commissions,
+never staff markers, operator identity or internal reasons. See docs/deployment/SAAS_LIST_DIALOGS.md.
+
 On 2026-10-04 the user revised partner stock to include only non-partner descendants.
 Exclude the owner and each currently enabled same-company descendant partner personally;
 continue traversing through partners and include their non-partner descendants. Do not

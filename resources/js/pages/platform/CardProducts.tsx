@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { MoneyInput } from '@/components/shared/MoneyInput';
+import { AdminPageLinks, type ListPagination } from '@/components/shared/AdminPageLinks';
 
 type ProductStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE';
 type ProductFormData = {
@@ -87,9 +88,11 @@ type CardProvider = {
 export default function CardProducts({
     products,
     cardProviders,
+    pagination,
 }: {
     products: Product[];
     cardProviders: CardProvider[];
+    pagination?: ListPagination;
 }) {
     useAdminTranslation();
     const { props, url } = usePage<SharedProps>();
@@ -274,6 +277,7 @@ export default function CardProducts({
                             )}
                         </TableBody>
                     </Table>
+                    <AdminPageLinks page={pagination} />
                 </div>
             </div>
             {editing !== null && (
@@ -334,16 +338,21 @@ function ProductEditor({
         <Dialog
             open
             onOpenChange={(open) => {
-                if (!open && !form.processing) close();
+                if (
+                    !open &&
+                    !form.processing &&
+                    (!form.isDirty || confirm(t('Discard unsaved changes?')))
+                )
+                    close();
             }}
         >
             <DialogContent
-                className="max-h-[90dvh] max-w-2xl overflow-y-auto"
+                className="flex max-h-[90dvh] max-w-2xl flex-col overflow-hidden"
                 closeLabel={t('Close')}
                 closeDisabled={form.processing}
                 aria-describedby={undefined}
             >
-                <DialogHeader>
+                <DialogHeader className="shrink-0">
                     <DialogTitle>{t(product ? 'Edit product' : 'Add product')}</DialogTitle>
                 </DialogHeader>
                 {product?.routingLocked && (
@@ -354,6 +363,7 @@ function ProductEditor({
                     </p>
                 )}
                 <form
+                    className="flex min-h-0 flex-col overflow-hidden"
                     onSubmit={(event) => {
                         event.preventDefault();
                         if (form.processing || invalidBin) return;
@@ -364,7 +374,7 @@ function ProductEditor({
                 >
                     <fieldset
                         disabled={form.processing}
-                        className="grid min-w-0 gap-4 sm:grid-cols-2"
+                        className="grid min-h-0 min-w-0 gap-4 overflow-y-auto overscroll-contain sm:grid-cols-2"
                     >
                         <ProductFields
                             form={form}
@@ -375,12 +385,15 @@ function ProductEditor({
                             originalBin={unchangedRouting ? product?.providerProductRef : undefined}
                         />
                     </fieldset>
-                    <div className="mt-6 flex justify-end gap-2">
+                    <div className="mt-6 flex shrink-0 justify-end gap-2">
                         <Button
                             type="button"
                             variant="secondary"
                             disabled={form.processing}
-                            onClick={close}
+                            onClick={() => {
+                                if (!form.isDirty || confirm(t('Discard unsaved changes?')))
+                                    close();
+                            }}
                         >
                             {t('Cancel')}
                         </Button>

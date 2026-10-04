@@ -95,6 +95,7 @@ const activityLabels: Record<string, string> = {
     activation: 'Deposit payment',
     annual: 'Annual fee payment',
     commission: 'Commission',
+    legacy: 'Legacy commission',
 };
 const purchaseLabels: Record<string, string> = {
     purchase: 'First purchase',
@@ -167,7 +168,11 @@ function teamCount(row: Member) {
     return t('Team: {{count}} members', { count: row.teamSize });
 }
 function commissionDetails(row: CommissionHistory['items'][number]) {
-    if (!row.sourceAccountId) return [['Commission', fullMoney(row.amount)], ['Credited at', dateTime(row.occurredAt)]];
+    if (!row.sourceAccountId)
+        return [
+            ['Commission', fullMoney(row.amount)],
+            ['Credited at', dateTime(row.occurredAt)],
+        ];
     return [
         ['Exact commission amount', fullMoney(row.amount)],
         ['Source account', row.sourceAccountId ?? '—'],
@@ -200,7 +205,11 @@ function commissionDetails(row: CommissionHistory['items'][number]) {
     ];
 }
 function movementDetails(row: Movement) {
-    if (!row.sourceAccountId) return [['Commission', fullMoney(row.amount)], ['Credited at', dateTime(row.occurredAt)]];
+    if (!row.sourceAccountId)
+        return [
+            ['Commission', fullMoney(row.amount)],
+            ['Credited at', dateTime(row.occurredAt)],
+        ];
     return [
         ['Referral relationship', relationLabel(row.relation)],
         ...(row.sourceAmount !== null
@@ -357,9 +366,10 @@ function activityChange(value: string) {
                                 ><text class="report-entry-title">{{
                                     t(incomeLabels[row.kind] ?? 'Legacy commission')
                                 }}</text
-                                ><text class="report-positive"
-                                    >{{ (!row.amount.startsWith('-') ? '+' : '') + reportMoney(row.amount) }}</text
-                                ></view
+                                ><text class="report-positive">{{
+                                    (!row.amount.startsWith('-') ? '+' : '') +
+                                    reportMoney(row.amount)
+                                }}</text></view
                             ><view v-if="row.sourceAccountId" class="report-entry-meta"
                                 ><text class="report-account">{{ row.sourceAccountId }}</text
                                 ><text>{{ reportRank(row.sourceRank) }}</text></view
@@ -392,10 +402,15 @@ function activityChange(value: string) {
                         ><view class="report-entry-body"
                             ><view class="report-entry-top"
                                 ><text class="report-entry-title">{{
-                                    t(activityLabels[row.kind] ?? 'Team activity')
+                                    t(
+                                        (row.sourceAccountId ? activityLabels : incomeLabels)[
+                                            row.kind
+                                        ] ?? 'Commission',
+                                    )
                                 }}</text
                                 ><text v-if="row.kind !== 'invitation'" class="report-positive">{{
-                                    (!row.amount.startsWith('-') ? '+' : '') + reportMoney(row.amount)
+                                    (!row.amount.startsWith('-') ? '+' : '') +
+                                    reportMoney(row.amount)
                                 }}</text></view
                             ><view v-if="row.sourceAccountId" class="report-entry-meta"
                                 ><text class="report-account">{{ row.sourceAccountId }}</text

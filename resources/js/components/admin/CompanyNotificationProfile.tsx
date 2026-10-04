@@ -1,4 +1,4 @@
-import { useForm, usePage } from '@inertiajs/react';
+import { useForm, usePage } from '@/components/admin/editor-context';
 import { t, errorMessage, useAdminTranslation } from '@/i18n/admin';
 import { useCompanyConfigurationUrl } from '@/hooks/useCompanyConfigurationUrl';
 import { ConfigurationForm } from '@/components/admin/CompanyConfiguration';

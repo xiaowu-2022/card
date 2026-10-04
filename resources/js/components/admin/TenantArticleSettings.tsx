@@ -1,7 +1,7 @@
+import { useForm } from '@/components/admin/editor-context';
 import { useCompanyConfigurationUrl } from '@/hooks/useCompanyConfigurationUrl';
 import { ConfigurationForm } from '@/components/admin/CompanyConfiguration';
 import { useState } from 'react';
-import { useForm } from '@inertiajs/react';
 import { t, useAdminTranslation, errorMessage } from '@/i18n/admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

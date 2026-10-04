@@ -1,3 +1,4 @@
+import { AdminPageLinks, type ListPagination } from '@/components/shared/AdminPageLinks';
 import { useState } from 'react';
 import { Head } from '@inertiajs/react';
 import { t, useAdminTranslation } from '@/i18n/admin';
@@ -46,9 +47,11 @@ const emptyEmail: EmailSettings = {
 export default function NotificationProfiles({
     channel,
     profiles,
+    pagination,
 }: {
     channel: 'sms' | 'email';
     profiles: Profile[];
+    pagination?: ListPagination;
 }) {
     useAdminTranslation();
     const [editing, setEditing] = useState<Profile | 'new' | null>(null);
@@ -118,6 +121,7 @@ export default function NotificationProfiles({
                             )}
                         </TableBody>
                     </Table>
+                    <AdminPageLinks page={pagination} />
                 </div>
             </div>
             <Dialog

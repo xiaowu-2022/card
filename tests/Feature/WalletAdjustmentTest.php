@@ -64,7 +64,7 @@ it('rejects insufficient funds and invalid amounts atomically', function ($chang
 })->with([[['direction' => 'DECREASE']], [['amount' => '0']], [['amount' => '-1']], [['amount' => '1e2']], [['amount' => '1.000000001']], [['reason' => '  ']]]);
 
 it('requires permission confirmation and exact company ownership on HTTP requests', function () {
-    $this->actingAs($this->owner, 'platform_admin')->get($this->url)->assertOk();
+    $this->actingAs($this->owner, 'platform_admin')->get($this->url, ['X-Admin-Dialog' => '1'])->assertOk();
     $this->post($this->url, array_replace($this->data, ['confirmed' => false]))->assertSessionHasErrors('confirmed');
     $this->post($this->url, $this->data)->assertRedirect();
     $other = User::where('tenant_id', '<>', $this->tenant->id)->firstOrFail();

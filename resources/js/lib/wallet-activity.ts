@@ -16,7 +16,9 @@ export type WalletActivity = {
 export function walletActivityItems(entries: WalletActivity[]): UserActivityItem[] {
     const labels: Record<string, string> = {
         WALLET_TOPUP_CREDIT: 'Wallet top up',
-        MANUAL_COMMISSION: 'Manual commission',
+        MANUAL_COMMISSION: 'Commission',
+        COMMISSION: 'Commission',
+        LEGACY_COMMISSION: 'Legacy commission',
         WALLET_ADJUSTMENT: 'Admin adjustment',
         SECURITY_DEPOSIT_FUND: 'Security deposit',
         WITHDRAWAL_HOLD: 'Withdrawal requested',

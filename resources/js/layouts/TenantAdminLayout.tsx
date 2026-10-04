@@ -1,7 +1,8 @@
+import { useEditor, usePage } from '@/components/admin/editor-context';
 import { useAdminTranslation, t } from '@/i18n/admin';
 import { useLocaleSync } from '@/i18n/useLocaleSync';
 import { AdminLanguageSwitcher } from '@/components/admin/AdminLanguageSwitcher';
-import { Link, router, usePage } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import {
     BarChart3,
     CircleDollarSign,
@@ -114,6 +115,8 @@ export function TenantAdminLayout({ children }: { children: ReactNode }) {
     useLocaleSync();
     useAdminTranslation();
     const { tenant, auth, flash } = usePage<SharedProps>().props;
+    const editor = useEditor();
+    if (editor) return <>{children}</>;
     const style = {
         '--tenant-primary': tenant?.branding.primaryColor ?? '#155EEF',
     } as CSSProperties;

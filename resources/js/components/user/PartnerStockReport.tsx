@@ -346,7 +346,7 @@ export function PartnerStockReport({
                     </dl>
                     <p className="stock-muted">
                         {t(
-                            'Theoretical balance = personal net advances + activation commissions received + annual fee commissions received + unclassified commission net − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
+                            'Theoretical balance = personal net advances + net commissions received − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
                         )}
                     </p>
                 </section>

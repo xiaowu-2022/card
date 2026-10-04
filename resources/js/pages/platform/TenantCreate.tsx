@@ -1,5 +1,6 @@
+import { useForm } from '@/components/admin/editor-context';
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';

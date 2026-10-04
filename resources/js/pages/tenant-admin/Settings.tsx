@@ -1,9 +1,10 @@
+import { useForm, usePage } from '@/components/admin/editor-context';
 import { PreviewImage } from '@/components/shared/PreviewImage';
 import { useCompanyConfigurationUrl } from '@/hooks/useCompanyConfigurationUrl';
 import { ConfigurationForm } from '@/components/admin/CompanyConfiguration';
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
 import { displayMoney } from '@/lib/exact-amount';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import type { SharedProps } from '@/types/global';
 import { CompanyConfigurationHeader as PageHeader } from '@/components/admin/CompanyConfiguration';
 import { Button } from '@/components/ui/button';

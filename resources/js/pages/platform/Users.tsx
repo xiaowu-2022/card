@@ -221,7 +221,7 @@ export default function Users({
                                                           <Link
                                                               href={`/platform/tenants/${row.companyId}/users/${row.id}/manual-commissions`}
                                                           >
-                                                              {t('Manual commission')}
+                                                              {t('Adjust commission')}
                                                           </Link>
                                                       </DropdownMenuItem>
                                                   )}

@@ -219,7 +219,9 @@ export function PlatformAccountTable<T extends { id: string }>({
                 <div className="flex gap-2">
                     {page.prev_page_url ? (
                         <Button asChild variant="secondary" size="sm">
-                            <Link href={pageUrl(page.prev_page_url)}>{t('Previous')}</Link>
+                            <Link preserveScroll href={pageUrl(page.prev_page_url)}>
+                                {t('Previous')}
+                            </Link>
                         </Button>
                     ) : (
                         <Button variant="secondary" size="sm" disabled>
@@ -228,7 +230,9 @@ export function PlatformAccountTable<T extends { id: string }>({
                     )}
                     {page.next_page_url ? (
                         <Button asChild variant="secondary" size="sm">
-                            <Link href={pageUrl(page.next_page_url)}>{t('Next')}</Link>
+                            <Link preserveScroll href={pageUrl(page.next_page_url)}>
+                                {t('Next')}
+                            </Link>
                         </Button>
                     ) : (
                         <Button variant="secondary" size="sm" disabled>

@@ -1,5 +1,5 @@
+import { useForm } from '@/components/admin/editor-context';
 import { ConfigurationForm } from '@/components/admin/CompanyConfiguration';
-import { useForm } from '@inertiajs/react';
 import { t, useAdminTranslation, errorMessage } from '@/i18n/admin';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';

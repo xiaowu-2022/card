@@ -1,3 +1,4 @@
+import { RenameCompany } from '@/components/admin/RenameCompany';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Search } from 'lucide-react';
@@ -176,7 +177,7 @@ export default function Tenants({
                                         )}
                                         <TableHead>{t('Status')}</TableHead>
                                         <TableHead>{t('Created')}</TableHead>
-                                        <TableHead>
+                                        <TableHead className="sticky right-0 z-10 bg-surface">
                                             <span className="sr-only">{t('Actions')}</span>
                                         </TableHead>
                                     </TableRow>
@@ -223,7 +224,8 @@ export default function Tenants({
                                             <TableCell className="whitespace-nowrap">
                                                 {dateTime(tenant.createdAt)}
                                             </TableCell>
-                                            <TableCell className="text-right">
+                                            <TableCell className="sticky right-0 z-10 whitespace-nowrap bg-surface text-right">
+                                                <RenameCompany company={tenant} />
                                                 <Button asChild variant="ghost" size="sm">
                                                     <Link href={`/platform/tenants/${tenant.id}`}>
                                                         {t('View')}

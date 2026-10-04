@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { t, dateTime, errorMessage, useAdminTranslation } from '@/i18n/admin';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -20,6 +20,7 @@ type Candidate = { id: string; account_id: string; email: string };
 type Company = { id: string; name: string };
 type Batch = {
     id: string;
+    company_name: string;
     title: string;
     body: string;
     sender: string;
@@ -34,7 +35,15 @@ type Props = {
     batches: { data: Batch[]; next_page_url: string | null; prev_page_url: string | null } | null;
 };
 
-function NotificationForm({ company }: { company: Company }) {
+function NotificationForm({
+    company,
+    onSaved,
+    onState,
+}: {
+    company: Company;
+    onSaved: () => void;
+    onState: (dirty: boolean, busy: boolean) => void;
+}) {
     const form = useForm({
         title: '',
         body: '',
@@ -50,6 +59,9 @@ function NotificationForm({ company }: { company: Company }) {
     const [preview, setPreview] = useState<{ count: number; token: string } | null>(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
+    useEffect(() => {
+        onState(form.isDirty, form.processing || busy);
+    }, [form.isDirty, form.processing, busy, onState]);
     const resetPreview = () => {
         setPreview(null);
         form.setData('token', '');
@@ -104,179 +116,190 @@ function NotificationForm({ company }: { company: Company }) {
         }
     };
     return (
-        <section className="my-6 max-w-3xl space-y-4 rounded-xl border bg-surface p-5">
-            <h2 className="text-lg font-semibold">{t('New notification')}</h2>
-            <label className="block text-sm">
-                {t('Recipients')}
-                <select
-                    className="mt-2 block min-h-10 w-full rounded-md border bg-background p-2"
-                    aria-label={t('Recipients')}
-                    value={form.data.audience}
-                    disabled={busy || form.processing}
-                    onChange={(e) => {
-                        resetPreview();
-                        form.setData('audience', e.target.value);
-                    }}
-                >
-                    <option value="selected">{t('Selected users')}</option>
-                    <option value="all">{t('All current users in this company')}</option>
-                </select>
-            </label>
-            {form.data.audience === 'selected' && (
-                <div className="space-y-3">
-                    <form
-                        className="flex gap-2"
-                        onSubmit={(e) => {
-                            e.preventDefault();
-                            void searchUsers();
+        <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain py-4">
+                <h2 className="text-lg font-semibold">{t('New notification')}</h2>
+                <label className="block text-sm">
+                    {t('Recipients')}
+                    <select
+                        className="mt-2 block min-h-10 w-full rounded-md border bg-background p-2"
+                        aria-label={t('Recipients')}
+                        value={form.data.audience}
+                        disabled={busy || form.processing}
+                        onChange={(e) => {
+                            resetPreview();
+                            form.setData('audience', e.target.value);
                         }}
                     >
-                        <Input
-                            aria-label={t('Search account ID or email')}
-                            value={search}
-                            maxLength={100}
-                            onChange={(e) => setSearch(e.target.value)}
-                        />
-                        <Button disabled={busy || !search.trim()} type="submit" variant="secondary">
-                            {t('Search')}
-                        </Button>
-                    </form>
-                    <ul className="max-h-52 space-y-2 overflow-y-auto">
-                        {candidates.map((user) => (
-                            <li key={user.id}>
-                                <label className="flex items-center gap-3 break-all text-sm">
-                                    <Checkbox
-                                        checked={form.data.users.includes(user.id)}
-                                        disabled={busy || form.processing}
-                                        onCheckedChange={(checked) => {
-                                            resetPreview();
-                                            const next = checked
-                                                ? [
-                                                      ...selected.filter((u) => u.id !== user.id),
-                                                      user,
-                                                  ]
-                                                : selected.filter((u) => u.id !== user.id);
-                                            setSelected(next);
-                                            form.setData(
-                                                'users',
-                                                next.map((u) => u.id),
-                                            );
-                                        }}
-                                    />
-                                    {user.account_id} · {user.email}
-                                </label>
-                            </li>
-                        ))}
-                    </ul>
-                    <p className="text-sm text-muted-foreground">
-                        {t('Selected recipients')}: {selected.length}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                        {selected.map((user) => (
-                            <button
-                                type="button"
-                                key={user.id}
-                                className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm"
-                                onClick={() => {
-                                    resetPreview();
-                                    const next = selected.filter((u) => u.id !== user.id);
-                                    setSelected(next);
-                                    form.setData(
-                                        'users',
-                                        next.map((u) => u.id),
-                                    );
-                                }}
-                                aria-label={`${t('Remove recipient')}: ${user.account_id}`}
+                        <option value="selected">{t('Selected users')}</option>
+                        <option value="all">{t('All current users in this company')}</option>
+                    </select>
+                </label>
+                {form.data.audience === 'selected' && (
+                    <div className="space-y-3">
+                        <form
+                            className="flex gap-2"
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                void searchUsers();
+                            }}
+                        >
+                            <Input
+                                aria-label={t('Search account ID or email')}
+                                value={search}
+                                maxLength={100}
+                                onChange={(e) => setSearch(e.target.value)}
+                            />
+                            <Button
+                                disabled={busy || !search.trim()}
+                                type="submit"
+                                variant="secondary"
                             >
-                                {user.account_id}
-                                <X className="size-3" aria-hidden="true" />
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-            <label className="block text-sm">
-                {t('Notification title')}
-                <Input
-                    className="mt-2"
-                    maxLength={100}
-                    value={form.data.title}
-                    onChange={(e) => {
-                        resetPreview();
-                        form.setData('title', e.target.value);
-                    }}
-                />
-            </label>
-            <label className="block text-sm">
-                {t('Notification content')}
-                <textarea
-                    className="mt-2 block min-h-40 w-full rounded-md border bg-background p-3"
-                    maxLength={5000}
-                    value={form.data.body}
-                    onChange={(e) => {
-                        resetPreview();
-                        form.setData('body', e.target.value);
-                    }}
-                />
-            </label>
-            {error && (
-                <p role="alert" className="text-sm text-destructive">
-                    {error}
-                </p>
-            )}
-            {Object.values(form.errors).map((message, i) => (
-                <p role="alert" key={i} className="text-sm text-destructive">
-                    {errorMessage(message)}
-                </p>
-            ))}
-            <Button
-                disabled={
-                    busy ||
-                    form.processing ||
-                    !form.data.title.trim() ||
-                    !form.data.body.trim() ||
-                    (form.data.audience === 'selected' && !selected.length)
-                }
-                onClick={() => void makePreview()}
-            >
-                {t('Preview notification')}
-            </Button>
-            <Dialog
-                open={preview !== null}
-                onOpenChange={(open) => {
-                    if (!open && !form.processing) setPreview(null);
-                }}
-            >
-                <DialogContent className="max-h-[85dvh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>{t('Confirm notification')}</DialogTitle>
-                        <DialogDescription>
-                            {t('The notification will be sent to the recipients shown below.')}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <p>
-                        {company.name} · {t('Recipients')}: {preview?.count}
-                    </p>
-                    <h3 className="break-words font-semibold">{form.data.title}</h3>
-                    <p className="whitespace-pre-wrap break-words leading-7">{form.data.body}</p>
-                    <label className="flex gap-3 text-sm">
-                        <Checkbox
-                            checked={form.data.confirmed}
-                            onCheckedChange={(value) => form.setData('confirmed', value === true)}
-                            disabled={form.processing}
-                        />
-                        {t('I confirm the content and recipients.')}
-                    </label>
-                    {Object.values(form.errors).map((message, i) => (
-                        <p role="alert" key={i} className="text-sm text-destructive">
-                            {errorMessage(message)}
+                                {t('Search')}
+                            </Button>
+                        </form>
+                        <ul className="max-h-52 space-y-2 overflow-y-auto">
+                            {candidates.map((user) => (
+                                <li key={user.id}>
+                                    <label className="flex items-center gap-3 break-all text-sm">
+                                        <Checkbox
+                                            checked={form.data.users.includes(user.id)}
+                                            disabled={busy || form.processing}
+                                            onCheckedChange={(checked) => {
+                                                resetPreview();
+                                                const next = checked
+                                                    ? [
+                                                          ...selected.filter(
+                                                              (u) => u.id !== user.id,
+                                                          ),
+                                                          user,
+                                                      ]
+                                                    : selected.filter((u) => u.id !== user.id);
+                                                setSelected(next);
+                                                form.setData(
+                                                    'users',
+                                                    next.map((u) => u.id),
+                                                );
+                                            }}
+                                        />
+                                        {user.account_id} · {user.email}
+                                    </label>
+                                </li>
+                            ))}
+                        </ul>
+                        <p className="text-sm text-muted-foreground">
+                            {t('Selected recipients')}: {selected.length}
                         </p>
-                    ))}
+                        <div className="flex flex-wrap gap-2">
+                            {selected.map((user) => (
+                                <button
+                                    type="button"
+                                    key={user.id}
+                                    className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm"
+                                    onClick={() => {
+                                        resetPreview();
+                                        const next = selected.filter((u) => u.id !== user.id);
+                                        setSelected(next);
+                                        form.setData(
+                                            'users',
+                                            next.map((u) => u.id),
+                                        );
+                                    }}
+                                    aria-label={`${t('Remove recipient')}: ${user.account_id}`}
+                                >
+                                    {user.account_id}
+                                    <X className="size-3" aria-hidden="true" />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                <label className="block text-sm">
+                    {t('Notification title')}
+                    <Input
+                        className="mt-2"
+                        maxLength={100}
+                        value={form.data.title}
+                        onChange={(e) => {
+                            resetPreview();
+                            form.setData('title', e.target.value);
+                        }}
+                    />
+                </label>
+                <label className="block text-sm">
+                    {t('Notification content')}
+                    <textarea
+                        className="mt-2 block min-h-40 w-full rounded-md border bg-background p-3"
+                        maxLength={5000}
+                        value={form.data.body}
+                        onChange={(e) => {
+                            resetPreview();
+                            form.setData('body', e.target.value);
+                        }}
+                    />
+                </label>
+                {error && (
+                    <p role="alert" className="text-sm text-destructive">
+                        {error}
+                    </p>
+                )}
+                {Object.values(form.errors).map((message, i) => (
+                    <p role="alert" key={i} className="text-sm text-destructive">
+                        {errorMessage(message)}
+                    </p>
+                ))}
+                {preview && (
+                    <section
+                        className="space-y-4 rounded-lg border p-4"
+                        aria-label={t('Confirm notification')}
+                    >
+                        <h3>{t('Confirm notification')}</h3>
+                        <p>
+                            {company.name} · {t('Recipients')}: {preview?.count}
+                        </p>
+                        <h3 className="break-words font-semibold">{form.data.title}</h3>
+                        <p className="whitespace-pre-wrap break-words leading-7">
+                            {form.data.body}
+                        </p>
+                        <label className="flex gap-3 text-sm">
+                            <Checkbox
+                                checked={form.data.confirmed}
+                                onCheckedChange={(value) =>
+                                    form.setData('confirmed', value === true)
+                                }
+                                disabled={form.processing}
+                            />
+                            {t('I confirm the content and recipients.')}
+                        </label>
+                        {Object.values(form.errors).map((message, i) => (
+                            <p role="alert" key={i} className="text-sm text-destructive">
+                                {errorMessage(message)}
+                            </p>
+                        ))}
+                    </section>
+                )}
+            </div>
+            <div className="flex shrink-0 justify-end gap-3 border-t pt-4">
+                <Button
+                    disabled={
+                        busy ||
+                        form.processing ||
+                        !form.data.title.trim() ||
+                        !form.data.body.trim() ||
+                        (form.data.audience === 'selected' && !selected.length)
+                    }
+                    onClick={() => void makePreview()}
+                >
+                    {t('Preview notification')}
+                </Button>
+                {preview && (
                     <Button
                         disabled={form.processing || !form.data.confirmed}
                         onClick={() =>
                             form.post(`/platform/tenants/${company.id}/notifications`, {
+                                preserveScroll: true,
                                 onSuccess: () => {
+                                    onSaved();
                                     setPreview(null);
                                     form.reset();
                                     setSelected([]);
@@ -287,8 +310,8 @@ function NotificationForm({ company }: { company: Company }) {
                     >
                         {form.processing ? t('Sending…') : t('Send notification')}
                     </Button>
-                </DialogContent>
-            </Dialog>
+                )}
+            </div>
         </section>
     );
 }
@@ -296,11 +319,29 @@ export default function Notifications({ companies, company, batches }: Props) {
     useAdminTranslation();
     const canSend =
         usePage<SharedProps>().props.auth.admin?.permissions.includes('notifications.send');
-    const selected = companies.find((c) => c.id === company);
+    const [open, setOpen] = useState(false);
+    const [targetCompany, setTargetCompany] = useState(company ?? '');
+    const [state, setState] = useState({ dirty: false, busy: false });
+    const selected = companies.find((c) => c.id === targetCompany);
     return (
         <PlatformLayout>
             <Head title={t('Notifications')} />
-            <PageHeader title={t('Notifications')} eyebrow={t('Operations')} />
+            <PageHeader
+                title={t('Notifications')}
+                eyebrow={t('Operations')}
+                actions={
+                    canSend && (
+                        <Button
+                            onClick={() => {
+                                setTargetCompany(company ?? '');
+                                setOpen(true);
+                            }}
+                        >
+                            {t('New notification')}
+                        </Button>
+                    )
+                }
+            />
             <label className="my-5 block max-w-md text-sm">
                 {t('Company')}
                 <select
@@ -313,7 +354,7 @@ export default function Notifications({ companies, company, batches }: Props) {
                         )
                     }
                 >
-                    <option value="">{t('Choose a company')}</option>
+                    <option value="">{t('All companies')}</option>
                     {companies.map((c) => (
                         <option key={c.id} value={c.id}>
                             {c.name}
@@ -321,7 +362,60 @@ export default function Notifications({ companies, company, batches }: Props) {
                     ))}
                 </select>
             </label>
-            {selected && canSend && <NotificationForm key={selected.id} company={selected} />}
+            <Dialog
+                open={open}
+                onOpenChange={(next) => {
+                    if (
+                        !state.busy &&
+                        (next || !state.dirty || confirm(t('Discard unsaved changes?')))
+                    )
+                        setOpen(next);
+                }}
+            >
+                <DialogContent
+                    className="flex max-w-3xl flex-col overflow-hidden"
+                    closeDisabled={state.busy}
+                    closeLabel={t('Close')}
+                >
+                    <DialogHeader className="shrink-0">
+                        <DialogTitle>{t('New notification')}</DialogTitle>
+                        <DialogDescription>{t('Choose a company')}</DialogDescription>
+                    </DialogHeader>
+                    <select
+                        className="w-full rounded border p-2"
+                        disabled={state.busy}
+                        aria-label={t('Company')}
+                        value={targetCompany}
+                        onChange={(e) => {
+                            if (!state.dirty || confirm(t('Discard unsaved changes?'))) {
+                                setTargetCompany(e.target.value);
+                                setState({ dirty: false, busy: false });
+                            }
+                        }}
+                    >
+                        <option value="">{t('Choose a company')}</option>
+                        {companies.map((c) => (
+                            <option key={c.id} value={c.id}>
+                                {c.name}
+                            </option>
+                        ))}
+                    </select>
+                    {selected && canSend && (
+                        <NotificationForm
+                            key={selected.id}
+                            company={selected}
+                            onSaved={() => setOpen(false)}
+                            onState={(dirty, busy) =>
+                                setState((old) =>
+                                    old.dirty === dirty && old.busy === busy
+                                        ? old
+                                        : { dirty, busy },
+                                )
+                            }
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
             {batches && (
                 <section className="space-y-4">
                     <h2 className="text-lg font-semibold">{t('Sent notifications')}</h2>
@@ -336,6 +430,7 @@ export default function Notifications({ companies, company, batches }: Props) {
                             </p>
                             <dl className="flex flex-wrap gap-x-8 gap-y-3 text-sm text-muted-foreground">
                                 {[
+                                    [t('Company'), batch.company_name],
                                     [t('Operator'), batch.sender],
                                     [t('Sent at'), dateTime(batch.created_at)],
                                     [t('Recipients'), batch.recipient_count],
@@ -358,12 +453,16 @@ export default function Notifications({ companies, company, batches }: Props) {
                     ))}
                     <nav className="flex justify-between">
                         {batches.prev_page_url ? (
-                            <Link href={batches.prev_page_url}>{t('Previous')}</Link>
+                            <Link preserveScroll href={batches.prev_page_url}>
+                                {t('Previous')}
+                            </Link>
                         ) : (
                             <span />
                         )}
                         {batches.next_page_url && (
-                            <Link href={batches.next_page_url}>{t('Next')}</Link>
+                            <Link preserveScroll href={batches.next_page_url}>
+                                {t('Next')}
+                            </Link>
                         )}
                     </nav>
                 </section>

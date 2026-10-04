@@ -88,7 +88,7 @@ export default function Withdraw({
                             onSubmit={(event) => {
                                 event.preventDefault();
                                 if (canReview) {
-                                    setReviewedFee(calculatedFee!);
+                                    setReviewedFee(calculatedFee);
                                     setReviewing(true);
                                 }
                             }}

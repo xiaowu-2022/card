@@ -113,14 +113,14 @@ it('requires platform permission and explicit confirmation but not a repeat pass
 
 it('exposes the effective level and adjustment journal without a phone column', function () {
     manualAdjust($this);
-    $this->actingAs($this->owner, 'platform_admin')->get($this->url)->assertOk()->assertInertia(fn (AssertableInertia $p) => $p->component('platform/UserPromotion')->where('currentRank', 3)->where('canAdjust', true)->has('history.data', 1));
+    $this->actingAs($this->owner, 'platform_admin')->get($this->url, ['X-Admin-Dialog' => '1'])->assertOk()->assertInertia(fn (AssertableInertia $p) => $p->component('platform/UserPromotion')->where('currentRank', 3)->where('canAdjust', true)->has('history.data', 1));
     $this->get('http://admin.localhost/platform/users?search='.$this->user->account_id)->assertOk()->assertInertia(fn (AssertableInertia $p) => $p->component('platform/Users')->where('users.data.0.promotionRank', 3)->missing('users.data.0.phone'));
 });
 
 it('withholds the adjustment form and endpoint from a platform reader without the permission', function () {
     $permission = DB::table('permissions')->where('name', 'promotion_members.manage')->value('id');
     DB::table('role_permissions')->where('permission_id', $permission)->delete();
-    $this->actingAs($this->owner, 'platform_admin')->get($this->url)->assertOk()->assertInertia(fn (AssertableInertia $p) => $p->where('canAdjust', false));
+    $this->actingAs($this->owner, 'platform_admin')->get($this->url, ['X-Admin-Dialog' => '1'])->assertOk()->assertInertia(fn (AssertableInertia $p) => $p->where('canAdjust', false));
     $this->post($this->url, ['choice' => $this->level->id, 'reason' => 'Test', 'request_id' => (string) Str::uuid(), 'confirmed' => true])->assertForbidden();
     expect(DB::table('manual_promotion_adjustments')->count())->toBe(0);
 });
@@ -132,5 +132,5 @@ it('accepts configured ranks beyond eight without hardcoded choices', function (
     DB::table('paid_promotion_levels')->insert($values);
     manualAdjust($this, $values['id']);
     expect($this->manual->benefit($this->tenant->id, $this->user->id)->rank)->toBe(12);
-    expect(app(PaidPromotionQuery::class)->benefits($this->tenant->id,$this->user->id)['rank'])->toBe(12);
+    expect(app(PaidPromotionQuery::class)->benefits($this->tenant->id, $this->user->id)['rank'])->toBe(12);
 });

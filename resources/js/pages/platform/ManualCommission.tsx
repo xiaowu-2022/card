@@ -1,11 +1,51 @@
-import { Head, Link, useForm } from '@inertiajs/react';
+import { useForm, useEditor } from '@/components/admin/editor-context';
+import { Head, router } from '@inertiajs/react';
+import { useState } from 'react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
 import { Button } from '@/components/ui/button';
-import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
+import { t, useAdminTranslation, dateTime } from '@/i18n/admin';
 
-type Props = {
+type Kind = 'activation' | 'annual' | 'legacy';
+const names: Record<Kind, string> = {
+    activation: 'Activation commission',
+    annual: 'Annual fee commission',
+    legacy: 'Legacy commission',
+};
+const units = (s: string) => {
+    const negative = s.startsWith('-');
+    const [i, f = ''] = s.replace(/^[+-]/, '').split('.');
+    return (BigInt(i || '0') * 100000000n + BigInt(f.padEnd(8, '0'))) * (negative ? -1n : 1n);
+};
+const amount = (n: bigint) => {
+    const v = (n < 0n ? -n : n).toString().padStart(9, '0');
+    return (n < 0n ? '-' : '') + v.slice(0, -8) + '.' + v.slice(-8);
+};
+type Row = {
+    id: string;
+    kind: Kind | null;
+    direction: string;
+    amount: string;
+    before: string;
+    after: string;
+    kindBefore: string | null;
+    kindAfter: string | null;
+    reason: string;
+    actor: string;
+    time: string;
+    classifier: string | null;
+    classifiedAt: string | null;
+    classificationReason: string | null;
+};
+export default function ManualCommission({
+    account,
+    balances,
+    commission,
+    categories,
+    history,
+    filters = {},
+}: {
     account: {
         id: string;
         companyId: string;
@@ -13,226 +53,285 @@ type Props = {
         accountId: string;
         email: string;
     };
-    commission: string;
-    manual: string;
     balances: { asset: string; amount: string }[];
-    history: AccountPage<{
-        id: string;
-        asset: string;
-        direction: string;
-        amount: string;
-        commissionBefore: string;
-        commissionAfter: string;
-        before: string;
-        after: string;
-        reason: string;
-        actor: string;
-        time: string;
-    }>;
-};
-export default function ManualCommission({
-    account,
-    balances,
-    history,
-    commission,
-    manual,
-}: Props) {
+    commission: string;
+    categories: Record<Kind, string>;
+    history: AccountPage<Row>;
+    filters?: { kind?: string };
+}) {
     useAdminTranslation();
+    const editor = useEditor();
     const url = `/platform/tenants/${account.companyId}/users/${account.id}/manual-commissions`;
+    const [classifying, setClassifying] = useState<Row | null>(null);
     const form = useForm({
-        asset: balances[0]?.asset ?? '',
-        direction: 'INCREASE',
-        amount: '',
+        commission_type: 'activation' as Kind,
+        signed: '',
         reason: '',
-        request_id: crypto.randomUUID(),
         confirmed: false,
+        request_id: crypto.randomUUID(),
     });
-    const change = (key: 'asset' | 'direction' | 'amount' | 'reason', value: string) =>
-        form.setData({
-            ...form.data,
+    const delta = /^[+-]?(?:0|[1-9]\d{0,11})(?:\.\d{1,8})?$/.test(form.data.signed)
+        ? units(form.data.signed)
+        : 0n;
+    const adjustment = classifying
+        ? units(classifying.amount) * (classifying.direction === 'DECREASE' ? -1n : 1n)
+        : delta;
+    const balance = units(balances[0]?.amount ?? '0'),
+        total = units(commission),
+        category = units(categories[form.data.commission_type]);
+    const limit = [balance, total, category].reduce((a, b) => (a < b ? a : b));
+    const valid =
+        adjustment !== 0n &&
+        category + adjustment >= 0n &&
+        (classifying ||
+            (balances.length && balance + adjustment >= 0n && total + adjustment >= 0n));
+    function change(key: 'commission_type' | 'signed' | 'reason', value: string) {
+        form.setData((current) => ({
+            ...current,
             [key]: value,
             confirmed: false,
             request_id: crypto.randomUUID(),
-        });
-    const units = (v: string) => {
-        const [i, f = ''] = v.split('.');
-        return BigInt(i!) * 100000000n + BigInt(f.padEnd(8, '0'));
-    };
-    const display = (v: bigint) => {
-        const sign = v < 0n ? '-' : '';
-        const n = (v < 0n ? -v : v).toString().padStart(9, '0');
-        return sign + n.slice(0, -8) + '.' + n.slice(-8);
-    };
-    const balance = balances[0]?.amount ?? '0';
-    const limit = display(units(balance) < units(commission) ? units(balance) : units(commission));
-    const valid = /^(?:0|[1-9]\d{0,11})(?:\.\d{1,8})?$/.test(form.data.amount);
-    const delta = valid
-        ? units(form.data.amount) * (form.data.direction === 'DECREASE' ? -1n : 1n)
-        : 0n;
-    const permitted =
-        valid && delta !== 0n && units(balance) + delta >= 0n && units(commission) + delta >= 0n;
+        }));
+    }
     return (
         <PlatformLayout>
-            <Head title={t('Manual commission')} />
-            <div className="space-y-6">
+            <div className="space-y-5">
+                <Head title={t('Adjust commission')} />
                 <PageHeader
-                    title={t('Manual commission')}
+                    title={t('Adjust commission')}
                     description={`${account.companyName} · ${account.accountId} · ${account.email}`}
                 />
-                <Link
-                    className="text-primary underline"
-                    href={`/platform/users?company=${account.companyId}`}
-                >
-                    {t('Back to users')}
-                </Link>
-                <dl className="grid grid-cols-4 gap-4 rounded border p-4">
+                <dl className="grid grid-cols-2 gap-3 rounded border p-4 lg:grid-cols-3">
                     {[
+                        ...Object.entries(categories).map(([key, value]) => [
+                            names[key as Kind],
+                            value,
+                        ]),
                         ['Cumulative net commission', commission],
-                        ['Manual commission net', manual],
-                        ['Available balance', balance],
-                        ['Maximum deduction', limit],
+                        ['Available balance', amount(balance)],
+                        ['Maximum deduction', amount(limit)],
                     ].map(([label, value]) => (
                         <div key={label}>
-                            <dt>{t(label!)}</dt>
+                            <dt className="text-sm text-muted-foreground">{t(label!)}</dt>
                             <dd>{value} USDT</dd>
                         </div>
                     ))}
                 </dl>
                 <form
-                    className="max-w-2xl space-y-4 rounded-xl border bg-surface p-5"
+                    className="space-y-4 rounded border p-4"
                     onSubmit={(e) => {
                         e.preventDefault();
-                        form.post(url, {
+                        if (!valid || form.processing) return;
+                        form.transform((data) => ({
+                            commission_type: data.commission_type,
+                            asset: 'USDT',
+                            direction: delta < 0n ? 'DECREASE' : 'INCREASE',
+                            amount: amount(delta < 0n ? -delta : delta),
+                            reason: data.reason,
+                            confirmed: data.confirmed,
+                            request_id: data.request_id,
+                        }));
+                        form.post(classifying ? `${url}/${classifying.id}/classify` : url, {
                             preserveScroll: true,
-                            onSuccess: () =>
-                                form.setData({
-                                    ...form.data,
-                                    amount: '',
-                                    reason: '',
-                                    confirmed: false,
-                                    request_id: crypto.randomUUID(),
-                                }),
+                            onSuccess: () => {
+                                form.reset();
+                                form.setData('request_id', crypto.randomUUID());
+                                setClassifying(null);
+                            },
                         });
                     }}
                 >
-                    <p>
-                        {t(
-                            'Manual commissions change USDT available balance. Decreases cannot exceed available balance or cumulative net commission.',
-                        )}
-                    </p>
-                    <fieldset disabled={form.processing || !balances.length} className="space-y-4">
-                        <label className="block space-y-2">
-                            <span>{t('Currency')}</span>
-                            <select
-                                className="block h-10 w-full rounded-md border bg-surface px-3"
-                                value={form.data.asset}
-                                onChange={(e) => change('asset', e.target.value)}
+                    {classifying && (
+                        <p className="rounded bg-muted p-3">
+                            {t('Classify historical commission. No funds will move.')}{' '}
+                            {classifying.direction === 'DECREASE' ? '−' : '+'}
+                            {classifying.amount} USDT{' '}
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => {
+                                    setClassifying(null);
+                                    form.reset();
+                                }}
                             >
-                                {balances.map((b) => (
-                                    <option key={b.asset} value={b.asset}>
-                                        {b.asset} · {t('Available balance')}: {b.amount}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
-                        <label className="block space-y-2">
-                            <span>{t('Adjustment direction')}</span>
-                            <select
-                                className="block h-10 w-full rounded-md border bg-surface px-3"
-                                value={form.data.direction}
-                                onChange={(e) => change('direction', e.target.value)}
-                            >
-                                <option value="INCREASE">{t('Increase balance')}</option>
-                                <option value="DECREASE">{t('Decrease balance')}</option>
-                            </select>
-                        </label>
-                        <label className="block space-y-2">
-                            <span>{t('Adjustment amount')}</span>
+                                {t('Cancel')}
+                            </Button>
+                        </p>
+                    )}
+                    <label className="block">
+                        {t('Commission type')}
+                        <select
+                            className="mt-1 h-10 w-full rounded border bg-surface px-3"
+                            value={form.data.commission_type}
+                            onChange={(e) => change('commission_type', e.target.value)}
+                        >
+                            {Object.entries(names).map(([key, label]) => (
+                                <option key={key} value={key}>
+                                    {t(label)}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                    {!classifying && (
+                        <label className="block">
+                            {t('Signed adjustment amount')}
                             <input
                                 required
-                                inputMode="decimal"
-                                className="block h-10 w-full rounded-md border bg-surface px-3"
-                                value={form.data.amount}
-                                onChange={(e) => change('amount', e.target.value)}
+                                className="mt-1 h-10 w-full rounded border px-3"
+                                inputMode="text"
+                                placeholder="+100 / -50"
+                                value={form.data.signed}
+                                onChange={(e) => change('signed', e.target.value)}
                             />
                         </label>
-                        <label className="block space-y-2">
-                            <span>{t('Adjustment reason')}</span>
-                            <textarea
-                                required
-                                maxLength={500}
-                                className="block min-h-24 w-full rounded-md border bg-surface p-3"
-                                value={form.data.reason}
-                                onChange={(e) => change('reason', e.target.value)}
-                            />
-                        </label>
-                        <div className="rounded-md border p-3">
+                    )}
+                    <label className="block">
+                        {t('Adjustment reason')}
+                        <textarea
+                            required
+                            maxLength={500}
+                            className="mt-1 min-h-20 w-full rounded border p-3"
+                            value={form.data.reason}
+                            onChange={(e) => change('reason', e.target.value)}
+                        />
+                    </label>
+                    <div className="rounded bg-muted p-3 text-sm">
+                        <p>
+                            {t('Expected category balance')}: {amount(category + adjustment)} USDT
+                        </p>
+                        {!classifying && (
                             <p>
-                                {account.accountId} ·{' '}
-                                {t(
-                                    form.data.direction === 'INCREASE'
-                                        ? 'Increase balance'
-                                        : 'Decrease balance',
-                                )}{' '}
-                                ·{' '}
-                                <strong>
-                                    {form.data.amount || '0'} {form.data.asset}
-                                </strong>
+                                {t('Expected available balance')}: {amount(balance + delta)} USDT{' '}
+                                {' · '}
+                                {t('Expected cumulative net commission')}: {amount(total + delta)}{' '}
+                                USDT
                             </p>
-                            <p>
-                                {t('Expected available balance')}:{' '}
-                                {valid ? display(units(balance) + delta) : '—'} USDT
-                            </p>
-                            <p>
-                                {t('Expected cumulative net commission')}:{' '}
-                                {valid ? display(units(commission) + delta) : '—'} USDT
-                            </p>
-                            <label className="mt-3 flex items-center gap-2">
-                                <input
-                                    required
-                                    type="checkbox"
-                                    checked={form.data.confirmed}
-                                    onChange={(e) => form.setData('confirmed', e.target.checked)}
-                                />
-                                {t(
-                                    'I confirm this adjustment changes the customer’s available balance immediately.',
-                                )}
-                            </label>
-                        </div>
-                        {Object.entries(form.errors).map(([key, value]) => (
-                            <p key={key} role="alert" className="text-destructive">
-                                {t(value)}
-                            </p>
-                        ))}
-                        <Button
-                            type="submit"
-                            disabled={form.processing || !form.data.confirmed || !permitted}
-                        >
-                            {t('Confirm adjustment')}
-                        </Button>
-                    </fieldset>
-                    {!balances.length && <p>{t('This customer has no wallet to adjust.')}</p>}
+                        )}
+                    </div>
+                    <label className="flex gap-2">
+                        <input
+                            type="checkbox"
+                            required
+                            checked={form.data.confirmed}
+                            onChange={(e) => form.setData('confirmed', e.target.checked)}
+                        />
+                        {t(
+                            classifying
+                                ? 'I confirm this one-time category assignment without moving funds.'
+                                : 'I confirm this adjustment changes the customer’s available balance immediately.',
+                        )}
+                    </label>
+                    {Object.entries(form.errors).map(([key, value]) => (
+                        <p role="alert" className="text-destructive" key={key}>
+                            {t(value)}
+                        </p>
+                    ))}
+                    <Button disabled={!valid || !form.data.confirmed || form.processing}>
+                        {t(classifying ? 'Confirm classification' : 'Confirm adjustment')}
+                    </Button>
                 </form>
+                <h2 className="font-semibold">{t('Adjustment history')}</h2>
+                <select
+                    aria-label={t('Commission type')}
+                    className="rounded border bg-surface p-2"
+                    value={filters.kind ?? 'all'}
+                    onChange={(e) => {
+                        const next =
+                            url + (e.target.value === 'all' ? '' : '?kind=' + e.target.value);
+                        if (editor) editor.navigate(next);
+                        else router.get(next);
+                    }}
+                >
+                    <option value="all">{t('All types')}</option>
+                    {Object.entries(names).map(([key, label]) => (
+                        <option key={key} value={key}>
+                            {t(label)}
+                        </option>
+                    ))}
+                    <option value="pending">{t('Awaiting classification')}</option>
+                </select>
                 <PlatformAccountTable
-                    url={url}
+                    page={history}
                     filters={{}}
+                    url={url}
                     searchLabel=""
                     showFilters={false}
-                    page={history}
                     columns={[
-                        { label: 'Type', render: () => t('Manual commission') },
-                        { label: 'Currency', render: (r) => r.asset },
                         {
-                            label: 'Adjustment amount',
-                            render: (r) => `${r.direction === 'INCREASE' ? '+' : '-'}${r.amount}`,
+                            label: 'Commission type',
+                            render: (row) => (
+                                <div>
+                                    {t(row.kind ? names[row.kind] : 'Awaiting classification')}
+                                    <div className="text-xs text-muted-foreground">
+                                        {t('Backend adjustment')}
+                                    </div>
+                                </div>
+                            ),
                         },
-                        { label: 'Balance before', render: (r) => r.before },
-                        { label: 'Balance after', render: (r) => r.after },
-                        { label: 'Commission before', render: (r) => r.commissionBefore },
-                        { label: 'Commission after', render: (r) => r.commissionAfter },
-                        { label: 'Adjustment reason', render: (r) => r.reason },
-                        { label: 'Operator', render: (r) => r.actor },
-                        { label: 'Time', render: (r) => dateTime(r.time) },
+                        {
+                            label: 'Amount',
+                            render: (row) =>
+                                `${row.direction === 'DECREASE' ? '-' : '+'}${row.amount} USDT`,
+                        },
+                        {
+                            label: 'Category balance',
+                            render: (row) =>
+                                row.kindBefore === null
+                                    ? '—'
+                                    : `${row.kindBefore} → ${row.kindAfter}`,
+                        },
+                        {
+                            label: 'Available balance',
+                            render: (row) => `${row.before} → ${row.after}`,
+                        },
+                        {
+                            label: 'Operator',
+                            render: (row) => (
+                                <div>
+                                    {row.actor}
+                                    <div className="text-xs">{dateTime(row.time)}</div>
+                                    {row.classifier && (
+                                        <div className="text-xs">
+                                            {t('Classified by')}: {row.classifier} ·{' '}
+                                            {dateTime(row.classifiedAt!)}
+                                        </div>
+                                    )}
+                                </div>
+                            ),
+                        },
+                        {
+                            label: 'Reason',
+                            render: (row) => (
+                                <div>
+                                    {row.reason}
+                                    {row.classificationReason &&
+                                        row.classificationReason !== row.reason && (
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                                {t('Classification reason')}:{' '}
+                                                {row.classificationReason}
+                                            </p>
+                                        )}
+                                </div>
+                            ),
+                        },
+                        {
+                            label: 'Actions',
+                            render: (row) =>
+                                !row.kind ? (
+                                    <Button
+                                        size="sm"
+                                        onClick={() => {
+                                            setClassifying(row);
+                                            form.reset();
+                                            form.setData('request_id', crypto.randomUUID());
+                                        }}
+                                    >
+                                        {t('Assign commission type')}
+                                    </Button>
+                                ) : (
+                                    '—'
+                                ),
+                        },
                     ]}
                 />
             </div>

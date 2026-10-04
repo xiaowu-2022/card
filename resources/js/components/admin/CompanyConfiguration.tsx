@@ -1,4 +1,5 @@
-import { Link, usePage } from '@inertiajs/react';
+import { useEditor, usePage } from '@/components/admin/editor-context';
+import { Link } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import type { ComponentProps, FormHTMLAttributes, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
@@ -63,6 +64,8 @@ export function ConfigurationForm({
 export function CompanyConfigurationLayout({ children }: { children: ReactNode }) {
     const { props, url } = usePage<ConfigurationProps>();
     const { configurationBase, configurationCompany, configurationReadOnly } = props;
+    const editor = useEditor();
+    if (editor) return <>{children}</>;
     const currentPath = url.split(/[?#]/)[0];
     if (configurationBase && configurationCompany) {
         return (

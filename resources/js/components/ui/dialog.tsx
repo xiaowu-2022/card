@@ -1,6 +1,6 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import type { ComponentProps } from 'react';
+import { useRef, type ComponentProps } from 'react';
 import { cn } from '@/lib/utils';
 
 export const Dialog = DialogPrimitive.Root;
@@ -11,11 +11,14 @@ export function DialogContent({
     children,
     closeLabel = 'Close',
     closeDisabled = false,
+    onOpenAutoFocus,
+    onCloseAutoFocus,
     ...props
 }: ComponentProps<typeof DialogPrimitive.Content> & {
     closeLabel?: string;
     closeDisabled?: boolean;
 }) {
+    const returnFocus = useRef<HTMLElement | null>(null);
     return (
         <DialogPrimitive.Portal>
             <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-slate-950/40" />
@@ -25,6 +28,20 @@ export function DialogContent({
                     className,
                 )}
                 {...props}
+                onOpenAutoFocus={(event) => {
+                    returnFocus.current =
+                        document.activeElement instanceof HTMLElement
+                            ? document.activeElement
+                            : null;
+                    onOpenAutoFocus?.(event);
+                }}
+                onCloseAutoFocus={(event) => {
+                    onCloseAutoFocus?.(event);
+                    if (!event.defaultPrevented && returnFocus.current?.isConnected) {
+                        event.preventDefault();
+                        returnFocus.current.focus();
+                    }
+                }}
             >
                 {children}
                 <DialogPrimitive.Close

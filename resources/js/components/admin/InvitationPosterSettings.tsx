@@ -1,4 +1,4 @@
-import { useForm } from '@inertiajs/react';
+import { useForm } from '@/components/admin/editor-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { t, errorMessage } from '@/i18n/admin';

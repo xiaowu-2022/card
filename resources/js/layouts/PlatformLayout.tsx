@@ -1,3 +1,5 @@
+import { AdminEditorHost } from '@/components/admin/AdminEditor';
+import { useEditor } from '@/components/admin/editor-context';
 import { useAdminTranslation, t } from '@/i18n/admin';
 import { useLocaleSync } from '@/i18n/useLocaleSync';
 import { AdminLanguageSwitcher } from '@/components/admin/AdminLanguageSwitcher';
@@ -44,6 +46,12 @@ const groups: { label: string; items: PlatformNavItem[] }[] = [
         items: [
             { label: 'Dashboard', href: '/platform/demo', icon: Activity },
             { label: 'Tenants', href: '/platform/tenants', icon: Building2 },
+            {
+                label: 'Company configuration',
+                href: '/platform/company-configurations',
+                icon: ServerCog,
+                permission: 'tenant.manage',
+            },
         ],
     },
     {
@@ -178,6 +186,8 @@ export function PlatformLayout({ children }: { children: ReactNode }) {
     useLocaleSync();
     useAdminTranslation();
     const { auth, flash } = usePage<SharedProps>().props;
+    const editor = useEditor();
+    if (editor) return <>{children}</>;
     const initials = auth.admin?.name
         .split(' ')
         .map((part) => part[0])
@@ -185,64 +195,66 @@ export function PlatformLayout({ children }: { children: ReactNode }) {
         .slice(0, 2)
         .toUpperCase();
     return (
-        <div className="min-h-screen">
-            <aside className="fixed inset-y-0 left-0 hidden w-64 overflow-y-auto overscroll-y-contain border-r bg-surface p-5 lg:block">
-                <AppMark name="Aperture Platform" />
-                <PlatformNav />
-            </aside>
-            <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-surface px-4 sm:px-6 lg:ml-64">
-                <div className="lg:hidden">
-                    <Sheet>
-                        <SheetTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label={t('Open platform navigation')}
-                            >
-                                <Menu className="size-5" />
-                            </Button>
-                        </SheetTrigger>
-                        <SheetContent>
-                            <SheetTitle>
-                                <AppMark name="Aperture Platform" />
-                            </SheetTitle>
-                            <SheetDescription className="sr-only">
-                                {t('Platform administration navigation')}
-                            </SheetDescription>
-                            <PlatformNav />
-                        </SheetContent>
-                    </Sheet>
-                </div>
-                <p className="hidden text-sm font-medium sm:block">
-                    {t('Platform control center')}
-                </p>
-                <div className="flex shrink-0 items-center gap-2 whitespace-nowrap sm:gap-3">
-                    <AdminLanguageSwitcher />
-                    <span className="hidden rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-info sm:inline">
-                        {t('Sandbox')}
-                    </span>
-                    <span className="grid size-8 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white">
-                        {initials ?? 'PA'}
-                    </span>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => router.post('/platform/logout')}
-                    >
-                        {t('Sign out')}
-                    </Button>
-                </div>
-            </header>
-            <main className="min-w-0 p-4 sm:p-6 lg:ml-64 lg:p-8 xl:p-10">
-                <div className="mx-auto min-w-0 w-full max-w-[1600px]">
-                    {flash.success && (
-                        <Alert className="mb-6 border-emerald-200 bg-emerald-50">
-                            <AlertDescription>{t(flash.success)}</AlertDescription>
-                        </Alert>
-                    )}
-                    {children}
-                </div>
-            </main>
-        </div>
+        <AdminEditorHost>
+            <div className="min-h-screen">
+                <aside className="fixed inset-y-0 left-0 hidden w-64 overflow-y-auto overscroll-y-contain border-r bg-surface p-5 lg:block">
+                    <AppMark name="Aperture Platform" />
+                    <PlatformNav />
+                </aside>
+                <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-surface px-4 sm:px-6 lg:ml-64">
+                    <div className="lg:hidden">
+                        <Sheet>
+                            <SheetTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={t('Open platform navigation')}
+                                >
+                                    <Menu className="size-5" />
+                                </Button>
+                            </SheetTrigger>
+                            <SheetContent>
+                                <SheetTitle>
+                                    <AppMark name="Aperture Platform" />
+                                </SheetTitle>
+                                <SheetDescription className="sr-only">
+                                    {t('Platform administration navigation')}
+                                </SheetDescription>
+                                <PlatformNav />
+                            </SheetContent>
+                        </Sheet>
+                    </div>
+                    <p className="hidden text-sm font-medium sm:block">
+                        {t('Platform control center')}
+                    </p>
+                    <div className="flex shrink-0 items-center gap-2 whitespace-nowrap sm:gap-3">
+                        <AdminLanguageSwitcher />
+                        <span className="hidden rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-info sm:inline">
+                            {t('Sandbox')}
+                        </span>
+                        <span className="grid size-8 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white">
+                            {initials ?? 'PA'}
+                        </span>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => router.post('/platform/logout')}
+                        >
+                            {t('Sign out')}
+                        </Button>
+                    </div>
+                </header>
+                <main className="min-w-0 p-4 sm:p-6 lg:ml-64 lg:p-8 xl:p-10">
+                    <div className="mx-auto min-w-0 w-full max-w-[1600px]">
+                        {flash.success && (
+                            <Alert className="mb-6 border-emerald-200 bg-emerald-50">
+                                <AlertDescription>{t(flash.success)}</AlertDescription>
+                            </Alert>
+                        )}
+                        {children}
+                    </div>
+                </main>
+            </div>
+        </AdminEditorHost>
     );
 }

@@ -17,9 +17,11 @@ use Inertia\Response;
 
 final class CardProductController extends Controller
 {
-    public function index(CardProductCatalogQuery $query): Response
+    public function index(Request $request, CardProductCatalogQuery $query): Response
     {
-        return Inertia::render('platform/CardProducts', $query->platform());
+        $input = $request->validate(['edit' => ['nullable', 'uuid'], 'page' => ['nullable', 'integer', 'min:1']]);
+
+        return Inertia::render('platform/CardProducts', $query->platform($input['edit'] ?? null));
     }
 
     public function refreshMerchant(string $merchant, Request $request, RefreshCardFormFactors $action): RedirectResponse

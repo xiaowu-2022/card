@@ -1,4 +1,6 @@
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { useEditor } from '@/components/admin/editor-context';
+import { useForm } from '@/components/admin/editor-context';
+import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -7,7 +9,13 @@ import { Button } from '@/components/ui/button';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 type Member = { id: string; account_id: string; email: string };
 type Props = {
-    account: { id: string; companyId: string; companyName: string; accountId: string };
+    account: {
+        id: string;
+        companyId: string;
+        companyName: string;
+        email: string;
+        accountId: string;
+    };
     current: Member | null;
     revision: number;
     descendants: number;
@@ -33,6 +41,7 @@ export default function UserReferrer({
     history,
 }: Props) {
     useAdminTranslation();
+    const editor = useEditor();
     const url = `/platform/tenants/${account.companyId}/users/${account.id}/referrer`;
     const [query, setQuery] = useState(search);
     const form = useForm({
@@ -68,7 +77,11 @@ export default function UserReferrer({
                     className="flex gap-3"
                     onSubmit={(e) => {
                         e.preventDefault();
-                        router.get(url, { search: query }, { preserveState: false });
+                        if (editor) {
+                            const next = new URL(url, location.origin);
+                            next.searchParams.set('search', query);
+                            editor.navigate(next.pathname + next.search);
+                        } else router.get(url, { search: query }, { preserveState: false });
                     }}
                 >
                     <input

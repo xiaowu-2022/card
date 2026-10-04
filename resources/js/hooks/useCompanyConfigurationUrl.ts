@@ -1,4 +1,4 @@
-import { usePage } from '@inertiajs/react';
+import { usePage } from '@/components/admin/editor-context';
 
 export function useCompanyConfigurationUrl() {
     const { configurationBase } = usePage<{ configurationBase?: string }>().props;

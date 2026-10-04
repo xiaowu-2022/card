@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Application\Promotion;
 
 use Illuminate\Support\Facades\DB;

@@ -1,16 +1,30 @@
+import { useEffect } from 'react';
 import { useForm } from '@inertiajs/react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { t, errorMessage } from '@/i18n/admin';
 
-export function SupportProfile({ name, url }: { name: string | null; url: string }) {
+export function SupportProfile({
+    name,
+    url,
+    onSaved,
+    onState,
+}: {
+    name: string | null;
+    url: string;
+    onSaved?: () => void;
+    onState?: (dirty: boolean, busy: boolean) => void;
+}) {
     const form = useForm({ support_name: name ?? '' });
+    useEffect(() => {
+        onState?.(form.isDirty, form.processing);
+    }, [form.isDirty, form.processing, onState]);
     return (
         <form
             className="flex items-center gap-3"
             onSubmit={(e) => {
                 e.preventDefault();
-                form.post(url, { preserveScroll: true });
+                form.post(url, { preserveScroll: true, onSuccess: onSaved });
             }}
         >
             <Input

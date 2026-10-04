@@ -56,6 +56,9 @@ final class AdjustManualCommission
 
                 return $old;
             }
+            if (DB::table('commission_adjustment_classifications')->where('tenant_id', $tenant)->where('user_id', $user)->where('request_id', $data['request_id'])->exists()) {
+                throw new DomainException('MANUAL_COMMISSION_CONFLICT', 'This request was already used with different details.', 409);
+            }
             $wallet = Wallet::where('tenant_id', $tenant)->where('user_id', $user)->where('asset_code', $asset)->lockForUpdate()->first();
             if ($company->status !== TenantStatus::Active || $account->status !== UserStatus::Active || $wallet?->status !== WalletStatus::Active) {
                 throw new DomainException('MANUAL_COMMISSION_UNAVAILABLE', 'An active account and an existing active wallet are required.');
@@ -96,6 +99,7 @@ final class AdjustManualCommission
             return DB::table('manual_commission_adjustments')->where('id', $id)->first();
         }, 3);
     }
+
     public function categoryNet(string $tenant, string $user, string $kind): Money
     {
         return Money::of((string) app(PromotionReportQuery::class)->income($tenant, $user)->where('kind', $kind)->sum('amount'), 'USDT');
@@ -117,11 +121,14 @@ final class AdjustManualCommission
                 ->where(fn ($q) => $q->where('adjustment_id', $id)->orWhere('request_id', $data['request_id']))->first();
             if ($old) {
                 abort_unless($old->adjustment_id === $id && $old->request_id === $data['request_id'] && $old->kind === $data['commission_type'] && $old->actor_id === $actor->id && $old->reason === trim($data['reason']), 409);
+
                 return;
             }
             $before = $this->categoryNet($tenant, $user, $data['commission_type']);
             $after = $before->add(Money::of(($adjustment->direction === 'DECREASE' ? '-' : '').$adjustment->amount, 'USDT'));
-            if ($after->isNegative()) throw new DomainException('COMMISSION_CATEGORY_LIMIT', 'The decrease exceeds this commission category balance.');
+            if ($after->isNegative()) {
+                throw new DomainException('COMMISSION_CATEGORY_LIMIT', 'The decrease exceeds this commission category balance.');
+            }
             $this->recordClassification($tenant, $user, $id, $actor, $data, $before, $after);
         }, 3);
     }
@@ -137,5 +144,4 @@ final class AdjustManualCommission
         app(AuditLogger::class)->record($tenant, 'ADMIN', $actor->id, 'COMMISSION_CLASSIFIED', 'manual_commission_adjustment', $id,
             ['category_balance' => $before->amount()], ['kind' => $data['commission_type'], 'category_balance' => $after->amount()], $data['request_id']);
     }
-
 }

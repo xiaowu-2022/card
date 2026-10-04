@@ -26,7 +26,7 @@ final class PromotionDateRequest extends FormRequest
             'source_member' => ['nullable', 'string', 'max:100'],
             'sort' => ['sometimes', 'in:registered_desc,registered_asc,commission_desc,commission_asc'],
             'kind' => ['sometimes', 'in:all,annual,activation,legacy,commission'],
-            'activity' => ['sometimes', 'in:all,invitation,activation,annual,commission'],
+            'activity' => ['sometimes', 'in:all,invitation,activation,annual,legacy,commission'],
             'rank' => ['sometimes', Rule::in(array_merge(['all'], $this->routeIs('user.promotion.commissions') ? ['unknown'] : [], PromotionRanks::forTenant(app(TenantContext::class)->id())))],
             'relation' => ['sometimes', 'in:all,direct,indirect,unknown'],
             'date' => ['nullable', 'date_format:Y-m-d'], 'page' => ['sometimes', 'integer', 'min:1', 'max:1000000'],

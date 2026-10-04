@@ -17,15 +17,15 @@ final class InboxController extends Controller
     {
         $v = $request->validate(['company' => 'nullable|uuid|exists:tenants,id', 'page' => 'sometimes|integer|min:1|max:100000']);
         $tenant = $v['company'] ?? null;
-        $rows = $tenant ? DB::table('inbox_broadcasts as b')->leftJoin('admin_users as a', 'a.id', '=', 'b.actor_id')
-            ->where('b.tenant_id', $tenant)->select('b.id', 'b.title', 'b.body', 'b.audience', 'b.recipient_count', 'b.created_at', 'a.name as sender')
+        $rows = DB::table('inbox_broadcasts as b')->leftJoin('admin_users as a', 'a.id', '=', 'b.actor_id')
+            ->join('tenants as t', 't.id', '=', 'b.tenant_id')->when($tenant, fn ($q) => $q->where('b.tenant_id', $tenant))->select('b.id', 'b.tenant_id', 't.name as company_name', 'b.title', 'b.body', 'b.audience', 'b.recipient_count', 'b.created_at', 'a.name as sender')
             ->selectSub(DB::table('inbox_events as e')->selectRaw('count(*)')->whereColumn('e.broadcast_id', 'b.id')->whereColumn('e.tenant_id', 'b.tenant_id')->whereNotNull('e.delivered_at'), 'delivered')
             ->selectSub(DB::table('inbox_receipts as r')->join('inbox_events as e', 'e.id', '=', 'r.event_id')->selectRaw('count(*)')->whereColumn('e.broadcast_id', 'b.id')->whereColumn('r.tenant_id', 'b.tenant_id')->whereNotNull('r.read_at'), 'read')
             ->orderByDesc('b.created_at')->orderBy('b.id')->paginate(20)->withQueryString()->through(function ($row) {
                 $row->created_at = CarbonImmutable::parse($row->created_at)->toIso8601String();
 
                 return $row;
-            }) : null;
+            });
 
         return Inertia::render('platform/Notifications', ['companies' => $lists->companies(), 'company' => $tenant, 'batches' => $rows])->toResponse($request)->header('Cache-Control', 'private, no-store');
     }
@@ -58,6 +58,6 @@ final class InboxController extends Controller
     {
         $service->send($request->user('platform_admin'), $tenant->id, $this->data($request, true));
 
-        return redirect('/platform/notifications?company='.$tenant->id, 303)->with('success', 'Notification queued for delivery.');
+        return back(303, [], '/platform/notifications')->with('success', 'Notification queued for delivery.');
     }
 }

@@ -18,12 +18,16 @@ final class NotificationProfilesController extends Controller
 {
     public function sms(PlatformNotificationProfilesQuery $query): Response
     {
-        return Inertia::render('platform/NotificationProfiles', ['channel' => 'sms', 'profiles' => $query->execute('sms')]);
+        $profiles = $query->execute('sms');
+
+        return Inertia::render('platform/NotificationProfiles', ['channel' => 'sms', 'profiles' => $profiles->items(), 'pagination' => ['previous' => $profiles->previousPageUrl(), 'next' => $profiles->nextPageUrl(), 'total' => $profiles->total()]]);
     }
 
     public function email(PlatformNotificationProfilesQuery $query): Response
     {
-        return Inertia::render('platform/NotificationProfiles', ['channel' => 'email', 'profiles' => $query->execute('email')]);
+        $profiles = $query->execute('email');
+
+        return Inertia::render('platform/NotificationProfiles', ['channel' => 'email', 'profiles' => $profiles->items(), 'pagination' => ['previous' => $profiles->previousPageUrl(), 'next' => $profiles->nextPageUrl(), 'total' => $profiles->total()]]);
     }
 
     public function saveSms(SavePlatformSmsProfileRequest $request, SavePlatformSmsProfileAction $action, ?string $profile = null): RedirectResponse

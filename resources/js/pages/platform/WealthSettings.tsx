@@ -1,4 +1,5 @@
-import { Head, useForm } from '@inertiajs/react';
+import { useForm } from '@/components/admin/editor-context';
+import { Head } from '@inertiajs/react';
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
 import { CompanyConfigurationLayout } from '@/components/admin/CompanyConfiguration';
 import { TenantAdminLayout } from '@/layouts/TenantAdminLayout';

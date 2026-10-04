@@ -17,12 +17,15 @@ use App\Http\Controllers\Platform\CompanyConfiguration\TenantArticleController;
 use App\Http\Controllers\Platform\CompanyConfiguration\TenantEmailSettingsController;
 use App\Http\Controllers\Platform\CompanyConfiguration\TenantSettingsController;
 use App\Http\Controllers\Platform\CompanyConfiguration\TenantSmsSettingsController;
+use App\Http\Controllers\Platform\CompanyConfigurationListController;
 use App\Http\Controllers\Platform\DashboardController;
 use App\Http\Controllers\Platform\DomainManagementController;
 use App\Http\Controllers\Platform\FinancialOperationsController;
 use App\Http\Controllers\Platform\FundsOrdersController;
 use App\Http\Controllers\Platform\InboxController;
+use App\Http\Controllers\Platform\KycDetailController;
 use App\Http\Controllers\Platform\KycSettingsController;
+use App\Http\Controllers\Platform\ManualCommissionController;
 use App\Http\Controllers\Platform\NotificationProfilesController;
 use App\Http\Controllers\Platform\OssSettingsController;
 use App\Http\Controllers\Platform\PartnerController;
@@ -37,6 +40,7 @@ use App\Http\Controllers\Platform\TopupVerificationController;
 use App\Http\Controllers\Platform\TronWithdrawalsController;
 use App\Http\Controllers\Platform\UserOperationsController;
 use App\Http\Controllers\Platform\UserPromotionController;
+use App\Http\Controllers\Platform\UserReferrerController;
 use App\Http\Controllers\Platform\WalletAdjustmentController;
 use App\Http\Controllers\Platform\WealthController;
 use App\Http\Middleware\PlatformCompanyConfiguration;
@@ -130,12 +134,13 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware(['admin.scope:platform,cards.read', 'throttle:30,1'])->post('/tenants/{tenant}/cards/{card}/refresh', [CardOperationsController::class, 'refresh'])->whereUuid(['tenant', 'card'])->name('cards.refresh');
     Route::middleware('admin.scope:platform,users.read')->get('/users', UserOperationsController::class)->name('users.index');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.referrer.manage'])->group(function () {
-        Route::get('/tenants/{tenant}/users/{user}/referrer', [\App\Http\Controllers\Platform\UserReferrerController::class, 'show'])->whereUuid(['tenant','user']);
-        Route::post('/tenants/{tenant}/users/{user}/referrer', [\App\Http\Controllers\Platform\UserReferrerController::class, 'update'])->middleware('throttle:20,1')->whereUuid(['tenant','user']);
+        Route::get('/tenants/{tenant}/users/{user}/referrer', [UserReferrerController::class, 'show'])->whereUuid(['tenant', 'user']);
+        Route::post('/tenants/{tenant}/users/{user}/referrer', [UserReferrerController::class, 'update'])->middleware('throttle:20,1')->whereUuid(['tenant', 'user']);
     });
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,commissions.adjust'])->group(function () {
-        Route::get('/tenants/{tenant}/users/{user}/manual-commissions', [\App\Http\Controllers\Platform\ManualCommissionController::class, 'show'])->whereUuid(['tenant','user']);
-        Route::post('/tenants/{tenant}/users/{user}/manual-commissions', [\App\Http\Controllers\Platform\ManualCommissionController::class, 'update'])->middleware('throttle:20,1')->whereUuid(['tenant','user']);
+        Route::get('/tenants/{tenant}/users/{user}/manual-commissions', [ManualCommissionController::class, 'show'])->whereUuid(['tenant', 'user']);
+        Route::post('/tenants/{tenant}/users/{user}/manual-commissions', [ManualCommissionController::class, 'update'])->middleware('throttle:20,1')->whereUuid(['tenant', 'user']);
+        Route::post('/tenants/{tenant}/users/{user}/manual-commissions/{adjustment}/classify', [ManualCommissionController::class, 'classify'])->middleware('throttle:20,1')->whereUuid(['tenant', 'user', 'adjustment']);
     });
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,wallet.adjust'])->group(function () {
         Route::get('/tenants/{tenant}/users/{user}/wallet-adjustments', [WalletAdjustmentController::class, 'show'])->whereUuid(['tenant', 'user']);
@@ -150,11 +155,11 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::put('/card-providers/{reference}', [CardProviderController::class, 'update'])->whereUuid('reference')->name('card-providers.update');
     });
     Route::middleware(['admin.scope:platform,kyc.read', 'admin.scope:platform,kyc.document.view'])->group(function (): void {
-        Route::post('/tenants/{tenant}/kyc/{kyc}/documents', [\App\Http\Controllers\Platform\KycDetailController::class, 'access'])->whereUuid(['tenant', 'kyc'])->middleware('throttle:5,1')->name('kyc.documents.access');
-        Route::get('/tenants/{tenant}/kyc/{kyc}/documents/{side}', [\App\Http\Controllers\Platform\KycDetailController::class, 'image'])->whereUuid(['tenant', 'kyc'])->whereIn('side', ['front', 'back'])->middleware('signed')->name('kyc.documents.show');
+        Route::post('/tenants/{tenant}/kyc/{kyc}/documents', [KycDetailController::class, 'access'])->whereUuid(['tenant', 'kyc'])->middleware('throttle:5,1')->name('kyc.documents.access');
+        Route::get('/tenants/{tenant}/kyc/{kyc}/documents/{side}', [KycDetailController::class, 'image'])->whereUuid(['tenant', 'kyc'])->whereIn('side', ['front', 'back'])->middleware('signed')->name('kyc.documents.show');
     });
     Route::middleware('admin.scope:platform,kyc.read')->group(function (): void {
-        Route::get('/tenants/{tenant}/kyc/{kyc}', [\App\Http\Controllers\Platform\KycDetailController::class, 'show'])->whereUuid(['tenant', 'kyc'])->name('kyc.show');
+        Route::get('/tenants/{tenant}/kyc/{kyc}', [KycDetailController::class, 'show'])->whereUuid(['tenant', 'kyc'])->name('kyc.show');
         Route::get('/kyc', [AccountOperationsController::class, 'index'])->name('kyc.index');
         Route::get('/tenants/{tenant}/kyc', [AccountOperationsController::class, 'kyc'])->whereUuid('tenant')->name('kyc.company');
     });
@@ -174,6 +179,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     });
 
     Route::middleware('admin.scope:platform,tenant.manage')->group(function (): void {
+        Route::get('/company-configurations', CompanyConfigurationListController::class)->name('company-configurations');
         Route::put('/tenants/{tenant}/name', [TenantManagementController::class, 'rename'])->whereUuid('tenant')->name('tenants.rename');
         Route::post('/settings/domains/assign/{tenant}', [DomainManagementController::class, 'assign'])->whereUuid('tenant')->name('settings.domains.assign');
         Route::get('/settings/domains', [PlatformDomainController::class, 'index'])->name('settings.domains');

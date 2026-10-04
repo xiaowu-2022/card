@@ -21,38 +21,40 @@ export function PartnerUserSelect({
     const [failed, setFailed] = useState(false);
     const [retry, setRetry] = useState(0);
     useEffect(() => {
-        if (!open) return;
+        if (!open || !companyId) return;
         const controller = new AbortController();
         setLoading(true);
         setFailed(false);
         const timer = setTimeout(
-            async () => {
-                try {
-                    const params = new URLSearchParams({ search, page: String(page) });
-                    const response = await fetch(
-                        `/platform/tenants/${companyId}/partner-candidates?${params}`,
-                        {
-                            headers: { Accept: 'application/json' },
-                            signal: controller.signal,
-                            cache: 'no-store',
-                        },
-                    );
-                    if (!response.ok) throw new Error('Lookup failed');
-                    const data = (await response.json()) as {
-                        items: Candidate[];
-                        hasMore: boolean;
-                    };
-                    if (!controller.signal.aborted) {
-                        setItems((previous) =>
-                            page === 1 ? data.items : [...previous, ...data.items],
+            () => {
+                void (async () => {
+                    try {
+                        const params = new URLSearchParams({ search, page: String(page) });
+                        const response = await fetch(
+                            `/platform/tenants/${companyId}/partner-candidates?${params}`,
+                            {
+                                headers: { Accept: 'application/json' },
+                                signal: controller.signal,
+                                cache: 'no-store',
+                            },
                         );
-                        setHasMore(data.hasMore);
+                        if (!response.ok) throw new Error('Lookup failed');
+                        const data = (await response.json()) as {
+                            items: Candidate[];
+                            hasMore: boolean;
+                        };
+                        if (!controller.signal.aborted) {
+                            setItems((previous) =>
+                                page === 1 ? data.items : [...previous, ...data.items],
+                            );
+                            setHasMore(data.hasMore);
+                        }
+                    } catch {
+                        if (!controller.signal.aborted) setFailed(true);
+                    } finally {
+                        if (!controller.signal.aborted) setLoading(false);
                     }
-                } catch {
-                    if (!controller.signal.aborted) setFailed(true);
-                } finally {
-                    if (!controller.signal.aborted) setLoading(false);
-                }
+                })();
             },
             search ? 250 : 0,
         );
@@ -69,6 +71,7 @@ export function PartnerUserSelect({
     ];
     return (
         <SearchSelect
+            disabled={!companyId}
             id="partner-user"
             label={t('Select member')}
             value={value}

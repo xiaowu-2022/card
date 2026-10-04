@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { Head } from '@inertiajs/react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -14,6 +17,8 @@ export default function SupportAgents({
     filters: { search?: string };
 }) {
     useAdminTranslation();
+    const [editing, setEditing] = useState<Agent | null>(null);
+    const [formState, setFormState] = useState({ dirty: false, busy: false });
     return (
         <PlatformLayout>
             <Head title={t('Support staff')} />
@@ -45,15 +50,51 @@ export default function SupportAgents({
                         {
                             label: 'Support nickname',
                             render: (a) => (
-                                <SupportProfile
-                                    key={a.id + ':' + a.supportName}
-                                    name={a.supportName}
-                                    url={`/platform/support/agents/${a.id}`}
-                                />
+                                <div className="flex gap-3">
+                                    <span>{a.supportName ?? '—'}</span>
+                                    <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        onClick={() => setEditing(a)}
+                                    >
+                                        {t('Edit')}
+                                    </Button>
+                                </div>
                             ),
                         },
                     ]}
                 />
+                <Dialog
+                    open={!!editing}
+                    onOpenChange={(open) => {
+                        if (
+                            !open &&
+                            !formState.busy &&
+                            (!formState.dirty || confirm(t('Discard unsaved changes?')))
+                        )
+                            setEditing(null);
+                    }}
+                >
+                    <DialogContent aria-describedby={undefined} closeDisabled={formState.busy}>
+                        <DialogTitle>
+                            {t('Support nickname')} · {editing?.name}
+                        </DialogTitle>
+                        {editing && (
+                            <SupportProfile
+                                name={editing.supportName}
+                                url={`/platform/support/agents/${editing.id}`}
+                                onSaved={() => setEditing(null)}
+                                onState={(dirty, busy) =>
+                                    setFormState((old) =>
+                                        old.dirty === dirty && old.busy === busy
+                                            ? old
+                                            : { dirty, busy },
+                                    )
+                                }
+                            />
+                        )}
+                    </DialogContent>
+                </Dialog>
             </div>
         </PlatformLayout>
     );

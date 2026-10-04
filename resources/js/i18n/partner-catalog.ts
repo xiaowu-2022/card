@@ -1,4 +1,31 @@
 export const partnerCatalog = {
+    'Commission credited to the wallet.': [
+        '佣金已计入钱包。',
+        'Komisen telah dikreditkan ke dompet.',
+        'La comisión se abonó a la billetera.',
+    ],
+    'Commission deducted from the wallet.': [
+        '佣金已从钱包扣减。',
+        'Komisen telah ditolak daripada dompet.',
+        'La comisión se descontó de la billetera.',
+    ],
+    'Activation commission deducted from the wallet.': [
+        '激活佣金已从钱包扣减。',
+        'Komisen pengaktifan ditolak daripada dompet.',
+        'La comisión de activación se descontó de la billetera.',
+    ],
+    'Annual fee commission deducted from the wallet.': [
+        '年费佣金已从钱包扣减。',
+        'Komisen yuran tahunan ditolak daripada dompet.',
+        'La comisión de cuota anual se descontó de la billetera.',
+    ],
+    'Theoretical balance = personal net advances + net commissions received − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.':
+        [
+            '理论余额＝本人预支净额＋已到账佣金净额－本人报销净额。实际余额为本人 USDT 钱包可用余额。差额＝理论余额－实际余额。',
+            'Baki teori = pendahuluan bersih peribadi + komisen bersih diterima − bayaran balik bersih peribadi. Baki sebenar ialah baki USDT tersedia. Perbezaan = teori − sebenar.',
+            'Saldo teórico = anticipos personales netos + comisiones netas recibidas − reembolsos personales netos. Saldo real: USDT disponible. Diferencia = teórico − real.',
+        ],
+
     'Team deposit details': [
         '团队入金明细',
         'Butiran deposit pasukan',

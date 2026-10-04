@@ -1,5 +1,5 @@
+import { useForm, usePage } from '@/components/admin/editor-context';
 import { useState } from 'react';
-import { useForm, usePage } from '@inertiajs/react';
 import { t, errorMessage, useAdminTranslation } from '@/i18n/admin';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +35,7 @@ export function RenameCompany({
                     form.setData('name', company.name);
                     form.clearErrors();
                 }
+                if (!value && form.isDirty && !confirm(t('Discard unsaved changes?'))) return;
                 setOpen(value);
             }}
         >

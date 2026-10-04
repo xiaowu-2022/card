@@ -52,7 +52,7 @@ it('moves the subtree with evidence and idempotency without changing business hi
     expect(fn () => DB::transaction(fn () => DB::table('referrer_changes')->where('id', $row->id)->delete()))->toThrow(QueryException::class);
 });
 it('rejects self descendants cross-company stale forms and revoked permissions', function () {
-    $this->actingAs($this->actor, 'platform_admin')->get($this->url.'?search='.User::findOrFail($this->target->user_id)->email)->assertOk();
+    $this->actingAs($this->actor, 'platform_admin')->get($this->url.'?search='.User::findOrFail($this->target->user_id)->email, ['X-Admin-Dialog' => '1'])->assertOk();
     foreach ([$this->child->id, $this->grandchild->id] as $target) {
         $this->postJson($this->url, array_replace($this->data, ['new_inviter_id' => $target]))->assertUnprocessable();
     }
@@ -81,5 +81,5 @@ it('serializes concurrent reparenting and rejects the stale competing edit', fun
         fn () => app(ChangeReferrer::class)->execute($tenant, $user, AdminUser::findOrFail($actor), $second),
     ]);
     expect($results)->toEqualCanonicalizing(['completed', 'rejected']);
-    expect(DB::table('referrer_changes')->where('user_id',$user)->count())->toBe(1);
+    expect(DB::table('referrer_changes')->where('user_id', $user)->count())->toBe(1);
 });

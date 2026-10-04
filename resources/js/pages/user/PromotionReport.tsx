@@ -1,3 +1,4 @@
+import { incomeLabels } from '@/lib/promotion-report';
 import { teamHref } from '@/lib/promotion-report';
 import { useTeamReturnHref } from '@/hooks/useTeamReturnHref';
 import { TeamViewingContext, type TeamSubject } from '@/components/user/TeamViewingContext';
@@ -34,7 +35,7 @@ import '../../../css/promotion.css';
 type Movement = {
     id: string;
     kind: string;
-    sourceAccountId: string;
+    sourceAccountId: string | null;
     relation: string;
     sourceRank: number | null;
     sourceAmount: string | null;
@@ -67,6 +68,7 @@ const activityLabels: Record<string, string> = {
     activation: 'Deposit payment',
     annual: 'Annual fee payment',
     commission: 'Commission',
+    legacy: 'Legacy commission',
 };
 const purchaseLabels: Record<string, string> = {
     purchase: 'First purchase',
@@ -315,7 +317,11 @@ export default function PromotionReport({
                                       <div className="report-entry-body">
                                           <div className="report-entry-top">
                                               <h2>
-                                                  {t(activityLabels[row.kind] ?? 'Team activity')}
+                                                  {t(
+                                                      (row.sourceAccountId
+                                                          ? activityLabels
+                                                          : incomeLabels)[row.kind] ?? 'Commission',
+                                                  )}
                                               </h2>
                                               {row.kind !== 'invitation' && (
                                                   <strong className="report-positive">
@@ -323,16 +329,18 @@ export default function PromotionReport({
                                                   </strong>
                                               )}
                                           </div>
-                                          <div className="report-entry-meta">
-                                              <span className="report-account">
-                                                  {row.sourceAccountId}
-                                              </span>
-                                              <span>
-                                                  {row.kind === 'invitation'
-                                                      ? relationLabel(row.relation)
-                                                      : reportRank(row.sourceRank)}
-                                              </span>
-                                          </div>
+                                          {row.sourceAccountId && (
+                                              <div className="report-entry-meta">
+                                                  <span className="report-account">
+                                                      {row.sourceAccountId}
+                                                  </span>
+                                                  <span>
+                                                      {row.kind === 'invitation'
+                                                          ? relationLabel(row.relation)
+                                                          : reportRank(row.sourceRank)}
+                                                  </span>
+                                              </div>
+                                          )}
                                           <div className="report-entry-meta">
                                               <time>{dateTime(row.occurredAt)}</time>
                                               {row.kind !== 'invitation' && (
@@ -363,10 +371,12 @@ export default function PromotionReport({
                                       <span className="sr-only">{t('View details')}</span>
                                   </summary>
                                   <dl className="report-entry-detail">
-                                      <div>
-                                          <dt>{t('Referral relationship')}</dt>
-                                          <dd>{relationLabel(row.relation)}</dd>
-                                      </div>
+                                      {row.sourceAccountId && (
+                                          <div>
+                                              <dt>{t('Referral relationship')}</dt>
+                                              <dd>{relationLabel(row.relation)}</dd>
+                                          </div>
+                                      )}
                                       {row.sourceAmount !== null && (
                                           <>
                                               <div>

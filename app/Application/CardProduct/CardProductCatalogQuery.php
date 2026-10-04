@@ -19,29 +19,41 @@ final readonly class CardProductCatalogQuery
     public function __construct(private WalletEligibilityService $eligibility, private CardProductProviderRouter $router) {}
 
     /** @return array<string,mixed> */
-    public function platform(): array
+    public function platform(?string $edit = null): array
     {
-        return ['products' => CardProduct::query()->whereNull('archived_at')->select('card_products.*')->selectRaw('(
+        $query = CardProduct::query()->whereNull('archived_at');
+        $page = null;
+        if ($edit !== null && ! request()->has('page')) {
+            $selected = (clone $query)->whereKey($edit)->firstOrFail();
+            $preceding = (clone $query)->where(fn ($q) => $q->where('name', '<', $selected->name)
+                ->orWhere(fn ($q) => $q->where('name', $selected->name)->where('id', '<', $selected->id)))->count();
+            $page = intdiv($preceding, 20) + 1;
+        }
+        $products = $query->select('card_products.*')->selectRaw('(
                 EXISTS (SELECT 1 FROM provider_cardholders WHERE card_product_id = card_products.id)
                 OR EXISTS (SELECT 1 FROM card_issue_orders WHERE card_product_id = card_products.id)
                 OR EXISTS (SELECT 1 FROM user_cards WHERE card_product_id = card_products.id)
-            ) AS routing_locked')->with('cardProviderReference')->withCount('tenantConfigs')->orderBy('name')->get()
-            ->map(fn (CardProduct $product): array => $this->product($product) + [
+            ) AS routing_locked')->with('cardProviderReference')->withCount('tenantConfigs')->orderBy('name')->orderBy('id')
+            ->paginate(20, ['*'], 'page', $page)->withQueryString()->through(fn (CardProduct $product): array => $this->product($product) + [
                 'cardProviderReferenceId' => $product->card_provider_reference_id,
                 'cardProviderName' => $product->cardProviderReference?->name,
                 'routingLocked' => (bool) $product->routing_locked,
                 'localMock' => $this->router->isLocalMock($product),
                 'accountApiConfigured' => $this->router->isPhotonPayAccount($product) && $this->router->forProduct($product)->available(),
                 'sandboxApiConfigured' => $this->router->isSandbox($product) && $this->router->forProduct($product)->available(),
-            ])->all(),
+            ]);
+        $usedBins = DB::table('card_bin_claims as b')->leftJoin('platform_card_provider_references as m', 'm.id', '=', 'b.card_provider_reference_id')
+            ->get(['b.bin', 'b.card_product_id', 'm.name', 'b.conflicted'])->map(fn ($c): array => ['bin' => $c->bin, 'productId' => $c->card_product_id, 'merchantName' => $c->name, 'conflicted' => (bool) $c->conflicted])->all();
+
+        return ['products' => $products->items(),
+            'pagination' => ['previous' => $products->previousPageUrl(), 'next' => $products->nextPageUrl(), 'total' => $products->total()],
             'cardProviders' => CardProviderReference::query()->orderBy('name')->get()
                 ->map(fn ($provider): array => ['id' => $provider->id, 'name' => $provider->name,
                     'apiBins' => $provider->photonpay_reporting_encrypted !== null,
                     'bins' => $provider->photonpay_reporting_encrypted !== null
                         ? $provider->bin_catalog : null,
                     'selectable' => $provider->photonpay_enabled && $provider->photonpay_check_status === 'VERIFIED' && ! $provider->photonpay_migration_error,
-                    'usedBins' => DB::table('card_bin_claims as b')->leftJoin('platform_card_provider_references as m', 'm.id', '=', 'b.card_provider_reference_id')
-                        ->get(['b.bin', 'b.card_product_id', 'm.name', 'b.conflicted'])->map(fn ($c): array => ['bin' => $c->bin, 'productId' => $c->card_product_id, 'merchantName' => $c->name, 'conflicted' => (bool) $c->conflicted])->all(),
+                    'usedBins' => $usedBins,
                 ])->all(),
         ];
     }

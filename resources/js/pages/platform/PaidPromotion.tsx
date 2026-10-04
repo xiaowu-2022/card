@@ -1,5 +1,6 @@
+import { useForm } from '@/components/admin/editor-context';
 import { InvitationPosterSettings } from '@/components/admin/InvitationPosterSettings';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { CompanyConfigurationLayout } from '@/components/admin/CompanyConfiguration';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

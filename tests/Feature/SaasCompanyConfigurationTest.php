@@ -51,7 +51,7 @@ it('keeps all company configuration views read only and makes the same views ava
 
             continue;
         }
-        $this->actingAs($this->owner, 'platform_admin')->get($this->base.'/'.$path)->assertOk()
+        $this->actingAs($this->owner, 'platform_admin')->get($this->base.'/'.$path, ['X-Admin-Dialog' => '1'])->assertOk()
             ->assertInertia(fn ($page) => $page->where('configurationCompany.id', $this->company->id)
                 ->where('configurationReadOnly', false)->where('configurationBase', '/platform/tenants/'.$this->company->id.'/configuration'));
     }

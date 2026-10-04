@@ -29,7 +29,7 @@ final class UserReferrerController extends Controller
         }
 
         return Inertia::render('platform/UserReferrer', [
-            'account' => ['id' => $user, 'companyId' => $tenant, 'companyName' => Tenant::findOrFail($tenant)->name, 'accountId' => $account->account_id],
+            'account' => ['id' => $user, 'companyId' => $tenant, 'companyName' => Tenant::findOrFail($tenant)->name, 'accountId' => $account->account_id, 'email' => $account->email],
             'current' => $identity($member->inviter_id), 'revision' => (int) $member->referrer_revision, 'descendants' => count($descendants),
             'search' => $data['search'] ?? '', 'candidates' => $candidates,
             'history' => DB::table('referrer_changes as r')->leftJoin('promotion_members as old', 'old.id', '=', 'r.old_inviter_id')->leftJoin('users as ou', 'ou.id', '=', 'old.user_id')
@@ -42,8 +42,8 @@ final class UserReferrerController extends Controller
     {
         $data = $request->validate(['new_inviter_id' => ['required', 'uuid'], 'old_inviter_id' => ['nullable', 'uuid'], 'revision' => ['required', 'integer', 'min:0'],
             'reason' => ['required', 'string', 'max:500'], 'request_id' => ['required', 'uuid'], 'confirmed' => ['required', 'accepted']]);
-        $action->execute($tenant,$user,$request->user('platform_admin'),$data);
+        $action->execute($tenant, $user, $request->user('platform_admin'), $data);
 
-        return back()->with('success','Referrer updated.');
+        return back()->with('success', 'Referrer updated.');
     }
 }

@@ -61,6 +61,30 @@ it('rejects company administrators archiving platform products', function (): vo
     expect($this->product->fresh()->archived_at)->toBeNull();
 });
 
+it('paginates the platform catalog and opens an old edit link on the correct page without provider reads', function (): void {
+    config(['inertia.ssr.enabled' => false]);
+    Http::fake();
+    $target = null;
+    for ($index = 0; $index < 24; $index++) {
+        $target = $this->product->replicate()->forceFill([
+            'name' => sprintf('ZZ Synthetic product %02d', $index),
+            'provider_product_ref' => 'TEST-PAGINATION-'.$index,
+        ]);
+        $target->save();
+    }
+    $count = CardProduct::query()->whereNull('archived_at')->count();
+    $this->actingAs($this->platformOwner, 'platform_admin')->get('http://admin.localhost/platform/card-products')
+        ->assertOk()->assertInertia(fn (Assert $page) => $page->has('products', 20)
+        ->where('pagination.total', $count)->where('pagination.previous', null));
+    $this->get('http://admin.localhost/platform/card-products?page=2')
+        ->assertOk()->assertInertia(fn (Assert $page) => $page->has('products', $count - 20)
+        ->where('pagination.next', null));
+    $this->get('http://admin.localhost/platform/card-products?edit='.$target->id)
+        ->assertOk()->assertInertia(fn (Assert $page) => $page->has('products', $count - 20)
+        ->where('products.'.($count - 21).'.id', $target->id));
+    Http::assertNothingSent();
+});
+
 it('lets platform create and edit account-bound products with fixed USD regular shape', function (): void {
     [$account] = photonAccountFixture($this->platformOwner, 'DEMO-MILLE-PLUS-0001');
     $account->forceFill(['bin_catalog' => [['bin' => 'DEMO-MILLE-PLUS-0001'], ['bin' => 'DEMO-MILLE-PLUS-0002']]])->save();

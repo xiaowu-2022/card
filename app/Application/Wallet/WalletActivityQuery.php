@@ -2,6 +2,7 @@
 
 namespace App\Application\Wallet;
 
+use App\Application\Promotion\CommissionDisplay;
 use App\Domain\Ledger\Enums\LedgerAccountType;
 use App\Domain\Ledger\Models\LedgerEntry;
 use App\Domain\Ledger\ValueObjects\Money;
@@ -21,10 +22,13 @@ final readonly class WalletActivityQuery
             ->groupByRaw($keySql)->orderByDesc('activity_time')->orderBy('activity_key')->limit(20)->pluck('activity_key');
 
         $entries = (clone $base)->whereIn(DB::raw($keySql), $keys)->with('postings.account')->orderByDesc('posted_at')->orderByDesc('id')->get();
-        $display = \App\Application\Promotion\CommissionDisplay::events($tenantId, $userId, $entries->where('event_type', 'MANUAL_COMMISSION')->pluck('id'));
+        $display = CommissionDisplay::events($tenantId, $userId, $entries->where('event_type', 'MANUAL_COMMISSION')->pluck('id'));
         foreach ($entries as $entry) {
-            if ($entry->event_type === 'MANUAL_COMMISSION') $entry->event_type = $display[$entry->id] ?? 'COMMISSION';
+            if ($entry->event_type === 'MANUAL_COMMISSION') {
+                $entry->event_type = $display[$entry->id] ?? 'COMMISSION';
+            }
         }
+
         return $entries->groupBy(fn ($entry) => in_array($entry->reference_type, $types, true) && $entry->reference_id ? $entry->reference_type.':'.$entry->reference_id : $entry->id)
             ->map(function ($events) use ($tenantId, $userId): array {
                 $latest = $events->first();

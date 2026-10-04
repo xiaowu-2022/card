@@ -1,4 +1,4 @@
-import { useForm } from '@inertiajs/react';
+import { useForm } from '@/components/admin/editor-context';
 import { t, errorMessage, useAdminTranslation } from '@/i18n/admin';
 import { displayMoney } from '@/lib/exact-amount';
 import { MoneyInput } from '@/components/shared/MoneyInput';

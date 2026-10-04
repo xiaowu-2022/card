@@ -1,6 +1,7 @@
+import { useForm, useEditor } from '@/components/admin/editor-context';
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { dateTime } from '@/i18n';
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { PlatformSettingsLayout } from '@/layouts/PlatformSettingsLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -123,6 +124,7 @@ export default function AssetSettings(p: Props) {
 }
 function AssetSettingsForm(p: Props) {
     useAdminTranslation();
+    const editor = useEditor();
     const initial = initialSections(p);
     const form = useForm<{ sections: Section[] }>({
         sections: initial,
@@ -152,6 +154,13 @@ function AssetSettingsForm(p: Props) {
         <PlatformSettingsLayout>
             <Head title={t('Asset settings')} />
             <div className="space-y-6">
+                {!editor && (
+                    <Button asChild variant="secondary">
+                        <Link href="/platform/company-configurations?section=assets">
+                            {t('Company configuration')}
+                        </Link>
+                    </Button>
+                )}
                 <p className="text-sm text-muted-foreground">
                     {t(
                         'Manage receiving addresses and company deposit, withdrawal and exchange settings.',
@@ -194,23 +203,36 @@ function AssetSettingsForm(p: Props) {
                             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                                 <label className="block w-full space-y-2 text-sm sm:max-w-sm">
                                     <span>{t('Company')}</span>
-                                    <select
-                                        className="min-h-11 w-full rounded-md border bg-surface px-3"
-                                        value={p.company ?? ''}
-                                        onChange={(e) =>
-                                            router.get(
-                                                '/platform/settings/assets',
-                                                e.target.value ? { company: e.target.value } : {},
-                                            )
-                                        }
-                                    >
-                                        <option value="">{t('Global configuration')}</option>
-                                        {p.companies.map((c) => (
-                                            <option key={c.id} value={c.id}>
-                                                {c.name}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    {editor ? (
+                                        <strong className="block">
+                                            {p.companies.find((c) => c.id === p.company)?.name}
+                                        </strong>
+                                    ) : (
+                                        <select
+                                            className="min-h-11 w-full rounded-md border bg-surface px-3"
+                                            value={p.company ?? ''}
+                                            onChange={(e) =>
+                                                router.get(
+                                                    e.target.value
+                                                        ? '/platform/company-configurations'
+                                                        : '/platform/settings/assets',
+                                                    e.target.value
+                                                        ? {
+                                                              company: e.target.value,
+                                                              section: 'assets',
+                                                          }
+                                                        : {},
+                                                )
+                                            }
+                                        >
+                                            <option value="">{t('Global configuration')}</option>
+                                            {p.companies.map((c) => (
+                                                <option key={c.id} value={c.id}>
+                                                    {c.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
                                 </label>
                                 <Button type="submit" disabled={form.processing || !dirty.length}>
                                     {t('Save all changes')}

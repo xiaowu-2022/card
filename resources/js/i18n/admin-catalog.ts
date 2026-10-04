@@ -2,73 +2,116 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    Edit: '编辑',
+    'All types': '全部类型',
+    Pagination: '分页',
+    'Classification reason': '归类原因',
+    'Edit record': '编辑记录',
+    'Changes apply only to the record shown here.': '操作仅应用于当前显示的记录。',
+    'Discard unsaved changes?': '有尚未保存的修改，确认放弃吗？',
+    'This operation is unavailable.': '此操作当前不可用。',
+    'Unable to load. Please retry.': '加载失败，请重试。',
+    'Adjust commission': '调整佣金',
+    'Commission type': '佣金类型',
+    'Signed adjustment amount': '调整金额（可正可负）',
+    'Expected category balance': '预计该类佣金净额',
+    'Classify historical commission. No funds will move.': '为历史佣金补选类型，此操作不变动资金。',
+    'I confirm this one-time category assignment without moving funds.':
+        '我确认本次类型归类，归类不变动资金且不可重复修改。',
+    'Confirm classification': '确认归类',
+    'Awaiting classification': '待归类',
+    'Backend adjustment': '后台调整',
+    'Category balance': '该类佣金净额',
+    'Classified by': '归类操作人',
+    'Assign commission type': '补选佣金类型',
+    'Commission adjusted.': '佣金已调整。',
+    'Commission classified. No funds moved.': '佣金已归类，资金未变动。',
+    'The decrease exceeds this commission category balance.': '扣减额超过该类型佣金净额。',
+
     'Company / User': '公司 / 用户',
     'Product / Card': '产品 / 卡片',
-    "Keep this page open while syncing. After leaving, select Continue sync to resume. Your latest 20 tasks are saved.": "同步时请保持此页面打开；离开后可点击“继续同步”恢复。这里保留最近 20 个任务。",
-    "Waiting to continue": "待继续",
-    "Pause": "暂停",
-    "Continue sync": "继续同步",
-    "Select Continue sync to retry from the saved checkpoint.": "请点击“继续同步”，从已保存的进度重试。",
-    "Pausing stops new requests. A page already being processed may still finish.": "暂停后不再发送新请求，正在处理的一页仍可能完成。",
-    "Choose dates once. This browser automatically processes all pages through the server. Keep this page open.": "选择日期后，浏览器自动通过服务器逐页同步，请保持此页面打开。",
-    "Latest completed date-range sync. This is separate from balance refresh.": "最近一次完成的按日期流水同步，与余额刷新时间无关。",
-    "Sync": "同步",
-    "Refresh": "刷新",
-    "Details": "详情",
-    "Scope": "范围",
-    "Date range": "日期范围",
-    "Progress": "进度",
-    "Submitting…": "正在提交…",
-    "Retrying…": "正在重试…",
-    "Sync this card": "同步本卡",
-    "Sync card transactions": "同步卡片流水",
-    "Selected cards ({{count}})": "已选卡片（{{count}} 张）",
-    "Sync selected cards ({{count}})": "同步所选卡片（{{count}} 张）",
-    "Clear selection": "清空选择",
-    "Select up to 500 cards across pages. Changing filters clears the selection.": "支持跨页勾选，最多 500 张；更改筛选条件会清空选择。",
-    "Select this page": "选择本页卡片",
-    "Select card {{card}}": "选择卡片 {{card}}",
-    "Last successful sync": "最近成功同步",
-    "Latest completed queued date-range sync. This is separate from balance refresh.": "最近一次完成的按日期流水同步，与余额刷新时间无关。",
-    "The sync request has changed. Close and reopen the sync dialog.": "同步请求已变更，请关闭后重新打开同步窗口。",
-    "Selected cards are unavailable in this company.": "所选卡片不存在或不属于指定公司，请重新选择。",
-    "Tasks continue after you leave. Only your most recent 20 tasks are shown.": "离开页面后任务继续执行；这里显示您最近的 20 个任务。",
-    "No sync tasks yet.": "暂无同步任务。",
-    "Sync counts: {{done}}/{{total}}, failed {{failed}}, skipped {{skipped}}": "成功 {{done}}/{{total}} · 失败 {{failed}} · 跳过 {{skipped}}",
-    "Record writes include updates and retries, not only new transactions.": "写入次数包含更新和重试，不等于新增流水数。",
-    "Choose dates once. All provider pages are processed in the background.": "选择日期并提交后，后台自动处理全部分页，无需逐页点击。",
-    "Today": "今天",
-    "Yesterday": "昨天",
-    "Last 7 days": "近7天",
-    "Custom dates": "自定义日期",
+    'Keep this page open while syncing. After leaving, select Continue sync to resume. Your latest 20 tasks are saved.':
+        '同步时请保持此页面打开；离开后可点击“继续同步”恢复。这里保留最近 20 个任务。',
+    'Waiting to continue': '待继续',
+    Pause: '暂停',
+    'Continue sync': '继续同步',
+    'Select Continue sync to retry from the saved checkpoint.':
+        '请点击“继续同步”，从已保存的进度重试。',
+    'Pausing stops new requests. A page already being processed may still finish.':
+        '暂停后不再发送新请求，正在处理的一页仍可能完成。',
+    'Choose dates once. This browser automatically processes all pages through the server. Keep this page open.':
+        '选择日期后，浏览器自动通过服务器逐页同步，请保持此页面打开。',
+    'Latest completed date-range sync. This is separate from balance refresh.':
+        '最近一次完成的按日期流水同步，与余额刷新时间无关。',
+    Sync: '同步',
+    Refresh: '刷新',
+    Details: '详情',
+    Scope: '范围',
+    'Date range': '日期范围',
+    Progress: '进度',
+    'Submitting…': '正在提交…',
+    'Retrying…': '正在重试…',
+    'Sync this card': '同步本卡',
+    'Sync card transactions': '同步卡片流水',
+    'Selected cards ({{count}})': '已选卡片（{{count}} 张）',
+    'Sync selected cards ({{count}})': '同步所选卡片（{{count}} 张）',
+    'Clear selection': '清空选择',
+    'Select up to 500 cards across pages. Changing filters clears the selection.':
+        '支持跨页勾选，最多 500 张；更改筛选条件会清空选择。',
+    'Select this page': '选择本页卡片',
+    'Select card {{card}}': '选择卡片 {{card}}',
+    'Last successful sync': '最近成功同步',
+    'Latest completed queued date-range sync. This is separate from balance refresh.':
+        '最近一次完成的按日期流水同步，与余额刷新时间无关。',
+    'The sync request has changed. Close and reopen the sync dialog.':
+        '同步请求已变更，请关闭后重新打开同步窗口。',
+    'Selected cards are unavailable in this company.':
+        '所选卡片不存在或不属于指定公司，请重新选择。',
+    'Tasks continue after you leave. Only your most recent 20 tasks are shown.':
+        '离开页面后任务继续执行；这里显示您最近的 20 个任务。',
+    'No sync tasks yet.': '暂无同步任务。',
+    'Sync counts: {{done}}/{{total}}, failed {{failed}}, skipped {{skipped}}':
+        '成功 {{done}}/{{total}} · 失败 {{failed}} · 跳过 {{skipped}}',
+    'Record writes include updates and retries, not only new transactions.':
+        '写入次数包含更新和重试，不等于新增流水数。',
+    'Choose dates once. All provider pages are processed in the background.':
+        '选择日期并提交后，后台自动处理全部分页，无需逐页点击。',
+    Today: '今天',
+    Yesterday: '昨天',
+    'Last 7 days': '近7天',
+    'Custom dates': '自定义日期',
     'More actions': '更多操作',
     'Commission before': '调整前佣金净额',
     'Commission after': '调整后佣金净额',
     'users.referrer.manage': '修改用户推荐人',
-    'commissions.adjust': '手动佣金调整',
-    "Change referrer": "修改推荐人",
-    "Current referrer": "当前推荐人",
-    "Previous referrer": "原推荐人",
-    "New referrer": "新推荐人",
-    "Descendants moving with this user": "随同转移的下级人数",
-    "Existing commissions and activation snapshots remain unchanged. Future business uses the new relationship.": "历史佣金及激活业绩快照保持不变，后续业务按新推荐关系计算。",
-    "Search account or email": "搜索账号或邮箱",
-    "Select a matching account": "选择匹配的用户",
-    "I confirm the referrer change for this user and their descendants.": "我确认修改该用户的推荐人，全部下级随同转移。",
-    "Confirm change": "确认修改",
-    "Referrer updated.": "推荐人已修改。",
-    "Manual commission": "手动佣金",
-    "MANUAL_COMMISSION": "手动佣金",
-    "Manual commission adjusted.": "手动佣金已调整。",
-    "Cumulative net commission": "累计佣金净额",
-    "Manual commission net": "手动佣金净额",
-    "Maximum deduction": "当前可扣额度",
-    "Expected available balance": "预计可用余额",
-    "Expected cumulative net commission": "预计累计佣金净额",
-    "Manual commissions change USDT available balance. Decreases cannot exceed available balance or cumulative net commission.": "手动佣金直接增减 USDT 可用余额；扣减不得超过可用余额和累计佣金净额。",
-    "The decrease exceeds cumulative net commission.": "扣减金额超过累计佣金净额。",
-    "Enter a reason for changing the referrer.": "请填写修改推荐人的原因。",
-    "Choose an active company member outside this user’s team.": "请选择同公司有效且不属于该用户团队的新推荐人。",
+    'commissions.adjust': '佣金调整',
+    'Change referrer': '修改推荐人',
+    'Current referrer': '当前推荐人',
+    'Previous referrer': '原推荐人',
+    'New referrer': '新推荐人',
+    'Descendants moving with this user': '随同转移的下级人数',
+    'Existing commissions and activation snapshots remain unchanged. Future business uses the new relationship.':
+        '历史佣金及激活业绩快照保持不变，后续业务按新推荐关系计算。',
+    'Search account or email': '搜索账号或邮箱',
+    'Select a matching account': '选择匹配的用户',
+    'I confirm the referrer change for this user and their descendants.':
+        '我确认修改该用户的推荐人，全部下级随同转移。',
+    'Confirm change': '确认修改',
+    'Referrer updated.': '推荐人已修改。',
+    'Manual commission': '手动佣金',
+    MANUAL_COMMISSION: '手动佣金',
+    'Manual commission adjusted.': '手动佣金已调整。',
+    'Cumulative net commission': '累计佣金净额',
+    'Manual commission net': '手动佣金净额',
+    'Maximum deduction': '当前可扣额度',
+    'Expected available balance': '预计可用余额',
+    'Expected cumulative net commission': '预计累计佣金净额',
+    'Manual commissions change USDT available balance. Decreases cannot exceed available balance or cumulative net commission.':
+        '手动佣金直接增减 USDT 可用余额；扣减不得超过可用余额和累计佣金净额。',
+    'The decrease exceeds cumulative net commission.': '扣减金额超过累计佣金净额。',
+    'Enter a reason for changing the referrer.': '请填写修改推荐人的原因。',
+    'Choose an active company member outside this user’s team.':
+        '请选择同公司有效且不属于该用户团队的新推荐人。',
 
     Page: '页码',
     'Beijing time': '北京时间（UTC+8）',
@@ -108,14 +151,20 @@ export const adminCatalog: Record<string, string> = {
         '请检查日期范围，最多选择 366 天，结束日期不得晚于今天。',
     'Image failed to load. Click to retry.': '加载失败，点击重试',
     'APK Logo': 'APK 专用图标',
-    'Square PNG, JPG or WEBP, at least 192 × 192, up to 2 MB. Used for Android icon and splash; rebuild the APK after changes.': '正方形 PNG、JPG 或 WEBP，至少 192 × 192，不超过 2 MB。用于安卓图标和启动页，修改后需重新打包 APK。',
-    'Session expired. Refresh the page and sign in again.': '登录状态已失效，请刷新页面并重新登录。',
+    'Square PNG, JPG or WEBP, at least 192 × 192, up to 2 MB. Used for Android icon and splash; rebuild the APK after changes.':
+        '正方形 PNG、JPG 或 WEBP，至少 192 × 192，不超过 2 MB。用于安卓图标和启动页，修改后需重新打包 APK。',
+    'Session expired. Refresh the page and sign in again.':
+        '登录状态已失效，请刷新页面并重新登录。',
     'You do not have permission to sync transactions.': '当前账号没有同步流水权限。',
-    'Sync endpoint or card unavailable. Check deployment and refresh route cache.': '同步接口或卡片不存在，请检查代码部署并刷新路由缓存。',
+    'Sync endpoint or card unavailable. Check deployment and refresh route cache.':
+        '同步接口或卡片不存在，请检查代码部署并刷新路由缓存。',
     'Too many sync requests. Wait one minute and retry.': '同步过于频繁，请等待一分钟后重试。',
-    'Provider sync unavailable. Check the server logs using the request ID.': '渠道同步暂不可用，请用下方请求编号查询服务器日志。',
-    'Invalid sync response. Check deployment and server logs.': '同步响应格式异常，请检查代码部署和服务器日志。',
-    'Sync timed out. Check recorded transactions before retrying.': '同步请求超时，请先查看已记录流水再重试。',
+    'Provider sync unavailable. Check the server logs using the request ID.':
+        '渠道同步暂不可用，请用下方请求编号查询服务器日志。',
+    'Invalid sync response. Check deployment and server logs.':
+        '同步响应格式异常，请检查代码部署和服务器日志。',
+    'Sync timed out. Check recorded transactions before retrying.':
+        '同步请求超时，请先查看已记录流水再重试。',
     'Network request failed. Check your connection and retry.': '网络请求失败，请检查网络后重试。',
 
     'Card transactions could not be updated. Please try again later.': '流水同步失败，请稍后重试。',
@@ -126,8 +175,10 @@ export const adminCatalog: Record<string, string> = {
     'Page synced. You can sync the next page.': '本页同步成功，可继续同步下一页。',
     'Sync completed. No more provider records.': '同步完成，已无更多渠道流水。',
 
-    'Verify your password to view photos. Photos load directly from the configured storage.': '验证管理员密码后，照片直接从当前图片存储加载。',
-    'Photo could not load. Retry or check that the original still exists.': '照片加载失败，请重试或检查原图是否存在。',
+    'Verify your password to view photos. Photos load directly from the configured storage.':
+        '验证管理员密码后，照片直接从当前图片存储加载。',
+    'Photo could not load. Retry or check that the original still exists.':
+        '照片加载失败，请重试或检查原图是否存在。',
 
     'Reviewed at': '认证审核时间',
     'Passport information page': '护照资料页',
@@ -139,8 +190,10 @@ export const adminCatalog: Record<string, string> = {
     'Identity verification details': '实名认证详情',
     'Identity document photos': '实名证件照片',
     'View photos': '查看照片',
-    'Verify your password to view photos. Access is temporary and audited.': '验证当前管理员密码后查看照片，访问临时有效并记录审计。',
-    'Photo unavailable. Verify access again or check image storage.': '照片暂不可用，请重新验证查看权限或检查图片存储服务。',
+    'Verify your password to view photos. Access is temporary and audited.':
+        '验证当前管理员密码后查看照片，访问临时有效并记录审计。',
+    'Photo unavailable. Verify access again or check image storage.':
+        '照片暂不可用，请重新验证查看权限或检查图片存储服务。',
 
     'Edit this configuration directly. Test checks the current form without saving; save applies it without a separate activation step.':
         '直接编辑当前配置。测试只检查表单内容、不保存；保存后直接应用，无需再次启用。',
@@ -148,13 +201,15 @@ export const adminCatalog: Record<string, string> = {
         '当前使用服务器存储，可在此保存和测试 OSS；使用 OSS 需设置 IMAGE_STORAGE_DRIVER=oss。',
     'Leave blank to keep the saved value': '留空保留已保存的值',
     'Storage configuration changed. Refresh before saving.': '配置已被修改，请刷新后重新保存。',
-    'OSS': 'OSS',
+    OSS: 'OSS',
     'Image storage mode': '图片存储方式',
     'Local server': '服务器本地',
     'Save storage mode': '保存存储方式',
     'Storage mode saved.': '存储方式已保存。',
-    'Save a complete OSS configuration before selecting OSS.': '请先保存完整的 OSS 配置，再切换为 OSS。',
-    'The saved mode applies to new uploads. Existing image records and OSS settings are retained.': '保存后按所选方式上传。已有图片记录和 OSS 配置会保留；本地模式需要服务器已有图片原件。',
+    'Save a complete OSS configuration before selecting OSS.':
+        '请先保存完整的 OSS 配置，再切换为 OSS。',
+    'The saved mode applies to new uploads. Existing image records and OSS settings are retained.':
+        '保存后按所选方式上传。已有图片记录和 OSS 配置会保留；本地模式需要服务器已有图片原件。',
     'OSS configuration saved.': 'OSS 配置已保存。',
     'Server image storage': '服务器图片存储',
     'Images are stored on this server. OSS uploads, reads and background replication are disabled. Existing OSS settings are retained.':
@@ -237,22 +292,36 @@ export const adminCatalog: Record<string, string> = {
     'OSS connection verified.': 'OSS 连接测试通过。',
     'OSS enabled for new uploads.': '已启用 OSS，后续图片将上传至 OSS。',
     'Image storage is unavailable. Please try again.': '图片存储服务暂不可用，请稍后重试。',
-    "OSS upload failed: the server connection timed out.": "OSS 上传失败：服务器连接超时。",
-    "OSS upload failed: the server could not resolve the endpoint.": "OSS 上传失败：服务器无法解析访问端点域名。",
-    "OSS upload failed: HTTPS handshake or certificate verification failed.": "OSS 上传失败：HTTPS 握手或证书校验失败。",
-    "OSS upload failed: the server could not connect to the endpoint.": "OSS 上传失败：服务器无法连接访问端点。",
-    "OSS upload failed: the endpoint denied write access (401/403 or AccessDenied).": "OSS 上传失败：端点拒绝写入（401/403 或 AccessDenied），请检查 OSS 权限及 CDN/WAF 规则。",
-    "OSS upload failed: the endpoint rejected the AccessKey ID.": "OSS 上传失败：端点拒绝此 AccessKey ID。",
-    "OSS upload failed: signature validation failed. Check region, credentials and CDN forwarding.": "OSS 上传失败：签名校验失败，请检查地域、凭证及 CDN 转发设置。",
-    "OSS upload failed: the server clock or request timestamp is invalid.": "OSS 上传失败：服务器时间或请求时间戳不正确。",
-    "OSS upload failed: the endpoint could not find the bucket.": "OSS 上传失败：端点找不到该 Bucket。",
-    "OSS upload failed: the endpoint does not accept the upload method.": "OSS 上传失败：端点不支持上传方法，请检查 CDN 是否允许 PUT。",
-    "OSS upload failed: the endpoint returned a redirect.": "OSS 上传失败：访问端点返回重定向。",
-    'OSS test failed: image domain DNS did not resolve to public addresses.': 'OSS 测试失败：图片域名 DNS 解析失败或解析到了非公网地址。',
-    'OSS test failed: uploading the test image failed. Check endpoint connectivity and write permissions.': 'OSS 测试失败：上传测试图片失败。请检查访问端点的网络连接和写入权限。',
-    'OSS test failed: reading or verifying the uploaded original through the OSS endpoint failed.': 'OSS 测试失败：通过 OSS 端点读取原图或校验原图内容失败。',
-    'OSS test failed: the image domain could not return the exact test image. Check public access, CDN and HTTPS.': 'OSS 测试失败：图片域名未返回正确的测试图片。请检查公开读取、CDN 回源和 HTTPS。',
-    'OSS test failed: upload and reads succeeded, but deleting the test image failed. Check delete permissions.': 'OSS 测试失败：上传和读取均成功，但删除测试图片失败。请检查删除权限。',
+    'OSS upload failed: the server connection timed out.': 'OSS 上传失败：服务器连接超时。',
+    'OSS upload failed: the server could not resolve the endpoint.':
+        'OSS 上传失败：服务器无法解析访问端点域名。',
+    'OSS upload failed: HTTPS handshake or certificate verification failed.':
+        'OSS 上传失败：HTTPS 握手或证书校验失败。',
+    'OSS upload failed: the server could not connect to the endpoint.':
+        'OSS 上传失败：服务器无法连接访问端点。',
+    'OSS upload failed: the endpoint denied write access (401/403 or AccessDenied).':
+        'OSS 上传失败：端点拒绝写入（401/403 或 AccessDenied），请检查 OSS 权限及 CDN/WAF 规则。',
+    'OSS upload failed: the endpoint rejected the AccessKey ID.':
+        'OSS 上传失败：端点拒绝此 AccessKey ID。',
+    'OSS upload failed: signature validation failed. Check region, credentials and CDN forwarding.':
+        'OSS 上传失败：签名校验失败，请检查地域、凭证及 CDN 转发设置。',
+    'OSS upload failed: the server clock or request timestamp is invalid.':
+        'OSS 上传失败：服务器时间或请求时间戳不正确。',
+    'OSS upload failed: the endpoint could not find the bucket.':
+        'OSS 上传失败：端点找不到该 Bucket。',
+    'OSS upload failed: the endpoint does not accept the upload method.':
+        'OSS 上传失败：端点不支持上传方法，请检查 CDN 是否允许 PUT。',
+    'OSS upload failed: the endpoint returned a redirect.': 'OSS 上传失败：访问端点返回重定向。',
+    'OSS test failed: image domain DNS did not resolve to public addresses.':
+        'OSS 测试失败：图片域名 DNS 解析失败或解析到了非公网地址。',
+    'OSS test failed: uploading the test image failed. Check endpoint connectivity and write permissions.':
+        'OSS 测试失败：上传测试图片失败。请检查访问端点的网络连接和写入权限。',
+    'OSS test failed: reading or verifying the uploaded original through the OSS endpoint failed.':
+        'OSS 测试失败：通过 OSS 端点读取原图或校验原图内容失败。',
+    'OSS test failed: the image domain could not return the exact test image. Check public access, CDN and HTTPS.':
+        'OSS 测试失败：图片域名未返回正确的测试图片。请检查公开读取、CDN 回源和 HTTPS。',
+    'OSS test failed: upload and reads succeeded, but deleting the test image failed. Check delete permissions.':
+        'OSS 测试失败：上传和读取均成功，但删除测试图片失败。请检查删除权限。',
     'OSS test failed. Check credentials, endpoint, public access and image domain.':
         'OSS 测试失败，请检查凭证、端点、公开读取权限及图片域名。',
     'Test this OSS configuration before enabling it.': '请先完成此配置的连接测试再启用。',

@@ -85,7 +85,7 @@ async function api<T>(path: string, body?: object, signal?: AbortSignal): Promis
         if (response.status === 429)
             throw new Error('Too many sync requests. Wait one minute and retry.');
         if (response.status === 422) {
-            const data = await response.json();
+            const data = (await response.json()) as { errors?: Record<string, unknown> };
             throw new Error(
                 Object.keys(data.errors ?? {}).some((key) => key.startsWith('card_ids'))
                     ? 'Selected cards are unavailable in this company.'

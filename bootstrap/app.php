@@ -8,6 +8,7 @@ use App\Http\Middleware\EnsureOperationalUser;
 use App\Http\Middleware\EnsureRecentTenantAdminAuthentication;
 use App\Http\Middleware\EnsureTenantSurfaceAvailable;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\PlatformEditorResponse;
 use App\Http\Middleware\RememberConsumerSession;
 use App\Http\Middleware\RequestIdMiddleware;
 use App\Http\Middleware\ResolveAdminLocale;
@@ -30,7 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::middleware('web')->group(base_path('routes/public.php'));
             Route::middleware(['web', 'tenant', RememberConsumerSession::class, 'user.session-scope', 'user.locale', 'inertia'])->group(base_path('routes/user.php'));
             Route::middleware(['web', 'tenant', 'user.session-scope', 'admin.locale', 'inertia'])->group(base_path('routes/admin.php'));
-            Route::middleware(['web', 'admin.locale', 'inertia'])->domain((string) config('tenancy.platform_admin_host'))->group(base_path('routes/platform.php'));
+            Route::middleware(['web', 'admin.locale', 'inertia', PlatformEditorResponse::class])->domain((string) config('tenancy.platform_admin_host'))->group(base_path('routes/platform.php'));
             Route::middleware('api')->prefix('webhooks')->group(base_path('routes/webhooks.php'));
         },
         commands: __DIR__.'/../routes/console.php',
