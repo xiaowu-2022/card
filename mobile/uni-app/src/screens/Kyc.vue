@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import PreviewImage from '../components/PreviewImage.vue';
+import DocumentPhoto from '../components/DocumentPhoto.vue';
 import { useSensitiveScreen } from '../lib/sensitive';
 import { computed, reactive, ref, watch } from 'vue';
 import { t, locale, dateTime } from '../lib/i18n';
 import { useAction, explainError } from '../lib/client';
-import { photoUrl, upload, sessionGeneration } from '../lib/api';
+import { upload, sessionGeneration } from '../lib/api';
 import { go } from '../lib/navigation';
 import ProcessingOverlay from '../components/ProcessingOverlay.vue';
 import type { UploadProgress } from '../lib/api';
@@ -27,6 +27,8 @@ const props = defineProps<{
             verifiedAt?: string | null;
             frontUrl?: string | null;
             frontSources?: string[];
+            frontOriginalSources?: string[];
+            backOriginalSources?: string[];
             backSources?: string[];
             backUrl?: string | null;
         };
@@ -221,7 +223,7 @@ async function submit() {
                 ><text>{{ t('Verification time') }}</text
                 ><text>{{ page.kyc.verifiedAt ? dateTime(page.kyc.verifiedAt) : '—' }}</text></view
             >
-            <view class="document-grid">
+            <view class="document-grid document-thumbnails">
                 <view
                     ><text class="label">{{
                         t(
@@ -230,25 +232,21 @@ async function submit() {
                                 : 'ID front',
                         )
                     }}</text>
-                    <PreviewImage
-                        :sources="page.kyc.frontSources"
-                        v-if="page.kyc.frontUrl"
-                        :src="photoUrl(page.kyc.frontUrl) ?? ''"
-                        mode="widthFix"
-                        class="verified-photo"
+                    <DocumentPhoto
+                        :label="t(page.kyc.documentType === 'PASSPORT' ? 'Passport information page' : 'ID front')"
+                        :thumbnails="page.kyc.frontSources?.length ? page.kyc.frontSources : [page.kyc.frontUrl ?? '']"
+                        :originals="page.kyc.frontOriginalSources ?? []"
+                        @refresh="emit('reload')"
                     />
-                    <text v-else class="muted">{{ t('Image unavailable') }}</text>
                 </view>
                 <view v-if="page.kyc.documentType !== 'PASSPORT'"
                     ><text class="label">{{ t('ID back') }}</text>
-                    <PreviewImage
-                        :sources="page.kyc.backSources"
-                        v-if="page.kyc.backUrl"
-                        :src="photoUrl(page.kyc.backUrl) ?? ''"
-                        mode="widthFix"
-                        class="verified-photo"
+                    <DocumentPhoto
+                        :label="t('ID back')"
+                        :thumbnails="page.kyc.backSources?.length ? page.kyc.backSources : [page.kyc.backUrl ?? '']"
+                        :originals="page.kyc.backOriginalSources ?? []"
+                        @refresh="emit('reload')"
                     />
-                    <text v-else class="muted">{{ t('Image unavailable') }}</text>
                 </view>
             </view>
             <button v-if="page.canReverify" class="primary" @click="reverify">{{ t('Verify again') }}</button>
@@ -363,11 +361,6 @@ async function submit() {
     text-align: right;
     overflow-wrap: anywhere;
 }
-.verified-photo {
-    width: 100%;
-    display: block;
-    border-radius: 12px;
-}
 .kyc-card {
     border: 1px solid #e2e7e4;
     border-radius: 24px;
@@ -384,6 +377,7 @@ async function submit() {
     display: grid;
     gap: 0;
 }
+.document-thumbnails { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 .submit-button {
     border-radius: 999px;
     min-height: 44px;

@@ -544,4 +544,6 @@ export const assetsCatalog = {
     "Wealth principal returned after early withdrawal deductions.": ["提前赎回理财，扣除应扣金额后退回钱包。", "Prinsipal pelaburan dikembalikan selepas potongan pengeluaran awal.", "Capital de inversión devuelto tras las deducciones por retiro anticipado."],
     "Destination currency received from an exchange.": ["兑换所得币种入账。", "Mata wang sasaran diterima daripada pertukaran.", "Moneda de destino recibida de un cambio."],
     "Source currency paid for an exchange.": ["扣除用于兑换的原币种金额。", "Mata wang asal dibayar untuk pertukaran.", "Moneda de origen pagada para un cambio."],
+    'Refresh image': ['刷新图片', 'Muat semula imej', 'Actualizar imagen'],
+    'View full image': ['查看大图', 'Lihat imej penuh', 'Ver imagen completa'],
 } as const;

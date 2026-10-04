@@ -308,13 +308,15 @@ button::after {
     }
 }
 
-.user-root .shell .form-input {
+.user-root .shell .form-input,
+.modal-backdrop .form-input {
     min-height: clamp(48px, 9.6cqw, 72px);
     height: clamp(48px, 9.6cqw, 72px);
     border-radius: 999px;
     padding-inline: 20px;
 }
-.user-root .shell .primary {
+.user-root .shell .primary,
+.modal-backdrop .primary {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -328,7 +330,9 @@ button::after {
     font-weight: 400;
 }
 .user-root .shell .primary[disabled],
-.user-root .shell .secondary[disabled] {
+.user-root .shell .secondary[disabled],
+.modal-backdrop .primary[disabled],
+.modal-backdrop .secondary[disabled] {
     opacity: 0.5;
     cursor: not-allowed;
 }

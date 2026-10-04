@@ -5,6 +5,7 @@ use App\Application\Assets\WithdrawAssetsAction;
 use App\Application\Kyc\ApproveKycAction;
 use App\Application\Kyc\SubmitKycApplicationAction;
 use App\Application\Partners\FeeValuation;
+use App\Application\Partners\LegacyStockReport;
 use App\Application\Partners\PartnerManagement;
 use App\Application\Partners\PartnerReport;
 use App\Application\Promotion\AdjustManualCommission;
@@ -35,6 +36,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabaseState;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -54,7 +56,7 @@ beforeEach(function () {
     $this->user = User::where('tenant_id', $this->tenant->id)->firstOrFail();
     $this->admin = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $this->management = app(PartnerManagement::class);
-    $this->report = app(PartnerReport::class);
+    $this->report = app(LegacyStockReport::class);
     app(PromotionMembershipAction::class)->ensure($this->tenant->id, $this->user->id);
 });
 
@@ -101,15 +103,15 @@ function stockBuy($test, User $user, int $rank): void
     $action->confirm($test->tenant->id, $user->id, $quote->id);
 }
 
-it('hides and denies the report unless the current tenant user is an enabled partner', function () {
+it('selects the stock version from current company partner status and rejects caller identities', function () {
     $url = 'http://a.localhost/promotion/stock';
-    $this->actingAs($this->user, 'tenant_user')->getJson($url)->assertNotFound();
-    $this->get('http://a.localhost/promotion/daily')->assertOk()->assertInertia(fn (Assert $p) => $p->where('canViewStock', false)->missing('stock'));
+    $this->actingAs($this->user, 'tenant_user')->getJson($url)->assertOk()->assertJsonPath('version', 'standard');
+    $this->get('http://a.localhost/promotion/daily')->assertOk()->assertInertia(fn (Assert $p) => $p->where('canViewStock', true)->missing('stock'));
     $partner = stockPartner($this, $this->user);
-    $this->getJson($url)->assertOk()->assertJsonPath('stock', '0.00000000')->assertJsonPath('totals.annualCommission', '0.00000000')->assertHeader('Cache-Control', 'no-store, private');
+    $this->getJson($url)->assertOk()->assertJsonPath('stock', '0.00000000')->assertJsonPath('version', 'partner')->assertJsonPath('totals.inflow', '0.00000000')->assertHeader('Cache-Control', 'no-store, private');
     $this->getJson($url.'?user_id='.Str::uuid())->assertUnprocessable();
     stockPartner($this, $this->user, false);
-    $this->getJson($url)->assertNotFound();
+    $this->getJson($url)->assertOk()->assertJsonPath('version', 'standard');
     expect(DB::table('partner_configurations')->where('id', $partner->id)->exists())->toBeTrue();
     $tenantAdmin = AdminUser::where('email', 'owner@a.localhost')->firstOrFail();
     expect(fn () => $this->management->configure($tenantAdmin, $this->tenant->id, ['account_id' => $this->user->account_id, 'enabled' => true, 'share_percent' => 40]))->toThrow(HttpException::class);
@@ -579,4 +581,111 @@ it('adds personal manual commission to reconciliation without attributing it to 
         ->and($after['accountBalance']['theoretical'])->toBe('12.12345678')
         ->and($after['accountBalance']['difference'])->toBe($before['accountBalance']['difference'])
         ->and($after['totals'])->toBe($before['totals'])->and($after['stock'])->toBe($before['stock']);
+});
+
+// Synthetic archived external-order evidence; no provider calls or real funds.
+function stockExternal(User $user, string $asset, string $amount, bool $incoming = true, bool $complete = true, bool $legacy = false): void
+{
+    $tenant = Tenant::findOrFail($user->tenant_id);
+    $access = app(AssetAccess::class);
+    $wallet = $access->wallet($tenant, $user, $asset);
+    $entry = app(LedgerWriter::class)->post(new LedgerPostingPlan($tenant->id, $asset, 'stock-fixture:'.Str::uuid(), 'TEST_EXTERNAL_EVIDENCE', null, null, null, [
+        new LedgerPostingInstruction($access->account($wallet, 'USER_AVAILABLE')->id, Money::of($amount, $asset)),
+        new LedgerPostingInstruction($access->companyAccount($tenant->id, $asset, 'TENANT_TOPUP_CLEARING')->id, Money::of('-'.$amount, $asset)),
+    ]));
+    $id = (string) Str::uuid();
+    $base = ['id' => $id, 'tenant_id' => $tenant->id, 'user_id' => $user->id, 'wallet_id' => $wallet->id,
+        'asset_code' => $asset, 'amount' => $amount, 'request_id' => (string) Str::uuid(), 'request_hash' => hash('sha256', $id),
+        'created_at' => now(), 'updated_at' => now()];
+    if ($legacy && $incoming) {
+        DB::table('wallet_topup_orders')->insert($base + ['status' => $complete ? 'CREDITED' : 'CREATED', 'payment_provider' => 'mock', 'ledger_entry_id' => $complete ? $entry->id : null, 'credited_at' => $complete ? now() : null, 'paid_at' => $complete ? now() : null]);
+
+        return;
+    }
+    if ($legacy && ! $incoming) {
+        $destination = (string) Str::uuid();
+        DB::table('withdrawal_destinations')->insert(['id' => $destination, 'tenant_id' => $tenant->id, 'user_id' => $user->id, 'asset_code' => 'USDT', 'network_code' => 'TRON', 'address_ciphertext' => 'synthetic', 'address_hash' => hash('sha256', $id), 'masked_address' => 'synthetic', 'status' => 'ACTIVE', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('withdrawal_orders')->insert($base + ['withdrawal_destination_id' => $destination, 'network_code' => 'TRON', 'status' => $complete ? 'SUCCEEDED' : 'PENDING', 'requested_at' => now(), 'settlement_ledger_entry_id' => $complete ? $entry->id : null, 'fee_amount' => '0.1']);
+
+        return;
+    }
+    $rail = AssetRail::where('asset_code', $asset)->where('network', $asset === 'BTC' ? 'BITCOIN' : 'ETHEREUM')->firstOrFail();
+    $base += ['rail_code' => $rail->code, 'network' => $rail->network, 'address' => 'synthetic-report-only', 'address_hash' => hash('sha256', $id), 'chain_event_id' => $complete ? $id : null, 'ledger_entry_id' => $complete ? $entry->id : null];
+    DB::table($incoming ? 'asset_deposit_orders' : 'asset_withdrawal_orders')->insert($base + ($incoming
+        ? ['status' => $complete ? 'CREDITED' : 'PENDING', 'requested_amount' => $amount, 'expires_at' => now()->addHour()]
+        : ['status' => $complete ? 'COMPLETED' : 'PENDING', 'fee_amount' => '0.1']));
+}
+
+function stockMarket(string $eth = '2000'): void
+{
+    Http::fake(['*okx.com*' => Http::response(['code' => '0', 'data' => array_map(fn ($asset, $rate) => [
+        'instType' => 'SPOT', 'instId' => $asset.'-USDT', 'last' => $rate, 'ts' => (string) now()->getTimestampMs(),
+    ], ['USDC', 'ETH', 'BTC'], ['1.01', $eth, '60000'])])]);
+}
+
+it('values partner descendant external flows with one current snapshot and gross withdrawals without writes', function () {
+    stockPartner($this, $this->user);
+    $child = stockChild($this->user);
+    $grandchild = stockChild($child);
+    stockPartner($this, $child); // Independent partner branches remain descendants.
+    stockExternal($child, 'USDT', '100', true, true, true);
+    stockExternal($grandchild, 'USDT', '50');
+    stockExternal($child, 'USDT', '15', false);
+    stockExternal($child, 'USDT', '5', false, true, true);
+    stockExternal($grandchild, 'ETH', '0.5');
+    stockExternal($grandchild, 'ETH', '0.2', false);
+    stockExternal($child, 'USDC', '10');
+    stockExternal($child, 'BTC', '0.001');
+    stockExternal($child, 'USDT', '900', true, false);
+    stockExternal($child, 'USDT', '800', false, false);
+    stockExternal($this->user, 'USDT', '9999');
+    stockExternal($this->user, 'USDT', '777', false);
+    $outside = User::where('tenant_id', '<>', $this->tenant->id)->firstOrFail();
+    stockExternal($outside, 'USDT', '6666');
+    $before = ['entries' => DB::table('ledger_entries')->count(), 'wallets' => DB::table('wallets')->count(), 'rates' => DB::table('asset_market_snapshots')->count(), 'balances' => DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all()];
+    stockMarket();
+    $query = app(PartnerReport::class);
+    $r = $query->read($this->tenant->id, $this->user->id);
+    expect($r['version'])->toBe('partner')->and($r['totals']['inflow'])->toBe('1220.10000000')
+        ->and($r['totals']['outflow'])->toBe('420.00000000')->and($r['stock'])->toBe('800.10000000')
+        ->and($r['totals'])->not->toHaveKey('activation')->and($r['cashFlow']['rateObservedAt'])->not->toBeNull();
+    Http::assertSentCount(1);
+    expect(DB::table('ledger_entries')->count())->toBe($before['entries']);
+    expect(DB::table('wallets')->count())->toBe($before['wallets']);
+    expect(DB::table('asset_market_snapshots')->count())->toBe($before['rates']);
+    expect(DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all())->toBe($before['balances']);
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    stockMarket('3000');
+    expect($query->read($this->tenant->id, $this->user->id)['stock'])->toBe('1100.10000000');
+    expect(fn () => $query->read($outside->tenant_id, $this->user->id))->toThrow(HttpException::class);
+});
+
+it('keeps partner valuations unavailable on market failure and reports native amounts without pretending parity', function () {
+    stockPartner($this, $this->user);
+    $child = stockChild($this->user);
+    stockExternal($child, 'ETH', '0.123456789123456789');
+    Http::fake(['*okx.com*' => Http::response([], 503)]);
+    $r = app(PartnerReport::class)->read($this->tenant->id, $this->user->id);
+    expect($r['stock'])->toBeNull()->and($r['totals']['inflow'])->toBeNull()->and($r['missingRates'])->toBe(1)
+        ->and($r['cashFlow']['assets'][0]['inflow'])->toBe('0.123456789123456789')
+        ->and($r['cashFlow']['assets'][0]['rate'])->toBeNull();
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    stockMarket('3');
+    expect(app(PartnerReport::class)->read($this->tenant->id, $this->user->id)['stock'])->toBe('0.37037037');
+});
+
+it('keeps exact USDT negative partner stock and standard formula separate', function () {
+    stockPartner($this, $this->user);
+    $child = stockChild($this->user);
+    stockExternal($child, 'USDT', '1.00000001', true, true, true);
+    stockExternal($child, 'USDT', '2.00000002', false);
+    $query = app(PartnerReport::class);
+    expect($query->read($this->tenant->id, $this->user->id)['stock'])->toBe('-1.00000001');
+    stockPartner($this, $this->user, false);
+    $r = $query->read($this->tenant->id, $this->user->id);
+    expect($r['version'])->toBe('standard')->and($r['cashFlow'])->toBeNull()->and($r['accountBalance'])->toBeNull()
+        ->and($r['stock'])->toBe('0.10000000')->and($r['journal']['items'])->toBe([]);
+    Http::assertNothingSent();
 });

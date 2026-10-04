@@ -16,6 +16,15 @@ final class MarketPrices
     /** Fetch a fresh public spot snapshot for a new exchange quote; never called by page reads. */
     public function refresh(): MarketSnapshot
     {
+        $snapshot = $this->quote();
+        $snapshot->save();
+
+        return $snapshot;
+    }
+
+    /** Public spot rates without persistence, also used by read-only stock valuation. */
+    public function quote(): MarketSnapshot
+    {
         try {
             $response = Http::connectTimeout(5)->timeout(15)->withoutRedirecting()
                 ->withUserAgent('ApertureCards/1.0 (exchange quotes)')->acceptJson()
@@ -55,7 +64,7 @@ final class MarketPrices
                 throw new \UnexpectedValueException;
             }
 
-            return MarketSnapshot::query()->create(['provider' => 'OKX', 'usd_prices' => [],
+            return new MarketSnapshot(['provider' => 'OKX', 'usd_prices' => [],
                 'usdt_rates' => $rates, 'observed_at' => CarbonImmutable::createFromTimestampMsUTC($time)]);
         } catch (DomainException $e) {
             throw $e;

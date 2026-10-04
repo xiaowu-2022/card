@@ -33,7 +33,7 @@ maintained public/consumer frontend and retired old React consumer H5 maintenanc
 This supersedes the former old-H5 baseline; deployment state must still be verified separately.
 
 The public H5 landing page offers Android downloads in its hero, mobile menu and
-footer using a native download anchor to `https://zb33333.com/specpay.apk` (fixed
+footer using a native download anchor to `http://zb33333.com/specpay.apk` (fixed
 by the user on 2026-10-02, superseding the current-origin URL).
 The path is independent of the H5 deployment directory and API/native domain selection.
 These links are H5-only; native Apps omit them. APK distribution requires an actual

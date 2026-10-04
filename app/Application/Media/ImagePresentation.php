@@ -9,6 +9,7 @@ final class ImagePresentation
     {
         [$edge, $quality] = match ($profile) {
             'brand' => [512, 80],
+            'thumbnail' => [480, 75],
             'preview' => [1600, 80],
             'document', 'poster' => [2048, 85],
             default => throw new \InvalidArgumentException('Unknown image display profile'),
@@ -18,6 +19,8 @@ final class ImagePresentation
             return null;
         }
 
-        return "image/resize,m_lfit,w_{$edge},h_{$edge},limit_1/format,webp/quality,Q_{$quality}";
+        $format = $profile === 'thumbnail' ? 'jpg' : 'webp';
+
+        return "image/resize,m_lfit,w_{$edge},h_{$edge},limit_1/format,{$format}/quality,Q_{$quality}";
     }
 }

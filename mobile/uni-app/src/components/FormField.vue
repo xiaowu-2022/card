@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from './TextInput.vue';
 const props = withDefaults(
     defineProps<{
         modelValue: string;
@@ -15,8 +16,8 @@ const props = withDefaults(
     { type: 'text', maxlength: 255 },
 );
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
-function input(event: Event) {
-    const value = (event as unknown as { detail: { value: string } }).detail.value;
+function input(event: { detail: { value: string } }) {
+    const value = event.detail.value;
     emit(
         'update:modelValue',
         props.digitsOnly ? value.replace(/\D/g, '').slice(0, props.maxlength) : value,
@@ -26,12 +27,13 @@ function input(event: Event) {
 <template>
     <view class="form-field"
         ><text v-if="label" class="form-label">{{ label }}</text
-        ><input
+        ><TextInput
             class="form-input"
             :value="modelValue"
             :placeholder="placeholder"
             :type="type"
             :password="password"
+            :digits-only="digitsOnly"
             :disabled="disabled"
             :maxlength="maxlength"
             :aria-label="label || placeholder"

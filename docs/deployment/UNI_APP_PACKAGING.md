@@ -15,8 +15,8 @@ Android 的生成配置固定包含 `arm64-v8a`（64 位）和 `armeabi-v7a`（3
 系统报告架构不匹配时，应比对实际下载文件、设备 ABI 和完整安装错误，
 不能仅凭提示认定所有安装失败都是缺少 64 位支持。
 
-新版 H5 官网首屏、手机菜单和页脚提供安卓版下载，链接始终为当前访问域名的
-`/specpay.apk`（不随 `/h5/` 等部署目录变化）。部署时需提供实际 APK，并确保该路径
+新版 H5 官网首屏、手机菜单和页脚提供安卓版下载，链接固定为
+`http://zb33333.com/specpay.apk`（不随当前域名或 `/h5/` 等部署目录变化）。部署时需提供实际 APK，并确保该路径
 不被 H5 的 index 回退规则捕获。原生 App 不显示此下载入口。
 
 ## 本地开发
@@ -254,7 +254,7 @@ is independent; replace that file with the same signed APK when releasing for H5
 ignored even if present in an old cached/server domain list. Startup, foreground
 and explicit update retries refresh the full company directory, select a verified
 API origin, then fetch `/api/mobile/v1/app-release` there. Downloads open the fixed
-`https://zb33333.com/specpay.apk`; upload the same signed release to that static
+`http://zb33333.com/specpay.apk`; upload the same signed release to that static
 host. The API still requires published company release metadata and its retained
 release artifact (use `app:publish-android` on the API server). A static APK upload
 alone does not publish metadata. Do not query the static host for app-release.
@@ -285,3 +285,34 @@ Repackage with HBuilderX cloud packaging and install the resulting APK; existing
 installed icons cannot be changed by editing server configuration. Android resource
 compilation is not a signed APK or a device installation verification. iOS branding
 is outside this Android change. Do not cloud-package stale output after a failed build.
+
+### CLI 项目图标路径（2026-10-04 修复）
+
+HBuilderX 云打包按 `mobile/uni-app` 项目根目录解析图标和启动图路径，
+因此生成的 manifest 使用 `src/static/native-branding/...`，不能省略 `src/`。
+`prepare` 和 `build --platform app` 均由 branding 脚本生成该路径。
+导入完整 `mobile/uni-app` 项目；修改后关闭并重新打开打包窗口再提交。
+
+### H5 Safari input and dialog compatibility (2026-10-04)
+
+H5 shared form/login fields use real HTML inputs rather than uni-input's clipped
+wrapper. Decimal amounts remain strings with `inputmode=decimal`; passwords use
+native `type=password`. Native App builds retain the uni input control.
+H5 dialogs teleport to body, lock background scrolling, and follow visualViewport
+resize/scroll so the software keyboard and Safari toolbar do not hide the dialog.
+Long content scrolls inside the dialog; closing restores the previous page position.
+`tests/Browser/consumer-input-modal.mjs` checks Chromium and WebKit with offline
+fixtures, including a tall transformed ancestor and simulated keyboard viewport.
+This does not replace acceptance on the affected physical iPhone.
+Publish rebuilt H5 JS/CSS and its matching entry to apply the browser fix; clear CDN
+entry caches as appropriate. Updating only PHP or an APK does not update H5 browsers.
+
+### 身份认证图片缩略图与刷新（2026-10-04）
+
+认证结果页使用 OSS `thumbnail` 展示策略（最长边 480px、JPEG、质量 75），固定小图框；点击才加载原图弹窗。缩略图失败依次尝试原图和服务器副本，每个地址一次，单次加载超过 15 秒也进入回退；全部失败显示图片不可用及刷新按钮。刷新重新尝试并通过只读认证查询更新签名地址。原图、认证记录、OCR 和补传状态不变。
+
+同时部署后端及 H5；原生 App 需要重新打包。无需数据库迁移。离线验证：`tests/Feature/KycVerifiedDetailsTest.php`、`tests/Browser/consumer-kyc-images.mjs`（预览服务 5217，API 和图片完全模拟，不访问真实证件）。
+
+### 存量报表双版本（2026-10-04）
+
+启用的合伙人账号自动展示团队下级外部总入金减总出金（提现申请总额），排除本人，按本次公开行情统一折算 USDT。非合伙人展示原存量公式。部署后端、后台及 H5 后生效；原生 App 需重新打包。无需迁移或历史资金修正。汇率不可用显示估值不完整，原币金额保留；仅 USDT 的报表不依赖行情。

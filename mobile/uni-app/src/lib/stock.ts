@@ -23,6 +23,18 @@ type Risk = {
     ends_at: string;
 };
 export type StockReport = {
+    version: 'partner' | 'standard';
+    cashFlow: null | {
+        rateObservedAt: string | null;
+        assets: {
+            asset: string;
+            inflow: string;
+            outflow: string;
+            rate: string | null;
+            inflowUsdt: string | null;
+            outflowUsdt: string | null;
+        }[];
+    };
     accountId: string;
     partnerId: string;
     updatedAt: string;
@@ -32,7 +44,7 @@ export type StockReport = {
     share: string | null;
     negative: boolean;
     missingRates: number;
-    accountBalance: {
+    accountBalance: null | {
         advances: string;
         activationCommission: string;
         annualCommission: string;
@@ -42,7 +54,7 @@ export type StockReport = {
         actual: string;
         difference: string;
     };
-    totals: Record<string, string>;
+    totals: Record<string, string | null>;
     trends: Record<string, Record<string, string>>;
     risks: {
         activeCount: number;

@@ -2,6 +2,18 @@
 
 Approved 2026-09-25. Local implementation only; no live partner designations, expense entries, historical financial changes, deployment or payment execution.
 
+## 2026-10-04: two identity-selected versions (supersedes the access/formula rules below)
+
+Authenticated company users can open stock reports. The server selects `version=partner` only for an enabled partner configuration in that company; all other users receive `version=standard`. Request parameters cannot choose a different identity or version. SaaS uses the same report service for the selected company/account.
+
+- Partner: **all descendant external deposits − all descendant gross withdrawal requests**, using completed financial evidence only. Exclude the report owner even if a corrupt referral cycle leads back to them; retain nested partner branches. Merge credited legacy/TRON top-ups and multi-asset deposits, successful legacy/TRON withdrawals and completed multi-asset withdrawals. Require matching company/currency Ledger evidence. Pending/failed/cancelled orders, internal transfers, card reloads, commissions, annual fees, guarantee movements and offline journals do not change this stock.
+- Value native totals using **one fresh public OKX spot quote per read** (USDT=1; USDC/ETH/BTC use their direct USDT rates). Show rate observation time and native inflow/outflow/rate breakdown. This is a current-market estimate and changes with prices; it is not historical realized profit. Quotes are read-only, never saved to market snapshots. Invalid/unavailable rates make total, share and converted totals unavailable, with native amounts retained. No stale or parity fallback. USDT-only/empty reports need no upstream quote.
+- Standard: preserve `annual + deposits + fees - activation - annualCommission - rebates - reimbursements`, scoped to the owner and descendants, including the existing fixed withdrawal-fee valuations. This path makes no market calls. Ordinary consumers receive no cooperation journal notes/operator identities, no reference share, and no partner-only personal reconciliation.
+
+Partner personal account reconciliation and team alerts remain separate informational sections; they do not enter external-flow stock. Old commission/annual-fee trends are not displayed as partner cash-flow trends. Standard reports retain those trends. All financial reads use one read-only repeatable-read database snapshot. The only new outbound read is public pricing; no provider, OCR, payment, wallet creation, Ledger writes or financial replay occurs.
+
+No migration or historical correction is required. Deploy PHP (including `LegacyStockReport` and `PartnerCashFlow`), admin assets and H5 together. Rebuild native App resources and repackage for the new UI. Test `PartnerStockTest`, `MultiAssetTest` and offline `consumer-stock-versions.mjs` for both browser engines.
+
 ## Access and surfaces
 
 `GET /promotion/stock` renders the partner report (or JSON with `Accept: application/json`). Identity comes exclusively from the authenticated tenant user. The daily-data filter adds a navigation option only when that user has an enabled partner configuration. Ordinary/disabled users receive 404 and no report data. Client identities cannot change the selected team. Responses are private/no-store.

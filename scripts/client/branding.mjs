@@ -43,8 +43,10 @@ export async function prepareBranding(config, project, fetcher = fetch) {
         }
     }
     if (!logo) throw new Error(`Cannot load configured APK logo from API servers: ${failures.join(', ')}. Check company slug, backend logo and network. Native packaging stopped.`);
-    const relative = 'static/native-branding';
-    const output = resolve(project, 'src', relative);
+    // HBuilderX packaging resolves manifest icon/splash paths from the CLI
+    // project root, not the directory containing src/manifest.json.
+    const relative = 'src/static/native-branding';
+    const output = resolve(project, relative);
     await mkdir(output, { recursive: true });
     const android = {};
     for (const [density, size] of Object.entries({ mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 })) {

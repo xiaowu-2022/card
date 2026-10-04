@@ -45,12 +45,24 @@ it('shows only the current users approved identity information and photos withou
         $oss->shouldNotReceive($method);
     }
     app()->instance(OssImages::class, $oss);
+    $imageSnapshots = [];
+    foreach (['front', 'back'] as $side) {
+        $image = app(ImageStorage::class)->record('private', $application->{$side.'_object_key'});
+        $image->update(['oss_pending' => true]);
+        $imageSnapshots[$side] = $image->fresh()->getAttributes();
+    }
     $photos = $query->get($tenant->id, $user->id);
     foreach (['front', 'back'] as $side) {
         $image = app(ImageStorage::class)->record('private', $application->{$side.'_object_key'});
         expect($image->backup_key)->not->toBeEmpty();
         expect($photos[$side.'Url'])->toStartWith('https://images.example.com/'.$image->object_key.'?x-oss-process=')
             ->not->toContain('/media/images/', 'signature=');
+        expect(urldecode($photos[$side.'Url']))->toContain('w_480,h_480', 'format,jpg');
+        expect($photos[$side.'Sources'][0])->toBe($photos[$side.'Url']);
+        expect($photos[$side.'OriginalSources'][0])->toBe('https://images.example.com/'.$image->object_key);
+        expect($photos[$side.'OriginalSources'])->toHaveCount(2);
+        expect($photos[$side.'OriginalSources'][1])->toContain('/media/images/', 'signature=');
+        expect($image->fresh()->getAttributes())->toBe($imageSnapshots[$side]);
     }
     expect($application->fresh()->getAttributes())->toBe($before);
 });

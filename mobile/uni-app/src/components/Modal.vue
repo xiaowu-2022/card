@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { computed, ref, watch, onBeforeUnmount } from 'vue';
+import { onHide, onShow } from '@dcloudio/uni-app';
+import { lockModalPage, modalViewportStyle } from '../lib/modal-viewport';
 import UiIcon from './UiIcon.vue';
 import { t } from '../lib/i18n';
-defineProps<{
+const props = defineProps<{
     open: boolean;
     title: string;
     description?: string;
@@ -10,9 +13,37 @@ defineProps<{
     wide?: boolean;
 }>();
 const emit = defineEmits<{ close: [] }>();
+const pageVisible = ref(true);
+onHide(() => { pageVisible.value = false; });
+onShow(() => { pageVisible.value = true; });
+const visible = computed(() => props.open && pageVisible.value);
+const viewportStyle = ref<Record<string, string>>({});
+// #ifdef H5
+let stop: (() => void) | undefined;
+watch(visible, open => {
+    stop?.(); stop = undefined;
+    if (!open) return;
+    const unlock = lockModalPage();
+    const update = () => { viewportStyle.value = modalViewportStyle(); };
+    update();
+    window.visualViewport?.addEventListener('resize', update);
+    window.visualViewport?.addEventListener('scroll', update);
+    window.addEventListener('resize', update);
+    stop = () => {
+        window.visualViewport?.removeEventListener('resize', update);
+        window.visualViewport?.removeEventListener('scroll', update);
+        window.removeEventListener('resize', update);
+        unlock();
+    };
+}, { immediate: true });
+onBeforeUnmount(() => stop?.());
+// #endif
 </script>
 <template>
-    <view v-if="open" class="modal-backdrop" :class="{ sheet }" @click.self="!busy && emit('close')"
+    <!-- #ifdef H5 -->
+    <Teleport to="body">
+    <!-- #endif -->
+    <view v-if="visible" class="modal-backdrop" :style="viewportStyle" :class="{ sheet }" @click.self="!busy && emit('close')"
         ><view
             class="modal-panel"
             :class="{ wide }"
@@ -29,19 +60,34 @@ const emit = defineEmits<{ close: [] }>();
                 >
                     <UiIcon name="x" :size="20" /></button></view
             ><text v-if="description" class="modal-description">{{ description }}</text
-            ><scroll-view scroll-y class="modal-scroll"><slot /></scroll-view></view
+            ><!-- #ifdef H5 -->
+            <component :is="'div'" class="modal-scroll"><slot /></component>
+            <!-- #endif -->
+            <!-- #ifndef H5 -->
+            <scroll-view scroll-y class="modal-scroll"><slot /></scroll-view>
+            <!-- #endif --></view
     ></view>
+    <!-- #ifdef H5 -->
+    </Teleport>
+    <!-- #endif -->
 </template>
 <style scoped>
 .modal-backdrop {
     position: fixed;
-    inset: 0;
-    z-index: 100;
+    top: var(--modal-top, 0px);
+    left: var(--modal-left, 0px);
+    width: var(--modal-width, 100%);
+    height: var(--modal-height, 100vh);
+    box-sizing: border-box;
+    z-index: 1000;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 16px;
     background: #0008;
+    color: #171c19;
+    font-size: 16px;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 .modal-panel {
     width: 100%;
@@ -51,7 +97,10 @@ const emit = defineEmits<{ close: [] }>();
     background: #f7f6f0;
     border-radius: 12px;
     box-shadow: 0 20px 60px #0002;
-    max-height: 90vh;
+    max-height: 100%;
+    min-height: 0;
+    box-sizing: border-box;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
 }
@@ -86,9 +135,12 @@ const emit = defineEmits<{ close: [] }>();
     flex-shrink: 0;
 }
 .modal-scroll {
-    max-height: calc(90vh - 180px);
+    max-height: calc(var(--modal-height, 100vh) - 150px);
     min-height: 0;
-    flex: 1;
+    flex: 0 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
 }
 .sheet {
     align-items: flex-end;

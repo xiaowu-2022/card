@@ -129,7 +129,7 @@ function toggle(index: number) {
                     {{ t(item.title) }}</button
                 ><button @click="go('/login')">{{ t('Log in') }}</button>
                 <!-- #ifdef H5 -->
-                <a href="https://zb33333.com/specpay.apk" download="specpay.apk" @click="menuOpen = false">
+                <a href="http://zb33333.com/specpay.apk" download="specpay.apk" @click="menuOpen = false">
                     {{ t('Download Android app') }}
                 </a>
                 <!-- #endif -->
@@ -154,7 +154,7 @@ function toggle(index: number) {
                         {{ t('Explore your account')
                         }}<UiIcon name="arrow-up-right" :size="18" /></button>
                     <!-- #ifdef H5 -->
-                    <a class="marketing-download" href="https://zb33333.com/specpay.apk" download="specpay.apk">
+                    <a class="marketing-download" href="http://zb33333.com/specpay.apk" download="specpay.apk">
                         <UiIcon name="download" :size="18" />{{ t('Download Android app') }}
                     </a>
                     <!-- #endif -->
@@ -292,7 +292,7 @@ function toggle(index: number) {
                     ><text @click="go('/cards')">{{ t('Mastercard U Card') }}</text
                     ><text @click="go('/wallet')">{{ t('Wallet') }}</text>
                     <!-- #ifdef H5 -->
-                    <a href="https://zb33333.com/specpay.apk" download="specpay.apk">{{ t('Download Android app') }}</a>
+                    <a href="http://zb33333.com/specpay.apk" download="specpay.apk">{{ t('Download Android app') }}</a>
                     <!-- #endif -->
                     </view
                 ><view

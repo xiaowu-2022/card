@@ -26,6 +26,18 @@ type Risk = {
     ends_at: string;
 };
 export type StockReport = {
+    version: 'partner' | 'standard';
+    cashFlow: null | {
+        rateObservedAt: string | null;
+        assets: {
+            asset: string;
+            inflow: string;
+            outflow: string;
+            rate: string | null;
+            inflowUsdt: string | null;
+            outflowUsdt: string | null;
+        }[];
+    };
     accountId: string;
     partnerId: string;
     updatedAt: string;
@@ -35,7 +47,7 @@ export type StockReport = {
     share: string | null;
     negative: boolean;
     missingRates: number;
-    accountBalance: {
+    accountBalance: null | {
         advances: string;
         activationCommission: string;
         annualCommission: string;
@@ -45,7 +57,7 @@ export type StockReport = {
         actual: string;
         difference: string;
     };
-    totals: Record<string, string>;
+    totals: Record<string, string | null>;
     trends: Record<string, Record<string, string>>;
     risks: {
         activeCount: number;
@@ -90,6 +102,13 @@ export function PartnerStockReport({
 }) {
     const unavailable = t('Incomplete valuation');
     const value = (v: string | null | undefined) => (v == null ? unavailable : fullMoney(v));
+    const displayLines: [string, string, string][] =
+        r.version === 'partner'
+            ? [
+                  ['inflow', 'Team total deposits', '+'],
+                  ['outflow', 'Team total withdrawals', '−'],
+              ]
+            : lines;
     const page = r.journal.page;
     const more = [r.journal, r.unvalued, r.risks.active, r.risks.expired].some((p) => p.hasMore);
     return (
@@ -97,10 +116,11 @@ export function PartnerStockReport({
             <p className="stock-muted">
                 {t('Updated')}: {dateTime(r.updatedAt)} · {r.timezone} · USDT
             </p>
+            <h2>{t(r.version === 'partner' ? 'Partner version' : 'Standard version')}</h2>
             <section className="stock-hero">
                 <h2>{t('Current total stock')}</h2>
                 <strong>{value(r.stock)}</strong>
-                {showShare && (
+                {showShare && r.version === 'partner' && (
                     <>
                         <div className="stock-split">
                             <span>
@@ -126,7 +146,9 @@ export function PartnerStockReport({
                 <p className="stock-warning" role="status">
                     {t('Rates pending')}: {r.missingRates}.{' '}
                     {t(
-                        'Stock and reference share cannot be fully calculated until fee rates are completed.',
+                        r.version === 'partner'
+                            ? 'Current exchange rates are unavailable. USDT valuation is incomplete.'
+                            : 'Stock and reference share cannot be fully calculated until fee rates are completed.',
                     )}
                 </p>
             )}
@@ -138,7 +160,7 @@ export function PartnerStockReport({
             <section className="stock-panel">
                 <h2>{t('Stock composition')}</h2>
                 <dl>
-                    {lines.map(([key, label, sign]) => (
+                    {displayLines.map(([key, label, sign]) => (
                         <div key={key}>
                             <dt>
                                 {sign} {t(label)}
@@ -151,29 +173,67 @@ export function PartnerStockReport({
                         </div>
                     ))}
                 </dl>
+                {r.version === 'partner' && (
+                    <p className="stock-muted">
+                        {t('Partner account commissions are excluded from stock.')}
+                    </p>
+                )}
             </section>
-            <section className="stock-panel">
-                <h2>{t('Account balance reconciliation')}</h2>
-                <dl>
-                    {(
-                        [
-                            ['theoretical', 'Theoretical account balance'],
-                            ['actual', 'Actual account balance'],
-                            ['difference', 'Account balance difference'],
-                        ] as const
-                    ).map(([key, label]) => (
-                        <div key={key}>
-                            <dt>{t(label)}</dt>
-                            <dd>{value(r.accountBalance[key])}</dd>
+            {r.cashFlow && (
+                <section className="stock-panel">
+                    <p className="stock-muted">
+                        {t(
+                            'Partner stock = descendant deposits − descendant gross withdrawals. Your own deposits and withdrawals are excluded. Commissions, annual fees, deposits held and internal transfers are not stock components.',
+                        )}
+                    </p>
+                    <p className="stock-muted">
+                        {t(
+                            'All currencies use the same current USDT rates. The valuation changes with market prices.',
+                        )}
+                    </p>
+                    {r.cashFlow.rateObservedAt && (
+                        <p>
+                            {t('Exchange rate time')}: {dateTime(r.cashFlow.rateObservedAt)}
+                        </p>
+                    )}
+                    {r.cashFlow.assets.map((asset) => (
+                        <div className="stock-detail" key={asset.asset}>
+                            <strong>{asset.asset}</strong>
+                            <span>
+                                {t('Team total deposits')}: {asset.inflow} {asset.asset}
+                            </span>
+                            <span>
+                                {t('Team total withdrawals')}: {asset.outflow} {asset.asset}
+                            </span>
+                            <span>{`1 ${asset.asset} = ${asset.rate ?? '—'} USDT`}</span>
                         </div>
                     ))}
-                </dl>
-                <p className="stock-muted">
-                    {t(
-                        'Theoretical balance = personal net advances + activation commissions received + annual fee commissions received + net manual commissions − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
-                    )}
-                </p>
-            </section>
+                </section>
+            )}
+            {r.accountBalance && (
+                <section className="stock-panel">
+                    <h2>{t('Account balance reconciliation')}</h2>
+                    <dl>
+                        {(
+                            [
+                                ['theoretical', 'Theoretical account balance'],
+                                ['actual', 'Actual account balance'],
+                                ['difference', 'Account balance difference'],
+                            ] as const
+                        ).map(([key, label]) => (
+                            <div key={key}>
+                                <dt>{t(label)}</dt>
+                                <dd>{value(r.accountBalance?.[key])}</dd>
+                            </div>
+                        ))}
+                    </dl>
+                    <p className="stock-muted">
+                        {t(
+                            'Theoretical balance = personal net advances + activation commissions received + annual fee commissions received + net manual commissions − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
+                        )}
+                    </p>
+                </section>
+            )}
             <section className="stock-panel">
                 <h2>{t('Team alerts')}</h2>
                 <dl>
@@ -221,72 +281,77 @@ export function PartnerStockReport({
                     </details>
                 ))}
             </section>
-            <section className="stock-panel">
-                <h2>{t('Daily trends')}</h2>
-                <p className="stock-muted">
-                    {t(
-                        'Averages cover complete calendar days before today, including zero-activity days, in the company timezone.',
-                    )}
-                </p>
-                {Object.entries(r.trends).map(([key, trend]) => (
-                    <div className="stock-trend" key={key}>
-                        <h3>{t(trendNames[key] ?? key)}</h3>
-                        <dl>
-                            {['today', '3', '7', '15', '30'].map((n) => (
-                                <div key={n}>
-                                    <dt>
-                                        {n === 'today'
-                                            ? t('Today')
-                                            : t('Previous {{days}} days average', { days: n })}
-                                    </dt>
-                                    <dd>{value(trend[n])}</dd>
-                                </div>
-                            ))}
-                        </dl>
-                    </div>
-                ))}
-            </section>
-            <section className="stock-panel">
-                <h2>
-                    {t('Cooperation journal')} ({r.journal.total})
-                </h2>
-                <p className="stock-muted">
-                    {t(
-                        'Offline cooperation records only; these entries do not represent system payments.',
-                    )}
-                </p>
-                {r.journal.items.map((row) => (
-                    <div className="stock-detail" key={row.id}>
-                        <strong>
-                            {row.account_id} ·{' '}
-                            {t(row.kind === 'ADVANCE' ? 'Advance' : 'Reimbursement')}{' '}
-                            {row.reverses_id && `· ${t('Reversal')}`}
-                        </strong>
-                        <span>
-                            {row.reverses_id ? '−' : ''}
-                            {value(row.amount)} · {row.business_date}
-                        </span>
-                        <p>{row.note}</p>
-                        {onReverse && (
-                            <small>
-                                {t('Recorded by')}: {row.actor_id} · {dateTime(row.created_at)}
-                                {row.reverses_id && ` · ${t('Reverses entry')}: ${row.reverses_id}`}
-                            </small>
+            {Object.keys(r.trends).length > 0 && (
+                <section className="stock-panel">
+                    <h2>{t('Daily trends')}</h2>
+                    <p className="stock-muted">
+                        {t(
+                            'Averages cover complete calendar days before today, including zero-activity days, in the company timezone.',
                         )}
-                        {row.reversed && <small>{t('Reversed')}</small>}
-                        {onReverse && !row.reverses_id && !row.reversed && (
-                            <button
-                                type="button"
-                                className="stock-link"
-                                onClick={() => onReverse(row)}
-                            >
-                                {t('Record reversal')}
-                            </button>
+                    </p>
+                    {Object.entries(r.trends).map(([key, trend]) => (
+                        <div className="stock-trend" key={key}>
+                            <h3>{t(trendNames[key] ?? key)}</h3>
+                            <dl>
+                                {['today', '3', '7', '15', '30'].map((n) => (
+                                    <div key={n}>
+                                        <dt>
+                                            {n === 'today'
+                                                ? t('Today')
+                                                : t('Previous {{days}} days average', { days: n })}
+                                        </dt>
+                                        <dd>{value(trend[n])}</dd>
+                                    </div>
+                                ))}
+                            </dl>
+                        </div>
+                    ))}
+                </section>
+            )}
+            {(r.version === 'partner' || onReverse) && (
+                <section className="stock-panel">
+                    <h2>
+                        {t('Cooperation journal')} ({r.journal.total})
+                    </h2>
+                    <p className="stock-muted">
+                        {t(
+                            'Offline cooperation records only; these entries do not represent system payments.',
                         )}
-                    </div>
-                ))}
-            </section>
-            {r.missingRates > 0 && (
+                    </p>
+                    {r.journal.items.map((row) => (
+                        <div className="stock-detail" key={row.id}>
+                            <strong>
+                                {row.account_id} ·{' '}
+                                {t(row.kind === 'ADVANCE' ? 'Advance' : 'Reimbursement')}{' '}
+                                {row.reverses_id && `· ${t('Reversal')}`}
+                            </strong>
+                            <span>
+                                {row.reverses_id ? '−' : ''}
+                                {value(row.amount)} · {row.business_date}
+                            </span>
+                            <p>{row.note}</p>
+                            {onReverse && (
+                                <small>
+                                    {t('Recorded by')}: {row.actor_id} · {dateTime(row.created_at)}
+                                    {row.reverses_id &&
+                                        ` · ${t('Reverses entry')}: ${row.reverses_id}`}
+                                </small>
+                            )}
+                            {row.reversed && <small>{t('Reversed')}</small>}
+                            {onReverse && !row.reverses_id && !row.reversed && (
+                                <button
+                                    type="button"
+                                    className="stock-link"
+                                    onClick={() => onReverse(row)}
+                                >
+                                    {t('Record reversal')}
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                </section>
+            )}
+            {r.missingRates > 0 && r.version !== 'partner' && (
                 <section className="stock-panel">
                     <h2>
                         {t('Rates pending')} ({r.unvalued.total})
@@ -314,7 +379,9 @@ export function PartnerStockReport({
             )}
             <p className="stock-muted">
                 {t(
-                    'Includes this partner and all descendants, including independent partner branches. Teams overlap; do not add partner reports together. Historical totals use current team relationships.',
+                    r.version === 'partner'
+                        ? 'Includes all descendants, including partner branches, but excludes your own external deposits and withdrawals. Teams overlap; do not add reports together. Historical totals use current team relationships.'
+                        : 'Includes this account and all descendants. Historical totals use current team relationships.',
                 )}
             </p>
         </div>

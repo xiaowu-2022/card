@@ -38,8 +38,10 @@ final readonly class UserKycQuery
             'documentType' => $identity?->document_type?->value ?? $application?->document_type?->value,
             'frontUrl' => $identity && $application?->front_object_key ? $this->photoUrl($images, $tenantId, $disk, $application->front_object_key) : null,
             'backUrl' => $identity && $application?->back_object_key ? $this->photoUrl($images, $tenantId, $disk, $application->back_object_key) : null,
-            'frontSources' => $identity && $application?->front_object_key ? $images->previewSources($disk, $application->front_object_key, 'document') : [],
-            'backSources' => $identity && $application?->back_object_key ? $images->previewSources($disk, $application->back_object_key, 'document') : [],
+            'frontSources' => $identity && $application?->front_object_key ? $images->previewSources($disk, $application->front_object_key, 'thumbnail') : [],
+            'backSources' => $identity && $application?->back_object_key ? $images->previewSources($disk, $application->back_object_key, 'thumbnail') : [],
+            'frontOriginalSources' => $identity && $application?->front_object_key ? $images->previewSources($disk, $application->front_object_key, 'original') : [],
+            'backOriginalSources' => $identity && $application?->back_object_key ? $images->previewSources($disk, $application->back_object_key, 'original') : [],
             'reviewMessage' => $application?->review_message,
             'submittedAt' => $application?->submitted_at?->toIso8601String(),
             'verifiedAt' => $identity ? ($application?->reviewed_at ?? $identity->verified_at)?->toIso8601String() : null,
@@ -52,14 +54,14 @@ final readonly class UserKycQuery
     {
         $config = $images->active();
         if (! $config) {
-            return $images->displayUrl($disk, $key, 'document');
+            return $images->displayUrl($disk, $key, 'thumbnail');
         }
         $image = $images->record($disk, $key);
         if (! $image || $image->tenant_id !== $tenant || $image->state !== 'ready') {
             return null;
         }
         $url = app(OssImages::class)->url($config, $image->object_key);
-        $process = ImagePresentation::process('document', $image->mime);
+        $process = ImagePresentation::process('thumbnail', $image->mime);
 
         return $url.($process ? '?x-oss-process='.rawurlencode($process) : '');
     }

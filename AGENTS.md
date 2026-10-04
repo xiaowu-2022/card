@@ -1,3 +1,18 @@
+On 2026-10-04 the user split stock reports by current company partner status.
+Enabled partners use descendant-only successful external deposits minus gross
+completed withdrawals, excluding their own account and all internal/commission
+components. Convert all currencies using one fresh current USDT quote per report;
+this explicitly permits read-only public pricing on this report GET, with no saved
+snapshot or financial writes. Missing rates mean unavailable, never zero/parity.
+Non-partners can view their own/team stock using the preserved old formula.
+Keep tenant scope; no consumer-selected identity/version or exposure of private
+cooperation notes to ordinary users. See docs/architecture/PARTNER_STOCK.md.
+
+On 2026-10-04 the user reaffirmed fixed APK distribution at
+`http://zb33333.com/specpay.apk` for H5 download links and App updates.
+This supersedes current-origin APK links and the previous HTTPS download URL.
+API discovery/version checks remain on company API domains.
+
 On 2026-10-04 the user requested sliding 30-day consumer sign-in: valid activity
 renews the inactivity window, explicit logout revokes it. Browser restoration uses
 an encrypted HttpOnly host-only cookie and scoped hash-only token; Android stores

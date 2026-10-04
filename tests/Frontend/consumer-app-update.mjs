@@ -21,7 +21,7 @@ test('old apps cannot continue; update metadata uses the company API and downloa
     await assert.rejects(c.exports.ensureLatestApp());
     assert.equal(c.exports.appUpdate.value.status, 'required');
     c.exports.downloadAppUpdate();
-    assert.equal(c.opened(), 'https://zb33333.com/specpay.apk');
+    assert.equal(c.opened(), 'http://zb33333.com/specpay.apk');
 });
 test('current and newer apps pass and concurrent checks share one request', async () => {
     const c = setup(); c.uni.getAppBaseInfo = () => ({ appId: '__UNI__TEST', appVersionCode: '2' });

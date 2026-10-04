@@ -19,14 +19,18 @@ test('generates correctly sized opaque icons and centered splash screens from ve
     const dir = await mkdtemp(join(tmpdir(), 'card-branding-'));
     try {
         const result = await prepareBranding(config, dir, fake());
-        const icon = await sharp(join(dir, 'src', result.icons.android.xxxhdpi)).metadata();
+        for (const path of [...Object.values(result.icons.android), ...Object.values(result.splashscreen.android)]) {
+            assert.ok(path.startsWith('src/static/native-branding/'));
+            assert.equal((await sharp(join(dir, path)).metadata()).format, 'png');
+        }
+        const icon = await sharp(join(dir, result.icons.android.xxxhdpi)).metadata();
         assert.equal(icon.width, 192); assert.equal(icon.height, 192); assert.equal(icon.hasAlpha, false);
-        const splash = await sharp(join(dir, 'src', result.splashscreen.android.xxhdpi)).metadata();
+        const splash = await sharp(join(dir, result.splashscreen.android.xxhdpi)).metadata();
         assert.equal(splash.width, 1080); assert.equal(splash.height, 1882);
         const source = JSON.parse(await readFile(join(dir, 'src/static/native-branding/source.json')));
         assert.equal(source.tenantSlug, 'demo'); assert.match(source.sha256, /^[a-f0-9]{64}$/);
         assert.equal(result.splashscreen.androidStyle, 'default');
-        const { data, info } = await sharp(join(dir, 'src', result.splashscreen.android.hdpi)).raw().toBuffer({ resolveWithObject: true });
+        const { data, info } = await sharp(join(dir, result.splashscreen.android.hdpi)).raw().toBuffer({ resolveWithObject: true });
         assert.deepEqual([...data.subarray(0, 3)], [255, 255, 255]);
         const center = (Math.floor(info.height / 2) * info.width + Math.floor(info.width / 2)) * info.channels;
         assert.deepEqual([...data.subarray(center, center + 3)], [255, 0, 0]);

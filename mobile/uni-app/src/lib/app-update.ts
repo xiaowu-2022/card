@@ -36,7 +36,7 @@ export function checkAppUpdate(force = false): Promise<void> {
                 throw new Error('Invalid release');
             }
             checkedAt = Date.now();
-            appUpdate.value = { status: code < data.versionCode ? 'required' : 'ready', version: data.versionName, url: 'https://zb33333.com/specpay.apk' };
+            appUpdate.value = { status: code < data.versionCode ? 'required' : 'ready', version: data.versionName, url: 'http://zb33333.com/specpay.apk' };
         } catch {
             appUpdate.value = { ...appUpdate.value, status: 'error' };
         } finally {

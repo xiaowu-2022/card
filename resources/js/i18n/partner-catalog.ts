@@ -1,4 +1,47 @@
 export const partnerCatalog = {
+    'Partner account commissions are excluded from stock.': [
+        '合伙人账号佣金不计入存量',
+        'Komisen akaun rakan kongsi tidak dikira dalam baki.',
+        'Las comisiones de la cuenta del socio no se incluyen en el saldo.',
+    ],
+    'Partner version': ['合伙人版', 'Versi rakan kongsi', 'Versión para socios'],
+    'Standard version': ['非合伙人版', 'Versi bukan rakan kongsi', 'Versión para no socios'],
+    'Team total deposits': ['团队总入金', 'Jumlah deposit pasukan', 'Depósitos totales del equipo'],
+    'Team total withdrawals': [
+        '团队总出金',
+        'Jumlah pengeluaran pasukan',
+        'Retiros totales del equipo',
+    ],
+    'Exchange rate time': ['汇率时间', 'Masa kadar tukaran', 'Hora del tipo de cambio'],
+    'Current exchange rates are unavailable. USDT valuation is incomplete.': [
+        '暂时无法获取当前汇率，USDT 估值不完整。',
+        'Kadar tukaran semasa tidak tersedia. Penilaian USDT tidak lengkap.',
+        'Los tipos de cambio actuales no están disponibles. La valoración en USDT está incompleta.',
+    ],
+    'All currencies use the same current USDT rates. The valuation changes with market prices.': [
+        '所有币种按本次查询的统一汇率折算 USDT，估值会随行情变化。',
+        'Semua mata wang menggunakan kadar USDT semasa yang sama. Penilaian berubah mengikut harga pasaran.',
+        'Todas las monedas usan los mismos tipos de cambio actuales a USDT. La valoración varía con el mercado.',
+    ],
+    'Partner stock = descendant deposits − descendant gross withdrawals. Your own deposits and withdrawals are excluded. Commissions, annual fees, deposits held and internal transfers are not stock components.':
+        [
+            '合伙人存量＝下级团队总入金－总出金（提现申请总额）。排除本人充值和提现；佣金、年费、保证金和内部转账不单独计入存量。',
+            'Baki rakan kongsi = deposit ahli bawahan − pengeluaran kasar mereka. Deposit dan pengeluaran anda sendiri dikecualikan. Komisen, yuran tahunan, deposit jaminan dan pindahan dalaman bukan komponen baki.',
+            'Saldo del socio = depósitos de los descendientes − retiros brutos de los descendientes. Se excluyen tus propios depósitos y retiros. Las comisiones, cuotas anuales, garantías y transferencias internas no se contabilizan por separado.',
+        ],
+    'Includes all descendants, including partner branches, but excludes your own external deposits and withdrawals. Teams overlap; do not add reports together. Historical totals use current team relationships.':
+        [
+            '包含全部下级及下级合伙人团队，排除本人外部充值和提现。团队存在重叠，请勿相加各报表；历史累计按当前团队关系统计。',
+            'Termasuk semua ahli bawahan dan cabang rakan kongsi, kecuali deposit dan pengeluaran anda sendiri. Pasukan bertindih; jangan jumlahkan laporan. Jumlah sejarah menggunakan hubungan pasukan semasa.',
+            'Incluye todos los descendientes y ramas de socios, pero excluye tus propios depósitos y retiros externos. Los equipos se superponen; no sumes informes. Los totales históricos usan las relaciones actuales.',
+        ],
+    'Includes this account and all descendants. Historical totals use current team relationships.':
+        [
+            '包含本人及全部下级，历史累计按当前团队关系统计。',
+            'Termasuk akaun ini dan semua ahli bawahan. Jumlah sejarah menggunakan hubungan pasukan semasa.',
+            'Incluye esta cuenta y todos sus descendientes. Los totales históricos usan las relaciones actuales.',
+        ],
+
     'Theoretical balance = personal net advances + activation commissions received + annual fee commissions received + net manual commissions − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.':
         [
             '理论余额＝本人预支净额＋已到账激活佣金＋已到账年费佣金＋手动佣金净额－本人报销净额。实际余额为本人 USDT 钱包可用余额。差额＝理论余额－实际余额。',

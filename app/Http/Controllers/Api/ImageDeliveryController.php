@@ -15,7 +15,7 @@ final class ImageDeliveryController extends Controller
         abort_unless($request->hasValidSignature(), 403);
         $record = StoredImage::whereKey($image)->where('state', 'ready')->firstOrFail();
         $profile = $request->query('profile', 'original');
-        abort_unless(in_array($profile, ['original', 'brand', 'preview', 'document', 'poster'], true), 422);
+        abort_unless(in_array($profile, ['original', 'brand', 'thumbnail', 'preview', 'document', 'poster'], true), 422);
 
         abort_unless(in_array($request->query('delivery'), [null, 'replica'], true), 422);
 

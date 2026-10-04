@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '../../components/TextInput.vue';
 import { useSensitiveScreen } from '../../lib/sensitive';
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
@@ -47,7 +48,7 @@ async function submit() {
         ><FormErrors :errors="errors" />
         <form @submit="submit">
             <view class="login-fields"
-                ><input
+                ><TextInput
                     v-model="email"
                     class="login-input"
                     :placeholder="t('Email')"
@@ -55,7 +56,7 @@ async function submit() {
                     :disabled="pending"
                     :maxlength="255"
                 /><view class="password-field"
-                    ><input
+                    ><TextInput
                         v-model="password"
                         class="login-input"
                         :password="!show"

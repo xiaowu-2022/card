@@ -9,7 +9,7 @@ import type { StockReport } from '../lib/stock';
 const props = defineProps<{ page: { report: StockReport } }>(),
     r = computed(() => props.page.report),
     expanded = ref<Record<number, boolean>>({});
-const lines = [
+const legacyLines = [
     ['annual', 'Total annual fees paid', '+'],
     ['deposits', 'Ordinary member deposit balances', '+'],
     ['fees', 'Withdrawal fee income', '+'],
@@ -18,6 +18,14 @@ const lines = [
     ['rebates', 'Annual fees returned', '−'],
     ['reimbursements', 'Reimbursed expenses', '−'],
 ];
+const lines = computed(() =>
+    r.value.version === 'partner'
+        ? [
+              ['inflow', 'Team total deposits', '+'],
+              ['outflow', 'Team total withdrawals', '−'],
+          ]
+        : legacyLines,
+);
 const trends: Record<string, string> = {
     activation: 'Activation commissions paid',
     deposits: 'First deposit activations',
@@ -40,6 +48,9 @@ const more = computed(() =>
         ><view class="stock"
             ><text class="muted small"
                 >{{ t('Updated') }}: {{ dateTime(r.updatedAt) }} · {{ r.timezone }} · USDT</text
+            ><text class="heading">{{
+                t(r.version === 'partner' ? 'Partner version' : 'Standard version')
+            }}</text
             ><view class="hero"
                 ><text>{{ t('Current total stock') }}</text
                 ><text class="total">{{ value(r.stock) }}</text></view
@@ -47,7 +58,9 @@ const more = computed(() =>
                 >{{ t('Rates pending') }}: {{ r.missingRates }}.
                 {{
                     t(
-                        'Stock and reference share cannot be fully calculated until fee rates are completed.',
+                        r.version === 'partner'
+                            ? 'Current exchange rates are unavailable. USDT valuation is incomplete.'
+                            : 'Stock and reference share cannot be fully calculated until fee rates are completed.',
                     )
                 }}</text
             ><text v-if="r.negative" class="warning">{{ t('Total stock is negative.') }}</text
@@ -60,8 +73,35 @@ const more = computed(() =>
                             ? t('Incomplete valuation')
                             : value(r.totals[key])
                     }}</text></view
-                ></view
-            ><view class="panel"
+                ><text v-if="r.version === 'partner'" class="muted small">{{
+                    t('Partner account commissions are excluded from stock.')
+                }}</text></view
+            ><view v-if="r.cashFlow" class="panel">
+                <text class="muted small">{{
+                    t(
+                        'Partner stock = descendant deposits − descendant gross withdrawals. Your own deposits and withdrawals are excluded. Commissions, annual fees, deposits held and internal transfers are not stock components.',
+                    )
+                }}</text>
+                <text class="muted small">{{
+                    t(
+                        'All currencies use the same current USDT rates. The valuation changes with market prices.',
+                    )
+                }}</text>
+                <text v-if="r.cashFlow.rateObservedAt" class="muted small"
+                    >{{ t('Exchange rate time') }}: {{ dateTime(r.cashFlow.rateObservedAt) }}</text
+                >
+                <view v-for="asset in r.cashFlow.assets" :key="asset.asset" class="detail">
+                    <text class="strong">{{ asset.asset }}</text>
+                    <text
+                        >{{ t('Team total deposits') }}: {{ asset.inflow }} {{ asset.asset }}</text
+                    >
+                    <text
+                        >{{ t('Team total withdrawals') }}: {{ asset.outflow }}
+                        {{ asset.asset }}</text
+                    >
+                    <text>1 {{ asset.asset }} = {{ asset.rate ?? '—' }} USDT</text>
+                </view> </view
+            ><view v-if="r.accountBalance" class="panel"
                 ><text class="heading">{{ t('Account balance reconciliation') }}</text
                 ><view
                     v-for="[key, label] in [
@@ -115,7 +155,7 @@ const more = computed(() =>
                         ></template
                     ></view
                 ></view
-            ><view class="panel"
+            ><view v-if="Object.keys(r.trends).length" class="panel"
                 ><text class="heading">{{ t('Daily trends') }}</text
                 ><text class="muted small">{{
                     t(
@@ -129,7 +169,7 @@ const more = computed(() =>
                         ><text>{{ value(trend[n]) }}</text></view
                     ></view
                 ></view
-            ><view class="panel"
+            ><view v-if="r.version === 'partner'" class="panel"
                 ><text class="heading">{{ t('Cooperation journal') }} ({{ r.journal.total }})</text
                 ><text class="muted small">{{
                     t(
@@ -147,7 +187,7 @@ const more = computed(() =>
                     ><text class="plain">{{ row.note }}</text
                     ><text v-if="row.reversed" class="small muted">{{ t('Reversed') }}</text></view
                 ></view
-            ><view v-if="r.missingRates > 0" class="panel"
+            ><view v-if="r.missingRates > 0 && r.version !== 'partner'" class="panel"
                 ><text class="heading">{{ t('Rates pending') }} ({{ r.unvalued.total }})</text
                 ><view v-for="row in r.unvalued.items" :key="row.id" class="detail"
                     ><text>{{ row.fee_amount }} {{ row.asset_code }}</text
@@ -159,7 +199,9 @@ const more = computed(() =>
                 @change="(page) => go('/promotion/stock?page=' + page, true)"
             /><text class="muted small">{{
                 t(
-                    'Includes this partner and all descendants, including independent partner branches. Teams overlap; do not add partner reports together. Historical totals use current team relationships.',
+                    r.version === 'partner'
+                        ? 'Includes all descendants, including partner branches, but excludes your own external deposits and withdrawals. Teams overlap; do not add reports together. Historical totals use current team relationships.'
+                        : 'Includes this account and all descendants. Historical totals use current team relationships.',
                 )
             }}</text></view
         ></PageShell
@@ -196,6 +238,10 @@ const more = computed(() =>
     border: 1px solid #e1e7dd;
     border-radius: 16px;
     background: white;
+}
+.panel > .small {
+    display: block;
+    margin-bottom: 8px;
 }
 .heading {
     display: block;
