@@ -1,4 +1,10 @@
 export const partnerCatalog = {
+    'Theoretical balance = personal net advances + activation commissions received + annual fee commissions received + net manual commissions − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.':
+        [
+            '理论余额＝本人预支净额＋已到账激活佣金＋已到账年费佣金＋手动佣金净额－本人报销净额。实际余额为本人 USDT 钱包可用余额。差额＝理论余额－实际余额。',
+            'Baki teori = pendahuluan bersih peribadi + komisen pengaktifan diterima + komisen yuran tahunan diterima + komisen manual bersih − bayaran balik perbelanjaan bersih peribadi. Baki sebenar ialah baki tersedia dompet USDT anda. Perbezaan = teori − sebenar.',
+            'Saldo teórico = anticipos personales netos + comisiones de activación recibidas + comisiones anuales recibidas + comisiones manuales netas − reembolsos personales netos. El saldo real es el saldo disponible de tu billetera USDT. Diferencia = teórico − real.',
+        ],
     'Account balance reconciliation': [
         '账户余额核对',
         'Semakan baki akaun',

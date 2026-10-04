@@ -1,3 +1,4 @@
+import { CardTransactionBatchSync } from '@/components/admin/CardTransactionBatchSync';
 import { AdminCardReveal } from '@/components/admin/AdminCardReveal';
 import { CardOverflowSpend } from '@/components/admin/CardOverflowSpend';
 import { CardBalanceLimit } from '@/components/admin/CardBalanceLimit';
@@ -124,6 +125,12 @@ export default function Cards({
                         <CardLoadOrders page={loads} canManage={canManage} />
                     </TabsContent>
                     <TabsContent value="cards">
+                        {canManage && (
+                            <CardTransactionBatchSync
+                                companies={companies}
+                                company={filters.company}
+                            />
+                        )}
                         {refreshError && (
                             <p role="alert" className="mb-3 text-sm text-destructive">
                                 {t(refreshError)}

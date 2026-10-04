@@ -2,6 +2,7 @@
 
 namespace App\Application\User;
 
+use App\Application\Promotion\ManualPromotion;
 use Brick\Math\BigDecimal;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Query\Builder;
@@ -34,7 +35,7 @@ final class PlatformUserQuery
             ->through(fn ($row): array => [
                 'id' => $row->id, 'companyId' => $row->tenant_id, 'companyName' => $row->company_name,
                 'accountId' => $row->account_id, 'displayName' => $row->display_name,
-                'email' => $row->email, 'promotionRank' => app(\App\Application\Promotion\ManualPromotion::class)->benefit($row->tenant_id, $row->id)?->rank ?? 0, 'status' => $row->status,
+                'email' => $row->email, 'promotionRank' => app(ManualPromotion::class)->benefit($row->tenant_id, $row->id)?->rank ?? 0, 'status' => $row->status,
                 'createdAt' => $row->created_at, 'lastLoginAt' => $row->last_login_at,
             ] + (($financialAccess['balances'] ?? false) ? [
                 'availableBalance' => $this->decimal($row->available_balance), 'securityDeposit' => $this->decimal($row->security_deposit),
@@ -54,7 +55,7 @@ final class PlatformUserQuery
         return DB::table('ledger_postings as cp')->join('ledger_entries as ce', fn ($j) => $j->on('ce.id', '=', 'cp.ledger_entry_id')->on('ce.tenant_id', '=', 'cp.tenant_id'))
             ->join('ledger_accounts as ca', fn ($j) => $j->on('ca.id', '=', 'cp.ledger_account_id')->on('ca.tenant_id', '=', 'cp.tenant_id'))
             ->whereColumn('ca.tenant_id', 'u.tenant_id')->whereColumn('ca.user_id', 'u.id')->where('ca.asset_code', 'USDT')
-            ->whereNotNull('ce.sealed_at')->whereIn('ce.event_type', ['COMMISSION_EARN', 'PROMOTION_ANNUAL_COMMISSION'])->where('cp.delta', '>', 0)
+            ->whereNotNull('ce.sealed_at')->whereIn('ce.event_type', ['COMMISSION_EARN', 'PROMOTION_ANNUAL_COMMISSION', 'MANUAL_COMMISSION'])->where(fn ($q) => $q->where('cp.delta', '>', 0)->orWhere('ce.event_type', 'MANUAL_COMMISSION'))
             ->selectRaw('COALESCE(SUM(cp.delta), 0)::text');
     }
 

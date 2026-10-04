@@ -39,6 +39,7 @@ export type StockReport = {
         advances: string;
         activationCommission: string;
         annualCommission: string;
+        manualCommission: string;
         reimbursements: string;
         theoretical: string;
         actual: string;
@@ -169,7 +170,7 @@ export function PartnerStockReport({
                 </dl>
                 <p className="stock-muted">
                     {t(
-                        'Theoretical balance = personal net advances + activation commissions received + annual fee commissions received − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
+                        'Theoretical balance = personal net advances + activation commissions received + annual fee commissions received + net manual commissions − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
                     )}
                 </p>
             </section>

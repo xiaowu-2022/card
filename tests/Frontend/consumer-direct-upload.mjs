@@ -17,8 +17,8 @@ function client(platform = 'app', ossStatus = 204, backupStatus = 204, serverOnl
     const exports = {};
     const source = readFileSync('mobile/uni-app/src/lib/api.ts', 'utf8').replaceAll('import.meta.env.UNI_PLATFORM', JSON.stringify(platform));
     runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
-        { exports, uni, fetch: async () => ({ blob: async () => ({ type: 'image/png' }) }),
-            require: id => id.includes('company.json') ? {} : { ensureLatestApp: async () => {}, companyOrigin: () => 'https://app.example.org', ensureCompanyOrigin: async () => {} } });
+        { exports, uni, plus: { os: { name: 'Android' }, android: {} }, fetch: async () => ({ blob: async () => ({ type: 'image/png' }) }),
+            require: id => id === './device-credentials' ? { androidCredentialVault: () => ({ read: () => null, write() {} }) } : id.includes('company.json') ? { default: { appId: 'test', tenantSlug: 'company-a', apiOrigin: 'https://app.example.org' } } : { ensureLatestApp: async () => {}, companyOrigin: () => 'https://app.example.org', ensureCompanyOrigin: async () => {} } });
     exports.setToken('private-token'); return { api: exports, calls, uni };
 }
 for (const platform of ['app', 'h5']) {

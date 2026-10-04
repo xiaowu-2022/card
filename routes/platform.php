@@ -7,6 +7,7 @@ use App\Http\Controllers\Platform\AssetsController;
 use App\Http\Controllers\Platform\CardOperationsController;
 use App\Http\Controllers\Platform\CardProductController;
 use App\Http\Controllers\Platform\CardProviderController;
+use App\Http\Controllers\Platform\CardTransactionBatchController;
 use App\Http\Controllers\Platform\CompanyConfiguration\InvitationPosterController;
 use App\Http\Controllers\Platform\CompanyConfiguration\OnboardingController;
 use App\Http\Controllers\Platform\CompanyConfiguration\PaidPromotionController;
@@ -43,6 +44,14 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('platform')->name('platform.')->group(function (): void {
+    Route::middleware(['admin.scope:platform,cards.read', 'admin.scope:platform,card_product.manage'])->prefix('card-transaction-batches')->group(function (): void {
+        Route::get('/preview', [CardTransactionBatchController::class, 'preview'])->middleware('throttle:30,1');
+        Route::get('/', [CardTransactionBatchController::class, 'index']);
+        Route::post('/', [CardTransactionBatchController::class, 'store'])->middleware('throttle:5,1');
+        Route::get('/{batch}', [CardTransactionBatchController::class, 'show'])->whereUuid('batch');
+        Route::post('/{batch}/retry', [CardTransactionBatchController::class, 'retry'])->whereUuid('batch')->middleware('throttle:5,1');
+    });
+
     Route::middleware('admin.scope:platform,support.read')->group(function (): void {
         Route::get('/support', [SupportController::class, 'index'])->middleware('throttle:60,1');
         Route::get('/tenants/{tenant}/support/users/{user}', [SupportController::class, 'show'])->whereUuid(['tenant', 'user'])->middleware('throttle:60,1');
@@ -118,6 +127,14 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware(['admin.scope:platform,cards.read', 'admin.scope:platform,card_product.manage', 'throttle:10,1'])->post('/tenants/{tenant}/cards/{card}/transactions/sync', [CardOperationsController::class, 'syncTransactions'])->whereUuid(['tenant', 'card'])->name('cards.transactions.sync');
     Route::middleware(['admin.scope:platform,cards.read', 'throttle:30,1'])->post('/tenants/{tenant}/cards/{card}/refresh', [CardOperationsController::class, 'refresh'])->whereUuid(['tenant', 'card'])->name('cards.refresh');
     Route::middleware('admin.scope:platform,users.read')->get('/users', UserOperationsController::class)->name('users.index');
+    Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.referrer.manage'])->group(function () {
+        Route::get('/tenants/{tenant}/users/{user}/referrer', [\App\Http\Controllers\Platform\UserReferrerController::class, 'show'])->whereUuid(['tenant','user']);
+        Route::post('/tenants/{tenant}/users/{user}/referrer', [\App\Http\Controllers\Platform\UserReferrerController::class, 'update'])->middleware('throttle:20,1')->whereUuid(['tenant','user']);
+    });
+    Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,commissions.adjust'])->group(function () {
+        Route::get('/tenants/{tenant}/users/{user}/manual-commissions', [\App\Http\Controllers\Platform\ManualCommissionController::class, 'show'])->whereUuid(['tenant','user']);
+        Route::post('/tenants/{tenant}/users/{user}/manual-commissions', [\App\Http\Controllers\Platform\ManualCommissionController::class, 'update'])->middleware('throttle:20,1')->whereUuid(['tenant','user']);
+    });
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,wallet.adjust'])->group(function () {
         Route::get('/tenants/{tenant}/users/{user}/wallet-adjustments', [WalletAdjustmentController::class, 'show'])->whereUuid(['tenant', 'user']);
         Route::post('/tenants/{tenant}/users/{user}/wallet-adjustments', [WalletAdjustmentController::class, 'update'])->middleware('throttle:20,1')->whereUuid(['tenant', 'user']);

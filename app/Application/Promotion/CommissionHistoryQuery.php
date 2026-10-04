@@ -27,7 +27,10 @@ final class CommissionHistoryQuery
             ->join('users as u', fn ($j) => $j->on('u.id', '=', 'e.user_id')->on('u.tenant_id', '=', 'e.tenant_id'))
             ->where('s.tenant_id', $tenantId)->where('s.user_id', $userId)->where('e.kind', 'ANNUAL')->where('s.amount', '>', 0)
             ->selectRaw("s.id, 'annual' AS kind, s.amount::text AS amount, 'USDT' AS asset_code, u.account_id AS source_account_id, e.occurred_at");
-        $query = DB::query()->fromSub($earned->unionAll($annual), 'history');
+        $manual = DB::table('manual_commission_adjustments as a')->join('ledger_entries as l', fn ($j) => $j->on('l.id', '=', 'a.ledger_entry_id')->on('l.tenant_id', '=', 'a.tenant_id'))
+            ->where('a.tenant_id', $tenantId)->where('a.user_id', $userId)
+            ->selectRaw("a.id,'manual' AS kind,(CASE WHEN direction='INCREASE' THEN amount ELSE -amount END)::text AS amount,'USDT' AS asset_code,NULL::text AS source_account_id,l.posted_at AS occurred_at");
+        $query = DB::query()->fromSub($earned->unionAll($annual)->unionAll($manual), 'history');
         if ($date) {
             $day = CarbonImmutable::createFromFormat('!Y-m-d', $date, $tenant->timezone);
             $query->where('occurred_at', '>=', $day->utc())->where('occurred_at', '<', $day->addDay()->utc());

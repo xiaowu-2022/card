@@ -20,6 +20,7 @@ function client(platform, base = '/', initialAssets = {}) {
     };
     const window = { __PUBLIC_ASSETS__: initialAssets, location: { origin: 'https://alternate.example.org', href: 'https://alternate.example.org/' } };
     function load(path) {
+        if (path.endsWith('device-credentials.ts')) return { androidCredentialVault: () => ({ read: () => null, write() {} }) };
         if (path === 'vue') return { ref: (value) => ({ value }), shallowRef: (value) => ({ value }) };
         if (path.endsWith('company.json')) return { apiOrigin: 'https://primary.example.org', apiOrigins: ['https://zb33333.com', 'https://primary.example.org'], tenantSlug: 'company-a', appId: 'test.cards.app', developmentOnly: false };
         if (cache.has(path)) return cache.get(path);
@@ -29,7 +30,7 @@ function client(platform, base = '/', initialAssets = {}) {
         const compiled = ts.transpileModule(source, {
             compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
         }).outputText;
-        runInNewContext(compiled, { exports, window, URL, uni, require: (id) => id === 'vue' ? load('vue') : load(resolve(dirname(path), id + (id.endsWith('.json') ? '' : '.ts'))) });
+        runInNewContext(compiled, { exports, window, URL, uni, plus: { os: { name: 'Android' }, android: {} }, require: (id) => id === 'vue' ? load('vue') : load(resolve(dirname(path), id + (id.endsWith('.json') ? '' : '.ts'))) });
         return exports;
     }
     const sourceDir = resolve('mobile/uni-app/src/lib');

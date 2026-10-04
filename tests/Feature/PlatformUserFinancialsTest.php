@@ -69,7 +69,8 @@ it('reads exact owned balances and successful gross withdrawal totals without mu
             'required_security_deposit_amount' => '100', 'required_security_deposit_asset' => 'USDT',
             'allow_wallet_topup' => true, 'allow_withdrawal' => true, 'withdrawal_fee_percent' => '1.00',
         ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
-        $kyc = app(SubmitKycApplicationAction::class)->execute($tenant, $user, 'MY', 'FINANCIALS-'.$user->id, kycTestImage(), kycTestImage('back.png'));
+        fakeMatchingKycOcr('FINANCIALS-'.$user->id);
+        $kyc = app(SubmitKycApplicationAction::class)->execute($tenant, $user, 'CN', 'FINANCIALS-'.$user->id, kycTestImage(), kycTestImage('back.png'));
         app(ApproveKycAction::class)->execute($tenant->id, $kyc->id, $owner);
         $wallet = app(ActivateUserWalletAction::class)->execute($tenant->id, $user->id)->wallet;
         $available = LedgerAccount::query()->where('tenant_id', $tenant->id)->where('wallet_id', $wallet->id)->where('account_type', 'USER_AVAILABLE')->sole();

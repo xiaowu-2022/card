@@ -43,7 +43,16 @@ final class PromotionReportQuery
                 f.amount AS source_amount, NULL::numeric AS rate, NULL::integer AS standard, NULL::integer AS covered,
                 f.id AS source_id, l.posted_at AS occurred_at, f.funded_at AS business_at");
 
-        return DB::query()->fromSub($paid->unionAll($legacy), 'income');
+        $manual = DB::table('manual_commission_adjustments as a')
+            ->join('ledger_entries as l', fn ($j) => $j->on('l.id', '=', 'a.ledger_entry_id')->on('l.tenant_id', '=', 'a.tenant_id'))
+            ->where('a.tenant_id', $tenant)->when($user !== null, fn ($q) => $q->where('a.user_id', $user))
+            ->selectRaw("a.id, 'manual' AS kind, CASE WHEN a.direction='INCREASE' THEN a.amount ELSE -a.amount END AS amount,
+                NULL::uuid AS source_user_id, NULL::text AS source_account_id, NULL::integer AS source_rank,
+                NULL::integer AS beneficiary_rank, NULL::integer AS depth, NULL::numeric AS source_amount,
+                NULL::numeric AS rate, NULL::integer AS standard, NULL::integer AS covered,
+                a.id AS source_id, l.posted_at AS occurred_at, l.posted_at AS business_at");
+
+        return DB::query()->fromSub($paid->unionAll($legacy)->unionAll($manual), 'income');
     }
 
     private function context(string $tenant, string $user, array $filters, bool $daily = false): array
@@ -76,7 +85,8 @@ final class PromotionReportQuery
         $row = (clone $query)->selectRaw("COALESCE(SUM(amount),0)::text AS total,
             COALESCE(SUM(amount) FILTER (WHERE kind='annual'),0)::text AS annual,
             COALESCE(SUM(amount) FILTER (WHERE kind='activation'),0)::text AS activation,
-            COALESCE(SUM(amount) FILTER (WHERE kind='legacy'),0)::text AS legacy")->first();
+            COALESCE(SUM(amount) FILTER (WHERE kind='legacy'),0)::text AS legacy,
+            COALESCE(SUM(amount) FILTER (WHERE kind='manual'),0)::text AS manual")->first();
 
         return (array) $row;
     }
@@ -194,7 +204,8 @@ final class PromotionReportQuery
                 CASE WHEN o.previous_tariff>0 THEN 'upgrade' WHEN EXISTS(SELECT 1 FROM paid_promotion_cycles prior
                   WHERE prior.tenant_id=o.tenant_id AND prior.user_id=o.user_id AND prior.id<>o.cycle_id AND prior.ends_at<=o.completed_at)
                   THEN 'renewal' ELSE 'purchase' END AS purchase_kind");
-        $movements = $this->period(DB::query()->fromSub($invites->unionAll($funds)->unionAll($annual), 'movements'), $context);
+        $manual = $this->income($tenant, $user)->where('kind', 'manual')->selectRaw("id,'manual' AS kind,NULL::text AS account_id,NULL::integer AS depth,NULL::integer AS source_rank,NULL::numeric AS source_amount,amount AS commission,occurred_at AS posted_at,occurred_at,false AS first_funding,NULL::text AS purchase_kind");
+        $movements = $this->period(DB::query()->fromSub($invites->unionAll($funds)->unionAll($annual)->unionAll($manual), 'movements'), $context);
         $counts = (clone $movements)->selectRaw("COUNT(*) FILTER (WHERE kind='invitation') AS invited,
             COUNT(*) FILTER (WHERE kind='activation') AS funded,COUNT(*) FILTER (WHERE kind='annual') AS orders")->first();
         $totals = $this->totals($this->period($this->income($tenant, $user), $context));
@@ -206,7 +217,7 @@ final class PromotionReportQuery
 
         return $context + ['filters' => $filters, 'totals' => $totals, 'counts' => (array) $counts, 'page' => $page, 'hasMore' => $rows->count() > 30,
             'items' => $rows->take(30)->map(fn ($r) => ['id' => $r->kind.':'.$r->id, 'kind' => $r->kind, 'sourceAccountId' => $r->account_id,
-                'relation' => $r->depth === 1 ? 'direct' : 'indirect', 'sourceRank' => $r->source_rank, 'sourceAmount' => $r->source_amount,
+                'relation' => $r->depth === null ? 'unknown' : ($r->depth === 1 ? 'direct' : 'indirect'), 'sourceRank' => $r->source_rank, 'sourceAmount' => $r->source_amount,
                 'amount' => $r->commission, 'occurredAt' => $r->occurred_at, 'postedAt' => $r->posted_at,
                 'firstFunding' => (bool) $r->first_funding, 'purchaseKind' => $r->purchase_kind])->all()];
     }

@@ -36,6 +36,7 @@ export type StockReport = {
         advances: string;
         activationCommission: string;
         annualCommission: string;
+        manualCommission: string;
         reimbursements: string;
         theoretical: string;
         actual: string;

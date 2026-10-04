@@ -66,6 +66,7 @@ const activityLabels: Record<string, string> = {
     invitation: 'Invitation registration',
     activation: 'Deposit payment',
     annual: 'Annual fee payment',
+    manual: 'Manual commission',
 };
 const purchaseLabels: Record<string, string> = {
     purchase: 'First purchase',

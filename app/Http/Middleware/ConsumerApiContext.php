@@ -36,6 +36,11 @@ final readonly class ConsumerApiContext
                 $user = User::query()->where('tenant_id', $this->tenant->id())->whereKey($token->tokenable_id)->first();
                 abort_unless($user && $user->status !== UserStatus::Disabled
                     && $user->session_version === $token->session_version, 401);
+                // Sliding inactivity window. A conditional update never recreates a
+                // token deleted by logout or shortens a concurrent request's renewal.
+                ConsumerDeviceToken::query()->whereKey($token->id)
+                    ->where('expires_at', '>', now())->where('expires_at', '<', now()->addDays(30))
+                    ->update(['expires_at' => now()->addDays(30), 'last_used_at' => now()]);
                 $request->attributes->set('consumer_token', $token);
                 $guard->setUser($user);
             }

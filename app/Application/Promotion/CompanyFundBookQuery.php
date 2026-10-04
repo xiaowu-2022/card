@@ -16,15 +16,16 @@ final class CompanyFundBookQuery
         $base = DB::table('ledger_entries as e')->join('ledger_postings as p', fn ($join) => $join->on('p.ledger_entry_id', '=', 'e.id')->on('p.tenant_id', '=', 'e.tenant_id'))
             ->join('ledger_accounts as a', fn ($join) => $join->on('a.id', '=', 'p.ledger_account_id')->on('a.tenant_id', '=', 'e.tenant_id'))
             ->where('e.tenant_id', $tenantId)->whereNotNull('e.sealed_at')->where('e.asset_code', 'USDT');
-        $daily = (clone $base)->where('e.posted_at', '>=', $day->utc())->where('e.posted_at', '<', $day->addDay()->utc());
+        $daily = (clone $base)->where('e.posted_at', '>=', $day->utc()->toIso8601String())->where('e.posted_at', '<', $day->addDay()->utc()->toIso8601String());
         $sum = fn ($query, $type, $account) => (string) ((clone $query)->whereIn('e.event_type', (array) $type)->where('a.account_type', $account)->selectRaw("CASE WHEN COUNT(*) = 0 THEN '0' ELSE SUM(ABS(p.delta))::numeric(20,8)::text END AS amount")->value('amount'));
+        $commission = fn ($query, $events) => (string) (clone $query)->whereIn('e.event_type', $events)->where('a.account_type', 'TENANT_COMMISSION_CLEARING')->selectRaw("CASE WHEN COUNT(*)=0 THEN '0' ELSE (-SUM(p.delta))::numeric(20,8)::text END AS amount")->value('amount');
         $totals = fn ($query) => ['topups' => $sum($query, ['WALLET_TOPUP_CREDIT', 'ASSET_DEPOSIT'], 'USER_AVAILABLE'),
             'withdrawals' => $sum($query, ['WITHDRAWAL_SETTLE', 'ASSET_WITHDRAWAL_SETTLE'], 'TENANT_WITHDRAWAL_CLEARING'),
             'activationCommissions' => $sum($query, 'COMMISSION_EARN', 'TENANT_COMMISSION_CLEARING'),
             'annualFees' => $sum($query, 'PROMOTION_ANNUAL_FEE', 'TENANT_PROMOTION_FEE_REVENUE'), 'annualRebates' => $sum($query, 'PROMOTION_FEE_REBATE', 'USER_AVAILABLE'), 'annualCommissions' => $sum($query, 'PROMOTION_ANNUAL_COMMISSION', 'TENANT_COMMISSION_CLEARING'),
-            'commissionCost' => $sum($query, ['COMMISSION_EARN', 'PROMOTION_ANNUAL_COMMISSION'], 'TENANT_COMMISSION_CLEARING'), 'feeIncome' => $sum($query, ['CARD_ISSUE_FEE_SETTLE', 'WITHDRAWAL_SETTLE', 'ASSET_WITHDRAWAL_SETTLE', 'ASSET_EXCHANGE_IN'], 'TENANT_FEE_REVENUE')];
-        $rows = (clone $daily)->where('p.delta', '>', 0)->whereIn('e.event_type', [
-            'PROMOTION_ANNUAL_FEE', 'PROMOTION_FEE_REBATE', 'PROMOTION_ANNUAL_COMMISSION', 'ASSET_DEPOSIT', 'ASSET_WITHDRAWAL_SETTLE', 'ASSET_EXCHANGE_IN', 'WALLET_TOPUP_CREDIT', 'WITHDRAWAL_SETTLE', 'COMMISSION_EARN', 'COMMISSION_TRANSFER', 'SECURITY_DEPOSIT_FUND', 'SECURITY_DEPOSIT_REFUND',
+            'manualCommissions' => $commission($query, ['MANUAL_COMMISSION']), 'commissionCost' => $commission($query, ['COMMISSION_EARN', 'PROMOTION_ANNUAL_COMMISSION', 'MANUAL_COMMISSION']), 'feeIncome' => $sum($query, ['CARD_ISSUE_FEE_SETTLE', 'WITHDRAWAL_SETTLE', 'ASSET_WITHDRAWAL_SETTLE', 'ASSET_EXCHANGE_IN'], 'TENANT_FEE_REVENUE')];
+        $rows = (clone $daily)->where(fn ($q) => $q->where(fn ($q) => $q->where('e.event_type', '<>', 'MANUAL_COMMISSION')->where('p.delta', '>', 0))->orWhere(fn ($q) => $q->where('e.event_type', 'MANUAL_COMMISSION')->where('a.account_type', 'USER_AVAILABLE')))->whereIn('e.event_type', [
+            'PROMOTION_ANNUAL_FEE', 'PROMOTION_FEE_REBATE', 'PROMOTION_ANNUAL_COMMISSION', 'ASSET_DEPOSIT', 'ASSET_WITHDRAWAL_SETTLE', 'ASSET_EXCHANGE_IN', 'WALLET_TOPUP_CREDIT', 'WITHDRAWAL_SETTLE', 'COMMISSION_EARN', 'MANUAL_COMMISSION', 'COMMISSION_TRANSFER', 'SECURITY_DEPOSIT_FUND', 'SECURITY_DEPOSIT_REFUND',
             'CARD_ISSUE_FEE_SETTLE', 'CARD_INITIAL_LOAD_SETTLE', 'CARD_LOAD_SETTLE', 'CARD_RETURN_SETTLE', 'CARD_CANCEL_RETURN_SETTLE',
         ])->orderByDesc('e.posted_at')->orderBy('e.id')->orderBy('p.id')->offset(($page - 1) * 30)->limit(31)->get(['p.id', 'e.event_type', 'e.posted_at', 'p.delta', 'a.account_type']);
 

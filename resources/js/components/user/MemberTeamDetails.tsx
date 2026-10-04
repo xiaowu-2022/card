@@ -150,7 +150,9 @@ export function MemberTeamDetails({
                                     <div key={key}>
                                         <dt>{t(label)}</dt>
                                         <dd>
-                                            {fullMoney(member.totals[key as keyof IncomeTotals])}
+                                            {fullMoney(
+                                                member.totals[key as keyof IncomeTotals] ?? '0',
+                                            )}
                                         </dd>
                                     </div>
                                 ))}

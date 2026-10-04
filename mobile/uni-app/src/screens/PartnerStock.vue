@@ -77,7 +77,7 @@ const more = computed(() =>
                     }}</text></view
                 ><text class="muted small">{{
                     t(
-                        'Theoretical balance = personal net advances + activation commissions received + annual fee commissions received − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
+                        'Theoretical balance = personal net advances + activation commissions received + annual fee commissions received + net manual commissions − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
                     )
                 }}</text></view
             ><view class="panel"

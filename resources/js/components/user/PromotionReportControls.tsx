@@ -230,13 +230,13 @@ export function ReportSummary({
                         <dd className="mt-1 break-words text-sm font-medium tabular-nums">
                             <details>
                                 <summary aria-label={t('Exact amounts')}>
-                                    {reportMoney(totals[kind as keyof IncomeTotals]).replace(
+                                    {reportMoney(totals[kind as keyof IncomeTotals] ?? '0').replace(
                                         ' USDT',
                                         '',
                                     )}
                                 </summary>
                                 <span className="report-exact">
-                                    {fullMoney(totals[kind as keyof IncomeTotals])}
+                                    {fullMoney(totals[kind as keyof IncomeTotals] ?? '0')}
                                 </span>
                             </details>
                         </dd>

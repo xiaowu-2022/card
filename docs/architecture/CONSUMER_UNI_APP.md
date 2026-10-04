@@ -1,3 +1,8 @@
+> 2026-10-04 update: Android now uses Keystore-encrypted persistent credentials
+> and sliding 30-day expiry. This supersedes the memory-only/cold-start-login notes
+> below for Android only. H5 has independent secure remembered-login cookies;
+> iOS remains memory-only. See [USER_AUTH_RULES.md](USER_AUTH_RULES.md).
+
 On 2026-09-30 the user requested preserving card-application progress across
 backgrounding and screen lock. Card selection, application, holder contacts and
 recipient drafts remain in component memory until the form is closed/unmounted;

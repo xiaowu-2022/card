@@ -1,3 +1,22 @@
+On 2026-10-04 the user requested sliding 30-day consumer sign-in: valid activity
+renews the inactivity window, explicit logout revokes it. Browser restoration uses
+an encrypted HttpOnly host-only cookie and scoped hash-only token; Android stores
+only AES-GCM ciphertext with its key in AndroidKeyStore. This supersedes Android's
+memory-only token rule; iOS remains memory-only. Preserve tenant isolation, session
+version/password revocation and disabled-user checks. Admin lifetimes stay unchanged.
+Authentication renewal may update authentication metadata on reads; business GETs
+still never replay or mutate financial operations. See USER_AUTH_RULES.md.
+
+On 2026-10-04 the user approved Platform referrer changes with whole-subtree moves
+and independent manual USDT commission increases/decreases. These scoped actions
+supersede immutable-referrer/no-manual-commission rules only for the explicit
+permission-protected workflows. Preserve all earned awards, Ledger and activation
+snapshots. Use append-only evidence, company locks, request idempotency and stale
+relationship revisions; forbid cycles and cross-company changes. Manual deductions
+require both available funds and cumulative net commissions, with no negative total;
+the manual category may be negative. No wallet provisioning, historical replay or
+live financial testing. See docs/architecture/REFERRER_AND_MANUAL_COMMISSION.md.
+
 On 2026-10-03 the user required an independent company APK Logo, separate from
 website branding. Platform branding upload stores apk_logo_object_key through
 existing scoped image storage/audit. Native packaging verifies the public company

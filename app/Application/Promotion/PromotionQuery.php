@@ -112,16 +112,6 @@ final readonly class PromotionQuery
         $rows = DB::query()->fromSub($details->unionAll($fundDetails)->unionAll($awardDetails)->unionAll($activationDetails)->unionAll($annualDetails), 'movements')
             ->orderByDesc('occurred_at')->orderBy('id')->orderBy('kind')->offset(($page - 1) * 30)->limit(31)->get();
 
-        $relationships = DB::table('promotion_members as source_member')
-            ->join('users as source_user', function ($join): void {
-                $join->on('source_user.id', '=', 'source_member.user_id')->on('source_user.tenant_id', '=', 'source_member.tenant_id');
-            })->join('promotion_members as inviter', function ($join): void {
-                $join->on('inviter.id', '=', 'source_member.inviter_id')->on('inviter.tenant_id', '=', 'source_member.tenant_id');
-            })->join('users as inviter_user', function ($join): void {
-                $join->on('inviter_user.id', '=', 'inviter.user_id')->on('inviter_user.tenant_id', '=', 'inviter.tenant_id');
-            })->where('source_member.tenant_id', $tenantId)->whereIn('source_member.user_id', $rows->take(30)->pluck('source_user_id'))
-            ->get(['source_member.user_id', 'source_user.account_id', 'inviter.user_id as inviter_user_id', 'inviter_user.account_id as inviter_account_id'])->keyBy('user_id');
-
         $paid = app(PaidPromotionQuery::class)->execute($tenantId, $userId);
 
         return [
@@ -137,15 +127,37 @@ final readonly class PromotionQuery
             'directTotal' => $directTotal, 'filters' => ['accountId' => $accountId ?? '', 'funding' => $funding],
             'directPage' => $directPage, 'hasMoreDirect' => $direct->count() > 20,
             'assignableLevels' => [], 'canAssign' => false,
-            'details' => $rows->take(30)->map(function ($row) use ($relationships, $userId): array {
-                $relationship = $relationships->get($row->source_user_id);
+            'details' => $rows->take(30)->map(function ($row) use ($tenantId, $userId): array {
+                $relationship = $this->referrerAt($tenantId, $row->source_user_id, $row->occurred_at);
 
                 return ['id' => $row->id.':'.$row->kind, 'accountId' => $row->account_id, 'kind' => $row->kind, 'amount' => $row->amount, 'occurredAt' => $row->occurred_at,
                     'sourceAccountId' => $relationship?->account_id, 'inviterAccountId' => $relationship?->inviter_account_id,
-                    'invitedByMe' => $relationship?->inviter_user_id === $userId,
+                    'invitedByMe' => $relationship?->inviter_user_id ? $relationship->inviter_user_id === $userId : null,
                     'depositAmount' => $row->deposit_amount];
             })->all(),
             'page' => $page, 'hasMore' => $rows->count() > 30,
         ];
+    }
+
+    private function referrerAt(string $tenant, string $source, string $at): ?object
+    {
+        $member = DB::table('promotion_members')->where('tenant_id', $tenant)->where('user_id', $source)->first();
+        if (! $member) {
+            return null;
+        }
+        // The first change after the event records the relationship that applied then.
+        $next = DB::table('referrer_changes')->where('tenant_id', $tenant)->where('member_id', $member->id)
+            ->where('created_at', '>', $at)->orderBy('revision')->first();
+        $moment = CarbonImmutable::parse($at);
+        $ambiguous = DB::table('referrer_changes')->where('tenant_id', $tenant)->where('member_id', $member->id)
+            ->where('created_at', '>=', $moment->startOfSecond()->toIso8601String())
+            ->where('created_at', '<', $moment->startOfSecond()->addSecond()->toIso8601String())->exists();
+        // Legacy event timestamps have second precision; never guess ordering within that second.
+        $inviter = $ambiguous ? null : ($next ? $next->old_inviter_id : $member->inviter_id);
+
+        return DB::table('users as source')->leftJoin('promotion_members as parent', fn ($j) => $j->where('parent.id', $inviter)->on('parent.tenant_id', '=', 'source.tenant_id'))
+            ->leftJoin('users as u', fn ($j) => $j->on('u.id', '=', 'parent.user_id')->on('u.tenant_id', '=', 'parent.tenant_id'))
+            ->where('source.tenant_id', $tenant)->where('source.id', $member->user_id)
+            ->first(['source.account_id', 'u.id as inviter_user_id', 'u.account_id as inviter_account_id']);
     }
 }

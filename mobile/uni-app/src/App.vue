@@ -23,6 +23,34 @@ window.addEventListener('focus', resume);
 // #endif
 </script>
 <style>
+/* The consumer design uses light surfaces, including native browser controls. */
+page {
+    color-scheme: light;
+    color-scheme: only light;
+}
+/* #ifdef H5 */
+:root {
+    color-scheme: light;
+    color-scheme: only light;
+}
+/* Style the actual HTML input, not just uni-input's outer component. */
+.form-input .uni-input-input,
+.login-input .uni-input-input {
+    color: #25241f;
+    -webkit-text-fill-color: #25241f;
+    caret-color: #25241f;
+    opacity: 1;
+    line-height: normal;
+    min-height: 1.5em;
+}
+.form-input .uni-input-input:-webkit-autofill,
+.login-input .uni-input-input:-webkit-autofill {
+    -webkit-text-fill-color: #25241f;
+    caret-color: #25241f;
+    -webkit-box-shadow: 0 0 0 1000px #fff inset;
+    box-shadow: 0 0 0 1000px #fff inset;
+}
+/* #endif */
 page {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

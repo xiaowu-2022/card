@@ -7,6 +7,7 @@ use App\Application\Kyc\SubmitKycApplicationAction;
 use App\Application\Partners\FeeValuation;
 use App\Application\Partners\PartnerManagement;
 use App\Application\Partners\PartnerReport;
+use App\Application\Promotion\AdjustManualCommission;
 use App\Application\Promotion\ConfigurePaidPromotion;
 use App\Application\Promotion\PaidPromotionPurchase;
 use App\Application\Promotion\PaidPromotionRebate;
@@ -492,7 +493,7 @@ it('reconciles only personal journal net amounts and available USDT without crea
     $r = $this->report->read($this->tenant->id, $this->user->id);
     expect($r['accountBalance'])->toBe([
         'advances' => '100.00000001', 'activationCommission' => '0.00000000',
-        'annualCommission' => '0.00000000', 'reimbursements' => '10.00000000',
+        'annualCommission' => '0.00000000', 'manualCommission' => '0.00000000', 'reimbursements' => '10.00000000',
         'theoretical' => '90.00000001', 'actual' => '0.00000000', 'difference' => '90.00000001',
     ])->and($r['totals']['advances'])->toBe('1000.00000001')
         ->and($r['totals']['reimbursements'])->toBe('810.00000000')
@@ -560,8 +561,22 @@ it('returns the agreed 140 theoretical 125 actual and 15 difference example', fu
     $before = DB::table('ledger_entries')->count();
     expect($this->report->read($this->tenant->id, $this->user->id)['accountBalance'])->toBe([
         'advances' => '100.00000000', 'activationCommission' => '20.00000000',
-        'annualCommission' => '30.00000000', 'reimbursements' => '10.00000000',
+        'annualCommission' => '30.00000000', 'manualCommission' => '0.00000000', 'reimbursements' => '10.00000000',
         'theoretical' => '140.00000000', 'actual' => '125.00000000', 'difference' => '15.00000000',
     ])->and(DB::table('ledger_entries')->count())->toBe($before);
     DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+});
+
+it('adds personal manual commission to reconciliation without attributing it to team stock', function () {
+    stockPartner($this, $this->user);
+    stockFundWallet($this, $this->user);
+    $before = $this->report->read($this->tenant->id, $this->user->id);
+    app(AdjustManualCommission::class)->execute($this->tenant->id, $this->user->id, $this->admin, [
+        'direction' => 'INCREASE', 'amount' => '12.12345678', 'reason' => 'Offline reconciliation fixture', 'request_id' => (string) Str::uuid(),
+    ]);
+    $after = $this->report->read($this->tenant->id, $this->user->id);
+    expect($after['accountBalance']['manualCommission'])->toBe('12.12345678')
+        ->and($after['accountBalance']['theoretical'])->toBe('12.12345678')
+        ->and($after['accountBalance']['difference'])->toBe($before['accountBalance']['difference'])
+        ->and($after['totals'])->toBe($before['totals'])->and($after['stock'])->toBe($before['stock']);
 });

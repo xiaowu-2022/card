@@ -1,21 +1,38 @@
 import { ensureLatestApp } from './app-update';
 import company from '../generated/company.json';
 import { companyOrigin, ensureCompanyOrigin } from './origin';
+import { androidCredentialVault, type AndroidBridge } from './device-credentials';
 export const native = import.meta.env.UNI_PLATFORM === 'app';
-// Until the native Keychain/Keystore bridge is independently verified, App tokens
-// stay in memory. Never downgrade credentials to uni storage/localStorage.
 let token: string | null = null;
+let tokenLoaded = false;
+function credentialVault() {
+    const runtime = (globalThis as typeof globalThis & { plus?: { os: { name: string }; android: AndroidBridge } }).plus;
+    if (!runtime) throw new Error('Secure credential storage unavailable');
+    // iOS retains the existing memory-only policy until a Keychain bridge exists.
+    if (runtime.os.name !== 'Android') return null;
+    const scope = `${company.appId}:${company.tenantSlug}:${company.apiOrigin}`;
+    const key = `encrypted-session:${scope}`;
+    return androidCredentialVault(runtime.android, scope, {
+        get: () => uni.getStorageSync(key),
+        set: value => uni.setStorageSync(key, value),
+        remove: () => uni.removeStorageSync(key),
+    });
+}
 let csrf: string | null = null;
+let csrfUpdatedAt = 0;
 let flow: string | null = null;
 let language = '';
 let page = '/';
 export let sessionGeneration = 0;
 export function setToken(value: string | null) {
+    if (native) credentialVault()?.write(value);
     token = value;
+    tokenLoaded = true;
     sessionGeneration++;
 }
 export function setCsrf(value: string | null) {
     csrf = value;
+    csrfUpdatedAt = Date.now();
 }
 export function setLanguage(value: string) {
     language = value;
@@ -43,6 +60,10 @@ function url(path: string) {
     return `${native ? companyOrigin() : ''}${native ? '/api/mobile/v1' : '/api/v1'}${path}`;
 }
 function headers() {
+    if (native && !tokenLoaded) {
+        token = credentialVault()?.read() ?? null;
+        tokenLoaded = true;
+    }
     const header: Record<string, string> = { Accept: 'application/json', 'X-Consumer-Page': page };
     if (language || native) header['Accept-Language'] = language || uni.getLocale();
     if (native && token) header.Authorization = `Bearer ${token}`;
@@ -51,6 +72,8 @@ function headers() {
     return header;
 }
 function capture(header: Record<string, unknown> | undefined) {
+    const csrfEntry = Object.entries(header ?? {}).find(([key]) => key.toLowerCase() === 'x-csrf-token');
+    if (!native && typeof csrfEntry?.[1] === 'string') setCsrf(csrfEntry[1]);
     const entry = Object.entries(header ?? {}).find(
         ([key]) => key.toLowerCase() === 'x-consumer-flow',
     );
@@ -61,6 +84,11 @@ export async function request<T>(
     method: 'GET' | 'POST' = 'GET',
     data?: Record<string, unknown>,
 ): Promise<T> {
+    // Reopen an idle browser session before sending a form; never replay the mutation.
+    if (!native && method === 'POST' && csrf && Date.now() - csrfUpdatedAt >= 60 * 60 * 1000) {
+        const fresh = await request<{ csrfToken: string }>('/bootstrap');
+        setCsrf(fresh.csrfToken);
+    }
     await ensureLatestApp().catch(() => { throw new ApiError(426); });
     await ensureCompanyOrigin().catch(() => {
         throw new ApiError(0);

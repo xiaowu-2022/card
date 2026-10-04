@@ -15,6 +15,7 @@ const types: Record<string, string> = {
     WALLET_TOPUP_CREDIT: 'Company book: customer top-up',
     WITHDRAWAL_SETTLE: 'Company book: customer withdrawal',
     WITHDRAWAL_FEE_INCOME: 'Withdrawal fee income',
+    MANUAL_COMMISSION: 'Manual commission',
     COMMISSION_EARN: 'Company book: commission cost',
     COMMISSION_TRANSFER: 'Company book: commission transfer',
     SECURITY_DEPOSIT_FUND: 'Company book: security deposit funded',
@@ -37,12 +38,14 @@ type Book = {
         annualFees: string;
         annualRebates: string;
         annualCommissions: string;
+        manualCommissions: string;
     };
     lifetimeTotals: {
         activationCommissions: string;
         annualFees: string;
         annualRebates: string;
         annualCommissions: string;
+        manualCommissions: string;
         topups: string;
         withdrawals: string;
         commissionCost: string;
@@ -73,6 +76,7 @@ export default function CompanyFunds({ book: b }: { book: Book }) {
                             ['Customer top-ups', b.lifetimeTotals.topups],
                             ['Customer withdrawals', b.lifetimeTotals.withdrawals],
                             ['Commission cost', b.lifetimeTotals.commissionCost],
+                            ['Manual commission', b.lifetimeTotals.manualCommissions],
                             ['Fee income', b.lifetimeTotals.feeIncome],
                             ['Activation commission cost', b.lifetimeTotals.activationCommissions],
                             ['Annual fee income', b.lifetimeTotals.annualFees],
@@ -105,6 +109,7 @@ export default function CompanyFunds({ book: b }: { book: Book }) {
                             ['Customer top-ups', b.totals.topups],
                             ['Customer withdrawals', b.totals.withdrawals],
                             ['Commission cost', b.totals.commissionCost],
+                            ['Manual commission', b.totals.manualCommissions],
                             ['Fee income', b.totals.feeIncome],
                             ['Activation commission cost', b.totals.activationCommissions],
                             ['Annual fee income', b.totals.annualFees],

@@ -224,3 +224,10 @@ it('reads a full page with zero refund placeholders and verified card currency',
         ->and($result->items[0]->feeReturnAmount)->toBeNull()
         ->and($result->items[19]->feeAmount)->toBeNull();
 });
+
+it('falls back to createdAt when txnDate is missing without changing its wall clock', function (): void {
+    $row = photonTransactionRow();
+    unset($row['txnDate']);
+    Http::fake(['*' => Http::response(photonTransactionBody([$row]))]);
+    expect($this->transactionProvider->getTransactionPage('XR-OWNED', 1, 20)->items[0]->occurredAt)->toBe('2026-09-11T10:05:04');
+});

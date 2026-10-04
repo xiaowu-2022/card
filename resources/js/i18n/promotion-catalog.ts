@@ -1,4 +1,5 @@
 export const promotionCatalog = {
+    'Manual commission': ['手动佣金', 'Komisen manual', 'Comisión manual'],
     'Team overview': ['团队概况', 'Gambaran pasukan', 'Resumen del equipo'],
     'Daily data': ['每日数据', 'Data harian', 'Datos diarios'],
     'Promotion details': ['推广数据入口', 'Butiran promosi', 'Detalles de promoción'],

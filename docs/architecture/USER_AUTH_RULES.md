@@ -1,5 +1,37 @@
 # User Authentication Rules
 
+## Sliding consumer sign-in — 2026-10-04
+
+Consumer H5 and Android use a 30-day inactivity window. Each authenticated request
+renews the window, so frequent visits do not require another password. Thirty days
+without authenticated activity expires the credential. Explicit logout, disabled
+accounts, company scope and password/session-version revocation remain enforced.
+Foreground unread polling counts as activity; existing polling pauses when hidden.
+
+H5 has an encrypted, HttpOnly, SameSite=Lax, host-only `consumer_remember` cookie,
+Secure on HTTPS/configured secure deployments. Only its token hash is retained in
+`consumer_device_tokens`, with the `browser` ability (never accepted as native Bearer).
+It restores only the tenant-user guard when a short-lived Laravel form session ends.
+Responses refresh CSRF state; forms preflight bootstrap after an hour of inactivity
+without replaying the form. Admin sessions and `SESSION_LIFETIME` are unchanged.
+Existing valid browser sessions acquire this cookie on their next consumer request;
+already expired sessions need one normal sign-in. Browser data deletion/private mode
+can remove the cookie and therefore requires sign-in again.
+
+Native API tokens renew their existing `expires_at`; renewal never recreates deleted
+tokens. Android credentials are encrypted using AES-256-GCM with a non-exported
+AndroidKeyStore key. App/company/API seed scope binds both key alias and authenticated
+data. Only ciphertext and IV go to app storage. Login tests encryption/decryption
+round-trip on the device before saving. Unavailable secure storage fails rather than
+storing plaintext. Corrupt ciphertext or a lost key requires sign-in. iOS retains its
+previous memory-only behavior; no Keychain implementation is claimed.
+
+No migration is required beyond the existing consumer_device_tokens table. Deploy
+backend, refresh route/config caches, and publish rebuilt H5 assets. Rebuild/install
+Android for cold-start persistence; offline bridge tests are not a substitute for
+Android device acceptance (log in, kill/reopen, restart device, log out/reopen).
+No financial data, historical sessions or existing token expiries are batch rewritten.
+
 ## Consumer password policy — approved 2026-09-18
 
 Registration, password recovery and password changes require at least 6 characters,

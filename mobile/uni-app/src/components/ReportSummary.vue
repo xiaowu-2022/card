@@ -20,10 +20,10 @@ const expanded = ref<Record<string, boolean>>({});
                 @click="expanded[kind] = !expanded[kind]"
                 ><text class="muted">{{ t(label) }}</text
                 ><text class="amount">{{
-                    reportMoney(totals[kind as keyof IncomeTotals]).replace(' USDT', '')
+                    reportMoney((totals[kind as keyof IncomeTotals] ?? '0')).replace(' USDT', '')
                 }}</text
                 ><text v-if="expanded[kind]" class="exact">{{
-                    fullMoney(totals[kind as keyof IncomeTotals])
+                    fullMoney((totals[kind as keyof IncomeTotals] ?? '0'))
                 }}</text></view
             ></view
         ></view

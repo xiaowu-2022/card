@@ -2,6 +2,8 @@
 
 use App\Application\Kyc\ApproveKycAction;
 use App\Application\Kyc\SubmitKycApplicationAction;
+use App\Application\Promotion\AdjustManualCommission;
+use App\Application\Promotion\ChangeReferrer;
 use App\Application\Promotion\CommissionHistoryQuery;
 use App\Application\Promotion\CompanyFundBookQuery;
 use App\Application\Promotion\ConfigurePaidPromotion;
@@ -9,6 +11,7 @@ use App\Application\Promotion\ConfigurePromotionAction;
 use App\Application\Promotion\PaidPromotionPurchase;
 use App\Application\Promotion\PromotionMembershipAction;
 use App\Application\Promotion\PromotionQuery;
+use App\Application\Promotion\PromotionReportQuery;
 use App\Application\SecurityDeposit\FundSecurityDepositAction;
 use App\Application\SecurityDeposit\RefundSecurityDepositAction;
 use App\Application\Wallet\ActivateUserWalletAction;
@@ -351,4 +354,54 @@ it('filters direct members by account and deposit with only the viewers earned c
     expect($match['directTotal'])->toBe(1)->and($match['filters']['accountId'])->toBe($children['unfunded']->account_id);
     $other = User::query()->where('tenant_id', '<>', $this->tenant->id)->firstOrFail();
     expect($query->execute($this->tenant->id, $this->user->id, null, 1, 1, $other->account_id)['direct'])->toBe([]);
+});
+
+it('keeps earned commission after referrer changes and routes a later activation to the new referrer', function (): void {
+    $root = app(PromotionMembershipAction::class)->ensure($this->tenant->id, $this->user->id);
+    $source = $this->user->replicate(['account_id']);
+    $source->forceFill(['email' => Str::uuid().'@example.test'])->save();
+    $member = app(PromotionMembershipAction::class)->ensure($this->tenant->id, $source->id, $root->id);
+    promotionTestWallet($this, $source);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $source->id, (string) Str::uuid(), '50');
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+    DB::statement('SET CONSTRAINTS ALL DEFERRED');
+    $target = $this->user->replicate(['account_id']);
+    $target->forceFill(['email' => Str::uuid().'@example.test'])->save();
+    $newParent = app(PromotionMembershipAction::class)->ensure($this->tenant->id, $target->id);
+    $tables = ['ledger_entries', 'ledger_postings', 'commission_awards', 'paid_promotion_shares', 'account_activation_relations', 'activation_count_snapshots'];
+    $before = collect($tables)->mapWithKeys(fn ($t) => [$t => DB::table($t)->orderByRaw('1')->get()->toJson()]);
+    $this->travel(2)->seconds();
+    app(ChangeReferrer::class)->execute($this->tenant->id, $source->id, $this->platform, [
+        'old_inviter_id' => $root->id, 'new_inviter_id' => $newParent->id, 'revision' => 0, 'reason' => 'Offline team transfer', 'request_id' => (string) Str::uuid(),
+    ]);
+    foreach ($tables as $table) {
+        expect(DB::table($table)->orderByRaw('1')->get()->toJson())->toBe($before[$table]);
+    }
+    $income = app(PromotionReportQuery::class);
+    expect($income->cumulative($this->tenant->id, $this->user->id))->toBe('20.00000000');
+    expect($income->cumulative($this->tenant->id, $target->id))->toBe('0.00000000');
+    // A separate still-unactivated member changes parent before its first funding.
+    $later = $this->user->replicate(['account_id']);
+    $later->forceFill(['email' => Str::uuid().'@example.test'])->save();
+    app(PromotionMembershipAction::class)->ensure($this->tenant->id, $later->id, $root->id);
+    promotionTestWallet($this, $later);
+    app(ChangeReferrer::class)->execute($this->tenant->id, $later->id, $this->platform, [
+        'old_inviter_id' => $root->id, 'new_inviter_id' => $newParent->id, 'revision' => 0, 'reason' => 'Offline future routing', 'request_id' => (string) Str::uuid(),
+    ]);
+    $request = (string) Str::uuid();
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $later->id, $request, '50');
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $later->id, $request, '50');
+    expect($income->cumulative($this->tenant->id, $target->id))->toBe('20.00000000');
+    expect($income->cumulative($this->tenant->id, $this->user->id))->toBe('20.00000000');
+    // Deduct earned automatic commission as a separate, negative manual category.
+    app(AdjustManualCommission::class)->execute($this->tenant->id, $this->user->id, $this->platform, [
+        'direction' => 'DECREASE', 'amount' => '5.12345678', 'reason' => 'Offline manual deduction', 'request_id' => (string) Str::uuid(),
+    ]);
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+    expect($income->cumulative($this->tenant->id, $this->user->id))->toBe('14.87654322');
+    $report = $income->commissions($this->tenant->id, $this->user->id, []);
+    expect((float) $report['totals']['manual'])->toBe(-5.12345678);
+    expect(DB::table('commission_awards')->where('user_id', $this->user->id)->sum('amount'))->toEqual('20.00000000');
+    $book = app(CompanyFundBookQuery::class)->execute($this->tenant->id, null, 1);
+    expect(Money::of($book['lifetimeTotals']['commissionCost'],'USDT')->amount())->toBe('34.87654322');
 });

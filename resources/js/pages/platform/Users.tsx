@@ -29,9 +29,13 @@ export default function Users({
     filters,
     financialAccess,
     canAdjustWallet,
+    canChangeReferrer,
+    canAdjustCommission,
     canViewKyc,
 }: {
     canAdjustWallet: boolean;
+    canChangeReferrer: boolean;
+    canAdjustCommission: boolean;
     canViewKyc: boolean;
     users: AccountPage<User>;
     companies: { id: string; name: string }[];
@@ -184,6 +188,33 @@ export default function Users({
                                           >
                                               {t('Wallet adjustment')}
                                           </Link>
+                                      ),
+                                  },
+                              ]
+                            : []),
+                        ...(canChangeReferrer || canAdjustCommission
+                            ? [
+                                  {
+                                      label: 'Actions',
+                                      render: (row: User) => (
+                                          <div className="flex flex-col gap-2">
+                                              {canChangeReferrer && (
+                                                  <Link
+                                                      className="text-primary underline"
+                                                      href={`/platform/tenants/${row.companyId}/users/${row.id}/referrer`}
+                                                  >
+                                                      {t('Change referrer')}
+                                                  </Link>
+                                              )}
+                                              {canAdjustCommission && (
+                                                  <Link
+                                                      className="text-primary underline"
+                                                      href={`/platform/tenants/${row.companyId}/users/${row.id}/manual-commissions`}
+                                                  >
+                                                      {t('Manual commission')}
+                                                  </Link>
+                                              )}
+                                          </div>
                                       ),
                                   },
                               ]

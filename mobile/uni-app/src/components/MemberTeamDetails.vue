@@ -102,7 +102,7 @@ function records() {
                 ><text>{{ fullMoney(member.totals.total) }}</text></view
             ><view v-for="(label, key) in incomeLabels" :key="key" class="money-row"
                 ><text>{{ t(label) }}</text
-                ><text>{{ fullMoney(member.totals[key as keyof IncomeTotals]) }}</text></view
+                ><text>{{ fullMoney((member.totals[key as keyof IncomeTotals] ?? '0')) }}</text></view
             ><button class="records" @click="records">
                 {{ t('View commission records') }} ›
             </button></template

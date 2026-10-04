@@ -8,6 +8,7 @@ use App\Http\Middleware\EnsureOperationalUser;
 use App\Http\Middleware\EnsureRecentTenantAdminAuthentication;
 use App\Http\Middleware\EnsureTenantSurfaceAvailable;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\RememberConsumerSession;
 use App\Http\Middleware\RequestIdMiddleware;
 use App\Http\Middleware\ResolveAdminLocale;
 use App\Http\Middleware\ResolveTenantFromHost;
@@ -24,10 +25,10 @@ use Symfony\Component\HttpFoundation\Response;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         using: function (): void {
-            Route::prefix('api/v1')->middleware(['web', 'tenant', 'user.session-scope', ConsumerApiContext::class.':web', 'user.locale'])->group(base_path('routes/consumer-api.php'));
+            Route::prefix('api/v1')->middleware(['web', 'tenant', RememberConsumerSession::class, 'user.session-scope', ConsumerApiContext::class.':web', 'user.locale'])->group(base_path('routes/consumer-api.php'));
             Route::prefix('api/mobile/v1')->middleware(['api', 'tenant', ConsumerApiContext::class.':mobile', 'user.locale'])->group(base_path('routes/consumer-api.php'));
             Route::middleware('web')->group(base_path('routes/public.php'));
-            Route::middleware(['web', 'tenant', 'user.session-scope', 'user.locale', 'inertia'])->group(base_path('routes/user.php'));
+            Route::middleware(['web', 'tenant', RememberConsumerSession::class, 'user.session-scope', 'user.locale', 'inertia'])->group(base_path('routes/user.php'));
             Route::middleware(['web', 'tenant', 'user.session-scope', 'admin.locale', 'inertia'])->group(base_path('routes/admin.php'));
             Route::middleware(['web', 'admin.locale', 'inertia'])->domain((string) config('tenancy.platform_admin_host'))->group(base_path('routes/platform.php'));
             Route::middleware('api')->prefix('webhooks')->group(base_path('routes/webhooks.php'));
