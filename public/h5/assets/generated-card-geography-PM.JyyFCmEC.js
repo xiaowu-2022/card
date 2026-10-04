@@ -1,1 +1,0 @@
-const e=[{value:"Saint-Pierre and Miquelon",names:{},cities:[{value:"Miquelon-Langlade",names:{}},{value:"Saint-Pierre",names:{}}]}];export{e as default};

@@ -1,1 +1,0 @@
-const e=[{value:"Saint Anthony",names:{"zh-CN":"圣安东尼",es:"San Antonio"},cities:[]},{value:"Saint Georges",names:{"zh-CN":"圣乔治",es:"San Jorge"},cities:[]},{value:"Saint Peter",names:{"zh-CN":"圣彼得",es:"San Pedro"},cities:[]}];export{e as default};

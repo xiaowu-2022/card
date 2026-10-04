@@ -1,15 +1,21 @@
 {
   "name": "Spec Pay",
   "appId": "cc.specpay.cards",
-  "dcloudAppId": "",
+  "dcloudAppId": "__UNI__GBE57092",
   "tenantSlug": "tenant-a",
   "apiOrigin": "https://specpay.cc",
-  "version": "0.1.0",
-  "buildNumber": 1,
+  "version": "2.3.59",
+  "buildNumber": 2359,
   "developmentOnly": false,
+  "apiOrigins": [
+    "https://specpay.cc",
+    "https://specpay.top",
+    "https://specpay.vip",
+    "https://113b.my"
+  ],
   "mode": "release",
   "company": "specpay",
   "platform": "h5",
   "h5Base": "./",
-  "builtAt": "2026-09-28T13:30:08.465Z"
+  "builtAt": "2026-10-04T10:54:05.632Z"
 }

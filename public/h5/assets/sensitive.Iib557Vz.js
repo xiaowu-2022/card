@@ -1,1 +1,0 @@
-import{S as n,N as e}from"./index-CAEKEWaM.js";function i(i,t={}){function d(){document.hidden&&!t.retainOnBackground&&i()}n(()=>{t.retainOnBackground&&document.hidden||i()}),e(()=>{i(),document.removeEventListener("visibilitychange",d)}),document.addEventListener("visibilitychange",d)}export{i as u};

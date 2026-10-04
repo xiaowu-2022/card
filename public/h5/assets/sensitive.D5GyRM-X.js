@@ -1,1 +1,0 @@
-import{Q as e,L as i}from"./index-DuiXCC1q.js";function n(n){function t(){document.hidden&&n()}e(n),i(()=>{n(),document.removeEventListener("visibilitychange",t)}),document.addEventListener("visibilitychange",t)}export{n as u};

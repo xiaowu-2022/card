@@ -1,1 +1,0 @@
-import{T as n,O as e}from"./index-wnM9MWNY.js";function i(i,t={}){function d(){document.hidden&&!t.retainOnBackground&&i()}n(()=>{t.retainOnBackground&&document.hidden||i()}),e(()=>{i(),document.removeEventListener("visibilitychange",d)}),document.addEventListener("visibilitychange",d)}export{i as u};
