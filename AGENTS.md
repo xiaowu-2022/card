@@ -1,3 +1,13 @@
+On 2026-10-05 the user replaced front-upload OCR gating with retained asynchronous
+KYC submission. Accept both national-ID sides into encrypted server originals, then
+persist the application before OSS upload/repair, front-only OCR and configured
+automatic/manual review. Failed applications and images remain available for scoped
+Platform retry; notify terminal success/failure through deduplicated inbox intents.
+Never replay approved history. Initial recognized identity may be filled once with
+successful encrypted OCR evidence; subsequent changes stay forbidden. Existing
+number validation, ownership, account limits and review permissions remain. See
+docs/architecture/ASYNC_KYC.md for migration and scheduler requirements.
+
 On 2026-10-05 the user clarified promotion headcounts follow successful deposit
 funding history, not the current balance. Refund application/completion and repeated
 funding do not remove or duplicate ordinary members. Effective agents count only at

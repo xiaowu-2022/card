@@ -7,6 +7,7 @@ export default function KycDetail(props: {
     application: KycApplication;
     company: { id: string; name: string };
     canViewDocuments: boolean;
+    canReview?: boolean;
 }) {
     useAdminTranslation();
     return (

@@ -35,7 +35,7 @@ final class ImageStorage
         return StoredImage::where('source_disk', $disk)->where('source_key', $key)->first();
     }
 
-    public function put(string $tenant, string $disk, string $key, #[\SensitiveParameter] string $contents, string $purpose, ?string $reference = null, string $codec = 'plain'): string
+    public function put(string $tenant, string $disk, string $key, #[\SensitiveParameter] string $contents, string $purpose, ?string $reference = null, string $codec = 'plain', bool $deferOss = false): string
     {
         if (! Str::isUuid($tenant) || str_contains($key, '..') || ! str_contains($key, '/'.$tenant.'/')) {
             throw new \LogicException('Invalid image scope');
@@ -45,7 +45,7 @@ final class ImageStorage
             throw new DomainException('IMAGE_INVALID', 'Use a supported image file.', 422);
         }
         $config = $this->active();
-        if (! $config && ! ServerImages::enabled() && ! app()->environment('testing')) {
+        if (! $config && ! ServerImages::enabled() && ! $deferOss && ! app()->environment('testing')) {
             throw new DomainException('IMAGE_STORAGE_UNAVAILABLE', 'Image storage is unavailable. Please try again.', 503);
         }
         $image = StoredImage::create(['tenant_id' => $tenant, 'source_disk' => $disk, 'source_key' => $key, 'purpose' => $purpose, 'business_reference' => $reference,
@@ -53,7 +53,9 @@ final class ImageStorage
             'codec' => $config ? 'plain' : $codec, 'mime' => $mime, 'size' => strlen($contents), 'sha256' => hash('sha256', $contents), 'state' => 'uploading', 'cleanup_after' => now()->addDay()]);
         try {
             app(ImageReplicas::class)->save($image, $contents);
-            if ($config) {
+            if ($deferOss && ! ServerImages::enabled()) {
+                $image->update(['oss_pending' => true, 'last_error' => 'OSS_UPLOAD_PENDING']);
+            } elseif ($config) {
                 try {
                     $this->oss->put($config, $image->object_key, $contents, $mime);
                 } catch (\Throwable) {
@@ -83,7 +85,7 @@ final class ImageStorage
             return app(DirectImageUploads::class)->claim($file, $tenant, $disk, $key, $purpose, $reference);
         }
 
-        return $this->put($tenant, $disk, $key, $file->getContent(), $purpose, $reference, $codec);
+        return $this->put($tenant, $disk, $key, $file->getContent(), $purpose, $reference, $codec, $purpose === 'kyc');
     }
 
     public function read(string $disk, string $key, string $legacyCodec = 'plain'): string
@@ -278,7 +280,12 @@ final class ImageStorage
         if ($config = $this->active()) {
             abort_if($image && $image->state !== 'ready', 404);
             if (! $image || $image->oss_pending) {
-                throw new DomainException('KYC_DOCUMENT_STORAGE_FAILED', 'Image storage is unavailable. Please try again.', 503);
+                $reason = $image ? 'oss_replication_pending' : 'image_record_missing';
+                Log::warning('KYC original unavailable', [
+                    'request_id' => request()->attributes->get('request_id'),
+                    'image_id' => $image?->id, 'reason' => $reason,
+                ]);
+                throw new DomainException('KYC_DOCUMENT_STORAGE_FAILED', 'Image storage is unavailable. Please try again.', 503, ['reason' => $reason]);
             }
 
             // The selected OCR service requires HTTP for OSS originals. Display/upload

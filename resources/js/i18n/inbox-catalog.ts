@@ -1,4 +1,32 @@
 export const inboxCatalog = {
+    'Verification processing failed': [
+        '认证处理失败',
+        'Pemprosesan pengesahan gagal',
+        'Error al procesar la verificación',
+    ],
+    'Your documents are saved. Contact support to retry verification.': [
+        '提交资料已保留，请联系客服重新审核。',
+        'Dokumen anda telah disimpan. Hubungi sokongan untuk mencuba pengesahan semula.',
+        'Tus documentos están guardados. Contacta con soporte para reintentar la verificación.',
+    ],
+    'Documents received. Processing continues in the background; you will be notified of the result.':
+        [
+            '资料已收到，后台正在处理，完成后将通知您。',
+            'Dokumen diterima. Pemprosesan diteruskan di latar belakang; anda akan dimaklumkan tentang hasilnya.',
+            'Documentos recibidos. El proceso continuará en segundo plano y te notificaremos el resultado.',
+        ],
+    'Processing status': ['处理状态', 'Status pemprosesan', 'Estado del proceso'],
+    'Processing error': ['失败原因', 'Sebab kegagalan', 'Motivo del error'],
+    'Retry verification': ['重新审核', 'Cuba pengesahan semula', 'Reintentar verificación'],
+    'Confirm this verification operation?': [
+        '确认执行此认证操作？',
+        'Sahkan tindakan pengesahan ini?',
+        '¿Confirmas esta operación de verificación?',
+    ],
+    'Enter a reason.': ['请填写原因。', 'Sila masukkan sebab.', 'Introduce un motivo.'],
+    QUEUED: ['等待后台处理', 'Menunggu pemprosesan', 'En espera de procesamiento'],
+    WAITING_REVIEW: ['等待人工审核', 'Menunggu semakan manual', 'Pendiente de revisión manual'],
+    COMPLETE: ['已完成', 'Selesai', 'Completado'],
     'Deposit credited': ['充值到账', 'Deposit diterima', 'Depósito abonado'],
     'Transfer received': ['转账到账', 'Pindahan diterima', 'Transferencia recibida'],
     'Transfer completed': ['转账成功', 'Pindahan berjaya', 'Transferencia completada'],

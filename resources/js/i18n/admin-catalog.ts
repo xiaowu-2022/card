@@ -2,6 +2,19 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Verification processing failed': '认证处理失败',
+    'Your documents are saved. Contact support to retry verification.':
+        '提交资料已保留，请联系客服重新审核。',
+    'Documents received. Processing continues in the background; you will be notified of the result.':
+        '资料已收到，后台正在处理，完成后将通知您。',
+    'Processing status': '处理状态',
+    'Processing error': '失败原因',
+    'Retry verification': '重新审核',
+    'Confirm this verification operation?': '确认执行此认证操作？',
+    'Enter a reason.': '请填写原因。',
+    QUEUED: '等待后台处理',
+    WAITING_REVIEW: '等待人工审核',
+    COMPLETE: '已完成',
     'User fund flows': '资金流水',
     Recipient: '收款人',
     Sender: '付款人',
@@ -12,7 +25,8 @@ export const adminCatalog: Record<string, string> = {
     'All currencies': '全部币种',
     'Type / reason': '业务类型／原因',
     'Account movements': '资金账户变动',
-    'Posted ledger events only. Account movements within one event are shown together.': '仅展示已入账业务；同一业务下的可用、保证金、冻结等账户变动合并展示。',
+    'Posted ledger events only. Account movements within one event are shown together.':
+        '仅展示已入账业务；同一业务下的可用、保证金、冻结等账户变动合并展示。',
     'This user has no posted fund flows.': '该用户暂无已入账资金流水。',
     'End date must not precede start date.': '结束日期不能早于开始日期。',
     References: '查看业务编号',

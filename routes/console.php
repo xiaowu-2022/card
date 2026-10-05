@@ -29,3 +29,5 @@ Artisan::command('cards:recover-transaction-sync', function () {
     app(BatchCardTransactionSync::class)->recover();
 })->purpose('Resume outstanding explicit card transaction sync batches');
 Schedule::command('cards:recover-transaction-sync')->everyMinute()->withoutOverlapping(5)->onOneServer();
+
+Schedule::command('kyc:process-pending --limit=20')->everyMinute()->withoutOverlapping(30)->onOneServer();

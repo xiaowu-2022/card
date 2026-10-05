@@ -1,3 +1,5 @@
+import { router } from '@inertiajs/react';
+import { readEditorResponse } from './editor-response';
 import { PreviewImage } from '@/components/shared/PreviewImage';
 import { useEffect, useRef, useState } from 'react';
 import { useAdminTranslation, t, dateTime, countryName, errorMessage } from '@/i18n/admin';
@@ -13,17 +15,28 @@ export type KycApplication = {
     reviewStatus: string;
     submittedAt: string;
     reviewedAt: string | null;
+    ocrStatus?: string;
+    processingStatus?: string | null;
+    processingError?: string | null;
+    processingAttempts?: number;
 };
 export function KycDetailsContent({
     application,
     company,
     canViewDocuments,
+    canReview = false,
+    onChanged,
 }: {
     application: KycApplication;
     company: { id: string; name: string };
     canViewDocuments: boolean;
+    canReview?: boolean;
+    onChanged?: (id: string) => void;
 }) {
     useAdminTranslation();
+    const [reason, setReason] = useState('');
+    const [reviewBusy, setReviewBusy] = useState(false);
+    const retryId = useRef<string | null>(null);
     const [password, setPassword] = useState('');
     const [documents, setDocuments] = useState<Record<string, string>>({});
     const [documentSources, setDocumentSources] = useState<Record<string, string[]>>({});
@@ -32,11 +45,14 @@ export function KycDetailsContent({
     const generation = useRef(0);
     useEffect(() => {
         generation.current++;
+        retryId.current = null;
+        setReason('');
         setDocuments({});
         setPassword('');
         setError('');
         setDocumentSources({});
         setBusy(false);
+        setReviewBusy(false);
         return () => {
             generation.current++;
         };
@@ -91,6 +107,63 @@ export function KycDetailsContent({
             }
         }
     }
+    async function review(decision: 'approve' | 'reject' | 'retry') {
+        if (reviewBusy) return;
+        if (decision !== 'approve' && reason.trim().length < 3) {
+            setError(t('Enter a reason.'));
+            return;
+        }
+        if (!window.confirm(t('Confirm this verification operation?'))) return;
+        setReviewBusy(true);
+        setError('');
+        const current = generation.current;
+        retryId.current ??= crypto.randomUUID();
+        try {
+            const response = await fetch(
+                `/platform/tenants/${company.id}/kyc/${application.id}/${decision === 'retry' ? 'retry' : 'review'}`,
+                {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN':
+                            document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')
+                                ?.content ?? '',
+                    },
+                    body: JSON.stringify(
+                        decision === 'retry'
+                            ? { request_id: retryId.current, reason: reason.trim() }
+                            : decision === 'approve'
+                              ? { decision }
+                              : { decision, reason_code: 'OTHER', review_message: reason.trim() },
+                    ),
+                },
+            );
+            const data = (await readEditorResponse(response)) as {
+                applicationId?: string;
+                error?: { message?: string };
+                errors?: Record<string, string[]>;
+            };
+            if (current !== generation.current) return;
+            if (!response.ok)
+                throw new Error(
+                    data.error?.message ??
+                        Object.values(data.errors ?? {}).flat()[0] ??
+                        'Unable to load. Please retry.',
+                );
+            if (onChanged) onChanged(data.applicationId ?? application.id);
+            else router.reload();
+        } catch (error) {
+            if (current !== generation.current) return;
+            setError(
+                errorMessage(error instanceof Error ? error.message : '') ??
+                    t('Unable to load. Please retry.'),
+            );
+        } finally {
+            if (current === generation.current) setReviewBusy(false);
+        }
+    }
     return (
         <div className="space-y-4">
             <dl className="grid grid-cols-2 gap-5 rounded-lg border bg-white p-4">
@@ -101,6 +174,11 @@ export function KycDetailsContent({
                     ['Document country', countryName(application.documentCountry)],
                     ['Identity number', application.maskedIdentityNumber],
                     ['Status', t(application.reviewStatus)],
+                    [
+                        'Processing status',
+                        t(application.processingStatus ?? application.ocrStatus ?? '—'),
+                    ],
+                    ['Processing error', application.processingError ?? '—'],
                     ['Submitted', dateTime(application.submittedAt)],
                     [
                         'Reviewed at',
@@ -113,6 +191,60 @@ export function KycDetailsContent({
                     </div>
                 ))}
             </dl>
+            <Button
+                variant="secondary"
+                onClick={() => (onChanged ? onChanged(application.id) : router.reload())}
+            >
+                {t('Refresh status')}
+            </Button>
+            {canReview &&
+                (application.reviewStatus === 'PENDING' ||
+                    (application.processingStatus && application.reviewStatus === 'REJECTED')) && (
+                    <section className="space-y-3 rounded-lg border p-4">
+                        <label className="block space-y-2">
+                            <span>{t('Reason')}</span>
+                            <textarea
+                                className="w-full rounded-md border p-2"
+                                value={reason}
+                                onChange={(e) => setReason(e.target.value)}
+                                maxLength={500}
+                                disabled={reviewBusy}
+                            />
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                            {application.reviewStatus === 'PENDING' && (
+                                <>
+                                    <Button
+                                        disabled={
+                                            reviewBusy || application.ocrStatus !== 'SUCCEEDED'
+                                        }
+                                        onClick={() => void review('approve')}
+                                    >
+                                        {t('Approve')}
+                                    </Button>
+                                    <Button
+                                        variant="secondary"
+                                        disabled={reviewBusy}
+                                        onClick={() => void review('reject')}
+                                    >
+                                        {t('Reject')}
+                                    </Button>
+                                </>
+                            )}
+                            {(application.processingStatus === 'FAILED' ||
+                                application.reviewStatus === 'REJECTED') && (
+                                <Button disabled={reviewBusy} onClick={() => void review('retry')}>
+                                    {t('Retry verification')}
+                                </Button>
+                            )}
+                        </div>
+                        {error && (
+                            <p role="alert" className="text-red-600">
+                                {error}
+                            </p>
+                        )}
+                    </section>
+                )}
             {canViewDocuments && (
                 <section className="space-y-4">
                     <h2 className="font-semibold">{t('Identity document photos')}</h2>

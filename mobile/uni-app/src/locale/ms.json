@@ -1,4 +1,15 @@
 {
-  "uni.picker.done": "Selesai",
-  "uni.picker.cancel": "Batal"
+    "uni.picker.done": "Selesai",
+    "uni.picker.cancel": "Batal",
+    "Verification processing failed": "Pemprosesan pengesahan gagal",
+    "Your documents are saved. Contact support to retry verification.": "Dokumen anda telah disimpan. Hubungi sokongan untuk mencuba pengesahan semula.",
+    "Documents received. Processing continues in the background; you will be notified of the result.": "Dokumen diterima. Pemprosesan diteruskan di latar belakang; anda akan dimaklumkan tentang hasilnya.",
+    "Processing status": "Status pemprosesan",
+    "Processing error": "Sebab kegagalan",
+    "Retry verification": "Cuba pengesahan semula",
+    "Confirm this verification operation?": "Sahkan tindakan pengesahan ini?",
+    "Enter a reason.": "Sila masukkan sebab.",
+    "QUEUED": "Menunggu pemprosesan",
+    "WAITING_REVIEW": "Menunggu semakan manual",
+    "COMPLETE": "Selesai"
 }

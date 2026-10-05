@@ -1,4 +1,15 @@
 {
-  "uni.picker.done": "Done",
-  "uni.picker.cancel": "Cancel"
+    "uni.picker.done": "Done",
+    "uni.picker.cancel": "Cancel",
+    "Verification processing failed": "Verification processing failed",
+    "Your documents are saved. Contact support to retry verification.": "Your documents are saved. Contact support to retry verification.",
+    "Documents received. Processing continues in the background; you will be notified of the result.": "Documents received. Processing continues in the background; you will be notified of the result.",
+    "Processing status": "Processing status",
+    "Processing error": "Processing error",
+    "Retry verification": "Retry verification",
+    "Confirm this verification operation?": "Confirm this verification operation?",
+    "Enter a reason.": "Enter a reason.",
+    "QUEUED": "QUEUED",
+    "WAITING_REVIEW": "WAITING_REVIEW",
+    "COMPLETE": "COMPLETE"
 }

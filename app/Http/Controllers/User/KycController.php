@@ -48,12 +48,16 @@ final class KycController extends Controller
         ]);
     }
 
-    public function store(SubmitKycApplicationRequest $request, TenantContext $context, SubmitKycApplicationAction $action): RedirectResponse
+    public function store(SubmitKycApplicationRequest $request, TenantContext $context, SubmitKycApplicationAction $action): RedirectResponse|JsonResponse
     {
         /** @var User $user */
         $user = Auth::guard('tenant_user')->user();
         $validated = $request->resolvedImages($context->id(), $user->id, 'kyc');
         $application = $action->execute($context->tenant(), $user, $validated['document_country'], '', $validated['front'], $validated['back'] ?? null, $request->attributes->get('request_id'), KycDocumentType::from($validated['document_type']), (bool) ($validated['reverify'] ?? false));
+
+        if ($request->expectsJson()) {
+            return response()->json(['applicationId' => $application->id, 'processingStatus' => $application->processing_status, 'success' => 'Your identity documents were submitted for review.'], 202);
+        }
 
         return redirect($request->query('from') === 'account-security' ? '/kyc?from=account-security' : '/kyc')->with('success', $application->automatically_approved ? 'Your identity verification is complete.' : 'Your identity documents were submitted for review.');
     }

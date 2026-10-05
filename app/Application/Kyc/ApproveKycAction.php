@@ -27,7 +27,7 @@ final readonly class ApproveKycAction
         return $this->approve($tenantId, $applicationId, $reviewer, $requestId);
     }
 
-    /** Called only by the new-submission workflow, never by OCR or a public review endpoint. */
+    /** Called by the explicit submission processor after successful OCR, never by a public approval endpoint. */
     public function executeAutomatic(string $tenantId, string $applicationId, ?string $requestId = null): IdentityRecord
     {
         return $this->approve($tenantId, $applicationId, null, $requestId);
@@ -87,6 +87,7 @@ final readonly class ApproveKycAction
                     'review_status' => KycReviewStatus::Approved, 'reviewed_by_admin_user_id' => $reviewer?->id,
                     'automatically_approved' => $reviewer === null,
                     'reviewed_at' => now(), 'review_reason_code' => null, 'review_message' => null,
+                    'processing_status' => $application->processing_status ? 'COMPLETE' : null, 'next_processing_at' => null,
                 ])->save();
                 $this->audit->record($tenantId, $reviewer ? 'ADMIN' : 'SYSTEM', $reviewer?->id, 'KYC_APPLICATION_APPROVED', 'kyc_application', $application->id, ['review_status' => KycReviewStatus::Pending->value], ['review_status' => KycReviewStatus::Approved->value, 'review_mode' => $reviewer ? 'MANUAL' : 'AUTOMATIC'], $requestId);
 

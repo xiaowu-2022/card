@@ -23,7 +23,7 @@ final readonly class RejectKycAction
                 throw new DomainException('KYC_ALREADY_REVIEWED', 'This application has already been reviewed.', 409);
             }
             $this->assertSafeMessage($application, $message);
-            $application->forceFill(['review_status' => KycReviewStatus::Rejected, 'review_reason_code' => $reason->value, 'review_message' => trim($message), 'reviewed_by_admin_user_id' => $reviewer->id, 'reviewed_at' => now()])->save();
+            $application->forceFill(['processing_status' => $application->processing_status ? 'FAILED' : null, 'next_processing_at' => null, 'review_status' => KycReviewStatus::Rejected, 'review_reason_code' => $reason->value, 'review_message' => trim($message), 'reviewed_by_admin_user_id' => $reviewer->id, 'reviewed_at' => now()])->save();
             $this->audit->record($tenantId, 'ADMIN', $reviewer->id, 'KYC_APPLICATION_REJECTED', 'kyc_application', $application->id, ['review_status' => KycReviewStatus::Pending->value], ['review_status' => KycReviewStatus::Rejected->value, 'reason_code' => $reason->value], $requestId);
         });
     }
@@ -33,7 +33,7 @@ final readonly class RejectKycAction
         if (mb_strlen(trim($message)) < 3 || mb_strlen(trim($message)) > 500 || str_contains($message, '<') || str_contains($message, '>')) {
             throw new DomainException('REVIEW_MESSAGE_INVALID', 'Enter a reviewer message between 3 and 500 characters.');
         }
-        $identity = $this->identities->decrypt($application->identity_number_encrypted);
+        $identity = $application->identity_number_encrypted ? $this->identities->decrypt($application->identity_number_encrypted) : "";
         if ($identity !== '' && mb_stripos($message, $identity) !== false) {
             throw new DomainException('REVIEW_MESSAGE_CONTAINS_SENSITIVE_DATA', 'The reviewer message contains sensitive identity data.');
         }

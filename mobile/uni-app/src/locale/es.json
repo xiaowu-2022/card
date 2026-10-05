@@ -1,4 +1,15 @@
 {
-  "uni.picker.done": "Listo",
-  "uni.picker.cancel": "Cancelar"
+    "uni.picker.done": "Listo",
+    "uni.picker.cancel": "Cancelar",
+    "Verification processing failed": "Error al procesar la verificación",
+    "Your documents are saved. Contact support to retry verification.": "Tus documentos están guardados. Contacta con soporte para reintentar la verificación.",
+    "Documents received. Processing continues in the background; you will be notified of the result.": "Documentos recibidos. El proceso continuará en segundo plano y te notificaremos el resultado.",
+    "Processing status": "Estado del proceso",
+    "Processing error": "Motivo del error",
+    "Retry verification": "Reintentar verificación",
+    "Confirm this verification operation?": "¿Confirmas esta operación de verificación?",
+    "Enter a reason.": "Introduce un motivo.",
+    "QUEUED": "En espera de procesamiento",
+    "WAITING_REVIEW": "Pendiente de revisión manual",
+    "COMPLETE": "Completado"
 }

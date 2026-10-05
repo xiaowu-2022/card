@@ -42,7 +42,7 @@ final class DirectImageUploads
             abort_unless(app(KycStatusService::class)->forUser($tenantId, $userId) === KycUserStatus::Approved, 403);
         }
         $config = $this->images->active();
-        if (! $config && ! ServerImages::enabled()) {
+        if ($purpose !== 'kyc' && ! $config && ! ServerImages::enabled()) {
             throw new DomainException('IMAGE_STORAGE_UNAVAILABLE', 'Image storage is unavailable. Please try again.', 503);
         }
         $upload = DB::transaction(function () use ($tenantId, $userId, $purpose, $field, $mime, $max, $config) {
@@ -51,13 +51,15 @@ final class DirectImageUploads
             $id = (string) Str::uuid();
             $common = ['tenant_id' => $tenantId, 'source_disk' => 'private', 'configuration_id' => $config?->id,
                 'codec' => 'plain', 'mime' => $mime, 'size' => 0, 'sha256' => str_repeat('0', 64), 'state' => 'uploading', 'cleanup_after' => now()->addDay()];
-            $stage = StoredImage::create($common + ['source_key' => "direct-stage/{$tenantId}/{$id}", 'object_key' => "staging/{$tenantId}/{$id}", 'purpose' => 'direct-stage']);
+            $stageData = $common;
+            if ($purpose === 'kyc') $stageData['configuration_id'] = null;
+            $stage = StoredImage::create($stageData + ['source_key' => "direct-stage/{$tenantId}/{$id}", 'object_key' => "staging/{$tenantId}/{$id}", 'purpose' => 'direct-stage']);
             $image = StoredImage::create($common + ['source_key' => "direct/{$tenantId}/{$userId}/{$id}", 'object_key' => "images/{$tenantId}/".Str::uuid(), 'purpose' => $purpose]);
 
             return DirectImageUpload::create(['id' => $id, 'tenant_id' => $tenantId, 'user_id' => $userId, 'purpose' => $purpose, 'field' => $field,
-                'upload_mode' => ServerImages::enabled() ? 'server' : 'dual_copy', 'staging_image_id' => $stage->id, 'image_id' => $image->id, 'max_bytes' => $max, 'expires_at' => now()->addMinutes(15)]);
+                'upload_mode' => ServerImages::enabled() || $purpose === 'kyc' ? 'server' : 'dual_copy', 'staging_image_id' => $stage->id, 'image_id' => $image->id, 'max_bytes' => $max, 'expires_at' => now()->addMinutes(15)]);
         });
-        if (ServerImages::enabled()) {
+        if ($upload->upload_mode === 'server') {
             return ['id' => $upload->id, 'mode' => 'server', 'expiresAt' => $upload->expires_at->toIso8601String()];
         }
         $stage = StoredImage::findOrFail($upload->staging_image_id);
@@ -106,6 +108,7 @@ final class DirectImageUploads
                 abort_unless($image->backup_key, 409);
                 $bytes = app(ImageReplicas::class)->read($image);
                 $this->validateBytes($upload, $image, $bytes);
+                $pending = ! ServerImages::enabled();
             } else {
                 $config = OssConfiguration::findOrFail($image->configuration_id);
                 try {
@@ -167,7 +170,8 @@ final class DirectImageUploads
         abort_if(! $upload->claimed_at && $upload->expires_at->isPast(), 410);
         $image = StoredImage::findOrFail($upload->image_id);
         abort_unless($image->state === 'ready', 409);
-        $bytes = $this->images->readImage($image);
+        $bytes = $purpose === 'kyc' && $image->backup_key
+            ? app(ImageReplicas::class)->read($image) : $this->images->readImage($image);
         abort_unless(hash_equals($image->sha256, hash('sha256', $bytes)), 422);
 
         return new VerifiedDirectImage($id, $tenant, $user, $purpose, $field, $bytes, $image->mime);

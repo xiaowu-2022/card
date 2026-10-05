@@ -63,6 +63,7 @@ final class DatabaseSeeder extends Seeder
 
         $permissions->put('support.manage', Permission::query()->firstOrCreate(['name' => 'support.manage']));
         $roles['PLATFORM_ADMIN'][1][] = 'card_provider_reference.manage';
+        $roles['PLATFORM_ADMIN'][1][] = 'kyc.review';
         foreach (['support.read', 'support.send', 'support.agents.manage'] as $permission) {
             $roles['PLATFORM_ADMIN'][1][] = $permission;
         }

@@ -116,8 +116,8 @@ class OssImages
             }
 
             return ['size' => (int) $headers['content-length'], 'etag' => $headers['etag']];
-        } catch (\Throwable) {
-            throw new DomainException('IMAGE_STORAGE_UNAVAILABLE', 'Image storage is unavailable. Please try again.', 503);
+        } catch (\Throwable $error) {
+            throw $this->uploadFailure($error);
         }
     }
 
@@ -129,8 +129,8 @@ class OssImages
                 'Content-Type' => $mime, 'Cache-Control' => 'no-store',
                 'x-oss-object-acl' => 'private', 'x-oss-server-side-encryption' => 'AES256',
             ]]);
-        } catch (\Throwable) {
-            throw new DomainException('IMAGE_STORAGE_UNAVAILABLE', 'Image storage is unavailable. Please try again.', 503);
+        } catch (\Throwable $error) {
+            throw $this->uploadFailure($error);
         }
     }
 
@@ -138,8 +138,8 @@ class OssImages
     {
         try {
             $this->client($config)->putObjectAcl($config->bucket, $key, 'public-read');
-        } catch (\Throwable) {
-            throw new DomainException('IMAGE_STORAGE_UNAVAILABLE', 'Image storage is unavailable. Please try again.', 503);
+        } catch (\Throwable $error) {
+            throw $this->uploadFailure($error);
         }
     }
 
@@ -148,8 +148,8 @@ class OssImages
     {
         try {
             return $this->client($config)->getObject($config->bucket, $key, [OssClient::OSS_RANGE => '0-'.$maxBytes]);
-        } catch (\Throwable) {
-            throw new DomainException('IMAGE_STORAGE_UNAVAILABLE', 'Image storage is unavailable. Please try again.', 503);
+        } catch (\Throwable $error) {
+            throw $this->uploadFailure($error);
         }
     }
 

@@ -1,0 +1,176 @@
+<?php
+
+use App\Application\Kyc\ApproveKycAction;
+use App\Application\Kyc\ProcessPendingKyc;
+use App\Application\Kyc\RejectKycAction;
+use App\Application\Kyc\RetryKycProcessing;
+use App\Application\Kyc\SubmitKycApplicationAction;
+use App\Application\Media\DirectImageUploads;
+use App\Application\Media\OssSettings;
+use App\Domain\Admin\Models\AdminUser;
+use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
+use App\Domain\Kyc\DTOs\KycOcrResultDTO;
+use App\Domain\Kyc\Enums\KycOcrOutcome;
+use App\Domain\Kyc\Enums\KycReviewReason;
+use App\Domain\Kyc\Models\IdentityRecord;
+use App\Domain\Kyc\Models\KycApplication;
+use App\Domain\Media\OssConfiguration;
+use App\Domain\Media\StoredImage;
+use App\Domain\Tenant\Models\PlatformKycSetting;
+use App\Domain\Tenant\Models\Tenant;
+use App\Domain\User\Models\User;
+use App\Infrastructure\Storage\OssImages;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+
+beforeEach(function () {
+    $this->seed();
+    $this->freezeTime();
+    Storage::fake('private');
+    Http::preventStrayRequests();
+    config(['media.storage' => 'oss']);
+    $this->tenant = Tenant::where('slug', 'tenant-a')->firstOrFail();
+    $this->user = User::where('tenant_id', $this->tenant->id)->where('email', 'user@a.localhost')->firstOrFail();
+    $this->admin = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $configuration = app(OssSettings::class)->save(['region' => 'cn-beijing', 'bucket' => 'test-images', 'endpoint' => 'https://images.example.test',
+        'public_url' => 'https://images.example.test', 'access_key_id' => 'synthetic-key', 'access_key_secret' => 'synthetic-secret'], $this->admin);
+    app(OssSettings::class)->activate($configuration, $this->admin);
+    PlatformKycSetting::current()->update(['enabled' => true, 'review_mode' => 'AUTOMATIC']);
+    $this->oss = new class extends OssImages {
+        public array $objects = [];
+        public bool $offline = false;
+        public int $puts = 0;
+        public function put(OssConfiguration $config, string $key, string $bytes, string $mime): void {
+            $this->puts++;
+            if ($this->offline) throw new RuntimeException('Synthetic timeout');
+            $this->objects[$key] = $bytes;
+        }
+        public function getBounded(OssConfiguration $config, string $key, int $maxBytes): string {
+            if ($this->offline) throw new RuntimeException('Synthetic timeout');
+            return substr($this->objects[$key], 0, $maxBytes + 1);
+        }
+    };
+    app()->instance(OssImages::class, $this->oss);
+});
+
+function queuedKyc($test): KycApplication
+{
+    $uploads = app(DirectImageUploads::class);
+    $files = [];
+    foreach (['front', 'back'] as $side) {
+        $ticket = $uploads->authorize($test->tenant->id, $test->user->id, 'kyc', $side, 'image/png');
+        expect($ticket['mode'])->toBe('server')->and($ticket)->not->toHaveKey('fields');
+        $uploads->backup($test->tenant->id, $test->user->id, $ticket['id'], kycTestImage()->getContent());
+        $uploads->complete($test->tenant->id, $test->user->id, $ticket['id']);
+        $files[$side] = $uploads->resolve($test->tenant->id, $test->user->id, $ticket['id'], 'kyc', $side);
+    }
+    $test->files = $files;
+    return app(SubmitKycApplicationAction::class)->execute($test->tenant, $test->user, 'CN', '', $files['front'], $files['back'], (string) Str::uuid());
+}
+
+function asyncOcrOnce(): void
+{
+    $provider = Mockery::mock(KycOcrProviderInterface::class);
+    $provider->shouldReceive('name')->andReturn('TEST');
+    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->backUrl === '' && str_starts_with($request->frontUrl, 'http://images.example.test/')))
+        ->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, '11010519491231002X'));
+    app()->instance(KycOcrProviderInterface::class, $provider);
+}
+
+it('accepts both retained originals without OSS or OCR and finishes after a background retry', function () {
+    $this->oss->offline = true;
+    asyncOcrOnce();
+    $application = queuedKyc($this);
+    expect($application->processing_status)->toBe('QUEUED')->and($application->identity_hash)->toBeNull()->and($this->oss->puts)->toBe(0);
+    $again = app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', '', $this->files['front'], $this->files['back'], (string) Str::uuid());
+    expect($again->id)->toBe($application->id)->and(KycApplication::count())->toBe(1);
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    expect($application->fresh()->processing_status)->toBe('QUEUED')->and(IdentityRecord::count())->toBe(0);
+    $this->oss->offline = false;
+    $this->travel(61)->seconds();
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    expect($application->fresh()->review_status->value)->toBe('APPROVED')->and($application->fresh()->processing_status)->toBe('COMPLETE');
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    expect(IdentityRecord::count())->toBe(1)->and(DB::table('inbox_events')->where('template', 'kyc_approved')->count())->toBe(1);
+    Http::assertNothingSent();
+});
+
+it('retains failed originals sends one terminal notice and deduplicates administrator retry', function () {
+    $this->oss->offline = true;
+    asyncOcrOnce();
+    $application = queuedKyc($this);
+    foreach (range(1, 3) as $attempt) {
+        app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+        $this->travel(181)->seconds();
+    }
+    expect($application->fresh()->processing_status)->toBe('FAILED')->and(StoredImage::where('business_reference', $application->id)->where('state', 'ready')->count())->toBe(2);
+    expect(DB::table('inbox_events')->where('template', 'kyc_processing_failed')->count())->toBe(1);
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    $request = (string) Str::uuid();
+    $retry = app(RetryKycProcessing::class);
+    $retry->execute($this->tenant->id, $application->id, $this->admin, $request, 'Retry after storage repair');
+    $retry->execute($this->tenant->id, $application->id, $this->admin, $request, 'Retry after storage repair');
+    expect($application->fresh()->processing_generation)->toBe(2)->and(DB::table('kyc_processing_retries')->count())->toBe(1);
+    $this->oss->offline = false;
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    expect($application->fresh()->review_status->value)->toBe('APPROVED')->and(DB::table('inbox_events')->count())->toBe(2);
+});
+
+it('uses manual review and keeps a rejected attempt immutable when reopening its retained documents', function () {
+    PlatformKycSetting::current()->update(['review_mode' => 'MANUAL']);
+    asyncOcrOnce();
+    $application = queuedKyc($this);
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    expect($application->fresh()->processing_status)->toBe('WAITING_REVIEW')->and(IdentityRecord::count())->toBe(0);
+    app(RejectKycAction::class)->execute($this->tenant->id, $application->id, $this->admin, KycReviewReason::Other, 'Please review these documents');
+    $this->travel(1)->seconds();
+    $new = app(RetryKycProcessing::class)->execute($this->tenant->id, $application->id, $this->admin, (string) Str::uuid(), 'Review retained documents');
+    expect($new->id)->not->toBe($application->id)->and($new->front_object_key)->toBe($application->front_object_key)
+        ->and($application->fresh()->review_status->value)->toBe('REJECTED');
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $new->id);
+    app(ApproveKycAction::class)->execute($this->tenant->id, $new->id, $this->admin);
+    expect(DB::table('inbox_events')->where('template', 'kyc_approved')->count())->toBe(1)
+        ->and(DB::table('inbox_events')->where('template', 'kyc_rejected')->count())->toBe(1);
+});
+
+it('does not recognize corrupt replicas or other company submissions', function () {
+    $provider = Mockery::mock(KycOcrProviderInterface::class);
+    $provider->shouldNotReceive('extractIdentityDocument');
+    app()->instance(KycOcrProviderInterface::class, $provider);
+    $application = queuedKyc($this);
+    $image = StoredImage::where('business_reference', $application->id)->firstOrFail();
+    Storage::disk('private')->put($image->backup_key, 'corrupted');
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    expect($application->fresh()->review_status->value)->toBe('PENDING')->and(IdentityRecord::count())->toBe(0);
+    $other = Tenant::where('id', '<>', $this->tenant->id)->firstOrFail();
+    expect(fn () => app(RetryKycProcessing::class)->execute($other->id, $application->id, $this->admin, (string) Str::uuid(), 'Wrong company'))->toThrow(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+});
+
+it('retains unreadable OCR evidence as a failed submission and succeeds only after an explicit retry', function () {
+    $provider = Mockery::mock(KycOcrProviderInterface::class);
+    $provider->shouldReceive('extractIdentityDocument')->once()->andReturn(new KycOcrResultDTO(KycOcrOutcome::Failed));
+    app()->instance(KycOcrProviderInterface::class, $provider);
+    $application = queuedKyc($this);
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    expect($application->fresh()->processing_status)->toBe('FAILED')->and($application->fresh()->identity_hash)->toBeNull()
+        ->and(KycApplication::count())->toBe(1)->and(DB::table('inbox_events')->where('template', 'kyc_processing_failed')->count())->toBe(1);
+    app(RetryKycProcessing::class)->execute($this->tenant->id, $application->id, $this->admin, (string) Str::uuid(), 'Retry retained originals');
+    asyncOcrOnce();
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    expect($application->fresh()->review_status->value)->toBe('APPROVED')->and(IdentityRecord::count())->toBe(1);
+});
+
+it('rejects retries without reviewer permission and rejects changed retry intent', function () {
+    $this->oss->offline = true;
+    $application = queuedKyc($this);
+    $application->forceFill(['processing_status' => 'FAILED', 'next_processing_at' => null])->save();
+    $tenantAdmin = AdminUser::where('email', 'owner@a.localhost')->firstOrFail();
+    expect(fn () => app(RetryKycProcessing::class)->execute($this->tenant->id, $application->id, $tenantAdmin, (string) Str::uuid(), 'Unauthorized retry'))
+        ->toThrow(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+    $request = (string) Str::uuid();
+    app(RetryKycProcessing::class)->execute($this->tenant->id, $application->id, $this->admin, $request, 'Original reason');
+    expect(fn () => app(RetryKycProcessing::class)->execute($this->tenant->id, $application->id, $this->admin, $request, 'Changed reason'))
+        ->toThrow(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+});

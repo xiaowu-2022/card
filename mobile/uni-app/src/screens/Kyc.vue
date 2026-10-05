@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import DocumentPhoto from '../components/DocumentPhoto.vue';
 import { useSensitiveScreen } from '../lib/sensitive';
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { t, locale, dateTime } from '../lib/i18n';
-import { useAction, explainError } from '../lib/client';
-import { upload, sessionGeneration } from '../lib/api';
+import { useAction } from '../lib/client';
 import { go } from '../lib/navigation';
 import ProcessingOverlay from '../components/ProcessingOverlay.vue';
 import type { UploadProgress } from '../lib/api';
@@ -20,6 +19,7 @@ const props = defineProps<{
             status: string;
             reverificationPending?: boolean;
             reviewMessage: string | null;
+            processingStatus?: string | null;
             documentType?: string | null;
             documentCountry?: string | null;
             maskedIdentityNumber?: string | null;
@@ -40,14 +40,15 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ reload: [] }>();
 const action = useAction();
-const recognizing = ref(false);
-const recognized = ref<{ identityNumber: string; frontUploadId: string; expiresAt: string } | null>(null);
-const recognitionErrors = ref<Record<string, string>>({});
-let recognitionVersion = 0;
 const progress = ref<UploadProgress>({ stage: 'uploading', completed: 0, total: 2 });
-const processingMessage = computed(() => progress.value.stage === 'submitting'
-    ? t('Submitting…')
-    : t('Uploading documents ({{completed}}/{{total}})', { completed: progress.value.completed, total: progress.value.total }));
+const processingMessage = computed(() =>
+    progress.value.stage === 'submitting'
+        ? t('Submitting…')
+        : t('Uploading documents ({{completed}}/{{total}})', {
+              completed: progress.value.completed,
+              total: progress.value.total,
+          }),
+);
 const reverifying = ref(false);
 function reverify() {
     resetFiles();
@@ -88,7 +89,15 @@ const states: Record<string, { title: string; description: string; tone: string 
         tone: 'warning',
     },
 };
-const state = computed(() => states[props.page.kyc.status] ?? states.NOT_SUBMITTED);
+const state = computed(() =>
+    props.page.kyc.processingStatus === 'FAILED'
+        ? {
+              title: 'Verification processing failed',
+              description: 'Your documents are saved. Contact support to retry verification.',
+              tone: 'warning',
+          }
+        : (states[props.page.kyc.status] ?? states.NOT_SUBMITTED),
+);
 const countryOptions = computed(() => {
     const names = new Intl.DisplayNames([locale.value], { type: 'region' });
     const priority = ['CN', 'HK', 'MO', 'TW'];
@@ -105,56 +114,25 @@ const countryOptions = computed(() => {
         });
 });
 function resetFiles() {
-    clearRecognition();
     form.document_country = 'CN';
     form.front = '';
     form.back = '';
 }
 useSensitiveScreen(
     () => {
-        clearRecognition();
         form.front = '';
         form.back = '';
     },
     { retainOnBackground: true },
 );
-function clearRecognition() {
-    recognitionVersion++;
-    recognizing.value = false;
-    recognized.value = null;
-    recognitionErrors.value = {};
-}
-watch(() => [form.front, form.document_type, form.document_country], async () => {
-    clearRecognition();
-    if (!form.front) return;
-    const version = recognitionVersion;
-    const generation = sessionGeneration;
-    recognizing.value = true;
-    try {
-        const result = await upload<{ identityNumber: string; frontUploadId: string; expiresAt: string }>(
-            '/client/kyc/recognize-front',
-            { document_type: form.document_type, document_country: form.document_country, reverify: reverifying.value },
-            [{ name: 'front', path: form.front }],
-        );
-        if (version !== recognitionVersion || generation !== sessionGeneration) return;
-        recognized.value = result;
-    } catch (error) {
-        if (version === recognitionVersion && generation === sessionGeneration) recognitionErrors.value = explainError(error);
-    } finally {
-        if (version === recognitionVersion) recognizing.value = false;
-    }
-});
 async function submit() {
-    if (action.pending.value || recognizing.value || !recognized.value) return;
-    if (Date.parse(recognized.value.expiresAt) <= Date.now()) {
-        clearRecognition();
-        recognitionErrors.value = { form: t('Please select and recognize the front image again.') };
+    if (action.pending.value || !form.front || (form.document_type === 'NATIONAL_ID' && !form.back))
         return;
-    }
-    progress.value = { stage: 'uploading', completed: 0, total: form.document_type === 'NATIONAL_ID' ? 1 : 0 };
     const files = [
+        { name: 'front', path: form.front },
         ...(form.document_type === 'NATIONAL_ID' ? [{ name: 'back', path: form.back }] : []),
-    ].filter((file) => file.path);
+    ];
+    progress.value = { stage: 'uploading', completed: 0, total: files.length };
     await action.submit(
         '/kyc/applications' +
             (props.page.backHref === '/account/security' ? '?from=account-security' : ''),
@@ -162,11 +140,12 @@ async function submit() {
             document_type: form.document_type,
             document_country: form.document_country,
             reverify: reverifying.value,
-            front_upload_id: recognized.value.frontUploadId,
         },
         {
             files,
-            onProgress: (value) => { progress.value = value; },
+            onProgress: (value) => {
+                progress.value = value;
+            },
             navigate: false,
             success: () => {
                 resetFiles();
@@ -175,11 +154,6 @@ async function submit() {
             },
         },
     );
-    // A failed submission may already have consumed its single-use upload reference.
-    if (action.failureStatus.value) {
-        clearRecognition();
-        recognitionErrors.value = { form: t('Please select and recognize the front image again.') };
-    }
 }
 </script>
 <template>
@@ -193,7 +167,23 @@ async function submit() {
                     : t(state.description)
             "
             :tone="state.tone"
-        /><view v-if="page.kyc.status === 'APPROVED' && !reverifying" class="kyc-card">
+        /><view
+            v-if="page.kyc.processingStatus && page.kyc.processingStatus !== 'COMPLETE'"
+            class="kyc-card"
+        >
+            <text>{{
+                t(
+                    page.kyc.processingStatus === 'WAITING_REVIEW'
+                        ? 'Verification under review'
+                        : page.kyc.processingStatus === 'FAILED'
+                          ? 'Your documents are saved. Contact support to retry verification.'
+                          : 'Documents received. Processing continues in the background; you will be notified of the result.',
+                )
+            }}</text>
+            <button class="secondary" @click="emit('reload')">
+                {{ t('Refresh status') }}
+            </button> </view
+        ><view v-if="page.kyc.status === 'APPROVED' && !reverifying" class="kyc-card">
             <text class="kyc-title">{{ t('Identity verified') }}</text>
             <view class="verified-row"
                 ><text>{{ t('Document type') }}</text
@@ -233,8 +223,18 @@ async function submit() {
                         )
                     }}</text>
                     <DocumentPhoto
-                        :label="t(page.kyc.documentType === 'PASSPORT' ? 'Passport information page' : 'ID front')"
-                        :thumbnails="page.kyc.frontSources?.length ? page.kyc.frontSources : [page.kyc.frontUrl ?? '']"
+                        :label="
+                            t(
+                                page.kyc.documentType === 'PASSPORT'
+                                    ? 'Passport information page'
+                                    : 'ID front',
+                            )
+                        "
+                        :thumbnails="
+                            page.kyc.frontSources?.length
+                                ? page.kyc.frontSources
+                                : [page.kyc.frontUrl ?? '']
+                        "
                         :originals="page.kyc.frontOriginalSources ?? []"
                         @refresh="emit('reload')"
                     />
@@ -243,15 +243,22 @@ async function submit() {
                     ><text class="label">{{ t('ID back') }}</text>
                     <DocumentPhoto
                         :label="t('ID back')"
-                        :thumbnails="page.kyc.backSources?.length ? page.kyc.backSources : [page.kyc.backUrl ?? '']"
+                        :thumbnails="
+                            page.kyc.backSources?.length
+                                ? page.kyc.backSources
+                                : [page.kyc.backUrl ?? '']
+                        "
                         :originals="page.kyc.backOriginalSources ?? []"
                         @refresh="emit('reload')"
                     />
                 </view>
             </view>
-            <button v-if="page.canReverify" class="primary" @click="reverify">{{ t('Verify again') }}</button>
-            <text v-if="page.kyc.reverificationPending" class="muted">{{ t('Verification under review') }}</text>
-            </view
+            <button v-if="page.canReverify" class="primary" @click="reverify">
+                {{ t('Verify again') }}
+            </button>
+            <text v-if="page.kyc.reverificationPending" class="muted">{{
+                t('Verification under review')
+            }}</text> </view
         ><view v-else-if="page.canSubmit || reverifying" class="kyc-card"
             ><text class="kyc-title">{{
                 t(
@@ -266,8 +273,22 @@ async function submit() {
                     ><text @click="go('/support')">{{ t('Online support') }}</text></view
                 ></view
             >
-            <text v-if="reverifying" class="muted">{{ t('Upload new identity documents. Your current verification remains valid until approval.') }}</text>
-            <button v-if="reverifying" class="secondary" :disabled="action.pending.value" @click="reverifying = false; resetFiles()">{{ t('Cancel') }}</button>
+            <text v-if="reverifying" class="muted">{{
+                t(
+                    'Upload new identity documents. Your current verification remains valid until approval.',
+                )
+            }}</text>
+            <button
+                v-if="reverifying"
+                class="secondary"
+                :disabled="action.pending.value"
+                @click="
+                    reverifying = false;
+                    resetFiles();
+                "
+            >
+                {{ t('Cancel') }}
+            </button>
             <form @submit="submit">
                 <SelectField
                     v-model="form.document_type"
@@ -285,36 +306,31 @@ async function submit() {
                     :disabled="action.pending.value"
                     searchable
                 /><view class="document-grid"
-                    ><view><UploadField
-                        v-model="form.front"
-                        :label="
-                            t(
-                                form.document_type === 'PASSPORT'
-                                    ? 'Passport information page'
-                                    : 'ID front',
-                            )
-                        "
-                        :max-mb="page.maxDocumentMb"
-                        :disabled="action.pending.value" />
-                        <text v-if="recognizing" class="muted" role="status">{{ t('Recognizing document number…') }}</text>
-                        <FormErrors v-if="Object.keys(recognitionErrors).length" :errors="recognitionErrors" />
-                        <view v-if="recognized" class="recognized-number" aria-live="polite">
-                            <text>{{ t('Recognized document number') }}</text>
-                            <text>{{ recognized.identityNumber }}</text>
-                        </view>
-                    </view><UploadField
+                    ><view
+                        ><UploadField
+                            v-model="form.front"
+                            :label="
+                                t(
+                                    form.document_type === 'PASSPORT'
+                                        ? 'Passport information page'
+                                        : 'ID front',
+                                )
+                            "
+                            :max-mb="page.maxDocumentMb"
+                            :disabled="action.pending.value"
+                        /> </view
+                    ><UploadField
                         v-if="form.document_type === 'NATIONAL_ID'"
                         v-model="form.back"
                         :label="t('ID back')"
                         :max-mb="page.maxDocumentMb"
-                        :disabled="action.pending.value" /></view
-                >
+                        :disabled="action.pending.value"
+                /></view>
                 <button
                     class="primary submit-button"
                     form-type="submit"
                     :disabled="
                         action.pending.value ||
-                        recognizing || !recognized ||
                         !form.front ||
                         (form.document_type === 'NATIONAL_ID' && !form.back)
                     "
@@ -377,7 +393,10 @@ async function submit() {
     display: grid;
     gap: 0;
 }
-.document-thumbnails { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.document-thumbnails {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+}
 .submit-button {
     border-radius: 999px;
     min-height: 44px;

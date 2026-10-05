@@ -3,35 +3,28 @@
 namespace App\Application\Kyc;
 
 use App\Application\Media\DirectKycImage;
+use App\Application\Media\DirectImageUploads;
 use App\Application\Media\ImageStorage;
 use App\Application\Media\VerifiedDirectImage;
 use App\Domain\Audit\Services\AuditLogger;
-use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
 use App\Domain\Kyc\Enums\KycDocumentType;
 use App\Domain\Kyc\Enums\KycOcrStatus;
 use App\Domain\Kyc\Enums\KycReviewStatus;
 use App\Domain\Kyc\Models\IdentityRecord;
 use App\Domain\Kyc\Models\KycApplication;
-use App\Domain\Kyc\Services\IdentityNumberNormalizer;
-use App\Domain\Kyc\Services\IdentityNumberProtector;
-use App\Domain\Kyc\Services\KycDataCipher;
-use App\Domain\Tenant\Enums\KycReviewMode;
 use App\Domain\Tenant\Enums\TenantStatus;
 use App\Domain\Tenant\Models\PlatformKycSetting;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Enums\UserStatus;
 use App\Domain\User\Models\User;
 use App\Support\Errors\DomainException;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use Throwable;
 
 final readonly class SubmitKycApplicationAction
 {
-    public function __construct(private IdentityNumberProtector $identities, private AuditLogger $audit, private ApproveKycAction $approve) {}
+    public function __construct(private AuditLogger $audit) {}
 
     public function execute(Tenant $tenant, User $user, string $country, string $identityNumber, UploadedFile|VerifiedDirectImage|DirectKycImage $front, UploadedFile|VerifiedDirectImage|DirectKycImage|null $back, ?string $requestId = null, KycDocumentType $documentType = KycDocumentType::NationalId, bool $reverify = false): KycApplication
     {
@@ -49,114 +42,70 @@ final readonly class SubmitKycApplicationAction
         if ($user->tenant_id !== $tenant->id) {
             abort(404);
         }
-        if (! $reverify && IdentityRecord::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->exists()) {
-            throw new DomainException('KYC_ALREADY_APPROVED', 'Your identity is already verified.');
-        }
-        $latest = KycApplication::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->latest('submitted_at')->first();
-        if ($latest && $latest->review_status !== KycReviewStatus::ResubmissionRequired && ! ($reverify && in_array($latest->review_status, [KycReviewStatus::Approved, KycReviewStatus::Rejected], true))) {
-            throw new DomainException('KYC_ALREADY_PENDING', 'Identity verification is already under review.');
-        }
-        $applicationId = (string) Str::uuid();
-        $disk = (string) config('kyc.document_disk');
-        $base = "kyc/{$tenant->id}/{$user->id}/{$applicationId}";
-        $frontKey = "{$base}/front/".(string) Str::uuid();
-        $backKey = $back ? "{$base}/back/".(string) Str::uuid() : null;
-        $stored = [];
-        $images = app(ImageStorage::class);
+        // Multipart clients use the same durable local staging as direct clients.
+        // Keep cleanup records outside the application transaction if either side
+        // cannot be accepted; filesystem writes cannot be rolled back with SQL.
+        $stage = function ($file, string $side) use ($tenant, $user) {
+            if (! $file instanceof UploadedFile) return $file;
+            $uploads = app(DirectImageUploads::class);
+            $ticket = $uploads->authorize($tenant->id, $user->id, 'kyc', $side, $file->getMimeType());
+            $uploads->backup($tenant->id, $user->id, $ticket['id'], $file->getContent());
+            $uploads->complete($tenant->id, $user->id, $ticket['id']);
+            return $uploads->resolve($tenant->id, $user->id, $ticket['id'], 'kyc', $side);
+        };
+        $front = $stage($front, 'front');
+        $back = $stage($back, 'back');
+        // Scope and content are validated before this action. A direct upload ID is
+        // the stable submission key, including a replay after its single-use claim.
+        $submissionKey = $front instanceof VerifiedDirectImage || $front instanceof DirectKycImage ? $front->id : $requestId;
+        $part = static fn ($file) => $file === null ? null : ($file instanceof VerifiedDirectImage || $file instanceof DirectKycImage ? $file->id : hash('sha256', $file->getContent()));
+        $fingerprint = hash('sha256', json_encode([$documentType->value, $country, $reverify, $part($front), $part($back)], JSON_THROW_ON_ERROR));
 
-        $preview = $front instanceof VerifiedDirectImage
-            ? app(PreviewKycNumber::class)->resultFor($front, $documentType, $country) : null;
-
-        try {
-            $images->putUpload($tenant->id, $disk, $frontKey, $front, 'kyc', $applicationId);
-            $stored[] = $frontKey;
+        return DB::transaction(function () use ($tenant, $user, $country, $front, $back, $requestId, $documentType, $reverify, $submissionKey, $fingerprint): KycApplication {
+            $currentTenant = Tenant::whereKey($tenant->id)->lockForUpdate()->firstOrFail();
+            $currentUser = User::where('tenant_id', $tenant->id)->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            if ($submissionKey) {
+                $existing = KycApplication::where('tenant_id', $tenant->id)->where('user_id', $user->id)->where('submission_key', $submissionKey)->first();
+                if ($existing) {
+                    abort_unless(hash_equals($existing->submission_fingerprint, $fingerprint), 409);
+                    return $existing;
+                }
+            }
+            $settings = PlatformKycSetting::current(true);
+            if (! $settings->enabled || $currentTenant->status !== TenantStatus::Active || $currentUser->status !== UserStatus::Active) {
+                throw new DomainException('KYC_SUBMISSION_UNAVAILABLE', 'Identity verification submission is not currently available.', 403);
+            }
+            $identity = IdentityRecord::where('tenant_id', $tenant->id)->where('user_id', $user->id)->first();
+            abort_unless($reverify === (bool) $identity, 409);
+            $latest = KycApplication::where('tenant_id', $tenant->id)->where('user_id', $user->id)->latest('submitted_at')->lockForUpdate()->first();
+            if ($latest && $latest->review_status !== KycReviewStatus::ResubmissionRequired && ! ($reverify && in_array($latest->review_status, [KycReviewStatus::Approved, KycReviewStatus::Rejected], true))) {
+                throw new DomainException('KYC_ALREADY_PENDING', 'Identity verification is already under review.', 409);
+            }
+            $id = (string) Str::uuid();
+            $disk = (string) config('kyc.document_disk');
+            $base = "kyc/{$tenant->id}/{$user->id}/{$id}";
+            $images = app(ImageStorage::class);
+            $frontKey = $base.'/front/'.Str::uuid();
+            $backKey = $back ? $base.'/back/'.Str::uuid() : null;
+            $images->putUpload($tenant->id, $disk, $frontKey, $front, 'kyc', $id);
             if ($back && $backKey) {
-                $images->putUpload($tenant->id, $disk, $backKey, $back, 'kyc', $applicationId);
-                $stored[] = $backKey;
+                $images->putUpload($tenant->id, $disk, $backKey, $back, 'kyc', $id);
             }
-            $provider = app(KycOcrProviderInterface::class);
-            $ocr = $preview ?? app(RecognizeKycNumber::class)->execute($documentType, $country, $images->ocrUrl($disk, $frontKey));
-            $identityNumber = app(IdentityNumberNormalizer::class)->normalize($ocr->candidateIdentityNumber);
-            $protected = $this->identities->protect($tenant->id, $documentType->value, $country, $identityNumber);
-
-            $application = DB::transaction(function () use ($tenant, $user, $country, $applicationId, $frontKey, $backKey, $protected, $requestId, $documentType, $ocr, $provider, $reverify): KycApplication {
-                $currentTenant = Tenant::query()->whereKey($tenant->id)->lockForUpdate()->firstOrFail();
-                $currentUser = User::query()->where('tenant_id', $tenant->id)->whereKey($user->id)->lockForUpdate()->firstOrFail();
-                $latest = KycApplication::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->latest('submitted_at')->lockForUpdate()->first();
-                $settings = PlatformKycSetting::current(true);
-                if ($currentTenant->status !== TenantStatus::Active || $currentUser->status !== UserStatus::Active || ! $settings->enabled || ! in_array($settings->review_mode, [KycReviewMode::Manual, KycReviewMode::Automatic], true)) {
-                    throw new DomainException('KYC_SUBMISSION_UNAVAILABLE', 'Identity verification submission is not currently available.', 403);
-                }
-                if (! $reverify && IdentityRecord::query()->where('tenant_id', $tenant->id)->where('user_id', $user->id)->exists()) {
-                    throw new DomainException('KYC_ALREADY_APPROVED', 'Your identity is already verified.');
-                }
-
-                if ($latest && $latest->review_status !== KycReviewStatus::ResubmissionRequired && ! ($reverify && in_array($latest->review_status, [KycReviewStatus::Approved, KycReviewStatus::Rejected], true))) {
-                    throw new DomainException(
-                        $latest->review_status === KycReviewStatus::Pending ? 'KYC_ALREADY_PENDING' : 'KYC_RESUBMISSION_NOT_ALLOWED',
-                        $latest->review_status === KycReviewStatus::Pending ? 'Identity verification is already under review.' : 'A new submission is not available for this application.',
-                    );
-                }
-
-                if ($reverify) {
-                    IdentityRecord::where('tenant_id', $tenant->id)->where('user_id', $user->id)->firstOrFail();
-                }
-
-                $application = new KycApplication;
-                $application->forceFill([
-                    'id' => $applicationId,
-                    'tenant_id' => $tenant->id,
-                    'user_id' => $user->id,
-                    'resubmission_of_id' => $latest?->id,
-                    'document_type' => $documentType,
-                    'document_country' => $country,
-                    'identity_number_encrypted' => $protected['encrypted'],
-                    'identity_hash' => $protected['hash'],
-                    'front_object_key' => $frontKey,
-                    'back_object_key' => $backKey,
-                    'ocr_status' => KycOcrStatus::Succeeded,
-                    'ocr_provider' => $provider->name(),
-                    'ocr_reference' => $ocr->providerReference,
-                    'ocr_result_encrypted' => app(KycDataCipher::class)->encrypt(json_encode(['identity_number_source' => 'OCR', 'identity_number_recognized' => true], JSON_THROW_ON_ERROR)),
-                    'review_status' => KycReviewStatus::Pending,
-                    'submitted_at' => now(),
-                ])->save();
-                $this->audit->record($tenant->id, 'USER', $user->id, 'KYC_APPLICATION_SUBMITTED', 'kyc_application', $applicationId, null, ['document_type' => $documentType->value, 'document_country' => $country], $requestId);
-                if ($settings->review_mode === KycReviewMode::Automatic) {
-                    $this->approve->executeAutomatic($tenant->id, $applicationId, $requestId);
-                    $application->refresh();
-                }
-
-                return $application;
-            });
-
+            $application = new KycApplication;
+            $application->forceFill([
+                'id' => $id, 'tenant_id' => $tenant->id, 'user_id' => $user->id, 'resubmission_of_id' => $latest?->id,
+                'document_type' => $documentType, 'document_country' => $country,
+                'identity_number_encrypted' => null, 'identity_hash' => null,
+                'front_object_key' => $frontKey, 'back_object_key' => $backKey,
+                'ocr_status' => KycOcrStatus::NotStarted, 'review_status' => KycReviewStatus::Pending,
+                'submitted_at' => now(), 'processing_status' => 'QUEUED', 'processing_generation' => 1,
+                'submission_request_id' => $requestId, 'next_processing_at' => now(), 'submission_key' => $submissionKey, 'submission_fingerprint' => $fingerprint,
+            ])->save();
+            $this->audit->record($tenant->id, 'USER', $user->id, 'KYC_APPLICATION_SUBMITTED', 'kyc_application', $id, null,
+                ['document_type' => $documentType->value, 'document_country' => $country, 'processing_status' => 'QUEUED'], $requestId);
+            // The durable scheduler picks this up after commit, even if queue dispatch
+            // is temporarily unavailable. No OCR or remote storage in this request.
             return $application;
-        } catch (Throwable $exception) {
-            // A committed application owns its files, even after an ambiguous commit response.
-            if (KycApplication::whereKey($applicationId)->exists()) {
-                throw $exception;
-            }
-            foreach ($stored as $side => $objectKey) {
-                try {
-                    if (($side === 0 ? $front : $back) instanceof DirectKycImage || ($side === 0 ? $front : $back) instanceof VerifiedDirectImage) {
-                        $images->deferDiscard($disk, $objectKey);
-                    } else {
-                        $images->discard($disk, $objectKey);
-                    }
-                } catch (Throwable $cleanupException) {
-                    Log::warning('KYC document cleanup failed.', [
-                        'tenant_id' => $tenant->id,
-                        'kyc_application_id' => $applicationId,
-                        'document_sequence' => $side,
-                        'error_class' => $cleanupException::class,
-                    ]);
-                }
-            }
-            if ($exception instanceof QueryException && $exception->getCode() === '23505') {
-                throw new DomainException('KYC_ALREADY_PENDING', 'Identity verification is already under review.');
-            }
-
-            throw $exception;
-        }
+        });
     }
 }

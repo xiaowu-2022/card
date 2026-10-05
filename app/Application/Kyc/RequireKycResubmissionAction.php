@@ -25,7 +25,7 @@ final readonly class RequireKycResubmissionAction
             if (mb_strlen(trim($message)) < 3 || mb_strlen(trim($message)) > 500 || str_contains($message, '<') || str_contains($message, '>')) {
                 throw new DomainException('REVIEW_MESSAGE_INVALID', 'Enter a reviewer message between 3 and 500 characters.');
             }
-            $identity = $this->identities->decrypt($application->identity_number_encrypted);
+            $identity = $application->identity_number_encrypted ? $this->identities->decrypt($application->identity_number_encrypted) : "";
             if ($identity !== '' && mb_stripos($message, $identity) !== false) {
                 throw new DomainException('REVIEW_MESSAGE_CONTAINS_SENSITIVE_DATA', 'The reviewer message contains sensitive identity data.');
             }

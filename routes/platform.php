@@ -167,6 +167,10 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::get('/kyc', [AccountOperationsController::class, 'index'])->name('kyc.index');
         Route::get('/tenants/{tenant}/kyc', [AccountOperationsController::class, 'kyc'])->whereUuid('tenant')->name('kyc.company');
     });
+    Route::middleware(['admin.scope:platform,kyc.read', 'admin.scope:platform,kyc.review'])->group(function (): void {
+        Route::post('/tenants/{tenant}/kyc/{kyc}/retry', [KycDetailController::class, 'retry'])->whereUuid(['tenant', 'kyc']);
+        Route::post('/tenants/{tenant}/kyc/{kyc}/review', [KycDetailController::class, 'review'])->whereUuid(['tenant', 'kyc']);
+    });
     Route::middleware(['admin.scope:platform,wallet.read', 'admin.scope:platform,users.read'])->group(function (): void {
         Route::get('/wallets', [AccountOperationsController::class, 'index'])->name('wallets.index');
         Route::get('/tenants/{tenant}/wallets', [AccountOperationsController::class, 'wallets'])->whereUuid('tenant')->name('wallets.company');

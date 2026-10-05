@@ -29,10 +29,16 @@ final class KycApplication extends Model
         self::updating(function (self $application): void {
             $immutable = [
                 'id', 'tenant_id', 'user_id', 'resubmission_of_id', 'document_type', 'document_country',
-                'identity_number_encrypted', 'identity_hash', 'front_object_key', 'back_object_key', 'submitted_at',
+                'front_object_key', 'back_object_key', 'submitted_at', 'submission_key', 'submission_fingerprint',
             ];
             if ($application->isDirty($immutable)) {
                 throw new LogicException('Submitted KYC identity data and documents are immutable.');
+            }
+            if ($application->isDirty(['identity_number_encrypted', 'identity_hash']) &&
+                ($application->getRawOriginal('identity_hash') !== null || $application->getRawOriginal('identity_number_encrypted') !== null
+                    || ! $application->getRawOriginal('processing_status') || $application->getRawOriginal('review_status') !== 'PENDING'
+                    || $application->ocr_status !== KycOcrStatus::Succeeded || ! $application->ocr_result_encrypted)) {
+                throw new LogicException('Recognized KYC identity is immutable.');
             }
 
             $reviewFields = ['review_status', 'review_reason_code', 'review_message', 'reviewed_by_admin_user_id', 'reviewed_at', 'automatically_approved'];
@@ -51,6 +57,9 @@ final class KycApplication extends Model
             'automatically_approved' => 'boolean',
             'submitted_at' => 'immutable_datetime',
             'reviewed_at' => 'immutable_datetime',
+            'next_processing_at' => 'immutable_datetime',
+            'processing_generation' => 'integer',
+            'processing_attempts' => 'integer',
         ];
     }
 

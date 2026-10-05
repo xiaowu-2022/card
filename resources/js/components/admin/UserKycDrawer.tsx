@@ -26,6 +26,7 @@ type Detail = {
     };
     application: KycApplication | null;
     canViewDocuments: boolean;
+    canReview?: boolean;
 };
 export function UserKycDrawer({
     target,
@@ -188,6 +189,11 @@ export function UserKycDrawer({
                                         application={detail.application}
                                         company={detail.company}
                                         canViewDocuments={detail.canViewDocuments}
+                                        canReview={detail.canReview}
+                                        onChanged={(id) => {
+                                            select(id, selection.page);
+                                            setRetry((n) => n + 1);
+                                        }}
                                     />
                                 ) : (
                                     <p>{t('No identity verification submitted yet.')}</p>

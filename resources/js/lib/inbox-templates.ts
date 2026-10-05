@@ -19,6 +19,10 @@ export const inboxTemplates: Record<string, readonly [string, string]> = {
         'Withdrawal rejected',
         'Your withdrawal was rejected. The reserved {{amount}} {{asset}} has been released to your available balance.',
     ],
+    kyc_processing_failed: [
+        'Verification processing failed',
+        'Your documents are saved. Contact support to retry verification.',
+    ],
     kyc_approved: [
         'Identity verification approved',
         'Your identity verification has been approved.',
