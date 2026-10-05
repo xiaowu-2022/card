@@ -66,6 +66,7 @@ export default function Users({
     const { url } = usePage();
     const [kycTarget, setKycTarget] = useState(initialKycTarget);
     const kycTrigger = useRef<HTMLElement | null>(null);
+    const kycOpening = useRef(false);
     useEffect(() => {
         const sync = () => setKycTarget(initialKycTarget());
         sync();
@@ -75,9 +76,6 @@ export default function Users({
     return (
         <PlatformLayout
             title={t('Users')}
-            description={t(
-                'User records, wallet balances and promotion levels. Each currency is shown separately.',
-            )}
             actions={
                 canViewTopups && (
                     <Button asChild>
@@ -112,23 +110,26 @@ export default function Users({
                             render: (row) => (
                                 <div className="w-56 space-y-1.5">
                                     <p
-                                        className="truncate text-xs text-muted-foreground"
-                                        title={row.companyName}
+                                        className="truncate text-sm font-semibold text-foreground"
+                                        title={row.displayName ?? undefined}
                                     >
-                                        {row.companyName}
+                                        {row.displayName || '—'}
                                     </p>
-                                    <p className="font-mono font-semibold">{row.accountId}</p>
-                                    {row.displayName && (
-                                        <p className="truncate text-xs" title={row.displayName}>
-                                            {row.displayName}
-                                        </p>
-                                    )}
                                     <p
                                         className="truncate text-xs text-muted-foreground"
                                         title={row.email ?? undefined}
                                     >
                                         {row.email ?? '—'}
                                     </p>
+                                    <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                                        <span className="min-w-0 truncate" title={row.companyName}>
+                                            {row.companyName}
+                                        </span>
+                                        <span aria-hidden="true">·</span>
+                                        <span className="shrink-0 font-normal tabular-nums">
+                                            ID: {row.accountId}
+                                        </span>
+                                    </div>
                                 </div>
                             ),
                         },
@@ -232,35 +233,50 @@ export default function Users({
                                       label: 'Actions',
                                       render: (row: User) => (
                                           <div className="flex items-center gap-2">
-                                              {canViewKyc && (
-                                                  <Button
-                                                      variant="secondary"
-                                                      size="sm"
-                                                      onClick={(event) => {
-                                                          kycTrigger.current = event.currentTarget;
-                                                          const target = {
-                                                              company: row.companyId,
-                                                              user: row.id,
-                                                          };
-                                                          kycLocation(target);
-                                                          setKycTarget(target);
-                                                      }}
-                                                  >
-                                                      {t('Verification')}
-                                                  </Button>
-                                              )}
-                                              {(canViewTopups ||
+                                              {(canViewKyc ||
+                                                  canViewTopups ||
                                                   financialAccess.withdrawals ||
                                                   canAdjustWallet ||
                                                   canChangeReferrer ||
                                                   canAdjustCommission) && (
                                                   <DropdownMenu>
                                                       <DropdownMenuTrigger asChild>
-                                                          <Button variant="secondary" size="sm">
+                                                          <Button
+                                                              variant="secondary"
+                                                              size="sm"
+                                                              onFocus={(event) => {
+                                                                  kycTrigger.current =
+                                                                      event.currentTarget;
+                                                              }}
+                                                          >
                                                               {t('More actions')}
                                                           </Button>
                                                       </DropdownMenuTrigger>
-                                                      <DropdownMenuContent align="end">
+                                                      <DropdownMenuContent
+                                                          className="flex min-w-40 flex-col"
+                                                          align="end"
+                                                          onCloseAutoFocus={(event) => {
+                                                              if (kycOpening.current) {
+                                                                  event.preventDefault();
+                                                                  kycOpening.current = false;
+                                                              }
+                                                          }}
+                                                      >
+                                                          {canViewKyc && (
+                                                              <DropdownMenuItem
+                                                                  onSelect={() => {
+                                                                      kycOpening.current = true;
+                                                                      const target = {
+                                                                          company: row.companyId,
+                                                                          user: row.id,
+                                                                      };
+                                                                      kycLocation(target);
+                                                                      setKycTarget(target);
+                                                                  }}
+                                                              >
+                                                                  {t('Verification')}
+                                                              </DropdownMenuItem>
+                                                          )}
                                                           {canViewTopups && (
                                                               <DropdownMenuItem asChild>
                                                                   <Link

@@ -1,5 +1,5 @@
-On 2026-10-05 the user moved Platform KYC access into a direct Verification button
-on each user row. Remove the standalone KYC navigation item; open a lazy right drawer
+On 2026-10-05 the user moved Platform KYC access into the Verification item in each user
+row’s More actions menu (superseding the separate button). Remove the standalone KYC navigation item; open a lazy right drawer
 with tenant/user-scoped paginated application history and masked details. Preserve
 users.read plus kyc.read on the user endpoint, photo permission/password/audit gates,
 read-only GETs and existing legacy KYC routes. No new review or OCR operations.

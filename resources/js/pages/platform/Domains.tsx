@@ -1,5 +1,6 @@
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
 import { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
     AlertDialog,
     AlertDialogContent,
@@ -52,6 +53,14 @@ export default function Domains({
 }) {
     useAdminTranslation();
     const form = useForm({ hostname: '' });
+    const [addOpen, setAddOpen] = useState(false);
+    const closeAdd = () => {
+        if (form.processing || (form.isDirty && !window.confirm(t('Discard unsaved changes?'))))
+            return;
+        setAddOpen(false);
+        form.reset();
+        form.clearErrors();
+    };
     const base = company ? `/platform/tenants/${company.id}/domains` : '/platform/settings/domains';
     const Layout = company ? CompanyConfigurationLayout : PlatformSettingsLayout;
     const availableDomains = domains.filter(
@@ -117,51 +126,30 @@ export default function Domains({
         <Layout>
             <Head title={t(company ? 'Domains' : 'Domain configurations')} />
             <div className="min-w-0 space-y-4">
-                {!company && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>{t('Add custom domain')}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <form
-                                className="flex max-w-xl flex-col gap-3 sm:flex-row sm:items-end"
-                                onSubmit={(event) => {
-                                    event.preventDefault();
-                                    form.post(base, { onSuccess: () => form.reset() });
-                                }}
-                            >
-                                <FormField
-                                    id="hostname"
-                                    label={t('Hostname')}
-                                    description={t('Hostname only; no scheme, port or path.')}
-                                    error={errorMessage(form.errors.hostname)}
-                                >
-                                    <Input
-                                        id="hostname"
-                                        placeholder={t('cards.example.com')}
-                                        value={form.data.hostname}
-                                        onChange={(event) =>
-                                            form.setData('hostname', event.target.value)
-                                        }
-                                    />
-                                </FormField>
-                                <Button disabled={form.processing}>{t('Add domain')}</Button>
-                            </form>
-                        </CardContent>
-                    </Card>
-                )}
                 <Card>
                     <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
                         <CardTitle>
                             {t(company ? 'Configured domains' : 'Domain configurations')}
                         </CardTitle>
                         {!company && (
-                            <Button
-                                disabled={selectedIds.length === 0 || assignment.processing}
-                                onClick={() => openAssignment(selectedIds, 'assign')}
-                            >
-                                {t('Assign to company')}
-                            </Button>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => {
+                                        form.reset();
+                                        form.clearErrors();
+                                        setAddOpen(true);
+                                    }}
+                                >
+                                    {t('Add custom domain')}
+                                </Button>
+                                <Button
+                                    disabled={selectedIds.length === 0 || assignment.processing}
+                                    onClick={() => openAssignment(selectedIds, 'assign')}
+                                >
+                                    {t('Assign to company')}
+                                </Button>
+                            </div>
                         )}
                     </CardHeader>
                     <CardContent className="overflow-x-auto">
@@ -197,7 +185,6 @@ export default function Domains({
                                     <TableHead>{t('Domain')}</TableHead>
                                     {!company && <TableHead>{t('Assigned company')}</TableHead>}
                                     <TableHead>{t('State')}</TableHead>
-                                    <TableHead>{t('SSL')}</TableHead>
                                     {!company && <TableHead>{t('Controls')}</TableHead>}
                                 </TableRow>
                             </TableHeader>
@@ -259,7 +246,6 @@ export default function Domains({
                                                 )}
                                             />
                                         </TableCell>
-                                        <TableCell>{t(domain.sslStatus)}</TableCell>
                                         {!company && (
                                             <TableCell>
                                                 <div className="flex flex-wrap gap-2">
@@ -357,7 +343,7 @@ export default function Domains({
                                 {domains.length === 0 && (
                                     <TableRow>
                                         <TableCell
-                                            colSpan={company ? 3 : 6}
+                                            colSpan={company ? 2 : 5}
                                             className="py-8 text-center text-muted-foreground"
                                         >
                                             {t('No domains yet.')}
@@ -369,6 +355,72 @@ export default function Domains({
                     </CardContent>
                 </Card>
             </div>
+            {!company && (
+                <Dialog
+                    open={addOpen}
+                    onOpenChange={(open) => {
+                        if (!open) closeAdd();
+                    }}
+                >
+                    <DialogContent
+                        className="flex flex-col overflow-hidden p-0"
+                        closeLabel={t('Close')}
+                        closeDisabled={form.processing}
+                        aria-describedby={undefined}
+                    >
+                        <DialogHeader className="mb-0 shrink-0 border-b p-4 pr-14">
+                            <DialogTitle>{t('Add custom domain')}</DialogTitle>
+                        </DialogHeader>
+                        <form
+                            className="flex min-h-0 flex-col"
+                            onSubmit={(event) => {
+                                event.preventDefault();
+                                if (form.processing) return;
+                                form.post(base, {
+                                    preserveScroll: true,
+                                    onSuccess: () => {
+                                        form.reset();
+                                        form.clearErrors();
+                                        setAddOpen(false);
+                                    },
+                                });
+                            }}
+                        >
+                            <div className="min-h-0 overflow-y-auto p-4">
+                                <FormField
+                                    id="hostname"
+                                    label={t('Hostname')}
+                                    description={t('Hostname only; no scheme, port or path.')}
+                                    error={errorMessage(form.errors.hostname)}
+                                >
+                                    <Input
+                                        id="hostname"
+                                        placeholder={t('cards.example.com')}
+                                        value={form.data.hostname}
+                                        disabled={form.processing}
+                                        onChange={(event) =>
+                                            form.setData('hostname', event.target.value)
+                                        }
+                                    />
+                                </FormField>
+                            </div>
+                            <div className="flex shrink-0 justify-end gap-2 border-t p-4">
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    disabled={form.processing}
+                                    onClick={closeAdd}
+                                >
+                                    {t('Cancel')}
+                                </Button>
+                                <Button type="submit" disabled={form.processing}>
+                                    {t('Add domain')}
+                                </Button>
+                            </div>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+            )}
             <AlertDialog
                 open={assignOpen}
                 onOpenChange={(open) => {

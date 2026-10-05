@@ -240,9 +240,6 @@ export function PlatformLayout({ children, title, description, actions }: Platfo
                         )}
                         <div className="flex shrink-0 items-center gap-2 whitespace-nowrap sm:gap-3">
                             <AdminLanguageSwitcher />
-                            <span className="hidden rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-info sm:inline">
-                                {t('Sandbox')}
-                            </span>
                             <span className="grid size-8 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white">
                                 {initials ?? 'PA'}
                             </span>
