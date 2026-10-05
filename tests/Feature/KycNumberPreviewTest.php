@@ -125,3 +125,56 @@ it('does not store preview evidence for an invalid checksum', function () {
     expect(DirectImageUpload::findOrFail($front->id)->kyc_ocr_evidence_encrypted)->toBeNull();
     expect(KycApplication::count())->toBe(0)->and(IdentityRecord::count())->toBe(0);
 });
+
+it('isolates repeated front uploads and OCR from background traffic on web and mobile', function (string $surface) {
+    $base = 'http://a.localhost/api/'.$surface;
+    if ($surface === 'v1') {
+        $this->actingAs($this->user, 'tenant_user');
+    } else {
+        $token = $this->postJson($base.'/login', ['identifier' => $this->user->email, 'password' => 'local-password'])
+            ->assertCreated()->json('token');
+        $this->withToken($token);
+        $flow = $this->getJson($base.'/bootstrap')->assertOk()->headers->get('X-Consumer-Flow');
+        $this->withHeader('X-Consumer-Flow', $flow);
+    }
+    for ($i = 0; $i < 12; $i++) {
+        $this->getJson($base.'/unread')->assertOk();
+    }
+    for ($i = 0; $i < 5; $i++) {
+        $id = $this->postJson($base.'/images/direct', ['purpose' => 'kyc', 'field' => 'front', 'mime' => 'image/png', 'recognize_front' => true])
+            ->assertOk()->json('id');
+        $this->post($base.'/images/direct/'.$id.'/backup', ['file' => kycTestImage()])->assertNoContent();
+        $this->postJson($base.'/images/direct/'.$id.'/complete')->assertNoContent();
+        $data = ['front_upload_id' => $id, 'document_type' => 'NATIONAL_ID', 'document_country' => 'CN'];
+        $this->postJson($base.'/client/kyc/recognize-front', $data)->assertOk();
+    }
+    // Repeated recognition reuses evidence but still retains the ten-request limit.
+    for ($i = 0; $i < 5; $i++) {
+        $this->postJson($base.'/client/kyc/recognize-front', $data)->assertOk();
+    }
+    $this->postJson($base.'/client/kyc/recognize-front', $data)->assertTooManyRequests()->assertHeader('Retry-After');
+    $this->postJson($base.'/images/direct/'.$id.'/complete')->assertNoContent();
+    $this->getJson($base.'/unread')->assertOk();
+    Http::assertSentCount(5);
+    $this->travel(61)->seconds();
+    $this->postJson($base.'/client/kyc/recognize-front', $data)->assertOk();
+    Http::assertSentCount(5);
+})->with(['v1', 'mobile/v1']);
+
+it('does not share upload or preview limits between users behind the same IP', function () {
+    $base = 'http://a.localhost/api/v1';
+    $this->actingAs($this->user, 'tenant_user');
+    for ($i = 0; $i < 20; $i++) {
+        $this->postJson($base.'/images/direct', [])->assertUnprocessable();
+    }
+    $this->postJson($base.'/images/direct', [])->assertTooManyRequests();
+    for ($i = 0; $i < 10; $i++) {
+        $this->postJson($base.'/client/kyc/recognize-front', [])->assertUnprocessable();
+    }
+    $this->postJson($base.'/client/kyc/recognize-front', [])->assertTooManyRequests();
+    $other = User::create(['tenant_id' => $this->tenant->id, 'email' => 'upload-limit@example.test', 'password_hash' => bcrypt('test-password'), 'status' => 'ACTIVE']);
+    $this->actingAs($other, 'tenant_user');
+    $this->postJson($base.'/images/direct', [])->assertUnprocessable();
+    $this->postJson($base.'/client/kyc/recognize-front', [])->assertUnprocessable();
+    Http::assertNothingSent();
+});

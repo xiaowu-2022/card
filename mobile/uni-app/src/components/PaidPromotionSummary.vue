@@ -80,6 +80,11 @@ function tableHeading(label: string) {
                 :key="label"
                 >{{ tableHeading(label) }}</text
             ></view
+        ><view class="table-row">
+            <text>{{ t('Registered member') }}</text>
+            <text>{{ paid.registeredMembers?.direct ?? 0 }}</text>
+            <text>{{ paid.registeredMembers?.indirect ?? 0 }}</text>
+            <text>—</text><text>—</text> </view
         ><view v-for="row in visible" :key="row.rank"
             ><view class="table-row"
                 ><button
@@ -128,11 +133,20 @@ function tableHeading(label: string) {
                     ></view
                 ></view
             ></view
-        ><text v-if="!visible.length" class="empty muted">{{
-            t('No team members or reward records yet.')
-        }}</text
+        ><text
+            v-if="
+                !visible.length &&
+                !paid.registeredMembers?.direct &&
+                !paid.registeredMembers?.indirect
+            "
+            class="empty muted"
+            >{{ t('No team members or reward records yet.') }}</text
         ><text class="note muted">{{
-            t('Members: current level. Commission: level at the time earned.')
+            t('Members: current level. Commission: level at the time earned.') +
+            ' ' +
+            t(
+                'Deposit refunds do not reduce ordinary member counts. Becoming an agent replaces ordinary membership; after agent status ends, a new deposit payment is required.',
+            )
         }}</text
         ><button class="notes-button muted" @click="notes = !notes">
             {{ notes ? '−' : '+' }} {{ t('Statistics notes') }}</button

@@ -448,3 +448,37 @@ the fixed local route, and server subtree authorization remains mandatory.
 
 ### 2026-10-03 report day boundary correction
 Daily activity and commission report ranges bind explicit ISO-8601 offsets when comparing PostgreSQL timestamptz values. Laravel DateTime bindings otherwise omit the offset, allowing non-UTC database sessions to shift company-day boundaries. The inclusive selected dates remain start-of-first-day through exclusive start-of-next-day in the company timezone. This is a read-query correction only; no historical events, awards or Ledger entries are rewritten. Regression coverage checks 23:09 on the previous day, both selected-day edges and next midnight under UTC and UTC+8 database sessions.
+
+
+### 2026-10-05 registered versus ordinary reporting
+
+Current headcounts are mutually exclusive. Effective agents count at their current
+rank. Otherwise, a successful USDT deposit funding after the last agent grant makes
+the user ordinary; no such funding makes the user registered. Refund requests,
+completed refunds, repeated funding and later requirement changes do not erase the
+funding fact. Agent expiry/downgrade does not restore old ordinary membership: a new
+successful deposit is needed, and a subsequent refund still retains ordinary headcount.
+
+`OrdinaryMemberQuery` groups sealed `SECURITY_DEPOSIT_FUND` entries with positive
+postings to that tenant/user's USDT `USER_SECURITY_DEPOSIT` account. It compares the
+latest `posted_at` with the latest completed paid promotion order's `completed_at`
+or manual adjustment's `created_at` where `effective_rank > 0` (including restoring
+an effective paid rank). Equal timestamps favor the agent grant. Reads use a single
+request cutoff, exact tenant/user joins and aggregate subqueries, never per-user
+history loading. Uncompleted orders, top-ups, administrative credits and zero company
+requirements cannot qualify. The immutable first activation alone is insufficient,
+since an expired agent may subsequently fund again.
+
+`PaidPromotionQuery` and member-team summaries return `registeredMembers` with direct
+and indirect counts separately from `teamByLevel`/`rows` (rank zero is ordinary).
+Overall people totals include all groups. Ordinary filters exclude registered users;
+the existing member status code `inactive` is displayed as Registered member. Platform
+`ordinaryMember` uses the same history projection, with effective rank taking display
+precedence. Commission rows retain their original source ranks and beneficiary.
+
+Headcount is independent of money: refunded deposits remain in ordinary headcount
+but are absent from current deposit/stock balances. No payment eligibility, historical
+activation snapshots, awards, Ledger entries or balances are changed by this report.
+Admin and uni-app/H5 explain the counting rule. Deploy matching backend and admin/H5
+assets; native clients require rebuilding for updated copy. No migration, historical
+data correction or financial/provider operations are required.

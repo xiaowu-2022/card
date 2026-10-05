@@ -31,6 +31,7 @@ use App\Http\Controllers\User\WithdrawalController;
 use App\Http\Middleware\RequireConsumerApiGuest;
 use App\Http\Middleware\RequireConsumerApiUser;
 use App\Http\Middleware\ThrottleCardTransactionReads;
+use App\Http\Middleware\ThrottleConsumerMedia;
 use Illuminate\Support\Facades\Route;
 
 // Explicit consumer routes only. Reuse current controllers, validation, throttles and actions.
@@ -130,7 +131,7 @@ Route::middleware(['tenant.surface:end-user', RequireConsumerApiUser::class, Req
     Route::get('/about', [AboutController::class, 'index']);
     Route::get('/about/{article}', [AboutController::class, 'show'])->whereIn('article', ['terms', 'privacy', 'account-closure']);
     Route::post('/kyc/applications', [KycController::class, 'store']);
-    Route::post('/kyc/recognize-front', [KycController::class, 'recognizeFront'])->middleware('throttle:10,1');
+    Route::post('/kyc/recognize-front', [KycController::class, 'recognizeFront'])->middleware(ThrottleConsumerMedia::class.':kyc-number-preview');
     Route::post('/wallet/activate', [WalletController::class, 'activate']);
     Route::post('/wallet/top-ups', [WalletTopupController::class, 'store'])->middleware('throttle:wallet-topups');
     Route::get('/security-deposit', [SecurityDepositController::class, 'show']);

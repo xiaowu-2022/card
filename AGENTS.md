@@ -1,3 +1,15 @@
+On 2026-10-05 the user clarified promotion headcounts follow successful deposit
+funding history, not the current balance. Refund application/completion and repeated
+funding do not remove or duplicate ordinary members. Effective agents count only at
+their current rank; paid purchases/upgrades and effective manual agent grants invalidate
+older deposit evidence. After agent expiry/downgrade to rank zero, classify as registered
+until a new successful deposit funding later than the latest agent grant. Equal timestamps
+favor the agent grant. Registration/top-ups/admin balance adjustments/zero requirements
+never qualify. Share this projection across invitations/team counts, ordinary filters,
+Platform labels and uni-app/H5. Actual deposit/stock amounts still use actual money;
+payment gates, historical awards and activation snapshots remain unchanged. No migration
+or historical rewrite. See docs/architecture/PAID_PROMOTION.md.
+
 On 2026-10-05 the user requested Platform user fund flows for reconciling deposits and
 other account movements. User management's More actions opens a lazy right drawer.
 Require users.read, wallet.read and ledger.read; resolve the user within the routed

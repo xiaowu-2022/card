@@ -27,6 +27,16 @@ purpose, side, readiness, expiry, unclaimed state and original checksum. It gene
 the original URL itself; caller image URLs and numbers cannot affect recognition.
 Preview requests are throttled and concurrent calls for an upload are locked.
 
+Upload authorization (20/minute), server backup (30/minute), completion (30/minute)
+and number preview (10/minute) use separate named limits keyed by the resolved
+company and authenticated consumer user. H5 and native API requests share the same
+user's operation allowance; background requests and other users on the same IP do
+not consume it. This prevents three front-image selections (four requests each)
+from exhausting the preview limit. The existing maximum of ten unclaimed,
+unexpired upload tickets and fifteen-minute ticket lifetime remain unchanged.
+This limiter fix needs backend deployment and refreshed route cache only; no
+consumer rebuild or migration is required.
+
 Only the validated number is returned, with `Cache-Control: private, no-store`.
 The frontend displays it read-only and keeps it only in page memory. It clears the
 result on replacement, document-context changes and page exit, discards stale async

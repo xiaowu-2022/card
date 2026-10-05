@@ -13,7 +13,13 @@ export type ReportPeriod = {
     timezone: string;
     presets: Record<string, string>;
 };
-export type IncomeTotals = { total: string; annual: string; activation: string; legacy: string; commission?: string };
+export type IncomeTotals = {
+    total: string;
+    annual: string;
+    activation: string;
+    legacy: string;
+    commission?: string;
+};
 export const incomeLabels: Record<string, string> = {
     annual: 'Annual fee commission',
     activation: 'Activation commission',
@@ -75,7 +81,7 @@ export type MembershipStatus = 'agent' | 'ordinary' | 'inactive';
 export function memberStatusLabel(status: MembershipStatus, rank: number) {
     return status === 'agent'
         ? promotionLevel(rank)
-        : t(status === 'ordinary' ? 'Ordinary member' : 'Not activated');
+        : t(status === 'ordinary' ? 'Ordinary member' : 'Registered member');
 }
 
 // Presentation-only navigation memory, isolated by company and signed-in viewer.

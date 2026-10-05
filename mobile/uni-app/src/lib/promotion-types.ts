@@ -70,6 +70,7 @@ export type PaidPromotionData = {
     tables: Record<'ANNUAL' | 'ACTIVATION', { rank: number; direct: Cell; indirect: Cell }[]>;
     totals: Record<'ANNUAL' | 'ACTIVATION', string>;
     legacy: string;
+    registeredMembers?: { direct: number; indirect: number };
     teamByLevel: { rank: number; direct: number; indirect: number }[];
     directPeople: number;
     indirectPeople: number;

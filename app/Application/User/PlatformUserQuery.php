@@ -3,8 +3,10 @@
 namespace App\Application\User;
 
 use App\Application\Promotion\ManualPromotion;
+use App\Application\Promotion\OrdinaryMemberQuery;
 use App\Application\Wallet\PlatformWalletQuery;
 use Brick\Math\BigDecimal;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
@@ -13,8 +15,10 @@ final class PlatformUserQuery
 {
     public function paginate(?string $company, ?string $search, ?string $status, array $financialAccess = []): LengthAwarePaginator
     {
+        $at = CarbonImmutable::now();
         // Platform-only aggregate. Profile ownership matches both company and user.
         $page = DB::table('users as u')->join('tenants as t', 't.id', '=', 'u.tenant_id')
+            ->leftJoinSub(app(OrdinaryMemberQuery::class)->users($company, $at), 'ordinary', fn ($j) => $j->on('ordinary.user_id', '=', 'u.id')->on('ordinary.tenant_id', '=', 'u.tenant_id'))
             ->leftJoin('user_profiles as p', fn ($join) => $join->on('p.user_id', '=', 'u.id')->on('p.tenant_id', '=', 'u.tenant_id'))
             ->when($company, fn ($q) => $q->where('u.tenant_id', $company))
             ->when($status, fn ($q) => $q->where('u.status', $status))
@@ -24,6 +28,7 @@ final class PlatformUserQuery
                     ->orWhere('p.display_name', 'ilike', $pattern);
             }))
             ->select(['u.id', 'u.tenant_id', 't.name as company_name', 'u.account_id', 'p.display_name', 'u.email', 'u.status', 'u.created_at', 'u.last_login_at'])
+            ->selectRaw('ordinary.user_id IS NOT NULL AS ordinary_member')
             ->when($financialAccess['balances'] ?? false, fn ($q) => $q
                 ->selectSub($this->balance('USER_AVAILABLE'), 'available_balance')
                 ->selectSub($this->balance('USER_SECURITY_DEPOSIT'), 'security_deposit'))
@@ -38,7 +43,8 @@ final class PlatformUserQuery
         return $page->through(fn ($row): array => [
             'id' => $row->id, 'companyId' => $row->tenant_id, 'companyName' => $row->company_name,
             'accountId' => $row->account_id, 'displayName' => $row->display_name,
-            'email' => $row->email, 'promotionRank' => app(ManualPromotion::class)->benefit($row->tenant_id, $row->id)?->rank ?? 0, 'status' => $row->status,
+            'ordinaryMember' => (bool) $row->ordinary_member,
+            'email' => $row->email, 'promotionRank' => app(ManualPromotion::class)->benefit($row->tenant_id, $row->id, $at)?->rank ?? 0, 'status' => $row->status,
             'createdAt' => $row->created_at, 'lastLoginAt' => $row->last_login_at,
         ] + (($financialAccess['balances'] ?? false) ? [
             'wallets' => $wallets[$row->id] ?? [],

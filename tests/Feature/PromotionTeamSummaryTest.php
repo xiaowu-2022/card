@@ -2,11 +2,15 @@
 
 use App\Application\Kyc\ApproveKycAction;
 use App\Application\Kyc\SubmitKycApplicationAction;
+use App\Application\Promotion\ManualPromotion;
+use App\Application\Promotion\OrdinaryMemberQuery;
 use App\Application\Promotion\PaidPromotionPurchase;
+use App\Application\Promotion\PaidPromotionQuery;
 use App\Application\Promotion\PromotionMembershipAction;
 use App\Application\Promotion\PromotionReportQuery;
 use App\Application\SecurityDeposit\FundSecurityDepositAction;
 use App\Application\SecurityDeposit\RefundSecurityDepositAction;
+use App\Application\User\PlatformUserQuery;
 use App\Application\Wallet\ActivateUserWalletAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
@@ -20,6 +24,7 @@ use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Promotion\Models\PromotionMember;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -104,11 +109,11 @@ it('lists every descendant once with filtered totals stable pagination and relat
     expect($all->pluck('id')->unique())->toHaveCount(23);
     expect($all->firstWhere('accountId', $child->account_id)['relation'])->toBe('direct')
         ->and($all->firstWhere('accountId', $deep->account_id)['relation'])->toBe('indirect');
-    $filtered = $this->query->members($this->tenant->id, $this->user->id, ['account_id' => $deep->account_id, 'funding' => 'unfunded', 'rank' => '0']);
+    $filtered = $this->query->members($this->tenant->id, $this->user->id, ['account_id' => $deep->account_id, 'funding' => 'unfunded']);
     expect($filtered['total'])->toBe(1)->and($filtered['items'][0]['id'])->toBe(teamSummaryMember($deep));
     expect($this->query->members($this->tenant->id, $this->user->id, ['funding' => 'funded'])['total'])->toBe(0);
     $summary = $this->query->memberTeam($this->tenant->id, $this->user->id, teamSummaryMember($child));
-    expect($summary['totalMembers'])->toBe(2)->and($summary['rows'][0])->toMatchArray(['rank' => 0, 'direct' => 1, 'indirect' => 1, 'annual' => '0.00000000', 'activation' => '0.00000000']);
+    expect($summary['registeredMembers'])->toBe(['direct' => 1, 'indirect' => 1])->and($summary['totalMembers'])->toBe(2)->and($summary['rows'][0])->toMatchArray(['rank' => 0, 'direct' => 0, 'indirect' => 0, 'annual' => '0.00000000', 'activation' => '0.00000000']);
     expect($this->query->memberTeam($this->tenant->id, $this->user->id, teamSummaryMember($deep))['totalMembers'])->toBe(0);
     Http::assertNothingSent();
 });
@@ -153,7 +158,7 @@ it('groups viewer-only posted commissions by historical source rank while counti
     expect($rows[0]['annual'])->toBe('0.00000000')->and($rows[1]['activation'])->toBe('0.00000000');
     $this->travel(367)->days();
     $expired = collect($this->query->memberTeam($this->tenant->id, $this->user->id, teamSummaryMember($child))['rows'])->keyBy('rank');
-    expect($expired[0]['direct'])->toBe(1)->and($expired[1]['direct'])->toBe(0)
+    expect($expired[0]['direct'])->toBe(0)->and($expired[1]['direct'])->toBe(0)
         ->and($expired[0]['activation'])->toBe($rows[0]['activation'])->and($expired[1]['annual'])->toBe($rows[1]['annual']);
     expect(DB::table('ledger_entries')->count())->toBe($before);
     DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
@@ -302,25 +307,37 @@ it('projects current membership qualification without rewriting activation or mo
         ->and($rows[$agent->account_id]['rank'])->toBe(1)
         ->and($rows[$agent->account_id]['depositAmount'])->toBe('0.000000000000000000')
         ->and($snapshot())->toBe($before);
-    // The same balance becomes insufficient after the company raises its requirement.
+    $summary = app(PaidPromotionQuery::class)->execute($this->tenant->id, $this->user->id);
+    expect($summary['registeredMembers'])->toBe(['direct' => 1, 'indirect' => 0])
+        ->and($summary['teamByLevel'][0]['direct'])->toBe(1)
+        ->and($summary['teamByLevel'][1]['direct'])->toBe(1)
+        ->and($summary['directPeople'])->toBe(3);
+    $filtered = $this->query->members($this->tenant->id, $this->user->id, ['rank' => '0']);
+    expect(array_column($filtered['items'], 'accountId'))->toBe([$ordinary->account_id]);
+    $platform = app(PlatformUserQuery::class)->paginate($this->tenant->id, null, null)->getCollection()->keyBy('id');
+    expect($platform[$inactive->id]['ordinaryMember'])->toBeFalse()
+        ->and($platform[$ordinary->id]['ordinaryMember'])->toBeTrue()
+        ->and($platform[$agent->id]['promotionRank'])->toBe(1)
+        ->and($snapshot())->toBe($before);
+    // A later policy change does not erase successful membership funding history.
     $this->tenant->businessSettings()->update(['required_security_deposit_amount' => '100']);
     $row = $this->query->members($this->tenant->id, $this->user->id, ['account_id' => $ordinary->account_id])['items'][0];
-    expect($row['membershipStatus'])->toBe('inactive')->and($snapshot())->toBe($before);
+    expect($row['membershipStatus'])->toBe('ordinary')->and($snapshot())->toBe($before);
     $this->tenant->businessSettings()->update(['required_security_deposit_amount' => '50', 'security_deposit_refund_wait_days' => 0]);
     $refunds = app(RefundSecurityDepositAction::class);
     $refund = $refunds->request($this->tenant->id, $ordinary->id, (string) Str::uuid());
     $refunds->settle($this->tenant->id, $ordinary->id, $refund->id);
     $before = $snapshot();
     $row = $this->query->members($this->tenant->id, $this->user->id, ['account_id' => $ordinary->account_id])['items'][0];
-    expect($row['membershipStatus'])->toBe('inactive')
+    expect($row['membershipStatus'])->toBe('ordinary')
         ->and(DB::table('account_activations')->where('user_id', $ordinary->id)->exists())->toBeTrue()
         ->and($snapshot())->toBe($before);
     $this->travel(367)->days();
     $row = $this->query->members($this->tenant->id, $this->user->id, ['account_id' => $agent->account_id])['items'][0];
     expect($row['membershipStatus'])->toBe('inactive')->and($row['rank'])->toBe(0)->and($snapshot())->toBe($before);
-    // Reporting follows the existing zero-requirement rule rather than inventing a positive-balance gate.
+    // Reporting still requires an actual deposit when the configured requirement is zero.
     $this->tenant->businessSettings()->update(['required_security_deposit_amount' => '0']);
-    expect($this->query->members($this->tenant->id, $this->user->id, ['account_id' => $inactive->account_id])['items'][0]['membershipStatus'])->toBe('ordinary');
+    expect($this->query->members($this->tenant->id, $this->user->id, ['account_id' => $inactive->account_id])['items'][0]['membershipStatus'])->toBe('inactive');
     Http::assertNothingSent();
 });
 
@@ -335,7 +352,7 @@ it('batches complete per-member team sizes independently of list filters and exc
     $before = DB::table('ledger_entries')->count();
     $rows = collect($this->query->members($this->tenant->id, $this->user->id, [])['items'])->keyBy('accountId');
     expect($rows[$a->account_id]['teamSize'])->toBe(2)->and($rows[$sibling->account_id]['teamSize'])->toBe(1);
-    $filtered = $this->query->members($this->tenant->id, $this->user->id, ['account_id' => $a->account_id, 'rank' => '0', 'funding' => 'unfunded']);
+    $filtered = $this->query->members($this->tenant->id, $this->user->id, ['account_id' => $a->account_id, 'funding' => 'unfunded']);
     expect($filtered['total'])->toBe(1)->and($filtered['items'][0]['teamSize'])->toBe(2);
     $descendants = $this->query->members($this->tenant->id, $this->user->id, ['subject' => teamSummaryMember($a)]);
     expect($descendants['items'][0]['accountId'])->toBe($b->account_id)->and($descendants['items'][0]['teamSize'])->toBe(1);
@@ -344,5 +361,123 @@ it('batches complete per-member team sizes independently of list filters and exc
     $summary = $this->query->memberTeam($this->tenant->id, $this->user->id, teamSummaryMember($a));
     expect($filtered['items'][0]['teamSize'])->toBe($summary['totalMembers']);
     expect(DB::table('ledger_entries')->count())->toBe($before);
+    Http::assertNothingSent();
+});
+
+it('retains direct and indirect ordinary members through refunds but requires new funding after agent expiry', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-05 00:00:00 UTC'));
+    $this->tenant->businessSettings()->update(['security_deposit_refund_wait_days' => 0]);
+    $direct = teamSummaryChild($this->user);
+    $indirect = teamSummaryChild($direct);
+    $registered = teamSummaryChild($this->user);
+    foreach ([$direct, $indirect, $registered] as $member) {
+        teamSummaryFundWallet($this, $member);
+    }
+    $paid = app(PaidPromotionQuery::class);
+    $report = fn () => $paid->execute($this->tenant->id, $this->user->id);
+    $assertCounts = function (int $ordinaryDirect, int $ordinaryIndirect, int $registeredDirect, int $registeredIndirect, int $agentRank = 0) use ($report): void {
+        $before = [DB::table('ledger_entries')->count(), DB::table('ledger_accounts')->orderBy('id')->get(['id', 'balance'])->toJson(), DB::table('account_activations')->orderBy('id')->get()->toJson(), DB::table('paid_promotion_shares')->orderBy('id')->get()->toJson()];
+        $data = $report();
+        expect($data['teamByLevel'][0])->toBe(['rank' => 0, 'direct' => $ordinaryDirect, 'indirect' => $ordinaryIndirect])
+            ->and($data['registeredMembers'])->toBe(['direct' => $registeredDirect, 'indirect' => $registeredIndirect])
+            ->and($data['directPeople'])->toBe(2)->and($data['indirectPeople'])->toBe(1)
+            ->and(array_sum(array_column($data['teamByLevel'], 'direct')) + $registeredDirect)->toBe(2)
+            ->and(array_sum(array_column($data['teamByLevel'], 'indirect')) + $registeredIndirect)->toBe(1);
+        if ($agentRank > 0) {
+            expect($data['teamByLevel'][$agentRank]['direct'])->toBe(1);
+        }
+        expect([DB::table('ledger_entries')->count(), DB::table('ledger_accounts')->orderBy('id')->get(['id', 'balance'])->toJson(), DB::table('account_activations')->orderBy('id')->get()->toJson(), DB::table('paid_promotion_shares')->orderBy('id')->get()->toJson()])->toBe($before);
+    };
+    $assertCounts(0, 0, 2, 1); // Top-ups alone are not deposit funding.
+    $fund = app(FundSecurityDepositAction::class);
+    $refunds = app(RefundSecurityDepositAction::class);
+    $this->travel(1)->minutes();
+    foreach ([$direct, $indirect] as $member) {
+        $fund->execute($this->tenant->id, $member->id, (string) Str::uuid(), '50');
+    }
+    $assertCounts(1, 1, 1, 0);
+    $historical = $report()['tables'];
+    $historicalTotals = $report()['totals'];
+    foreach ([$direct, $indirect] as $member) {
+        $refund = $refunds->request($this->tenant->id, $member->id, (string) Str::uuid());
+        $assertCounts(1, 1, 1, 0); // Pending refund does not change headcounts.
+        $refunds->settle($this->tenant->id, $member->id, $refund->id);
+    }
+    $assertCounts(1, 1, 1, 0);
+    expect($report()['tables'])->toBe($historical)
+        ->and(LedgerAccount::where('tenant_id', $this->tenant->id)->whereIn('user_id', [$direct->id, $indirect->id])->where('account_type', 'USER_SECURITY_DEPOSIT')->sum('balance'))->toEqual(0);
+    $team = $this->query->memberTeam($this->tenant->id, $this->user->id, teamSummaryMember($direct));
+    expect($team['rows'][0]['direct'])->toBe(1)->and($team['registeredMembers']['direct'])->toBe(0);
+    $this->travel(1)->minutes();
+    $request = (string) Str::uuid();
+    $fund->execute($this->tenant->id, $indirect->id, $request, '50');
+    $fund->execute($this->tenant->id, $indirect->id, $request, '50');
+    $assertCounts(1, 1, 1, 0);
+    expect($report()['totals'])->toBe($historicalTotals); // Re-funding may add a zero award record, never another paid commission.
+    $level = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->where('rank', 1)->value('id');
+    app(PaidPromotionPurchase::class)->quote($this->tenant->id, $direct->id, $level, (string) Str::uuid());
+    $assertCounts(1, 1, 1, 0); // An uncompleted quote must not invalidate deposit history.
+    $this->travel(1)->minutes();
+    teamSummaryBuy($this, $direct, 1);
+    $assertCounts(0, 1, 1, 0, 1);
+    $this->travel(1)->minutes();
+    teamSummaryBuy($this, $direct, 2);
+    $assertCounts(0, 1, 1, 0, 2);
+    expect($report()['teamByLevel'][1]['direct'])->toBe(0);
+    $beforeExpiry = $report()['tables'];
+    $this->travel(367)->days();
+    $assertCounts(0, 1, 2, 0);
+    expect($report()['tables'])->toBe($beforeExpiry);
+    $fund->execute($this->tenant->id, $direct->id, (string) Str::uuid(), '50');
+    $assertCounts(1, 1, 1, 0);
+    $refund = $refunds->request($this->tenant->id, $direct->id, (string) Str::uuid());
+    $refunds->settle($this->tenant->id, $direct->id, $refund->id);
+    $assertCounts(1, 1, 1, 0);
+    $platform = app(PlatformUserQuery::class)->paginate(null, $direct->account_id, null)->items()[0];
+    expect($platform['ordinaryMember'])->toBeTrue()->and($platform['promotionRank'])->toBe(0);
+    $foreign = Tenant::where('slug', 'tenant-b')->firstOrFail();
+    expect(app(OrdinaryMemberQuery::class)->users($foreign->id)->where('funded.user_id', $direct->id)->exists())->toBeFalse();
+    Http::assertNothingSent();
+});
+
+it('invalidates old deposits on manual agent grants including paid-rule restoration and timestamp ties', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-05 00:00:00 UTC'));
+    $this->tenant->businessSettings()->update(['security_deposit_refund_wait_days' => 0]);
+    $child = teamSummaryChild($this->user);
+    teamSummaryFundWallet($this, $child);
+    $fund = app(FundSecurityDepositAction::class);
+    $refunds = app(RefundSecurityDepositAction::class);
+    $manual = app(ManualPromotion::class);
+    $owner = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $rank1 = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->where('rank', 1)->value('id');
+    $ordinary = fn () => app(OrdinaryMemberQuery::class)->users($this->tenant->id)->where('funded.user_id', $child->id)->exists();
+    $fund->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
+    $refund = $refunds->request($this->tenant->id, $child->id, (string) Str::uuid());
+    $refunds->settle($this->tenant->id, $child->id, $refund->id);
+    expect($ordinary())->toBeTrue();
+    // Exactly equal stored timestamps: even after downgrade, the old deposit loses.
+    $grant = $manual->adjust($this->tenant->id, $child->id, $owner, $rank1, 'Test grant', (string) Str::uuid(), null);
+    $down = $manual->adjust($this->tenant->id, $child->id, $owner, 'ordinary', 'Test downgrade', (string) Str::uuid(), $grant->id);
+    expect($ordinary())->toBeFalse()
+        ->and($this->query->members($this->tenant->id, $this->user->id, [])['items'][0]['membershipStatus'])->toBe('inactive');
+    $this->travel(1)->minutes();
+    $fund->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
+    expect($ordinary())->toBeTrue();
+    $refund = $refunds->request($this->tenant->id, $child->id, (string) Str::uuid());
+    $refunds->settle($this->tenant->id, $child->id, $refund->id);
+    expect($ordinary())->toBeTrue();
+    $reset = $manual->adjust($this->tenant->id, $child->id, $owner, 'paid', 'Restore no paid cycle', (string) Str::uuid(), $down->id);
+    expect($ordinary())->toBeTrue(); // Restoring rank zero is not becoming an agent.
+    $this->travel(1)->minutes();
+    teamSummaryBuy($this, $child, 1);
+    $this->travel(1)->minutes();
+    $down = $manual->adjust($this->tenant->id, $child->id, $owner, 'ordinary', 'Hide paid rank', (string) Str::uuid(), $reset->id);
+    expect($ordinary())->toBeFalse();
+    $fund->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
+    expect($ordinary())->toBeTrue();
+    $this->travel(1)->minutes();
+    $restore = $manual->adjust($this->tenant->id, $child->id, $owner, 'paid', 'Restore effective paid rank', (string) Str::uuid(), $down->id);
+    $manual->adjust($this->tenant->id, $child->id, $owner, 'ordinary', 'Downgrade again', (string) Str::uuid(), $restore->id);
+    expect($ordinary())->toBeFalse(); // Effective rank on restoration invalidates newer funding too.
     Http::assertNothingSent();
 });

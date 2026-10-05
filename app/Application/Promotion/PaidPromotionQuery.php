@@ -82,6 +82,8 @@ final readonly class PaidPromotionQuery
         }
         $legacy = CommissionAward::query()->where('tenant_id', $tenant)->where('user_id', $user)->whereNotExists(fn ($q) => $q->selectRaw('1')->from('paid_promotion_shares as s')->whereColumn('s.id', 'commission_awards.id')->whereColumn('s.tenant_id', 'commission_awards.tenant_id'))->sum('amount');
         $effective = app(ManualPromotion::class)->query($tenant, $at);
+        $ordinary = app(OrdinaryMemberQuery::class)->users($tenant, $at);
+        $rankSql = 'CASE WHEN active.rank > 0 THEN active.rank WHEN ordinary.user_id IS NOT NULL THEN 0 ELSE -1 END';
         $team = collect(DB::select(<<<SQL
           WITH RECURSIVE team AS (
             SELECT c.id,c.user_id,1 AS depth FROM promotion_members p
@@ -91,13 +93,15 @@ final readonly class PaidPromotionQuery
             SELECT c.id,c.user_id,t.depth+1 FROM promotion_members c
               JOIN team t ON c.inviter_id=t.id WHERE c.tenant_id=?
           )
-          SELECT COALESCE(active.rank,0) AS rank,
+          SELECT {$rankSql} AS rank,
             COUNT(*) FILTER (WHERE team.depth=1) AS direct,
             COUNT(*) FILTER (WHERE team.depth>1) AS indirect
           FROM team
           LEFT JOIN ({$effective->toSql()}) active ON active.user_id=team.user_id
-          GROUP BY COALESCE(active.rank,0)
-          SQL, [$tenant, $user, $tenant, ...$effective->getBindings()]))->keyBy('rank');
+          LEFT JOIN ({$ordinary->toSql()}) ordinary ON ordinary.user_id=team.user_id
+          GROUP BY {$rankSql}
+          SQL, [$tenant, $user, $tenant, ...$effective->getBindings(), ...$ordinary->getBindings()]))->keyBy('rank');
+        $registeredMembers = ['direct' => (int) ($team->get(-1)?->direct ?? 0), 'indirect' => (int) ($team->get(-1)?->indirect ?? 0)];
         $teamByLevel = collect(PromotionRanks::forTenant($tenant))->map(fn ($rank) => [
             'rank' => $rank, 'direct' => (int) ($team->get($rank)?->direct ?? 0),
             'indirect' => (int) ($team->get($rank)?->indirect ?? 0),
@@ -116,7 +120,9 @@ final readonly class PaidPromotionQuery
             'progress' => $progress, 'pending' => $cycle && DB::table('paid_promotion_rebates')->where('tenant_id', $tenant)->where('user_id', $user)->where('cycle_id', $cycle->id)->where('status', 'PENDING')->exists(),
             'claimsPage' => $claimsPage, 'hasMoreClaims' => $claims->count() > 30,
             'claims' => $claims->take(30)->map(fn ($r) => $this->claim($r))->all(), 'tables' => $tables, 'totals' => $totals, 'legacy' => (string) $legacy,
-            'teamByLevel' => $teamByLevel, 'directPeople' => array_sum(array_column($teamByLevel, 'direct')), 'indirectPeople' => array_sum(array_column($teamByLevel, 'indirect'))];
+            'teamByLevel' => $teamByLevel, 'registeredMembers' => $registeredMembers,
+            'directPeople' => $registeredMembers['direct'] + array_sum(array_column($teamByLevel, 'direct')),
+            'indirectPeople' => $registeredMembers['indirect'] + array_sum(array_column($teamByLevel, 'indirect'))];
     }
 
     public function details(string $tenant, string $user, string $kind, int $rank, int $page): array

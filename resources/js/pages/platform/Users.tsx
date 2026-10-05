@@ -30,6 +30,7 @@ type User = {
     companyName: string;
     companyId: string;
     promotionRank: number;
+    ordinaryMember: boolean;
     accountId: string;
     displayName: string | null;
     email: string | null;
@@ -135,7 +136,7 @@ export default function Users({
                                         </span>
                                         <span aria-hidden="true">·</span>
                                         <span className="shrink-0 font-normal tabular-nums">
-                                            ID: {row.accountId}
+                                            {t('Account ID')}: {row.accountId}
                                         </span>
                                     </div>
                                 </div>
@@ -152,7 +153,11 @@ export default function Users({
                                         ? t('Mastercard level {{rank}}', {
                                               rank: row.promotionRank,
                                           })
-                                        : t('Ordinary member')}
+                                        : t(
+                                              row.ordinaryMember
+                                                  ? 'Ordinary member'
+                                                  : 'Registered member',
+                                          )}
                                 </Link>
                             ),
                         },

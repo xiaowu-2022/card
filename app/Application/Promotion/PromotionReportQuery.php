@@ -205,7 +205,7 @@ final class PromotionReportQuery
                 CASE WHEN o.previous_tariff>0 THEN 'upgrade' WHEN EXISTS(SELECT 1 FROM paid_promotion_cycles prior
                   WHERE prior.tenant_id=o.tenant_id AND prior.user_id=o.user_id AND prior.id<>o.cycle_id AND prior.ends_at<=o.completed_at)
                   THEN 'renewal' ELSE 'purchase' END AS purchase_kind");
-        $manual = $this->income($tenant, $user)->whereNull('source_user_id')->selectRaw("id,kind,NULL::text AS account_id,NULL::integer AS depth,NULL::integer AS source_rank,NULL::numeric AS source_amount,amount AS commission,occurred_at AS posted_at,occurred_at,false AS first_funding,NULL::text AS purchase_kind");
+        $manual = $this->income($tenant, $user)->whereNull('source_user_id')->selectRaw('id,kind,NULL::text AS account_id,NULL::integer AS depth,NULL::integer AS source_rank,NULL::numeric AS source_amount,amount AS commission,occurred_at AS posted_at,occurred_at,false AS first_funding,NULL::text AS purchase_kind');
         $movements = $this->period(DB::query()->fromSub($invites->unionAll($funds)->unionAll($annual)->unionAll($manual), 'movements'), $context);
         $counts = (clone $movements)->selectRaw("COUNT(*) FILTER (WHERE kind='invitation') AS invited,
             COUNT(*) FILTER (WHERE kind='activation' AND account_id IS NOT NULL) AS funded,COUNT(*) FILTER (WHERE kind='annual' AND account_id IS NOT NULL) AS orders")->first();
@@ -233,10 +233,6 @@ final class PromotionReportQuery
         $counts = DB::query()->fromSub(clone $team, 't')
             ->selectRaw('COUNT(*) FILTER (WHERE depth=1) AS direct,COUNT(*) AS total')->first();
         $context = $this->context($tenant, $user, []);
-        $policy = DB::table('tenants as tenant')->join('tenant_business_settings as settings', 'settings.tenant_id', '=', 'tenant.id')
-            ->where('tenant.id', $tenant)->select('tenant.default_asset', 'settings.required_security_deposit_asset', 'settings.required_security_deposit_amount')->first();
-        $depositSupported = $policy !== null && $policy->default_asset === 'USDT' && $policy->required_security_deposit_asset === 'USDT';
-        $depositRequired = Money::of($policy?->required_security_deposit_amount ?? '0', 'USDT');
         $at = CarbonImmutable::now();
         $cycles = app(ManualPromotion::class)->query($tenant, $at);
         $income = $this->income($tenant, $user)->selectRaw("source_user_id,SUM(amount)::text AS total,
@@ -247,6 +243,7 @@ final class PromotionReportQuery
             ->join('users as u', fn ($j) => $j->on('u.id', '=', 'm.user_id')->on('u.tenant_id', '=', 'm.tenant_id'))
             ->leftJoin('user_profiles as profile', fn ($j) => $j->on('profile.user_id', '=', 'u.id')->on('profile.tenant_id', '=', 'u.tenant_id'))
             ->leftJoinSub($cycles, 'c', 'c.user_id', '=', 'm.user_id')
+            ->leftJoinSub(app(OrdinaryMemberQuery::class)->users($tenant, $at), 'ordinary', 'ordinary.user_id', '=', 'm.user_id')
             ->leftJoinSub($income, 'i', 'i.source_user_id', '=', 'm.user_id')
             ->leftJoin('ledger_accounts as d', fn ($j) => $j->on('d.user_id', '=', 'm.user_id')->on('d.tenant_id', '=', 'm.tenant_id')->where('d.account_type', 'USER_SECURITY_DEPOSIT')->where('d.asset_code', 'USDT'))
             ->where('m.tenant_id', $tenant);
@@ -258,6 +255,9 @@ final class PromotionReportQuery
         }
         if (($filters['rank'] ?? 'all') !== 'all') {
             $query->whereRaw('COALESCE(c.rank,0)=?', [(int) $filters['rank']]);
+            if ((int) $filters['rank'] === 0) {
+                $query->whereNotNull('ordinary.user_id');
+            }
         }
         match ($filters['funding'] ?? 'all') {
             'funded' => $query->where('d.balance', '>', 0),
@@ -274,7 +274,7 @@ final class PromotionReportQuery
             default => $query->orderByDesc('u.created_at'),
         };
         $rows = $query->selectRaw("m.id,t.depth,u.account_id,u.email,profile.display_name,COALESCE(c.rank,0) AS rank,c.ends_at,m.created_at,
-            COALESCE(d.balance,0)::text AS deposit_amount,COALESCE(i.total,'0') AS total,COALESCE(i.annual,'0') AS annual,
+            ordinary.user_id IS NOT NULL AS ordinary_member,COALESCE(d.balance,0)::text AS deposit_amount,COALESCE(i.total,'0') AS total,COALESCE(i.annual,'0') AS annual,
             COALESCE(i.activation,'0') AS activation,COALESCE(i.legacy,'0') AS legacy")
             ->orderBy('m.id')->offset(($page - 1) * 20)->limit(21)->get();
 
@@ -299,7 +299,7 @@ final class PromotionReportQuery
                 'relation' => $r->depth === 1 ? 'direct' : 'indirect', 'displayName' => $r->display_name, 'maskedEmail' => $r->email ? $this->masker->mask(RegistrationChannel::Email, $r->email) : null,
                 'joinedAt' => $r->created_at, 'depositAmount' => $r->deposit_amount,
                 'teamSize' => (int) ($teamCounts->get($r->id)?->total ?? 0),
-                'membershipStatus' => $r->rank > 0 ? 'agent' : (AccountActivationStatus::depositSatisfied($depositSupported, Money::of($r->deposit_amount, 'USDT'), $depositRequired) ? 'ordinary' : 'inactive'),
+                'membershipStatus' => $r->rank > 0 ? 'agent' : ($r->ordinary_member ? 'ordinary' : 'inactive'),
                 'totals' => ['total' => $r->total, 'annual' => $r->annual, 'activation' => $r->activation, 'legacy' => $r->legacy]])->all()];
     }
 
@@ -312,9 +312,12 @@ final class PromotionReportQuery
         $team = $this->team($tenant, $target->user_id);
         $at = CarbonImmutable::now();
         $cycles = app(ManualPromotion::class)->query($tenant, $at);
+        $rankSql = 'CASE WHEN c.rank > 0 THEN c.rank WHEN ordinary.user_id IS NOT NULL THEN 0 ELSE -1 END';
         $people = DB::query()->fromSub(clone $team, 't')->leftJoinSub($cycles, 'c', 'c.user_id', '=', 't.user_id')
-            ->selectRaw('COALESCE(c.rank,0) AS rank,COUNT(*) FILTER (WHERE t.depth=1) AS direct,COUNT(*) FILTER (WHERE t.depth>1) AS indirect')
-            ->groupByRaw('COALESCE(c.rank,0)')->get()->keyBy('rank');
+            ->leftJoinSub(app(OrdinaryMemberQuery::class)->users($tenant, $at), 'ordinary', 'ordinary.user_id', '=', 't.user_id')
+            ->selectRaw($rankSql.' AS rank,COUNT(*) FILTER (WHERE t.depth=1) AS direct,COUNT(*) FILTER (WHERE t.depth>1) AS indirect')
+            ->groupByRaw($rankSql)->get()->keyBy('rank');
+        $registeredMembers = ['direct' => (int) ($people->get(-1)?->direct ?? 0), 'indirect' => (int) ($people->get(-1)?->indirect ?? 0)];
         $income = $this->income($tenant, $viewer)->joinSub(clone $team, 't', 't.user_id', '=', 'income.source_user_id')
             ->whereIn('income.kind', ['annual', 'activation'])
             ->selectRaw("income.source_rank AS rank,COALESCE(SUM(income.amount) FILTER (WHERE income.kind='annual'),0)::text AS annual,
@@ -326,6 +329,6 @@ final class PromotionReportQuery
             'activation' => Money::of($income->get($rank)?->activation ?? '0', 'USDT')->amount(),
         ])->all();
 
-        return ['totalMembers' => array_sum(array_column($rows, 'direct')) + array_sum(array_column($rows, 'indirect')), 'rows' => $rows];
+        return ['totalMembers' => array_sum($registeredMembers) + array_sum(array_column($rows, 'direct')) + array_sum(array_column($rows, 'indirect')), 'registeredMembers' => $registeredMembers, 'rows' => $rows];
     }
 }

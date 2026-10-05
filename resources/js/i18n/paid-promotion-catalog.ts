@@ -1,4 +1,11 @@
 export const paidPromotionCatalog = {
+    'Registered member': ['注册会员', 'Ahli berdaftar', 'Miembro registrado'],
+    'Deposit refunds do not reduce ordinary member counts. Becoming an agent replaces ordinary membership; after agent status ends, a new deposit payment is required.':
+        [
+            '退保证金不扣普通会员人数；升级代理后计入代理，到期或降为无代理等级后须重新缴纳保证金才能计入普通会员。',
+            'Bayaran balik deposit tidak mengurangkan bilangan ahli biasa. Apabila menjadi ejen, ahli dikira sebagai ejen sahaja; selepas status ejen tamat, deposit perlu dibayar semula.',
+            'El reembolso del depósito no reduce el número de miembros ordinarios. Al convertirse en agente se cuenta solo como agente; al finalizar ese estado, debe pagar un nuevo depósito.',
+        ],
     'Member sorting': ['成员排序', 'Susunan ahli', 'Orden de miembros'],
     'Registration: newest first': [
         '注册时间：由新到旧',

@@ -311,8 +311,9 @@ it('enforces HTTP ownership and platform scope while removing manual rebate endp
     $this->postJson('http://a.localhost/promotion/quotes/'.$order->id.'/confirm', ['current_password' => 'wrong', 'confirmed' => true])->assertUnprocessable();
     $this->actingAs($other, 'tenant_user')->get('http://b.localhost/promotion/membership?order='.$order->id)->assertNotFound();
     $base = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/configuration/paid-promotion';
-    $this->actingAs($this->platform, 'platform_admin')->get($base)->assertOk();
-    $this->get(str_replace('/paid-promotion', '/promotion', $base))->assertOk()->assertInertia(fn ($page) => $page->component('platform/PaidPromotion')->has('paid.levels')->missing('promotion.members'));
+    $this->actingAs($this->platform, 'platform_admin')->get($base)->assertRedirect('/platform/company-configurations?'.http_build_query(['editor' => parse_url($base, PHP_URL_PATH)]));
+    $this->get($base, ['X-Admin-Dialog' => '1'])->assertOk();
+    $this->get(str_replace('/paid-promotion', '/promotion', $base), ['X-Admin-Dialog' => '1'])->assertOk()->assertInertia(fn ($page) => $page->component('platform/PaidPromotion')->has('paid.levels')->missing('promotion.members'));
     $level = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->first();
     $this->postJson($base.'/levels/'.$level->id, ['fee' => $level->fee, 'reward' => $level->reward, 'percent' => $level->percent, 'target' => $level->target, 'enabled' => true, 'revision' => $level->revision])->assertRedirect()->assertSessionHasNoErrors();
     $this->postJson($base.'/rebates/'.Str::uuid(), ['decision' => 'approve', 'confirmed' => true])->assertNotFound();
@@ -425,16 +426,19 @@ it('groups current team levels at one boundary without regrouping historical rew
     paidChild($this, $this->user);
     $query = app(PaidPromotionQuery::class);
     $ordinary = $query->execute($this->tenant->id, $this->user->id);
-    expect($ordinary['teamByLevel'][0])->toBe(['rank' => 0, 'direct' => 2, 'indirect' => 0])
+    expect($ordinary['teamByLevel'][0])->toBe(['rank' => 0, 'direct' => 0, 'indirect' => 0])
+        ->and($ordinary['registeredMembers'])->toBe(['direct' => 2, 'indirect' => 0])
         ->and($ordinary['directPeople'])->toBe(2);
     paidBuy($this, $direct, 1);
     $firstUpgrade = $query->execute($this->tenant->id, $this->user->id);
-    expect($firstUpgrade['teamByLevel'][0]['direct'])->toBe(1)
+    expect($firstUpgrade['teamByLevel'][0]['direct'])->toBe(0)
+        ->and($firstUpgrade['registeredMembers']['direct'])->toBe(1)
         ->and($firstUpgrade['teamByLevel'][1]['direct'])->toBe(1)
         ->and($firstUpgrade['directPeople'])->toBe(2);
     $indirect = paidChild($this, $direct);
     $ordinaryIndirect = $query->execute($this->tenant->id, $this->user->id);
-    expect($ordinaryIndirect['teamByLevel'][0]['indirect'])->toBe(1)
+    expect($ordinaryIndirect['teamByLevel'][0]['indirect'])->toBe(0)
+        ->and($ordinaryIndirect['registeredMembers']['indirect'])->toBe(1)
         ->and($ordinaryIndirect['indirectPeople'])->toBe(1);
     $lastOrder = paidBuy($this, $indirect, 2);
     $indirectUpgrade = $query->execute($this->tenant->id, $this->user->id);
@@ -446,7 +450,8 @@ it('groups current team levels at one boundary without regrouping historical rew
     expect($before['teamByLevel'])->toHaveCount(9)
         ->and($before['directPeople'])->toBe(2)
         ->and($before['indirectPeople'])->toBe(2)
-        ->and($before['teamByLevel'][0])->toBe(['rank' => 0, 'direct' => 1, 'indirect' => 1])
+        ->and($before['teamByLevel'][0])->toBe(['rank' => 0, 'direct' => 0, 'indirect' => 0])
+        ->and($before['registeredMembers'])->toBe(['direct' => 1, 'indirect' => 1])
         ->and($before['teamByLevel'][1]['direct'])->toBe(1)
         ->and($before['teamByLevel'][2]['indirect'])->toBe(1)
         ->and($before['teamByLevel'][6]['direct'])->toBe(0);
@@ -454,24 +459,25 @@ it('groups current team levels at one boundary without regrouping historical rew
     $upgraded = $query->execute($this->tenant->id, $this->user->id);
     expect($upgraded['teamByLevel'][1]['direct'])->toBe(0)
         ->and($upgraded['teamByLevel'][3]['direct'])->toBe(1)
-        ->and($upgraded['teamByLevel'][0]['direct'])->toBe(1)
+        ->and($upgraded['teamByLevel'][0]['direct'])->toBe(0)
         ->and($upgraded['directPeople'])->toBe(2)
         ->and($upgraded['indirectPeople'])->toBe(2)
-        ->and(array_sum(array_column($upgraded['teamByLevel'], 'direct')))->toBe(2)
-        ->and(array_sum(array_column($upgraded['teamByLevel'], 'indirect')))->toBe(2)
+        ->and($upgraded['registeredMembers']['direct'] + array_sum(array_column($upgraded['teamByLevel'], 'direct')))->toBe(2)
+        ->and($upgraded['registeredMembers']['indirect'] + array_sum(array_column($upgraded['teamByLevel'], 'indirect')))->toBe(2)
         ->and($upgraded['tables']['ANNUAL'][1])->toBe($before['tables']['ANNUAL'][1]);
     $this->travelTo(CarbonImmutable::parse(DB::table('paid_promotion_cycles')->where('id', $lastOrder->cycle_id)->value('ends_at')));
     $entries = DB::table('ledger_entries')->count();
     $expired = $query->execute($this->tenant->id, $this->user->id);
-    expect($expired['teamByLevel'][0])->toBe(['rank' => 0, 'direct' => 2, 'indirect' => 2])
-        ->and(array_sum(array_column($expired['teamByLevel'], 'direct')))->toBe($expired['directPeople'])
-        ->and(array_sum(array_column($expired['teamByLevel'], 'indirect')))->toBe($expired['indirectPeople'])
+    expect($expired['teamByLevel'][0])->toBe(['rank' => 0, 'direct' => 0, 'indirect' => 0])
+        ->and($expired['registeredMembers']['direct'] + array_sum(array_column($expired['teamByLevel'], 'direct')))->toBe($expired['directPeople'])
+        ->and($expired['registeredMembers']['indirect'] + array_sum(array_column($expired['teamByLevel'], 'indirect')))->toBe($expired['indirectPeople'])
         ->and($expired['tables'])->toBe($upgraded['tables'])
         ->and(DB::table('ledger_entries')->count())->toBe($entries);
     paidBuy($this, $indirect, 4);
     $renewed = $query->execute($this->tenant->id, $this->user->id);
     expect($renewed['teamByLevel'][4]['indirect'])->toBe(1)
-        ->and($renewed['teamByLevel'][0]['indirect'])->toBe(1);
+        ->and($renewed['teamByLevel'][0]['indirect'])->toBe(0)
+        ->and($renewed['registeredMembers']['indirect'])->toBe(1);
     $foreign = Tenant::where('slug', 'tenant-b')->firstOrFail();
     $foreignUser = User::where('tenant_id', $foreign->id)->firstOrFail();
     $other = $query->execute($foreign->id, $foreignUser->id);
@@ -538,7 +544,8 @@ it('reports annual and activation income once and keeps daily source events uniq
         ->and($query->commissions($this->tenant->id, $this->user->id, ['rank' => '1'])['items'])->toHaveCount(1);
     expect(array_column($query->daily($this->tenant->id, $this->user->id, ['activity' => 'annual'])['items'], 'purchaseKind'))->toContain('upgrade');
     $this->travelTo(CarbonImmutable::parse('2027-09-17 12:00:00 UTC'));
-    expect($query->members($this->tenant->id, $this->user->id, ['rank' => '0'])['items'])->toHaveCount(1)
+    expect($query->members($this->tenant->id, $this->user->id, ['rank' => '0'])['items'])->toHaveCount(0)
+        ->and($query->members($this->tenant->id, $this->user->id, [])['items'][0]['membershipStatus'])->toBe('inactive')
         ->and($query->commissions($this->tenant->id, $this->user->id, ['rank' => '1'])['items'])->toHaveCount(1);
     paidBuy($this, $child, 1);
     expect($query->daily($this->tenant->id, $this->user->id, ['activity' => 'annual'])['items'][0]['purchaseKind'])->toBe('renewal');
@@ -1438,6 +1445,6 @@ it('reflects manual levels in team reports and blocks a pre-adjustment unpaid qu
     expect(fn () => app(PaidPromotionPurchase::class)->confirm($this->tenant->id, $child->id, $quote->id))->toThrow(DomainException::class);
     $dto = app(PaidPromotionQuery::class)->execute($this->tenant->id, $this->user->id);
     expect(collect($dto['teamByLevel'])->firstWhere('rank', 3)['direct'])->toBe(1);
-    $report = app(PromotionReportQuery::class)->members($this->tenant->id,$this->user->id,[]);
-    expect(collect($report['items'])->firstWhere('accountId',$child->fresh()->account_id))->toMatchArray(['rank' => 3, 'membershipStatus' => 'agent']);
+    $report = app(PromotionReportQuery::class)->members($this->tenant->id, $this->user->id, []);
+    expect(collect($report['items'])->firstWhere('accountId', $child->fresh()->account_id))->toMatchArray(['rank' => 3, 'membershipStatus' => 'agent']);
 });

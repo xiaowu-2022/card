@@ -33,6 +33,7 @@ type Report = {
     summary: {
         tables: Record<Kind, { rank: number; direct: Cell; indirect: Cell }[]>;
         teamByLevel: { rank: number; direct: number; indirect: number }[];
+        registeredMembers?: { direct: number; indirect: number };
         directPeople: number;
         indirectPeople: number;
     };
@@ -252,6 +253,17 @@ export function PartnerInvitationsReport({
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
+                                        <TableRow>
+                                            <TableCell>{t('Registered member')}</TableCell>
+                                            <TableCell>
+                                                {report.summary.registeredMembers?.direct ?? 0}
+                                            </TableCell>
+                                            <TableCell>
+                                                {report.summary.registeredMembers?.indirect ?? 0}
+                                            </TableCell>
+                                            <TableCell>—</TableCell>
+                                            <TableCell>—</TableCell>
+                                        </TableRow>
                                         {report.summary.tables.ACTIVATION.map((activation) => {
                                             const annual = report.summary.tables.ANNUAL.find(
                                                 (row) => row.rank === activation.rank,
@@ -444,6 +456,11 @@ export function PartnerInvitationsReport({
                                 <p className="text-sm text-muted-foreground">
                                     {t(
                                         'Members: current level. Commission: level at the time earned.',
+                                    )}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                    {t(
+                                        'Deposit refunds do not reduce ordinary member counts. Becoming an agent replaces ordinary membership; after agent status ends, a new deposit payment is required.',
                                     )}
                                 </p>
                                 <p className="text-sm text-muted-foreground">

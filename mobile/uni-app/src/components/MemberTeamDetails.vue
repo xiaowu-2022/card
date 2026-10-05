@@ -15,6 +15,7 @@ import {
 import { promotionLevel } from '../lib/promotion';
 import type { MemberData } from '../lib/report-types';
 type Summary = {
+    registeredMembers?: { direct: number; indirect: number };
     totalMembers: number;
     rows: { rank: number; direct: number; indirect: number; annual: string; activation: string }[];
 };
@@ -102,7 +103,7 @@ function records() {
                 ><text>{{ fullMoney(member.totals.total) }}</text></view
             ><view v-for="(label, key) in incomeLabels" :key="key" class="money-row"
                 ><text>{{ t(label) }}</text
-                ><text>{{ fullMoney((member.totals[key as keyof IncomeTotals] ?? '0')) }}</text></view
+                ><text>{{ fullMoney(member.totals[key as keyof IncomeTotals] ?? '0') }}</text></view
             ><button class="records" @click="records">
                 {{ t('View commission records') }} ›
             </button></template
@@ -131,6 +132,11 @@ function records() {
                                 :key="label"
                                 >{{ t(label) }}</text
                             ></view
+                        ><view class="table-row"
+                            ><text>{{ t('Registered member') }}</text
+                            ><text>{{ summary.registeredMembers?.direct ?? 0 }}</text
+                            ><text>{{ summary.registeredMembers?.indirect ?? 0 }}</text
+                            ><text>—</text><text>—</text></view
                         ><view v-for="row in summary.rows" :key="row.rank" class="table-row"
                             ><text>{{ promotionLevel(row.rank) }}</text
                             ><text>{{ row.direct }}</text

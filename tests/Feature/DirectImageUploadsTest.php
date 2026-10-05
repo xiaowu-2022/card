@@ -216,7 +216,7 @@ it('passes scoped uploaded URLs to OCR without any server OSS calls or invented 
     $provider = Mockery::mock(KycOcrProviderInterface::class);
     $provider->shouldReceive('name')->andReturn('TEST');
     $provider->shouldReceive('extractIdentityDocument')->once()
-        ->with(Mockery::on(fn ($request) => $request->frontUrl === $ticket['imageUrl'] && $request->backUrl === ''))
+        ->with(Mockery::on(fn ($request) => $request->frontUrl === preg_replace('#^https://#', 'http://', $ticket['imageUrl']) && $request->backUrl === ''))
         ->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, 'E12345678'));
     app()->instance(KycOcrProviderInterface::class, $provider);
     $this->postJson($this->base.'/images/direct/'.$ticket['id'].'/complete')->assertUnprocessable();
@@ -226,7 +226,7 @@ it('passes scoped uploaded URLs to OCR without any server OSS calls or invented 
     ])->assertSuccessful();
     $application = KycApplication::where('user_id', $this->user->id)->sole();
     $record = app(ImageStorage::class)->record('private', $application->front_object_key);
-    expect(app(ImageStorage::class)->ocrUrl('private', $application->front_object_key))->toBe($ticket['imageUrl'])
+    expect(app(ImageStorage::class)->ocrUrl('private', $application->front_object_key))->toBe(preg_replace('#^https://#', 'http://', $ticket['imageUrl']))
         ->and($record->sha256)->toBeNull()->and($record->size)->toBeNull()
         ->and(DirectImageUpload::find($ticket['id'])->verified_at)->toBeNull()
         ->and(DirectImageUpload::find($ticket['id'])->claimed_at)->not->toBeNull();
@@ -263,7 +263,7 @@ it('keeps both national ID originals but sends only the front to OCR and fails c
     $back = directFixture($this, 'kyc', 'back');
     $provider = Mockery::mock(KycOcrProviderInterface::class);
     $provider->shouldReceive('extractIdentityDocument')->once()
-        ->with(Mockery::on(fn ($request) => $request->frontUrl === $front['imageUrl'] && $request->backUrl === ''))
+        ->with(Mockery::on(fn ($request) => $request->frontUrl === preg_replace('#^https://#', 'http://', $front['imageUrl']) && $request->backUrl === ''))
         ->andReturn(new KycOcrResultDTO(KycOcrOutcome::Failed));
     app()->instance(KycOcrProviderInterface::class, $provider);
     $this->postJson($this->base.'/client/kyc/applications', [

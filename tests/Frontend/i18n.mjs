@@ -43,11 +43,12 @@ test('SaaS users and unified deposit orders have independent permission-scoped n
 
 test('SaaS user management includes wallets without a duplicate wallet menu', () => {
     const nav = readFileSync('resources/js/layouts/PlatformLayout.tsx', 'utf8');
-    assert.ok(nav.includes("href: '/platform/kyc'"));
-    assert.ok(nav.includes("permission: 'kyc.read'"));
+    assert.ok(!nav.includes("href: '/platform/kyc'"));
     assert.ok(nav.includes("href: '/platform/users'"));
     assert.ok(!nav.includes("href: '/platform/wallets'"));
     const wallet = readFileSync('resources/js/pages/platform/Users.tsx', 'utf8');
+    assert.ok(wallet.includes('UserKycDrawer'));
+    assert.ok(wallet.includes('canViewKyc'));
     assert.ok(wallet.includes('canViewTopups'));
     assert.ok(wallet.includes('/platform/topups'));
     assert.ok(wallet.includes('companies={companies}'));

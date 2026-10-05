@@ -45,7 +45,7 @@ final readonly class PartnerInvitationReport
                 'account' => ['partnerId' => $record->id, 'companyId' => $tenant->id, 'companyName' => $tenant->name, 'accountId' => $user->account_id, 'email' => $user->email, 'displayName' => $identities->get($user->account_id)?->display_name],
                 'timezone' => $tenant->timezone,
                 'commission' => app(PromotionReportQuery::class)->cumulative($tenant->id, $user->id),
-                'summary' => Arr::only($paid, ['tables', 'totals', 'legacy', 'teamByLevel', 'directPeople', 'indirectPeople']),
+                'summary' => Arr::only($paid, ['tables', 'totals', 'legacy', 'teamByLevel', 'registeredMembers', 'directPeople', 'indirectPeople']),
                 'details' => $details,
             ];
         });
