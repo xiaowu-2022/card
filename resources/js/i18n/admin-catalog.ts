@@ -51,6 +51,7 @@ export const adminCatalog: Record<string, string> = {
     Direct: '直属',
     Indirect: '间接',
     'Record count': '记录数',
+    'Current members': '当前人数',
     'View records': '查看明细',
     'Ordinary members do not earn annual fee commission.': '普通会员不获得年费佣金。',
     'Members: current level. Commission: level at the time earned.':

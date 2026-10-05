@@ -384,15 +384,14 @@ export function PartnerInvitationsReport({
                                                                                                         )}{' '}
                                                                                                         ·{' '}
                                                                                                         {t(
-                                                                                                            'Record count',
+                                                                                                            'Current members',
                                                                                                         )}
 
                                                                                                         :{' '}
                                                                                                         {
-                                                                                                            row[
+                                                                                                            people[
                                                                                                                 relation
                                                                                                             ]
-                                                                                                                .count
                                                                                                         }{' '}
                                                                                                         ·{' '}
                                                                                                         {exactAmount(

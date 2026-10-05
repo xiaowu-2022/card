@@ -12,5 +12,13 @@
     "Enter a reason.": "Enter a reason.",
     "QUEUED": "QUEUED",
     "WAITING_REVIEW": "WAITING_REVIEW",
-    "COMPLETE": "COMPLETE"
+    "COMPLETE": "COMPLETE",
+    "Identity document account limit reached": "Identity document account limit reached",
+    "This document has reached the verification account limit for this company. Uploading it again will not resolve this. Please contact support.": "This document has reached the verification account limit for this company. Uploading it again will not resolve this. Please contact support.",
+    "The document number could not be recognized or validated. Please upload clear photos of your identity documents.": "The document number could not be recognized or validated. Please upload clear photos of your identity documents.",
+    "Document recognition is temporarily unavailable. Please contact support to retry verification.": "Document recognition is temporarily unavailable. Please contact support to retry verification.",
+    "The document images could not be read. Please upload them again or contact support.": "The document images could not be read. Please upload them again or contact support.",
+    "The document images could not be verified. Please upload them again or contact support.": "The document images could not be verified. Please upload them again or contact support.",
+    "Identity verification is currently unavailable. Please contact support.": "Identity verification is currently unavailable. Please contact support.",
+    "Verification could not be completed. Please contact support to check the reason.": "Verification could not be completed. Please contact support to check the reason."
 }

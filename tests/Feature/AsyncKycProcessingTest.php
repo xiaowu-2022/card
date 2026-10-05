@@ -242,3 +242,15 @@ it('rejects legacy URL-only documents before creating an asynchronous applicatio
     }
     expect(KycApplication::count())->toBe(0)->and($this->oss->puts)->toBe(0);
 });
+
+it('exposes only safe failure categories to the consumer and clears them while processing', function () {
+    $application = queuedKyc($this);
+    foreach (['IDENTITY_ACCOUNT_LIMIT_REACHED', 'KYC_OCR_UNAVAILABLE', 'KYC_OCR_MISMATCH'] as $code) {
+        $application->forceFill(['processing_status' => 'FAILED', 'processing_error' => $code, 'next_processing_at' => null])->save();
+        expect(app(\App\Application\Kyc\UserKycQuery::class)->get($this->tenant->id, $this->user->id)['processingError'])->toBe($code);
+    }
+    $application->forceFill(['processing_error' => 'INTERNAL_DIAGNOSTIC'])->save();
+    expect(app(\App\Application\Kyc\UserKycQuery::class)->get($this->tenant->id, $this->user->id)['processingError'])->toBe('KYC_PROCESSING_UNAVAILABLE');
+    $application->forceFill(['processing_status' => 'QUEUED'])->save();
+    expect(app(\App\Application\Kyc\UserKycQuery::class)->get($this->tenant->id, $this->user->id)['processingError'])->toBeNull();
+});

@@ -12,5 +12,13 @@
     "Enter a reason.": "Sila masukkan sebab.",
     "QUEUED": "Menunggu pemprosesan",
     "WAITING_REVIEW": "Menunggu semakan manual",
-    "COMPLETE": "Selesai"
+    "COMPLETE": "Selesai",
+    "Identity document account limit reached": "Had akaun dokumen pengenalan telah dicapai",
+    "This document has reached the verification account limit for this company. Uploading it again will not resolve this. Please contact support.": "Dokumen ini telah mencapai had akaun yang disahkan untuk syarikat ini. Memuat naiknya semula tidak akan menyelesaikan masalah. Sila hubungi sokongan.",
+    "The document number could not be recognized or validated. Please upload clear photos of your identity documents.": "Nombor dokumen tidak dapat dikenal pasti atau disahkan. Sila muat naik foto dokumen pengenalan yang jelas.",
+    "Document recognition is temporarily unavailable. Please contact support to retry verification.": "Pengecaman dokumen tidak tersedia buat sementara waktu. Sila hubungi sokongan untuk mencuba pengesahan semula.",
+    "The document images could not be read. Please upload them again or contact support.": "Imej dokumen tidak dapat dibaca. Sila muat naik semula atau hubungi sokongan.",
+    "The document images could not be verified. Please upload them again or contact support.": "Imej dokumen tidak dapat disahkan. Sila muat naik semula atau hubungi sokongan.",
+    "Identity verification is currently unavailable. Please contact support.": "Pengesahan identiti tidak tersedia pada masa ini. Sila hubungi sokongan.",
+    "Verification could not be completed. Please contact support to check the reason.": "Pengesahan tidak dapat diselesaikan. Sila hubungi sokongan untuk menyemak sebabnya."
 }

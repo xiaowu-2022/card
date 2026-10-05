@@ -25,6 +25,14 @@ final readonly class UserKycQuery
             : null;
 
         $processingStatus = $application?->review_status?->value === "PENDING" ? $application->processing_status : null;
+        // Expose only public failure categories from the latest attempt, before
+        // switching to approved history for the existing identity photos.
+        $processingError = $processingStatus === 'FAILED'
+            ? (in_array($application->processing_error, [
+                'IDENTITY_ACCOUNT_LIMIT_REACHED', 'KYC_OCR_MISMATCH', 'KYC_OCR_UNAVAILABLE',
+                'KYC_DOCUMENT_STORAGE_FAILED', 'KYC_DOCUMENT_INTEGRITY_FAILED', 'KYC_SUBMISSION_UNAVAILABLE',
+            ], true) ? $application->processing_error : 'KYC_PROCESSING_UNAVAILABLE')
+            : null;
         $reverificationPending = $identity && $application?->review_status?->value === 'PENDING' && $processingStatus !== 'FAILED';
         if ($identity) {
             $application = KycApplication::where('tenant_id', $tenantId)->where('user_id', $userId)
@@ -36,6 +44,7 @@ final readonly class UserKycQuery
         return [
             'status' => $status->value,
             'processingStatus' => $processingStatus,
+            'processingError' => $processingError,
             'reverificationPending' => (bool) $reverificationPending,
             'documentType' => $identity?->document_type?->value ?? $application?->document_type?->value,
             'frontUrl' => $identity && $application?->front_object_key ? $this->photoUrl($images, $tenantId, $disk, $application->front_object_key) : null,

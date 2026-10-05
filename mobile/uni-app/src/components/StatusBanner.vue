@@ -29,7 +29,8 @@ withDefaults(
             ><text class="status-description">{{ description }}</text
             ><button v-if="action" class="primary" @click="go(action.href)">
                 {{ action.label }}
-            </button></view
+            </button>
+            <slot name="actions" /></view
         ></view
     >
 </template>

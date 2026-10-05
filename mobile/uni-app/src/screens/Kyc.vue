@@ -20,6 +20,7 @@ const props = defineProps<{
             reverificationPending?: boolean;
             reviewMessage: string | null;
             processingStatus?: string | null;
+            processingError?: string | null;
             documentType?: string | null;
             documentCountry?: string | null;
             maskedIdentityNumber?: string | null;
@@ -89,15 +90,35 @@ const states: Record<string, { title: string; description: string; tone: string 
         tone: 'warning',
     },
 };
-const state = computed(() =>
-    props.page.kyc.processingStatus === 'FAILED'
-        ? {
-              title: 'Verification processing failed',
-              description: 'Please submit a new set of identity documents.',
-              tone: 'warning',
-          }
-        : (states[props.page.kyc.status] ?? states.NOT_SUBMITTED),
-);
+const failure = computed(() => {
+    const error = props.page.kyc.processingError;
+    if (error === 'IDENTITY_ACCOUNT_LIMIT_REACHED') return {
+        title: 'Identity document account limit reached',
+        description: 'This document has reached the verification account limit for this company. Uploading it again will not resolve this. Please contact support.',
+    };
+    const descriptions: Record<string, string> = {
+        KYC_OCR_MISMATCH: 'The document number could not be recognized or validated. Please upload clear photos of your identity documents.',
+        KYC_OCR_UNAVAILABLE: 'Document recognition is temporarily unavailable. Please contact support to retry verification.',
+        KYC_DOCUMENT_STORAGE_FAILED: 'The document images could not be read. Please upload them again or contact support.',
+        KYC_DOCUMENT_INTEGRITY_FAILED: 'The document images could not be verified. Please upload them again or contact support.',
+        KYC_SUBMISSION_UNAVAILABLE: 'Identity verification is currently unavailable. Please contact support.',
+    };
+    return {
+        title: 'Verification processing failed',
+        description: descriptions[error ?? ''] ?? 'Verification could not be completed. Please contact support to check the reason.',
+    };
+});
+const state = computed(() => {
+    const processing = props.page.kyc.processingStatus;
+    if (processing === 'FAILED') return { ...failure.value, tone: 'warning' };
+    if (processing === 'QUEUED' || processing === 'PROCESSING') return {
+        title: 'Processing status',
+        description: 'Documents received. Processing continues in the background; you will be notified of the result.',
+        tone: 'pending',
+    };
+    if (processing === 'WAITING_REVIEW') return states.PENDING;
+    return states[props.page.kyc.status] ?? states.NOT_SUBMITTED;
+});
 const countryOptions = computed(() => {
     const names = new Intl.DisplayNames([locale.value], { type: 'region' });
     const priority = ['CN', 'HK', 'MO', 'TW'];
@@ -167,24 +188,18 @@ async function submit() {
                     : t(state.description)
             "
             :tone="state.tone"
-        /><view
-            v-if="page.kyc.processingStatus && page.kyc.processingStatus !== 'COMPLETE'"
-            class="kyc-card"
         >
-            <text>{{
-                t(
-                    page.kyc.processingStatus === 'WAITING_REVIEW'
-                        ? 'Verification under review'
-                        : page.kyc.processingStatus === 'FAILED'
-                          ? 'Please submit a new set of identity documents.'
-                          : 'Documents received. Processing continues in the background; you will be notified of the result.',
-                )
-            }}</text>
-            <button class="secondary" @click="emit('reload')">
-                {{ t('Refresh status') }}
-            </button> </view
+            <template #actions>
+                <button
+                    v-if="page.kyc.processingStatus && page.kyc.processingStatus !== 'COMPLETE'"
+                    class="secondary status-refresh"
+                    @click="emit('reload')"
+                >
+                    {{ t('Refresh status') }}
+                </button>
+            </template>
+        </StatusBanner
         ><view v-if="page.kyc.status === 'APPROVED' && !reverifying" class="kyc-card">
-            <text class="kyc-title">{{ t('Identity verified') }}</text>
             <view class="verified-row"
                 ><text>{{ t('Document type') }}</text
                 ><text>{{
@@ -256,9 +271,7 @@ async function submit() {
             <button v-if="page.canReverify" class="primary" @click="reverify">
                 {{ t('Verify again') }}
             </button>
-            <text v-if="page.kyc.reverificationPending" class="muted">{{
-                t('Verification under review')
-            }}</text> </view
+            </view
         ><view v-else-if="page.canSubmit || reverifying" class="kyc-card"
             ><text class="kyc-title">{{
                 t(
@@ -350,6 +363,10 @@ async function submit() {
     >
 </template>
 <style scoped>
+.status-refresh {
+    margin-top: 12px;
+}
+
 .recognized-number {
     display: flex;
     flex-direction: column;
