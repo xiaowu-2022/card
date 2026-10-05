@@ -15,7 +15,7 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
     try {
         const context = await browser.newContext({viewport:{width:1366,height:850}});
         const page = await context.newPage(); page.setDefaultTimeout(15000);
-        const errors=[], unexpected=[]; let saves=0, fail=true, detailReads=0, commissionSaves=0, reportFailures=1;
+        const errors=[], unexpected=[]; let saves=0, fail=true, detailReads=0, commissionSaves=0, reportFailures=1, promotionReads=0, promotionSaves=0, invitationFailures=1;
         page.on('pageerror', e => { errors.push(e.message); console.error('PAGE ERROR:',e.message); });
         const shared = {errors:{},publicAssets:[],tenant:null,auth:{admin:{name:'测试管理员',permissions:['tenant.manage','tenants.read','commissions.adjust','users.read','wallet.read','card_product.manage','notifications.read','notifications.send']},user:null},flash:{},i18n:{locale:'zh-CN',enabledLocales:['zh-CN','en'],timezone:'Asia/Shanghai',surface:'platform'},requestId:'fixture'};
         await context.route('**/*', async route => {
@@ -23,6 +23,32 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
             if(url.origin!==origin){unexpected.push(url.href);return route.abort();}
             if(url.pathname.startsWith('/build/'))return route.fulfill({body:readFileSync('public'+url.pathname),contentType:url.pathname.endsWith('.css')?'text/css':'text/javascript'});
             let component, props;
+            if (/^\/platform\/partners\/[^/]+\/invitations$/.test(url.pathname)) {
+                assert.equal(request.method(),'GET');
+                if(invitationFailures-->0)return route.fulfill({status:503,json:{message:'Synthetic read failure'}});
+                const kind=url.searchParams.get('kind'),rank=Number(url.searchParams.get('rank')??12),current=Number(url.searchParams.get('page')??1);
+                const cell={count:2,amount:'30.12000000',minimum:'10.00000000',maximum:'20.00000000'};
+                const rows=[0,1,12].map(rank=>({rank,direct:cell,indirect:cell}));
+                return route.fulfill({json:{account:{companyName:companies[0].name,accountId:'202610051234',email:'partner@example.test'},timezone:'Asia/Shanghai',commission:'100.12345678',summary:{tables:{ANNUAL:rows,ACTIVATION:rows},teamByLevel:[0,1,12].map(rank=>({rank,direct:2,indirect:3})),directPeople:6,indirectPeople:9},details:kind?{kind,rank,page:current,hasMore:current===1,items:[{id:'reward-'+current,accountId:'SOURCE-'+current,email:'source-'+current+'@example.test',direct:current===1,sourceAmount:'1000.00000000',rate:'12.34567890',amount:'123.45678900',occurredAt:'2026-10-05T01:00:00Z'}]}:null}});
+            }
+
+            if(request.method()==='GET' && request.headers()['x-admin-dialog']==='1') {
+                assert.equal(request.headers()['x-inertia-version'],'fixture','Editor requests must send the loaded asset version');
+            }
+            if(url.pathname.endsWith('/promotion')) {
+                if(request.method()==='POST') {
+                    assert.equal(request.headers()['x-admin-dialog'],'1');
+                    assert.equal(request.headers()['x-inertia'],undefined);
+                    promotionSaves++;
+                    if(promotionSaves===1)return route.fulfill({status:200,body:''});
+                    if(promotionSaves===2)return route.fulfill({status:422,json:{errors:{reason:['The reason field is required.']}}});
+                    return route.fulfill({json:{saved:true}});
+                }
+                promotionReads++;
+                if(promotionReads===1)return route.fulfill({status:409,headers:{'X-Inertia-Location':url.href},body:''});
+                return route.fulfill({headers:{'X-Inertia':'true'},json:{component:'platform/UserPromotion',props:{...shared,account:{id:companies[0].id,companyId:companies[0].id,companyName:companies[0].name,accountId:'202610051230',email:'synthetic@example.test'},currentRank:0,paidRank:0,manualLevel:false,latestAdjustmentId:null,canAdjust:true,levels:[{id:'33333333-3333-4333-8333-333333333333',rank:3,enabled:true}],history:paginate([])},url:url.pathname,version:'fixture'}});
+            }
+
             if (request.method()==='POST' && url.pathname.endsWith('/manual-commissions')) {
                 const body=request.postData(); assert.match(body,/name="commission_type"\r?\n\r?\nannual/); assert.match(body,/name="direction"\r?\n\r?\nDECREASE/); commissionSaves++; return route.fulfill({json:{saved:true}});
             }
@@ -45,7 +71,7 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
                 const partner=url.searchParams.get('partner');
                 if(partner&&reportFailures-->0)return route.fulfill({status:503,json:{message:'Synthetic report read unavailable'}});
                 const reportPage=Number(url.searchParams.get('report_page')??1);const empty={items:[],page:reportPage,total:0,hasMore:false};
-                const report=partner?{partnerId:partner,accountId:'202610051234',version:'partner',updatedAt:'2026-10-05T01:00:00Z',timezone:'Asia/Shanghai',sharePercent:'40.00000000',stock:'140.00000000',share:'56.00000000',negative:false,missingRates:0,cashFlow:{assets:[],rateObservedAt:null},accountBalance:null,totals:{inflow:'200.00000000',outflow:'60.00000000',advances:'0.00000000'},trends:{},risks:{activeCount:0,remaining:'0',expiredCount:0,expiredAmount:'0',active:empty,expired:empty},journal:{...empty,total:40,hasMore:reportPage<2},unvalued:empty,flowDetails:url.searchParams.has('flow')?{...empty,direction:url.searchParams.get('flow')}:null}:null;
+                const report=partner?{partnerId:partner,accountId:'202610051234',version:'partner',updatedAt:'2026-10-05T01:00:00Z',timezone:'Asia/Shanghai',sharePercent:'40.00000000',stock:'140.00000000',share:'56.00000000',negative:false,missingRates:0,cashFlow:null,accountBalance:null,totals:{inflow:'200.00000000',outflow:'60.00000000',advances:'0.00000000',deposits:'50',annual:'150',activation:'20',annualCommission:'20',rebates:'10',reimbursements:'10'},trends:{},risks:{activeCount:0,remaining:'0',expiredCount:0,expiredAmount:'0',active:empty,expired:empty},journal:{...empty,total:40,hasMore:reportPage<2},unvalued:empty,flowDetails:url.searchParams.has('flow')?{...empty,direction:url.searchParams.get('flow')}:null}:null;
                 component='platform/Partners';props={companies,companyId:null,reportCompanyId:partner?companies[0].id:null,partners:{...paginate(companies.map((c,i)=>({id:c.id,tenant_id:c.id,company_name:c.name,enabled:true,share_percent:'40',account_id:'20261005123'+i,display_name:'Synthetic partner'}))),current_page:2,last_page:3,total:42},pendingFees:paginate([]),report};
             } else if(url.pathname==='/platform/notifications') {
                 component='platform/Notifications';props={companies,company:null,batches:paginate([])};
@@ -137,13 +163,39 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
             await dialog.getByRole('button',{name:'下一页',exact:true}).click();
             await page.waitForURL(u=>u.searchParams.get('report_page')==='2');await dialog.locator('.stock-hero').waitFor();
             assert.equal(new URL(page.url()).searchParams.get('page'),'2');
-            await dialog.getByRole('button',{name:/团队总入金.*查看详情/}).click();
+            await dialog.getByRole('button',{name:/有效缴费合计.*查看详情/}).click();
             await page.waitForURL(u=>u.searchParams.get('flow')==='inflow');
             await page.screenshot({path:`${out}/${name}-detail-drawer-${width}.png`});
             await dialog.getByRole('button',{name:'收起报表',exact:true}).click();await dialog.waitFor({state:'hidden'});
             await page.waitForURL(u=>!u.searchParams.has('partner'));
             assert.equal(new URL(page.url()).searchParams.get('page'),'2');assert.equal(new URL(page.url()).searchParams.get('fees_page'),'3');
             await page.waitForFunction(()=>document.activeElement?.textContent==='查看报表');
+        }
+        await page.goto(origin+'/platform/partners?page=2&fees_page=3');
+        for(const width of [1024,1366,1920]) {
+            await page.setViewportSize({width,height:850});
+            await page.getByRole('button',{name:'邀请数据',exact:true}).first().click();await dialog.waitFor();
+            if(width===1024) { await dialog.getByRole('alert').waitFor(); await dialog.getByRole('button',{name:'重试',exact:true}).click(); }
+            await dialog.getByRole('columnheader',{name:'直属人数',exact:true}).waitFor();
+            assert.equal(await dialog.locator('tbody tr').count(),3);
+            assert.ok((await dialog.textContent()).includes('100.12345678'));
+            const levelRow=dialog.locator('tbody tr').nth(2);await levelRow.locator('button').first().click();
+            await dialog.getByRole('button',{name:'查看明细',exact:true}).first().waitFor();
+            await page.screenshot({path:`${out}/${name}-partner-invitations-${width}.png`});
+            await levelRow.locator('td').nth(3).getByRole('button').click();
+            await dialog.getByText('source-1@example.test',{exact:true}).waitFor();
+            assert.equal(new URL(page.url()).searchParams.get('invitation_rank'),'12');
+            assert.equal(new URL(page.url()).searchParams.get('page'),'2');
+            await dialog.getByRole('button',{name:'下一页',exact:true}).click();
+            await dialog.getByText('source-2@example.test',{exact:true}).waitFor();
+            assert.ok((await dialog.textContent()).includes('123.456789'));
+            const bounds=await dialog.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=width+1&&bounds.height<=850);
+            if(width===1366) { await page.reload(); await dialog.getByText('source-2@example.test',{exact:true}).waitFor(); }
+            await dialog.getByRole('button',{name:'返回邀请数据',exact:true}).click();
+            await dialog.getByRole('columnheader',{name:'直属人数',exact:true}).waitFor();
+            await dialog.getByRole('button',{name:'关闭',exact:true}).last().click();await dialog.waitFor({state:'hidden'});
+            assert.equal(new URL(page.url()).searchParams.get('page'),'2');assert.equal(new URL(page.url()).searchParams.get('fees_page'),'3');
+            if(width!==1366) await page.waitForFunction(()=>document.activeElement?.textContent==='邀请数据');
         }
         await page.goto(origin+'/platform/users');
         assert.equal(await page.locator('a[href="/platform/wallets"]').count(),0);
@@ -152,13 +204,30 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
             assert.equal(await page.locator('tbody tr').count(),2);
             const row=page.locator('tbody tr').first();
             assert.match(await row.textContent(),/0\.123456789012345678/);assert.ok(!(await row.textContent()).includes('120.34000000'));
-            await page.getByRole('columnheader',{name:'钱包状态',exact:true}).waitFor();
+            assert.equal(await page.getByRole('columnheader',{name:'钱包状态',exact:true}).count(),0);
             await page.getByRole('columnheader',{name:'可用余额',exact:true}).waitFor();
             const scroller=page.locator('table').locator('..');await scroller.evaluate(el=>el.scrollLeft=el.scrollWidth);
             const identity=await row.locator('td').first().boundingBox();assert.ok(identity.x>=0&&identity.x+identity.width<=width);
             const actions=row.locator('td').last();const bounds=await actions.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=width+1);
             await page.screenshot({path:`${out}/${name}-users-wallets-${width}.png`});
         }
+        await page.goto(origin+'/platform/users?company='+companies[0].id+'&search=synthetic&page=2');
+        const promotionLink=page.locator('a[href$="/promotion"]').first();
+        await promotionLink.click();
+        await dialog.getByText('页面版本已更新，请刷新页面后重试。').waitFor();
+        assert.ok(!(await dialog.textContent()).includes('Unexpected end of JSON'));
+        await dialog.getByRole('button',{name:'重试',exact:true}).click();
+        await dialog.locator('form select').waitFor();
+        await dialog.getByRole('button',{name:'关闭',exact:true}).last().click();await dialog.waitFor({state:'hidden'});
+        await promotionLink.click();await dialog.locator('form select').selectOption('ordinary');
+        await dialog.locator('textarea').fill('Synthetic promotion reason');await dialog.getByRole('checkbox').check();
+        const promotionSave=dialog.getByRole('button',{name:'确认调整',exact:true});
+        await promotionSave.click();await dialog.getByText('服务器返回内容异常，请刷新页面后重试。').first().waitFor();
+        assert.equal(promotionSaves,1);assert.equal(await dialog.locator('textarea').inputValue(),'Synthetic promotion reason');
+        await promotionSave.click();await dialog.locator('form [role=alert]').filter({hasText:'The reason field is required.'}).waitFor();
+        assert.equal(promotionSaves,2);assert.equal(await dialog.locator('textarea').inputValue(),'Synthetic promotion reason');
+        await promotionSave.click();await dialog.waitFor({state:'hidden'});assert.equal(promotionSaves,3);
+        assert.match(page.url(),/search=synthetic/);assert.equal(new URL(page.url()).searchParams.get('page'),'2');
         assert.equal(detailReads>=5,true);assert.deepEqual(errors,[]);assert.deepEqual(unexpected,[]);
         await context.close();console.log(`${name}: list context, lazy DTO, validation, dirty close, save, focus and 3 widths passed`);
     } finally {await browser.close();}

@@ -2,6 +2,7 @@
 
 namespace App\Application\Wallet;
 
+use App\Application\Promotion\AccountActivationStatus;
 use App\Domain\Kyc\Enums\KycUserStatus;
 use App\Domain\Kyc\Services\KycStatusService;
 use App\Domain\Ledger\Enums\LedgerAccountType;
@@ -43,7 +44,7 @@ final readonly class WalletEligibilityService
             $remaining = Money::of('0', $requiredAsset);
         }
 
-        $activation = app(\App\Application\Promotion\AccountActivationStatus::class)->get($tenant->id, $user->id);
+        $activation = app(AccountActivationStatus::class)->get($tenant->id, $user->id);
         $reasons = [];
         if ($tenant->status !== TenantStatus::Active) {
             $reasons[] = 'TENANT_NOT_ACTIVE';
@@ -74,7 +75,7 @@ final readonly class WalletEligibilityService
             'tenantStatus' => $tenant->status->value,
             'kycStatus' => $kycStatus->value,
             'walletStatus' => $wallet?->status->value,
-            'canActivate' => $tenant->status === TenantStatus::Active && $user->status === UserStatus::Active && $kycStatus === KycUserStatus::Approved && $wallet === null,
+            'canActivate' => $tenant->status === TenantStatus::Active && $user->status === UserStatus::Active && $wallet === null,
             'depositSatisfied' => ! $assetMismatch && $deposit->compare($required) >= 0,
             'activation' => $activation,
             'activationSatisfied' => ! $assetMismatch && $activation['qualified'],

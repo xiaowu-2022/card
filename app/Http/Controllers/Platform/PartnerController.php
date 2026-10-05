@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Platform;
 
 use App\Application\Partners\FeeValuation;
+use App\Application\Partners\PartnerInvitationReport;
 use App\Application\Partners\PartnerManagement;
 use App\Application\Partners\PartnerReport;
 use App\Domain\Tenant\Models\Tenant;
@@ -13,6 +14,20 @@ use Inertia\Inertia;
 
 final class PartnerController extends Controller
 {
+    public function invitations(Request $request, string $partner, PartnerInvitationReport $query)
+    {
+        $data = $request->validate([
+            'company' => 'nullable|uuid|exists:tenants,id',
+            'kind' => 'nullable|required_with:rank|in:ANNUAL,ACTIVATION',
+            'rank' => 'nullable|required_with:kind|integer|min:0',
+            'page' => 'nullable|integer|min:1|max:100000',
+            'user_id' => 'prohibited', 'tenant_id' => 'prohibited', 'subject' => 'prohibited',
+        ]);
+
+        return response()->json($query->read($partner, $data['company'] ?? null, $data['kind'] ?? null, isset($data['rank']) ? (int) $data['rank'] : null, $request->integer('page', 1)))
+            ->header('Cache-Control', 'private, no-store');
+    }
+
     public function index(Request $request)
     {
         $request->validate(['company' => 'nullable|uuid|exists:tenants,id', 'tenant' => 'nullable|uuid|exists:tenants,id', 'partner' => 'nullable|uuid', 'page' => 'nullable|integer|min:1|max:100000', 'report_page' => 'nullable|integer|min:1|max:100000', 'fees_page' => 'nullable|integer|min:1|max:100000', 'flow' => 'nullable|in:inflow,outflow', 'flow_page' => 'nullable|integer|min:1|max:100000']);

@@ -2,6 +2,40 @@
 
 Approved 2026-09-25. Local implementation only; no live partner designations, expense entries, historical financial changes, deployment or payment execution.
 
+## 2026-10-05: business-funded partner stock (current; supersedes external-flow rules below)
+
+Partner stock now equals **eligible held security deposit balances + completed annual
+fee payments − paid activation/legacy commissions − paid annual commissions − approved
+annual returns − net cooperation reimbursements**. `PartnerBusinessStock` supplies both
+totals and paginated details from the same company-scoped union in the report's read-only
+snapshot. `PartnerStockTeam` excludes the owner and enabled descendant partners personally,
+while traversing through them to retain their non-partner descendants/current direct branch.
+
+Security deposits use actual USDT `USER_SECURITY_DEPOSIT` balances. Converted or refunded
+principal no longer lives there; annual fees use completed, Ledger-linked `settlement_total`
+(including converted deposit) once. Commissions reuse the deduplicated posted income query,
+restricted by eligible source user, including awards to this partner/outside beneficiaries.
+Source-less manual adjustments cannot be allocated to a descendant and are excluded.
+Returns must be approved and Ledger-linked. Reimbursements include the owner's and all
+descendant partner journals, including disabled configurations, with reversals subtracted;
+advances remain informational. Wallet top-ups/withdrawals, withdrawal fees, card/wealth
+movements and market prices do not affect partner stock. No public price request is needed.
+
+The two existing `flow=inflow|outflow` links now mean contribution and deduction details;
+`totals.inflow/outflow` are business subtotals and `cashFlow` is null. `stockBasis` is
+`BUSINESS_CONTRIBUTIONS`. Per-item `source` identifies the component. Guarantee detail rows
+are current balances (nullable `posted_at`, explicitly labeled), not invented transactions.
+Own reimbursement entries have no direct branch; other entries retain source account/email
+and the current direct branch. No internal notes or staff fields are added to these details.
+Both UI surfaces show the six components plus two clickable subtotals and the formula.
+Standard reports, personal reconciliation and independent alerts remain unchanged.
+
+No migration, provider call, actual financial operation or historical correction. Publish
+matching PHP, admin and H5 assets. Repackage native App resources for these UI changes.
+Older App builds must be updated: their cached external-flow wording does not describe
+this new business-stock response. Tests cover external-money exclusion, conversion,
+source commission, expense reversal, status-based scope, pagination and read-only access.
+
 ## 2026-10-04: two identity-selected versions (supersedes the access/formula rules below)
 
 Authenticated company users can open stock reports. The server selects `version=partner` only for an enabled partner configuration in that company; all other users receive `version=standard`. Request parameters cannot choose a different identity or version. SaaS uses the same report service for the selected company/account.

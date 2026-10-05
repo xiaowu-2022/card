@@ -33,13 +33,17 @@ function approvePhaseFourUser(Tenant $tenant, User $user): void
     app(ApproveKycAction::class)->execute($tenant->id, $application->id, $reviewer);
 }
 
-it('does not create a wallet on GET and blocks activation without approved KYC', function (): void {
+it('keeps GET read only and opens a zero balance wallet before KYC', function (): void {
     $this->actingAs($this->user, 'tenant_user')->get('http://a.localhost/wallet')->assertOk()->assertInertia(fn ($page) => $page
-        ->component('user/Wallet')->where('eligibility.wallet', null)->where('eligibility.canActivate', false));
+        ->component('user/Wallet')->where('eligibility.wallet', null)->where('eligibility.canActivate', true));
     expect(Wallet::query()->count())->toBe(0);
 
-    $this->post('http://a.localhost/wallet/activate')->assertSessionHasErrors('form');
-    expect(Wallet::query()->count())->toBe(0);
+    $this->post('http://a.localhost/wallet/activate')->assertRedirect();
+    expect(Wallet::query()->count())->toBe(1)
+        ->and(DB::table('ledger_entries')->count())->toBe(0);
+    $this->get('http://a.localhost/wallet')->assertOk()->assertInertia(fn ($page) => $page
+        ->where('eligibility.canUseCardService', false)
+        ->where('eligibility.reasonCodes', fn ($reasons) => collect($reasons)->contains('KYC_NOT_APPROVED')));
 });
 
 it('activates an approved user wallet once with zero-balance accounts and no fake entry', function (): void {
@@ -112,10 +116,7 @@ it('keeps admin wallet and ledger reads tenant scoped and read only', function (
 
 it('automatically ensures eligible wallets through a scoped idempotent POST only', function () {
     $url = 'http://a.localhost/api/v1/wallet/ensure';
-    $this->actingAs($this->user, 'tenant_user')->postJson($url)->assertNoContent();
-    expect(Wallet::count())->toBe(0);
-    approvePhaseFourUser($this->tenant, $this->user);
-    $this->getJson($url)->assertStatus(405);
+    $this->actingAs($this->user, 'tenant_user')->getJson($url)->assertStatus(405);
     expect(Wallet::count())->toBe(0);
     $this->postJson($url, ['tenant_id' => 'ignored', 'user_id' => 'ignored'])->assertNoContent();
     $wallet = Wallet::where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->firstOrFail();
@@ -135,3 +136,16 @@ it('does not automatically provision a wallet for an inactive user', function ()
     app(ActivateUserWalletAction::class)->ensure($this->tenant->id, $this->user->id);
     expect(Wallet::count())->toBe(0);
 });
+
+it('never reactivates an existing stopped wallet on automatic ensure', function (string $status) {
+    $action = app(ActivateUserWalletAction::class);
+    $wallet = $action->execute($this->tenant->id, $this->user->id)->wallet;
+    $wallet->update(['status' => $status]);
+    $before = $wallet->fresh()->getAttributes();
+    $action->ensure($this->tenant->id, $this->user->id);
+    $result = $action->execute($this->tenant->id, $this->user->id);
+    expect($result->created)->toBeFalse()
+        ->and($wallet->fresh()->getAttributes())->toBe($before)
+        ->and(AuditLog::where('action', 'USER_WALLET_ACTIVATED')->count())->toBe(1)
+        ->and(DB::table('ledger_entries')->count())->toBe(0);
+})->with(['SUSPENDED', 'CLOSED']);

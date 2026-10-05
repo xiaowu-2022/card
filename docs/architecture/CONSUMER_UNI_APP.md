@@ -244,3 +244,21 @@ requires HBuilderX; build:app only compiles resources.
 
 ### 2026-10-03 fixed consumer navigation
 PageShell title/brand headers stay fixed at the viewport top, with reserved content space and top safe-area padding. Existing bottom tabs remain fixed with bottom safe-area and content clearance. Avoid containment or transforms on navigation ancestors that would make fixed elements scroll with content. Authentication topbars and the public landing header follow the same fixed behavior; guest/article pages retain their existing tab visibility. H5 needs rebuilt assets; native clients require repackaging. This changes consumer navigation only, not desktop administration.
+
+### 2026-10-05 H5 long-page navigation correction
+
+CSS `position: fixed` inside the page was insufficient when a page ancestor established
+a containing block through transform/contain/will-change. An offline regression reproduced
+the bottom bar at the end of a 4000px content extension. PageShell now uses `ViewportLayer`
+to teleport its header and bottom tabs to `body` on H5. Native compilation keeps the views
+inside the page. Page visibility hooks remove portals for cached hidden pages and restore
+them on return; unmount removes them automatically. Theme and typography are carried to the
+portal explicitly; safe-area padding, content clearance, guest/article visibility and modal
+z-order are preserved. Bottom-bar dimensions use viewport units rather than container units,
+with basic pixel fallbacks for navigation and content padding.
+
+`tests/Browser/consumer-fixed-navigation.mjs` checks scrolling long pages under transformed,
+layout-contained and will-change ancestors, multiple portrait/landscape sizes, clickable
+bars, route replacement, cached-page navigation/back and modal masking in Chrome/WebKit.
+All API responses are synthetic. Deploy the rebuilt H5 bundle; no PHP or migration required.
+Native resource compilation is a compatibility check, not a signed APK release.

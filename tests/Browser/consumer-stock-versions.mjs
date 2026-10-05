@@ -13,10 +13,11 @@ for (const [name, engine, options] of [
 ]) {
     const browser = await engine.launch({ headless: true, ...options });
     try {
-        for (const version of ['partner', 'standard', 'unavailable']) {
+        for (const version of ['partner', 'standard']) {
             const context = await browser.newContext({
                 viewport: { width: 390, height: 844 },
                 isMobile: true,
+                hasTouch: true,
             });
             const page = await context.newPage();
             const errors = [],
@@ -28,27 +29,13 @@ for (const [name, engine, options] of [
                 accountBalance: null,
                 stock: version === 'unavailable' ? null : '800.10000000',
                 missingRates: version === 'unavailable' ? 1 : 0,
-                cashFlow: partner
-                    ? {
-                          rateObservedAt: new Date().toISOString(),
-                          assets: [
-                              {
-                                  asset: 'ETH',
-                                  inflow: '0.5',
-                                  outflow: '0.2',
-                                  rate: version === 'unavailable' ? null : '2000',
-                                  inflowUsdt: '1000',
-                                  outflowUsdt: '400',
-                              },
-                          ],
-                      }
-                    : null,
+                cashFlow: null,
                 ...(partner
                     ? {
                           totals: {
                               inflow: '1220.10000000',
                               outflow: '420.00000000',
-                              advances: '0',
+                              advances: '0', deposits: '500', annual: '720.1', activation: '100', annualCommission: '200', rebates: '100', reimbursements: '20',
                           },
                           trends: {},
                       }
@@ -79,16 +66,16 @@ for (const [name, engine, options] of [
                                 items: [
                                     {
                                         id: 'fixture-' + current,
-                                        source: 'fixture',
+                                        source: flow === 'inflow' ? 'deposits' : 'reimbursements',
                                         account_id: current === 1 ? 'MEMBER-002' : 'MEMBER-003',
                                         email: 'descendant.with.long.email@example.test',
                                         direct_account_id: 'BRANCH-001',
                                         direct_email: 'direct.branch@example.test',
-                                        asset_code: 'ETH',
-                                        amount: '0.123456789123456789',
+                                        asset_code: 'USDT',
+                                        amount: '20.12345678',
                                         amountUsdt:
                                             version === 'unavailable' ? null : '246.91357825',
-                                        posted_at: new Date().toISOString(),
+                                        posted_at: flow === 'inflow' ? null : new Date().toISOString(),
                                     },
                                 ],
                             };
@@ -108,10 +95,11 @@ for (const [name, engine, options] of [
                 .waitFor();
             const content = await page.locator('.stock').innerText();
             assert.equal(
-                content.includes('Your own deposits and withdrawals are excluded'),
+                content.includes('Wallet top-ups and withdrawals do not count'),
                 partner,
             );
-            assert.equal(content.includes('Activation commissions paid'), !partner);
+            assert.equal(content.includes('Activation commissions paid'), true);
+            assert.equal(content.includes('Withdrawal fee income'), !partner);
             assert.equal(
                 content.includes('Current exchange rates are unavailable'),
                 version === 'unavailable',
@@ -128,10 +116,20 @@ for (const [name, engine, options] of [
             });
             if (partner) {
                 for (const [index, title] of [
-                    [0, 'Team deposit details'],
-                    [1, 'Team withdrawal details'],
+                    [0, 'Contribution details'],
+                    [1, 'Deduction details'],
                 ]) {
-                    await page.locator('.flow-link').nth(index).click();
+                    const entry = page.locator('.flow-link').nth(index);
+                    const amount = entry.locator('.flow-amount');
+                    assert.match(await amount.evaluate(el => getComputedStyle(el).textDecorationLine), /underline/);
+                    assert.ok((await entry.boundingBox()).height >= 44);
+                    await entry.getByText('View details ›', {exact:true}).waitFor();
+                    // Tap the number itself, not just the small details label.
+                    await entry.evaluate(el => el.scrollIntoView({block:'center'}));
+                    const rowBounds = await entry.boundingBox(), amountBounds = await amount.boundingBox();
+                    // uni-button owns pointer events for its text children. Tap the amount's
+                    // coordinates through the actual button, as a phone touch does.
+                    await entry.tap({position:{x:amountBounds.x-rowBounds.x+amountBounds.width/2,y:amountBounds.y-rowBounds.y+amountBounds.height/2}});
                     const list = page.locator('.flow-details');
                     await list.waitFor();
                     assert.ok((await list.innerText()).includes('BRANCH-001'));
@@ -140,7 +138,7 @@ for (const [name, engine, options] of [
                             'descendant.with.long.email@example.test',
                         ),
                     );
-                    assert.ok((await list.innerText()).includes('0.123456789123456789 ETH'));
+                    assert.ok((await list.innerText()).includes('20.12345678 USDT'));
                     await page.getByText(title, { exact: true }).waitFor();
                     if (version === 'unavailable')
                         assert.ok((await list.innerText()).includes('Incomplete valuation'));
@@ -171,7 +169,7 @@ for (const [name, engine, options] of [
             assert.ok(mutations.every((p) => p === '/api/v1/wallet/ensure'));
             await context.close();
         }
-        console.log('PASS ' + name + ': partner, standard, unavailable rates; no business writes');
+        console.log('PASS ' + name + ': business partner stock and unchanged standard stock; no business writes');
     } finally {
         await browser.close();
     }

@@ -141,34 +141,6 @@ export default function Users({
                         ...(financialAccess.balances
                             ? [
                                   {
-                                      label: 'Wallet status',
-                                      render: (row: User) =>
-                                          row.wallets?.length ? (
-                                              <div className="space-y-2">
-                                                  {row.wallets.map((wallet) => (
-                                                      <div
-                                                          key={wallet.id}
-                                                          className="flex min-h-6 items-center gap-2"
-                                                      >
-                                                          <span className="w-10 text-xs">
-                                                              {wallet.asset}
-                                                          </span>
-                                                          <StatusBadge
-                                                              status={
-                                                                  wallet.status === 'ACTIVE'
-                                                                      ? 'SUCCESS'
-                                                                      : 'WARNING'
-                                                              }
-                                                              label={t(wallet.status)}
-                                                          />
-                                                      </div>
-                                                  ))}
-                                              </div>
-                                          ) : (
-                                              t('No wallet')
-                                          ),
-                                  },
-                                  {
                                       label: 'Available balance',
                                       render: (row: User) => (
                                           <WalletAmounts wallets={row.wallets} field="available" />

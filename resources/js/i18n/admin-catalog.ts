@@ -2,6 +2,35 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Invitation data': '邀请数据',
+    'Back to invitation data': '返回邀请数据',
+    Level: '等级',
+    'Direct members': '直属人数',
+    'Indirect members': '间接人数',
+    'Annual fee commission': '年费佣金',
+    'Activation commission': '激活佣金',
+    'Amounts in USDT': '金额单位：USDT',
+    'Source user': '来源用户',
+    'Relationship at award': '发奖时关系',
+    'Source amount': '来源金额',
+    'Reward rate / difference': '奖励比例／差额',
+    'Commission amount': '佣金金额',
+    Direct: '直属',
+    Indirect: '间接',
+    'Record count': '记录数',
+    'View records': '查看明细',
+    'Ordinary members do not earn annual fee commission.': '普通会员不获得年费佣金。',
+    'Members: current level. Commission: level at the time earned.':
+        '人数按当前等级统计，佣金按获得时的等级统计。',
+    'Cumulative commission includes income without a source level. The level table only includes attributable rewards.':
+        '累计佣金包含无来源等级的收入，分级表仅统计可归属等级的奖励，与前端口径一致。',
+    'This page has been updated. Refresh the page and try again.':
+        '页面版本已更新，请刷新页面后重试。',
+    'Your session has expired. Refresh the page and sign in again.':
+        '登录状态已过期，请刷新页面并重新登录。',
+    'Unexpected server response. Refresh the page and try again.':
+        '服务器返回内容异常，请刷新页面后重试。',
+    'Refresh page': '刷新页面',
     'Wallet status': '钱包状态',
     'No wallet': '未开通钱包',
     'User records, wallet balances and promotion levels. Each currency is shown separately.':

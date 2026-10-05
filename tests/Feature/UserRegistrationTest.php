@@ -5,6 +5,7 @@ use App\Application\User\CreateRegistrationChallengeAction;
 use App\Application\User\RegisterUserAction;
 use App\Application\User\VerifyRegistrationChallengeAction;
 use App\Domain\Audit\Models\AuditLog;
+use App\Domain\Ledger\Models\LedgerAccount;
 use App\Domain\Notification\Contracts\EmailVerificationSender;
 use App\Domain\Notification\Contracts\SmsVerificationSender;
 use App\Domain\Tenant\Models\Tenant;
@@ -14,6 +15,7 @@ use App\Domain\User\Enums\RegistrationChannel;
 use App\Domain\User\Models\RegistrationChallenge;
 use App\Domain\User\Models\User;
 use App\Domain\User\Services\OtpHasher;
+use App\Domain\Wallet\Models\Wallet;
 use App\Infrastructure\Mail\LaravelEmailVerificationSender;
 use App\Infrastructure\Sms\UnavailableSmsVerificationSender;
 use App\Mail\ExistingUserAccountMail;
@@ -43,6 +45,16 @@ it('completes email verification before creating a tenant user', function (): vo
         ->and($user->profile->display_name)->toBe('New User')
         ->and($user->preference->locale)->toBe('en')
         ->and($created->challenge->fresh()->consumed_at)->not->toBeNull();
+    $wallet = Wallet::where('tenant_id', $tenant->id)->where('user_id', $user->id)->sole();
+    expect($wallet->status->value)->toBe('ACTIVE')
+        ->and($wallet->asset_code)->toBe($tenant->default_asset)
+        ->and(LedgerAccount::where('wallet_id', $wallet->id)->count())->toBeGreaterThan(0)
+        ->and(LedgerAccount::where('wallet_id', $wallet->id)->where('balance', '<>', 0)->count())->toBe(0)
+        ->and(DB::table('ledger_entries')->count())->toBe(0)
+        ->and(DB::table('account_activations')->count())->toBe(0)
+        ->and(AuditLog::where('action', 'USER_WALLET_ACTIVATED')->where('resource_id', $wallet->id)->count())->toBe(1);
+    expect(fn () => app(RegisterUserAction::class)->execute($tenant, $created->challenge->id, 'StrongPass1234'))->toThrow(DomainException::class);
+    expect(Wallet::where('user_id', $user->id)->count())->toBe(1);
 });
 
 it('rejects phone registration before creating a proof or sending an SMS', function (): void {
@@ -219,6 +231,8 @@ it('requires the initiating browser session before a verified challenge can comp
     $this->withSession(['registration.challenge_ids' => [$created->challenge->id]])
         ->post("http://a.localhost/register/challenges/{$created->challenge->id}/complete", $payload)
         ->assertRedirect('/dashboard');
+    $registered = User::where('tenant_id', $tenant->id)->where('email', 'session-bound@example.test')->sole();
+    expect(Wallet::where('tenant_id', $tenant->id)->where('user_id', $registered->id)->sole()->status->value)->toBe('ACTIVE');
 });
 
 it('requires a fresh otp in another session and expires the older verified state on success', function (): void {
@@ -394,4 +408,43 @@ it('cannot verify or consume an already supplied phone proof', function (): void
     expect(fn () => app(RegisterUserAction::class)->execute($tenant, $id, 'StrongPass1234'))->toThrow(DomainException::class);
     $this->withSession(['registration.challenge_ids' => [$id]])->get('http://a.localhost/register/challenges/'.$id)->assertUnprocessable();
     expect(User::query()->count())->toBe($count)->and($proof->fresh()->consumed_at)->toBeNull();
+});
+
+it('rolls registration and wallet accounts back together when wallet opening fails', function () {
+    Mail::fake();
+    $tenant = Tenant::where('slug', 'tenant-a')->firstOrFail();
+    $created = app(CreateRegistrationChallengeAction::class)->execute($tenant, RegistrationChannel::Email, 'wallet-failure@example.test');
+    app(VerifyRegistrationChallengeAction::class)->execute($tenant->id, $created->challenge->id, $created->rawCode);
+    $walletsBefore = Wallet::count();
+    $accountsBefore = LedgerAccount::count();
+    $dispatcher = AuditLog::getEventDispatcher();
+    $testDispatcher = clone $dispatcher;
+    $testDispatcher->listen('eloquent.creating: '.AuditLog::class, function (AuditLog $audit) {
+        if ($audit->action === 'USER_WALLET_ACTIVATED') {
+            throw new RuntimeException('Synthetic wallet failure');
+        }
+    });
+    AuditLog::setEventDispatcher($testDispatcher);
+    try {
+        expect(fn () => app(RegisterUserAction::class)->execute($tenant, $created->challenge->id, 'StrongPass1234'))->toThrow(RuntimeException::class, 'Synthetic wallet failure');
+    } finally {
+        AuditLog::setEventDispatcher($dispatcher);
+    }
+    expect(User::where('email', 'wallet-failure@example.test')->exists())->toBeFalse()
+        ->and($created->challenge->fresh()->consumed_at)->toBeNull()
+        ->and(Wallet::count())->toBe($walletsBefore)
+        ->and(LedgerAccount::count())->toBe($accountsBefore)
+        ->and(AuditLog::whereIn('action', ['USER_REGISTERED', 'USER_WALLET_ACTIVATED'])->count())->toBe(0);
+});
+
+it('rejects registration and leaves the proof reusable if the company was suspended', function () {
+    Mail::fake();
+    $tenant = Tenant::where('slug', 'tenant-a')->firstOrFail();
+    $created = app(CreateRegistrationChallengeAction::class)->execute($tenant, RegistrationChannel::Email, 'wallet-suspended@example.test');
+    app(VerifyRegistrationChallengeAction::class)->execute($tenant->id, $created->challenge->id, $created->rawCode);
+    $tenant->update(['status' => 'SUSPENDED', 'suspended_at' => now()]);
+    expect(fn () => app(RegisterUserAction::class)->execute($tenant, $created->challenge->id, 'StrongPass1234'))->toThrow(DomainException::class);
+    expect(User::where('email', 'wallet-suspended@example.test')->exists())->toBeFalse()
+        ->and($created->challenge->fresh()->consumed_at)->toBeNull()
+        ->and(Wallet::count())->toBe(0);
 });

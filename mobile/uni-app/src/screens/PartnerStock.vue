@@ -22,8 +22,14 @@ const legacyLines = [
 const lines = computed(() =>
     r.value.version === 'partner'
         ? [
-              ['inflow', 'Team total deposits', '+'],
-              ['outflow', 'Team total withdrawals', '−'],
+              ['inflow', 'Eligible contributions', '+'],
+              ['deposits', 'Eligible security deposit balances', ''],
+              ['annual', 'Total annual fees paid', ''],
+              ['outflow', 'Stock deductions', '−'],
+              ['activation', 'Activation commissions paid', ''],
+              ['annualCommission', 'Annual fee commissions paid', ''],
+              ['rebates', 'Annual fees returned', ''],
+              ['reimbursements', 'Reimbursed expenses', ''],
           ]
         : legacyLines,
 );
@@ -50,8 +56,8 @@ const more = computed(() =>
             t(
                 r.flowDetails
                     ? r.flowDetails.direction === 'inflow'
-                        ? 'Team deposit details'
-                        : 'Team withdrawal details'
+                        ? 'Contribution details'
+                        : 'Deduction details'
                     : 'Stock data',
             )
         "
@@ -92,52 +98,36 @@ const more = computed(() =>
             ><text v-if="r.negative" class="warning">{{ t('Total stock is negative.') }}</text
             ><view class="panel"
                 ><text class="heading">{{ t('Stock composition') }}</text
-                ><view
-                    v-for="[key, label, sign] in lines"
-                    :key="key"
-                    class="row"
-                    @click="r.version === 'partner' && go('/promotion/stock?flow=' + key, true)"
-                    ><button
-                        v-if="r.version === 'partner'"
-                        class="flow-link"
-                        @click.stop="go('/promotion/stock?flow=' + key, true)"
+                ><template v-for="[key, label, sign] in lines" :key="key">
+                    <button
+                        v-if="r.version === 'partner' && ['inflow', 'outflow'].includes(key)"
+                        class="row flow-link"
+                        @click="go('/promotion/stock?flow=' + key, true)"
                     >
-                        <text>{{ sign }} {{ t(label) }}</text
-                        ><text class="small">{{ t('View details') }} ›</text></button
-                    ><text v-else>{{ sign }} {{ t(label) }}</text>
-                    <text>{{
-                        key === 'fees' && r.missingRates
-                            ? t('Incomplete valuation')
-                            : value(r.totals[key])
-                    }}</text></view
+                        <view class="flow-label">
+                            <text>{{ sign }} {{ t(label) }}</text>
+                            <text class="small">{{ t('View details') }} ›</text>
+                        </view>
+                        <text class="flow-amount">{{ value(r.totals[key]) }}</text>
+                    </button>
+                    <view v-else class="row">
+                        <text>{{ sign }} {{ t(label) }}</text>
+                        <text>{{
+                            key === 'fees' && r.missingRates
+                                ? t('Incomplete valuation')
+                                : value(r.totals[key])
+                        }}</text>
+                    </view> </template
                 ><text v-if="r.version === 'partner'" class="muted small">{{
-                    t('Partner account commissions are excluded from stock.')
+                    t(
+                        'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses. Wallet top-ups and withdrawals do not count.',
+                    )
+                }}</text
+                ><text v-if="r.version === 'partner'" class="muted small">{{
+                    t(
+                        'Converted or refunded security deposits are no longer included in deposit balances. Annual fees count actual completed payments, including converted deposits.',
+                    )
                 }}</text></view
-            ><view v-if="r.cashFlow" class="panel">
-                <text class="muted small">{{
-                    t(
-                        'Partner stock = non-partner descendant deposits − non-partner descendant gross withdrawals. Your own deposits and withdrawals are excluded. Commissions, annual fees, deposits held and internal transfers are not stock components.',
-                    )
-                }}</text>
-                <text class="muted small">{{
-                    t(
-                        'All currencies use the same current USDT rates. The valuation changes with market prices.',
-                    )
-                }}</text>
-                <text v-if="r.cashFlow.rateObservedAt" class="muted small"
-                    >{{ t('Exchange rate time') }}: {{ dateTime(r.cashFlow.rateObservedAt) }}</text
-                >
-                <view v-for="asset in r.cashFlow.assets" :key="asset.asset" class="detail">
-                    <text class="strong">{{ asset.asset }}</text>
-                    <text
-                        >{{ t('Team total deposits') }}: {{ asset.inflow }} {{ asset.asset }}</text
-                    >
-                    <text
-                        >{{ t('Team total withdrawals') }}: {{ asset.outflow }}
-                        {{ asset.asset }}</text
-                    >
-                    <text>1 {{ asset.asset }} = {{ asset.rate ?? '—' }} USDT</text>
-                </view> </view
             ><view v-if="r.accountBalance" class="panel"
                 ><text class="heading">{{ t('Account balance reconciliation') }}</text
                 ><view
@@ -237,7 +227,7 @@ const more = computed(() =>
             /><text class="muted small">{{
                 t(
                     r.version === 'partner'
-                        ? 'Excludes you and enabled descendant partners personally; their non-partner descendants remain included. Historical totals use current team relationships and partner status. Teams overlap; do not add reports together.'
+                        ? 'Contributions and annual returns include only non-partner descendants. Commissions are deducted by those users’ business source, regardless of recipient. Reimbursements include this partner and descendant partners, net of reversals. Current team relationships apply; overlapping reports must not be added together.'
                         : 'Includes this account and all descendants. Historical totals use current team relationships.',
                 )
             }}</text></view
@@ -299,14 +289,25 @@ const more = computed(() =>
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px 12px;
-    padding: 0;
+    gap: 8px 16px;
+    width: 100%;
+    min-height: 56px;
+    padding: 12px 0;
     margin: 0;
     background: none;
     color: #176957;
     text-align: left;
     font-size: inherit;
     line-height: 24px;
+}
+.flow-label {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+.flow-amount {
+    text-decoration: underline;
+    text-underline-offset: 4px;
 }
 .flow-link::after {
     border: 0;

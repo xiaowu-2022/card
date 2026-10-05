@@ -1,4 +1,41 @@
 export const partnerCatalog = {
+    'Contributions and annual returns include only non-partner descendants. Commissions are deducted by those users’ business source, regardless of recipient. Reimbursements include this partner and descendant partners, net of reversals. Current team relationships apply; overlapping reports must not be added together.':
+        [
+            '保证金、年费及返还仅统计非合伙人下级；已付佣金按这些用户的业务来源扣除，不限收款人。报销包含本人和下级合伙人净额，冲销抵回。按当前团队关系统计，重叠报表不可相加。',
+            'Sumbangan dan pulangan tahunan hanya meliputi ahli bawahan bukan rakan kongsi. Komisen ditolak mengikut sumber perniagaan mereka tanpa mengira penerima. Bayaran balik perbelanjaan termasuk rakan kongsi ini dan rakan kongsi bawahan selepas pembalikan. Hubungan pasukan semasa digunakan; jangan jumlahkan laporan bertindih.',
+            'Aportaciones y devoluciones anuales: solo descendientes no socios. Se deducen las comisiones de sus operaciones sin importar el destinatario. Los gastos incluyen este socio y socios descendientes, netos de anulaciones. Se usan relaciones actuales; no sume informes superpuestos.',
+        ],
+    'Eligible contributions': ['有效缴费合计', 'Jumlah sumbangan layak', 'Aportaciones válidas'],
+    'Stock deductions': ['存量扣减合计', 'Jumlah potongan baki', 'Deducciones del saldo'],
+    'Eligible security deposit balances': [
+        '非合伙人下级保证金余额',
+        'Baki jaminan ahli bawahan bukan rakan kongsi',
+        'Garantías de descendientes no socios',
+    ],
+    'Contribution details': [
+        '有效缴费明细',
+        'Butiran sumbangan layak',
+        'Detalles de aportaciones válidas',
+    ],
+    'Deduction details': ['存量扣减明细', 'Butiran potongan baki', 'Detalles de deducciones'],
+    'This partner': ['本合伙人', 'Rakan kongsi ini', 'Este socio'],
+    'Current security deposit balance': [
+        '当前保证金余额（非单笔入账）',
+        'Baki jaminan semasa (bukan satu transaksi)',
+        'Saldo actual de garantía (no una transacción)',
+    ],
+    'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses. Wallet top-ups and withdrawals do not count.':
+        [
+            '合伙人存量＝非合伙人下级保证金余额＋已付年费－已付佣金－已返还年费－报销净额。钱包充值、提现均不计入。',
+            'Baki rakan kongsi = baki jaminan layak + yuran tahunan dibayar − komisen dibayar − yuran tahunan dipulangkan − perbelanjaan dibayar balik bersih. Tambah nilai dan pengeluaran dompet tidak dikira.',
+            'Saldo del socio = garantías elegibles + cuotas anuales pagadas − comisiones pagadas − cuotas anuales devueltas − gastos reembolsados netos. No incluye recargas ni retiros de la billetera.',
+        ],
+    'Converted or refunded security deposits are no longer included in deposit balances. Annual fees count actual completed payments, including converted deposits.':
+        [
+            '已转成年费或已退还的保证金不再计入保证金余额；年费按实际成功缴纳金额累计，包含由保证金转换的部分。',
+            'Jaminan yang ditukar atau dipulangkan tidak lagi dikira dalam baki jaminan. Yuran tahunan merangkumi bayaran berjaya sebenar, termasuk jaminan yang ditukar.',
+            'Las garantías convertidas o devueltas ya no se incluyen en el saldo de garantía. Las cuotas anuales suman pagos completados reales, incluidas garantías convertidas.',
+        ],
     'Commission credited to the wallet.': [
         '佣金已计入钱包。',
         'Komisen telah dikreditkan ke dompet.',

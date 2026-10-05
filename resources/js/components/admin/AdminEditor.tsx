@@ -7,12 +7,13 @@ import {
     type ComponentType,
     type ReactNode,
 } from 'react';
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import type { Page } from '@inertiajs/core';
 import { EditorContext, useEditor } from './editor-context';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { t, errorMessage } from '@/i18n/admin';
+import { readEditorResponse } from './editor-response';
 
 const pages = import.meta.glob<ComponentType<Record<string, unknown>>>('../../pages/**/*.tsx', {
     import: 'default',
@@ -35,6 +36,7 @@ export function AdminEditorHost({ children }: { children: ReactNode }) {
     return embedded ? <>{children}</> : <EditorHost>{children}</EditorHost>;
 }
 function EditorHost({ children }: { children: ReactNode }) {
+    const version = usePage().version;
     const [url, setUrl] = useState(() => new URL(location.href).searchParams.get('editor'));
     const [page, setPage] = useState<Page | null>(null);
     const [Component, setComponent] = useState<ComponentType<Record<string, unknown>> | null>(null);
@@ -80,11 +82,12 @@ function EditorHost({ children }: { children: ReactNode }) {
             headers: {
                 Accept: 'application/json',
                 'X-Inertia': 'true',
+                'X-Inertia-Version': version ?? '',
                 'X-Admin-Dialog': '1',
                 'X-Requested-With': 'XMLHttpRequest',
             },
         });
-        const result = (await response.json()) as Partial<Page> & {
+        const result = (await readEditorResponse(response)) as Partial<Page> & {
             error?: { message?: string };
             message?: string;
         };
@@ -93,7 +96,7 @@ function EditorHost({ children }: { children: ReactNode }) {
                 result.error?.message ?? result.message ?? t('Unable to load. Please retry.'),
             );
         return result as Page;
-    }, []);
+    }, [version]);
     useEffect(() => {
         states.current.clear();
         setBusy(false);
@@ -309,6 +312,9 @@ function EditorHost({ children }: { children: ReactNode }) {
                                     }}
                                 >
                                     {t('Retry')}
+                                </Button>
+                                <Button variant="secondary" onClick={() => location.reload()}>
+                                    {t('Refresh page')}
                                 </Button>
                             </div>
                         )}

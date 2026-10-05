@@ -27,16 +27,17 @@ export type StockFlowDetails = StockPage<{
     source: string;
     account_id: string;
     email: string;
-    direct_account_id: string;
-    direct_email: string;
+    direct_account_id: string | null;
+    direct_email: string | null;
     asset_code: string;
     amount: string;
     amountUsdt: string | null;
-    posted_at: string;
+    posted_at: string | null;
 }> & { direction: 'inflow' | 'outflow' };
 export type StockReport = {
     flowDetails?: StockFlowDetails | null;
     version: 'partner' | 'standard';
+    stockBasis?: 'BUSINESS_CONTRIBUTIONS';
     cashFlow: null | {
         rateObservedAt: string | null;
         assets: {

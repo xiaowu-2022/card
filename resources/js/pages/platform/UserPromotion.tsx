@@ -1,4 +1,5 @@
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
+import { useForm } from '@/components/admin/editor-context';
 import { useEffect } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
@@ -44,13 +45,15 @@ export default function UserPromotion(p: Props) {
         confirmed: false,
     });
     useEffect(() => {
-        form.setData({
+        const defaults = {
             choice: '',
             reason: '',
             request_id: crypto.randomUUID(),
             expected_adjustment_id: p.latestAdjustmentId,
             confirmed: false,
-        });
+        };
+        form.setData(defaults);
+        form.setDefaults(defaults);
     }, [p.latestAdjustmentId]);
     const nextRank =
         form.data.choice === 'paid'

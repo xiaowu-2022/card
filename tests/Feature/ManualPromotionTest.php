@@ -6,9 +6,11 @@ use App\Application\Promotion\PaidPromotionQuery;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Support\Errors\DomainException;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\RecordNotFoundException;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
@@ -133,4 +135,21 @@ it('accepts configured ranks beyond eight without hardcoded choices', function (
     manualAdjust($this, $values['id']);
     expect($this->manual->benefit($this->tenant->id, $this->user->id)->rank)->toBe(12);
     expect(app(PaidPromotionQuery::class)->benefits($this->tenant->id, $this->user->id)['rank'])->toBe(12);
+});
+
+it('serves a versioned promotion dialog and saves JSON without navigation or money effects', function () {
+    $version = app(HandleInertiaRequests::class)->version(Request::create($this->url));
+    $this->actingAs($this->owner, 'platform_admin');
+    $headers = ['Accept' => 'application/json', 'X-Requested-With' => 'XMLHttpRequest', 'X-Admin-Dialog' => '1', 'X-Inertia' => 'true'];
+    $this->get($this->url, [...$headers, 'X-Inertia-Version' => 'outdated-build'])->assertStatus(409)->assertHeader('X-Inertia-Location', $this->url)->assertContent('');
+    $this->get($this->url, [...$headers, 'X-Inertia-Version' => $version ?? ''])->assertOk()
+        ->assertJsonPath('component', 'platform/UserPromotion')->assertJsonPath('props.account.id', $this->user->id);
+    $payload = ['choice' => $this->level->id, 'reason' => 'Offline dialog adjustment', 'request_id' => (string) Str::uuid(), 'confirmed' => true];
+    $this->withHeaders(['X-Admin-Dialog' => '1'])->postJson($this->url, [...$payload, 'reason' => ''])->assertUnprocessable()->assertJsonValidationErrors('reason');
+    foreach (range(1, 2) as $_) {
+        $this->postJson($this->url, $payload)->assertOk()->assertJson(['saved' => true]);
+    }
+    expect(DB::table('manual_promotion_adjustments')->count())->toBe(1)
+        ->and(DB::table('ledger_entries')->count())->toBe(0)
+        ->and(DB::table('account_activations')->count())->toBe(0);
 });

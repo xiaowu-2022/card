@@ -10,7 +10,9 @@ use App\Application\Partners\PartnerManagement;
 use App\Application\Partners\PartnerReport;
 use App\Application\Promotion\AdjustManualCommission;
 use App\Application\Promotion\ConfigurePaidPromotion;
+use App\Application\Promotion\ManualPromotion;
 use App\Application\Promotion\PaidPromotionPurchase;
+use App\Application\Promotion\PaidPromotionQuery;
 use App\Application\Promotion\PaidPromotionRebate;
 use App\Application\Promotion\PromotionMembershipAction;
 use App\Application\SecurityDeposit\FundSecurityDepositAction;
@@ -36,7 +38,6 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabaseState;
-use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -619,198 +620,254 @@ function stockExternal(User $user, string $asset, string $amount, bool $incoming
         : ['status' => $complete ? 'COMPLETED' : 'PENDING', 'fee_amount' => '0.1']));
 }
 
-function stockMarket(string $eth = '2000'): void
+// Exact synthetic guarantee evidence for report-only scope/precision tests.
+function stockGuarantee(User $user, string $delta): void
 {
-    Http::fake(['*okx.com*' => Http::response(['code' => '0', 'data' => array_map(fn ($asset, $rate) => [
-        'instType' => 'SPOT', 'instId' => $asset.'-USDT', 'last' => $rate, 'ts' => (string) now()->getTimestampMs(),
-    ], ['USDC', 'ETH', 'BTC'], ['1.01', $eth, '60000'])])]);
+    $tenant = Tenant::findOrFail($user->tenant_id);
+    $access = app(AssetAccess::class);
+    $wallet = $access->wallet($tenant, $user, 'USDT');
+    $deposit = LedgerAccount::firstOrCreate(['tenant_id' => $tenant->id, 'user_id' => $user->id,
+        'wallet_id' => $wallet->id, 'asset_code' => 'USDT', 'account_type' => 'USER_SECURITY_DEPOSIT'], ['balance' => '0', 'status' => 'ACTIVE']);
+    app(LedgerWriter::class)->post(new LedgerPostingPlan($tenant->id, 'USDT', 'stock-guarantee-fixture:'.Str::uuid(), 'TEST_GUARANTEE_EVIDENCE', null, null, null, [
+        new LedgerPostingInstruction($deposit->id, Money::of($delta, 'USDT')),
+        new LedgerPostingInstruction($access->companyAccount($tenant->id, 'USDT', 'TENANT_TOPUP_CLEARING')->id, Money::of((string) BigDecimal::of($delta)->negated(), 'USDT')),
+    ]));
 }
 
-it('values partner descendant external flows with one current snapshot and gross withdrawals without writes', function () {
+it('counts partner business contributions only and never values wallet topups withdrawals or withdrawal fees', function () {
     stockPartner($this, $this->user);
     $child = stockChild($this->user);
-    $grandchild = stockChild($child);
-    stockPartner($this, $child, false); // Disabled configurations still count as non-partners.
-    stockExternal($child, 'USDT', '100', true, true, true);
-    stockExternal($grandchild, 'USDT', '50');
-    stockExternal($child, 'USDT', '15', false);
-    stockExternal($child, 'USDT', '5', false, true, true);
-    stockExternal($grandchild, 'ETH', '0.5');
-    stockExternal($grandchild, 'ETH', '0.2', false);
-    stockExternal($child, 'USDC', '10');
-    stockExternal($child, 'BTC', '0.001');
-    stockExternal($child, 'USDT', '900', true, false);
-    stockExternal($child, 'USDT', '800', false, false);
-    stockExternal($this->user, 'USDT', '9999');
-    stockExternal($this->user, 'USDT', '777', false);
-    $outside = User::where('tenant_id', '<>', $this->tenant->id)->firstOrFail();
-    stockExternal($outside, 'USDT', '6666');
-    $before = ['entries' => DB::table('ledger_entries')->count(), 'wallets' => DB::table('wallets')->count(), 'rates' => DB::table('asset_market_snapshots')->count(), 'balances' => DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all()];
-    stockMarket();
+    foreach (['USDT', 'USDC', 'ETH', 'BTC'] as $asset) {
+        stockExternal($child, $asset, '10');
+        stockExternal($child, $asset, '2', false);
+    }
+    stockExternal($child, 'USDT', '50', true, true, true);
+    stockExternal($child, 'USDT', '1', false, true, true);
     $query = app(PartnerReport::class);
-    $r = $query->read($this->tenant->id, $this->user->id);
-    expect($r['version'])->toBe('partner')->and($r['totals']['inflow'])->toBe('1220.10000000')
-        ->and($r['totals']['outflow'])->toBe('420.00000000')->and($r['stock'])->toBe('800.10000000')
-        ->and($r['totals'])->not->toHaveKey('activation')->and($r['cashFlow']['rateObservedAt'])->not->toBeNull();
-    Http::assertSentCount(1);
-    expect(DB::table('ledger_entries')->count())->toBe($before['entries']);
-    expect(DB::table('wallets')->count())->toBe($before['wallets']);
-    expect(DB::table('asset_market_snapshots')->count())->toBe($before['rates']);
-    expect(DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all())->toBe($before['balances']);
-    Http::swap(new Factory);
-    Http::preventStrayRequests();
-    stockMarket('3000');
-    expect($query->read($this->tenant->id, $this->user->id)['stock'])->toBe('1100.10000000');
+    $zero = $query->read($this->tenant->id, $this->user->id, true, 1, 'inflow');
+    expect($zero['stock'])->toBe('0.00000000')->and($zero['missingRates'])->toBe(0)->and($zero['cashFlow'])->toBeNull()
+        ->and($zero['flowDetails']['total'])->toBe(0);
+    stockGuarantee($child, '50.12345678');
+    stockGuarantee($this->user, '900');
+    $outside = User::where('tenant_id', '<>', $this->tenant->id)->firstOrFail();
+    stockGuarantee($outside, '800');
+    $balances = DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all();
+    $entries = DB::table('ledger_entries')->count();
+    $r = $query->read($this->tenant->id, $this->user->id, true, 1, 'inflow');
+    expect($r['stock'])->toBe('50.12345678')->and($r['totals']['deposits'])->toBe('50.12345678')
+        ->and($r['totals']['annual'])->toBe('0.00000000')->and($r['totals']['outflow'])->toBe('0.00000000')
+        ->and($r['flowDetails']['items'][0]['posted_at'])->toBeNull()
+        ->and($r['flowDetails']['items'][0]['account_id'])->toBe($child->account_id)
+        ->and(DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all())->toBe($balances)
+        ->and(DB::table('ledger_entries')->count())->toBe($entries);
+    Http::assertNothingSent();
     expect(fn () => $query->read($outside->tenant_id, $this->user->id))->toThrow(HttpException::class);
 });
 
-it('keeps partner valuations unavailable on market failure and reports native amounts without pretending parity', function () {
-    stockPartner($this, $this->user);
-    $child = stockChild($this->user);
-    stockExternal($child, 'ETH', '0.123456789123456789');
-    Http::fake(['*okx.com*' => Http::response([], 503)]);
-    $r = app(PartnerReport::class)->read($this->tenant->id, $this->user->id);
-    expect($r['stock'])->toBeNull()->and($r['totals']['inflow'])->toBeNull()->and($r['missingRates'])->toBe(1)
-        ->and($r['cashFlow']['assets'][0]['inflow'])->toBe('0.123456789123456789')
-        ->and($r['cashFlow']['assets'][0]['rate'])->toBeNull();
-    Http::swap(new Factory);
-    Http::preventStrayRequests();
-    stockMarket('3');
-    expect(app(PartnerReport::class)->read($this->tenant->id, $this->user->id)['stock'])->toBe('0.37037037');
-});
-
-it('keeps exact USDT negative partner stock and standard formula separate', function () {
-    stockPartner($this, $this->user);
-    $child = stockChild($this->user);
-    stockExternal($child, 'USDT', '1.00000001', true, true, true);
-    stockExternal($child, 'USDT', '2.00000002', false);
+it('converts guarantees into annual business stock once and deducts posted source commissions including partner and outside recipients', function () {
+    stockFundWallet($this, $this->user);
+    stockBuy($this, $this->user, 8);
+    $owner = stockChild($this->user);
+    stockPartner($this, $owner);
+    stockFundWallet($this, $owner);
+    stockBuy($this, $owner, 1); // Own fee and its rewards must not enter this report.
+    $child = stockChild($owner);
+    stockFundWallet($this, $child);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
     $query = app(PartnerReport::class);
-    expect($query->read($this->tenant->id, $this->user->id)['stock'])->toBe('-1.00000001');
-    stockPartner($this, $this->user, false);
-    $r = $query->read($this->tenant->id, $this->user->id);
-    expect($r['version'])->toBe('standard')->and($r['cashFlow'])->toBeNull()->and($r['accountBalance'])->toBeNull()
-        ->and($r['stock'])->toBe('0.10000000')->and($r['journal']['items'])->toBe([]);
+    $r = $query->read($this->tenant->id, $owner->id);
+    expect($r['totals']['deposits'])->toBe('50.00000000');
+    $cost = $r['totals']['activation'];
+    expect(BigDecimal::of($cost)->isPositive())->toBeTrue();
+    stockBuy($this, $child, 1);
+    $order = DB::table('paid_promotion_orders')->where('user_id', $child->id)->where('status', 'COMPLETED')->first();
+    expect($order->deposit_applied)->toBe('50.00000000');
+    $r = $query->read($this->tenant->id, $owner->id, true, 1, 'outflow');
+    expect($r['totals']['deposits'])->toBe('0.00000000')->and($r['totals']['annual'])->toBe($order->settlement_total)
+        ->and($r['totals']['annualCommission'])->toBe($order->amount)->and($r['totals']['activation'])->toBe($cost)
+        ->and($r['stock'])->toBe((string) BigDecimal::of($order->settlement_total)->minus($order->amount)->minus($cost)->toScale(8));
+    $sum = collect($r['flowDetails']['items'])->reduce(fn ($sum, $row) => $sum->plus($row['amount']), BigDecimal::zero());
+    expect((string) $sum->toScale(8))->toBe($r['totals']['outflow']);
+    stockPartner($this, $child);
+    $r = $query->read($this->tenant->id, $owner->id);
+    expect($r['stock'])->toBe('0.00000000')->and($r['totals']['annualCommission'])->toBe('0.00000000');
     Http::assertNothingSent();
 });
 
-it('opens partner cash flow details using the same totals and current first-level branch', function () {
-    stockPartner($this, $this->user);
+it('deducts net owner and descendant partner reimbursements with reversals but not advances', function () {
+    $owner = stockPartner($this, $this->user);
     $direct = stockChild($this->user);
-    $grandchild = stockChild($direct);
-    $deep = stockChild($grandchild);
-    $otherBranch = stockChild($this->user);
-    stockPartner($this, $grandchild);
-    stockExternal($direct, 'USDT', '100', true, true, true);
-    stockExternal($deep, 'ETH', '0.25');
-    stockExternal($otherBranch, 'USDT', '30');
-    stockExternal($grandchild, 'USDT', '12', false, true, true);
-    stockExternal($deep, 'ETH', '0.2', false);
-    stockExternal($deep, 'USDT', '999', true, false);
-    stockExternal($this->user, 'USDT', '555');
-    $outside = User::where('tenant_id', '<>', $this->tenant->id)->firstOrFail();
-    stockExternal($outside, 'USDT', '777');
-    $before = DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all();
-    $entries = DB::table('ledger_entries')->count();
-    stockMarket();
+    $nested = stockPartner($this, $direct);
+    $child = stockChild($direct);
+    stockGuarantee($child, '100.12345678');
+    $first = $this->management->journal($this->admin, $this->tenant->id, $owner->id, stockEntry('REIMBURSEMENT', '120.12345679'));
+    $this->management->journal($this->admin, $this->tenant->id, $nested->id, stockEntry('REIMBURSEMENT', '5'));
+    $this->management->journal($this->admin, $this->tenant->id, $owner->id, stockEntry('ADVANCE', '900'));
     $query = app(PartnerReport::class);
-    $report = $query->read($this->tenant->id, $this->user->id, true, 1, 'inflow');
-    $rows = collect($report['flowDetails']['items'])->keyBy('account_id');
-    expect($report['totals']['inflow'])->toBe('630.00000000')->and($report['flowDetails']['total'])->toBe(3)
-        ->and($rows[$deep->account_id]['direct_account_id'])->toBe($direct->account_id)
-        ->and($rows[$deep->account_id]['direct_email'])->toBe($direct->email)
-        ->and($rows[$deep->account_id]['email'])->toBe($deep->email)
-        ->and($rows[$deep->account_id]['amountUsdt'])->toBe('500.00000000')
-        ->and($rows[$direct->account_id]['direct_account_id'])->toBe($direct->account_id)
-        ->and($rows[$otherBranch->account_id]['direct_account_id'])->toBe($otherBranch->account_id);
-    expect(array_keys($rows[$deep->account_id]))->toBe(['id', 'source', 'asset_code', 'amount', 'posted_at', 'account_id', 'email', 'direct_account_id', 'direct_email', 'amountUsdt']);
-    Http::assertSentCount(1); // Details reuse the report's quote, never get their own.
-    $out = $query->read($this->tenant->id, $this->user->id, true, 1, 'outflow');
-    expect($out['totals']['outflow'])->toBe('400.00000000')->and($out['flowDetails']['total'])->toBe(1);
-    $sum = collect($out['flowDetails']['items'])->reduce(fn ($sum, $row) => $sum->plus($row['amountUsdt']), BigDecimal::zero());
-    expect((string) $sum->toScale(8))->toBe($out['totals']['outflow'])
-        ->and(DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all())->toBe($before)
-        ->and(DB::table('ledger_entries')->count())->toBe($entries);
+    $r = $query->read($this->tenant->id, $this->user->id, true, 1, 'outflow');
+    expect($r['stock'])->toBe('-25.00000001')->and($r['negative'])->toBeTrue()->and($r['totals']['reimbursements'])->toBe('125.12345679')
+        ->and($r['flowDetails']['total'])->toBe(2);
+    $this->management->journal($this->admin, $this->tenant->id, $owner->id, stockEntry('REIMBURSEMENT', '120.12345679') + ['reverses_id' => $first->id]);
+    $r = $query->read($this->tenant->id, $this->user->id, true, 1, 'outflow');
+    expect($r['stock'])->toBe('95.12345678')->and($r['totals']['reimbursements'])->toBe('5.00000000')->and($r['flowDetails']['total'])->toBe(3)
+        ->and(collect($r['flowDetails']['items'])->where('amount', '<', 0))->toHaveCount(1);
+    stockGuarantee($child, '-50'); // Completed refund leaves held principal once.
+    expect($query->read($this->tenant->id, $this->user->id)['stock'])->toBe('45.12345678');
+    Http::assertNothingSent();
 });
 
-it('paginates partner cash flow details without duplicates and keeps native precision when rates fail', function () {
+it('paginates business contribution details and retains current direct branches without counting partner accounts', function () {
     stockPartner($this, $this->user);
     $direct = stockChild($this->user);
-    for ($i = 0; $i < 21; $i++) {
-        stockExternal($direct, 'USDT', '1.00000001');
+    $nested = stockChild($direct);
+    $leaf = stockChild($nested);
+    foreach ([$direct, $nested, $leaf] as $member) {
+        stockGuarantee($member, '10.00000001');
     }
     $query = app(PartnerReport::class);
-    $first = $query->read($this->tenant->id, $this->user->id, true, 1, 'inflow');
-    $second = $query->read($this->tenant->id, $this->user->id, true, 1, 'inflow', 2);
-    expect($first['flowDetails']['total'])->toBe(21)->and($first['flowDetails']['items'])->toHaveCount(20)
-        ->and($first['flowDetails']['hasMore'])->toBeTrue()->and($second['flowDetails']['items'])->toHaveCount(1)
-        ->and($second['flowDetails']['hasMore'])->toBeFalse()
-        ->and(array_intersect(array_column($first['flowDetails']['items'], 'id'), array_column($second['flowDetails']['items'], 'id')))->toBe([])
-        ->and($first['totals']['inflow'])->toBe('21.00000021');
-    $empty = $query->read($this->tenant->id, $this->user->id, true, 1, 'outflow');
-    expect($empty['flowDetails']['items'])->toBe([])->and($empty['flowDetails']['total'])->toBe(0);
+    $standard = $query->read($this->tenant->id, $leaf->id);
+    $check = function (string $total, array $members) use ($query, $direct) {
+        $r = $query->read($this->tenant->id, $this->user->id, true, 1, 'inflow');
+        expect($r['stock'])->toBe($total)->and($r['flowDetails']['total'])->toBe(count($members))
+            ->and(array_column($r['flowDetails']['items'], 'account_id'))->toEqualCanonicalizing(array_map(fn ($m) => $m->account_id, $members));
+        foreach ($r['flowDetails']['items'] as $row) {
+            expect($row['direct_account_id'])->toBe($direct->account_id)->and($row['direct_email'])->toBe($direct->email);
+        }
+    };
+    $check('30.00000003', [$direct, $nested, $leaf]);
+    stockPartner($this, $direct);
+    $check('20.00000002', [$nested, $leaf]);
+    stockPartner($this, $nested);
+    $check('10.00000001', [$leaf]);
+    stockPartner($this, $direct, false);
+    $check('20.00000002', [$direct, $leaf]);
+    stockPartner($this, $nested, false);
+    $check('30.00000003', [$direct, $nested, $leaf]);
+    expect($query->read($this->tenant->id, $leaf->id)['totals'])->toBe($standard['totals']);
+    foreach (range(1, 18) as $_) {
+        stockGuarantee(stockChild($nested), '1.00000001');
+    }
+    $one = $query->read($this->tenant->id, $this->user->id, true, 1, 'inflow');
+    $two = $query->read($this->tenant->id, $this->user->id, true, 1, 'inflow', 2);
+    expect($one['flowDetails']['total'])->toBe(21)->and($one['flowDetails']['items'])->toHaveCount(20)->and($one['flowDetails']['hasMore'])->toBeTrue()
+        ->and($two['flowDetails']['items'])->toHaveCount(1)->and($two['flowDetails']['hasMore'])->toBeFalse()
+        ->and(array_intersect(array_column($one['flowDetails']['items'], 'id'), array_column($two['flowDetails']['items'], 'id')))->toBe([])
+        ->and($one['totals']['inflow'])->toBe('48.00000021');
     Http::assertNothingSent();
-    stockExternal($direct, 'ETH', '0.123456789123456789', false);
-    Http::fake(['*okx.com*' => Http::response([], 503)]);
-    $missing = $query->read($this->tenant->id, $this->user->id, true, 1, 'outflow');
-    expect($missing['flowDetails']['items'][0]['amount'])->toBe('0.123456789123456789')
-        ->and($missing['flowDetails']['items'][0]['amountUsdt'])->toBeNull();
 });
 
-it('protects partner cash flow drilldown identity and rejects ordinary users', function () {
+it('protects partner business drilldown identity and rejects ordinary users', function () {
     stockPartner($this, $this->user);
     $direct = stockChild($this->user);
-    stockExternal($direct, 'USDT', '5');
+    stockGuarantee($direct, '5');
     $this->actingAs($this->user, 'tenant_user');
     $url = 'http://a.localhost/promotion/stock';
-    $this->getJson($url.'?flow=inflow')->assertOk()->assertJsonPath('flowDetails.total', 1)
-        ->assertHeader('Cache-Control', 'no-store, private');
-    $this->getJson($url.'?flow=invalid')->assertUnprocessable();
-    $this->getJson($url.'?flow=inflow&flow_page=0')->assertUnprocessable();
-    $this->getJson($url.'?flow=inflow&user_id='.$direct->id)->assertUnprocessable();
-    $this->getJson($url.'?flow=inflow&tenant_id='.$this->tenant->id)->assertUnprocessable();
+    $this->getJson($url.'?flow=inflow')->assertOk()->assertJsonPath('flowDetails.total', 1)->assertHeader('Cache-Control', 'no-store, private');
+    foreach (['flow=invalid', 'flow=inflow&flow_page=0', 'flow=inflow&user_id='.$direct->id, 'flow=inflow&tenant_id='.$this->tenant->id] as $query) {
+        $this->getJson($url.'?'.$query)->assertUnprocessable();
+    }
     $this->actingAs($direct, 'tenant_user')->getJson($url.'?flow=inflow')->assertForbidden();
     $this->actingAs($this->admin, 'platform_admin')->get('http://admin.localhost/platform/partners?tenant='.$this->tenant->id.'&partner='.DB::table('partner_configurations')->where('user_id', $this->user->id)->value('id').'&flow=inflow')
         ->assertOk()->assertInertia(fn (Assert $page) => $page->where('report.flowDetails.total', 1));
     Http::assertNothingSent();
 });
 
-it('recalculates lifetime totals and details when descendant partner status changes without pruning branches', function () {
-    stockPartner($this, $this->user);
+it('opens partner invitation tables without creating membership wallets rewards or external requests', function () {
+    $partner = stockPartner($this, $this->user);
     $direct = stockChild($this->user);
-    $nested = stockChild($direct);
-    $leaf = stockChild($nested);
-    foreach ([[$direct, '100', '20'], [$nested, '50', '10'], [$leaf, '30', '5']] as [$member, $in, $out]) {
-        stockExternal($member, 'USDT', $in, true, true, true);
-        stockExternal($member, 'USDT', $out, false);
+    stockChild($direct);
+    $before = collect(['promotion_members', 'wallets', 'ledger_accounts', 'ledger_entries', 'account_activations', 'paid_promotion_orders', 'audit_logs'])->mapWithKeys(fn ($table) => [$table => DB::table($table)->count()]);
+    $paid = app(PaidPromotionQuery::class)->execute($this->tenant->id, $this->user->id);
+    $response = $this->actingAs($this->admin, 'platform_admin')->getJson('http://admin.localhost/platform/partners/'.$partner->id.'/invitations');
+    $response->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('account.accountId', $this->user->account_id)->assertJsonPath('account.companyId', $this->tenant->id)
+        ->assertJsonPath('summary.directPeople', 1)->assertJsonPath('summary.indirectPeople', 1)
+        ->assertJsonPath('commission', '0.00000000')->assertJsonPath('details', null)
+        ->assertJsonMissingPath('summary.paymentAccess')->assertJsonMissingPath('summary.availableBalance');
+    expect($response->json('summary.tables'))->toBe($paid['tables'])
+        ->and($response->json('summary.teamByLevel'))->toBe($paid['teamByLevel']);
+    foreach ($before as $table => $count) {
+        expect(DB::table($table)->count())->toBe($count);
     }
+    Http::assertNothingSent();
+    Queue::assertNothingPushed();
+});
+
+it('scopes partner invitation reads and rejects forged targets missing permissions and invalid drilldowns', function () {
+    $partner = stockPartner($this, $this->user, false);
+    $url = 'http://admin.localhost/platform/partners/'.$partner->id.'/invitations';
+    $this->actingAs($this->admin, 'platform_admin')->getJson($url)->assertOk();
+    $other = Tenant::where('slug', 'tenant-b')->firstOrFail();
+    $this->getJson($url.'?company='.$other->id)->assertNotFound();
+    $this->getJson('http://admin.localhost/platform/partners/'.Str::uuid().'/invitations')->assertNotFound();
+    foreach (['kind=ANNUAL', 'rank=1', 'kind=INVALID&rank=1', 'kind=ANNUAL&rank=999999', 'page=0', 'page=100001', 'company=invalid', 'user_id='.$this->user->id, 'tenant_id='.$other->id, 'subject='.$this->user->id] as $query) {
+        $this->getJson($url.'?'.$query)->assertUnprocessable();
+    }
+    $this->actingAs(AdminUser::where('email', 'owner@a.localhost')->firstOrFail(), 'platform_admin')->getJson($url)->assertForbidden();
+    $permission = DB::table('permissions')->where('name', 'partners.manage')->value('id');
+    DB::table('role_permissions')->where('permission_id', $permission)->delete();
+    $this->actingAs($this->admin, 'platform_admin')->getJson($url)->assertForbidden();
+});
+
+it('matches partner invitation reward records to the consumer table across pagination and current level changes', function () {
+    $partner = stockPartner($this, $this->user);
+    stockFundWallet($this, $this->user);
+    stockBuy($this, $this->user, 8);
+    $first = null;
+    foreach (range(1, 31) as $_) {
+        $child = stockChild($this->user);
+        stockFundWallet($this, $child);
+        stockBuy($this, $child, 1);
+        $first ??= $child;
+    }
+    // A later level adjustment must not regroup the existing rank-one commission.
+    app(ManualPromotion::class)->adjust($this->tenant->id, $first->id, $this->admin, 'ordinary', 'Offline comparison', (string) Str::uuid(), null);
+    $query = app(PaidPromotionQuery::class);
+    $canonical = $query->execute($this->tenant->id, $this->user->id);
+    $before = DB::table('ledger_accounts')->pluck('balance', 'id')->all();
+    $counts = collect(['ledger_entries', 'paid_promotion_shares', 'paid_promotion_orders', 'audit_logs'])->mapWithKeys(fn ($table) => [$table => DB::table($table)->count()]);
+    $url = 'http://admin.localhost/platform/partners/'.$partner->id.'/invitations?kind=ANNUAL&rank=1';
+    $one = $this->actingAs($this->admin, 'platform_admin')->getJson($url)->assertOk()->assertJsonPath('details.hasMore', true)->assertJsonCount(30, 'details.items');
+    $two = $this->getJson($url.'&page=2')->assertOk()->assertJsonPath('details.hasMore', false)->assertJsonCount(1, 'details.items');
+    $this->getJson(str_replace('ANNUAL', 'ACTIVATION', $url))->assertOk()->assertJsonCount(0, 'details.items');
+    expect($one->json('summary.tables'))->toBe($canonical['tables'])
+        ->and($one->json('summary.teamByLevel'))->toBe($canonical['teamByLevel'])
+        ->and(array_column($one->json('details.items'), 'id'))->toBe(array_column($query->details($this->tenant->id, $this->user->id, 'ANNUAL', 1, 1)['items'], 'id'));
+    $rows = [...$one->json('details.items'), ...$two->json('details.items')];
+    expect(array_unique(array_column($rows, 'id')))->toHaveCount(31);
+    foreach ($rows as $row) {
+        expect($row['direct'])->toBeTrue()->and($row['email'])->not->toBeNull();
+    }
+    $sum = collect($rows)->reduce(fn ($sum, $row) => $sum->plus($row['amount']), BigDecimal::zero());
+    $cell = collect($canonical['tables']['ANNUAL'])->firstWhere('rank', 1);
+    expect((string) $sum->toScale(8))->toBe((string) BigDecimal::of($cell['direct']['amount'])->toScale(8))
+        ->and(DB::table('ledger_accounts')->pluck('balance', 'id')->all())->toBe($before);
+    foreach ($counts as $table => $count) {
+        expect(DB::table($table)->count())->toBe($count);
+    }
+    Http::assertNothingSent();
+});
+
+it('deducts only completed annual returns from eligible partner business contributors', function () {
+    stockPartner($this, $this->user);
+    $child = stockChild($this->user);
+    stockFundWallet($this, $child);
+    $level = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->where('rank', 1)->first();
+    app(ConfigurePaidPromotion::class)->execute($this->tenant->id, $this->admin, $level->id, [
+        'fee' => $level->fee, 'percent' => $level->percent, 'reward' => $level->reward,
+        'target' => 1, 'revision' => $level->revision, 'enabled' => true,
+    ]);
+    stockBuy($this, $child, 1);
+    $grandchild = stockChild($child);
+    stockFundWallet($this, $grandchild);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $grandchild->id, (string) Str::uuid(), '50');
+    $returned = DB::table('paid_promotion_rebates')->where('user_id', $child->id)->where('status', 'APPROVED')->whereNotNull('ledger_entry_id')->sum('amount');
+    expect(BigDecimal::of((string) $returned)->isPositive())->toBeTrue();
     $query = app(PartnerReport::class);
-    $balances = DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all();
-    $entries = DB::table('ledger_entries')->count();
-    $standard = $query->read($this->tenant->id, $leaf->id);
-    $check = function (string $in, string $out, array $members) use ($query, $direct) {
-        foreach (['inflow' => $in, 'outflow' => $out] as $flow => $total) {
-            $r = $query->read($this->tenant->id, $this->user->id, true, 1, $flow);
-            expect($r['totals'][$flow])->toBe($total)
-                ->and($r['stock'])->toBe((string) BigDecimal::of($in)->minus($out)->toScale(8))
-                ->and($r['flowDetails']['total'])->toBe(count($members))
-                ->and(array_column($r['flowDetails']['items'], 'account_id'))->toEqualCanonicalizing(array_map(fn ($m) => $m->account_id, $members));
-            foreach ($r['flowDetails']['items'] as $row) {
-                expect($row['direct_account_id'])->toBe($direct->account_id)
-                    ->and($row['direct_email'])->toBe($direct->email);
-            }
-        }
-    };
-    $check('180.00000000', '35.00000000', [$direct, $nested, $leaf]);
-    stockPartner($this, $direct);
-    $check('80.00000000', '15.00000000', [$nested, $leaf]);
-    stockPartner($this, $nested);
-    $check('30.00000000', '5.00000000', [$leaf]);
-    stockPartner($this, $direct, false);
-    $check('130.00000000', '25.00000000', [$direct, $leaf]);
-    stockPartner($this, $nested, false);
-    $check('180.00000000', '35.00000000', [$direct, $nested, $leaf]);
-    expect($query->read($this->tenant->id, $leaf->id)['totals'])->toBe($standard['totals'])
-        ->and(DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all())->toBe($balances)
-        ->and(DB::table('ledger_entries')->count())->toBe($entries);
+    $r = $query->read($this->tenant->id, $this->user->id, true, 1, 'outflow');
+    expect($r['totals']['rebates'])->toBe((string) BigDecimal::of((string) $returned)->toScale(8))
+        ->and(collect($r['flowDetails']['items'])->where('source', 'rebates'))->toHaveCount(1);
+    stockPartner($this, $child);
+    expect($query->read($this->tenant->id, $this->user->id)['totals']['rebates'])->toBe('0.00000000');
     Http::assertNothingSent();
 });

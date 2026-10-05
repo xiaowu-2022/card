@@ -2,6 +2,7 @@
 
 namespace App\Application\User;
 
+use App\Application\Wallet\ActivateUserWalletAction;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Enums\RegistrationChallengeStatus;
@@ -18,7 +19,7 @@ use Illuminate\Support\Facades\Hash;
 
 final readonly class RegisterUserAction
 {
-    public function __construct(private AuditLogger $audit) {}
+    public function __construct(private AuditLogger $audit, private ActivateUserWalletAction $wallets) {}
 
     public function execute(Tenant $tenant, string $challengeId, string $password, ?string $displayName = null, ?string $locale = null, ?string $requestId = null): User
     {
@@ -48,6 +49,7 @@ final readonly class RegisterUserAction
                     throw new DomainException('TENANT_LOCALE_UNAVAILABLE', 'Registration is temporarily unavailable.');
                 }
                 UserPreference::query()->create(['tenant_id' => $tenant->id, 'user_id' => $user->id, 'locale' => $selectedLocale]);
+                $this->wallets->execute($currentTenant->id, $user->id, $requestId);
                 $challenge->update(['consumed_at' => now()]);
                 $this->audit->record($tenant->id, 'USER', $user->id, 'USER_REGISTERED', 'user', $user->id, null, ['channel' => $challenge->channel->value], $requestId);
 

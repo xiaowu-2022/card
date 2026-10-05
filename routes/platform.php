@@ -92,6 +92,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware('admin.scope:platform,partners.manage')->group(function (): void {
         Route::get('/tenants/{tenant}/partner-candidates', [PartnerController::class, 'candidates'])->whereUuid('tenant')->middleware('throttle:120,1');
         Route::get('/partners', [PartnerController::class, 'index'])->name('partners');
+        Route::get('/partners/{partner}/invitations', [PartnerController::class, 'invitations'])->whereUuid('partner')->middleware('throttle:120,1');
         Route::post('/tenants/{tenant}/partners', [PartnerController::class, 'configure'])->whereUuid('tenant');
         Route::post('/tenants/{tenant}/partners/{partner}/journal', [PartnerController::class, 'journal'])->whereUuid(['tenant', 'partner']);
         Route::post('/tenants/{tenant}/fee-valuations/{valuation}', [PartnerController::class, 'valueFee'])->whereUuid(['tenant', 'valuation']);

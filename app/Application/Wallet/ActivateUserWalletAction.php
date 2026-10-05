@@ -4,8 +4,6 @@ namespace App\Application\Wallet;
 
 use App\Application\Wallet\DTOs\WalletActivationResult;
 use App\Domain\Audit\Services\AuditLogger;
-use App\Domain\Kyc\Enums\KycUserStatus;
-use App\Domain\Kyc\Services\KycStatusService;
 use App\Domain\Tenant\Enums\TenantStatus;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Enums\UserStatus;
@@ -18,7 +16,6 @@ use Illuminate\Support\Facades\DB;
 final readonly class ActivateUserWalletAction
 {
     public function __construct(
-        private KycStatusService $kycStatus,
         private WalletProvisioner $provisioner,
         private AuditLogger $audit,
     ) {}
@@ -29,8 +26,7 @@ final readonly class ActivateUserWalletAction
             $tenant = Tenant::whereKey($tenantId)->lockForUpdate()->firstOrFail();
             $user = User::where('tenant_id', $tenantId)->whereKey($userId)->lockForUpdate()->firstOrFail();
             if ($tenant->status !== TenantStatus::Active || $user->status !== UserStatus::Active
-                || Wallet::where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', $tenant->default_asset)->exists()
-                || $this->kycStatus->forUser($tenantId, $userId) !== KycUserStatus::Approved) {
+                || Wallet::where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', $tenant->default_asset)->exists()) {
                 return;
             }
             $this->execute($tenantId, $userId, $requestId);
@@ -51,7 +47,7 @@ final readonly class ActivateUserWalletAction
             }
 
             $assetCode = strtoupper(trim($tenant->default_asset));
-            $existing = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', Tenant::query()->whereKey($tenantId)->value('default_asset'))->first();
+            $existing = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', $assetCode)->first();
             if ($existing) {
                 if ($existing->asset_code !== $assetCode) {
                     throw new DomainException('WALLET_ASSET_MISMATCH', 'The existing Wallet asset does not match the Tenant financial asset.', 409);
@@ -59,10 +55,6 @@ final readonly class ActivateUserWalletAction
 
                 return new WalletActivationResult($existing, false);
             }
-            if ($this->kycStatus->forUser($tenantId, $userId) !== KycUserStatus::Approved) {
-                throw new DomainException('KYC_NOT_APPROVED', 'Identity verification must be approved before wallet activation.', 403);
-            }
-
             $wallet = $this->provisioner->provision($tenant, $user, $assetCode);
             $this->audit->record($tenantId, 'USER', $userId, 'USER_WALLET_ACTIVATED', 'wallet', $wallet->id, null, [
                 'asset' => $assetCode,

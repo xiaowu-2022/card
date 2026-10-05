@@ -52,7 +52,7 @@ test('SaaS user management includes wallets without a duplicate wallet menu', ()
     assert.ok(wallet.includes('/platform/topups'));
     assert.ok(wallet.includes('companies={companies}'));
     assert.ok(wallet.includes('row.companyName'));
-    assert.ok(wallet.includes("label: 'Wallet status'"));
+    assert.ok(!wallet.includes("label: 'Wallet status'"));
     assert.ok(wallet.includes('field="available"'));
     assert.ok(wallet.includes('field="held"'));
     const kyc = readFileSync('resources/js/pages/platform/Kyc.tsx', 'utf8');
@@ -2026,4 +2026,17 @@ test('KYC submission errors retain specific reasons and safe actionable fallback
         assert.doesNotMatch(i18n.errorMessage('PRIVATE upstream response', fallback), /PRIVATE/);
     }
     i18n.clientI18n.changeLanguage('en');
+});
+
+test('admin editor handles empty, stale and expired responses without JSON parser errors or false success', async () => {
+    const { readEditorResponse } = loadTs('resources/js/components/admin/editor-response.ts', { '@/i18n/admin': { t: key => key } });
+    for (const body of ['', '<html>Gateway unavailable</html>', 'null', '[]']) {
+        await assert.rejects(readEditorResponse(new Response(body)), /Unexpected server response/);
+    }
+    await assert.rejects(readEditorResponse(new Response('', {status:409,headers:{'X-Inertia-Location':'/platform/users'}})), /page has been updated/);
+    for (const status of [401,419]) await assert.rejects(readEditorResponse(new Response('', {status})), /session has expired/);
+    const errors = {errors:{reason:['Required']}};
+    assert.deepEqual(await readEditorResponse(new Response(JSON.stringify(errors),{status:422})),errors);
+    assert.deepEqual(await readEditorResponse(new Response('{"saved":true}')),{saved:true});
+    assert.deepEqual(await readEditorResponse(new Response('{"message":"Conflict"}',{status:409})),{message:'Conflict'});
 });

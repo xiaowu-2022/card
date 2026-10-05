@@ -1,4 +1,6 @@
 import { DetailDrawerContent } from '@/components/admin/DetailDrawer';
+import { PartnerInvitationsDrawer } from '@/components/admin/PartnerInvitationsDrawer';
+import { invitationLocation } from '@/components/admin/partner-invitations-state';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
@@ -74,6 +76,17 @@ export default function Partners({
     const [feeCompany, setFeeCompany] = useState('');
     const fx = useForm({ rate: '', observed_at: '', evidence: '', request_id: requestId() });
     const { url } = usePage();
+    const [invitationPartner, setInvitationPartner] = useState(() =>
+        new URL(location.href).searchParams.get('invitation_partner'),
+    );
+    const invitationTrigger = useRef<HTMLElement | null>(null);
+    useEffect(() => {
+        const sync = () =>
+            setInvitationPartner(new URL(location.href).searchParams.get('invitation_partner'));
+        sync();
+        window.addEventListener('popstate', sync);
+        return () => window.removeEventListener('popstate', sync);
+    }, [url]);
     const [reportOpen, setReportOpen] = useState(Boolean(report));
     const [reportLoading, setReportLoading] = useState(false);
     const [reportError, setReportError] = useState(false);
@@ -275,6 +288,17 @@ export default function Partners({
                                                             }}
                                                         >
                                                             {t('View report')}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(event) => {
+                                                                invitationTrigger.current =
+                                                                    event.currentTarget;
+                                                                invitationLocation(p.id);
+                                                                setInvitationPartner(p.id);
+                                                            }}
+                                                        >
+                                                            {t('Invitation data')}
                                                         </button>
                                                         <button
                                                             type="button"
@@ -653,7 +677,7 @@ export default function Partners({
                             </Dialog>
                         </details>
                         <Dialog
-                            open={reportOpen && !journalOpen}
+                            open={reportOpen && !journalOpen && !invitationPartner}
                             onOpenChange={(open) => {
                                 if (!open) visit(undefined, partners?.current_page ?? 1);
                             }}
@@ -727,6 +751,18 @@ export default function Partners({
                         </Dialog>
                     </>
                 }
+                {invitationPartner && (
+                    <PartnerInvitationsDrawer
+                        key={invitationPartner}
+                        partner={invitationPartner}
+                        company={companyId}
+                        trigger={invitationTrigger}
+                        onClose={() => {
+                            invitationLocation(null);
+                            setInvitationPartner(null);
+                        }}
+                    />
+                )}
             </main>
         </PlatformLayout>
     );

@@ -31,16 +31,17 @@ export type StockFlowDetails = StockPage<{
     source: string;
     account_id: string;
     email: string;
-    direct_account_id: string;
-    direct_email: string;
+    direct_account_id: string | null;
+    direct_email: string | null;
     asset_code: string;
     amount: string;
     amountUsdt: string | null;
-    posted_at: string;
+    posted_at: string | null;
 }> & { direction: 'inflow' | 'outflow' };
 export type StockReport = {
     flowDetails?: StockFlowDetails | null;
     version: 'partner' | 'standard';
+    stockBasis?: 'BUSINESS_CONTRIBUTIONS';
     cashFlow: null | {
         rateObservedAt: string | null;
         assets: {
@@ -98,6 +99,14 @@ const lines: [string, string, string][] = [
     ['rebates', 'Annual fees returned', '−'],
     ['reimbursements', 'Reimbursed expenses', '−'],
 ];
+const stockEntryLabels: Record<string, string> = {
+    deposits: 'Eligible security deposit balances',
+    annual: 'Total annual fees paid',
+    activation: 'Activation commissions paid',
+    annualCommission: 'Annual fee commissions paid',
+    rebates: 'Annual fees returned',
+    reimbursements: 'Reimbursed expenses',
+};
 const trendNames: Record<string, string> = {
     activation: 'Activation commissions paid',
     deposits: 'First deposit activations',
@@ -124,8 +133,14 @@ export function PartnerStockReport({
     const displayLines: [string, string, string][] =
         r.version === 'partner'
             ? [
-                  ['inflow', 'Team total deposits', '+'],
-                  ['outflow', 'Team total withdrawals', '−'],
+                  ['inflow', 'Eligible contributions', '+'],
+                  ['deposits', 'Eligible security deposit balances', ''],
+                  ['annual', 'Total annual fees paid', ''],
+                  ['outflow', 'Stock deductions', '−'],
+                  ['activation', 'Activation commissions paid', ''],
+                  ['annualCommission', 'Annual fee commissions paid', ''],
+                  ['rebates', 'Annual fees returned', ''],
+                  ['reimbursements', 'Reimbursed expenses', ''],
               ]
             : lines;
     const page = r.journal.page;
@@ -141,8 +156,8 @@ export function PartnerStockReport({
                     <h2>
                         {t(
                             details.direction === 'inflow'
-                                ? 'Team deposit details'
-                                : 'Team withdrawal details',
+                                ? 'Contribution details'
+                                : 'Deduction details',
                         )}{' '}
                         ({details.total})
                     </h2>
@@ -151,16 +166,6 @@ export function PartnerStockReport({
                             'Branch ownership follows current referral relationships. Direct members belong to their own branch.',
                         )}
                     </p>
-                    <p className="stock-muted">
-                        {t(
-                            'All currencies use the same current USDT rates. The valuation changes with market prices.',
-                        )}
-                    </p>
-                    {r.cashFlow?.rateObservedAt && (
-                        <p className="stock-muted">
-                            {t('Exchange rate time')}: {dateTime(r.cashFlow.rateObservedAt)}
-                        </p>
-                    )}
                     {!details.items.length && <p>{t('No completed transactions in this team.')}</p>}
                     {details.items.map((row) => (
                         <article className="stock-flow-row" key={row.source + row.id}>
@@ -169,25 +174,25 @@ export function PartnerStockReport({
                             </strong>
                             <p>{row.email}</p>
                             <p>
-                                {t('Direct branch member')}: {row.direct_account_id}
+                                {t('Direct branch member')}:{' '}
+                                {row.direct_account_id ?? t('This partner')}
                                 {row.account_id === row.direct_account_id
                                     ? ' · ' + t('Direct member themself')
                                     : ''}
                             </p>
                             <p className="stock-muted">{row.direct_email}</p>
                             <p>
-                                {t(
-                                    details.direction === 'inflow'
-                                        ? 'Deposit amount'
-                                        : 'Gross withdrawal amount',
-                                )}
-                                : {number(row.amount)} {row.asset_code}
-                            </p>
-                            <p>
-                                {t('Current USDT estimate')}: {value(row.amountUsdt)}
+                                {t(stockEntryLabels[row.source] ?? 'Amount')}: {number(row.amount)}{' '}
+                                USDT
                             </p>
                             <p className="stock-muted">
-                                {t('Posted at')}: {dateTime(row.posted_at)}
+                                {row.posted_at ? (
+                                    <>
+                                        {t('Posted at')}: {dateTime(row.posted_at)}
+                                    </>
+                                ) : (
+                                    t('Current security deposit balance')
+                                )}
                             </p>
                         </article>
                     ))}
@@ -264,7 +269,9 @@ export function PartnerStockReport({
                     {displayLines.map(([key, label, sign]) => (
                         <div key={key}>
                             <dt>
-                                {r.version === 'partner' && onFlow ? (
+                                {r.version === 'partner' &&
+                                onFlow &&
+                                ['inflow', 'outflow'].includes(key) ? (
                                     <button
                                         className="stock-link"
                                         onClick={() => onFlow(key as 'inflow' | 'outflow', 1)}
@@ -278,7 +285,9 @@ export function PartnerStockReport({
                                 )}
                             </dt>
                             <dd>
-                                {r.version === 'partner' && onFlow ? (
+                                {r.version === 'partner' &&
+                                onFlow &&
+                                ['inflow', 'outflow'].includes(key) ? (
                                     <button
                                         className="stock-link"
                                         onClick={() => onFlow(key as 'inflow' | 'outflow', 1)}
@@ -296,40 +305,18 @@ export function PartnerStockReport({
                 </dl>
                 {r.version === 'partner' && (
                     <p className="stock-muted">
-                        {t('Partner account commissions are excluded from stock.')}
+                        {t(
+                            'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses. Wallet top-ups and withdrawals do not count.',
+                        )}
                     </p>
                 )}
             </section>
-            {r.cashFlow && (
-                <section className="stock-panel">
-                    <p className="stock-muted">
-                        {t(
-                            'Partner stock = non-partner descendant deposits − non-partner descendant gross withdrawals. Your own deposits and withdrawals are excluded. Commissions, annual fees, deposits held and internal transfers are not stock components.',
-                        )}
-                    </p>
-                    <p className="stock-muted">
-                        {t(
-                            'All currencies use the same current USDT rates. The valuation changes with market prices.',
-                        )}
-                    </p>
-                    {r.cashFlow.rateObservedAt && (
-                        <p>
-                            {t('Exchange rate time')}: {dateTime(r.cashFlow.rateObservedAt)}
-                        </p>
+            {r.version === 'partner' && (
+                <p className="stock-muted">
+                    {t(
+                        'Converted or refunded security deposits are no longer included in deposit balances. Annual fees count actual completed payments, including converted deposits.',
                     )}
-                    {r.cashFlow.assets.map((asset) => (
-                        <div className="stock-detail" key={asset.asset}>
-                            <strong>{asset.asset}</strong>
-                            <span>
-                                {t('Team total deposits')}: {number(asset.inflow)} {asset.asset}
-                            </span>
-                            <span>
-                                {t('Team total withdrawals')}: {number(asset.outflow)} {asset.asset}
-                            </span>
-                            <span>{`1 ${asset.asset} = ${asset.rate === null ? '—' : number(asset.rate)} USDT`}</span>
-                        </div>
-                    ))}
-                </section>
+                </p>
             )}
             {r.accountBalance && (
                 <section className="stock-panel">
@@ -501,7 +488,7 @@ export function PartnerStockReport({
             <p className="stock-muted">
                 {t(
                     r.version === 'partner'
-                        ? 'Excludes you and enabled descendant partners personally; their non-partner descendants remain included. Historical totals use current team relationships and partner status. Teams overlap; do not add reports together.'
+                        ? 'Contributions and annual returns include only non-partner descendants. Commissions are deducted by those users’ business source, regardless of recipient. Reimbursements include this partner and descendant partners, net of reversals. Current team relationships apply; overlapping reports must not be added together.'
                         : 'Includes this account and all descendants. Historical totals use current team relationships.',
                 )}
             </p>

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useForm as useInertiaForm, usePage as useInertiaPage } from '@inertiajs/react';
+import { readEditorResponse } from './editor-response';
 import type {
     FormDataType,
     FormDataErrors,
@@ -85,7 +86,7 @@ export function useForm<T extends FormDataType<T>>(data: T | (() => T)) {
                 },
                 body,
             });
-            const result = (await response.json()) as {
+            const result = (await readEditorResponse(response)) as {
                 saved?: boolean;
                 errors?: Record<string, string | string[]>;
                 error?: { message?: string };

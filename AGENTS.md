@@ -1,3 +1,40 @@
+On 2026-10-05 the user reported H5 bottom navigation following long-page height.
+Render PageShell navigation through a body-level H5 ViewportLayer so transformed or
+contained page ancestors cannot own its fixed positioning. Follow owning-page onHide /
+onShow so cached pages leave no visible/clickable bars; retain native in-page rendering,
+theme, safe-area/content clearance and modal layering. Validate long scrolled pages,
+viewport resize and navigation/back with offline Chrome/WebKit fixtures. No business
+or authentication behavior changes. See docs/architecture/CONSUMER_UNI_APP.md.
+
+On 2026-10-05 the user replaced partner external-flow stock with business stock:
+non-partner descendants' current held USDT security deposits + completed annual fee
+settlements - posted source activation/annual commissions - approved annual returns
+- net cooperation reimbursements. Exclude the owner and enabled descendant partners
+personally, not their branches. Deposit conversion counts only in annual fees; completed
+refunds leave guarantee balances. Wallet topups, withdrawals, withdrawal fees and advances
+are not stock. Source commissions include every beneficiary; source-less admin adjustments
+are not invented as descendant activity. Cooperation reimbursements include owner and
+descendant partner journals with signed reversals. Reuse the same evidence for totals
+and paginated details. Standard stock and personal reconciliation stay unchanged; no
+pricing requests, money writes or history rewrites on reads. See PARTNER_STOCK.md.
+
+On 2026-10-05 the user requested consumer-equivalent invitation tables and reward
+details on Platform partner rows. Load the read-only report lazily in a right-side
+drawer under partners.manage, resolving company/user from the partner record. Reuse
+PaidPromotionQuery for current member counts and historical source-rank/relation
+rewards; never call membership-ensuring PromotionQuery on GET. Detail pagination,
+company filters and list position remain independent. No wallet creation, financial
+replay, provider calls or changes to earned commission evidence.
+
+On 2026-10-05 the user removed the Platform user-list wallet status column and
+required automatic zero-balance default wallet activation at registration. Register
+atomically with wallet/accounts/audit using Tenant -> User locks. KYC is no longer a
+wallet-creation gate; the existing authenticated ensure POST may create a missing
+wallet for an active user, but never reactivate existing suspended/closed wallets.
+GET stays read-only. Payment, withdrawal, card, KYC and deposit eligibility gates
+remain independent. No activation rewards, financial entries or historical backfill.
+See docs/architecture/USER_AUTH_RULES.md.
+
 On 2026-10-05 the user consolidated Platform wallets into user management. Remove the
 separate wallet navigation/page; legacy wallet URLs redirect with validated filters and
 require both users.read and wallet.read. One paginated row per user includes owned

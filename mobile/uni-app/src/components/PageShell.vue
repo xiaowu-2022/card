@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ViewportLayer from './ViewportLayer.vue';
 import PreviewImage from './PreviewImage.vue';
 import AppUpdateGate from './AppUpdateGate.vue';
 import { computed } from 'vue';
@@ -50,6 +51,18 @@ function tabActive(name: string) {
           ? path.startsWith('/cards')
           : path.startsWith('/account') || path.startsWith('/kyc');
 }
+const navigationClasses = computed(() => ({
+    'home-shell': isHome.value,
+    'white-shell': props.white,
+    'account-shell': props.active === 'account' && isHome.value,
+    'overview-shell': props.overview,
+}));
+const navigationStyle = computed(() => ({
+    '--user-primary': session.value?.tenant.primaryColor || '#39ad8d',
+    '--shell-header-height': isHome.value
+        ? 'clamp(64px, 11.867vw, 89px)'
+        : 'clamp(64px, 12vw, 90px)',
+}));
 const badge = (n: number) => (n > 99 ? '99+' : String(n));
 function open(path: string, replace = false) {
     if (path.startsWith('/pages/')) uni.navigateTo({ url: path });
@@ -68,87 +81,94 @@ function open(path: string, replace = false) {
                 'chat-shell': chat,
                 'home-shell': isHome,
             }"
-            ><view v-if="isHome" class="brand-header"
-                ><view class="brand" @click="home()"
-                    ><PreviewImage
-                        :sources="session?.tenant.logoSources"
-                        v-if="logo"
-                        class="shell-brand-logo"
-                        :src="logo"
-                        mode="aspectFit"
-                        :aria-label="brand"
-                    /><template v-else
-                        ><UiIcon
-                            name="aperture"
-                            :color="session?.tenant.primaryColor"
-                            class="brand-symbol"
-                            :size="36"
-                        /><text>{{ brand }}</text></template
+            ><ViewportLayer :class="navigationClasses" :style="navigationStyle"
+                ><view v-if="isHome" class="brand-header"
+                    ><view class="brand" @click="home()"
+                        ><PreviewImage
+                            :sources="session?.tenant.logoSources"
+                            v-if="logo"
+                            class="shell-brand-logo"
+                            :src="logo"
+                            mode="aspectFit"
+                            :aria-label="brand"
+                        /><template v-else
+                            ><UiIcon
+                                name="aperture"
+                                :color="session?.tenant.primaryColor"
+                                class="brand-symbol"
+                                :size="36"
+                            /><text>{{ brand }}</text></template
+                        ></view
+                    ><view v-if="active !== 'account'" class="header-actions"
+                        ><LanguagePicker icon-only /><button
+                            class="icon"
+                            :aria-label="t('Customer support')"
+                            @click="go('/support')"
+                        >
+                            <UiIcon name="support" /><text v-if="unread.support" class="badge">{{
+                                badge(unread.support)
+                            }}</text>
+                        </button></view
                     ></view
-                ><view v-if="active !== 'account'" class="header-actions"
-                    ><LanguagePicker icon-only /><button
-                        class="icon"
-                        :aria-label="t('Customer support')"
-                        @click="go('/support')"
-                    >
-                        <UiIcon name="support" /><text v-if="unread.support" class="badge">{{
-                            badge(unread.support)
-                        }}</text>
-                    </button></view
-                ></view
+                ></ViewportLayer
             ><view
                 class="shell-main"
                 :class="{ 'overview-main': overview, 'article-main': article }"
-                ><view v-if="!isHome" class="header" :class="{ 'sticky-header': stickyHeader }"
-                    ><button
-                        v-if="back"
-                        class="icon"
-                        :aria-label="t('Back')"
-                        @click="open(back, replaceBack)"
-                    >
-                        <UiIcon name="arrow-left" :size="20" /></button
-                    ><view v-else /><text class="header-title">{{ title }}</text
-                    ><slot name="header-right"
+                ><ViewportLayer :class="navigationClasses" :style="navigationStyle"
+                    ><view v-if="!isHome" class="header" :class="{ 'sticky-header': stickyHeader }"
                         ><button
-                            v-if="!guest && session?.user && !hideMessages"
+                            v-if="back"
                             class="icon"
-                            :aria-label="t('Messages')"
-                            @click="go('/messages')"
+                            :aria-label="t('Back')"
+                            @click="open(back, replaceBack)"
                         >
-                            <UiIcon name="bell" :size="20" /><text
-                                v-if="unread.messages"
-                                class="badge"
-                                >{{ badge(unread.messages) }}</text
-                            ></button
-                        ><view v-else /></slot></view
+                            <UiIcon name="arrow-left" :size="20" /></button
+                        ><view v-else /><text class="header-title">{{ title }}</text
+                        ><slot name="header-right"
+                            ><button
+                                v-if="!guest && session?.user && !hideMessages"
+                                class="icon"
+                                :aria-label="t('Messages')"
+                                @click="go('/messages')"
+                            >
+                                <UiIcon name="bell" :size="20" /><text
+                                    v-if="unread.messages"
+                                    class="badge"
+                                    >{{ badge(unread.messages) }}</text
+                                ></button
+                            ><view v-else /></slot></view></ViewportLayer
                 ><slot /></view
-            ><view v-if="!guest && session?.user && !article" class="tabs"
-                ><button
-                    v-for="item in [
-                        { name: 'assets', label: 'Assets', path: '/dashboard' },
-                        { name: 'cards', label: 'Cards', path: '/cards' },
-                        {
-                            name: 'account',
-                            label: 'Me',
-                            path: session.restricted ? '/account/restricted' : '/account',
-                        },
-                    ]"
-                    :key="item.name"
-                    class="tab"
-                    :class="{ active: tabActive(item.name) }"
-                    @click="home(item.path)"
-                >
-                    <view class="tab-icon"
-                        ><UiIcon
-                            :name="item.name"
-                            :color="tabActive(item.name) ? session?.tenant.primaryColor : undefined"
-                        /><text
-                            v-if="item.name === 'account' && unread.messages + unread.support"
-                            class="badge"
-                            >{{ badge(unread.messages + unread.support) }}</text
-                        ></view
-                    ><text>{{ t(item.label) }}</text>
-                </button></view
+            ><ViewportLayer :style="navigationStyle"
+                ><view v-if="!guest && session?.user && !article" class="tabs"
+                    ><button
+                        v-for="item in [
+                            { name: 'assets', label: 'Assets', path: '/dashboard' },
+                            { name: 'cards', label: 'Cards', path: '/cards' },
+                            {
+                                name: 'account',
+                                label: 'Me',
+                                path: session.restricted ? '/account/restricted' : '/account',
+                            },
+                        ]"
+                        :key="item.name"
+                        class="tab"
+                        :class="{ active: tabActive(item.name) }"
+                        @click="home(item.path)"
+                    >
+                        <view class="tab-icon"
+                            ><UiIcon
+                                :name="item.name"
+                                :color="
+                                    tabActive(item.name) ? session?.tenant.primaryColor : undefined
+                                "
+                            /><text
+                                v-if="item.name === 'account' && unread.messages + unread.support"
+                                class="badge"
+                                >{{ badge(unread.messages + unread.support) }}</text
+                            ></view
+                        ><text>{{ t(item.label) }}</text>
+                    </button></view
+                ></ViewportLayer
             ></view
         ></view
     >
@@ -168,7 +188,8 @@ function open(path: string, replace = false) {
     min-height: 100vh;
     margin: auto;
     background: #f7f6f0;
-    padding: calc(var(--shell-header-height) + env(safe-area-inset-top)) 0 0;
+    padding: 64px 0 0;
+    padding: calc(var(--shell-header-height) + env(safe-area-inset-top, 0px)) 0 0;
 }
 .home-shell {
     --shell-header-height: clamp(64px, 11.867vw, 89px);
@@ -190,6 +211,7 @@ function open(path: string, replace = false) {
     background-repeat: no-repeat;
 }
 .shell-main {
+    padding: 16px 20px 112px;
     padding: min(3.2cqw, 24px) min(4.267cqw, 32px)
         calc(clamp(96px, 18cqw, 135px) + env(safe-area-inset-bottom));
 }
@@ -262,9 +284,11 @@ function open(path: string, replace = false) {
     margin-inline: auto;
     width: 100%;
     max-width: 750px;
+    height: 64px;
     height: calc(var(--shell-header-height) + env(safe-area-inset-top));
     min-height: 0;
     margin: 0 auto;
+    padding: 0 20px;
     padding: env(safe-area-inset-top) min(4.267vw, 32px) 0;
     z-index: 50;
     background: #f7f6f0;
@@ -303,9 +327,11 @@ function open(path: string, replace = false) {
     margin-inline: auto;
     max-width: 750px;
     width: 100%;
-    height: calc(clamp(64px, 14.133cqw, 106px) + env(safe-area-inset-bottom));
+    height: 64px;
+    height: calc(clamp(64px, 14.133vw, 106px) + env(safe-area-inset-bottom));
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 0;
     padding: 0 0 env(safe-area-inset-bottom);
     border: 0;
     z-index: 40;
@@ -316,19 +342,19 @@ function open(path: string, replace = false) {
     align-items: center;
     justify-content: center;
     flex-direction: column;
-    gap: min(0.8cqw, 6px);
+    gap: min(0.8vw, 6px);
     background: transparent;
     color: #68736e;
     min-height: 44px;
     padding: 0;
-    font-size: clamp(14px, 3.2cqw, 24px);
+    font-size: clamp(14px, 3.2vw, 24px);
     line-height: 1.3;
     font-weight: 400;
 }
 .tab-icon {
     position: relative;
-    width: clamp(27px, 5.867cqw, 44px);
-    height: clamp(27px, 5.867cqw, 44px);
+    width: clamp(27px, 5.867vw, 44px);
+    height: clamp(27px, 5.867vw, 44px);
     display: flex;
     align-items: center;
     justify-content: center;
