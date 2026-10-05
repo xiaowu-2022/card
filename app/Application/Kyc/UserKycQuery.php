@@ -25,7 +25,7 @@ final readonly class UserKycQuery
             : null;
 
         $processingStatus = $application?->review_status?->value === "PENDING" ? $application->processing_status : null;
-        $reverificationPending = $identity && $application?->review_status?->value === 'PENDING';
+        $reverificationPending = $identity && $application?->review_status?->value === 'PENDING' && $processingStatus !== 'FAILED';
         if ($identity) {
             $application = KycApplication::where('tenant_id', $tenantId)->where('user_id', $userId)
                 ->whereKey($identity->source_kyc_application_id)->firstOrFail();

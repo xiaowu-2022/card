@@ -39,7 +39,7 @@ final readonly class ApproveKycAction
             return DB::transaction(function () use ($tenantId, $applicationId, $reviewer, $requestId): IdentityRecord {
                 Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
                 $application = KycApplication::query()->where('tenant_id', $tenantId)->whereKey($applicationId)->lockForUpdate()->firstOrFail();
-                if ($application->review_status !== KycReviewStatus::Pending) {
+                if ($application->review_status !== KycReviewStatus::Pending || $application->processing_status === 'FAILED') {
                     throw new DomainException('KYC_ALREADY_REVIEWED', 'This application has already been reviewed.', 409);
                 }
                 $evidence = $application->ocr_result_encrypted ? json_decode(app(KycDataCipher::class)->decrypt($application->ocr_result_encrypted), true) : [];

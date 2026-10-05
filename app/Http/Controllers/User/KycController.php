@@ -42,7 +42,7 @@ final class KycController extends Controller
         return Inertia::render('user/Kyc', [
             'kyc' => $kyc,
             'backHref' => $request->query('from') === 'account-security' ? '/account/security' : '/account',
-            'canSubmit' => $tenant->status === TenantStatus::Active && $user->status === UserStatus::Active && (bool) PlatformKycSetting::current()->enabled && in_array($kyc['status'], ['NOT_SUBMITTED', 'RESUBMISSION_REQUIRED'], true),
+            'canSubmit' => $tenant->status === TenantStatus::Active && $user->status === UserStatus::Active && (bool) PlatformKycSetting::current()->enabled && (in_array($kyc['status'], ['NOT_SUBMITTED', 'RESUBMISSION_REQUIRED', 'REJECTED'], true) || ($kyc['status'] === 'PENDING' && $kyc['processingStatus'] === 'FAILED')),
             'canReverify' => $tenant->status === TenantStatus::Active && $user->status === UserStatus::Active && (bool) PlatformKycSetting::current()->enabled && $kyc['status'] === 'APPROVED' && ! $kyc['reverificationPending'],
             'maxDocumentMb' => (int) config('kyc.document_max_mb'),
         ]);

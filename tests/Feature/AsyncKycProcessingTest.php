@@ -174,3 +174,71 @@ it('rejects retries without reviewer permission and rejects changed retry intent
     expect(fn () => app(RetryKycProcessing::class)->execute($this->tenant->id, $application->id, $this->admin, $request, 'Changed reason'))
         ->toThrow(\Symfony\Component\HttpKernel\Exception\HttpException::class);
 });
+
+it('retains failed history while accepting new documents and blocks retrying the superseded attempt', function () {
+    $old = queuedKyc($this);
+    $old->forceFill(['processing_status' => 'FAILED', 'processing_error' => 'KYC_PROCESSING_UNAVAILABLE', 'next_processing_at' => null])->save();
+    $original = $old->fresh()->getAttributes();
+    $this->travel(1)->seconds();
+    $new = queuedKyc($this);
+    expect($new->id)->not->toBe($old->id)
+        ->and($new->resubmission_of_id)->toBe($old->id)
+        ->and($old->fresh()->getAttributes())->toBe($original);
+    expect(fn () => app(RetryKycProcessing::class)->execute($this->tenant->id, $old->id, $this->admin, (string) Str::uuid(), 'Stale retry'))
+        ->toThrow(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+    expect(fn () => queuedKyc($this))->toThrow(\App\Support\Errors\DomainException::class);
+    asyncOcrOnce();
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $new->id);
+    expect($new->fresh()->review_status->value)->toBe('APPROVED')
+        ->and($old->fresh()->getAttributes())->toBe($original);
+});
+
+it('allows new documents after rejection without changing the completed review', function () {
+    PlatformKycSetting::current()->update(['review_mode' => 'MANUAL']);
+    asyncOcrOnce();
+    $old = queuedKyc($this);
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $old->id);
+    app(RejectKycAction::class)->execute($this->tenant->id, $old->id, $this->admin, KycReviewReason::Other, 'Please upload clearer documents');
+    $original = $old->fresh()->getAttributes();
+    $this->travel(1)->seconds();
+    $new = queuedKyc($this);
+    expect($new->resubmission_of_id)->toBe($old->id)
+        ->and($old->fresh()->getAttributes())->toBe($original);
+});
+
+it('issues retained server tickets through the HTTP controller even with OSS selected', function () {
+    $this->oss->offline = true;
+    $base = 'http://a.localhost/api/mobile/v1';
+    $token = $this->postJson($base.'/login', ['identifier' => 'user@a.localhost', 'password' => 'local-password', 'device_name' => 'Offline test'])->assertCreated()->json('token');
+    $this->withToken($token);
+    foreach (['front', 'back'] as $side) {
+        $ticket = $this->postJson($base.'/images/direct', ['purpose' => 'kyc', 'field' => $side, 'mime' => 'image/png'])->assertOk()->json();
+        expect($ticket['mode'])->toBe('server')->and($ticket)->not->toHaveKey('fields');
+    }
+    expect($this->oss->puts)->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('offers consumer resubmission only after failure and still respects the global KYC switch', function () {
+    $application = queuedKyc($this);
+    $this->actingAs($this->user, 'tenant_user')->get('http://a.localhost/kyc')
+        ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page->where('canSubmit', false));
+    $application->forceFill(['processing_status' => 'FAILED', 'next_processing_at' => null])->save();
+    $this->get('http://a.localhost/kyc')
+        ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page->where('canSubmit', true));
+    PlatformKycSetting::current()->update(['enabled' => false]);
+    $this->get('http://a.localhost/kyc')
+        ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page->where('canSubmit', false));
+});
+
+it('rejects legacy URL-only documents before creating an asynchronous application', function () {
+    $front = new \App\Application\Media\DirectKycImage((string) Str::uuid(), $this->tenant->id, $this->user->id, 'front', 'https://images.example.test/front');
+    $back = new \App\Application\Media\DirectKycImage((string) Str::uuid(), $this->tenant->id, $this->user->id, 'back', 'https://images.example.test/back');
+    try {
+        app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', '', $front, $back);
+        $this->fail('URL-only documents must require re-upload.');
+    } catch (\App\Support\Errors\DomainException $error) {
+        expect($error->errorCode)->toBe('IMAGE_STORAGE_CHANGED');
+    }
+    expect(KycApplication::count())->toBe(0)->and($this->oss->puts)->toBe(0);
+});

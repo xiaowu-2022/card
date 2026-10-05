@@ -80,7 +80,7 @@ const states: Record<string, { title: string; description: string; tone: string 
     },
     REJECTED: {
         title: 'Verification could not be approved',
-        description: 'Please contact support for assistance.',
+        description: 'Please submit a new set of identity documents.',
         tone: 'warning',
     },
     RESUBMISSION_REQUIRED: {
@@ -93,7 +93,7 @@ const state = computed(() =>
     props.page.kyc.processingStatus === 'FAILED'
         ? {
               title: 'Verification processing failed',
-              description: 'Your documents are saved. Contact support to retry verification.',
+              description: 'Please submit a new set of identity documents.',
               tone: 'warning',
           }
         : (states[props.page.kyc.status] ?? states.NOT_SUBMITTED),
@@ -176,7 +176,7 @@ async function submit() {
                     page.kyc.processingStatus === 'WAITING_REVIEW'
                         ? 'Verification under review'
                         : page.kyc.processingStatus === 'FAILED'
-                          ? 'Your documents are saved. Contact support to retry verification.'
+                          ? 'Please submit a new set of identity documents.'
                           : 'Documents received. Processing continues in the background; you will be notified of the result.',
                 )
             }}</text>
@@ -262,7 +262,7 @@ async function submit() {
         ><view v-else-if="page.canSubmit || reverifying" class="kyc-card"
             ><text class="kyc-title">{{
                 t(
-                    page.kyc.status === 'RESUBMISSION_REQUIRED'
+                    (page.kyc.processingStatus === 'FAILED' || ['REJECTED', 'RESUBMISSION_REQUIRED'].includes(page.kyc.status))
                         ? 'Resubmit documents'
                         : 'Submit identity documents',
                 )
@@ -339,7 +339,7 @@ async function submit() {
                 </button>
             </form></view
         ><text
-            v-else-if="['NOT_SUBMITTED', 'RESUBMISSION_REQUIRED'].includes(page.kyc.status)"
+            v-else-if="(['NOT_SUBMITTED', 'RESUBMISSION_REQUIRED', 'REJECTED'].includes(page.kyc.status) || page.kyc.processingStatus === 'FAILED')"
             class="muted"
             >{{
                 t(

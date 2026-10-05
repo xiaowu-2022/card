@@ -57,5 +57,6 @@
   "database/migrations/2026_09_14_001200_create_platform_notification_profiles.php": "34cb009dd0accfbd710631568922ad5d2867873b3b4b7be263aab93734ac8671",
   "database/migrations/2026_09_14_001300_allow_unassigned_platform_domains.php": "6ce9b3f7987f8ee88da9dda2f2e0302bfdbd4204d974d8e1fe04f4cccba7687d",
   "database/migrations/2026_09_15_120000_preserve_card_transaction_observation_precision.php": "fd2d37cd4f3248fa69342cf206725d386892766a269ef8d00d074ef714d3fe2b",
-  "database/migrations/2026_09_15_140000_preserve_merchant_routing_on_unified_deployment.php": "f963c11fc3580122a22062a34eb831dd6b8dce9adf65b42f3a689eb3499c13b7"
+  "database/migrations/2026_09_15_140000_preserve_merchant_routing_on_unified_deployment.php": "f963c11fc3580122a22062a34eb831dd6b8dce9adf65b42f3a689eb3499c13b7",
+  "database/migrations/2026_10_05_200000_allow_failed_kyc_resubmission.php": "49c5e69a98466039356b103bf5022aa44e2cfea0fa25c97bd5f56ce54e43f229"
 }

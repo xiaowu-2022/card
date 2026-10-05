@@ -54,3 +54,18 @@ the existing resubmission/re-verification workflow.
 Implementation validation in this workstation is limited while Docker/PHP are
 unavailable. Frontend checks/builds and PHP syntax parsing do not validate PostgreSQL
 constraints, scheduler execution or server-side regression behavior.
+
+## Consumer resubmission after failure
+
+Technical FAILED and rejected applications allow the consumer to upload new documents
+and create a linked application. Old documents, processing errors and reviews remain
+unchanged. Pending active work still blocks duplicate submission; superseded failed
+applications cannot be approved or retried. Existing approved identity remains valid
+during a failed re-verification and a subsequent explicit re-verification.
+
+Deploy `2026_10_05_200000_allow_failed_kyc_resubmission.php` before enabling the matching
+PHP and uni-app H5 build. The pending uniqueness index excludes technical failures
+without rewriting historical applications. All new KYC upload tickets use encrypted
+server originals even in OSS mode; unsubmitted legacy URL-only tickets require re-upload.
+Existing failed URL-only applications may be left intact and replaced by a consumer
+submission with new photos. No historical OCR or automatic retry is performed.

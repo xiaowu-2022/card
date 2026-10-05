@@ -42,6 +42,9 @@ final readonly class SubmitKycApplicationAction
         if ($user->tenant_id !== $tenant->id) {
             abort(404);
         }
+        if ($front instanceof DirectKycImage || $back instanceof DirectKycImage) {
+            throw new DomainException('IMAGE_STORAGE_CHANGED', 'Please upload the document images again to retain server originals.', 409);
+        }
         // Multipart clients use the same durable local staging as direct clients.
         // Keep cleanup records outside the application transaction if either side
         // cannot be accepted; filesystem writes cannot be rolled back with SQL.
@@ -78,7 +81,9 @@ final readonly class SubmitKycApplicationAction
             $identity = IdentityRecord::where('tenant_id', $tenant->id)->where('user_id', $user->id)->first();
             abort_unless($reverify === (bool) $identity, 409);
             $latest = KycApplication::where('tenant_id', $tenant->id)->where('user_id', $user->id)->latest('submitted_at')->lockForUpdate()->first();
-            if ($latest && $latest->review_status !== KycReviewStatus::ResubmissionRequired && ! ($reverify && in_array($latest->review_status, [KycReviewStatus::Approved, KycReviewStatus::Rejected], true))) {
+            if ($latest && ! in_array($latest->review_status, [KycReviewStatus::ResubmissionRequired, KycReviewStatus::Rejected], true)
+                && ! ($latest->review_status === KycReviewStatus::Pending && $latest->processing_status === 'FAILED')
+                && ! ($reverify && $latest->review_status === KycReviewStatus::Approved)) {
                 throw new DomainException('KYC_ALREADY_PENDING', 'Identity verification is already under review.', 409);
             }
             $id = (string) Str::uuid();

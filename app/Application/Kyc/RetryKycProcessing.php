@@ -27,6 +27,7 @@ final class RetryKycProcessing
             $row = KycApplication::where('tenant_id', $tenant)->whereKey($id)->lockForUpdate()->firstOrFail();
             abort_unless(($row->processing_status === 'FAILED' && $row->review_status === KycReviewStatus::Pending)
                 || ($row->processing_status !== null && $row->review_status === KycReviewStatus::Rejected), 409);
+            abort_if(KycApplication::where('tenant_id', $tenant)->where('user_id', $row->user_id)->where('resubmission_of_id', $row->id)->exists(), 409);
             abort_unless(KycApplication::where('tenant_id', $tenant)->where('user_id', $row->user_id)->latest('submitted_at')->first()->id === $row->id, 409);
             if ($row->review_status === KycReviewStatus::Rejected) {
                 $previous = $row;
