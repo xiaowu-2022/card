@@ -2,7 +2,6 @@ import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import type { InertiaFormProps } from '@inertiajs/react';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -102,18 +101,16 @@ export default function CardProducts({
         return canManage ? (products.find((product) => product.id === productId) ?? null) : null;
     });
     return (
-        <PlatformLayout>
+        <PlatformLayout
+            title={t('Card products')}
+            actions={
+                canManage ? (
+                    <Button onClick={() => setEditing('new')}>{t('Add product')}</Button>
+                ) : undefined
+            }
+        >
             <Head title={t('Card products')} />
-            <div className="space-y-6">
-                <PageHeader
-                    eyebrow={t('Product catalog')}
-                    title={t('Card products')}
-                    actions={
-                        canManage ? (
-                            <Button onClick={() => setEditing('new')}>{t('Add product')}</Button>
-                        ) : undefined
-                    }
-                />
+            <div className="space-y-4">
                 {canManage && (
                     <div className="flex flex-wrap gap-2">
                         {cardProviders

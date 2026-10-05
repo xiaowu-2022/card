@@ -20,7 +20,6 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
 import { StatusBadge, type StatusTone } from '@/components/shared/StatusBadge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -110,16 +109,14 @@ export default function Cards({
     const [refreshing, setRefreshing] = useState<string | null>(null);
     const [refreshError, setRefreshError] = useState('');
     return (
-        <PlatformLayout>
+        <PlatformLayout
+            title={t('Cards')}
+            description={t(
+                'Review card orders and balances, and manage individual card balance limits.',
+            )}
+        >
             <Head title={t('Card operations')} />
-            <div className="space-y-6">
-                <PageHeader
-                    eyebrow={t('Operations')}
-                    title={t('Cards')}
-                    description={t(
-                        'Review card orders and balances, and manage individual card balance limits.',
-                    )}
-                />
+            <div className="space-y-4">
                 <Tabs
                     value={tab}
                     onValueChange={(value) =>

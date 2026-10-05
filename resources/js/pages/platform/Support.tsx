@@ -1,7 +1,6 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { SupportThread, type SupportChat } from '@/components/support/SupportThread';
 import { SupportProfile } from '@/components/support/SupportProfile';
 import { PlatformSupportTabs } from '@/components/support/PlatformSupportTabs';
@@ -48,29 +47,26 @@ export default function Support({ inbox, chat, companies, filters, supportName }
     const [query, setQuery] = useState(filters);
     const [start, setStart] = useState(false);
     return (
-        <PlatformLayout>
+        <PlatformLayout
+            title={t('Customer support')}
+            actions={
+                canSend && (
+                    <div className="flex gap-3">
+                        <SupportProfile
+                            key={supportName}
+                            name={supportName}
+                            url="/platform/support/profile"
+                        />
+                        <Button onClick={() => setStart(true)}>{t('Start conversation')}</Button>
+                    </div>
+                )
+            }
+        >
             <Head title={t('Customer support')} />
-            <div className="space-y-5">
-                <PageHeader
-                    title={t('Customer support')}
-                    actions={
-                        canSend && (
-                            <div className="flex gap-3">
-                                <SupportProfile
-                                    key={supportName}
-                                    name={supportName}
-                                    url="/platform/support/profile"
-                                />
-                                <Button onClick={() => setStart(true)}>
-                                    {t('Start conversation')}
-                                </Button>
-                            </div>
-                        )
-                    }
-                />
+            <div className="space-y-4">
                 <PlatformSupportTabs />
                 <form
-                    className="flex gap-3"
+                    className="flex flex-wrap gap-3"
                     onSubmit={(e) => {
                         e.preventDefault();
                         router.get('/platform/support', query);
@@ -78,7 +74,7 @@ export default function Support({ inbox, chat, companies, filters, supportName }
                 >
                     <select
                         aria-label={t('Filter by company')}
-                        className="h-10 rounded-md border bg-surface px-3"
+                        className="h-9 w-48 min-w-0 rounded-md border bg-surface px-3"
                         value={query.company ?? ''}
                         onChange={(e) => setQuery({ ...query, company: e.target.value })}
                     >
@@ -90,7 +86,7 @@ export default function Support({ inbox, chat, companies, filters, supportName }
                         ))}
                     </select>
                     <Input
-                        className="w-72"
+                        className="min-w-0 flex-1 basis-48"
                         placeholder={t('Search account ID or email')}
                         aria-label={t('Search account ID or email')}
                         value={query.search ?? ''}
@@ -98,7 +94,7 @@ export default function Support({ inbox, chat, companies, filters, supportName }
                     />
                     <select
                         aria-label={t('Status')}
-                        className="h-10 rounded-md border bg-surface px-3"
+                        className="h-9 w-48 min-w-0 rounded-md border bg-surface px-3"
                         value={query.status ?? ''}
                         onChange={(e) => setQuery({ ...query, status: e.target.value })}
                     >
@@ -163,7 +159,7 @@ export default function Support({ inbox, chat, companies, filters, supportName }
                             )}
                         </div>
                     </aside>
-                    <div className="min-w-0 p-5">
+                    <div className="min-w-0 p-4">
                         {chat ? (
                             <>
                                 <h2 className="font-semibold">

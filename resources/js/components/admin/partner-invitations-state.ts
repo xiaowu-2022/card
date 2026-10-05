@@ -1,9 +1,14 @@
 export type Kind = 'ANNUAL' | 'ACTIVATION';
 export type Selection = { kind: Kind; rank: number; page: number } | null;
 const keys = ['invitation_partner', 'invitation_kind', 'invitation_rank', 'invitation_page'];
-export function invitationLocation(partner: string | null, selection: Selection = null) {
+export function invitationLocation(
+    partner: string | null,
+    selection: Selection = null,
+    reportPartner?: string,
+) {
     const url = new URL(location.href);
     keys.forEach((key) => url.searchParams.delete(key));
+    if (reportPartner || partner) url.searchParams.set('partner', reportPartner || partner!);
     if (partner) url.searchParams.set('invitation_partner', partner);
     if (selection) {
         url.searchParams.set('invitation_kind', selection.kind);

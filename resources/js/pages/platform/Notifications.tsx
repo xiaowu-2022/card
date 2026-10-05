@@ -3,7 +3,6 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { t, dateTime, errorMessage, useAdminTranslation } from '@/i18n/admin';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -324,25 +323,24 @@ export default function Notifications({ companies, company, batches }: Props) {
     const [state, setState] = useState({ dirty: false, busy: false });
     const selected = companies.find((c) => c.id === targetCompany);
     return (
-        <PlatformLayout>
+        <PlatformLayout
+            title={t('Notifications')}
+            actions={
+                canSend && (
+                    <Button
+                        onClick={() => {
+                            setTargetCompany(company ?? '');
+                            setOpen(true);
+                        }}
+                    >
+                        {t('New notification')}
+                    </Button>
+                )
+            }
+        >
             <Head title={t('Notifications')} />
-            <PageHeader
-                title={t('Notifications')}
-                eyebrow={t('Operations')}
-                actions={
-                    canSend && (
-                        <Button
-                            onClick={() => {
-                                setTargetCompany(company ?? '');
-                                setOpen(true);
-                            }}
-                        >
-                            {t('New notification')}
-                        </Button>
-                    )
-                }
-            />
-            <label className="my-5 block max-w-md text-sm">
+
+            <label className="block max-w-md text-sm">
                 {t('Company')}
                 <select
                     className="mt-2 min-h-10 w-full rounded-md border bg-background p-2"

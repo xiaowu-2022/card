@@ -706,8 +706,9 @@ a.user-quick-action:hover .user-quick-action-circle {
     aspect-ratio: 1.586;
     margin: auto;
     border-radius: 22px;
-    background: #111312 var(--card-background-image, url('/images/cards/spec-pay-gold-background.jpg')) center / 100% 100%
-        no-repeat;
+    background: #111312
+        var(--card-background-image, url('/images/cards/spec-pay-gold-background.jpg')) center /
+        100% 100% no-repeat;
     color: #ecd5a3;
     box-shadow:
         inset 0 0 0 1px rgb(244 218 160 / 22%),
@@ -1397,4 +1398,16 @@ a {
 }
 .user-theme .wealth-currency-header .user-page-header-with-bell > div:first-child {
     grid-template-columns: 36px minmax(0, 1fr) 44px;
+}
+
+/* Native controls in platform forms share the same density as the UI components.
+   Context is also marked on portalled dialogs; tenant and consumer pages are excluded. */
+[data-platform-ui] select:not([multiple]),
+[data-platform-ui]
+    input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='color']):not(
+        [type='hidden']
+    ) {
+    height: 36px;
+    min-height: 36px;
+    padding-block: 6px;
 }

@@ -4,6 +4,7 @@ import { fullMoney } from '@/lib/promotion-report';
 
 export type StockPage<T> = { items: T[]; page: number; total: number; hasMore: boolean };
 export type JournalRow = {
+    email?: string | null;
     id: string;
     partner_id: string;
     kind: string;
@@ -15,10 +16,13 @@ export type JournalRow = {
     actor_id: string;
     created_at: string;
     account_id: string;
+    display_name?: string | null;
 };
 type Risk = {
+    email?: string | null;
     id: string;
     account_id: string;
+    display_name?: string | null;
     rank: number;
     target: number;
     weighted: string;
@@ -30,9 +34,11 @@ export type StockFlowDetails = StockPage<{
     id: string;
     source: string;
     account_id: string;
+    display_name?: string | null;
     email: string;
     direct_account_id: string | null;
     direct_email: string | null;
+    direct_display_name?: string | null;
     asset_code: string;
     amount: string;
     amountUsdt: string | null;
@@ -54,6 +60,8 @@ export type StockReport = {
         }[];
     };
     accountId: string;
+    displayName?: string | null;
+    email?: string | null;
     partnerId: string;
     updatedAt: string;
     timezone: string;
@@ -118,6 +126,8 @@ export function PartnerStockReport({
     onReverse,
     showShare = true,
     compactDecimals = false,
+    showUserIdentity = false,
+    compactHeader = false,
     onFlow,
 }: {
     report: StockReport;
@@ -125,6 +135,8 @@ export function PartnerStockReport({
     onReverse?: (row: JournalRow) => void;
     showShare?: boolean;
     compactDecimals?: boolean;
+    showUserIdentity?: boolean;
+    compactHeader?: boolean;
     onFlow?: (direction: 'inflow' | 'outflow' | null, page?: number) => void;
 }) {
     const number = (v: string) => (compactDecimals ? adminAmount(v) : v);
@@ -170,12 +182,17 @@ export function PartnerStockReport({
                     {details.items.map((row) => (
                         <article className="stock-flow-row" key={row.source + row.id}>
                             <strong>
-                                {t('Transaction member')}: {row.account_id}
+                                {t('Transaction member')}:{' '}
+                                {showUserIdentity ? row.display_name || '—' : row.account_id}
                             </strong>
                             <p>{row.email}</p>
                             <p>
                                 {t('Direct branch member')}:{' '}
-                                {row.direct_account_id ?? t('This partner')}
+                                {row.direct_account_id
+                                    ? showUserIdentity
+                                        ? row.direct_display_name || '—'
+                                        : row.direct_account_id
+                                    : t('This partner')}
                                 {row.account_id === row.direct_account_id
                                     ? ' · ' + t('Direct member themself')
                                     : ''}
@@ -222,30 +239,38 @@ export function PartnerStockReport({
             <p className="stock-muted">
                 {t('Updated')}: {dateTime(r.updatedAt)} · {r.timezone} · USDT
             </p>
-            <h2>{t(r.version === 'partner' ? 'Partner version' : 'Standard version')}</h2>
+            {!compactHeader && (
+                <h2>{t(r.version === 'partner' ? 'Partner version' : 'Standard version')}</h2>
+            )}
             <section className="stock-hero">
                 <h2>{t('Current total stock')}</h2>
-                <strong>{value(r.stock)}</strong>
-                {showShare && r.version === 'partner' && (
-                    <>
-                        <div className="stock-split">
-                            <span>
-                                {t('Partner share')}:{' '}
-                                {r.sharePercent.includes('.')
-                                    ? r.sharePercent.replace(/\.?0+$/, '')
-                                    : r.sharePercent}
-                                %
-                            </span>
-                            <span>
-                                {t('Reference share')}: {value(r.share)}
-                            </span>
-                        </div>
-                        <p>
-                            {t(
-                                'Reference only. No settlement or transfer is created. Advances do not reduce stock or the reference share.',
-                            )}
-                        </p>
-                    </>
+                <div
+                    className={compactHeader ? 'stock-hero-values is-inline' : 'stock-hero-values'}
+                >
+                    <strong>{value(r.stock)}</strong>
+                    {showShare && r.version === 'partner' && (
+                        <>
+                            <div className="stock-split">
+                                <span>
+                                    {t('Partner share')}:{' '}
+                                    {r.sharePercent.includes('.')
+                                        ? r.sharePercent.replace(/\.?0+$/, '')
+                                        : r.sharePercent}
+                                    %
+                                </span>
+                                <span>
+                                    {t('Reference share')}: {value(r.share)}
+                                </span>
+                            </div>
+                        </>
+                    )}
+                </div>
+                {!compactHeader && showShare && r.version === 'partner' && (
+                    <p>
+                        {t(
+                            'Reference only. No settlement or transfer is created. Advances do not reduce stock or the reference share.',
+                        )}
+                    </p>
                 )}
             </section>
             {r.missingRates > 0 && (
@@ -372,7 +397,12 @@ export function PartnerStockReport({
                         </summary>
                         {group.items.map((row) => (
                             <div className="stock-detail" key={row.id}>
-                                <strong>{row.account_id}</strong>
+                                <strong>
+                                    {showUserIdentity ? row.display_name || '—' : row.account_id}
+                                </strong>
+                                {showUserIdentity && (
+                                    <p className="break-all">{row.email || '—'}</p>
+                                )}
                                 <span>
                                     {t('Progress')}: {number(row.weighted)} / {row.target}
                                 </span>
@@ -429,8 +459,10 @@ export function PartnerStockReport({
                     {r.journal.items.map((row) => (
                         <div className="stock-detail" key={row.id}>
                             <strong>
-                                {row.account_id} ·{' '}
-                                {t(row.kind === 'ADVANCE' ? 'Advance' : 'Reimbursement')}{' '}
+                                {showUserIdentity
+                                    ? `${row.display_name || '—'} · ${row.email || '—'}`
+                                    : row.account_id}{' '}
+                                · {t(row.kind === 'ADVANCE' ? 'Advance' : 'Reimbursement')}{' '}
                                 {row.reverses_id && `· ${t('Reversal')}`}
                             </strong>
                             <span>

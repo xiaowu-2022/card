@@ -1,3 +1,18 @@
+On 2026-10-05 the user moved Platform KYC access into a direct Verification button
+on each user row. Remove the standalone KYC navigation item; open a lazy right drawer
+with tenant/user-scoped paginated application history and masked details. Preserve
+users.read plus kyc.read on the user endpoint, photo permission/password/audit gates,
+read-only GETs and existing legacy KYC routes. No new review or OCR operations.
+
+On 2026-10-05 the user approved a unified SaaS-only PlatformLayout: required top-bar
+page title/actions, 56px header, 20px content padding, 16px sections/panels, 36px
+controls and 10px table vertical padding. Keep one main area and scoped platform UI
+context, including portals; tenant/consumer PageHeader/layout behavior is unchanged.
+Company configuration list and lazy editor share nine keyboard/scrollable tabs and
+section/editor URL state. Preserve company identity, dirty/busy guards, authorization,
+legacy links, list position and audit. Only the selected platform settings DTO is read;
+no financial changes, migrations or App/H5 rebuild. See docs/deployment/PLATFORM_LAYOUT.md.
+
 On 2026-10-05 the user reported H5 bottom navigation following long-page height.
 Render PageShell navigation through a body-level H5 ViewportLayer so transformed or
 contained page ancestors cannot own its fixed positioning. Follow owning-page onHide /
@@ -19,8 +34,10 @@ and paginated details. Standard stock and personal reconciliation stay unchanged
 pricing requests, money writes or history rewrites on reads. See PARTNER_STOCK.md.
 
 On 2026-10-05 the user requested consumer-equivalent invitation tables and reward
-details on Platform partner rows. Load the read-only report lazily in a right-side
-drawer under partners.manage, resolving company/user from the partner record. Reuse
+details on Platform partner rows. Invitation data is now a lazy tab inside the shared
+View report drawer, alongside stock data, with no separate row action. Preserve old
+invitation URLs, drilldown pagination and company scope under partners.manage, resolving
+company/user from the partner record. Reuse
 PaidPromotionQuery for current member counts and historical source-rank/relation
 rewards; never call membership-ensuring PromotionQuery on GET. Detail pagination,
 company filters and list position remain independent. No wallet creation, financial

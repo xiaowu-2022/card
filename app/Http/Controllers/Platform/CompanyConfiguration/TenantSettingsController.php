@@ -33,7 +33,7 @@ final class TenantSettingsController extends Controller
         return Inertia::render('tenant-admin/Settings', [
             'section' => $request->route('section', 'branding'),
             'settings' => [
-                ...$query->execute($tenant, $request->route('section') === 'articles'),
+                ...$query->execute($tenant, $request->route('section') === 'articles', $request->route('section') ?? 'branding'),
                 ...($request->route('section') === 'sms' ? ['sms' => $sms->execute($tenant->id, true)] : []),
                 ...($request->route('section') === 'email' ? ['email' => $email->execute($tenant->id, true)] : []),
             ],

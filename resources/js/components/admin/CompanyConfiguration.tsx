@@ -1,3 +1,6 @@
+import { SettingsTabs } from './SettingsTabs';
+import { companySettings, companyEditor, companySettingsUrl } from './company-settings';
+import { router } from '@inertiajs/react';
 import { useEditor, usePage } from '@/components/admin/editor-context';
 import { Link } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
@@ -18,7 +21,8 @@ type ConfigurationProps = {
 
 export function CompanyConfigurationHeader(props: ComponentProps<typeof PageHeader>) {
     const { configurationBase } = usePage<ConfigurationProps>().props;
-    if (!configurationBase) return <PageHeader {...props} />;
+    const editor = useEditor();
+    if (!configurationBase && !editor) return <PageHeader {...props} />;
     if (!props.description && !props.actions) return null;
 
     return (
@@ -66,71 +70,36 @@ export function CompanyConfigurationLayout({ children }: { children: ReactNode }
     const { configurationBase, configurationCompany, configurationReadOnly } = props;
     const editor = useEditor();
     if (editor) return <>{children}</>;
-    const currentPath = url.split(/[?#]/)[0];
     if (configurationBase && configurationCompany) {
         return (
-            <PlatformLayout>
-                <div className="mb-8 space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <h1 className="min-w-0 break-words text-xl font-semibold">
-                            {configurationCompany.name} · {t('Company configuration')}
-                        </h1>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <RenameCompany
-                                key={configurationCompany.id}
-                                company={configurationCompany}
-                            />
-                            <CompanyLifecycleControls company={configurationCompany} />
-                            <Button asChild variant="ghost" size="sm">
-                                <Link href="/platform/tenants">
-                                    <ArrowLeft className="size-4" aria-hidden="true" />
-                                    {t('Tenants')}
-                                </Link>
-                            </Button>
-                        </div>
-                    </div>
-                    <nav
-                        aria-label={t('Company configuration')}
-                        className="flex gap-1 overflow-x-auto rounded-xl border bg-surface p-1.5"
-                    >
-                        {[
-                            { path: 'card-products', label: 'Card products' },
-                            { path: 'settings/branding', label: 'Branding' },
-                            { path: 'settings/locales', label: 'Locales' },
-                            { path: 'settings/business', label: 'Business rules' },
-                            { path: 'settings/articles', label: 'About us articles' },
-                            { path: 'settings/sms', label: 'Aliyun SMS' },
-                            { path: 'settings/email', label: 'Proton email' },
-                            { path: 'promotion', label: 'Promotion' },
-                            { path: 'wealth', label: 'Wealth settings' },
-                            { path: 'team', label: 'Team' },
-                        ].map(({ path, label }) => {
-                            const sectionPath = `${configurationBase}/${path}`;
-                            const active =
-                                currentPath === sectionPath ||
-                                (path === 'promotion' &&
-                                    currentPath === `${configurationBase}/paid-promotion`) ||
-                                currentPath?.startsWith(`${sectionPath}/`) ||
-                                (path === 'settings/branding' &&
-                                    currentPath === `${configurationBase}/settings`);
-                            return (
-                                <Button
-                                    key={path}
-                                    asChild
-                                    variant={active ? 'default' : 'ghost'}
-                                    className="shrink-0 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                                >
-                                    <Link
-                                        href={`${configurationBase}/${path}`}
-                                        aria-current={active ? 'page' : undefined}
-                                    >
-                                        {t(label)}
-                                    </Link>
-                                </Button>
-                            );
-                        })}
-                    </nav>
-                </div>
+            <PlatformLayout
+                title={`${configurationCompany.name} · ${t('Company configuration')}`}
+                actions={
+                    <>
+                        <RenameCompany
+                            key={configurationCompany.id}
+                            company={configurationCompany}
+                        />
+                        <CompanyLifecycleControls company={configurationCompany} />
+                        <Button asChild variant="ghost" size="sm">
+                            <Link href="/platform/company-configurations">
+                                <ArrowLeft className="size-4" />
+                                {t('Company configuration')}
+                            </Link>
+                        </Button>
+                    </>
+                }
+            >
+                {companyEditor(url) && (
+                    <SettingsTabs
+                        label={t('Company configuration')}
+                        items={companySettings}
+                        value={companyEditor(url)?.section ?? ''}
+                        onChange={(section) =>
+                            router.get(companySettingsUrl(configurationCompany.id, section))
+                        }
+                    />
+                )}
                 {children}
             </PlatformLayout>
         );

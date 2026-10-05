@@ -3,7 +3,6 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Head } from '@inertiajs/react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
 import { PlatformSupportTabs } from '@/components/support/PlatformSupportTabs';
 import { SupportProfile } from '@/components/support/SupportProfile';
@@ -20,10 +19,9 @@ export default function SupportAgents({
     const [editing, setEditing] = useState<Agent | null>(null);
     const [formState, setFormState] = useState({ dirty: false, busy: false });
     return (
-        <PlatformLayout>
+        <PlatformLayout title={t('Customer support')}>
             <Head title={t('Support staff')} />
-            <div className="space-y-5">
-                <PageHeader title={t('Customer support')} />
+            <div className="space-y-4">
                 <PlatformSupportTabs agents />
                 <p className="text-sm text-muted-foreground">
                     {t(

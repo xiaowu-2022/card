@@ -8,7 +8,6 @@ import {
 import { useState } from 'react';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
 import { exactAmount } from '@/lib/exact-amount';
 import { Button } from '@/components/ui/button';
@@ -69,17 +68,16 @@ export default function AssetOrders({
     // Resolve from refreshed props after mutations so the dialog cannot retain stale status/actions.
     const order = orders.data.find((item) => item.source + ':' + item.id === selected);
     return (
-        <PlatformLayout>
+        <PlatformLayout
+            title={t(title)}
+            description={t(
+                mode === 'deposit'
+                    ? 'Review deposits and confirm received funds.'
+                    : 'Review withdrawal requests and track payout progress.',
+            )}
+        >
             <Head title={t(title)} />
-            <div className="space-y-6">
-                <PageHeader
-                    title={t(title)}
-                    description={t(
-                        mode === 'deposit'
-                            ? 'Review deposits and confirm received funds.'
-                            : 'Review withdrawal requests and track payout progress.',
-                    )}
-                />
+            <div className="space-y-4">
                 <AssetNavigation active={mode} />
                 <PlatformAccountTable
                     key={mode + JSON.stringify(filters)}
@@ -211,7 +209,7 @@ export default function AssetOrders({
                     ]}
                 />
                 {observations.length > 0 && (
-                    <section className="rounded-xl border p-5">
+                    <section className="rounded-xl border p-4">
                         <h2 className="font-semibold">{t('Transfers requiring review')}</h2>
                         {observations.map((o) => (
                             <div
@@ -317,7 +315,7 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
         }
     }
     return (
-        <section className="space-y-4 rounded-xl border bg-surface p-5">
+        <section className="space-y-4 rounded-xl border bg-surface p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <h2 className="font-semibold">

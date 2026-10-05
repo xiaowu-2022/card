@@ -1,4 +1,5 @@
 import { AdminEditorHost } from '@/components/admin/AdminEditor';
+import { PlatformUiContext } from '@/components/admin/platform-ui-context';
 import { useEditor } from '@/components/admin/editor-context';
 import { useAdminTranslation, t } from '@/i18n/admin';
 import { useLocaleSync } from '@/i18n/useLocaleSync';
@@ -9,7 +10,6 @@ import {
     Boxes,
     Building2,
     CreditCard,
-    FileCheck2,
     Menu,
     MessageSquare,
     ReceiptText,
@@ -75,7 +75,6 @@ const groups: { label: string; items: PlatformNavItem[] }[] = [
                 permission: 'support.read',
             },
             { label: 'Users', href: '/platform/users', icon: Users, permission: 'users.read' },
-            { label: 'KYC', href: '/platform/kyc', icon: FileCheck2, permission: 'kyc.read' },
             { label: 'Cards', href: '/platform/cards', icon: CreditCard },
             {
                 label: 'Deposit orders',
@@ -175,12 +174,24 @@ const PlatformNav = () => {
     );
 };
 
-export function PlatformLayout({ children }: { children: ReactNode }) {
+export type PlatformLayoutProps = {
+    children: ReactNode;
+    title: string;
+    description?: string;
+    actions?: ReactNode;
+};
+export function PlatformLayout({ children, title, description, actions }: PlatformLayoutProps) {
     useLocaleSync();
     useAdminTranslation();
     const { auth, flash } = usePage<SharedProps>().props;
     const editor = useEditor();
-    if (editor) return <>{children}</>;
+    if (editor)
+        return (
+            <>
+                {description && <p className="mb-4 text-sm text-muted-foreground">{description}</p>}
+                {children}
+            </>
+        );
     const initials = auth.admin?.name
         .split(' ')
         .map((part) => part[0])
@@ -188,66 +199,75 @@ export function PlatformLayout({ children }: { children: ReactNode }) {
         .slice(0, 2)
         .toUpperCase();
     return (
-        <AdminEditorHost>
-            <div className="min-h-screen">
-                <aside className="fixed inset-y-0 left-0 hidden w-64 overflow-y-auto overscroll-y-contain border-r bg-surface p-5 lg:block">
-                    <AppMark name="Aperture Platform" />
-                    <PlatformNav />
-                </aside>
-                <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-surface px-4 sm:px-6 lg:ml-64">
-                    <div className="lg:hidden">
-                        <Sheet>
-                            <SheetTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    aria-label={t('Open platform navigation')}
-                                >
-                                    <Menu className="size-5" />
-                                </Button>
-                            </SheetTrigger>
-                            <SheetContent>
-                                <SheetTitle>
-                                    <AppMark name="Aperture Platform" />
-                                </SheetTitle>
-                                <SheetDescription className="sr-only">
-                                    {t('Platform administration navigation')}
-                                </SheetDescription>
-                                <PlatformNav />
-                            </SheetContent>
-                        </Sheet>
-                    </div>
-                    <p className="hidden text-sm font-medium sm:block">
-                        {t('Platform control center')}
-                    </p>
-                    <div className="flex shrink-0 items-center gap-2 whitespace-nowrap sm:gap-3">
-                        <AdminLanguageSwitcher />
-                        <span className="hidden rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-info sm:inline">
-                            {t('Sandbox')}
-                        </span>
-                        <span className="grid size-8 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white">
-                            {initials ?? 'PA'}
-                        </span>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => router.post('/platform/logout')}
-                        >
-                            {t('Sign out')}
-                        </Button>
-                    </div>
-                </header>
-                <main className="min-w-0 p-4 sm:p-6 lg:ml-64 lg:p-8 xl:p-10">
-                    <div className="mx-auto min-w-0 w-full max-w-[1600px]">
+        <PlatformUiContext.Provider value={true}>
+            <AdminEditorHost>
+                <div data-platform-ui className="min-h-screen">
+                    <aside className="fixed inset-y-0 left-0 hidden w-64 overflow-y-auto overscroll-y-contain border-r bg-surface p-5 lg:block">
+                        <AppMark name="Aperture Platform" />
+                        <PlatformNav />
+                    </aside>
+                    <header
+                        data-platform-header
+                        className="sticky top-0 z-30 flex h-14 min-w-0 items-center gap-4 border-b bg-surface px-5 lg:ml-64"
+                    >
+                        <div className="lg:hidden">
+                            <Sheet>
+                                <SheetTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        aria-label={t('Open platform navigation')}
+                                    >
+                                        <Menu className="size-5" />
+                                    </Button>
+                                </SheetTrigger>
+                                <SheetContent>
+                                    <SheetTitle>
+                                        <AppMark name="Aperture Platform" />
+                                    </SheetTitle>
+                                    <SheetDescription className="sr-only">
+                                        {t('Platform administration navigation')}
+                                    </SheetDescription>
+                                    <PlatformNav />
+                                </SheetContent>
+                            </Sheet>
+                        </div>
+                        <h1 className="min-w-0 flex-1 truncate text-lg font-semibold" title={title}>
+                            {title}
+                        </h1>
+                        {actions && (
+                            <div className="flex shrink-0 items-center gap-2">{actions}</div>
+                        )}
+                        <div className="flex shrink-0 items-center gap-2 whitespace-nowrap sm:gap-3">
+                            <AdminLanguageSwitcher />
+                            <span className="hidden rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-info sm:inline">
+                                {t('Sandbox')}
+                            </span>
+                            <span className="grid size-8 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white">
+                                {initials ?? 'PA'}
+                            </span>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => router.post('/platform/logout')}
+                            >
+                                {t('Sign out')}
+                            </Button>
+                        </div>
+                    </header>
+                    <main data-platform-content className="min-w-0 space-y-4 p-5 lg:ml-64">
                         {flash.success && (
-                            <Alert className="mb-6 border-emerald-200 bg-emerald-50">
+                            <Alert className="border-emerald-200 bg-emerald-50">
                                 <AlertDescription>{t(flash.success)}</AlertDescription>
                             </Alert>
                         )}
+                        {description && (
+                            <p className="text-sm text-muted-foreground">{description}</p>
+                        )}
                         {children}
-                    </div>
-                </main>
-            </div>
-        </AdminEditorHost>
+                    </main>
+                </div>
+            </AdminEditorHost>
+        </PlatformUiContext.Provider>
     );
 }

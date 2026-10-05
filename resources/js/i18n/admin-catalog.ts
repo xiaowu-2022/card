@@ -2,6 +2,9 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    Verification: '认证',
+    'Verification history': '认证记录',
+    'No identity verification submitted yet.': '该用户尚未提交实名认证。',
     'Invitation data': '邀请数据',
     'Back to invitation data': '返回邀请数据',
     Level: '等级',

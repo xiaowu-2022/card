@@ -6,7 +6,6 @@ import {
 } from '@/components/shared/PhotonPayAccountForm';
 import { useState } from 'react';
 import { useAdminTranslation, t, dateTime, errorMessage } from '@/i18n/admin';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { MoneyDisplay } from '@/components/admin/MoneyDisplay';
 import type { AccountPage } from '@/components/shared/PlatformAccountTable';
@@ -130,20 +129,16 @@ export default function CardProviders({ providers }: { providers: AccountPage<Re
     );
     const [editing, setEditing] = useState<Reference | 'new' | null>(null);
     return (
-        <PlatformLayout>
+        <PlatformLayout
+            title={t('Card providers')}
+            actions={
+                canManage ? (
+                    <Button onClick={() => setEditing('new')}>{t('Add card provider')}</Button>
+                ) : undefined
+            }
+        >
             <Head title={t('Card providers')} />
-            <div className="space-y-6">
-                <PageHeader
-                    eyebrow={t('Operations')}
-                    title={t('Card providers')}
-                    actions={
-                        canManage ? (
-                            <Button onClick={() => setEditing('new')}>
-                                {t('Add card provider')}
-                            </Button>
-                        ) : undefined
-                    }
-                />
+            <div className="space-y-4">
                 {providers.data.length === 0 ? (
                     <EmptyState
                         title={t('No card providers')}

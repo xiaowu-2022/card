@@ -1,3 +1,4 @@
+import { usePlatformUi } from '@/components/admin/platform-ui-context';
 import * as Popover from '@radix-ui/react-popover';
 import { Command } from 'cmdk';
 import { Check, ChevronDown, Search } from 'lucide-react';
@@ -40,6 +41,7 @@ export function SearchSelect({
     footer?: ReactNode;
     onValueChange: (value: string) => void;
 }) {
+    const platform = usePlatformUi();
     const [open, setOpen] = useState(false);
     const selected = options.find((option) => option.value === value);
     return (
@@ -63,6 +65,7 @@ export function SearchSelect({
                     disabled={disabled}
                     className={cn(
                         'flex min-h-11 w-full min-w-0 items-center justify-between gap-2 rounded-lg border bg-white px-3 py-2 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50',
+                        platform && 'h-9 min-h-9 py-1',
                         !value && 'text-muted-foreground',
                         invalid && 'border-danger',
                     )}

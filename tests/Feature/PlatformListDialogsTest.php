@@ -69,3 +69,23 @@ it('paginates all-company notification history without creating delivery work', 
     $this->get('http://admin.localhost/platform/notifications?company='.$companies[0]->id)->assertOk()->assertInertia(fn (Assert $page) => $page->where('batches.total', 11)->where('batches.data.0.tenant_id', $companies[0]->id));
     expect(DB::table('inbox_events')->count())->toBe(0);
 });
+
+it('loads only the selected company settings category without writes or upstream reads', function () {
+    $tenant = Tenant::where('slug', 'tenant-a')->firstOrFail();
+    $before = DB::table('ledger_entries')->count();
+    foreach (['branding', 'locales', 'business', 'articles', 'sms', 'email'] as $section) {
+        $url = 'http://admin.localhost/platform/tenants/'.$tenant->id.'/configuration/settings/'.$section;
+        $this->withHeader('X-Admin-Dialog', '1')->get($url)->assertOk()->assertInertia(function (Assert $page) use ($tenant, $section) {
+            $page->component('tenant-admin/Settings')->where('section', $section)->where('configurationCompany.id', $tenant->id)->has('settings.'.$section);
+            foreach (['branding', 'locales', 'business', 'articles', 'sms', 'email', 'kyc'] as $other) {
+                if ($other !== $section) {
+                    $page->missing('settings.'.$other);
+                }
+            }
+        });
+    }
+    expect(DB::table('ledger_entries')->count())->toBe($before);
+    Http::assertNothingSent();
+    $this->actingAs(AdminUser::where('email', 'owner@a.localhost')->firstOrFail(), 'platform_admin')
+        ->get('http://admin.localhost/platform/tenants/'.$tenant->id.'/configuration/settings/branding')->assertForbidden();
+});

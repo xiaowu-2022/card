@@ -11,6 +11,7 @@ use App\Domain\Admin\Services\AuthorizationService;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Tenant\Models\Tenant;
+use App\Domain\User\Models\User;
 use App\Http\Controllers\Controller;
 use App\Infrastructure\Storage\OssImages;
 use Illuminate\Http\Request;
@@ -21,6 +22,28 @@ use Inertia\Inertia;
 
 final class KycDetailController extends Controller
 {
+    public function user(Tenant $tenant, string $user, Request $request, TenantKycQueueQuery $query, AuthorizationService $authorization)
+    {
+        $data = $request->validate(['application' => 'nullable|uuid', 'page' => 'nullable|integer|min:1|max:100000']);
+        $member = User::where('tenant_id', $tenant->id)->with('profile')->findOrFail($user);
+        $applications = KycApplication::where('tenant_id', $tenant->id)->where('user_id', $member->id);
+        $page = (clone $applications)->orderByDesc('submitted_at')->orderByDesc('id')->paginate(20, ['id', 'review_status', 'submitted_at']);
+        $selected = isset($data['application'])
+            ? (clone $applications)->whereKey($data['application'])->firstOrFail(['id'])
+            : $page->first();
+
+        return response()->json([
+            'company' => ['id' => $tenant->id, 'name' => $tenant->name],
+            'user' => ['id' => $member->id, 'displayName' => $member->profile?->display_name, 'email' => $member->email],
+            'applications' => ['items' => $page->map(fn ($application) => [
+                'id' => $application->id, 'reviewStatus' => $application->review_status->value,
+                'submittedAt' => $application->submitted_at->toIso8601String(),
+            ]), 'page' => $page->currentPage(), 'lastPage' => $page->lastPage(), 'total' => $page->total()],
+            'application' => $selected ? $query->detail($tenant->id, $selected->id)['application'] : null,
+            'canViewDocuments' => $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'kyc.document.view'),
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
     public function show(Tenant $tenant, string $kyc, Request $request, TenantKycQueueQuery $query, AuthorizationService $authorization)
     {
         return Inertia::render('platform/KycDetail', [

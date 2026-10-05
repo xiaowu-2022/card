@@ -3,7 +3,6 @@ import { useForm, useEditor } from '@/components/admin/editor-context';
 import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
 import { Button } from '@/components/ui/button';
 import { t, useAdminTranslation, dateTime } from '@/i18n/admin';
@@ -95,13 +94,13 @@ export default function ManualCommission({
         }));
     }
     return (
-        <PlatformLayout>
-            <div className="space-y-5">
+        <PlatformLayout
+            title={t('Adjust commission')}
+            description={`${account.companyName} · ${account.accountId} · ${account.email}`}
+        >
+            <div className="space-y-4">
                 <Head title={t('Adjust commission')} />
-                <PageHeader
-                    title={t('Adjust commission')}
-                    description={`${account.companyName} · ${account.accountId} · ${account.email}`}
-                />
+
                 <dl className="grid grid-cols-2 gap-3 rounded border p-4 lg:grid-cols-3">
                     {[
                         ...Object.entries(categories).map(([key, value]) => [

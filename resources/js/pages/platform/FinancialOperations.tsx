@@ -1,7 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { t, useAdminTranslation, dateTime } from '@/i18n/admin';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
 import type { ManualOperation } from '@/components/admin/ManualOperationHistory';
 
@@ -16,15 +15,14 @@ export default function FinancialOperations({
 }) {
     useAdminTranslation();
     return (
-        <PlatformLayout>
+        <PlatformLayout
+            title={t('Financial operation records')}
+            description={t(
+                'Read-only history of manual top-up and withdrawal operations. Operator identity and operation time are retained.',
+            )}
+        >
             <Head title={t('Financial operation records')} />
-            <div className="space-y-6">
-                <PageHeader
-                    title={t('Financial operation records')}
-                    description={t(
-                        'Read-only history of manual top-up and withdrawal operations. Operator identity and operation time are retained.',
-                    )}
-                />
+            <div className="space-y-4">
                 <PlatformAccountTable
                     key={JSON.stringify(filters)}
                     page={operations}

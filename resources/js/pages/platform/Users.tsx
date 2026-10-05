@@ -5,9 +5,11 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { useEffect, useRef, useState } from 'react';
+import { UserKycDrawer } from '@/components/admin/UserKycDrawer';
+import { initialKycTarget, kycLocation } from '@/components/admin/user-kyc-state';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
@@ -61,32 +63,39 @@ export default function Users({
     financialAccess: { balances: boolean; commission: boolean; withdrawals: boolean };
 }) {
     useAdminTranslation();
+    const { url } = usePage();
+    const [kycTarget, setKycTarget] = useState(initialKycTarget);
+    const kycTrigger = useRef<HTMLElement | null>(null);
+    useEffect(() => {
+        const sync = () => setKycTarget(initialKycTarget());
+        sync();
+        window.addEventListener('popstate', sync);
+        return () => window.removeEventListener('popstate', sync);
+    }, [url]);
     return (
-        <PlatformLayout>
+        <PlatformLayout
+            title={t('Users')}
+            description={t(
+                'User records, wallet balances and promotion levels. Each currency is shown separately.',
+            )}
+            actions={
+                canViewTopups && (
+                    <Button asChild>
+                        <Link
+                            href={
+                                filters.company
+                                    ? `/platform/topups?company=${filters.company}`
+                                    : '/platform/topups'
+                            }
+                        >
+                            {t('Top-up management')}
+                        </Link>
+                    </Button>
+                )
+            }
+        >
             <Head title={t('Users')} />
-            <div className="space-y-6">
-                <PageHeader
-                    eyebrow={t('Operations')}
-                    title={t('Users')}
-                    description={t(
-                        'User records, wallet balances and promotion levels. Each currency is shown separately.',
-                    )}
-                    actions={
-                        canViewTopups && (
-                            <Button asChild>
-                                <Link
-                                    href={
-                                        filters.company
-                                            ? `/platform/topups?company=${filters.company}`
-                                            : '/platform/topups'
-                                    }
-                                >
-                                    {t('Top-up management')}
-                                </Link>
-                            </Button>
-                        )
-                    }
-                />
+            <div className="space-y-4">
                 <PlatformAccountTable
                     key={JSON.stringify(filters)}
                     companies={companies}
@@ -222,69 +231,85 @@ export default function Users({
                                   {
                                       label: 'Actions',
                                       render: (row: User) => (
-                                          <DropdownMenu>
-                                              <DropdownMenuTrigger asChild>
-                                                  <Button variant="secondary" size="sm">
-                                                      {t('More actions')}
+                                          <div className="flex items-center gap-2">
+                                              {canViewKyc && (
+                                                  <Button
+                                                      variant="secondary"
+                                                      size="sm"
+                                                      onClick={(event) => {
+                                                          kycTrigger.current = event.currentTarget;
+                                                          const target = {
+                                                              company: row.companyId,
+                                                              user: row.id,
+                                                          };
+                                                          kycLocation(target);
+                                                          setKycTarget(target);
+                                                      }}
+                                                  >
+                                                      {t('Verification')}
                                                   </Button>
-                                              </DropdownMenuTrigger>
-                                              <DropdownMenuContent align="end">
-                                                  {canViewTopups && (
-                                                      <DropdownMenuItem asChild>
-                                                          <Link
-                                                              href={`/platform/topups?company=${row.companyId}&search=${encodeURIComponent(row.accountId)}`}
-                                                          >
-                                                              {t('Deposit orders')}
-                                                          </Link>
-                                                      </DropdownMenuItem>
-                                                  )}
-                                                  {financialAccess.withdrawals && (
-                                                      <DropdownMenuItem asChild>
-                                                          <Link
-                                                              href={`/platform/asset-withdrawals?company=${row.companyId}&search=${encodeURIComponent(row.accountId)}`}
-                                                          >
-                                                              {t('Withdrawal orders')}
-                                                          </Link>
-                                                      </DropdownMenuItem>
-                                                  )}
-                                                  {canViewKyc && (
-                                                      <DropdownMenuItem asChild>
-                                                          <Link
-                                                              href={`/platform/kyc?company=${row.companyId}&search=${row.id}`}
-                                                          >
-                                                              {t('View identity verification')}
-                                                          </Link>
-                                                      </DropdownMenuItem>
-                                                  )}
-                                                  {canAdjustWallet && (
-                                                      <DropdownMenuItem asChild>
-                                                          <Link
-                                                              href={`/platform/tenants/${row.companyId}/users/${row.id}/wallet-adjustments`}
-                                                          >
-                                                              {t('Wallet adjustment')}
-                                                          </Link>
-                                                      </DropdownMenuItem>
-                                                  )}
-                                                  {canChangeReferrer && (
-                                                      <DropdownMenuItem asChild>
-                                                          <Link
-                                                              href={`/platform/tenants/${row.companyId}/users/${row.id}/referrer`}
-                                                          >
-                                                              {t('Change referrer')}
-                                                          </Link>
-                                                      </DropdownMenuItem>
-                                                  )}
-                                                  {canAdjustCommission && (
-                                                      <DropdownMenuItem asChild>
-                                                          <Link
-                                                              href={`/platform/tenants/${row.companyId}/users/${row.id}/manual-commissions`}
-                                                          >
-                                                              {t('Adjust commission')}
-                                                          </Link>
-                                                      </DropdownMenuItem>
-                                                  )}
-                                              </DropdownMenuContent>
-                                          </DropdownMenu>
+                                              )}
+                                              {(canViewTopups ||
+                                                  financialAccess.withdrawals ||
+                                                  canAdjustWallet ||
+                                                  canChangeReferrer ||
+                                                  canAdjustCommission) && (
+                                                  <DropdownMenu>
+                                                      <DropdownMenuTrigger asChild>
+                                                          <Button variant="secondary" size="sm">
+                                                              {t('More actions')}
+                                                          </Button>
+                                                      </DropdownMenuTrigger>
+                                                      <DropdownMenuContent align="end">
+                                                          {canViewTopups && (
+                                                              <DropdownMenuItem asChild>
+                                                                  <Link
+                                                                      href={`/platform/topups?company=${row.companyId}&search=${encodeURIComponent(row.accountId)}`}
+                                                                  >
+                                                                      {t('Deposit orders')}
+                                                                  </Link>
+                                                              </DropdownMenuItem>
+                                                          )}
+                                                          {financialAccess.withdrawals && (
+                                                              <DropdownMenuItem asChild>
+                                                                  <Link
+                                                                      href={`/platform/asset-withdrawals?company=${row.companyId}&search=${encodeURIComponent(row.accountId)}`}
+                                                                  >
+                                                                      {t('Withdrawal orders')}
+                                                                  </Link>
+                                                              </DropdownMenuItem>
+                                                          )}
+                                                          {canAdjustWallet && (
+                                                              <DropdownMenuItem asChild>
+                                                                  <Link
+                                                                      href={`/platform/tenants/${row.companyId}/users/${row.id}/wallet-adjustments`}
+                                                                  >
+                                                                      {t('Wallet adjustment')}
+                                                                  </Link>
+                                                              </DropdownMenuItem>
+                                                          )}
+                                                          {canChangeReferrer && (
+                                                              <DropdownMenuItem asChild>
+                                                                  <Link
+                                                                      href={`/platform/tenants/${row.companyId}/users/${row.id}/referrer`}
+                                                                  >
+                                                                      {t('Change referrer')}
+                                                                  </Link>
+                                                              </DropdownMenuItem>
+                                                          )}
+                                                          {canAdjustCommission && (
+                                                              <DropdownMenuItem asChild>
+                                                                  <Link
+                                                                      href={`/platform/tenants/${row.companyId}/users/${row.id}/manual-commissions`}
+                                                                  >
+                                                                      {t('Adjust commission')}
+                                                                  </Link>
+                                                              </DropdownMenuItem>
+                                                          )}
+                                                      </DropdownMenuContent>
+                                                  </DropdownMenu>
+                                              )}
+                                          </div>
                                       ),
                                   },
                               ]
@@ -292,6 +317,17 @@ export default function Users({
                     ]}
                 />
             </div>
+            {canViewKyc && kycTarget && (
+                <UserKycDrawer
+                    key={`${kycTarget.company}:${kycTarget.user}`}
+                    target={kycTarget}
+                    trigger={kycTrigger}
+                    onClose={() => {
+                        kycLocation(null);
+                        setKycTarget(null);
+                    }}
+                />
+            )}
         </PlatformLayout>
     );
 }

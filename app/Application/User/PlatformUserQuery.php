@@ -32,7 +32,7 @@ final class PlatformUserQuery
                 DB::table('withdrawal_orders as wo')->whereColumn('wo.tenant_id', 'u.tenant_id')->whereColumn('wo.user_id', 'u.id')
                     ->where('wo.asset_code', 'USDT')->where('wo.status', 'SUCCEEDED')
                     ->selectRaw('COALESCE(SUM(wo.amount), 0)::text'), 'total_withdrawn'))
-            ->orderByDesc('u.created_at')->orderBy('u.id')->paginate(20)->withQueryString();
+            ->orderByDesc('u.created_at')->orderBy('u.id')->paginate(20)->appends(request()->except(['kyc_company', 'kyc_user', 'kyc_application', 'kyc_page']));
         $wallets = ($financialAccess['balances'] ?? false) ? app(PlatformWalletQuery::class)->forUsers($page->getCollection()->pluck('id')->all()) : [];
 
         return $page->through(fn ($row): array => [

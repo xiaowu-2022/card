@@ -1,3 +1,4 @@
+import { usePlatformUi } from '@/components/admin/platform-ui-context';
 import type {
     HTMLAttributes,
     TableHTMLAttributes,
@@ -27,6 +28,7 @@ export function TableHead({ className, ...props }: ThHTMLAttributes<HTMLTableCel
         <th
             className={cn(
                 'h-11 px-4 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground',
+                usePlatformUi() && 'h-auto py-2.5',
                 className,
             )}
             {...props}
@@ -34,5 +36,5 @@ export function TableHead({ className, ...props }: ThHTMLAttributes<HTMLTableCel
     );
 }
 export function TableCell({ className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
-    return <td className={cn('px-4 py-3.5', className)} {...props} />;
+    return <td className={cn('px-4 py-3.5', usePlatformUi() && 'py-2.5', className)} {...props} />;
 }

@@ -22,7 +22,7 @@ export default function KycSettings({ policy }: { policy: KycPolicy }) {
     return (
         <PlatformSettingsLayout>
             <Head title={t('Identity verification settings')} />
-            <div className="space-y-6">
+            <div className="min-w-0 space-y-4">
                 <KycForm policy={policy} />
             </div>
         </PlatformSettingsLayout>

@@ -1,3 +1,4 @@
+import { usePlatformUi } from '@/components/admin/platform-ui-context';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { Check, ChevronDown } from 'lucide-react';
 import type { ComponentProps } from 'react';
@@ -15,6 +16,7 @@ export function SelectTrigger({
         <SelectPrimitive.Trigger
             className={cn(
                 'flex h-10 w-full items-center justify-between rounded-lg border bg-surface px-3 text-sm',
+                usePlatformUi() && 'h-9',
                 className,
             )}
             {...props}

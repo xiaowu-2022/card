@@ -78,7 +78,7 @@ export default function Settings({
     return (
         <TenantAdminLayout>
             <Head title={t('Tenant settings')} />
-            <div className="space-y-6">
+            <div className={configurationBase ? 'min-w-0 space-y-4' : 'space-y-6'}>
                 <PageHeader title={t('Settings')} />
                 {!configurationBase && (
                     <div className="flex gap-2 overflow-x-auto pb-1">

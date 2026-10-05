@@ -1,3 +1,4 @@
+import { usePlatformUi } from '@/components/admin/platform-ui-context';
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog';
 import type { ComponentProps } from 'react';
 import { cn } from '@/lib/utils';
@@ -16,6 +17,7 @@ export function AlertDialogContent({
             <AlertDialogPrimitive.Content
                 className={cn(
                     'fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-surface p-6 shadow-xl',
+                    usePlatformUi() && 'max-h-[calc(100dvh-2rem)] overflow-y-auto p-4',
                     className,
                 )}
                 {...props}

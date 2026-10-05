@@ -1,6 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
 import { useAdminTranslation, t, dateTime, countryName } from '@/i18n/admin';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
@@ -26,14 +25,12 @@ export default function Kyc({
 }) {
     useAdminTranslation();
     return (
-        <PlatformLayout>
+        <PlatformLayout
+            title={t('KYC')}
+            description={t('View identity information and document photos.')}
+        >
             <Head title={t('KYC')} />
-            <div className="space-y-6">
-                <PageHeader
-                    eyebrow={t('Operations')}
-                    title={t('KYC')}
-                    description={t('View identity information and document photos.')}
-                />
+            <div className="space-y-4">
                 <PlatformAccountTable
                     key={JSON.stringify(filters)}
                     companies={companies}

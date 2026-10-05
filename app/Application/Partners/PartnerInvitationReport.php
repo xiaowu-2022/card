@@ -31,17 +31,18 @@ final readonly class PartnerInvitationReport
             // Use the consumer's projection, never PromotionQuery::execute (which ensures membership).
             $paid = $query->execute($tenant->id, $user->id);
             $details = $kind === null ? null : $query->details($tenant->id, $user->id, $kind, $rank, $page);
+            $identities = app(PlatformPartnerIdentity::class)->users($tenant->id, [$user->account_id, ...array_column($details['items'] ?? [], 'accountId')]);
             if ($details !== null) {
-                $emails = User::where('tenant_id', $tenant->id)->whereIn('account_id', array_column($details['items'], 'accountId'))->pluck('email', 'account_id');
                 foreach ($details['items'] as &$item) {
-                    $item['email'] = $emails[$item['accountId']] ?? null;
+                    $item['email'] = $identities->get($item['accountId'])?->email;
+                    $item['displayName'] = $identities->get($item['accountId'])?->display_name;
                     $item['occurredAt'] = CarbonImmutable::parse($item['occurredAt'])->toIso8601String();
                 }
                 unset($item);
             }
 
             return [
-                'account' => ['partnerId' => $record->id, 'companyId' => $tenant->id, 'companyName' => $tenant->name, 'accountId' => $user->account_id, 'email' => $user->email],
+                'account' => ['partnerId' => $record->id, 'companyId' => $tenant->id, 'companyName' => $tenant->name, 'accountId' => $user->account_id, 'email' => $user->email, 'displayName' => $identities->get($user->account_id)?->display_name],
                 'timezone' => $tenant->timezone,
                 'commission' => app(PromotionReportQuery::class)->cumulative($tenant->id, $user->id),
                 'summary' => Arr::only($paid, ['tables', 'totals', 'legacy', 'teamByLevel', 'directPeople', 'indirectPeople']),

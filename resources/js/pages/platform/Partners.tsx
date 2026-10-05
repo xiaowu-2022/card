@@ -1,5 +1,6 @@
 import { DetailDrawerContent } from '@/components/admin/DetailDrawer';
-import { PartnerInvitationsDrawer } from '@/components/admin/PartnerInvitationsDrawer';
+import { PartnerInvitationsReport } from '@/components/admin/PartnerInvitationsReport';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { invitationLocation } from '@/components/admin/partner-invitations-state';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -29,6 +30,7 @@ type Partner = {
     share_percent: string;
     account_id: string;
     display_name: string | null;
+    email: string | null;
 };
 type Fee = {
     id: string;
@@ -79,7 +81,6 @@ export default function Partners({
     const [invitationPartner, setInvitationPartner] = useState(() =>
         new URL(location.href).searchParams.get('invitation_partner'),
     );
-    const invitationTrigger = useRef<HTMLElement | null>(null);
     useEffect(() => {
         const sync = () =>
             setInvitationPartner(new URL(location.href).searchParams.get('invitation_partner'));
@@ -99,7 +100,8 @@ export default function Partners({
         1,
     ]);
     useEffect(() => {
-        setReportOpen(new URL(url, location.origin).searchParams.has('partner'));
+        const query = new URL(url, location.origin).searchParams;
+        setReportOpen(query.has('partner') || query.has('invitation_partner'));
     }, [url]);
     const visit = (partner?: string, page = 1, flow?: string | null, flowPage = 1) => {
         reportRequest.current?.();
@@ -113,7 +115,17 @@ export default function Partners({
                 query.set('flow', flow);
                 query.set('flow_page', String(flowPage));
             }
-        } else query.set('page', String(page));
+        } else {
+            query.set('page', String(page));
+            for (const key of [
+                'invitation_partner',
+                'invitation_kind',
+                'invitation_rank',
+                'invitation_page',
+            ])
+                query.delete(key);
+            setInvitationPartner(null);
+        }
         setReportOpen(Boolean(partner));
         setReportLoading(Boolean(partner));
         setReportError(false);
@@ -164,7 +176,7 @@ export default function Partners({
     const record = (p: Partner) => {
         setTargetCompany(p.tenant_id);
         setJournalPartner(p.id);
-        setJournalAccount(p.account_id);
+        setJournalAccount(`${p.display_name || '—'} · ${p.email || '—'}`);
         const values = {
             kind: 'REIMBURSEMENT',
             amount: '',
@@ -181,7 +193,7 @@ export default function Partners({
     const reverse = (row: JournalRow) => {
         setTargetCompany(reportCompanyId ?? '');
         setJournalPartner(row.partner_id);
-        setJournalAccount(row.account_id);
+        setJournalAccount(`${row.display_name || '—'} · ${row.email || '—'}`);
         journal.clearErrors();
         setJournalOpen(true);
         const values = {
@@ -212,15 +224,16 @@ export default function Partners({
             );
     };
     return (
-        <PlatformLayout>
+        <PlatformLayout
+            title={t('Partners')}
+            actions={
+                <button type="button" className="partner-admin-action" onClick={add}>
+                    + {t('Add partner')}
+                </button>
+            }
+        >
             <Head title={t('Partners')} />
-            <main className="partner-admin">
-                <div className="partner-list-header">
-                    <h1>{t('Partners')}</h1>
-                    <button type="button" className="partner-admin-action" onClick={add}>
-                        + {t('Add partner')}
-                    </button>
-                </div>
+            <div className="partner-admin partner-admin-platform">
                 <div className="partner-form">
                     <label>
                         {t('Company')}
@@ -250,8 +263,8 @@ export default function Partners({
                                     <thead>
                                         <tr>
                                             <th>{t('Company')}</th>
-                                            <th>{t('Platform account ID')}</th>
-                                            <th>{t('Nickname')}</th>
+                                            <th>{t('Username')}</th>
+                                            <th>{t('Email')}</th>
                                             <th>{t('Partner share')}</th>
                                             <th>{t('Report access')}</th>
                                             <th>{t('Actions')}</th>
@@ -261,11 +274,11 @@ export default function Partners({
                                         {partners.data.map((p) => (
                                             <tr key={p.id}>
                                                 <td>{p.company_name}</td>
-                                                <td data-label={t('Platform account ID')}>
-                                                    <strong>{p.account_id}</strong>
+                                                <td data-label={t('Username')}>
+                                                    <strong>{p.display_name || '—'}</strong>
                                                 </td>
-                                                <td data-label={t('Nickname')}>
-                                                    {p.display_name || '—'}
+                                                <td data-label={t('Email')} className="break-all">
+                                                    {p.email || '—'}
                                                 </td>
                                                 <td data-label={t('Partner share')}>
                                                     {exactAmount(p.share_percent)}%
@@ -288,17 +301,6 @@ export default function Partners({
                                                             }}
                                                         >
                                                             {t('View report')}
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={(event) => {
-                                                                invitationTrigger.current =
-                                                                    event.currentTarget;
-                                                                invitationLocation(p.id);
-                                                                setInvitationPartner(p.id);
-                                                            }}
-                                                        >
-                                                            {t('Invitation data')}
                                                         </button>
                                                         <button
                                                             type="button"
@@ -394,8 +396,10 @@ export default function Partners({
                                         <label htmlFor="partner-user">{t('Select member')}</label>
                                         {editing ? (
                                             <div className="partner-selected-member">
-                                                <strong>{editing.account_id}</strong>
-                                                <span>{editing.display_name || '—'}</span>
+                                                <strong>{editing.display_name || '—'}</strong>
+                                                <span className="break-all">
+                                                    {editing.email || '—'}
+                                                </span>
                                             </div>
                                         ) : (
                                             <PartnerUserSelect
@@ -677,7 +681,7 @@ export default function Partners({
                             </Dialog>
                         </details>
                         <Dialog
-                            open={reportOpen && !journalOpen && !invitationPartner}
+                            open={reportOpen && !journalOpen}
                             onOpenChange={(open) => {
                                 if (!open) visit(undefined, partners?.current_page ?? 1);
                             }}
@@ -692,78 +696,109 @@ export default function Partners({
                                     }
                                 }}
                             >
-                                <DialogHeader className="mb-0 shrink-0 border-b px-6 py-5 pr-14">
-                                    <DialogTitle>
-                                        {t('Stock data')}
-                                        {report && !reportLoading && !reportError
-                                            ? ` · ${report.accountId}`
-                                            : ''}
-                                    </DialogTitle>
-                                    <DialogDescription>
-                                        {reportError
-                                            ? t('Unable to load. Please retry.')
-                                            : report && !reportLoading
-                                              ? companies.find((c) => c.id === reportCompanyId)
-                                                    ?.name
-                                              : t('Loading…')}
-                                    </DialogDescription>
-                                </DialogHeader>
-                                <div
-                                    className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6"
-                                    data-detail-body
-                                    scroll-region="true"
-                                    aria-busy={reportLoading}
+                                <Tabs
+                                    value={invitationPartner ? 'invitations' : 'stock'}
+                                    onValueChange={(value) => {
+                                        const partner =
+                                            value === 'invitations'
+                                                ? (report?.partnerId ?? null)
+                                                : null;
+                                        invitationLocation(partner, null, report?.partnerId);
+                                        setInvitationPartner(partner);
+                                    }}
+                                    className="flex min-h-0 flex-1 flex-col"
                                 >
-                                    {reportLoading ? (
-                                        <p className="py-10" role="status">
-                                            {t('Loading…')}
-                                        </p>
-                                    ) : reportError ? (
-                                        <div className="space-y-4 py-10" role="alert">
-                                            <p>{t('Unable to load. Please retry.')}</p>
-                                            <button
-                                                className="partner-admin-action"
-                                                onClick={() => visit(...reportTarget.current)}
-                                            >
-                                                {t('Retry')}
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        report && (
-                                            <PartnerStockReport
-                                                compactDecimals
-                                                report={report}
-                                                onPage={(page) => visit(report.partnerId, page)}
-                                                onReverse={reverse}
-                                                onFlow={(flow, page) =>
-                                                    visit(
-                                                        report.partnerId,
-                                                        report.journal.page,
-                                                        flow,
-                                                        page,
-                                                    )
-                                                }
+                                    <DialogHeader className="mb-0 shrink-0 border-b px-4 py-4 pr-14">
+                                        <DialogTitle>
+                                            {t(
+                                                invitationPartner
+                                                    ? 'Invitation data'
+                                                    : 'Stock data',
+                                            )}
+                                            {report && !reportLoading && !reportError
+                                                ? ` · ${report.displayName || '—'} · ${t(report.version === 'partner' ? 'Partner version' : 'Standard version')}`
+                                                : ''}
+                                        </DialogTitle>
+                                        <DialogDescription>
+                                            {reportError
+                                                ? t('Unable to load. Please retry.')
+                                                : report && !reportLoading
+                                                  ? `${companies.find((c) => c.id === reportCompanyId)?.name ?? ''} · ${report.email || '—'}`
+                                                  : t('Loading…')}
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <TabsList
+                                        className="mx-4 my-3 shrink-0 self-start"
+                                        aria-label={t('View report')}
+                                    >
+                                        <TabsTrigger value="stock">{t('Stock data')}</TabsTrigger>
+                                        <TabsTrigger
+                                            value="invitations"
+                                            disabled={reportLoading || !report}
+                                        >
+                                            {t('Invitation data')}
+                                        </TabsTrigger>
+                                    </TabsList>
+                                    <TabsContent
+                                        value="stock"
+                                        className="mt-0 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4"
+                                        data-detail-body
+                                        scroll-region="true"
+                                        aria-busy={reportLoading}
+                                    >
+                                        {reportLoading ? (
+                                            <p className="py-10" role="status">
+                                                {t('Loading…')}
+                                            </p>
+                                        ) : reportError ? (
+                                            <div className="space-y-4 py-10" role="alert">
+                                                <p>{t('Unable to load. Please retry.')}</p>
+                                                <button
+                                                    className="partner-admin-action"
+                                                    onClick={() => visit(...reportTarget.current)}
+                                                >
+                                                    {t('Retry')}
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            report && (
+                                                <PartnerStockReport
+                                                    compactDecimals
+                                                    compactHeader
+                                                    showUserIdentity
+                                                    report={report}
+                                                    onPage={(page) => visit(report.partnerId, page)}
+                                                    onReverse={reverse}
+                                                    onFlow={(flow, page) =>
+                                                        visit(
+                                                            report.partnerId,
+                                                            report.journal.page,
+                                                            flow,
+                                                            page,
+                                                        )
+                                                    }
+                                                />
+                                            )
+                                        )}
+                                    </TabsContent>
+                                    <TabsContent
+                                        value="invitations"
+                                        className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
+                                    >
+                                        {invitationPartner && report && (
+                                            <PartnerInvitationsReport
+                                                key={report.partnerId}
+                                                partner={report.partnerId}
+                                                company={reportCompanyId}
                                             />
-                                        )
-                                    )}
-                                </div>
+                                        )}
+                                    </TabsContent>
+                                </Tabs>
                             </DetailDrawerContent>
                         </Dialog>
                     </>
                 }
-                {invitationPartner && (
-                    <PartnerInvitationsDrawer
-                        key={invitationPartner}
-                        partner={invitationPartner}
-                        company={companyId}
-                        trigger={invitationTrigger}
-                        onClose={() => {
-                            invitationLocation(null);
-                            setInvitationPartner(null);
-                        }}
-                    />
-                )}
-            </main>
+            </div>
         </PlatformLayout>
     );
 }

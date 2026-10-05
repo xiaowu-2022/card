@@ -1,3 +1,4 @@
+import { usePlatformUi } from '@/components/admin/platform-ui-context';
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ButtonHTMLAttributes, Ref } from 'react';
@@ -26,6 +27,17 @@ interface ButtonProps
 }
 
 export function Button({ className, variant, size, asChild = false, ...props }: ButtonProps) {
+    const platform = usePlatformUi();
     const Component = asChild ? Slot : 'button';
-    return <Component className={cn(buttonVariants({ variant, size }), className)} {...props} />;
+    return (
+        <Component
+            className={cn(
+                buttonVariants({ variant, size }),
+                platform && size !== 'lg' && 'h-9 min-h-9',
+                platform && size === 'icon' && 'w-9',
+                className,
+            )}
+            {...props}
+        />
+    );
 }

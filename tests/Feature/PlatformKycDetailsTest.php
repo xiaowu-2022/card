@@ -75,3 +75,45 @@ it('returns the current OSS domain without server reads even when a local backup
         ->and($r->json('documents.front'))->toStartWith('https://images.example.com/images/test-front.png?x-oss-process=')
         ->and($r->json('documents.back'))->toStartWith('https://images.example.com/images/test-back.png?x-oss-process=');
 });
+
+it('loads only the selected users masked KYC history without document access or business writes', function () {
+    $url = 'https://admin.localhost/platform/tenants/'.$this->tenant->id.'/users/'.$this->kyc->user_id.'/kyc';
+    $before = collect(['audit_logs', 'ledger_entries', 'wallets', 'kyc_applications'])->mapWithKeys(fn ($table) => [$table => DB::table($table)->count()]);
+    $this->getJson($url)->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('application.id', $this->kyc->id)->assertJsonPath('user.id', $this->kyc->user_id)
+        ->assertJsonPath('applications.total', 1)->assertJsonPath('canViewDocuments', true)
+        ->assertJsonMissingPath('documents')->assertJsonMissingPath('application.identity_number_encrypted')
+        ->assertJsonMissingPath('application.front_object_key')->assertDontSee('11010519491231002X');
+    foreach ($before as $table => $count) {
+        expect(DB::table($table)->count())->toBe($count);
+    }
+    $other = Tenant::where('slug', 'tenant-b')->firstOrFail();
+    $this->getJson(str_replace($this->tenant->id, $other->id, $url))->assertNotFound();
+    $another = User::where('tenant_id', $this->tenant->id)->firstOrFail()->replicate(['account_id']);
+    $another->forceFill(['email' => 'kyc-empty@example.test'])->save();
+    $emptyUrl = str_replace($this->kyc->user_id, $another->id, $url);
+    $this->getJson($emptyUrl)->assertOk()->assertJsonPath('application', null)->assertJsonPath('applications.total', 0);
+    $this->getJson($emptyUrl.'?application='.$this->kyc->id)->assertNotFound();
+    $this->getJson($url.'?page=0')->assertUnprocessable();
+    $this->getJson($url.'?application=invalid')->assertUnprocessable();
+    DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'kyc.document.view')->value('id'))->delete();
+    $this->actingAs($this->admin->fresh(), 'platform_admin')->getJson($url)->assertOk()->assertJsonPath('canViewDocuments', false);
+    DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'users.read')->value('id'))->delete();
+    $this->actingAs($this->admin->fresh(), 'platform_admin')->getJson($url)->assertForbidden();
+});
+
+it('paginates user certification history and requires KYC read permission', function () {
+    $ids = [];
+    for ($i = 1; $i <= 21; $i++) {
+        $application = $this->kyc->replicate();
+        $application->forceFill(['submitted_at' => now()->addSeconds($i)])->save();
+        $ids[] = $application->id;
+    }
+    $url = 'https://admin.localhost/platform/tenants/'.$this->tenant->id.'/users/'.$this->kyc->user_id.'/kyc';
+    $this->getJson($url)->assertOk()->assertJsonCount(20, 'applications.items')
+        ->assertJsonPath('applications.total', 22)->assertJsonPath('application.id', $ids[20]);
+    $this->getJson($url.'?page=2')->assertOk()->assertJsonCount(2, 'applications.items');
+    $this->getJson($url.'?application='.$this->kyc->id)->assertOk()->assertJsonPath('application.id', $this->kyc->id);
+    DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'kyc.read')->value('id'))->delete();
+    $this->actingAs($this->admin->fresh(), 'platform_admin')->getJson($url)->assertForbidden();
+});

@@ -5,7 +5,6 @@ import { Search } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { MoneyDisplay } from '@/components/admin/MoneyDisplay';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { StatusBadge, type StatusTone } from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -78,27 +77,25 @@ export default function Tenants({
     };
 
     return (
-        <PlatformLayout>
+        <PlatformLayout
+            title={t('Tenants')}
+            description={t(
+                'Create tenant foundations and control their lifecycle without deleting historical records.',
+            )}
+            actions={
+                canManage ? (
+                    <Button asChild>
+                        <Link href="/platform/tenants/create">{t('Create tenant')}</Link>
+                    </Button>
+                ) : undefined
+            }
+        >
             <Head title={t('Tenants')} />
-            <div className="space-y-6">
-                <PageHeader
-                    eyebrow={t('Platform directory')}
-                    title={t('Tenants')}
-                    description={t(
-                        'Create tenant foundations and control their lifecycle without deleting historical records.',
-                    )}
-                    actions={
-                        canManage ? (
-                            <Button asChild>
-                                <Link href="/platform/tenants/create">{t('Create tenant')}</Link>
-                            </Button>
-                        ) : undefined
-                    }
-                />
+            <div className="space-y-4">
                 {(financialAccess.inflow || financialAccess.outflow) && (
                     <div className="grid gap-4 sm:grid-cols-2">
                         {financialAccess.inflow && (
-                            <div className="rounded-xl border bg-surface p-5">
+                            <div className="rounded-xl border bg-surface p-4">
                                 <p className="text-sm text-muted-foreground">{t('Total inflow')}</p>
                                 <p className="mt-2 break-all text-2xl font-semibold">
                                     <MoneyDisplay amount={totals.inflow!} asset="USDT" />
@@ -106,7 +103,7 @@ export default function Tenants({
                             </div>
                         )}
                         {financialAccess.outflow && (
-                            <div className="rounded-xl border bg-surface p-5">
+                            <div className="rounded-xl border bg-surface p-4">
                                 <p className="text-sm text-muted-foreground">
                                     {t('Total outflow')}
                                 </p>
@@ -152,7 +149,7 @@ export default function Tenants({
                         </Button>
                     </form>
                     {tenants.data.length === 0 ? (
-                        <div className="p-6">
+                        <div className="p-4">
                             <EmptyState
                                 title={t('No tenants found')}
                                 description={t('Adjust the filters or create a tenant foundation.')}

@@ -10,6 +10,19 @@ const out = 'artifacts/uni-parity/admin-list-dialogs';
 mkdirSync(out, {recursive:true});
 const companies = [{id:'11111111-1111-4111-8111-111111111111',name:'公司一 · 很长的公司名称用于检查列表显示'}, {id:'22222222-2222-4222-8222-222222222222',name:'公司二'}];
 const paginate = data => ({data,total:data.length,current_page:1,last_page:1,prev_page_url:null,next_page_url:null});
+async function assertPlatformLayout(page, width) {
+    await page.locator('[data-platform-header]').waitFor();
+    const layout = await page.evaluate(() => ({
+        titleCount: document.querySelectorAll('h1').length,
+        mainCount: document.querySelectorAll('main').length,
+        height: document.querySelector('[data-platform-header]').getBoundingClientRect().height,
+        padding: getComputedStyle(document.querySelector('main')).paddingLeft,
+        width: document.documentElement.scrollWidth,
+    }));
+    assert.equal(layout.titleCount, 1); assert.equal(layout.mainCount, 1);
+    assert.equal(layout.height, 56); assert.equal(layout.padding, '20px'); assert.ok(layout.width <= width);
+}
+
 for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['webkit',webkit,{}]]) {
     const browser = await engine.launch({headless:true,...launch});
     try {
@@ -102,7 +115,7 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         assert.equal(saves,2);assert.match(page.url(),/search=fixture/);assert.ok(!page.url().includes('editor='));
         await page.goto(origin+'/platform/company-configurations?section=wealth');
         for(const width of [1024,1366,1920]) {
-            await page.setViewportSize({width,height:850});
+            await page.setViewportSize({width,height:850});await assertPlatformLayout(page,width);
             await page.locator('a[href$="/configuration/wealth"]').first().click();await dialog.waitFor();
             await dialog.locator('#minimum-USDT').waitFor();
             assert.equal(await dialog.locator('aside').count(),0);
@@ -127,7 +140,7 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         await dialog.waitFor({state:'hidden'});assert.equal(commissionSaves,1);assert.match(page.url(),/search=fixture/);
         await page.goto(origin+'/platform/card-products');
         for (const width of [1024,1366,1920]) {
-            await page.setViewportSize({width,height:400});
+            await page.setViewportSize({width,height:400});await assertPlatformLayout(page,width);
             await page.getByRole('button',{name:'新增产品',exact:true}).click();
             await dialog.locator('#create-name').waitFor();
             const bounds=await dialog.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=width+1&&bounds.y>=0&&bounds.y+bounds.height<=401);
@@ -138,7 +151,7 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         }
         await page.goto(origin+'/platform/notifications?page=2');
         for (const width of [1024,1366,1920]) {
-            await page.setViewportSize({width,height:600});
+            await page.setViewportSize({width,height:600});await assertPlatformLayout(page,width);
             await page.getByRole('button',{name:'新建通知',exact:true}).click();
             await dialog.getByLabel('公司',{exact:true}).selectOption(companies[0].id);
             await dialog.locator('textarea').waitFor();
@@ -150,7 +163,7 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         }
         await page.goto(origin+'/platform/partners?page=2&fees_page=3');
         for(const width of [1024,1366,1920]) {
-            await page.setViewportSize({width,height:850});
+            await page.setViewportSize({width,height:850});await assertPlatformLayout(page,width);
             const trigger=page.getByRole('button',{name:'查看报表',exact:true}).first();
             await trigger.click();
             if(width===1024){await dialog.getByRole('alert').waitFor();await dialog.getByRole('button',{name:'重试',exact:true}).click();}
@@ -173,7 +186,7 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         }
         await page.goto(origin+'/platform/partners?page=2&fees_page=3');
         for(const width of [1024,1366,1920]) {
-            await page.setViewportSize({width,height:850});
+            await page.setViewportSize({width,height:850});await assertPlatformLayout(page,width);
             await page.getByRole('button',{name:'邀请数据',exact:true}).first().click();await dialog.waitFor();
             if(width===1024) { await dialog.getByRole('alert').waitFor(); await dialog.getByRole('button',{name:'重试',exact:true}).click(); }
             await dialog.getByRole('columnheader',{name:'直属人数',exact:true}).waitFor();
@@ -200,7 +213,7 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         await page.goto(origin+'/platform/users');
         assert.equal(await page.locator('a[href="/platform/wallets"]').count(),0);
         for(const width of [1024,1366,1920]) {
-            await page.setViewportSize({width,height:850});
+            await page.setViewportSize({width,height:850});await assertPlatformLayout(page,width);
             assert.equal(await page.locator('tbody tr').count(),2);
             const row=page.locator('tbody tr').first();
             assert.match(await row.textContent(),/0\.123456789012345678/);assert.ok(!(await row.textContent()).includes('120.34000000'));

@@ -1,12 +1,16 @@
 import { Head, Link } from '@inertiajs/react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
-import { RenameCompany } from '@/components/admin/RenameCompany';
-import { CompanyLifecycleControls } from '@/components/admin/CompanyLifecycleControls';
 import { Button } from '@/components/ui/button';
 import { t } from '@/i18n/admin';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { SettingsTabs } from '@/components/admin/SettingsTabs';
+import {
+    companySettings,
+    companySection,
+    companySettingsUrl,
+    companySectionEvent,
+} from '@/components/admin/company-settings';
 type Company = {
     id: string;
     name: string;
@@ -15,17 +19,6 @@ type Company = {
     default_locale: string;
     timezone: string;
 };
-const sections = [
-    ['assets', 'Asset settings'],
-    ['settings/branding', 'Branding'],
-    ['settings/locales', 'Locales'],
-    ['settings/business', 'Business rules'],
-    ['settings/articles', 'About us articles'],
-    ['settings/sms', 'Aliyun SMS'],
-    ['settings/email', 'Proton email'],
-    ['promotion', 'Promotion'],
-    ['wealth', 'Wealth settings'],
-];
 export default function CompanyConfigurations({
     records,
     companies,
@@ -35,33 +28,34 @@ export default function CompanyConfigurations({
     companies: { id: string; name: string }[];
     filters: Record<string, string>;
 }) {
-    const [section, setSection] = useState(
-        () => new URL(location.href).searchParams.get('section') ?? 'settings/branding',
+    const [section, setSection] = useState(() =>
+        companySection(new URL(location.href).searchParams.get('section')),
     );
+    useEffect(() => {
+        const sync = () =>
+            setSection(companySection(new URL(location.href).searchParams.get('section')));
+        window.addEventListener('popstate', sync);
+        window.addEventListener(companySectionEvent, sync);
+        return () => {
+            window.removeEventListener('popstate', sync);
+            window.removeEventListener(companySectionEvent, sync);
+        };
+    }, []);
     return (
-        <PlatformLayout>
+        <PlatformLayout title={t('Company configuration')}>
             <Head title={t('Company configuration')} />
-            <div className="space-y-5">
-                <PageHeader title={t('Company configuration')} />
-                <label className="flex max-w-lg items-center gap-3">
-                    {t('Settings')}
-                    <select
-                        className="min-h-10 flex-1 rounded border bg-surface p-2"
-                        value={section}
-                        onChange={(e) => {
-                            setSection(e.target.value);
-                            const url = new URL(location.href);
-                            url.searchParams.set('section', e.target.value);
-                            history.replaceState(history.state, '', url);
-                        }}
-                    >
-                        {sections.map(([path, label]) => (
-                            <option key={path} value={path}>
-                                {t(label!)}
-                            </option>
-                        ))}
-                    </select>
-                </label>
+            <div className="space-y-4">
+                <SettingsTabs
+                    items={companySettings}
+                    value={section}
+                    label={t('Company configuration')}
+                    onChange={(next) => {
+                        setSection(next);
+                        const url = new URL(location.href);
+                        url.searchParams.set('section', next);
+                        history.replaceState(history.state, '', url);
+                    }}
+                />
                 <PlatformAccountTable
                     key={JSON.stringify(filters)}
                     page={records}
@@ -74,9 +68,12 @@ export default function CompanyConfigurations({
                     columns={[
                         {
                             label: 'Company',
+                            className: 'min-w-56 max-w-72',
                             render: (c) => (
                                 <div>
-                                    <strong>{c.name}</strong>
+                                    <strong className="block truncate" title={c.name}>
+                                        {c.name}
+                                    </strong>
                                     <p className="text-xs text-muted-foreground">{c.slug}</p>
                                 </div>
                             ),
@@ -87,20 +84,12 @@ export default function CompanyConfigurations({
                         {
                             label: 'Actions',
                             render: (c) => (
-                                <div className="flex flex-wrap gap-2">
-                                    <RenameCompany company={c} />
+                                <div className="flex items-center gap-2">
                                     <Button asChild size="sm">
-                                        <Link
-                                            href={
-                                                section === 'assets'
-                                                    ? `/platform/settings/assets?company=${c.id}`
-                                                    : `/platform/tenants/${c.id}/configuration/${sections.some(([p]) => p === section) ? section : 'settings/branding'}`
-                                            }
-                                        >
+                                        <Link href={companySettingsUrl(c.id, section)}>
                                             {t('Edit')}
                                         </Link>
                                     </Button>
-                                    <CompanyLifecycleControls company={c} />
                                     <Button asChild size="sm" variant="ghost">
                                         <Link
                                             href={`/platform/tenants/${c.id}/configuration/card-products`}

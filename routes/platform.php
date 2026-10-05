@@ -134,6 +134,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware(['admin.scope:platform,cards.read', 'admin.scope:platform,card_product.manage', 'throttle:10,1'])->post('/tenants/{tenant}/cards/{card}/transactions/sync', [CardOperationsController::class, 'syncTransactions'])->whereUuid(['tenant', 'card'])->name('cards.transactions.sync');
     Route::middleware(['admin.scope:platform,cards.read', 'throttle:30,1'])->post('/tenants/{tenant}/cards/{card}/refresh', [CardOperationsController::class, 'refresh'])->whereUuid(['tenant', 'card'])->name('cards.refresh');
     Route::middleware('admin.scope:platform,users.read')->get('/users', UserOperationsController::class)->name('users.index');
+    Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,kyc.read'])->get('/tenants/{tenant}/users/{user}/kyc', [KycDetailController::class, 'user'])->whereUuid(['tenant', 'user'])->name('users.kyc');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.referrer.manage'])->group(function () {
         Route::get('/tenants/{tenant}/users/{user}/referrer', [UserReferrerController::class, 'show'])->whereUuid(['tenant', 'user']);
         Route::post('/tenants/{tenant}/users/{user}/referrer', [UserReferrerController::class, 'update'])->middleware('throttle:20,1')->whereUuid(['tenant', 'user']);

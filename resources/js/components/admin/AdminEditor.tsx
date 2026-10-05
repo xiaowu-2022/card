@@ -14,6 +14,14 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Button } from '@/components/ui/button';
 import { t, errorMessage } from '@/i18n/admin';
 import { readEditorResponse } from './editor-response';
+import { SettingsTabs } from './SettingsTabs';
+import {
+    companyEditor,
+    companySettings,
+    companySettingsUrl,
+    companySectionEvent,
+} from './company-settings';
+import type { SharedProps } from '@/types/global';
 
 const pages = import.meta.glob<ComponentType<Record<string, unknown>>>('../../pages/**/*.tsx', {
     import: 'default',
@@ -37,6 +45,9 @@ export function AdminEditorHost({ children }: { children: ReactNode }) {
 }
 function EditorHost({ children }: { children: ReactNode }) {
     const version = usePage().version;
+    const permissions = usePage<SharedProps>().props.auth.admin?.permissions ?? [];
+    const backgroundCompanies = usePage<{ companies?: { id: string; name: string }[] }>().props
+        .companies;
     const [url, setUrl] = useState(() => new URL(location.href).searchParams.get('editor'));
     const [page, setPage] = useState<Page | null>(null);
     const [Component, setComponent] = useState<ComponentType<Record<string, unknown>> | null>(null);
@@ -44,6 +55,7 @@ function EditorHost({ children }: { children: ReactNode }) {
     const [operationError, setOperationError] = useState('');
     const [loading, setLoading] = useState(false);
     const [busy, setBusy] = useState(false);
+    const [retry, setRetry] = useState(0);
     const bodyRef = useRef<HTMLDivElement>(null);
     const [actions, setActions] = useState<
         { node: HTMLButtonElement; label: string; disabled: boolean }[]
@@ -67,36 +79,58 @@ function EditorHost({ children }: { children: ReactNode }) {
         const target = new URL(location.href);
         if (next) target.searchParams.set('editor', next);
         else target.searchParams.delete('editor');
+        const config = companyEditor(next);
+        if (config && target.pathname === '/platform/company-configurations')
+            target.searchParams.set('section', config.section);
         history.replaceState(history.state, '', target);
+        window.dispatchEvent(new Event(companySectionEvent));
         setUrl(next);
     }, []);
     const close = useCallback(() => {
         if (canClose()) changeUrl(null);
     }, [canClose, changeUrl]);
-    const load = useCallback(async (target: string): Promise<Page> => {
-        const parsed = new URL(target, location.origin);
-        if (!editorPath(parsed)) throw new Error(t('This operation is unavailable.'));
-        const response = await fetch(parsed, {
-            credentials: 'same-origin',
-            cache: 'no-store',
-            headers: {
-                Accept: 'application/json',
-                'X-Inertia': 'true',
-                'X-Inertia-Version': version ?? '',
-                'X-Admin-Dialog': '1',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-        });
-        const result = (await readEditorResponse(response)) as Partial<Page> & {
-            error?: { message?: string };
-            message?: string;
-        };
-        if (!response.ok || !result.component || !result.props)
-            throw new Error(
-                result.error?.message ?? result.message ?? t('Unable to load. Please retry.'),
-            );
-        return result as Page;
-    }, [version]);
+    const load = useCallback(
+        async (target: string): Promise<Page> => {
+            const parsed = new URL(target, location.origin);
+            if (!editorPath(parsed)) throw new Error(t('This operation is unavailable.'));
+            const response = await fetch(parsed, {
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Inertia': 'true',
+                    'X-Inertia-Version': version ?? '',
+                    'X-Admin-Dialog': '1',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            const result = (await readEditorResponse(response)) as Partial<Page> & {
+                error?: { message?: string };
+                message?: string;
+            };
+            if (!response.ok || !result.component || !result.props)
+                throw new Error(
+                    result.error?.message ?? result.message ?? t('Unable to load. Please retry.'),
+                );
+            const config = companyEditor(target);
+            if (config) {
+                const owner = result.props.configurationCompany as { id?: string } | undefined;
+                const company = result.props.company as string | { id?: string } | undefined;
+                const ids = [owner?.id, typeof company === 'string' ? company : company?.id].filter(
+                    Boolean,
+                );
+                const base = result.props.configurationBase;
+                if (
+                    !ids.length ||
+                    ids.some((id) => id !== config.company) ||
+                    (base && base !== `/platform/tenants/${config.company}/configuration`)
+                )
+                    throw new Error(t('This operation is unavailable.'));
+            }
+            return result as Page;
+        },
+        [version],
+    );
     useEffect(() => {
         states.current.clear();
         setBusy(false);
@@ -113,6 +147,7 @@ function EditorHost({ children }: { children: ReactNode }) {
                 if (!resolve) throw new Error(t('This operation is unavailable.'));
                 const component = await resolve();
                 if (ticket === generation.current) {
+                    changeUrl(url);
                     setPage(result);
                     setComponent(() => component);
                 }
@@ -126,7 +161,7 @@ function EditorHost({ children }: { children: ReactNode }) {
         return () => {
             generation.current++;
         };
-    }, [url, load]);
+    }, [url, load, retry, changeUrl]);
     useEffect(() => {
         const click = (event: MouseEvent) => {
             if (
@@ -158,7 +193,12 @@ function EditorHost({ children }: { children: ReactNode }) {
             if (!url) trigger.current = link;
             changeUrl(target.pathname + target.search);
         };
-        const pop = () => setUrl(new URL(location.href).searchParams.get('editor'));
+        const pop = () => {
+            const next = new URL(location.href).searchParams.get('editor');
+            if (next === url) return;
+            if (canClose()) setUrl(next);
+            else changeUrl(url);
+        };
         const before = (event: BeforeUnloadEvent) => {
             if ([...states.current.values()].some((entry) => entry.dirty || entry.busy)) {
                 event.preventDefault();
@@ -254,7 +294,15 @@ function EditorHost({ children }: { children: ReactNode }) {
         'platform/ManualCommission': 'Adjust commission',
         'platform/TenantCreate': 'Create tenant',
     };
-    const company = page?.props.configurationCompany as { name?: string } | undefined;
+    const config = companyEditor(url);
+    const companyName =
+        readCompanyName(page?.props.configurationCompany) ??
+        (page?.props.companies as { id: string; name: string }[] | undefined)?.find(
+            (c) => c.id === config?.company,
+        )?.name ??
+        readCompanyName(page?.props.company) ??
+        backgroundCompanies?.find((c) => c.id === config?.company)?.name;
+
     return (
         <>
             {children}
@@ -273,10 +321,10 @@ function EditorHost({ children }: { children: ReactNode }) {
                         trigger.current?.focus();
                     }}
                 >
-                    <div className="shrink-0 border-b px-6 py-4 pr-16">
+                    <div className="shrink-0 border-b px-4 py-4 pr-16">
                         <DialogTitle>
-                            {company?.name
-                                ? `${company.name} · ${t('Company configuration')}`
+                            {companyName
+                                ? `${companyName} · ${t('Company configuration')}`
                                 : t(titles[page?.component ?? ''] ?? 'Edit record')}
                         </DialogTitle>
                         <DialogDescription>
@@ -287,10 +335,24 @@ function EditorHost({ children }: { children: ReactNode }) {
                                 : t('Changes apply only to the record shown here.')}
                         </DialogDescription>
                     </div>
+                    {config && permissions.includes('tenant.manage') && (
+                        <div className="min-w-0 shrink-0 px-4">
+                            <SettingsTabs
+                                label={t('Company configuration')}
+                                items={companySettings}
+                                value={config.section}
+                                disabled={busy}
+                                onChange={(section) => {
+                                    if (canClose())
+                                        changeUrl(companySettingsUrl(config.company, section));
+                                }}
+                            />
+                        </div>
+                    )}
                     <div
                         ref={bodyRef}
                         data-admin-editor-body="true"
-                        className="min-h-0 overflow-y-auto overscroll-contain p-6 [&_button[data-editor-action]]:hidden"
+                        className="min-h-0 overflow-y-auto overscroll-contain p-4 [&_button[data-editor-action]]:hidden"
                         scroll-region="true"
                     >
                         {operationError && (
@@ -307,8 +369,7 @@ function EditorHost({ children }: { children: ReactNode }) {
                                 <p>{error}</p>
                                 <Button
                                     onClick={() => {
-                                        setUrl(null);
-                                        setTimeout(() => setUrl(url), 0);
+                                        setRetry((value) => value + 1);
                                     }}
                                 >
                                     {t('Retry')}
@@ -324,7 +385,7 @@ function EditorHost({ children }: { children: ReactNode }) {
                             </EditorContext.Provider>
                         )}
                     </div>
-                    <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t bg-surface px-6 py-3">
+                    <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t bg-surface px-4 py-3">
                         {actions.map((action, index) => (
                             <Button
                                 key={index}
@@ -342,4 +403,10 @@ function EditorHost({ children }: { children: ReactNode }) {
             </Dialog>
         </>
     );
+}
+
+function readCompanyName(value: unknown): string | undefined {
+    return value && typeof value === 'object' && 'name' in value && typeof value.name === 'string'
+        ? value.name
+        : undefined;
 }

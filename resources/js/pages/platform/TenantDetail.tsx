@@ -2,7 +2,6 @@ import { displayMoney } from '@/lib/admin-amount';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Check, Circle } from 'lucide-react';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { StatusBadge, type StatusTone } from '@/components/shared/StatusBadge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -102,7 +101,36 @@ export default function TenantDetail({ tenantRecord: tenant }: { tenantRecord: D
             </Button>
         ) : null;
     return (
-        <PlatformLayout>
+        <PlatformLayout
+            title={tenant.name}
+            description={t('{{value1}} · Created {{value2}}', {
+                value1: tenant.slug,
+                value2: dateTime(tenant.createdAt),
+            })}
+            actions={
+                <>
+                    <StatusBadge status={tones[tenant.status]} label={t(tenant.status)} />
+                    {canManage && tenant.status === 'DRAFT' && (
+                        <Button asChild>
+                            <Link href={`/platform/tenants/${tenant.id}/configuration/onboarding`}>
+                                {t('Onboarding')}
+                            </Link>
+                        </Button>
+                    )}
+                    {lifecycle}
+                    {permissions.includes('wallet_topups.read') && (
+                        <Button asChild variant="secondary">
+                            <Link href={`/platform/tenants/${tenant.id}/topups`}>
+                                {t('Top-ups')}
+                            </Link>
+                        </Button>
+                    )}
+                    <Button asChild variant="secondary">
+                        <Link href="/platform/tenants">{t('Back')}</Link>
+                    </Button>
+                </>
+            }
+        >
             {canManage && (
                 <div className="mb-4">
                     <Button asChild>
@@ -113,40 +141,7 @@ export default function TenantDetail({ tenantRecord: tenant }: { tenantRecord: D
                 </div>
             )}
             <Head title={tenant.name} />
-            <div className="space-y-6">
-                <PageHeader
-                    eyebrow={t('Tenant record')}
-                    title={tenant.name}
-                    description={t('{{value1}} · Created {{value2}}', {
-                        value1: tenant.slug,
-                        value2: dateTime(tenant.createdAt),
-                    })}
-                    actions={
-                        <>
-                            <StatusBadge status={tones[tenant.status]} label={t(tenant.status)} />
-                            {canManage && tenant.status === 'DRAFT' && (
-                                <Button asChild>
-                                    <Link
-                                        href={`/platform/tenants/${tenant.id}/configuration/onboarding`}
-                                    >
-                                        {t('Onboarding')}
-                                    </Link>
-                                </Button>
-                            )}
-                            {lifecycle}
-                            {permissions.includes('wallet_topups.read') && (
-                                <Button asChild variant="secondary">
-                                    <Link href={`/platform/tenants/${tenant.id}/topups`}>
-                                        {t('Top-ups')}
-                                    </Link>
-                                </Button>
-                            )}
-                            <Button asChild variant="secondary">
-                                <Link href="/platform/tenants">{t('Back')}</Link>
-                            </Button>
-                        </>
-                    }
-                />
+            <div className="space-y-4">
                 {!tenant.onboarding.business_ready && (
                     <Alert>
                         <AlertTitle>{t('Administrative foundation only')}</AlertTitle>
@@ -164,7 +159,7 @@ export default function TenantDetail({ tenantRecord: tenant }: { tenantRecord: D
                     waitDays={tenant.settings.securityDepositRefundWaitDays}
                     canManage={canManage}
                 />
-                <div className="grid gap-6 xl:grid-cols-3">
+                <div className="grid gap-4 xl:grid-cols-3">
                     <Card>
                         <CardHeader>
                             <CardTitle>{t('Configuration')}</CardTitle>
@@ -261,7 +256,7 @@ export default function TenantDetail({ tenantRecord: tenant }: { tenantRecord: D
                         </Table>
                     </CardContent>
                 </Card>
-                <div className="grid gap-6 xl:grid-cols-2">
+                <div className="grid gap-4 xl:grid-cols-2">
                     <Card>
                         <CardHeader>
                             <CardTitle>{t('Administrators')}</CardTitle>

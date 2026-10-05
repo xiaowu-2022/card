@@ -1,7 +1,6 @@
 import { useForm } from '@/components/admin/editor-context';
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
 import { Head, Link } from '@inertiajs/react';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,21 +34,19 @@ export default function TenantCreate({
         default_asset: assets[0] ?? 'USDT',
     });
     return (
-        <PlatformLayout>
+        <PlatformLayout
+            title={t('Create tenant foundation')}
+            description={t(
+                'Creates a draft tenant, its immutable system domain, baseline configuration, and a Tenant Owner invitation.',
+            )}
+            actions={
+                <Button asChild variant="secondary">
+                    <Link href="/platform/tenants">{t('Cancel')}</Link>
+                </Button>
+            }
+        >
             <Head title={t('Create tenant')} />
-            <div className="space-y-6">
-                <PageHeader
-                    eyebrow={t('Tenant onboarding')}
-                    title={t('Create tenant foundation')}
-                    description={t(
-                        'Creates a draft tenant, its immutable system domain, baseline configuration, and a Tenant Owner invitation.',
-                    )}
-                    actions={
-                        <Button asChild variant="secondary">
-                            <Link href="/platform/tenants">{t('Cancel')}</Link>
-                        </Button>
-                    }
-                />
+            <div className="space-y-4">
                 <Alert>
                     <AlertTitle>{t('No business activation')}</AlertTitle>
                     <AlertDescription>

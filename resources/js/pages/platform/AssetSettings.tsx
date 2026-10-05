@@ -153,7 +153,7 @@ function AssetSettingsForm(p: Props) {
     return (
         <PlatformSettingsLayout>
             <Head title={t('Asset settings')} />
-            <div className="space-y-6">
+            <div className="min-w-0 space-y-4">
                 {!editor && (
                     <Button asChild variant="secondary">
                         <Link href="/platform/company-configurations?section=assets">
@@ -199,7 +199,13 @@ function AssetSettingsForm(p: Props) {
                         }}
                         className="space-y-3"
                     >
-                        <div className="sticky top-20 z-20 space-y-3 rounded-xl border bg-surface p-5 shadow-sm">
+                        <div
+                            className={
+                                editor
+                                    ? 'space-y-3 rounded-xl border bg-surface p-4'
+                                    : 'sticky top-16 z-20 space-y-3 rounded-xl border bg-surface p-4 shadow-sm'
+                            }
+                        >
                             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                                 <label className="block w-full space-y-2 text-sm sm:max-w-sm">
                                     <span>{t('Company')}</span>
@@ -569,7 +575,7 @@ function ConfigForm({
         );
     }
     return (
-        <section className="space-y-4 rounded-xl border bg-surface p-5">
+        <section className="space-y-4 rounded-xl border bg-surface p-4">
             <h2 className="font-semibold">{t(title)}</h2>
             {context.errorsFor(data).map((message, i) => (
                 <p key={i} role="alert" className="text-sm text-destructive">

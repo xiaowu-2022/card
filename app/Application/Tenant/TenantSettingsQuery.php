@@ -10,12 +10,19 @@ use App\Domain\Tenant\Models\TenantArticle;
 final class TenantSettingsQuery
 {
     /** @return array<string, mixed> */
-    public function execute(Tenant $tenant, bool $includeArticles = false): array
+    public function execute(Tenant $tenant, bool $includeArticles = false, ?string $section = null): array
     {
-        $tenant->loadMissing(['branding', 'locales', 'businessSettings', 'domains']);
+        $relations = match ($section) {
+            'branding' => ['branding', 'domains'],
+            'locales' => ['locales'],
+            'business' => ['businessSettings'],
+            null => ['branding', 'locales', 'businessSettings', 'domains'],
+            default => [],
+        };
+        $tenant->loadMissing($relations);
 
         return [
-            'branding' => [
+            ...($section === null || $section === 'branding' ? ['branding' => [
                 'brandName' => $tenant->branding->brand_name,
                 'primaryColor' => $tenant->branding->primary_color,
                 'supportEmail' => $tenant->branding->support_email,
@@ -26,15 +33,15 @@ final class TenantSettingsQuery
                 'apkLogoUrl' => $tenant->branding->apk_logo_object_key ? app(ImageStorage::class)->displayUrl('public', $tenant->branding->apk_logo_object_key, 'original') : null,
                 'apkLogoSources' => app(ImageStorage::class)->previewSources('public', $tenant->branding?->apk_logo_object_key, 'original'),
                 'faviconUrl' => $tenant->branding->favicon_object_key ? app(ImageStorage::class)->displayUrl('public', $tenant->branding->favicon_object_key, 'brand') : null,
-            ],
-            'locales' => $tenant->locales->map(fn ($locale) => ['locale' => $locale->locale, 'enabled' => $locale->enabled, 'default' => $locale->is_default]),
-            'business' => [
+            ]] : []),
+            ...($section === null || $section === 'locales' ? ['locales' => $tenant->locales->map(fn ($locale) => ['locale' => $locale->locale, 'enabled' => $locale->enabled, 'default' => $locale->is_default])] : []),
+            ...($section === null || $section === 'business' ? ['business' => [
                 'depositAmount' => $tenant->businessSettings->required_security_deposit_amount,
                 'depositAsset' => $tenant->businessSettings->required_security_deposit_asset,
                 'depositRefundWaitDays' => $tenant->businessSettings->security_deposit_refund_wait_days,
                 'withdrawalFeePercent' => $tenant->businessSettings->withdrawal_fee_percent,
-            ],
-            'kyc' => PlatformKycSetting::current()->policy(),
+            ]] : []),
+            ...($section === null || $section === 'kyc' ? ['kyc' => PlatformKycSetting::current()->policy()] : []),
             'supportedLocales' => config('tenancy.supported_locales'),
             'supportedAssets' => config('tenancy.supported_assets'),
             ...($includeArticles ? ['articles' => TenantArticle::query()->where('tenant_id', $tenant->id)

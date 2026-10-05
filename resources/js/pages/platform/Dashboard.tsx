@@ -5,7 +5,6 @@ import { useAdminTranslation, t } from '@/i18n/admin';
 import { DailyFundsChart } from '@/components/admin/DailyFundsChart';
 import { AdminDateInput } from '@/components/admin/AdminDateInput';
 import { fundsLabels, type FundsDay, type FundsKey } from '@/lib/funds-chart';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { MoneyDisplay } from '@/components/admin/MoneyDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -62,10 +61,9 @@ export default function Dashboard({
             ? t('All companies')
             : t('Selected companies: {{count}}', { count: form.data.companies.length });
     return (
-        <PlatformLayout>
+        <PlatformLayout title={t('Funds overview')}>
             <Head title={t('Platform overview')} />
-            <div className="min-w-0 space-y-6">
-                <PageHeader eyebrow={t('Platform scope')} title={t('Funds overview')} />
+            <div className="min-w-0 space-y-4">
                 <Card>
                     <CardContent className="pt-6">
                         <form
@@ -138,7 +136,7 @@ export default function Dashboard({
                     </CardContent>
                 </Card>
                 {displayedKeys.length === 0 ? (
-                    <p className="rounded-lg border bg-surface p-6 text-muted-foreground">
+                    <p className="rounded-lg border bg-surface p-4 text-muted-foreground">
                         {t(
                             'Financial reporting requires top-up, withdrawal or card read permission.',
                         )}
@@ -197,7 +195,7 @@ export default function Dashboard({
                                 bars
                             />
                         )}
-                        <details className="rounded-xl border bg-surface p-5">
+                        <details className="rounded-xl border bg-surface p-4">
                             <summary className="cursor-pointer text-sm font-semibold">
                                 {t('Daily details')}
                             </summary>

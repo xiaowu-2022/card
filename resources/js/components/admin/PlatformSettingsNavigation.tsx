@@ -1,6 +1,6 @@
-import { Link, usePage } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import { t } from '@/i18n/admin';
-import { cn } from '@/lib/utils';
+import { SettingsTabs } from './SettingsTabs';
 import type { SharedProps } from '@/types/global';
 
 const platformSettingsTabs = [
@@ -29,27 +29,13 @@ export function PlatformSettingsNavigation() {
     const permissions = props.auth.admin?.permissions ?? [];
     const path = url.split('?')[0];
     return (
-        <nav
-            aria-label={t('System settings')}
-            className="flex min-w-0 gap-1 overflow-x-auto border-b"
-        >
-            {platformSettingsTabs
+        <SettingsTabs
+            label={t('System settings')}
+            value={path ?? ''}
+            items={platformSettingsTabs
                 .filter((tab) => permissions.includes(tab.permission))
-                .map((tab) => (
-                    <Link
-                        key={tab.href}
-                        href={tab.href}
-                        aria-current={path === tab.href ? 'page' : undefined}
-                        className={cn(
-                            'border-b-2 px-5 py-3 text-sm font-medium whitespace-nowrap transition-colors',
-                            path === tab.href
-                                ? 'border-primary text-primary'
-                                : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground',
-                        )}
-                    >
-                        {t(tab.label)}
-                    </Link>
-                ))}
-        </nav>
+                .map((tab) => ({ value: tab.href, label: tab.label }))}
+            onChange={(href) => router.get(href)}
+        />
     );
 }

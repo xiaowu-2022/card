@@ -4,7 +4,6 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { t, useAdminTranslation, dateTime, errorMessage } from '@/i18n/admin';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FormField } from '@/components/ui/form-field';
@@ -59,18 +58,14 @@ export default function Administrators({ team }: { team: Team }) {
         ['password_confirmation', 'Confirm password', 'password'],
     ] as const;
     return (
-        <PlatformLayout>
+        <PlatformLayout
+            title={t('SaaS administrators')}
+            actions={
+                canManage && <Button onClick={() => setOpen(true)}>{t('Add administrator')}</Button>
+            }
+        >
             <Head title={t('SaaS administrators')} />
-            <div className="space-y-6">
-                <PageHeader
-                    title={t('SaaS administrators')}
-                    eyebrow={t('Access control')}
-                    actions={
-                        canManage && (
-                            <Button onClick={() => setOpen(true)}>{t('Add administrator')}</Button>
-                        )
-                    }
-                />
+            <div className="space-y-4">
                 {canManage && (
                     <Dialog
                         open={open}

@@ -1,4 +1,10 @@
 export const partnerCatalog = {
+    Username: ['用户名', 'Nama pengguna', 'Nombre de usuario'],
+    'Search username or email': [
+        '搜索用户名或邮箱',
+        'Cari nama pengguna atau e-mel',
+        'Buscar nombre de usuario o correo',
+    ],
     'Contributions and annual returns include only non-partner descendants. Commissions are deducted by those users’ business source, regardless of recipient. Reimbursements include this partner and descendant partners, net of reversals. Current team relationships apply; overlapping reports must not be added together.':
         [
             '保证金、年费及返还仅统计非合伙人下级；已付佣金按这些用户的业务来源扣除，不限收款人。报销包含本人和下级合伙人净额，冲销抵回。按当前团队关系统计，重叠报表不可相加。',

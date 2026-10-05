@@ -442,10 +442,10 @@ it('searches selectable company members by account nickname or email with pagina
     $this->actingAs($this->admin, 'platform_admin')->getJson($base)->assertOk()->assertJsonCount(20, 'items')->assertJsonPath('hasMore', true)->assertHeader('Cache-Control', 'no-store, private');
     $second = $this->getJson($base.'?page=2')->assertOk()->assertJsonCount(1, 'items')->assertJsonPath('hasMore', false);
     $search = $this->getJson($base.'?search=north')->assertOk()->assertJsonCount(1, 'items')->assertJsonPath('items.0.account_id', $chosen->account_id)->assertJsonPath('items.0.display_name', 'North Star');
-    expect(array_keys($search->json('items.0')))->toBe(['account_id', 'display_name']);
+    expect(array_keys($search->json('items.0')))->toBe(['account_id', 'display_name', 'email']);
     $this->getJson($base.'?search='.$chosen->account_id)->assertJsonPath('items.0.account_id', $chosen->account_id);
     foreach ([$chosen->email, strtoupper($chosen->email), substr($chosen->email, 0, 12)] as $emailSearch) {
-        $this->getJson($base.'?search='.rawurlencode($emailSearch))->assertOk()->assertJsonCount(1, 'items')->assertJsonPath('items.0.account_id', $chosen->account_id)->assertJsonMissingPath('items.0.email');
+        $this->getJson($base.'?search='.rawurlencode($emailSearch))->assertOk()->assertJsonCount(1, 'items')->assertJsonPath('items.0.account_id', $chosen->account_id)->assertJsonPath('items.0.email', $chosen->email);
     }
     $this->getJson($base.'?search='.rawurlencode($candidates[0]->email))->assertJsonCount(0, 'items');
     $this->getJson($base.'?search=%25')->assertJsonCount(0, 'items');

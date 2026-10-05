@@ -1,7 +1,10 @@
 import { useForm } from '@/components/admin/editor-context';
 import { InvitationPosterSettings } from '@/components/admin/InvitationPosterSettings';
 import { Head, Link } from '@inertiajs/react';
-import { CompanyConfigurationLayout } from '@/components/admin/CompanyConfiguration';
+import {
+    CompanyConfigurationLayout,
+    CompanyConfigurationHeader,
+} from '@/components/admin/CompanyConfiguration';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { t, dateTime, useAdminTranslation, errorMessage } from '@/i18n/admin';
@@ -159,8 +162,8 @@ export default function PaidPromotion({
     return (
         <CompanyConfigurationLayout>
             <Head title={t('Paid promotion settings')} />
-            <div className="mx-auto max-w-5xl space-y-5">
-                <h1 className="text-2xl font-semibold">{t('Paid promotion settings')}</h1>
+            <div className="min-w-0 space-y-4">
+                <CompanyConfigurationHeader title={t('Paid promotion settings')} />
                 <p className="text-sm font-medium">{p.companyName}</p>
                 <p className="text-sm text-muted-foreground">
                     {t(

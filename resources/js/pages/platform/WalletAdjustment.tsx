@@ -2,7 +2,6 @@ import { displayMoney } from '@/lib/admin-amount';
 import { useForm } from '@/components/admin/editor-context';
 import { Head, Link } from '@inertiajs/react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
 import { Button } from '@/components/ui/button';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
@@ -47,13 +46,12 @@ export default function WalletAdjustment({ account, balances, history }: Props) 
             request_id: crypto.randomUUID(),
         });
     return (
-        <PlatformLayout>
+        <PlatformLayout
+            title={t('Wallet adjustment')}
+            description={`${account.companyName} · ${account.accountId} · ${account.email}`}
+        >
             <Head title={t('Wallet adjustment')} />
-            <div className="space-y-6">
-                <PageHeader
-                    title={t('Wallet adjustment')}
-                    description={`${account.companyName} · ${account.accountId} · ${account.email}`}
-                />
+            <div className="space-y-4">
                 <Link
                     className="text-primary underline"
                     href={`/platform/users?company=${account.companyId}`}
@@ -61,7 +59,7 @@ export default function WalletAdjustment({ account, balances, history }: Props) 
                     {t('Back to users')}
                 </Link>
                 <form
-                    className="max-w-2xl space-y-4 rounded-xl border bg-surface p-5"
+                    className="max-w-2xl space-y-4 rounded-xl border bg-surface p-4"
                     onSubmit={(e) => {
                         e.preventDefault();
                         form.post(url, {
@@ -92,7 +90,8 @@ export default function WalletAdjustment({ account, balances, history }: Props) 
                             >
                                 {balances.map((b) => (
                                     <option key={b.asset} value={b.asset}>
-                                        {b.asset} · {t('Available balance')}: {displayMoney(b.amount)}
+                                        {b.asset} · {t('Available balance')}:{' '}
+                                        {displayMoney(b.amount)}
                                     </option>
                                 ))}
                             </select>
@@ -175,7 +174,8 @@ export default function WalletAdjustment({ account, balances, history }: Props) 
                         { label: 'Currency', render: (r) => r.asset },
                         {
                             label: 'Adjustment amount',
-                            render: (r) => `${r.direction === 'INCREASE' ? '+' : '-'}${displayMoney(r.amount)}`,
+                            render: (r) =>
+                                `${r.direction === 'INCREASE' ? '+' : '-'}${displayMoney(r.amount)}`,
                         },
                         { label: 'Balance before', render: (r) => displayMoney(r.before) },
                         { label: 'Balance after', render: (r) => displayMoney(r.after) },

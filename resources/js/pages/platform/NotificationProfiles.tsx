@@ -62,7 +62,7 @@ export default function NotificationProfiles({
     return (
         <PlatformSettingsLayout>
             <Head title={title} />
-            <div className="space-y-6">
+            <div className="min-w-0 space-y-4">
                 <div className="flex justify-end">
                     <Button onClick={() => setEditing('new')}>{t('Add configuration')}</Button>
                 </div>

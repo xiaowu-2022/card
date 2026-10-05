@@ -1,7 +1,10 @@
 import { useForm } from '@/components/admin/editor-context';
 import { Head } from '@inertiajs/react';
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
-import { CompanyConfigurationLayout } from '@/components/admin/CompanyConfiguration';
+import {
+    CompanyConfigurationLayout,
+    CompanyConfigurationHeader,
+} from '@/components/admin/CompanyConfiguration';
 import { TenantAdminLayout } from '@/layouts/TenantAdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,10 +43,16 @@ export default function WealthSettings({
     return (
         <Layout>
             <Head title={t('Wealth settings')} />
-            <div className="space-y-6">
-                <h1 className="text-2xl font-semibold">
-                    {company.name} · {t('Wealth settings')}
-                </h1>
+            <div className={readOnly ? 'space-y-6' : 'min-w-0 space-y-4'}>
+                {readOnly ? (
+                    <h1 className="text-2xl font-semibold">
+                        {company.name} · {t('Wealth settings')}
+                    </h1>
+                ) : (
+                    <CompanyConfigurationHeader
+                        title={`${company.name} · ${t('Wealth settings')}`}
+                    />
+                )}
                 <p>
                     {t(
                         'Settings affect new deposits only. Existing deposits retain their original terms.',

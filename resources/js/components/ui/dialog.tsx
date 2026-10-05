@@ -1,3 +1,4 @@
+import { usePlatformUi } from '@/components/admin/platform-ui-context';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { useRef, type ComponentProps } from 'react';
@@ -18,13 +19,16 @@ export function DialogContent({
     closeLabel?: string;
     closeDisabled?: boolean;
 }) {
+    const platform = usePlatformUi();
     const returnFocus = useRef<HTMLElement | null>(null);
     return (
         <DialogPrimitive.Portal>
             <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-slate-950/40" />
             <DialogPrimitive.Content
+                data-platform-ui={platform || undefined}
                 className={cn(
                     'fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto overscroll-contain -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-surface p-6 shadow-xl',
+                    platform && 'p-4',
                     className,
                 )}
                 {...props}

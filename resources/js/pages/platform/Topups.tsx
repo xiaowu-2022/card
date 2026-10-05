@@ -2,7 +2,6 @@ import { Head, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { t, useAdminTranslation, errorMessage, dateTime } from '@/i18n/admin';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { MoneyDisplay } from '@/components/admin/MoneyDisplay';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -93,9 +92,9 @@ export default function Topups({ companies, filters, orders }: Props) {
         usePage<SharedProps>().props.auth.admin?.permissions.includes('wallet_topups.confirm');
     const [selected, setSelected] = useState<Order | null>(null);
     return (
-        <PlatformLayout>
+        <PlatformLayout title={t('Payment orders')}>
             <Head title={t('Payment orders')} />
-            <PageHeader title={t('Payment orders')} eyebrow={t('Operations')} />
+
             <p className="my-4 text-sm text-muted-foreground">
                 {t(
                     'SaaS administrators can confirm receipt manually. The full order amount is credited once; company administrators have read-only access.',

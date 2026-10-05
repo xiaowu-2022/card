@@ -3,7 +3,6 @@ import { useForm } from '@/components/admin/editor-context';
 import { useEffect } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
 import { Button } from '@/components/ui/button';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
@@ -60,20 +59,19 @@ export default function UserPromotion(p: Props) {
             ? p.paidRank
             : (p.levels.find((l) => l.id === form.data.choice)?.rank ?? 0);
     return (
-        <PlatformLayout>
+        <PlatformLayout
+            title={t('Agent level')}
+            description={`${p.account.companyName} · ${p.account.accountId}`}
+        >
             <Head title={t('Agent level')} />
-            <div className="space-y-6">
-                <PageHeader
-                    title={t('Agent level')}
-                    description={`${p.account.companyName} · ${p.account.accountId}`}
-                />
+            <div className="space-y-4">
                 <Link
                     className="inline-block text-primary underline"
                     href={`/platform/users?company=${p.account.companyId}`}
                 >
                     {t('Back to users')}
                 </Link>
-                <section className="space-y-2 rounded-xl border bg-surface p-5">
+                <section className="space-y-2 rounded-xl border bg-surface p-4">
                     <p className="break-all">{p.account.email}</p>
                     <p>
                         {t('Current level')}: <strong>{level(p.currentRank)}</strong>
@@ -88,7 +86,7 @@ export default function UserPromotion(p: Props) {
                 </section>
                 {p.canAdjust && (
                     <form
-                        className="max-w-2xl space-y-4 rounded-xl border bg-surface p-5"
+                        className="max-w-2xl space-y-4 rounded-xl border bg-surface p-4"
                         onSubmit={(e) => {
                             e.preventDefault();
                             form.post(url, { preserveScroll: true });

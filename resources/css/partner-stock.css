@@ -25,10 +25,20 @@
     font-size: 14px;
     font-weight: 500;
 }
-.stock-hero > strong {
+.stock-hero-values > strong {
     display: block;
     font-size: clamp(23px, 5vw, 36px);
     margin: 12px 0;
+}
+.stock-hero-values.is-inline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+}
+.stock-hero-values.is-inline .stock-split > span {
+    white-space: nowrap;
 }
 .stock-split {
     display: flex;
@@ -371,4 +381,36 @@
     font-size: 14px;
     line-height: 1.8;
     overflow-wrap: anywhere;
+}
+
+/* Platform owns outer spacing; consumer reports keep their own viewport layout. */
+.partner-admin-platform {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+.partner-admin-platform .partner-form {
+    padding: 16px;
+    margin: 0 0 16px;
+}
+.partner-admin-platform .partner-form input,
+.partner-admin-platform .partner-form select {
+    height: 36px;
+    padding: 6px 10px;
+}
+[data-platform-header] .partner-admin-action {
+    height: 36px;
+    padding: 6px 16px;
+    white-space: nowrap;
+}
+
+.partner-admin-platform .partner-list-panel {
+    margin-bottom: 16px;
+}
+.partner-admin-platform .partner-list-count {
+    padding: 16px;
+}
+.partner-admin-platform .partner-table th,
+.partner-admin-platform .partner-table td {
+    padding-block: 10px;
 }

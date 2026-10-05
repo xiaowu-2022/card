@@ -3,7 +3,6 @@ import { useForm } from '@/components/admin/editor-context';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
 import { Button } from '@/components/ui/button';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
@@ -54,13 +53,12 @@ export default function UserReferrer({
     });
     const target = candidates.find((c) => c.id === form.data.new_inviter_id);
     return (
-        <PlatformLayout>
+        <PlatformLayout
+            title={t('Change referrer')}
+            description={`${account.companyName} · ${account.accountId}`}
+        >
             <Head title={t('Change referrer')} />
-            <div className="space-y-6">
-                <PageHeader
-                    title={t('Change referrer')}
-                    description={`${account.companyName} · ${account.accountId}`}
-                />
+            <div className="space-y-4">
                 <Link className="underline" href={`/platform/users?company=${account.companyId}`}>
                     {t('Back to users')}
                 </Link>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { SearchSelect } from '@/components/ui/search-select';
 import { t } from '@/i18n/admin';
-type Candidate = { account_id: string; display_name: string | null };
+type Candidate = { account_id: string; display_name: string | null; email: string | null };
 export function PartnerUserSelect({
     companyId,
     value,
@@ -77,14 +77,14 @@ export function PartnerUserSelect({
             value={value}
             options={options.map((item) => ({
                 value: item.account_id,
-                label: `${item.account_id}${item.display_name ? ` · ${item.display_name}` : ''}`,
+                label: `${item.display_name || '—'} · ${item.email || '—'}`,
             }))}
             placeholder={
                 selected?.account_id === value
-                    ? `${value}${selected.display_name ? ` · ${selected.display_name}` : ''}`
+                    ? `${selected.display_name || '—'} · ${selected.email || '—'}`
                     : t('Select member')
             }
-            searchLabel={t('Search account ID, nickname or email')}
+            searchLabel={t('Search username or email')}
             emptyLabel={t(
                 loading
                     ? 'Loading members…'

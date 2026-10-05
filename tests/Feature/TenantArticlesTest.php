@@ -31,10 +31,10 @@ it('saves each fixed article and language for the resolved company only', functi
         $this->assertDatabaseHas('tenant_articles', ['tenant_id' => $this->articleTenant->id, 'article_key' => $key, 'locale' => $locale, 'body' => $body]);
     }
     expect($other->fresh()->body)->toBe('Other company');
-    $this->get("http://admin.localhost/platform/tenants/{$this->articleTenant->id}/configuration/settings/articles")->assertOk()->assertInertia(fn (Assert $page) => $page
+    $this->get("http://admin.localhost/platform/tenants/{$this->articleTenant->id}/configuration/settings/articles", ['X-Admin-Dialog' => '1'])->assertOk()->assertInertia(fn (Assert $page) => $page
         ->component('tenant-admin/Settings')->where('section', 'articles')->has('settings.articles', 4)
         ->where('settings.articles', fn ($items) => collect($items)->every(fn ($item) => array_keys($item) === ['key', 'locale', 'body'] && $item['body'] !== 'Other company')));
-    $this->get("http://admin.localhost/platform/tenants/{$this->articleTenant->id}/configuration/settings/branding")->assertInertia(fn (Assert $page) => $page->missing('settings.articles'));
+    $this->get("http://admin.localhost/platform/tenants/{$this->articleTenant->id}/configuration/settings/branding", ['X-Admin-Dialog' => '1'])->assertInertia(fn (Assert $page) => $page->missing('settings.articles'));
 })->with(['terms', 'privacy', 'account-closure']);
 
 it('updates one existing version and audits metadata without copying the body', function (): void {
