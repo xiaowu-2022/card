@@ -13,6 +13,10 @@ function settingsForForm(settings: WealthSetting[]): WealthSetting[] {
     return settings.map((setting) => ({
         ...setting,
         minimum: setting.minimum === '' ? '' : exactAmount(setting.minimum),
+        products: setting.products.map((product) => ({
+            ...product,
+            rate: exactAmount(product.rate),
+        })),
     }));
 }
 

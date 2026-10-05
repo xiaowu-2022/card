@@ -41,20 +41,20 @@ test('SaaS users and unified deposit orders have independent permission-scoped n
     assert.ok(readFileSync('resources/js/pages/platform/AssetOrders.tsx', 'utf8').includes("'Deposit orders' : 'Withdrawal orders'"));
 });
 
-test('SaaS identity and wallet navigation uses real permission-scoped read pages', () => {
+test('SaaS user management includes wallets without a duplicate wallet menu', () => {
     const nav = readFileSync('resources/js/layouts/PlatformLayout.tsx', 'utf8');
-    for (const [path, permission] of [['/platform/kyc', 'kyc.read'], ['/platform/wallets', 'wallet.read']]) {
-        assert.ok(nav.includes(`href: '${path}'`));
-        assert.ok(nav.includes(`permission: '${permission}'`));
-    }
-    const wallet = readFileSync('resources/js/pages/platform/Wallets.tsx', 'utf8');
-    assert.ok(wallet.includes("permissions.includes('wallet_topups.read')"));
+    assert.ok(nav.includes("href: '/platform/kyc'"));
+    assert.ok(nav.includes("permission: 'kyc.read'"));
+    assert.ok(nav.includes("href: '/platform/users'"));
+    assert.ok(!nav.includes("href: '/platform/wallets'"));
+    const wallet = readFileSync('resources/js/pages/platform/Users.tsx', 'utf8');
+    assert.ok(wallet.includes('canViewTopups'));
     assert.ok(wallet.includes('/platform/topups'));
     assert.ok(wallet.includes('companies={companies}'));
     assert.ok(wallet.includes('row.companyName'));
-    assert.ok(wallet.includes('displayMoney(row.available)'));
-    assert.ok(wallet.includes('displayMoney(row.securityDeposit)'));
-    assert.ok(wallet.includes('displayMoney(row.held)'));
+    assert.ok(wallet.includes("label: 'Wallet status'"));
+    assert.ok(wallet.includes('field="available"'));
+    assert.ok(wallet.includes('field="held"'));
     const kyc = readFileSync('resources/js/pages/platform/Kyc.tsx', 'utf8');
     assert.ok(!kyc.includes('identity_number'));
     assert.ok(!kyc.includes('.post('));

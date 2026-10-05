@@ -1,13 +1,8 @@
+import { DetailDrawerContent } from '@/components/admin/DetailDrawer';
 import { useEffect, useState } from 'react';
 import { t, useAdminTranslation } from '@/i18n/admin';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
     Table,
     TableBody,
@@ -98,10 +93,7 @@ export function PlatformCardTransactions({
                 if (!open) onClose();
             }}
         >
-            <DialogContent
-                className="flex max-h-[85dvh] max-w-4xl flex-col"
-                closeLabel={t('Close')}
-            >
+            <DetailDrawerContent closeLabel={t('Close')}>
                 <DialogHeader className="shrink-0 pr-10">
                     <DialogTitle>{t('Card transactions')}</DialogTitle>
                     <DialogDescription className="break-words">
@@ -257,7 +249,7 @@ export function PlatformCardTransactions({
                         {t('Next')}
                     </Button>
                 </div>
-            </DialogContent>
+            </DetailDrawerContent>
         </Dialog>
     );
 }

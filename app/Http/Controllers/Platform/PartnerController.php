@@ -15,13 +15,13 @@ final class PartnerController extends Controller
 {
     public function index(Request $request)
     {
-        $request->validate(['company' => 'nullable|uuid|exists:tenants,id', 'tenant' => 'nullable|uuid|exists:tenants,id', 'partner' => 'nullable|uuid', 'page' => 'nullable|integer|min:1|max:100000', 'fees_page' => 'nullable|integer|min:1|max:100000', 'flow' => 'nullable|in:inflow,outflow', 'flow_page' => 'nullable|integer|min:1|max:100000']);
+        $request->validate(['company' => 'nullable|uuid|exists:tenants,id', 'tenant' => 'nullable|uuid|exists:tenants,id', 'partner' => 'nullable|uuid', 'page' => 'nullable|integer|min:1|max:100000', 'report_page' => 'nullable|integer|min:1|max:100000', 'fees_page' => 'nullable|integer|min:1|max:100000', 'flow' => 'nullable|in:inflow,outflow', 'flow_page' => 'nullable|integer|min:1|max:100000']);
         $tenant = $request->query('company', $request->query('tenant'));
         $selected = null;
         $report = null;
         if ($request->filled('partner')) {
             $selected = DB::table('partner_configurations')->when($tenant, fn ($q) => $q->where('tenant_id', $tenant))->where('id', $request->query('partner'))->firstOrFail();
-            $report = app(PartnerReport::class)->read($selected->tenant_id, $selected->user_id, false, $request->integer('page', 1), $request->query('flow'), $request->integer('flow_page', 1));
+            $report = app(PartnerReport::class)->read($selected->tenant_id, $selected->user_id, false, $request->integer('report_page', $request->integer('page', 1)), $request->query('flow'), $request->integer('flow_page', 1));
         }
 
         return Inertia::render('platform/Partners', [

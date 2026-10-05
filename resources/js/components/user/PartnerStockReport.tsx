@@ -1,3 +1,4 @@
+import { displayMoney as adminAmount } from '@/lib/admin-amount';
 import { t, dateTime } from '@/i18n';
 import { fullMoney } from '@/lib/promotion-report';
 
@@ -107,14 +108,17 @@ export function PartnerStockReport({
     onPage,
     onReverse,
     showShare = true,
+    compactDecimals = false,
     onFlow,
 }: {
     report: StockReport;
     onPage: (page: number) => void;
     onReverse?: (row: JournalRow) => void;
     showShare?: boolean;
+    compactDecimals?: boolean;
     onFlow?: (direction: 'inflow' | 'outflow' | null, page?: number) => void;
 }) {
+    const number = (v: string) => (compactDecimals ? adminAmount(v) : v);
     const unavailable = t('Incomplete valuation');
     const value = (v: string | null | undefined) => (v == null ? unavailable : fullMoney(v));
     const displayLines: [string, string, string][] =
@@ -177,7 +181,7 @@ export function PartnerStockReport({
                                         ? 'Deposit amount'
                                         : 'Gross withdrawal amount',
                                 )}
-                                : {row.amount} {row.asset_code}
+                                : {number(row.amount)} {row.asset_code}
                             </p>
                             <p>
                                 {t('Current USDT estimate')}: {value(row.amountUsdt)}
@@ -317,12 +321,12 @@ export function PartnerStockReport({
                         <div className="stock-detail" key={asset.asset}>
                             <strong>{asset.asset}</strong>
                             <span>
-                                {t('Team total deposits')}: {asset.inflow} {asset.asset}
+                                {t('Team total deposits')}: {number(asset.inflow)} {asset.asset}
                             </span>
                             <span>
-                                {t('Team total withdrawals')}: {asset.outflow} {asset.asset}
+                                {t('Team total withdrawals')}: {number(asset.outflow)} {asset.asset}
                             </span>
-                            <span>{`1 ${asset.asset} = ${asset.rate ?? '—'} USDT`}</span>
+                            <span>{`1 ${asset.asset} = ${asset.rate === null ? '—' : number(asset.rate)} USDT`}</span>
                         </div>
                     ))}
                 </section>
@@ -383,7 +387,7 @@ export function PartnerStockReport({
                             <div className="stock-detail" key={row.id}>
                                 <strong>{row.account_id}</strong>
                                 <span>
-                                    {t('Progress')}: {row.weighted} / {row.target}
+                                    {t('Progress')}: {number(row.weighted)} / {row.target}
                                 </span>
                                 <span>
                                     {t('Remaining annual fees to return')}: {value(row.remaining)}
@@ -476,7 +480,7 @@ export function PartnerStockReport({
                     {r.unvalued.items.map((row) => (
                         <div className="stock-detail" key={row.id}>
                             <span>
-                                {row.fee_amount} {row.asset_code}
+                                {number(row.fee_amount)} {row.asset_code}
                             </span>
                             <small>{row.id}</small>
                         </div>

@@ -4,25 +4,26 @@ namespace App\Http\Controllers\Platform;
 
 use App\Application\Kyc\PlatformKycQuery;
 use App\Application\Tenant\PlatformListFilters;
-use App\Application\Wallet\PlatformWalletQuery;
 use App\Domain\Tenant\Models\Tenant;
 use App\Http\Controllers\Controller;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 final class AccountOperationsController extends Controller
 {
-    public function index(Request $request, PlatformListFilters $lists, PlatformKycQuery $kyc, PlatformWalletQuery $wallets): Response
+    public function index(Request $request, PlatformListFilters $lists, PlatformKycQuery $kyc): Response|RedirectResponse
     {
         $isKyc = $request->routeIs('platform.kyc.index');
         $filters = $lists->validated($request, $isKyc ? ['status' => ['nullable', 'in:PENDING,APPROVED,REJECTED,RESUBMISSION_REQUIRED']] : []);
+        if (! $isKyc) {
+            return redirect('/platform/users'.($filters ? '?'.http_build_query($filters) : ''));
+        }
 
-        return Inertia::render($isKyc ? 'platform/Kyc' : 'platform/Wallets', [
+        return Inertia::render('platform/Kyc', [
             'companies' => $lists->companies(), 'filters' => $filters,
-            ...($isKyc
-                ? ['applications' => $kyc->paginate($filters['company'] ?? null, $filters['search'] ?? null, $filters['status'] ?? null)]
-                : ['wallets' => $wallets->paginate($filters['company'] ?? null, $filters['search'] ?? null)]),
+            'applications' => $kyc->paginate($filters['company'] ?? null, $filters['search'] ?? null, $filters['status'] ?? null),
         ]);
     }
 
@@ -31,8 +32,8 @@ final class AccountOperationsController extends Controller
         return redirect('/platform/kyc?company='.$tenant->id);
     }
 
-    public function wallets(Tenant $tenant)
+    public function wallets(Request $request, Tenant $tenant, PlatformListFilters $lists)
     {
-        return redirect('/platform/wallets?company='.$tenant->id);
+        return redirect('/platform/users?'.http_build_query(['company' => $tenant->id, ...array_diff_key($lists->validated($request), ['company' => true])]));
     }
 }

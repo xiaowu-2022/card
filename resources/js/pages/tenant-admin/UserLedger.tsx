@@ -1,4 +1,4 @@
-import { displayMoney } from '@/lib/exact-amount';
+import { displayMoney } from '@/lib/admin-amount';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, Link } from '@inertiajs/react';
 import { EmptyState } from '@/components/shared/EmptyState';

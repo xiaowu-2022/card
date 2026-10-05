@@ -402,6 +402,9 @@ it('enforces the separate platform permission and tenant ownership on all partne
     $this->actingAs($tenantAdmin, 'platform_admin')->get($base.'/partners')->assertForbidden();
     $this->postJson($base.'/tenants/'.$company.'/partners/'.$partner->id.'/journal', stockEntry('ADVANCE', '1'))->assertForbidden();
     $this->actingAs($this->admin, 'platform_admin')->get($base.'/partners?tenant='.$company.'&partner='.$partner->id)->assertOk()->assertInertia(fn (Assert $p) => $p->component('platform/Partners')->where('report.stock', '0.00000000'));
+    $this->get($base.'/partners?partner='.$partner->id.'&page=2&report_page=3')
+        ->assertOk()->assertInertia(fn (Assert $p) => $p->where('companyId', null)
+        ->where('partners.current_page', 2)->where('report.journal.page', 3));
     $foreign = Tenant::where('slug', 'tenant-b')->firstOrFail();
     $this->get($base.'/partners?tenant='.$foreign->id.'&partner='.$partner->id)->assertNotFound();
     $this->postJson($base.'/tenants/'.$foreign->id.'/partners/'.$partner->id.'/journal', stockEntry('ADVANCE', '1'))->assertNotFound();

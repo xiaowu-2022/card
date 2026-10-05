@@ -16,7 +16,6 @@ import {
     ServerCog,
     ShieldCheck,
     Users,
-    WalletCards,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
@@ -77,12 +76,6 @@ const groups: { label: string; items: PlatformNavItem[] }[] = [
             },
             { label: 'Users', href: '/platform/users', icon: Users, permission: 'users.read' },
             { label: 'KYC', href: '/platform/kyc', icon: FileCheck2, permission: 'kyc.read' },
-            {
-                label: 'Wallet',
-                href: '/platform/wallets',
-                icon: WalletCards,
-                permission: 'wallet.read',
-            },
             { label: 'Cards', href: '/platform/cards', icon: CreditCard },
             {
                 label: 'Deposit orders',

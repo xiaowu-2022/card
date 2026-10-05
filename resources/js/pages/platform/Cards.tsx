@@ -8,7 +8,7 @@ import { CardBalanceLimit } from '@/components/admin/CardBalanceLimit';
 import { CardLoadOrders, type CardLoadOrder } from '@/components/admin/CardLoadOrders';
 import type { SharedProps } from '@/types/global';
 import { PlatformCardTransactions } from '@/components/admin/PlatformCardTransactions';
-import { displayMoney } from '@/lib/exact-amount';
+import { displayMoney } from '@/lib/admin-amount';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';

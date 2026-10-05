@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Link, router } from '@inertiajs/react';
 import { t, dateTime } from '@/i18n/admin';
-import { displayMoney } from '@/lib/exact-amount';
+import { displayMoney } from '@/lib/admin-amount';
 import type { AccountPage } from '@/components/shared/PlatformAccountTable';
 export type CardLoadOrder = {
     id: string;

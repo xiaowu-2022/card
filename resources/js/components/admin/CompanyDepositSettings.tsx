@@ -1,6 +1,6 @@
 import { useForm } from '@/components/admin/editor-context';
 import { t, errorMessage, useAdminTranslation } from '@/i18n/admin';
-import { displayMoney } from '@/lib/exact-amount';
+import { displayMoney } from '@/lib/admin-amount';
 import { MoneyInput } from '@/components/shared/MoneyInput';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

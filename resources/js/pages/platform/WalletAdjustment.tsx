@@ -1,3 +1,4 @@
+import { displayMoney } from '@/lib/admin-amount';
 import { useForm } from '@/components/admin/editor-context';
 import { Head, Link } from '@inertiajs/react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
@@ -91,7 +92,7 @@ export default function WalletAdjustment({ account, balances, history }: Props) 
                             >
                                 {balances.map((b) => (
                                     <option key={b.asset} value={b.asset}>
-                                        {b.asset} · {t('Available balance')}: {b.amount}
+                                        {b.asset} · {t('Available balance')}: {displayMoney(b.amount)}
                                     </option>
                                 ))}
                             </select>
@@ -137,7 +138,7 @@ export default function WalletAdjustment({ account, balances, history }: Props) 
                                 )}{' '}
                                 ·{' '}
                                 <strong>
-                                    {form.data.amount || '0'} {form.data.asset}
+                                    {displayMoney(form.data.amount || '0')} {form.data.asset}
                                 </strong>
                             </p>
                             <label className="mt-3 flex items-center gap-2">
@@ -174,10 +175,10 @@ export default function WalletAdjustment({ account, balances, history }: Props) 
                         { label: 'Currency', render: (r) => r.asset },
                         {
                             label: 'Adjustment amount',
-                            render: (r) => `${r.direction === 'INCREASE' ? '+' : '-'}${r.amount}`,
+                            render: (r) => `${r.direction === 'INCREASE' ? '+' : '-'}${displayMoney(r.amount)}`,
                         },
-                        { label: 'Balance before', render: (r) => r.before },
-                        { label: 'Balance after', render: (r) => r.after },
+                        { label: 'Balance before', render: (r) => displayMoney(r.before) },
+                        { label: 'Balance after', render: (r) => displayMoney(r.after) },
                         { label: 'Adjustment reason', render: (r) => r.reason },
                         { label: 'Operator', render: (r) => r.actor },
                         { label: 'Time', render: (r) => dateTime(r.time) },

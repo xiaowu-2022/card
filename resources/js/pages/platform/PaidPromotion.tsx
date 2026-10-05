@@ -12,9 +12,9 @@ function Tariffs({ levels, base }: { levels: PaidLevel[]; base: string }) {
     const initial = levels.map((l) => ({
         id: l.id,
         fee: exactAmount(l.fee),
-        percent: String(l.percent),
-        reward: String(l.reward),
-        target: String(l.target),
+        percent: exactAmount(String(l.percent)),
+        reward: exactAmount(String(l.reward)),
+        target: exactAmount(String(l.target)),
         revision: l.revision,
         enabled: l.enabled,
     }));

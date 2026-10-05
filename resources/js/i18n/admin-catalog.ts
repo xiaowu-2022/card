@@ -2,6 +2,10 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Wallet status': '钱包状态',
+    'No wallet': '未开通钱包',
+    'User records, wallet balances and promotion levels. Each currency is shown separately.':
+        '统一查看用户资料、钱包余额与推广等级，各币种分别展示。',
     Edit: '编辑',
     'All types': '全部类型',
     Pagination: '分页',

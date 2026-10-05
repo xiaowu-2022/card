@@ -1,6 +1,6 @@
 import { CardLoadOrders, type CardLoadOrder } from '@/components/admin/CardLoadOrders';
 import type { AccountPage } from '@/components/shared/PlatformAccountTable';
-import { displayMoney } from '@/lib/exact-amount';
+import { displayMoney } from '@/lib/admin-amount';
 import { useAdminTranslation, t, dateTime, errorMessage } from '@/i18n/admin';
 import { Head } from '@inertiajs/react';
 import { PageHeader } from '@/components/shared/PageHeader';

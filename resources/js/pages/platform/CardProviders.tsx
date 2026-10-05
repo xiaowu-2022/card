@@ -1,3 +1,4 @@
+import { displayMoney } from '@/lib/admin-amount';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import {
     PhotonPayAccountForm,
@@ -7,7 +8,7 @@ import { useState } from 'react';
 import { useAdminTranslation, t, dateTime, errorMessage } from '@/i18n/admin';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
+import { MoneyDisplay } from '@/components/admin/MoneyDisplay';
 import type { AccountPage } from '@/components/shared/PlatformAccountTable';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { Button } from '@/components/ui/button';
@@ -40,7 +41,7 @@ type Reference = {
 function ReferenceForm({ record, close }: { record: Reference | null; close: () => void }) {
     const form = useForm({
         name: record?.name ?? '',
-        reference_balance: record?.referenceBalance?.replace(/(\.\d{2})0+$/, '$1') ?? '0.00',
+        reference_balance: displayMoney(record?.referenceBalance ?? '0'),
         request_id: crypto.randomUUID(),
         version: record?.version ?? 0,
     });

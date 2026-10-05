@@ -6,7 +6,7 @@ import { DailyFundsChart } from '@/components/admin/DailyFundsChart';
 import { AdminDateInput } from '@/components/admin/AdminDateInput';
 import { fundsLabels, type FundsDay, type FundsKey } from '@/lib/funds-chart';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
+import { MoneyDisplay } from '@/components/admin/MoneyDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';

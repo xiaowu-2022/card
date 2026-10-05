@@ -1,6 +1,6 @@
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head } from '@inertiajs/react';
-import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
+import { MoneyDisplay } from '@/components/admin/MoneyDisplay';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TenantAdminLayout } from '@/layouts/TenantAdminLayout';

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { t } from '@/i18n/admin';
-import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
+import { MoneyDisplay } from '@/components/admin/MoneyDisplay';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { displayMoney, exactAmount } from '@/lib/exact-amount';
+import { exactAmount } from '@/lib/exact-amount';
+import { displayMoney } from '@/lib/admin-amount';
 import {
     chartDateLabelIndices,
     fundsChartScale,

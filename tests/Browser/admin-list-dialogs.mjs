@@ -15,7 +15,7 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
     try {
         const context = await browser.newContext({viewport:{width:1366,height:850}});
         const page = await context.newPage(); page.setDefaultTimeout(15000);
-        const errors=[], unexpected=[]; let saves=0, fail=true, detailReads=0, commissionSaves=0;
+        const errors=[], unexpected=[]; let saves=0, fail=true, detailReads=0, commissionSaves=0, reportFailures=1;
         page.on('pageerror', e => { errors.push(e.message); console.error('PAGE ERROR:',e.message); });
         const shared = {errors:{},publicAssets:[],tenant:null,auth:{admin:{name:'测试管理员',permissions:['tenant.manage','tenants.read','commissions.adjust','users.read','wallet.read','card_product.manage','notifications.read','notifications.send']},user:null},flash:{},i18n:{locale:'zh-CN',enabledLocales:['zh-CN','en'],timezone:'Asia/Shanghai',surface:'platform'},requestId:'fixture'};
         await context.route('**/*', async route => {
@@ -39,6 +39,14 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
                 detailReads++;component='platform/TenantCreate';props={locales:['en','zh-CN'],assets:['USDT'],timezones:['UTC','Asia/Shanghai']};
             } else if(url.pathname==='/platform/tenants') {
                 component='platform/Tenants';props={tenants:paginate(companies.map((c)=>({...c,slug:'fixture',domain:'synthetic.example.test',status:'ACTIVE',createdAt:'2026-10-05T01:00:00Z'}))),totals:{},financialAccess:{inflow:false,outflow:false},filters:{search:url.searchParams.get('search')??'',status:url.searchParams.get('status')??''}};
+            } else if(url.pathname==='/platform/users') {
+                component='platform/Users';props={companies,filters:{},financialAccess:{balances:true,commission:true,withdrawals:true},canAdjustWallet:true,canChangeReferrer:true,canAdjustCommission:true,canViewKyc:false,canViewTopups:true,users:paginate(companies.map((c,i)=>({id:c.id,companyId:c.id,companyName:c.name,accountId:'20261005123'+i,displayName:'Test user',email:'long.synthetic.customer@example.test',promotionRank:0,status:'ACTIVE',createdAt:'2026-10-05T01:00:00Z',lastLoginAt:null,securityDeposit:'100.00000000',commission:'20.12000000',totalWithdrawn:'50.00000000',wallets:['USDT','USDC','ETH','BTC'].map(asset=>({id:c.id+asset,asset,status:asset==='USDC'?'SUSPENDED':'ACTIVE',available:asset==='ETH'?'0.123456789012345678':'120.34000000',securityDeposit:asset==='USDT'?'100.00000000':'0',held:'0.00000000'}))})))};
+            } else if(url.pathname==='/platform/partners') {
+                const partner=url.searchParams.get('partner');
+                if(partner&&reportFailures-->0)return route.fulfill({status:503,json:{message:'Synthetic report read unavailable'}});
+                const reportPage=Number(url.searchParams.get('report_page')??1);const empty={items:[],page:reportPage,total:0,hasMore:false};
+                const report=partner?{partnerId:partner,accountId:'202610051234',version:'partner',updatedAt:'2026-10-05T01:00:00Z',timezone:'Asia/Shanghai',sharePercent:'40.00000000',stock:'140.00000000',share:'56.00000000',negative:false,missingRates:0,cashFlow:{assets:[],rateObservedAt:null},accountBalance:null,totals:{inflow:'200.00000000',outflow:'60.00000000',advances:'0.00000000'},trends:{},risks:{activeCount:0,remaining:'0',expiredCount:0,expiredAmount:'0',active:empty,expired:empty},journal:{...empty,total:40,hasMore:reportPage<2},unvalued:empty,flowDetails:url.searchParams.has('flow')?{...empty,direction:url.searchParams.get('flow')}:null}:null;
+                component='platform/Partners';props={companies,companyId:null,reportCompanyId:partner?companies[0].id:null,partners:{...paginate(companies.map((c,i)=>({id:c.id,tenant_id:c.id,company_name:c.name,enabled:true,share_percent:'40',account_id:'20261005123'+i,display_name:'Synthetic partner'}))),current_page:2,last_page:3,total:42},pendingFees:paginate([]),report};
             } else if(url.pathname==='/platform/notifications') {
                 component='platform/Notifications';props={companies,company:null,batches:paginate([])};
             } else if(url.pathname==='/platform/card-products') {
@@ -113,6 +121,43 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
             const preview=dialog.getByRole('button',{name:'预览通知',exact:true});
             const before=await preview.boundingBox();await body.evaluate(el=>el.scrollTop=el.scrollHeight);const after=await preview.boundingBox();assert.equal(before.y,after.y);assert.ok(after.y+after.height<=600);
             await dialog.getByRole('button',{name:'关闭',exact:true}).click();await dialog.waitFor({state:'hidden'});
+        }
+        await page.goto(origin+'/platform/partners?page=2&fees_page=3');
+        for(const width of [1024,1366,1920]) {
+            await page.setViewportSize({width,height:850});
+            const trigger=page.getByRole('button',{name:'查看报表',exact:true}).first();
+            await trigger.click();
+            if(width===1024){await dialog.getByRole('alert').waitFor();await dialog.getByRole('button',{name:'重试',exact:true}).click();}
+            await dialog.locator('.stock-hero').waitFor();
+            assert.equal(new URL(page.url()).searchParams.get('page'),'2');assert.equal(new URL(page.url()).searchParams.get('company'),null);
+            const bounds=await dialog.boundingBox();assert.ok(Math.abs(bounds.x+bounds.width-width)<2);assert.ok(bounds.y<2&&bounds.height>=848);
+            assert.equal(await page.locator('main.partner-admin .partner-stock').count(),0);
+            const body=dialog.locator('[data-detail-body]');assert.ok(await body.evaluate(el=>el.scrollHeight>el.clientHeight));
+            await body.evaluate(el=>el.scrollTop=el.scrollHeight);
+            await dialog.getByRole('button',{name:'下一页',exact:true}).click();
+            await page.waitForURL(u=>u.searchParams.get('report_page')==='2');await dialog.locator('.stock-hero').waitFor();
+            assert.equal(new URL(page.url()).searchParams.get('page'),'2');
+            await dialog.getByRole('button',{name:/团队总入金.*查看详情/}).click();
+            await page.waitForURL(u=>u.searchParams.get('flow')==='inflow');
+            await page.screenshot({path:`${out}/${name}-detail-drawer-${width}.png`});
+            await dialog.getByRole('button',{name:'收起报表',exact:true}).click();await dialog.waitFor({state:'hidden'});
+            await page.waitForURL(u=>!u.searchParams.has('partner'));
+            assert.equal(new URL(page.url()).searchParams.get('page'),'2');assert.equal(new URL(page.url()).searchParams.get('fees_page'),'3');
+            await page.waitForFunction(()=>document.activeElement?.textContent==='查看报表');
+        }
+        await page.goto(origin+'/platform/users');
+        assert.equal(await page.locator('a[href="/platform/wallets"]').count(),0);
+        for(const width of [1024,1366,1920]) {
+            await page.setViewportSize({width,height:850});
+            assert.equal(await page.locator('tbody tr').count(),2);
+            const row=page.locator('tbody tr').first();
+            assert.match(await row.textContent(),/0\.123456789012345678/);assert.ok(!(await row.textContent()).includes('120.34000000'));
+            await page.getByRole('columnheader',{name:'钱包状态',exact:true}).waitFor();
+            await page.getByRole('columnheader',{name:'可用余额',exact:true}).waitFor();
+            const scroller=page.locator('table').locator('..');await scroller.evaluate(el=>el.scrollLeft=el.scrollWidth);
+            const identity=await row.locator('td').first().boundingBox();assert.ok(identity.x>=0&&identity.x+identity.width<=width);
+            const actions=row.locator('td').last();const bounds=await actions.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=width+1);
+            await page.screenshot({path:`${out}/${name}-users-wallets-${width}.png`});
         }
         assert.equal(detailReads>=5,true);assert.deepEqual(errors,[]);assert.deepEqual(unexpected,[]);
         await context.close();console.log(`${name}: list context, lazy DTO, validation, dirty close, save, focus and 3 widths passed`);

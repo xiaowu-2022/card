@@ -14,7 +14,7 @@ import {
     TableHead,
     TableCell,
 } from '@/components/ui/table';
-import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
+import { MoneyDisplay } from '@/components/admin/MoneyDisplay';
 import type { SharedProps } from '@/types/global';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';

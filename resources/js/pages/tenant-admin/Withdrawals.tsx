@@ -1,4 +1,5 @@
-import { displayMoney, exactAmount } from '@/lib/exact-amount';
+import { exactAmount } from '@/lib/exact-amount';
+import { displayMoney } from '@/lib/admin-amount';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, Link } from '@inertiajs/react';
 import { PageHeader } from '@/components/shared/PageHeader';

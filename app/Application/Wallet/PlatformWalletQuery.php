@@ -10,6 +10,35 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 final class PlatformWalletQuery
 {
+    /** Bounded by the current user page; reads never create missing wallets. */
+    public function forUsers(array $userIds): array
+    {
+        if ($userIds === []) {
+            return [];
+        }
+
+        return Wallet::query()->select('wallets.*')
+            ->join('users as owner', fn ($join) => $join->on('owner.id', '=', 'wallets.user_id')->on('owner.tenant_id', '=', 'wallets.tenant_id'))
+            ->whereIn('wallets.user_id', $userIds)->with('accounts')->orderByRaw("CASE wallets.asset_code WHEN 'USDT' THEN 0 WHEN 'USDC' THEN 1 WHEN 'ETH' THEN 2 WHEN 'BTC' THEN 3 ELSE 4 END")
+            ->orderBy('wallets.id')->get()->groupBy('user_id')->map(fn ($wallets) => $wallets->map(fn (Wallet $wallet) => [
+                'id' => $wallet->id, 'asset' => $wallet->asset_code, 'status' => $wallet->status->value,
+                ...$this->balances($wallet),
+            ])->values()->all())->all();
+    }
+
+    private function balances(Wallet $wallet): array
+    {
+        $accounts = $wallet->accounts->where('tenant_id', $wallet->tenant_id)->where('user_id', $wallet->user_id)
+            ->where('asset_code', $wallet->asset_code)->keyBy(fn (LedgerAccount $account): string => $account->account_type->value);
+        $balance = fn (LedgerAccountType $type): string => Money::of($accounts->get($type->value)?->balance ?? '0', $wallet->asset_code)->amount();
+        $held = Money::of('0', $wallet->asset_code);
+        foreach ([LedgerAccountType::UserWithdrawalHold, LedgerAccountType::UserCardIssueHold, LedgerAccountType::UserCardFundingHold] as $type) {
+            $held = $held->add(Money::of($balance($type), $wallet->asset_code));
+        }
+
+        return ['available' => $balance(LedgerAccountType::UserAvailable), 'securityDeposit' => $balance(LedgerAccountType::UserSecurityDeposit), 'held' => $held->amount()];
+    }
+
     public function paginate(?string $tenantId, ?string $search): LengthAwarePaginator
     {
         return Wallet::query()->when($tenantId, fn ($query) => $query->where('tenant_id', $tenantId))
@@ -25,14 +54,6 @@ final class PlatformWalletQuery
                 })))
             ->latest('created_at')->orderBy('id')->paginate(20)->withQueryString()
             ->through(function (Wallet $wallet): array {
-                $accounts = $wallet->accounts->where('tenant_id', $wallet->tenant_id)->where('user_id', $wallet->user_id)
-                    ->keyBy(fn (LedgerAccount $account): string => $account->account_type->value);
-                $balance = fn (LedgerAccountType $type): string => $accounts->get($type->value)?->balance ?? '0.00000000';
-                $held = Money::of('0', $wallet->asset_code);
-                foreach ([LedgerAccountType::UserWithdrawalHold, LedgerAccountType::UserCardIssueHold, LedgerAccountType::UserCardFundingHold] as $type) {
-                    $held = $held->add(Money::of($balance($type), $wallet->asset_code));
-                }
-
                 return [
                     'id' => $wallet->id,
                     'companyId' => $wallet->tenant_id,
@@ -41,9 +62,7 @@ final class PlatformWalletQuery
                     'contact' => $wallet->user?->email ?? $wallet->user?->phone,
                     'status' => $wallet->status->value,
                     'asset' => $wallet->asset_code,
-                    'available' => $balance(LedgerAccountType::UserAvailable),
-                    'securityDeposit' => $balance(LedgerAccountType::UserSecurityDeposit),
-                    'held' => $held->amount(),
+                    ...$this->balances($wallet),
                 ];
             });
     }

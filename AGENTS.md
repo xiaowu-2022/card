@@ -1,3 +1,22 @@
+On 2026-10-05 the user consolidated Platform wallets into user management. Remove the
+separate wallet navigation/page; legacy wallet URLs redirect with validated filters and
+require both users.read and wallet.read. One paginated row per user includes owned
+wallet currency/status/available/held summaries only for wallet.read actors. Preserve
+native asset precision and independent currencies; never provision wallets on reads.
+Company administration, financial mutation permissions and Ledger rules are unchanged.
+
+On 2026-10-05 the user prioritized right-side drawers for administrative record details.
+Partner stock reports open in a viewport-bound drawer, never below the list. Preserve
+the list's company filter, pagination, scroll and trigger focus; report/detail pagination
+is independent. Use the same drawer pattern for transaction/order reads. Keep existing
+permissions and business endpoints; opening details is read-only.
+
+On 2026-10-05 the user requested compact decimal display throughout administration.
+Strip insignificant fractional zeros from amounts and rates without floating-point
+rounding or losing significant digits. This supersedes fixed two-decimal presentation
+for admin surfaces only. Keep identifiers, accounting precision, API values and consumer
+presentation unchanged; formatting an untouched input must not emit a financial change.
+
 On 2026-10-05 the user approved SaaS list-first navigation and lazy modal editors.
 Company-owned Platform lists default to all authorized companies; explicit invalid
 company filters fail closed. Tenant administration and consumer scopes remain unchanged.

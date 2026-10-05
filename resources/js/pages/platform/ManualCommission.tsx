@@ -1,3 +1,4 @@
+import { displayMoney } from '@/lib/admin-amount';
 import { useForm, useEditor } from '@/components/admin/editor-context';
 import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
@@ -113,7 +114,7 @@ export default function ManualCommission({
                     ].map(([label, value]) => (
                         <div key={label}>
                             <dt className="text-sm text-muted-foreground">{t(label!)}</dt>
-                            <dd>{value} USDT</dd>
+                            <dd>{displayMoney(value!)} USDT</dd>
                         </div>
                     ))}
                 </dl>
@@ -145,7 +146,7 @@ export default function ManualCommission({
                         <p className="rounded bg-muted p-3">
                             {t('Classify historical commission. No funds will move.')}{' '}
                             {classifying.direction === 'DECREASE' ? '−' : '+'}
-                            {classifying.amount} USDT{' '}
+                            {displayMoney(classifying.amount)} USDT{' '}
                             <Button
                                 type="button"
                                 variant="ghost"
@@ -197,14 +198,15 @@ export default function ManualCommission({
                     </label>
                     <div className="rounded bg-muted p-3 text-sm">
                         <p>
-                            {t('Expected category balance')}: {amount(category + adjustment)} USDT
+                            {t('Expected category balance')}:{' '}
+                            {displayMoney(amount(category + adjustment))} USDT
                         </p>
                         {!classifying && (
                             <p>
-                                {t('Expected available balance')}: {amount(balance + delta)} USDT{' '}
-                                {' · '}
-                                {t('Expected cumulative net commission')}: {amount(total + delta)}{' '}
-                                USDT
+                                {t('Expected available balance')}:{' '}
+                                {displayMoney(amount(balance + delta))} USDT {' · '}
+                                {t('Expected cumulative net commission')}:{' '}
+                                {displayMoney(amount(total + delta))} USDT
                             </p>
                         )}
                     </div>
@@ -271,18 +273,19 @@ export default function ManualCommission({
                         {
                             label: 'Amount',
                             render: (row) =>
-                                `${row.direction === 'DECREASE' ? '-' : '+'}${row.amount} USDT`,
+                                `${row.direction === 'DECREASE' ? '-' : '+'}${displayMoney(row.amount)} USDT`,
                         },
                         {
                             label: 'Category balance',
                             render: (row) =>
                                 row.kindBefore === null
                                     ? '—'
-                                    : `${row.kindBefore} → ${row.kindAfter}`,
+                                    : `${displayMoney(row.kindBefore)} → ${displayMoney(row.kindAfter!)}`,
                         },
                         {
                             label: 'Available balance',
-                            render: (row) => `${row.before} → ${row.after}`,
+                            render: (row) =>
+                                `${displayMoney(row.before)} → ${displayMoney(row.after)}`,
                         },
                         {
                             label: 'Operator',

@@ -1,8 +1,9 @@
-import { displayMoney, exactAmount } from '@/lib/exact-amount';
+import { exactAmount } from '@/lib/exact-amount';
+import { displayMoney } from '@/lib/admin-amount';
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
 import { Head, router, useForm } from '@inertiajs/react';
 import { Eye, LockKeyhole } from 'lucide-react';
-import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
+import { MoneyDisplay } from '@/components/admin/MoneyDisplay';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Alert, AlertDescription } from '@/components/ui/alert';

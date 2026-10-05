@@ -20,6 +20,7 @@ use App\Domain\Ledger\Services\LedgerWriter;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
+use App\Domain\Wallet\Services\WalletProvisioner;
 use App\Domain\Withdrawal\Contracts\BlockchainGatewayInterface;
 use App\Domain\Withdrawal\DTOs\BlockchainTransferVerification;
 use App\Domain\Withdrawal\Enums\BlockchainVerificationOutcome;
@@ -47,15 +48,47 @@ it('shows zeros without creating accounts and omits financial fields without the
     $count = LedgerAccount::query()->count();
     $url = 'http://admin.localhost/platform/users';
     $this->get($url)->assertOk()->assertInertia(fn ($p) => $p
-        ->where('users.data.0.availableBalance', '0.00000000')->where('users.data.0.securityDeposit', '0.00000000')
+        ->where('users.data.0.wallets', [])->where('users.data.0.availableBalance', '0.00000000')->where('users.data.0.securityDeposit', '0.00000000')
         ->where('users.data.0.commission', '0.00000000')->where('users.data.0.totalWithdrawn', '0.00000000'));
     $permissions = DB::table('permissions')->whereIn('name', ['wallet.read', 'ledger.read', 'withdrawals.read'])->pluck('id');
     DB::table('role_permissions')->whereIn('permission_id', $permissions)->delete();
     $this->get($url.'?balances=1&commission=1&withdrawals=1')->assertOk()->assertInertia(fn ($p) => $p
         ->where('financialAccess', ['balances' => false, 'commission' => false, 'withdrawals' => false])
-        ->missing('users.data.0.availableBalance')->missing('users.data.0.securityDeposit')
+        ->missing('users.data.0.wallets')->missing('users.data.0.availableBalance')->missing('users.data.0.securityDeposit')
         ->missing('users.data.0.commission')->missing('users.data.0.totalWithdrawn'));
     expect(LedgerAccount::query()->count())->toBe($count);
+    Http::assertNothingSent();
+});
+
+it('keeps one user row with distinct native-currency wallets and preserves inactive wallet status', function (): void {
+    $tenant = Tenant::where('slug', 'tenant-a')->firstOrFail();
+    $user = User::where('tenant_id', $tenant->id)->firstOrFail();
+    DB::transaction(function () use ($tenant, $user): void {
+        $tenant = Tenant::whereKey($tenant->id)->lockForUpdate()->firstOrFail();
+        $user = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+        foreach (['ETH', 'BTC', 'USDC', 'USDT'] as $asset) {
+            $wallet = app(WalletProvisioner::class)->provision($tenant, $user, $asset);
+            if ($asset === 'USDC') {
+                $wallet->update(['status' => 'SUSPENDED']);
+            }
+        }
+        $available = LedgerAccount::where('user_id', $user->id)->where('asset_code', 'ETH')->where('account_type', 'USER_AVAILABLE')->firstOrFail();
+        $clearing = LedgerAccount::where('tenant_id', $tenant->id)->where('asset_code', 'ETH')->where('account_type', 'TENANT_TOPUP_CLEARING')->firstOrFail();
+        app(LedgerWriter::class)->post(new LedgerPostingPlan($tenant->id, 'ETH', 'wallet-list:'.Str::uuid(), 'TEST_TOPUP', null, null, null, [
+            new LedgerPostingInstruction($available->id, Money::of('0.123456789012345678', 'ETH')),
+            new LedgerPostingInstruction($clearing->id, Money::of('-0.123456789012345678', 'ETH')),
+        ]));
+    });
+    $before = DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all();
+    $walletCount = DB::table('wallets')->count();
+    $this->get('http://admin.localhost/platform/users?company='.$tenant->id.'&search='.$user->account_id)
+        ->assertOk()->assertInertia(fn ($p) => $p->has('users.data', 1)->has('users.data.0.wallets', 4)
+        ->where('users.data.0.wallets.0.asset', 'USDT')->where('users.data.0.wallets.1.asset', 'USDC')
+        ->where('users.data.0.wallets.1.status', 'SUSPENDED')->where('users.data.0.wallets.2.asset', 'ETH')
+        ->where('users.data.0.wallets.2.available', '0.123456789012345678')->where('users.data.0.wallets.3.asset', 'BTC')
+        ->missing('users.data.0.wallets.0.accounts'));
+    expect(DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all())->toBe($before);
+    expect(DB::table('wallets')->count())->toBe($walletCount);
     Http::assertNothingSent();
 });
 
@@ -112,7 +145,7 @@ it('reads exact owned balances and successful gross withdrawal totals without mu
     $balances = LedgerAccount::query()->orderBy('id')->pluck('balance', 'id')->all();
     $entries = DB::table('ledger_entries')->count();
     $this->get('http://admin.localhost/platform/users?company='.$tenant->id.'&search='.$user->account_id)->assertOk()->assertInertia(fn ($p) => $p
-        ->has('users.data', 1)->where('users.data.0.availableBalance', '272.21691356')
+        ->has('users.data', 1)->where('users.data.0.wallets.0.asset', 'USDT')->where('users.data.0.wallets.0.available', '272.21691356')->where('users.data.0.wallets.0.held', '10.00000000')->where('users.data.0.wallets.0.status', 'ACTIVE')->where('users.data.0.availableBalance', '272.21691356')
         ->where('users.data.0.securityDeposit', '100.00000000')->where('users.data.0.commission', '0.00000000')
         ->where('users.data.0.totalWithdrawn', '120.03000000')->missing('users.data.0.accounts'));
     [$otherTenant, $otherUser] = $fixtures['tenant-b'];

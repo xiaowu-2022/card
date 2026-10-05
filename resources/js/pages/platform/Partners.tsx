@@ -1,6 +1,13 @@
-import { Head, router, useForm } from '@inertiajs/react';
-import { useState, type FormEvent } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DetailDrawerContent } from '@/components/admin/DetailDrawer';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from '@/components/ui/dialog';
 import { PartnerUserSelect } from '@/components/admin/PartnerUserSelect';
 import { exactAmount } from '@/lib/exact-amount';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
@@ -66,17 +73,59 @@ export default function Partners({
     const [feeId, setFeeId] = useState('');
     const [feeCompany, setFeeCompany] = useState('');
     const fx = useForm({ rate: '', observed_at: '', evidence: '', request_id: requestId() });
-    const visit = (partner?: string, page = 1, flow?: string | null, flowPage = 1) =>
-        router.get(
-            '/platform/partners',
-            {
-                company: companyId,
-                ...(partner ? { partner } : {}),
-                page,
-                ...(flow ? { flow, flow_page: flowPage } : {}),
+    const { url } = usePage();
+    const [reportOpen, setReportOpen] = useState(Boolean(report));
+    const [reportLoading, setReportLoading] = useState(false);
+    const [reportError, setReportError] = useState(false);
+    const reportRequest = useRef<(() => void) | null>(null);
+    const reportTrigger = useRef<HTMLElement | null>(null);
+    const reportTarget = useRef<[string | undefined, number, string | null | undefined, number]>([
+        undefined,
+        1,
+        null,
+        1,
+    ]);
+    useEffect(() => {
+        setReportOpen(new URL(url, location.origin).searchParams.has('partner'));
+    }, [url]);
+    const visit = (partner?: string, page = 1, flow?: string | null, flowPage = 1) => {
+        reportRequest.current?.();
+        reportTarget.current = [partner, page, flow, flowPage];
+        const query = new URL(location.href).searchParams;
+        for (const key of ['partner', 'report_page', 'flow', 'flow_page']) query.delete(key);
+        if (partner) {
+            query.set('partner', partner);
+            query.set('report_page', String(page));
+            if (flow) {
+                query.set('flow', flow);
+                query.set('flow_page', String(flowPage));
+            }
+        } else query.set('page', String(page));
+        setReportOpen(Boolean(partner));
+        setReportLoading(Boolean(partner));
+        setReportError(false);
+        router.get('/platform/partners', Object.fromEntries(query), {
+            preserveScroll: true,
+            preserveState: true,
+            ...(partner ? { only: ['report', 'reportCompanyId'] } : {}),
+            onCancelToken: (token) => {
+                reportRequest.current = () => token.cancel();
             },
-            { preserveScroll: true, preserveState: true },
-        );
+            onError: () => setReportError(true),
+            onHttpException: () => {
+                setReportError(true);
+                return false;
+            },
+            onNetworkError: () => {
+                setReportError(true);
+                return false;
+            },
+            onFinish: () => {
+                setReportLoading(false);
+                reportRequest.current = null;
+            },
+        });
+    };
     const edit = (p: Partner) => {
         setTargetCompany(p.tenant_id);
         const values = {
@@ -219,12 +268,11 @@ export default function Partners({
                                                     <div className="partner-row-actions">
                                                         <button
                                                             type="button"
-                                                            onClick={() =>
-                                                                router.get('/platform/partners', {
-                                                                    company: p.tenant_id,
-                                                                    partner: p.id,
-                                                                })
-                                                            }
+                                                            onClick={(event) => {
+                                                                reportTrigger.current =
+                                                                    event.currentTarget;
+                                                                visit(p.id);
+                                                            }}
                                                         >
                                                             {t('View report')}
                                                         </button>
@@ -485,7 +533,7 @@ export default function Partners({
                             {pendingFees?.data.map((f) => (
                                 <div className="partner-admin-card" key={f.id}>
                                     <span>
-                                        {f.original_amount} {f.asset_code}
+                                        {exactAmount(f.original_amount)} {f.asset_code}
                                     </span>
                                     <small>
                                         {f.company_name} · {f.withdrawal_id}
@@ -604,32 +652,79 @@ export default function Partners({
                                 </DialogContent>
                             </Dialog>
                         </details>
-                        {report && (
-                            <>
-                                <div className="partner-list-header">
-                                    <h2>
-                                        {report.accountId} · {t('Stock data')}
-                                    </h2>
-                                    <button
-                                        type="button"
-                                        className="stock-link"
-                                        onClick={() =>
-                                            visit(undefined, partners?.current_page ?? 1)
-                                        }
-                                    >
-                                        {t('Close report')}
-                                    </button>
-                                </div>
-                                <PartnerStockReport
-                                    report={report}
-                                    onPage={(page) => visit(report.partnerId, page)}
-                                    onReverse={reverse}
-                                    onFlow={(flow, page) =>
-                                        visit(report.partnerId, report.journal.page, flow, page)
+                        <Dialog
+                            open={reportOpen && !journalOpen}
+                            onOpenChange={(open) => {
+                                if (!open) visit(undefined, partners?.current_page ?? 1);
+                            }}
+                        >
+                            <DetailDrawerContent
+                                className="p-0"
+                                closeLabel={t('Close report')}
+                                onCloseAutoFocus={(event) => {
+                                    if (reportTrigger.current?.isConnected) {
+                                        event.preventDefault();
+                                        reportTrigger.current.focus();
                                     }
-                                />
-                            </>
-                        )}
+                                }}
+                            >
+                                <DialogHeader className="mb-0 shrink-0 border-b px-6 py-5 pr-14">
+                                    <DialogTitle>
+                                        {t('Stock data')}
+                                        {report && !reportLoading && !reportError
+                                            ? ` · ${report.accountId}`
+                                            : ''}
+                                    </DialogTitle>
+                                    <DialogDescription>
+                                        {reportError
+                                            ? t('Unable to load. Please retry.')
+                                            : report && !reportLoading
+                                              ? companies.find((c) => c.id === reportCompanyId)
+                                                    ?.name
+                                              : t('Loading…')}
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div
+                                    className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6"
+                                    data-detail-body
+                                    scroll-region="true"
+                                    aria-busy={reportLoading}
+                                >
+                                    {reportLoading ? (
+                                        <p className="py-10" role="status">
+                                            {t('Loading…')}
+                                        </p>
+                                    ) : reportError ? (
+                                        <div className="space-y-4 py-10" role="alert">
+                                            <p>{t('Unable to load. Please retry.')}</p>
+                                            <button
+                                                className="partner-admin-action"
+                                                onClick={() => visit(...reportTarget.current)}
+                                            >
+                                                {t('Retry')}
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        report && (
+                                            <PartnerStockReport
+                                                compactDecimals
+                                                report={report}
+                                                onPage={(page) => visit(report.partnerId, page)}
+                                                onReverse={reverse}
+                                                onFlow={(flow, page) =>
+                                                    visit(
+                                                        report.partnerId,
+                                                        report.journal.page,
+                                                        flow,
+                                                        page,
+                                                    )
+                                                }
+                                            />
+                                        )
+                                    )}
+                                </div>
+                            </DetailDrawerContent>
+                        </Dialog>
                     </>
                 }
             </main>

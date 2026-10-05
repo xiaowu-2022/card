@@ -3,6 +3,7 @@
 namespace App\Application\User;
 
 use App\Application\Promotion\ManualPromotion;
+use App\Application\Wallet\PlatformWalletQuery;
 use Brick\Math\BigDecimal;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Query\Builder;
@@ -13,7 +14,7 @@ final class PlatformUserQuery
     public function paginate(?string $company, ?string $search, ?string $status, array $financialAccess = []): LengthAwarePaginator
     {
         // Platform-only aggregate. Profile ownership matches both company and user.
-        return DB::table('users as u')->join('tenants as t', 't.id', '=', 'u.tenant_id')
+        $page = DB::table('users as u')->join('tenants as t', 't.id', '=', 'u.tenant_id')
             ->leftJoin('user_profiles as p', fn ($join) => $join->on('p.user_id', '=', 'u.id')->on('p.tenant_id', '=', 'u.tenant_id'))
             ->when($company, fn ($q) => $q->where('u.tenant_id', $company))
             ->when($status, fn ($q) => $q->where('u.status', $status))
@@ -31,15 +32,18 @@ final class PlatformUserQuery
                 DB::table('withdrawal_orders as wo')->whereColumn('wo.tenant_id', 'u.tenant_id')->whereColumn('wo.user_id', 'u.id')
                     ->where('wo.asset_code', 'USDT')->where('wo.status', 'SUCCEEDED')
                     ->selectRaw('COALESCE(SUM(wo.amount), 0)::text'), 'total_withdrawn'))
-            ->orderByDesc('u.created_at')->orderBy('u.id')->paginate(20)->withQueryString()
-            ->through(fn ($row): array => [
-                'id' => $row->id, 'companyId' => $row->tenant_id, 'companyName' => $row->company_name,
-                'accountId' => $row->account_id, 'displayName' => $row->display_name,
-                'email' => $row->email, 'promotionRank' => app(ManualPromotion::class)->benefit($row->tenant_id, $row->id)?->rank ?? 0, 'status' => $row->status,
-                'createdAt' => $row->created_at, 'lastLoginAt' => $row->last_login_at,
-            ] + (($financialAccess['balances'] ?? false) ? [
-                'availableBalance' => $this->decimal($row->available_balance), 'securityDeposit' => $this->decimal($row->security_deposit),
-            ] : []) + (($financialAccess['commission'] ?? false) ? ['commission' => $this->decimal($row->commission)] : [])
+            ->orderByDesc('u.created_at')->orderBy('u.id')->paginate(20)->withQueryString();
+        $wallets = ($financialAccess['balances'] ?? false) ? app(PlatformWalletQuery::class)->forUsers($page->getCollection()->pluck('id')->all()) : [];
+
+        return $page->through(fn ($row): array => [
+            'id' => $row->id, 'companyId' => $row->tenant_id, 'companyName' => $row->company_name,
+            'accountId' => $row->account_id, 'displayName' => $row->display_name,
+            'email' => $row->email, 'promotionRank' => app(ManualPromotion::class)->benefit($row->tenant_id, $row->id)?->rank ?? 0, 'status' => $row->status,
+            'createdAt' => $row->created_at, 'lastLoginAt' => $row->last_login_at,
+        ] + (($financialAccess['balances'] ?? false) ? [
+            'wallets' => $wallets[$row->id] ?? [],
+            'availableBalance' => $this->decimal($row->available_balance), 'securityDeposit' => $this->decimal($row->security_deposit),
+        ] : []) + (($financialAccess['commission'] ?? false) ? ['commission' => $this->decimal($row->commission)] : [])
                 + (($financialAccess['withdrawals'] ?? false) ? ['totalWithdrawn' => $this->decimal($row->total_withdrawn)] : []));
     }
 

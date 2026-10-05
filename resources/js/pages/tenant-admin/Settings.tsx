@@ -3,7 +3,7 @@ import { PreviewImage } from '@/components/shared/PreviewImage';
 import { useCompanyConfigurationUrl } from '@/hooks/useCompanyConfigurationUrl';
 import { ConfigurationForm } from '@/components/admin/CompanyConfiguration';
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
-import { displayMoney } from '@/lib/exact-amount';
+import { displayMoney } from '@/lib/admin-amount';
 import { Head, Link } from '@inertiajs/react';
 import type { SharedProps } from '@/types/global';
 import { CompanyConfigurationHeader as PageHeader } from '@/components/admin/CompanyConfiguration';

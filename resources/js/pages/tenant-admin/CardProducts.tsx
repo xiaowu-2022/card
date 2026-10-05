@@ -21,7 +21,7 @@ import {
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { CompanyConfigurationHeader as PageHeader } from '@/components/admin/CompanyConfiguration';
 import { StatusBadge } from '@/components/shared/StatusBadge';
-import { displayMoney } from '@/lib/exact-amount';
+import { displayMoney } from '@/lib/admin-amount';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';

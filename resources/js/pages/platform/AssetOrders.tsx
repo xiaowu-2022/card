@@ -1,3 +1,4 @@
+import { DetailDrawerContent } from '@/components/admin/DetailDrawer';
 import { AssetNavigation } from '@/components/admin/AssetNavigation';
 import type { SharedProps } from '@/types/global';
 import {
@@ -12,13 +13,7 @@ import { PlatformAccountTable, type AccountPage } from '@/components/shared/Plat
 import { exactAmount } from '@/lib/exact-amount';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-} from '@/components/ui/dialog';
+import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { t, useAdminTranslation, errorMessage, dateTime } from '@/i18n/admin';
 
 type Order = {
@@ -228,7 +223,7 @@ export default function AssetOrders({
                                 </p>
                                 <p>{o.event_id}</p>
                                 <p>
-                                    {o.amount} · {dateTime(o.occurred_at)}
+                                    {exactAmount(o.amount)} · {dateTime(o.occurred_at)}
                                 </p>
                             </div>
                         ))}
@@ -241,16 +236,18 @@ export default function AssetOrders({
                     if (!open) setSelected(null);
                 }}
             >
-                <DialogContent
-                    closeLabel={t('Close')}
-                    className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl"
-                >
-                    <DialogHeader>
+                <DetailDrawerContent closeLabel={t('Close')} className="w-[min(92vw,48rem)]">
+                    <DialogHeader className="shrink-0 pr-10">
                         <DialogTitle>{t('Order details')}</DialogTitle>
                         <DialogDescription>{order?.reference}</DialogDescription>
                     </DialogHeader>
-                    {order && <OrderRow key={selected} order={order} mode={mode} />}
-                </DialogContent>
+                    <div
+                        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+                        data-detail-body
+                    >
+                        {order && <OrderRow key={selected} order={order} mode={mode} />}
+                    </div>
+                </DetailDrawerContent>
             </Dialog>
         </PlatformLayout>
     );
@@ -336,7 +333,7 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
                     </p>
                 </div>
                 <p className="break-all text-xl font-semibold">
-                    {o.amount} {o.asset}
+                    {exactAmount(o.amount)} {o.asset}
                 </p>
             </div>
             <p className="break-all text-sm">{o.address || '—'}</p>
@@ -358,7 +355,7 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
             )}
             {o.fee !== null && (
                 <p className="text-sm">
-                    {t('Fee')}: {o.fee} {o.asset}
+                    {t('Fee')}: {exactAmount(o.fee)} {o.asset}
                 </p>
             )}
             {mode === 'deposit' && (

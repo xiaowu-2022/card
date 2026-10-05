@@ -1,6 +1,6 @@
 import { useState, type ComponentProps } from 'react';
 import { Input } from '@/components/ui/input';
-import { displayMoney } from '@/lib/exact-amount';
+import { displayMoney } from '@/lib/admin-amount';
 
 // Formatting never emits a change: saving an unrelated setting preserves the
 // original eight-decimal server value. Only user edits replace that value.

@@ -3,7 +3,7 @@ import { TenantAdminLayout } from '@/layouts/TenantAdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { t, useAdminTranslation, dateTime } from '@/i18n/admin';
-import { displayMoney } from '@/lib/exact-amount';
+import { displayMoney } from '@/lib/admin-amount';
 
 const types: Record<string, string> = {
     PROMOTION_ANNUAL_FEE: 'Annual fee income',

@@ -11,8 +11,16 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
-import { MoneyDisplay } from '@/components/shared/MoneyDisplay';
+import { MoneyDisplay } from '@/components/admin/MoneyDisplay';
 
+type Wallet = {
+    id: string;
+    asset: string;
+    status: string;
+    available: string;
+    securityDeposit: string;
+    held: string;
+};
 type User = {
     id: string;
     companyName: string;
@@ -24,6 +32,7 @@ type User = {
     status: string;
     createdAt: string;
     lastLoginAt: string | null;
+    wallets?: Wallet[];
     availableBalance?: string;
     securityDeposit?: string;
     commission?: string;
@@ -39,11 +48,13 @@ export default function Users({
     canChangeReferrer,
     canAdjustCommission,
     canViewKyc,
+    canViewTopups,
 }: {
     canAdjustWallet: boolean;
     canChangeReferrer: boolean;
     canAdjustCommission: boolean;
     canViewKyc: boolean;
+    canViewTopups: boolean;
     users: AccountPage<User>;
     companies: { id: string; name: string }[];
     filters: { company?: string; search?: string; status?: string };
@@ -58,8 +69,23 @@ export default function Users({
                     eyebrow={t('Operations')}
                     title={t('Users')}
                     description={t(
-                        'User records and promotion levels. Filter by company, account or status.',
+                        'User records, wallet balances and promotion levels. Each currency is shown separately.',
                     )}
+                    actions={
+                        canViewTopups && (
+                            <Button asChild>
+                                <Link
+                                    href={
+                                        filters.company
+                                            ? `/platform/topups?company=${filters.company}`
+                                            : '/platform/topups'
+                                    }
+                                >
+                                    {t('Top-up management')}
+                                </Link>
+                            </Button>
+                        )
+                    }
                 />
                 <PlatformAccountTable
                     key={JSON.stringify(filters)}
@@ -70,22 +96,31 @@ export default function Users({
                     searchLabel={t('Search name, account ID or email')}
                     statuses={['ACTIVE', 'SUSPENDED', 'DISABLED']}
                     columns={[
-                        { label: 'Tenant', render: (row) => row.companyName },
                         {
-                            label: 'Account ID',
-                            render: (row) => <span className="font-mono">{row.accountId}</span>,
-                        },
-                        { label: 'Name', render: (row) => row.displayName ?? '—' },
-                        {
-                            label: 'Email',
-                            className: 'w-56 max-w-56',
+                            label: 'Company / User',
+                            className:
+                                'sticky left-0 z-10 w-64 min-w-64 max-w-64 bg-surface shadow-[1px_0_0_var(--color-border)]',
                             render: (row) => (
-                                <span
-                                    className="block w-48 truncate"
-                                    title={row.email ?? undefined}
-                                >
-                                    {row.email ?? '—'}
-                                </span>
+                                <div className="w-56 space-y-1.5">
+                                    <p
+                                        className="truncate text-xs text-muted-foreground"
+                                        title={row.companyName}
+                                    >
+                                        {row.companyName}
+                                    </p>
+                                    <p className="font-mono font-semibold">{row.accountId}</p>
+                                    {row.displayName && (
+                                        <p className="truncate text-xs" title={row.displayName}>
+                                            {row.displayName}
+                                        </p>
+                                    )}
+                                    <p
+                                        className="truncate text-xs text-muted-foreground"
+                                        title={row.email ?? undefined}
+                                    >
+                                        {row.email ?? '—'}
+                                    </p>
+                                </div>
                             ),
                         },
                         {
@@ -106,12 +141,43 @@ export default function Users({
                         ...(financialAccess.balances
                             ? [
                                   {
-                                      label: 'Balance',
+                                      label: 'Wallet status',
+                                      render: (row: User) =>
+                                          row.wallets?.length ? (
+                                              <div className="space-y-2">
+                                                  {row.wallets.map((wallet) => (
+                                                      <div
+                                                          key={wallet.id}
+                                                          className="flex min-h-6 items-center gap-2"
+                                                      >
+                                                          <span className="w-10 text-xs">
+                                                              {wallet.asset}
+                                                          </span>
+                                                          <StatusBadge
+                                                              status={
+                                                                  wallet.status === 'ACTIVE'
+                                                                      ? 'SUCCESS'
+                                                                      : 'WARNING'
+                                                              }
+                                                              label={t(wallet.status)}
+                                                          />
+                                                      </div>
+                                                  ))}
+                                              </div>
+                                          ) : (
+                                              t('No wallet')
+                                          ),
+                                  },
+                                  {
+                                      label: 'Available balance',
                                       render: (row: User) => (
-                                          <MoneyDisplay
-                                              amount={row.availableBalance!}
-                                              asset="USDT"
-                                          />
+                                          <WalletAmounts wallets={row.wallets} field="available" />
+                                      ),
+                                  },
+                                  {
+                                      label: 'Held amount',
+                                      render: (row: User) => (
+                                          <WalletAmounts wallets={row.wallets} field="held" />
                                       ),
                                   },
                                   {
@@ -174,7 +240,9 @@ export default function Users({
                             label: 'Last login',
                             render: (row) => (row.lastLoginAt ? dateTime(row.lastLoginAt) : '—'),
                         },
-                        ...(canViewKyc ||
+                        ...(canViewTopups ||
+                        financialAccess.withdrawals ||
+                        canViewKyc ||
                         canAdjustWallet ||
                         canChangeReferrer ||
                         canAdjustCommission
@@ -189,6 +257,24 @@ export default function Users({
                                                   </Button>
                                               </DropdownMenuTrigger>
                                               <DropdownMenuContent align="end">
+                                                  {canViewTopups && (
+                                                      <DropdownMenuItem asChild>
+                                                          <Link
+                                                              href={`/platform/topups?company=${row.companyId}&search=${encodeURIComponent(row.accountId)}`}
+                                                          >
+                                                              {t('Deposit orders')}
+                                                          </Link>
+                                                      </DropdownMenuItem>
+                                                  )}
+                                                  {financialAccess.withdrawals && (
+                                                      <DropdownMenuItem asChild>
+                                                          <Link
+                                                              href={`/platform/asset-withdrawals?company=${row.companyId}&search=${encodeURIComponent(row.accountId)}`}
+                                                          >
+                                                              {t('Withdrawal orders')}
+                                                          </Link>
+                                                      </DropdownMenuItem>
+                                                  )}
                                                   {canViewKyc && (
                                                       <DropdownMenuItem asChild>
                                                           <Link
@@ -235,5 +321,19 @@ export default function Users({
                 />
             </div>
         </PlatformLayout>
+    );
+}
+
+function WalletAmounts({ wallets, field }: { wallets?: Wallet[]; field: 'available' | 'held' }) {
+    return wallets?.length ? (
+        <div className="space-y-2">
+            {wallets.map((wallet) => (
+                <div key={wallet.id} className="flex min-h-6 items-center">
+                    <MoneyDisplay amount={wallet[field]} asset={wallet.asset} />
+                </div>
+            ))}
+        </div>
+    ) : (
+        <span className="text-muted-foreground">—</span>
     );
 }
