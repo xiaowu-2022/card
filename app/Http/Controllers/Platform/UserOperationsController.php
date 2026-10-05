@@ -25,6 +25,7 @@ final class UserOperationsController extends Controller
             'canChangeReferrer' => $allowed('users.referrer.manage'),
             'canAdjustCommission' => $financialAccess['balances'] && $allowed('commissions.adjust'),
             'canViewKyc' => $allowed('kyc.read'),
+            'canViewFunds' => $financialAccess['balances'] && $allowed('ledger.read'),
             'canViewTopups' => $allowed('wallet_topups.read'),
             'canAdjustWallet' => $financialAccess['balances'] && $allowed('wallet.adjust'),
             'companies' => $lists->companies(), 'filters' => $filters,

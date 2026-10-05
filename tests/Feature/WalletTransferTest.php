@@ -301,6 +301,11 @@ it('shows scoped transfer counterparties and current emails in funds details wit
         $detail = collect($funds['rows']->items())->firstWhere('details.reference', $transfer->id)['details'];
         expect($detail['counterparty'])->toBe(['role' => $role, 'accountId' => $other->account_id, 'email' => $other->email]);
         expect($detail['reason'])->toBe($role === 'recipient' ? 'Funds transferred to the recipient.' : 'Funds received from the sender.');
+        $platform = app(\App\Application\User\PlatformUserFundsQuery::class)->read($this->tenant, $viewer->id, ['event' => 'WALLET_TRANSFER']);
+        expect($platform['rows']['total'])->toBe(1)
+            ->and($platform['rows']['items'][0]['details']['counterparty'])->toBe($detail['counterparty'])
+            ->and($platform['rows']['items'][0]['movements'])->toHaveCount(1)
+            ->and($platform['rows']['items'][0]['movements'][0]['amount'])->toBe($role === 'recipient' ? '-10.25000000' : '10.25000000');
         $receipt = app(WalletTransferQuery::class)->get($this->tenant->id, $viewer->id, $transfer->id)['receipt'];
         expect($receipt['recipientEmail'])->toBe($this->recipient->email)->and($receipt['senderEmail'])->toBe($this->sender->email);
     }

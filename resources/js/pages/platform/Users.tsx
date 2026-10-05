@@ -8,6 +8,8 @@ import {
 import { Head, Link, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { UserKycDrawer } from '@/components/admin/UserKycDrawer';
+import { UserFundsDrawer } from '@/components/admin/UserFundsDrawer';
+import { initialFundsTarget, fundsLocation } from '@/components/admin/user-funds-state';
 import { initialKycTarget, kycLocation } from '@/components/admin/user-kyc-state';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
@@ -50,12 +52,14 @@ export default function Users({
     canChangeReferrer,
     canAdjustCommission,
     canViewKyc,
+    canViewFunds,
     canViewTopups,
 }: {
     canAdjustWallet: boolean;
     canChangeReferrer: boolean;
     canAdjustCommission: boolean;
     canViewKyc: boolean;
+    canViewFunds: boolean;
     canViewTopups: boolean;
     users: AccountPage<User>;
     companies: { id: string; name: string }[];
@@ -65,10 +69,14 @@ export default function Users({
     useAdminTranslation();
     const { url } = usePage();
     const [kycTarget, setKycTarget] = useState(initialKycTarget);
+    const [fundsTarget, setFundsTarget] = useState(initialFundsTarget);
     const kycTrigger = useRef<HTMLElement | null>(null);
     const kycOpening = useRef(false);
     useEffect(() => {
-        const sync = () => setKycTarget(initialKycTarget());
+        const sync = () => {
+            setKycTarget(initialKycTarget());
+            setFundsTarget(initialFundsTarget());
+        };
         sync();
         window.addEventListener('popstate', sync);
         return () => window.removeEventListener('popstate', sync);
@@ -223,6 +231,7 @@ export default function Users({
                             render: (row) => (row.lastLoginAt ? dateTime(row.lastLoginAt) : '—'),
                         },
                         ...(canViewTopups ||
+                        canViewFunds ||
                         financialAccess.withdrawals ||
                         canViewKyc ||
                         canAdjustWallet ||
@@ -234,6 +243,7 @@ export default function Users({
                                       render: (row: User) => (
                                           <div className="flex items-center gap-2">
                                               {(canViewKyc ||
+                                                  canViewFunds ||
                                                   canViewTopups ||
                                                   financialAccess.withdrawals ||
                                                   canAdjustWallet ||
@@ -262,10 +272,29 @@ export default function Users({
                                                               }
                                                           }}
                                                       >
+                                                          {canViewFunds && (
+                                                              <DropdownMenuItem
+                                                                  onSelect={() => {
+                                                                      kycOpening.current = true;
+                                                                      const target = {
+                                                                          company: row.companyId,
+                                                                          user: row.id,
+                                                                      };
+                                                                      kycLocation(null);
+                                                                      setKycTarget(null);
+                                                                      fundsLocation(target);
+                                                                      setFundsTarget(target);
+                                                                  }}
+                                                              >
+                                                                  {t('User fund flows')}
+                                                              </DropdownMenuItem>
+                                                          )}
                                                           {canViewKyc && (
                                                               <DropdownMenuItem
                                                                   onSelect={() => {
                                                                       kycOpening.current = true;
+                                                                      fundsLocation(null);
+                                                                      setFundsTarget(null);
                                                                       const target = {
                                                                           company: row.companyId,
                                                                           user: row.id,
@@ -341,6 +370,17 @@ export default function Users({
                     onClose={() => {
                         kycLocation(null);
                         setKycTarget(null);
+                    }}
+                />
+            )}
+            {canViewFunds && fundsTarget && !kycTarget && (
+                <UserFundsDrawer
+                    key={`${fundsTarget.company}:${fundsTarget.user}`}
+                    target={fundsTarget}
+                    trigger={kycTrigger}
+                    onClose={() => {
+                        fundsLocation(null);
+                        setFundsTarget(null);
                     }}
                 />
             )}

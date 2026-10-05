@@ -2,6 +2,22 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'User fund flows': '资金流水',
+    Recipient: '收款人',
+    Sender: '付款人',
+    USER_WEALTH_PRINCIPAL: '理财本金',
+    USER_CARD_OVERFLOW: '卡片溢出余额',
+    USER_COMMISSION: '历史佣金账户',
+    'Current account balances': '当前各账户余额',
+    'All currencies': '全部币种',
+    'Type / reason': '业务类型／原因',
+    'Account movements': '资金账户变动',
+    'Posted ledger events only. Account movements within one event are shown together.': '仅展示已入账业务；同一业务下的可用、保证金、冻结等账户变动合并展示。',
+    'This user has no posted fund flows.': '该用户暂无已入账资金流水。',
+    'End date must not precede start date.': '结束日期不能早于开始日期。',
+    References: '查看业务编号',
+    'Business reference': '业务编号',
+    'Total records': '总笔数',
     Verification: '认证',
     'Verification history': '认证记录',
     'No identity verification submitted yet.': '该用户尚未提交实名认证。',

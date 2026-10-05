@@ -1,3 +1,13 @@
+On 2026-10-05 the user requested Platform user fund flows for reconciling deposits and
+other account movements. User management's More actions opens a lazy right drawer.
+Require users.read, wallet.read and ledger.read; resolve the user within the routed
+company. Read sealed Ledger entries with only that user's postings, group one business
+entry with its available/deposit/hold/other owned movements, and preserve native decimal
+precision. Date filters use company-local inclusive dates; currency/type filters and
+pagination stay in drawer URL state. Reuse safe business reasons and scoped transfer
+counterparty emails. No wallet provisioning, provider requests, history repair or money
+mutation on reads. See docs/architecture/PLATFORM_USER_FUNDS.md.
+
 On 2026-10-05 the user moved Platform KYC access into the Verification item in each user
 row’s More actions menu (superseding the separate button). Remove the standalone KYC navigation item; open a lazy right drawer
 with tenant/user-scoped paginated application history and masked details. Preserve

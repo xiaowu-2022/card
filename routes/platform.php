@@ -38,6 +38,7 @@ use App\Http\Controllers\Platform\TenantLifecycleController;
 use App\Http\Controllers\Platform\TenantManagementController;
 use App\Http\Controllers\Platform\TopupVerificationController;
 use App\Http\Controllers\Platform\TronWithdrawalsController;
+use App\Http\Controllers\Platform\UserFundsController;
 use App\Http\Controllers\Platform\UserOperationsController;
 use App\Http\Controllers\Platform\UserPromotionController;
 use App\Http\Controllers\Platform\UserReferrerController;
@@ -134,6 +135,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware(['admin.scope:platform,cards.read', 'admin.scope:platform,card_product.manage', 'throttle:10,1'])->post('/tenants/{tenant}/cards/{card}/transactions/sync', [CardOperationsController::class, 'syncTransactions'])->whereUuid(['tenant', 'card'])->name('cards.transactions.sync');
     Route::middleware(['admin.scope:platform,cards.read', 'throttle:30,1'])->post('/tenants/{tenant}/cards/{card}/refresh', [CardOperationsController::class, 'refresh'])->whereUuid(['tenant', 'card'])->name('cards.refresh');
     Route::middleware('admin.scope:platform,users.read')->get('/users', UserOperationsController::class)->name('users.index');
+    Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,ledger.read'])->get('/tenants/{tenant}/users/{user}/funds', UserFundsController::class)->whereUuid(['tenant', 'user'])->name('users.funds');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,kyc.read'])->get('/tenants/{tenant}/users/{user}/kyc', [KycDetailController::class, 'user'])->whereUuid(['tenant', 'user'])->name('users.kyc');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.referrer.manage'])->group(function () {
         Route::get('/tenants/{tenant}/users/{user}/referrer', [UserReferrerController::class, 'show'])->whereUuid(['tenant', 'user']);

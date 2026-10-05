@@ -423,11 +423,25 @@ it('groups current team levels at one boundary without regrouping historical rew
     paidBuy($this, $this->user, 6);
     $direct = paidChild($this, $this->user);
     paidChild($this, $this->user);
-    paidBuy($this, $direct, 1);
-    $indirect = paidChild($this, $direct);
-    $lastOrder = paidBuy($this, $indirect, 2);
-    paidChild($this, $indirect);
     $query = app(PaidPromotionQuery::class);
+    $ordinary = $query->execute($this->tenant->id, $this->user->id);
+    expect($ordinary['teamByLevel'][0])->toBe(['rank' => 0, 'direct' => 2, 'indirect' => 0])
+        ->and($ordinary['directPeople'])->toBe(2);
+    paidBuy($this, $direct, 1);
+    $firstUpgrade = $query->execute($this->tenant->id, $this->user->id);
+    expect($firstUpgrade['teamByLevel'][0]['direct'])->toBe(1)
+        ->and($firstUpgrade['teamByLevel'][1]['direct'])->toBe(1)
+        ->and($firstUpgrade['directPeople'])->toBe(2);
+    $indirect = paidChild($this, $direct);
+    $ordinaryIndirect = $query->execute($this->tenant->id, $this->user->id);
+    expect($ordinaryIndirect['teamByLevel'][0]['indirect'])->toBe(1)
+        ->and($ordinaryIndirect['indirectPeople'])->toBe(1);
+    $lastOrder = paidBuy($this, $indirect, 2);
+    $indirectUpgrade = $query->execute($this->tenant->id, $this->user->id);
+    expect($indirectUpgrade['teamByLevel'][0]['indirect'])->toBe(0)
+        ->and($indirectUpgrade['teamByLevel'][2]['indirect'])->toBe(1)
+        ->and($indirectUpgrade['indirectPeople'])->toBe(1);
+    paidChild($this, $indirect);
     $before = $query->execute($this->tenant->id, $this->user->id);
     expect($before['teamByLevel'])->toHaveCount(9)
         ->and($before['directPeople'])->toBe(2)
@@ -440,6 +454,11 @@ it('groups current team levels at one boundary without regrouping historical rew
     $upgraded = $query->execute($this->tenant->id, $this->user->id);
     expect($upgraded['teamByLevel'][1]['direct'])->toBe(0)
         ->and($upgraded['teamByLevel'][3]['direct'])->toBe(1)
+        ->and($upgraded['teamByLevel'][0]['direct'])->toBe(1)
+        ->and($upgraded['directPeople'])->toBe(2)
+        ->and($upgraded['indirectPeople'])->toBe(2)
+        ->and(array_sum(array_column($upgraded['teamByLevel'], 'direct')))->toBe(2)
+        ->and(array_sum(array_column($upgraded['teamByLevel'], 'indirect')))->toBe(2)
         ->and($upgraded['tables']['ANNUAL'][1])->toBe($before['tables']['ANNUAL'][1]);
     $this->travelTo(CarbonImmutable::parse(DB::table('paid_promotion_cycles')->where('id', $lastOrder->cycle_id)->value('ends_at')));
     $entries = DB::table('ledger_entries')->count();
