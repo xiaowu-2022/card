@@ -254,7 +254,7 @@ export function PartnerInvitationsReport({
                                     </TableHeader>
                                     <TableBody>
                                         <TableRow>
-                                            <TableCell>{t('Registered member')}</TableCell>
+                                            <TableCell>{t('Registered member (not activated)')}</TableCell>
                                             <TableCell>
                                                 {report.summary.registeredMembers?.direct ?? 0}
                                             </TableCell>

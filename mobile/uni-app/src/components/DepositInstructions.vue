@@ -56,7 +56,7 @@ function copy(value: string, label: string) {
 </script>
 <template>
     <view class="deposit-card"
-        ><text class="bold">{{ t(state) }}</text
+        ><text class="bold">{{ t(state === 'Completed' ? 'Actual receipt' : state) }}</text
         ><text>{{ exactAmount(amount) }} {{ asset }} · {{ networkLabel }}</text
         ><button class="primary" @click="open = true">{{ t('View payment instructions') }}</button
         ><text class="text-link" @click="go(newHref)">{{ t('Start a new request') }}</text></view
@@ -68,7 +68,7 @@ function copy(value: string, label: string) {
         ><view class="deposit-details"
             ><view class="deposit-status"
                 ><AssetIcon :asset="asset" /><view
-                    ><text class="bold block">{{ t(state) }}</text
+                    ><text class="bold block">{{ t(state === 'Completed' ? 'Actual receipt' : state) }}</text
                     ><text class="muted">{{ asset }} · {{ networkLabel }}</text></view
                 ></view
             ><text class="small muted">{{ t('Amount to send') }}</text

@@ -1,3 +1,4 @@
+import { ReceiptTypeSelect } from '@/components/admin/ReceiptTypeSelect';
 import { DetailDrawerContent } from '@/components/admin/DetailDrawer';
 import { AssetNavigation } from '@/components/admin/AssetNavigation';
 import type { SharedProps } from '@/types/global';
@@ -16,6 +17,8 @@ import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/componen
 import { t, useAdminTranslation, errorMessage, dateTime } from '@/i18n/admin';
 
 type Order = {
+    receiptType: 'ACTUAL' | 'ADVANCE';
+    canAdvance: boolean;
     operations?: ManualOperation[];
     legacy: boolean;
     canConfirm: boolean;
@@ -257,6 +260,7 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
         request_id: crypto.randomUUID(),
         tx_hash: o.tx_hash,
         confirmed: false,
+        receipt_type: 'ACTUAL' as 'ACTUAL' | 'ADVANCE',
         approve: true,
         reason: '',
     });
@@ -344,6 +348,12 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
             {o.tx_hash && (
                 <p className="break-all text-sm">
                     {t('Transaction hash')}: {o.tx_hash}
+                </p>
+            )}
+            {mode === 'deposit' && o.manuallyConfirmed && (
+                <p>
+                    {t('Receipt type')}:{' '}
+                    {t(o.receiptType === 'ADVANCE' ? 'Advance amount' : 'Actual receipt')}
                 </p>
             )}
             {o.operator && o.operated_at && (
@@ -451,6 +461,17 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
                         />
                     )}
 
+                    {action === 'confirm' && (
+                        <ReceiptTypeSelect
+                            value={form.data.receipt_type}
+                            canAdvance={o.canAdvance && permissions.includes('partners.manage')}
+                            disabled={form.processing}
+                            onChange={(value) => {
+                                form.setData('receipt_type', value);
+                                form.setData('confirmed', false);
+                            }}
+                        />
+                    )}
                     <label className="flex min-h-11 items-center gap-3 text-sm">
                         <input
                             type="checkbox"

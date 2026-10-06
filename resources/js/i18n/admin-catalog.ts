@@ -2,6 +2,13 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Receipt type': '入金类型',
+    'Actual receipt': '实际到账',
+    'Advance amount': '预支金额',
+    'Credit the wallet and record the same amount as a partner advance.':
+        '确认后增加钱包余额，同时记入该合伙人的预支金额。',
+    'I authorize crediting the full order amount as an advance.':
+        '我确认按订单全额预支并增加钱包余额。',
     'Verification processing failed': '认证处理失败',
     'Your documents are saved. Contact support to retry verification.':
         '提交资料已保留，请联系客服重新审核。',

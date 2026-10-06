@@ -27,7 +27,7 @@ export const inboxCatalog = {
     QUEUED: ['等待后台处理', 'Menunggu pemprosesan', 'En espera de procesamiento'],
     WAITING_REVIEW: ['等待人工审核', 'Menunggu semakan manual', 'Pendiente de revisión manual'],
     COMPLETE: ['已完成', 'Selesai', 'Completado'],
-    'Deposit credited': ['充值到账', 'Deposit diterima', 'Depósito abonado'],
+    'Deposit credited': ['实际到账', 'Deposit diterima', 'Depósito abonado'],
     'Transfer received': ['转账到账', 'Pindahan diterima', 'Transferencia recibida'],
     'Transfer completed': ['转账成功', 'Pindahan berjaya', 'Transferencia completada'],
     'Withdrawal completed': ['提现成功', 'Pengeluaran berjaya', 'Retiro completado'],

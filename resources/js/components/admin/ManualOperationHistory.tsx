@@ -1,5 +1,6 @@
 import { t, dateTime } from '@/i18n/admin';
 export type ManualOperation = {
+    receiptType?: 'ACTUAL' | 'ADVANCE' | null;
     id: string;
     action: string;
     operatorId: string | null;
@@ -20,6 +21,16 @@ export function ManualOperationHistory({ operations }: { operations: ManualOpera
                     {operations.map((operation) => (
                         <li key={operation.id} className="space-y-1 py-3 text-sm">
                             <p className="font-medium">{t(operation.action)}</p>
+                            {operation.receiptType && (
+                                <p>
+                                    {t('Receipt type')}:{' '}
+                                    {t(
+                                        operation.receiptType === 'ADVANCE'
+                                            ? 'Advance amount'
+                                            : 'Actual receipt',
+                                    )}
+                                </p>
+                            )}
                             <p>
                                 {t('Operator')}: {operation.operatorName ?? t('Unknown operator')}{' '}
                                 <span className="break-all text-xs text-muted-foreground">

@@ -38,7 +38,23 @@ export default function FinancialOperations({
                                 <div className="max-w-64 break-all text-xs">{row.orderId}</div>
                             ),
                         },
-                        { label: 'Operation', render: (row) => t(row.action) },
+                        {
+                            label: 'Operation',
+                            render: (row) => (
+                                <>
+                                    {t(row.action)}
+                                    {row.receiptType && (
+                                        <p className="text-xs text-muted-foreground">
+                                            {t(
+                                                row.receiptType === 'ADVANCE'
+                                                    ? 'Advance amount'
+                                                    : 'Actual receipt',
+                                            )}
+                                        </p>
+                                    )}
+                                </>
+                            ),
+                        },
                         {
                             label: 'Operator',
                             render: (row) => (

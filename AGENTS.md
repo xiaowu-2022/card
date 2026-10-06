@@ -1,3 +1,12 @@
+On 2026-10-06 the user added ACTUAL/ADVANCE to Platform manual deposit confirmation.
+Default ACTUAL; ADVANCE only for enabled same-company partners in USDT, requiring
+wallet_topups.confirm plus partners.manage. Atomically credit once and append the
+same amount to existing ADVANCE journals, with immutable order association and type.
+No late advance on credited orders or historical backfill. Consumer deposit pages,
+activity and notifications use Actual receipt without classification; partner reports
+retain Advance labels. Journal reversals never debit wallets. See
+docs/architecture/PLATFORM_FUNDS_ORDERS.md.
+
 On 2026-10-05 the user revised partner business stock commission deductions to the
 net posted commissions received by all current non-partner descendants. Exclude the
 owner and currently enabled descendant partners personally, traversing through their

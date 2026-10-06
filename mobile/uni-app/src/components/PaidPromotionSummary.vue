@@ -78,7 +78,7 @@ function tableHeading(label: string) {
                 >{{ tableHeading(label) }}</text
             ></view
         ><view class="table-row">
-            <text>{{ t('Registered member') }}</text>
+            <text>{{ t('Registered member (not activated)') }}</text>
             <text>{{ paid.registeredMembers?.direct ?? 0 }}</text>
             <text>{{ paid.registeredMembers?.indirect ?? 0 }}</text>
             <text>—</text><text>—</text> </view

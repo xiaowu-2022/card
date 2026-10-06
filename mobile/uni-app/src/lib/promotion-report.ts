@@ -81,7 +81,7 @@ export type MembershipStatus = 'agent' | 'ordinary' | 'inactive';
 export function memberStatusLabel(status: MembershipStatus, rank: number) {
     return status === 'agent'
         ? promotionLevel(rank)
-        : t(status === 'ordinary' ? 'Ordinary member' : 'Registered member');
+        : t(status === 'ordinary' ? 'Ordinary member' : 'Registered member (not activated)');
 }
 
 // Presentation-only navigation memory, isolated by company and signed-in viewer.

@@ -1,5 +1,6 @@
 export const paidPromotionCatalog = {
     'Registered member': ['注册会员', 'Ahli berdaftar', 'Miembro registrado'],
+    'Registered member (not activated)': ['注册会员（未激活）', 'Ahli berdaftar (belum diaktifkan)', 'Miembro registrado (sin activar)'],
     'Deposit refunds do not reduce ordinary member counts. Becoming an agent replaces ordinary membership; after agent status ends, a new deposit payment is required.':
         [
             '退保证金不扣普通会员人数；升级代理后计入代理，到期或降为无代理等级后须重新缴纳保证金才能计入普通会员。',

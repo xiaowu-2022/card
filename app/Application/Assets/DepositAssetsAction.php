@@ -2,6 +2,7 @@
 
 namespace App\Application\Assets;
 
+use App\Application\Payment\ManualDepositReceipt;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Assets\AssetCatalog;
 use App\Domain\Assets\AssetDepositOrder;
@@ -73,7 +74,7 @@ final readonly class DepositAssetsAction
         }, 3);
     }
 
-    public function manual(string $tenantId, string $id, AdminUser $actor, string $requestId, bool $confirmed): AssetDepositOrder
+    public function manual(string $tenantId, string $id, AdminUser $actor, string $requestId, bool $confirmed, string $receiptType = 'ACTUAL'): AssetDepositOrder
     {
         $this->access->platform($actor, 'wallet_topups.confirm');
         AssetAccess::requestId($requestId);
@@ -81,18 +82,23 @@ final readonly class DepositAssetsAction
             throw new DomainException('CONFIRMATION_REQUIRED', 'Explicit confirmation is required.');
         }
 
-        return DB::transaction(function () use ($tenantId, $id, $actor, $requestId) {
+        return DB::transaction(function () use ($tenantId, $id, $actor, $requestId, $receiptType) {
             AssetAccess::lock('asset-manual:'.$actor->id.':'.$requestId);
             $order = AssetDepositOrder::query()->where('tenant_id', $tenantId)->whereKey($id)->lockForUpdate()->firstOrFail();
+            $this->access->platform($actor, 'wallet_topups.confirm');
+            $used = AssetDepositOrder::query()->where('manual_confirmed_by', $actor->id)->where('manual_request_id', $requestId)->first();
+            if ($used && ($used->id !== $order->id || $used->tenant_id !== $tenantId)) {
+                throw new DomainException('IDEMPOTENCY_CONFLICT', 'This request identifier was already used.', 409);
+            }
+            app(ManualDepositReceipt::class)->checkRetry($order, $receiptType, $requestId, 'manual_request_id', $actor);
             if ($order->status === 'CREDITED') {
                 return $order;
             }
             if (! in_array($order->status, ['PENDING', 'CONFIRMING'], true) || $order->expires_at->lessThanOrEqualTo(now())) {
                 throw new DomainException('TOPUP_CONFIRMATION_UNAVAILABLE', 'This deposit is not eligible for manual confirmation.', 409);
             }
-            if (AssetDepositOrder::query()->where('manual_confirmed_by', $actor->id)->where('manual_request_id', $requestId)->exists()) {
-                throw new DomainException('IDEMPOTENCY_CONFLICT', 'This request identifier was already used.', 409);
-            }
+
+            $order->forceFill(app(ManualDepositReceipt::class)->attributes($order, $actor, $receiptType));
 
             return $this->credit($order, null, $actor, $requestId);
         }, 3);
@@ -135,7 +141,7 @@ final readonly class DepositAssetsAction
             $changes += ['manual_confirmed_by' => $actor->id, 'manual_confirmed_at' => now(), 'manual_request_id' => $request];
         }
         $order->update($changes);
-        $this->audit->record($order->tenant_id, $actor ? 'ADMIN' : 'SYSTEM', $actor?->id, $actor ? 'ASSET_DEPOSIT_MANUALLY_CONFIRMED' : 'ASSET_DEPOSIT_CREDITED', 'asset_deposit_order', $order->id, null, ['amount' => $order->amount, 'asset' => $order->asset_code, 'chain_verified' => $event !== null], $request);
+        $this->audit->record($order->tenant_id, $actor ? 'ADMIN' : 'SYSTEM', $actor?->id, $actor ? 'ASSET_DEPOSIT_MANUALLY_CONFIRMED' : 'ASSET_DEPOSIT_CREDITED', 'asset_deposit_order', $order->id, null, ['amount' => $order->amount, 'asset' => $order->asset_code, 'chain_verified' => $event !== null, 'manual_receipt_type' => $order->manual_receipt_type, 'advance_journal_id' => $order->advance_journal_id], $request);
 
         return $order->refresh();
     }

@@ -74,8 +74,8 @@ final class AssetsController extends Controller
 
     public function confirm(Request $r, Tenant $tenant, string $order, DepositAssetsAction $action)
     {
-        $d = $r->validate(['request_id' => 'required|uuid', 'confirmed' => 'required|accepted']);
-        $action->manual($tenant->id, $order, $r->user('platform_admin'), $d['request_id'], true);
+        $d = $r->validate(['request_id' => 'required|uuid', 'receipt_type' => 'sometimes|required|in:ACTUAL,ADVANCE', 'confirmed' => 'required|accepted']);
+        $action->manual($tenant->id, $order, $r->user('platform_admin'), $d['request_id'], true, $d['receipt_type'] ?? 'ACTUAL');
 
         return back();
     }

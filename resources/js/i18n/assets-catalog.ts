@@ -1,4 +1,5 @@
 export const assetsCatalog = {
+    'Actual receipt': ['实际到账', 'Dana diterima', 'Fondos recibidos'],
     'Available for redemption': ['到期可赎回', 'Boleh ditebus', 'Disponible para rescate'],
     'Renewal pending': ['续购处理中', 'Pembaharuan menunggu', 'Renovación pendiente'],
     'Redeemed to wallet': ['已赎回至钱包', 'Ditebus ke dompet', 'Rescatado a la billetera'],

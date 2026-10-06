@@ -4,6 +4,7 @@ namespace App\Application\Payment;
 
 use App\Domain\Payment\Models\WalletTopupOrder;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 
 final class PlatformTopupQuery
 {
@@ -27,6 +28,8 @@ final class PlatformTopupQuery
                 'companyId' => $order->tenant_id, 'companyName' => $order->company_name,
                 'accountId' => $order->account_id, 'userEmail' => $order->user_email,
                 'amount' => $order->amount, 'asset' => $order->asset_code, 'status' => $order->status->value,
+                'receiptType' => $order->manual_receipt_type ?? 'ACTUAL',
+                'canAdvance' => $order->asset_code === 'USDT' && DB::table('partner_configurations')->where('tenant_id', $order->tenant_id)->where('user_id', $order->user_id)->where('enabled', true)->exists(),
                 'network' => $order->network_code, 'manuallyConfirmed' => $order->manual_confirmed_at !== null,
                 'manualConfirmedAt' => $order->manual_confirmed_at?->toIso8601String(),
                 'manualConfirmedBy' => $order->manual_confirmed_by === null ? null : ['id' => $order->manual_confirmed_by, 'name' => $order->confirmer_name],

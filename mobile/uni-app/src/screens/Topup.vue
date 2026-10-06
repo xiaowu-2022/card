@@ -80,7 +80,13 @@ async function submit() {
                 ><text class="muted small">{{ dateTime(order.createdAt) }}</text></view
             ><view class="order-value"
                 ><text class="block">{{ exactAmount(order.expectedAmount) }} {{ order.asset }}</text
-                ><text class="muted small">{{ t(order.status) }}</text></view
+                ><text class="muted small">{{
+                    t(
+                        ['CREDITED', 'COMPLETED'].includes(order.status)
+                            ? 'Actual receipt'
+                            : order.status,
+                    )
+                }}</text></view
             ></view
         ></PageShell
     >

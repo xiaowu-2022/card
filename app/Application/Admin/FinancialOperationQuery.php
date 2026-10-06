@@ -13,6 +13,7 @@ final class FinancialOperationQuery
             ->leftJoin('tenants as company', 'company.id', '=', 'a.tenant_id')
             ->where('a.actor_type', 'ADMIN')->whereIn('a.resource_type', ['wallet_topup_order', 'withdrawal_order', 'asset_deposit_order', 'asset_withdrawal_order', 'promotion_rebate'])
             ->select('a.id', 'a.tenant_id', 'a.resource_id', 'a.resource_type', 'a.action', 'a.actor_id', 'a.created_at', 'actor.name as actor_name', 'company.name as company_name')
+            ->selectRaw("CASE WHEN a.action IN ('PLATFORM_TOPUP_MANUALLY_CONFIRMED', 'ASSET_DEPOSIT_MANUALLY_CONFIRMED') THEN COALESCE(a.after_data->>'manual_receipt_type', 'ACTUAL') ELSE NULL END AS receipt_type")
             ->orderByDesc('a.created_at')->orderByDesc('a.id');
     }
 
@@ -33,7 +34,7 @@ final class FinancialOperationQuery
 
     private function present(object $row): array
     {
-        return ['id' => $row->id, 'companyId' => $row->tenant_id, 'companyName' => $row->company_name,
+        return ['receiptType' => in_array($row->receipt_type, ['ACTUAL', 'ADVANCE'], true) ? $row->receipt_type : null, 'id' => $row->id, 'companyId' => $row->tenant_id, 'companyName' => $row->company_name,
             'orderId' => $row->resource_id, 'orderType' => $row->resource_type, 'action' => $row->action,
             'operatorId' => $row->actor_id, 'operatorName' => $row->actor_name,
             'operatedAt' => CarbonImmutable::parse($row->created_at)->toIso8601String()];

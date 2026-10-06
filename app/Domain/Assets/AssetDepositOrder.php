@@ -10,6 +10,8 @@ final class AssetDepositOrder extends AssetRecord
 
     protected $guarded = [];
 
+    protected $hidden = ['manual_receipt_type', 'advance_journal_id'];
+
     protected function casts(): array
     {
         return ['amount' => AssetAmountCast::class, 'requested_amount' => AssetAmountCast::class, 'expires_at' => 'immutable_datetime', 'manual_confirmed_at' => 'immutable_datetime'];

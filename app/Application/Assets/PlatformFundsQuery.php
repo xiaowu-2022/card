@@ -64,6 +64,9 @@ final class PlatformFundsQuery
 
             return [
                 'id' => $o->id, 'source' => $row->source, 'legacy' => $primary,
+                'receiptType' => $withdrawal ? null : ($o->manual_receipt_type ?? 'ACTUAL'),
+                'advanceJournalId' => $withdrawal ? null : $o->advance_journal_id,
+                'canAdvance' => ! $withdrawal && $o->asset_code === 'USDT' && DB::table('partner_configurations')->where('tenant_id', $o->tenant_id)->where('user_id', $o->user_id)->where('enabled', true)->exists(),
                 'manuallyConfirmed' => ! $withdrawal && $o->manual_confirmed_at !== null,
                 'canConfirm' => ! $withdrawal && ($primary
                     ? $o->payment_rail === 'TRC20_SHARED' && $o->asset_code === 'USDT' && in_array($row->status, ['PENDING', 'PROCESSING', 'UNKNOWN'], true)

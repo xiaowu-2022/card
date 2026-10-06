@@ -133,7 +133,7 @@ function records() {
                                 >{{ t(label) }}</text
                             ></view
                         ><view class="table-row"
-                            ><text>{{ t('Registered member') }}</text
+                            ><text>{{ t('Registered member (not activated)') }}</text
                             ><text>{{ summary.registeredMembers?.direct ?? 0 }}</text
                             ><text>{{ summary.registeredMembers?.indirect ?? 0 }}</text
                             ><text>—</text><text>—</text></view

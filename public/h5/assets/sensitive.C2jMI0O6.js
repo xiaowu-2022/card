@@ -1,0 +1,1 @@
+import{T as n,O as e}from"./index-BRX7Z56W.js";function i(i,t={}){function o(){!document.hidden||t.retainOnBackground||t.retainUntilUnmount||i()}n(()=>{t.retainUntilUnmount||t.retainOnBackground&&document.hidden||i()}),e(()=>{i(),document.removeEventListener("visibilitychange",o)}),document.addEventListener("visibilitychange",o)}export{i as u};

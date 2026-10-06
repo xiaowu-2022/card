@@ -22,3 +22,28 @@ The union changes only the query/presentation. The original tenant/order-scoped 
 TRON `SUCCEEDED` is displayed as `COMPLETED`. `VERIFYING` remains distinct from `UNKNOWN`. No order statuses are rewritten. Asset settlement time is taken from its linked Ledger entry, not a mutable updated timestamp. TRON retains its original recorded credit/chain-confirmation time.
 
 Sidebar and asset navigation use existing permission names and current-page highlighting. No new permissions, database migration, data consolidation or financial replay is required for deployment; deploy PHP and rebuilt React assets together.
+
+## Manual receipt classification (2026-10-06)
+
+Both manual confirmation endpoints accept optional `receipt_type=ACTUAL|ADVANCE`;
+absence means ACTUAL. The existing order amount and currency remain server-owned.
+ADVANCE requires wallet_topups.confirm plus partners.manage, an enabled same-company
+partner owner and USDT. Confirmation atomically credits the wallet once, stores the
+immutable manual_receipt_type/advance_journal_id, and appends a PartnerManagement
+ADVANCE journal for the exact credited amount. The journal uses the company-local
+confirmation date and a generated order reference note. ACTUAL creates no journal.
+No chain evidence is fabricated. Same-request type changes fail idempotency checks;
+an already credited order never acquires a new classification or advance, including
+when chain settlement wins first. Existing journal reversals remain informational
+and do not debit the wallet.
+
+Only Platform DTOs expose classification; consumer serialization hides both fields.
+Consumer successful deposit pages/activity/notifications use Actual receipt; existing
+partner reports retain Advance labels. Historical null classifications remain null
+in storage and display as actual receipts, without financial or journal backfill.
+
+Deploy migration 2026_10_06_120000_add_manual_deposit_receipt_type before the new
+application/admin build, then publish the compiled H5 at public/h5. Keep old hashed
+H5 assets during publication. Do not roll back classification columns after real
+classified receipts without preserving their audit associations. Verification uses
+ManualDepositReceiptTest in isolated card_ui_test only, never real transfers.

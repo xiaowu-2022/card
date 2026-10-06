@@ -1,3 +1,4 @@
+import { ReceiptTypeSelect } from '@/components/admin/ReceiptTypeSelect';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { t, useAdminTranslation, errorMessage, dateTime } from '@/i18n/admin';
@@ -28,6 +29,8 @@ type Order = {
     asset: string;
     status: string;
     network: string | null;
+    receiptType: 'ACTUAL' | 'ADVANCE';
+    canAdvance: boolean;
     manuallyConfirmed: boolean;
     manualConfirmedAt: string | null;
     manualConfirmedBy: { id: string; name: string | null } | null;
@@ -47,7 +50,12 @@ function ConfirmForm({
     order: Order;
     close: () => void;
 }) {
-    const form = useForm({ request_id: crypto.randomUUID(), confirmed: false });
+    const permissions = usePage<SharedProps>().props.auth.admin?.permissions ?? [];
+    const form = useForm({
+        request_id: crypto.randomUUID(),
+        confirmed: false,
+        receipt_type: 'ACTUAL' as 'ACTUAL' | 'ADVANCE',
+    });
     return (
         <form
             className="space-y-4"
@@ -62,6 +70,15 @@ function ConfirmForm({
                 {order.companyName} · {order.accountId} · {t('Order')}: {order.reference} ·{' '}
                 <MoneyDisplay amount={order.amount} asset={order.asset} compact />
             </p>
+            <ReceiptTypeSelect
+                value={form.data.receipt_type}
+                canAdvance={order.canAdvance && permissions.includes('partners.manage')}
+                disabled={form.processing}
+                onChange={(value) => {
+                    form.setData('receipt_type', value);
+                    form.setData('confirmed', false);
+                }}
+            />
             <label className="flex items-start gap-3 text-sm">
                 <Checkbox
                     checked={form.data.confirmed}
@@ -70,7 +87,9 @@ function ConfirmForm({
                 />
                 <span>
                     {t(
-                        'I confirm receipt of the full order amount and authorize crediting this user wallet without an on-chain check.',
+                        form.data.receipt_type === 'ADVANCE'
+                            ? 'I authorize crediting the full order amount as an advance.'
+                            : 'I confirm receipt of the full order amount and authorize crediting this user wallet without an on-chain check.',
                     )}
                 </span>
             </label>
@@ -152,7 +171,12 @@ export default function Topups({ companies, filters, orders }: Props) {
                                 {t(order.status)}
                                 {order.manuallyConfirmed && (
                                     <p className="text-xs text-muted-foreground">
-                                        {t('Manually confirmed')}
+                                        {t('Manually confirmed')} ·{' '}
+                                        {t(
+                                            order.receiptType === 'ADVANCE'
+                                                ? 'Advance amount'
+                                                : 'Actual receipt',
+                                        )}
                                     </p>
                                 )}
                             </div>

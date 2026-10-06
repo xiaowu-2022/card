@@ -50,7 +50,7 @@ const back = computed(() => (props.page.depositFlow ? '/security-deposit' : '/da
 const title = computed(() =>
     t(
         completed.value
-            ? 'Funds added'
+            ? 'Actual receipt'
             : expired.value
               ? 'Top-up expired'
               : failed.value
