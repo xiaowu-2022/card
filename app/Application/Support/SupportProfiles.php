@@ -11,7 +11,7 @@ final class SupportProfiles
 {
     public function agents()
     {
-        return AdminUser::query()->whereHas('memberships', function ($q) {
+        return AdminUser::query()->whereNotIn('id', DB::table('support_agent_accounts')->select('admin_id'))->whereHas('memberships', function ($q) {
             $q->where('status', 'ACTIVE')->where(function ($q) {
                 $q->where(fn ($q) => $q->where('scope_type', 'TENANT')->whereNotNull('scope_id')->whereHas('role', fn ($r) => $r->where('scope_type', 'TENANT'))->whereHas('role.permissions', fn ($p) => $p->where('name', 'support.manage')))
                     ->orWhere(fn ($q) => $q->where('scope_type', 'PLATFORM')->whereNull('scope_id')->whereHas('role', fn ($r) => $r->where('scope_type', 'PLATFORM'))

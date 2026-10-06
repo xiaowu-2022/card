@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { nextTick, ref, watch, onBeforeUnmount } from 'vue';
-import { onHide, onShow, onUnload } from '@dcloudio/uni-app';
+import { computed, nextTick, ref, watch, onBeforeUnmount } from 'vue';
+import { onHide, onShow, onUnload, onLoad } from '@dcloudio/uni-app';
+import SupportReplyPicker from '../../components/SupportReplyPicker.vue';
+import { supportDenied } from '../../lib/support-workspace';
 import PageShell from '../../components/PageShell.vue';
 import SupportImage from '../../components/SupportImage.vue';
 import UiIcon from '../../components/UiIcon.vue';
@@ -9,10 +11,15 @@ import { requestId } from '../../lib/client';
 import { refreshUnread, requireUser } from '../../lib/session';
 import { t, dateTime } from '../../lib/i18n';
 type Chat = {
+    humanSupport?: { available: boolean; timezone: string; nextOpenAt: string | null };
+    mode?: 'BOT' | 'WAITING' | 'HUMAN';
+    revision?: number;
+    botEnabled?: boolean;
     messages: {
         id: string;
         sequence: number;
         fromSupport: boolean;
+        senderKind?: 'BOT' | 'ADMIN' | 'USER' | 'SUPPORT_AGENT';
         supportName?: string | null;
         text: string | null;
         createdAt: string;
@@ -21,6 +28,73 @@ type Chat = {
     }[];
     olderCursor: number | null;
 };
+const composerId = 'support-composer-' + requestId();
+const conversation = ref('');
+const agent = computed(() => !!conversation.value);
+const base = computed(() =>
+    agent.value ? '/support-workspace/conversations/' + conversation.value : '/support',
+);
+onLoad((options) => {
+    if (options?.conversation) conversation.value = String(options.conversation);
+});
+const picker = ref(false),
+    composerFocus = ref(false),
+    cursor = ref(-1);
+let selectionStart = -1,
+    selectionEnd = -1;
+function rememberSelection(e?: unknown) {
+    const detail = (e as { detail?: { cursor?: number } } | undefined)?.detail;
+    if (typeof detail?.cursor === 'number') selectionStart = selectionEnd = detail.cursor;
+    // #ifdef H5
+    const area = document
+        .getElementById(composerId)
+        ?.querySelector('textarea') as HTMLTextAreaElement | null;
+    if (area) {
+        selectionStart = area.selectionStart;
+        selectionEnd = area.selectionEnd;
+    }
+    // #endif
+}
+async function insertReply(body: string) {
+    const start =
+        selectionStart < 0 ? draft.value.length : Math.min(selectionStart, draft.value.length);
+    const end = selectionEnd < start ? start : Math.min(selectionEnd, draft.value.length);
+    const result = draft.value.slice(0, start) + body + draft.value.slice(end);
+    if (result.length > 2000) {
+        uni.showToast({ title: t('Reply would exceed the message limit.'), icon: 'none' });
+        return;
+    }
+    draft.value = result;
+    picker.value = false;
+    composerFocus.value = false;
+    await nextTick();
+    cursor.value = start + body.length;
+    selectionStart = selectionEnd = cursor.value;
+    composerFocus.value = true;
+}
+let finishIntent: { request_id: string; revision: number } | null = null;
+async function finish() {
+    if (busy.value || !chat.value.revision) return;
+    busy.value = true;
+    actionFailed.value = false;
+    finishIntent ??= { request_id: requestId(), revision: chat.value.revision };
+    try {
+        await request(base.value + '/finish', 'POST', finishIntent);
+        finishIntent = null;
+        await load(true);
+    } catch (e) {
+        if (e instanceof ApiError && e.status === 409) {
+            finishIntent = null;
+            await load(true);
+            uni.showToast({
+                title: t('Conversation changed. Read the latest messages before ending service.'),
+                icon: 'none',
+            });
+        } else if (!supportDenied(e)) actionFailed.value = true;
+    } finally {
+        busy.value = false;
+    }
+}
 const chat = ref<Chat>({ messages: [], olderCursor: null }),
     before = ref(0),
     draft = ref(''),
@@ -33,10 +107,36 @@ const chat = ref<Chat>({ messages: [], olderCursor: null }),
     disconnected = ref(false),
     readFailed = ref(false),
     scrollTo = ref('');
+const handoffFailed = ref(false);
+const polling = ref(false);
+let handoffIntent: string | null = null;
+async function handoff() {
+    if (busy.value || loading.value || polling.value) return;
+    busy.value = true;
+    handoffFailed.value = false;
+    handoffIntent ??= requestId();
+    try {
+        await request('/support/handoff', 'POST', { request_id: handoffIntent });
+        handoffIntent = null;
+        before.value = 0;
+        await load(true);
+    } catch (error) {
+        if (error instanceof ApiError && error.payload?.error?.code === 'SUPPORT_OFFLINE') {
+            chat.value.humanSupport = {
+                ...chat.value.humanSupport,
+                available: false,
+                timezone: chat.value.humanSupport?.timezone ?? '',
+                nextOpenAt: null,
+            };
+            await load(true);
+        } else handoffFailed.value = true;
+    } finally {
+        busy.value = false;
+    }
+}
 let intent: { request_id: string; support_message: string; image: string } | null = null;
 const locked = ref(false);
 let visible = false,
-    polling = false,
     followLatest = true,
     acknowledged = 0,
     generation = 0,
@@ -48,13 +148,13 @@ function foreground() {
     return visible;
 }
 async function load(silent = false) {
-    if (polling) return;
-    polling = true;
+    if (polling.value) return;
+    polling.value = true;
     const run = ++generation;
     if (!silent) loading.value = true;
     try {
         if (!(await requireUser())) return;
-        const data = await request<Chat>('/support?before=' + before.value);
+        const data = await request<Chat>(base.value + '?before=' + before.value);
         if (run !== generation) return;
         chat.value = data;
         failed.value = false;
@@ -66,15 +166,22 @@ async function load(silent = false) {
             scrollTo.value = 'support-last';
         }
         await acknowledge();
-    } catch {
+    } catch (error) {
+        if (agent.value && supportDenied(error)) {
+            stop();
+            chat.value.messages = [];
+            picker.value = false;
+            return;
+        }
         if (silent) disconnected.value = true;
         else failed.value = true;
     } finally {
-        polling = false;
+        polling.value = false;
         loading.value = false;
     }
 }
 async function acknowledge() {
+    if (agent.value) return;
     await nextTick();
     if (!foreground() || failed.value) return;
     const through = Math.max(0, ...chat.value.messages.map((m) => m.sequence));
@@ -131,10 +238,10 @@ async function send() {
     try {
         const data = { request_id: intent.request_id, support_message: intent.support_message };
         if (intent.image)
-            await upload('/support/messages', data, [
+            await upload(base.value + '/messages', data, [
                 { name: 'support_image', path: intent.image },
             ]);
-        else await request('/support/messages', 'POST', data);
+        else await request(base.value + '/messages', 'POST', data);
         draft.value = '';
         image.value = '';
         intent = null;
@@ -143,6 +250,10 @@ async function send() {
         followLatest = true;
         await load(true);
     } catch (error) {
+        if (agent.value && supportDenied(error)) {
+            stop();
+            return;
+        }
         actionFailed.value = true;
         if (error instanceof ApiError && error.status === 422) {
             imageFailed.value = !!error.payload?.errors?.support_image;
@@ -185,27 +296,27 @@ async function chooseImage() {
         const bytes = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
         const png = [137, 80, 78, 71, 13, 10, 26, 10].every((byte, i) => bytes[i] === byte);
         const jpeg = bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
-        const webp = String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' &&
+        const webp =
+            String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' &&
             String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP';
         supported = blob.size <= 5 * 1024 * 1024 && (png || jpeg || webp);
         // #endif
-        if (
-            info.width * info.height > 20000000 ||
-            !supported
-        ) {
+        if (info.width * info.height > 20000000 || !supported) {
             imageFailed.value = true;
             return;
         }
         image.value = result.tempFilePaths[0];
     } catch (error) {
         // Cancellation is silent; unreadable or malformed selected images are not.
-        const message = typeof error === 'object' && error !== null && 'errMsg' in error
-            ? String(error.errMsg) : '';
+        const message =
+            typeof error === 'object' && error !== null && 'errMsg' in error
+                ? String(error.errMsg)
+                : '';
         if (!/cancel/i.test(message)) imageFailed.value = true;
     }
 }
 function navigate(cursor: number) {
-    if (polling) return;
+    if (polling.value) return;
     before.value = cursor;
     followLatest = cursor === 0;
     void load();
@@ -219,14 +330,60 @@ function scrolled(e: { detail: { scrollHeight: number; scrollTop: number } }) {
         })
         .exec();
 }
+function updateDraft(event: unknown) {
+    const value = event as { detail?: { value?: string }; target?: { value?: string } };
+    draft.value = value.detail?.value ?? value.target?.value ?? '';
+}
 </script>
 <template>
-    <PageShell :title="t('Customer support')" back="/account" active="account" chat
+    <PageShell
+        :title="t(agent ? 'Support workspace' : 'Customer support')"
+        :back="agent ? '/support-workspace' : '/account'"
+        active="account"
+        chat
         ><view class="support-thread"
             ><text class="support-privacy">{{
                 t(
                     'Do not send passwords, verification codes, full card numbers, CVV or identity documents.',
                 )
+            }}</text
+            ><view v-if="chat.mode" class="support-mode"
+                ><text>{{
+                    t(
+                        chat.mode === 'BOT'
+                            ? 'Bot support'
+                            : chat.mode === 'WAITING'
+                              ? 'Waiting for human support'
+                              : 'Human support',
+                    )
+                }}</text
+                ><button
+                    v-if="!agent && chat.mode === 'BOT'"
+                    class="secondary"
+                    :disabled="busy || loading || polling || chat.humanSupport?.available === false"
+                    @click="handoff"
+                >
+                    {{ t('Talk to a person') }}</button
+                ><button
+                    v-if="agent && chat.mode !== 'BOT'"
+                    class="secondary"
+                    :disabled="busy || loading || polling"
+                    @click="finish"
+                >
+                    {{ t('End service') }}
+                </button></view
+            ><view
+                v-if="chat.humanSupport?.available === false"
+                class="support-offline"
+                role="status"
+                ><text>{{ t('Customer support is currently offline.') }}</text
+                ><text v-if="chat.humanSupport.nextOpenAt"
+                    >{{ t('Next service time') }}: {{ dateTime(chat.humanSupport.nextOpenAt) }} ({{
+                        chat.humanSupport.timezone
+                    }})</text
+                ><text v-else>{{ t('No upcoming service hours are scheduled.') }}</text></view
+            ><text v-if="handoffFailed" class="support-error">{{
+                t('Unable to transfer. Please try again.')
             }}</text
             ><text v-if="disconnected" class="support-error">{{
                 t('Connection interrupted. Reconnecting… Your draft is saved on this page.')
@@ -267,21 +424,42 @@ function scrolled(e: { detail: { scrollHeight: number; scrollTop: number } }) {
                     v-for="message in chat.messages"
                     :key="message.id"
                     class="support-message"
-                    :class="{ 'support-message-own': !message.fromSupport }"
+                    :class="{
+                        'support-message-own':
+                            message.senderKind !== 'BOT' &&
+                            (agent ? message.fromSupport : !message.fromSupport),
+                    }"
                     ><text class="support-sender">{{
-                        message.fromSupport ? (message.supportName || t('Customer support')) : t('You')
+                        message.senderKind === 'BOT'
+                            ? t('Support assistant')
+                            : message.fromSupport
+                              ? message.supportName || t('Customer support')
+                              : t(agent ? 'Customer' : 'You')
                     }}</text
                     ><view class="support-bubble"
-                        ><SupportImage v-if="message.imageUrl" :path="message.imageUrl" :sources="message.imageSources" /><text
-                            v-if="message.text"
-                            class="support-text"
-                            >{{ message.text }}</text
-                        ></view
+                        ><SupportImage
+                            v-if="message.imageUrl"
+                            :path="message.imageUrl"
+                            :sources="message.imageSources"
+                        /><text v-if="message.text" class="support-text">{{
+                            message.text
+                        }}</text></view
                     ><text class="support-time">{{ dateTime(message.createdAt) }}</text></view
                 ><view id="support-last" style="height: 1px" /></scroll-view
             ><button v-if="readFailed" class="text-button" @click="acknowledge">
                 {{ t('Retry') }}
             </button>
+            <button
+                v-if="agent"
+                class="secondary"
+                :disabled="busy || locked"
+                @touchstart="rememberSelection()"
+                @mousedown="rememberSelection()"
+                @click="picker = true"
+            >
+                {{ t('Quick replies') }}
+            </button>
+            <SupportReplyPicker v-if="picker" @select="insertReply" @close="picker = false" />
             <form class="support-composer" @submit="send">
                 <view v-if="image" class="support-preview"
                     ><image :src="image" mode="aspectFit" /><button
@@ -293,7 +471,12 @@ function scrolled(e: { detail: { scrollHeight: number; scrollTop: number } }) {
                         ×
                     </button></view
                 ><textarea
-                    v-model="draft"
+                    :id="composerId"
+                    :value="draft"
+                    @input="updateDraft"
+                    :focus="composerFocus"
+                    :cursor="cursor"
+                    @blur="rememberSelection"
                     :disabled="busy || locked"
                     :maxlength="2000"
                     :placeholder="t('Write your message…')"
@@ -327,6 +510,23 @@ function scrolled(e: { detail: { scrollHeight: number; scrollTop: number } }) {
     >
 </template>
 <style scoped>
+.support-offline {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 0;
+    color: #85613b;
+    font-size: 12px;
+    line-height: 1.5;
+}
+.support-mode {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0;
+    font-size: 13px;
+}
 .support-thread {
     display: flex;
     flex: 1;

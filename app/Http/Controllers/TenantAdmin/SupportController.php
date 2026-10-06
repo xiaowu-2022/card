@@ -3,9 +3,13 @@
 namespace App\Http\Controllers\TenantAdmin;
 
 use App\Application\Support\SendSupportMessageAction;
+use App\Application\Support\SupportAccess;
+use App\Application\Support\SupportBot;
 use App\Application\Support\SupportChatQuery;
 use App\Application\Support\SupportImageStorage;
 use App\Application\Support\SupportProfiles;
+use App\Application\Support\SupportQuickReplies;
+use App\Domain\Support\Models\SupportConversation;
 use App\Domain\Tenant\TenantContext;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SendSupportMessageRequest;
@@ -51,5 +55,23 @@ final class SupportController extends Controller
         $image = $query->image($context->id(), $request->user('tenant_admin')->id, $message, true);
 
         return $images->response($image['path']);
+    }
+
+    public function finish(Request $request, TenantContext $context, string $conversation, SupportBot $bot)
+    {
+        $data = $request->validate(['request_id' => 'required|uuid', 'revision' => 'required|integer|min:1']);
+        $row = SupportConversation::where('tenant_id', $context->id())->findOrFail($conversation);
+        $bot->finish($context->id(), $row->user_id, $request->user('tenant_admin')->id, $data['request_id'], $data['revision'], false);
+
+        return $request->expectsJson() ? response()->noContent() : back();
+    }
+
+    public function quick(Request $request, TenantContext $context, SupportQuickReplies $replies)
+    {
+        $actor = $request->user('tenant_admin')->id;
+        app(SupportAccess::class)->admin($context->id(), $actor);
+        $request->validate(['search' => 'nullable|string|max:120', 'page' => 'nullable|integer|min:1']);
+
+        return response()->json($replies->visible($context->id(), $actor, $request->string('search'))->paginate(30))->header('Cache-Control', 'private, no-store');
     }
 }

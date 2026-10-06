@@ -112,3 +112,24 @@ See [TENANT_SMS.md](TENANT_SMS.md). All existing OTP ownership and verification 
 - Registration atomically opens an ACTIVE zero-balance default wallet through the idempotent wallet activation action, with scoped accounts and audit. KYC is not required just to open a wallet. The existing authenticated wallet ensure POST can fill a missing wallet for an ACTIVE user; GET and authentication reads remain read-only. Existing suspended/closed wallets are never reactivated. KYC, deposit, card qualification, rewards and financial Ledger entries remain untouched; operational KYC/status/balance gates still apply.
 - A SUSPENDED User may read an existing Wallet but cannot activate one or perform any financial mutation. DISABLED Users have no authenticated Wallet access.
 - Authentication is required for KYC submission. Suspended Users may read `/kyc` but cannot submit; KYC status remains a derived KYC concern and is never an authentication flag on `users`.
+
+### Platform-created consumer accounts (2026-10-06)
+
+Platform Users offers an Add account dialog under `users.read` + `users.create`.
+Only Platform Owner/Admin receive the new permission by default; tenant admins and
+read-only roles cannot create accounts. The explicit company route, active company,
+normalized company-unique email, optional display name and confirmed consumer password
+(minimum six characters) determine a new active consumer. This is an authorized
+exception to the consumer registration OTP/invitation requirement, not an AdminUser.
+Email ownership is not falsely marked verified.
+
+Creation locks Tenant before User and atomically saves profile, default locale,
+zero-balance wallet/accounts, ordinary promotion membership, audit and immutable
+`platform_user_creations` evidence. Actor/company/request UUID retries return the
+same account; conflicting retries fail. No deposits, rewards or ledger entries occur.
+The new evidence gives `KycStatusService` APPROVED by default and supplies the public
+verification time without fabricating identity numbers, photos, OCR or KYC applications.
+Platform Verification shows this source explicitly. Existing approved identity and
+provider card-material requirements remain intact; real documents can still be
+submitted through the existing consumer verification flow. No existing users are
+converted. Deploy migration `2026_10_06_210000` before new PHP/admin assets.

@@ -95,12 +95,16 @@ it('reuses complete stock totals while removing administrator identities', funct
     $child = hierarchyChild($this->owner);
     $p = hierarchyPartner($this, $child);
     app(PartnerManagement::class)->journal($this->admin, $this->tenant->id, $p->id, ['kind' => 'ADVANCE', 'amount' => '10', 'business_date' => now()->format('Y-m-d'), 'note' => 'Shared cooperation note', 'request_id' => (string) Str::uuid()]);
+    app(PartnerManagement::class)->journal($this->admin, $this->tenant->id, $p->id, ['kind' => 'REIMBURSEMENT', 'amount' => '12.34567891', 'business_date' => now()->format('Y-m-d'), 'note' => 'Offline stock precision fixture', 'request_id' => (string) Str::uuid()]);
     $expected = app(PartnerReport::class)->read($this->tenant->id, $child->id);
     $actual = hierarchyRead($this, $p->id, 'report')['report'];
+    $row = collect(hierarchyRead($this)['items'])->firstWhere('id', $p->id);
+    expect($row['email'])->toBe($child->email)
+        ->and($row['stock'])->toBe('-12.34567891')->toBe($expected['stock']);
     foreach (['stock', 'totals', 'accountBalance', 'share', 'risks'] as $field) {
         expect($actual[$field])->toBe($expected[$field]);
     }
-    expect(data_get($actual, 'journal.items.0.note'))->toBe('Shared cooperation note')
+    expect(array_column($actual['journal']['items'], 'note'))->toContain('Shared cooperation note')
         ->and(data_get($actual, 'journal.items.0.actor_id'))->toBeNull();
     $details = app(PartnerHierarchy::class)->read($this->tenant->id, $this->owner->id, $p->id, 'report', 1, 'inflow', 2)['report'];
     expect($details['subject']['id'])->toBe($p->id)->and($details['flowDetails']['page'])->toBe(2);
@@ -120,7 +124,7 @@ it('serves consumer pages and rechecks scope on detail pagination without writes
     $p = hierarchyPartner($this, $child);
     $before = [DB::table('wallets')->count(), DB::table('ledger_entries')->count(), DB::table('promotion_members')->count(), DB::table('partner_journal_entries')->count()];
     $url = 'http://a.localhost/api/v1/client/promotion/stock/partners';
-    $this->actingAs($this->owner, 'tenant_user')->getJson($url)->assertOk()->assertJsonPath('component', 'user/PartnerChildren')->assertJsonPath('props.partners.items.0.id', $p->id);
+    $this->actingAs($this->owner, 'tenant_user')->getJson($url)->assertOk()->assertJsonPath('component', 'user/PartnerChildren')->assertJsonPath('props.partners.items.0.id', $p->id)->assertJsonPath('props.partners.items.0.email', $child->email)->assertJsonPath('props.partners.items.0.stock', '0.00000000');
     $this->getJson($url.'/'.$p->id.'/report?flow=inflow&flow_page=2')->assertOk()->assertJsonPath('props.report.subject.id', $p->id)->assertJsonPath('props.report.flowDetails.page', 2);
     expect([DB::table('wallets')->count(), DB::table('ledger_entries')->count(), DB::table('promotion_members')->count(), DB::table('partner_journal_entries')->count()])->toBe($before);
     $this->actingAs($child, 'tenant_user')->getJson($url.'/'.$this->root->id.'/report')->assertNotFound();

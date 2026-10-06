@@ -135,7 +135,7 @@ export async function upload<T>(
         '/client/kyc/recognize-front': 'kyc',
         '/client/cards/cardholder': 'card',
         '/support/messages': 'support',
-    } as Record<string, string>)[path.split('?')[0]];
+    } as Record<string, string>)[path.split('?')[0]] ?? (/^\/support-workspace\/conversations\/[a-f0-9-]{36}\/messages$/.test(path) ? 'support' : undefined);
     if (purpose && files.length) {
         const payload: Record<string, unknown> = { ...data };
         let completed = 0;
@@ -252,7 +252,7 @@ export function photoUrl(value: string | null) {
 }
 export async function privateImage(path: string): Promise<string> {
     if (
-        !/^\/support\/images\/[a-f0-9-]{36}$/i.test(path) &&
+        !/^\/(?:support|support-workspace)\/images\/[a-f0-9-]{36}$/i.test(path) &&
         path !== '/client/promotion/poster-background'
     )
         return Promise.reject(new ApiError(404));

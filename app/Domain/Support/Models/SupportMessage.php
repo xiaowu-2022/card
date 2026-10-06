@@ -13,10 +13,10 @@ final class SupportMessage extends Model
 
     protected $guarded = [];
 
-    protected $hidden = ['support_message', 'image_object_key', 'image_hash', 'sender_user_id', 'sender_admin_id', 'request_id'];
+    protected $hidden = ['support_message', 'image_object_key', 'image_hash', 'sender_user_id', 'sender_admin_id', 'sender_support_user_id', 'request_id'];
 
     protected function casts(): array
     {
-        return ['support_message' => 'encrypted', 'image_object_key' => 'encrypted', 'sequence' => 'integer'];
+        return ['support_message' => 'encrypted', 'image_object_key' => 'encrypted', 'sequence' => 'integer', 'is_bot' => 'boolean'];
     }
 }

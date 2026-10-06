@@ -41,11 +41,20 @@ export const reportRank = (rank: number | null | undefined) =>
 export const reportMoney = (amount: string) => `${promotionTableAmount(amount)} USDT`;
 export const fullMoney = (amount: string) => `${exactAmount(amount)} USDT`;
 
+function encodeFilterValue(value: string) {
+    // Preserve free-text names/emails through route and API path validation.
+    return encodeURIComponent(value).replace(
+        /[.!'()*]/g,
+        (char) => '%' + char.charCodeAt(0).toString(16).toUpperCase(),
+    );
+}
+
 export function visitReport(url: string, filters: ReportFilters, changes: ReportFilters = {}) {
     const next = { ...filters, ...changes };
     delete next.date;
     delete next.direct_page;
     delete next.scope;
+    if (url === '/promotion/direct') delete next.funding;
     const query = Object.fromEntries(
         Object.entries(next).filter(
             ([, value]) => value !== null && value !== '' && value !== 'all',
@@ -57,7 +66,7 @@ export function visitReport(url: string, filters: ReportFilters, changes: Report
             Object.entries(query)
                 .map(
                     ([key, value]) =>
-                        encodeURIComponent(key) + '=' + encodeURIComponent(String(value)),
+                        encodeURIComponent(key) + '=' + encodeFilterValue(String(value)),
                 )
                 .join('&'),
         true,
@@ -98,7 +107,7 @@ export function rememberTeam(filters: ReportFilters) {
     scopeVisits();
     const node = String(filters.subject ?? 'root');
     const saved: ReportFilters = {};
-    for (const key of ['account_id', 'rank', 'funding', 'sort', 'page']) {
+    for (const key of ['account_id', 'rank', 'sort', 'page']) {
         const value = filters[key];
         if (typeof value === 'string' || typeof value === 'number') saved[key] = value;
     }
@@ -111,7 +120,7 @@ export function teamReturnHref(id?: string | null) {
     const fields = { ...(id ? { subject: id } : {}), ...visits.get(id ?? 'root') };
     const query = Object.entries(fields)
         .filter(([, v]) => v !== null && v !== '' && v !== 'all')
-        .map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(String(v)))
+        .map(([k, v]) => encodeURIComponent(k) + '=' + encodeFilterValue(String(v)))
         .join('&');
     return '/promotion/direct' + (query ? '?' + query : '');
 }

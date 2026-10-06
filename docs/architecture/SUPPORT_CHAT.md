@@ -126,3 +126,159 @@ Migration `2026_09_27_160000_add_platform_support.php` adds only these two nulla
 columns and the three Platform permissions, granting Owner/Admin incrementally.
 Existing roles' other grants, conversations, message history and money stay intact.
 See `../deployment/PLATFORM_SUPPORT.md` and `../testing/PLATFORM_SUPPORT_20260927.md`.
+
+## FAQ robot and human handoff (2026-10-06)
+
+The user-approved local FAQ robot supersedes the earlier ban on automatic replies
+for this workflow. No language model, external service, translation or generated
+answer is used. The bot sends the saved Chinese answer verbatim as **客服助手**.
+
+Platform **Customer support → Bot and FAQ** (`/platform/support/bot`) requires both
+`support.read` and `support.bot.manage`. Owner/Admin receive the new permission
+incrementally. Each company has an explicit switch, off by default. The public
+library applies to enabled companies; company entries supplement it. An explicit
+company override replaces one public answer or disables that entry for the company.
+Archiving an override restores the public rule. Disabled/archived public entries
+never match, even if an override is enabled. Company overrides inherit current public
+question/variants/keywords. FAQ edits and settings enforce revision checks and audit
+changes. FAQ pages are paginated; editors load only when opened. Match preview is a
+read-only POST and neither creates messages nor enables the robot.
+
+Matching strips punctuation and whitespace and lowercases Unicode text. A unique
+exact canonical question or variant wins. Otherwise use the maximum Unicode bigram
+Dice similarity or 0.85 for a complete keyword substring (minimum two characters).
+Accept only a best score of at least 0.75 with at least a 0.10 lead over the runner-up.
+Ties, ambiguous exact matches, missing matches and image-only input use a fixed
+Chinese response asking the customer to rephrase or select human support. Images
+are retained by the existing upload flow but never OCR'd or inspected by the robot.
+No fallback automatically hands off or invents an answer.
+
+Conversations have three modes:
+
+- `BOT`: new customer conversations when the company bot is enabled; each new user
+  message and its single robot answer persist atomically under Tenant → User →
+  Conversation locks. A unique source-message association prevents duplicate answers.
+- `WAITING`: an authenticated customer explicitly selects **转人工**. It can create
+  an otherwise empty conversation, appends one acknowledgement and stops bot answers.
+- `HUMAN`: a staff reply takes over. **结束接待** requires the current conversation
+  revision and existing send permission, appends a closure notice and restores BOT
+  only if the company switch is enabled. A new user message triggers the next answer.
+
+Existing conversations start HUMAN, including when the bot is subsequently enabled.
+Disabling the switch changes existing BOT conversations to HUMAN; WAITING remains
+visible in the human queue. Re-enabling does not seize existing human conversations.
+Legacy awaiting/replied filters remain; awaiting includes WAITING even when the last
+message is its robot acknowledgement, plus HUMAN with a last user message. BOT traffic
+is separately filterable and does not appear as unanswered human work.
+
+Handoff and finish use owner-bound request UUIDs and immutable transition intents.
+A retry reuses its original result even after later state changes. Ending service
+with a stale revision fails with 409; the UI refreshes and asks staff to read new
+messages. Send retries do not repeat a robot answer or takeover. Bot messages have
+no user/admin sender ID and are explicitly `senderKind: BOT`, with `fromSupport: true`
+for compatible clients. Answer text remains encrypted in immutable message snapshots;
+FAQ ID/revision are internal provenance only. Consumers receive no staff identity
+or FAQ management data. Bot replies and notices count toward support unread using
+the existing visible-sequence POST acknowledgement; inbox remains separate.
+
+New consumer endpoint: `POST /support/handoff`, also bridged through consumer-client,
+H5 `/api/v1` and native `/api/mobile/v1`. Identity is authenticated and host-owned.
+Platform/tenant finish endpoints reuse existing company authorization. No new safe
+route for suspended users, provider call, financial operation, broadcast or external
+notification is introduced. All GETs remain read-only.
+
+
+## Service hours and dedicated workspace (2026-10-06, account model superseded below)
+
+Platform controls company schedules through `support.read` + `support.hours.manage`.
+The seven-day array begins Monday; each day has zero to six intervals. Starts are
+inclusive and ends exclusive, `24:00` is supported, and an end earlier than its
+start means overnight. Overlaps, including Sunday/Monday overlaps, are rejected.
+Unset schedules are 24/7. Evaluate against the company's current IANA timezone,
+including skipped/repeated civil times at DST changes. Agent presence does not
+change availability. Settings saves lock the company, check revision and audit.
+
+Support metadata includes `humanSupport.available`, timezone, weekly intervals and
+nullable `nextOpenAt`. The UI disables offline handoff and explains the next opening.
+The server also rechecks hours in the handoff transaction, returning 409
+`SUPPORT_OFFLINE` before creating a conversation or message. A previously successful
+request UUID is replayed before this check. Existing WAITING/HUMAN conversations
+remain intact across closing time; customers may leave messages and staff may reply.
+The offline FAQ fallback does not invite an unavailable transfer. GET stays read-only.
+
+Platform `support.read` + `support.agents.manage` creates new dedicated email/password
+identities, assigns one or multiple companies, resets passwords and enables/disables
+accounts. Existing administrator identities cannot be converted implicitly. A new
+TENANT `SUPPORT_AGENT` role grants only `support.manage`; the existing broader SUPPORT
+role is not used. The independent `support_agent` guard serves `/support-agent/login`
+and `/support-agent` on the Platform host. Dedicated accounts cannot log in through
+the ordinary admin login. Each workspace request validates account status, session
+version and active assignments; company resources recheck exact company membership.
+Account/access changes increment revision and session version, invalidating existing
+workspace sessions. Disabling remains possible when an assigned company is inactive.
+No unrelated administrator pages or financial permissions are granted.
+
+The workspace has company/status/search filters, independently scrolling conversation
+history and inbox, image replies, revision-checked End service and the existing own
+nickname form. Nicknames remain snapshots on future sent messages only. Nickname
+changes increment the account editor revision without logging out the agent.
+
+Platform `support.read` + `support.replies.manage` maintains company shared quick
+replies; each dedicated agent maintains their own personal replies. Company admins
+cannot manage schedules, dedicated accounts or shared templates. The picker shows
+only the conversation company's shared templates plus the current agent's personal
+templates, with title/body search and pagination. Each reply has title (100 chars),
+body (2000 chars), revision and soft archive; scope cannot change on edit. Selecting
+one inserts it at the composer selection/caret and preserves surrounding draft text.
+It never sends automatically and rejects insertion beyond the message limit. Quick
+replies are separate from robot FAQs and never change historical encrypted messages.
+
+
+## Consumer user support agents (2026-10-06, current)
+
+Support identity now belongs to an existing consumer user in its own company. The
+Platform Users list offers Make support agent / Remove support access and an enabled
+filter. The grant POST `/platform/tenants/{tenant}/users/{user}/support-agent` requires
+users.read, support.read and support.agents.manage, accepts enabled/revision, locks
+Tenant then User and audits the change. No administrator identity, password or role is
+created. The additive `support_user_agents` table retains nickname and revision across
+revocation; only ACTIVE users in ACTIVE companies with enabled authorization can act.
+All consumer workspace endpoints revalidate this live state, independently of UI flags.
+Revocation leaves the user's ordinary login and personal customer consultation intact.
+
+`GET /account` adds `supportAgent`. App/H5 My account conditionally shows Support
+workspace. The shared company inbox defaults to awaiting replies, supports mode,
+name/account/email search and pagination, and excludes the agent's own consultation.
+Each agent may read/reply to other agents' customer consultations. There is no assignment,
+claim or presence-based availability. Existing company schedules and offline handoff
+rules remain unchanged. Old clients continue to receive ordinary compatible chat DTOs;
+updated native packages are needed to see the new workbench entry.
+
+The authenticated operational consumer API exposes `/support-workspace` under both
+`/api/v1` and `/api/mobile/v1`: GET list, GET conversations/{id}, GET images/{id}, POST
+conversations/{id}/messages, POST conversations/{id}/finish, POST profile, and GET/POST
+replies. Sender/company identity always comes from authentication and TenantContext.
+Reads do not mark the customer's unread cursor. Images use existing verified direct
+uploads bound to the agent, never the consulted customer; message retries preserve
+UUID, content and image identity. The UI stops polling when hidden or access is revoked.
+
+Messages add `sender_support_user_id` with a company-bound FK, an exclusive sender
+constraint and an agent-specific request uniqueness index. `senderKind: SUPPORT_AGENT`
+and `fromSupport: true` identify replies without exposing internal sender IDs. Consumer
+unread counts and platform replied filters include this sender. Messages keep encrypted
+immutable content and nickname snapshots. Bot takeover and finish retain company locks,
+revision checks and retry semantics, recording USER audit actors and explicit transition
+actor_kind for new events. No message or historical administrator identity is rewritten.
+
+Personal templates live in `support_user_quick_replies`, company/user scoped, with
+revision checks and soft archive. The picker unions current-company shared templates
+with the agent's own personal templates, searches title/body, and inserts at the draft
+cursor without sending. Platform maintains shared templates; each agent edits their
+own nickname and personal templates in the mobile workbench.
+
+Independent support-agent routes, guard, frontend and account creation are retired.
+Legacy dedicated account markers continue to block ordinary administrator login and
+support authorization. Their identity/message/private-template rows are retained;
+there is no email-based mapping or implicit authorization of consumer users. Existing
+Platform and tenant administrator support pages remain available under their original
+permissions. Platform's staff nickname list links to Users for consumer-agent management.

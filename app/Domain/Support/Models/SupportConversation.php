@@ -13,6 +13,6 @@ final class SupportConversation extends Model
 
     protected function casts(): array
     {
-        return ['last_sequence' => 'integer'];
+        return ['last_sequence' => 'integer', 'revision' => 'integer'];
     }
 }

@@ -1,3 +1,5 @@
+import { CreateUserDialog } from '@/components/admin/CreateUserDialog';
+import { supportRequest } from '@/components/support/supportRequest';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -5,7 +7,7 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { UserKycDrawer } from '@/components/admin/UserKycDrawer';
 import { UserFundsDrawer } from '@/components/admin/UserFundsDrawer';
@@ -26,6 +28,8 @@ type Wallet = {
     held: string;
 };
 type User = {
+    supportAgent: boolean;
+    supportRevision: number;
     id: string;
     companyName: string;
     companyId: string;
@@ -55,7 +59,11 @@ export default function Users({
     canViewKyc,
     canViewFunds,
     canViewTopups,
+    canManageSupport,
+    canCreateUser,
 }: {
+    canCreateUser: boolean;
+    canManageSupport: boolean;
     canAdjustWallet: boolean;
     canChangeReferrer: boolean;
     canAdjustCommission: boolean;
@@ -64,10 +72,13 @@ export default function Users({
     canViewTopups: boolean;
     users: AccountPage<User>;
     companies: { id: string; name: string }[];
-    filters: { company?: string; search?: string; status?: string };
+    filters: { company?: string; search?: string; status?: string; support?: string };
     financialAccess: { balances: boolean; commission: boolean; withdrawals: boolean };
 }) {
     useAdminTranslation();
+    const [createOpen, setCreateOpen] = useState(false);
+    const [supportBusy, setSupportBusy] = useState(false);
+    const [supportError, setSupportError] = useState('');
     const { url } = usePage();
     const [kycTarget, setKycTarget] = useState(initialKycTarget);
     const [fundsTarget, setFundsTarget] = useState(initialFundsTarget);
@@ -86,23 +97,36 @@ export default function Users({
         <PlatformLayout
             title={t('Users')}
             actions={
-                canViewTopups && (
-                    <Button asChild>
-                        <Link
-                            href={
-                                filters.company
-                                    ? `/platform/topups?company=${filters.company}`
-                                    : '/platform/topups'
-                            }
-                        >
-                            {t('Top-up management')}
-                        </Link>
-                    </Button>
-                )
+                <>
+                    {canCreateUser && (
+                        <Button onClick={() => setCreateOpen(true)}>{t('Add account')}</Button>
+                    )}
+                    {canViewTopups && (
+                        <Button asChild>
+                            <Link
+                                href={
+                                    filters.company
+                                        ? `/platform/topups?company=${filters.company}`
+                                        : '/platform/topups'
+                                }
+                            >
+                                {t('Top-up management')}
+                            </Link>
+                        </Button>
+                    )}
+                </>
             }
         >
             <Head title={t('Users')} />
+            {canCreateUser && createOpen && (
+                <CreateUserDialog
+                    companies={companies}
+                    company={filters.company}
+                    onClose={() => setCreateOpen(false)}
+                />
+            )}
             <div className="space-y-4">
+                {supportError && <p role="alert">{supportError}</p>}
                 <PlatformAccountTable
                     key={JSON.stringify(filters)}
                     companies={companies}
@@ -111,6 +135,14 @@ export default function Users({
                     url="/platform/users"
                     searchLabel={t('Search name, account ID or email')}
                     statuses={['ACTIVE', 'SUSPENDED', 'DISABLED']}
+                    selectFilters={[
+                        {
+                            key: 'support',
+                            label: 'Support agent',
+                            allLabel: 'All users',
+                            values: ['Enabled', 'Disabled'],
+                        },
+                    ]}
                     columns={[
                         {
                             label: 'Company / User',
@@ -122,7 +154,12 @@ export default function Users({
                                         className="truncate text-sm font-semibold text-foreground"
                                         title={row.displayName ?? undefined}
                                     >
-                                        {row.displayName || '—'}
+                                        {row.displayName || '—'}{' '}
+                                        {row.supportAgent && (
+                                            <span className="ml-2 text-xs text-emerald-700">
+                                                {t('Support agent')}
+                                            </span>
+                                        )}
                                     </p>
                                     <p
                                         className="truncate text-xs text-muted-foreground"
@@ -235,7 +272,8 @@ export default function Users({
                             label: 'Last login',
                             render: (row) => (row.lastLoginAt ? dateTime(row.lastLoginAt) : '—'),
                         },
-                        ...(canViewTopups ||
+                        ...(canManageSupport ||
+                        canViewTopups ||
                         canViewFunds ||
                         financialAccess.withdrawals ||
                         canViewKyc ||
@@ -247,7 +285,8 @@ export default function Users({
                                       label: 'Actions',
                                       render: (row: User) => (
                                           <div className="flex items-center gap-2">
-                                              {(canViewKyc ||
+                                              {(canManageSupport ||
+                                                  canViewKyc ||
                                                   canViewFunds ||
                                                   canViewTopups ||
                                                   financialAccess.withdrawals ||
@@ -277,6 +316,52 @@ export default function Users({
                                                               }
                                                           }}
                                                       >
+                                                          {canManageSupport && (
+                                                              <DropdownMenuItem
+                                                                  disabled={
+                                                                      supportBusy ||
+                                                                      (!row.supportAgent &&
+                                                                          row.status !== 'ACTIVE')
+                                                                  }
+                                                                  onSelect={() => {
+                                                                      setSupportBusy(true);
+                                                                      setSupportError('');
+                                                                      void (async () => {
+                                                                          try {
+                                                                              await supportRequest(
+                                                                                  `/platform/tenants/${row.companyId}/users/${row.id}/support-agent`,
+                                                                                  {
+                                                                                      enabled:
+                                                                                          !row.supportAgent,
+                                                                                      revision:
+                                                                                          row.supportRevision,
+                                                                                  },
+                                                                              );
+                                                                              router.reload({
+                                                                                  only: ['users'],
+                                                                                  onFinish: () =>
+                                                                                      setSupportBusy(
+                                                                                          false,
+                                                                                      ),
+                                                                              });
+                                                                          } catch {
+                                                                              setSupportError(
+                                                                                  t(
+                                                                                      'Unable to save. Refresh and try again.',
+                                                                                  ),
+                                                                              );
+                                                                              setSupportBusy(false);
+                                                                          }
+                                                                      })();
+                                                                  }}
+                                                              >
+                                                                  {t(
+                                                                      row.supportAgent
+                                                                          ? 'Remove support access'
+                                                                          : 'Make support agent',
+                                                                  )}
+                                                              </DropdownMenuItem>
+                                                          )}
                                                           {canViewFunds && (
                                                               <DropdownMenuItem
                                                                   onSelect={() => {

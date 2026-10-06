@@ -44,7 +44,7 @@ it('opens scoped new conversations read-only and proactively sends with server i
     $this->post($this->url.'/messages', ['request_id' => (string) Str::uuid(), 'support_message' => 'Second reply'])->assertRedirect();
     $chat = app(SupportChatQuery::class)->user($this->company->id, $this->customer->id);
     expect(array_column($chat['messages'], 'supportName'))->toBe(['<b>小林</b>', '小陈'])
-        ->and(array_keys($chat['messages'][0]))->toBe(['id', 'sequence', 'fromSupport', 'supportName', 'text', 'createdAt', 'imageSources', 'imageUrl'])
+        ->and(array_keys($chat['messages'][0]))->toBe(['id', 'sequence', 'fromSupport', 'senderKind', 'supportName', 'text', 'createdAt', 'imageSources', 'imageUrl'])
         ->and(SupportMessage::first()->sender_admin_id)->toBe($this->owner->id)
         ->and(SupportConversation::count())->toBe(1)->and(DB::table('ledger_entries')->count())->toBe($ledger);
     $this->actingAs($this->customer, 'tenant_user')->getJson('http://a.localhost/messages/unread-count')->assertJson(['count' => 0, 'supportCount' => 2]);

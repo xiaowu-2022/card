@@ -16,6 +16,7 @@ function initialSelection() {
     };
 }
 type Detail = {
+    platformVerified?: boolean;
     company: { id: string; name: string };
     user: { id: string; displayName: string | null; email: string | null };
     applications: {
@@ -125,6 +126,13 @@ export function UserKycDrawer({
                     ) : (
                         detail && (
                             <>
+                                {detail.platformVerified && (
+                                    <p className="rounded-md bg-muted p-3 text-sm">
+                                        {t(
+                                            'Verified on platform account creation. No identity documents were submitted.',
+                                        )}
+                                    </p>
+                                )}
                                 {detail.applications.total > 1 && (
                                     <div className="flex flex-wrap items-end gap-3">
                                         <label className="min-w-0 flex-1 space-y-2">

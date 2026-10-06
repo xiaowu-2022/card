@@ -233,7 +233,7 @@ final class PromotionReportQuery
     {
         $view = $this->viewingContext($tenant, $user, $filters['subject'] ?? null);
         $user = $view['user'];
-        unset($filters['scope']);
+        unset($filters['scope'], $filters['funding']);
         $search = trim((string) ($filters['account_id'] ?? ''));
         $team = $this->team($tenant, $user);
         $counts = DB::query()->fromSub(clone $team, 't')
@@ -257,18 +257,21 @@ final class PromotionReportQuery
             $query->where('t.depth', 1);
         }
         if ($search !== '') {
-            $query->where('u.account_id', 'like', '%'.$search.'%');
+            $pattern = '%'.addcslashes($search, '\\%_').'%';
+            $query->where(function (Builder $matches) use ($pattern): void {
+                $matches->where('u.account_id', 'like', $pattern)
+                    ->orWhere('profile.display_name', 'ilike', $pattern)
+                    ->orWhere('u.email', 'ilike', $pattern);
+            });
         }
-        if (($filters['rank'] ?? 'all') !== 'all') {
+        if (($filters['rank'] ?? 'all') === 'registered') {
+            $query->whereRaw('COALESCE(c.rank,0)=0')->whereNull('ordinary.user_id');
+        } elseif (($filters['rank'] ?? 'all') !== 'all') {
             $query->whereRaw('COALESCE(c.rank,0)=?', [(int) $filters['rank']]);
             if ((int) $filters['rank'] === 0) {
                 $query->whereNotNull('ordinary.user_id');
             }
         }
-        match ($filters['funding'] ?? 'all') {
-            'funded' => $query->where('d.balance', '>', 0),
-            'unfunded' => $query->whereRaw('COALESCE(d.balance,0)=0'), default => null,
-        };
         $total = (clone $query)->count();
         $page = (int) ($filters['page'] ?? $filters['direct_page'] ?? 1);
         // Sort the complete scoped result before pagination; income totals are text DTOs,

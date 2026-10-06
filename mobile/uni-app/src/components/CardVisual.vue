@@ -38,13 +38,13 @@ const name = computed(() =>
                     t(state ?? 'Awaiting confirmation')
                 }}</text></view
             ><view class="user-card-chip-row"
-                ><image :src="staticAsset('images/cards/gold-chip.svg')" mode="widthFix" /><view
+                ><image class="user-card-chip" :src="staticAsset('images/cards/gold-chip.svg')" mode="widthFix" /><view
                     ><text class="user-card-name">{{ name }}</text
                     ><text class="user-card-edition">SPEC U CARD</text></view
                 ></view
             ><view v-if="preview" class="user-card-preview-footer"
                 ><text>{{ currency }}{{ bin ? ' · BIN ' + bin : '' }}</text
-                ><image :src="staticAsset('images/cards/mastercard.svg')" mode="widthFix" /></view
+                ><image class="user-card-preview-network" :src="staticAsset('images/cards/mastercard.svg')" mode="widthFix" /></view
             ><template v-else
                 ><text class="user-card-number">{{ maskedPan }}</text
                 ><view class="user-card-face-footer"
@@ -67,8 +67,11 @@ const name = computed(() =>
     ></view>
 </template>
 <style scoped>
+/* Pixel fallbacks keep artwork bounded on WebViews without container-query units. */
 .user-card-visual {
-    width: min(100%, 562px);
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 562px;
     min-height: 228px;
     aspect-ratio: 1.586;
     margin: auto;
@@ -82,6 +85,7 @@ const name = computed(() =>
         inset 0 0 0 1px rgb(244 218 160 / 22%),
         inset 0 1px 0 rgb(239 225 196 / 18%),
         0 5px 18px rgb(92 70 25 / 20%);
+    padding: 22px;
     padding: clamp(22px, 4.267cqw, 32px);
     display: flex;
     flex-direction: column;
@@ -98,6 +102,7 @@ const name = computed(() =>
     align-items: center;
     gap: 9px;
     color: #f5e5be;
+    font-size: 22px;
     font-size: clamp(22px, 4.4cqw, 30px);
     font-weight: 650;
     letter-spacing: -0.045em;
@@ -115,13 +120,16 @@ const name = computed(() =>
     gap: 16px;
     margin-top: auto;
 }
-.user-card-chip-row > image {
+.user-card-chip {
+    max-width: 58px;
+    width: 42px;
     width: clamp(42px, 9cqw, 58px);
     height: auto;
     flex-shrink: 0;
 }
 .user-card-name {
     color: #ead3a0;
+    font-size: 15px;
     font-size: clamp(15px, 3cqw, 21px);
     font-weight: 600;
     line-height: 1.3;
@@ -145,6 +153,7 @@ const name = computed(() =>
 .user-card-number {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     margin-top: 0;
+    font-size: 20px;
     font-size: clamp(20px, 4cqw, 28px);
     font-weight: 600;
     letter-spacing: 0.09em;
@@ -167,6 +176,9 @@ const name = computed(() =>
     text-align: left;
 }
 .user-card-network {
+    max-width: 105px;
+    flex-shrink: 0;
+    width: 70px;
     width: clamp(70px, 15cqw, 105px);
     height: auto;
     align-self: end;
@@ -181,16 +193,20 @@ const name = computed(() =>
 }
 .user-card-product-preview-wrap {
     container-type: inline-size;
-    width: min(100%, 320px);
+    width: 100%;
+    max-width: 320px;
+    flex-shrink: 0;
     margin-inline: auto;
 }
 .user-card-visual.user-card-product-preview {
     min-height: 0;
     border-radius: 16px;
+    padding: 14px;
     padding: clamp(14px, 6cqw, 20px);
     gap: 12px;
 }
 .user-card-product-preview .user-card-brand {
+    font-size: 18px;
     font-size: clamp(18px, 7cqw, 23px);
     gap: 6px;
 }
@@ -201,7 +217,8 @@ const name = computed(() =>
 .user-card-product-preview .user-card-chip-row {
     gap: 10px;
 }
-.user-card-product-preview .user-card-chip-row > image {
+.user-card-product-preview .user-card-chip {
+    width: 30px;
     width: clamp(30px, 13cqw, 42px);
 }
 .user-card-product-preview .user-card-chip-row > view {
@@ -209,6 +226,7 @@ const name = computed(() =>
     overflow-wrap: anywhere;
 }
 .user-card-product-preview .user-card-name {
+    font-size: 13px;
     font-size: clamp(13px, 5cqw, 16px);
 }
 .user-card-preview-footer {
@@ -224,8 +242,10 @@ const name = computed(() =>
     min-width: 0;
     overflow-wrap: anywhere;
 }
-.user-card-preview-footer image {
+.user-card-preview-network {
+    max-width: 64px;
     flex-shrink: 0;
+    width: 48px;
     width: clamp(48px, 20cqw, 64px);
     height: auto;
 }

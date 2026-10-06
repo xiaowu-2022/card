@@ -18,6 +18,7 @@ final readonly class UserKycQuery
     /** @return array<string, mixed> */
     public function get(string $tenantId, string $userId): array
     {
+        $platformVerifiedAt = \Illuminate\Support\Facades\DB::table('platform_user_creations')->where('tenant_id', $tenantId)->where('user_id', $userId)->value('verified_at');
         $status = $this->statuses->forUser($tenantId, $userId);
         $application = KycApplication::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->latest('submitted_at')->first();
         $identity = $status === KycUserStatus::Approved
@@ -55,7 +56,7 @@ final readonly class UserKycQuery
             'backOriginalSources' => $identity && $application?->back_object_key ? $images->previewSources($disk, $application->back_object_key, 'original') : [],
             'reviewMessage' => $application?->review_message,
             'submittedAt' => $application?->submitted_at?->toIso8601String(),
-            'verifiedAt' => $identity ? ($application?->reviewed_at ?? $identity->verified_at)?->toIso8601String() : null,
+            'verifiedAt' => $identity ? ($application?->reviewed_at ?? $identity->verified_at)?->toIso8601String() : ($platformVerifiedAt ? \Illuminate\Support\Carbon::parse($platformVerifiedAt)->toIso8601String() : null),
             'documentCountry' => $identity?->document_country ?? $application?->document_country,
             'maskedIdentityNumber' => $identity ? $this->identities->maskEncrypted($identity->identity_number_encrypted) : null,
         ];

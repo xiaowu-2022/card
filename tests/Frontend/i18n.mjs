@@ -117,6 +117,7 @@ function loadTs(path, overrides = {}) {
 }
 const promotionCatalog = loadTs('resources/js/i18n/promotion-catalog.ts');
 const { catalog } = loadTs('resources/js/i18n/catalog.ts', {
+    './support-bot-catalog': loadTs('resources/js/i18n/support-bot-catalog.ts'),
     './physical-card-catalog': loadTs('resources/js/i18n/physical-card-catalog.ts'),
     './paid-promotion-catalog': loadTs('resources/js/i18n/paid-promotion-catalog.ts'),
     './partner-catalog': loadTs('resources/js/i18n/partner-catalog.ts'),

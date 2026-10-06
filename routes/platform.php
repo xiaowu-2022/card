@@ -32,7 +32,9 @@ use App\Http\Controllers\Platform\PartnerController;
 use App\Http\Controllers\Platform\PlatformAuthController;
 use App\Http\Controllers\Platform\PlatformDomainController;
 use App\Http\Controllers\Platform\SettingsController;
+use App\Http\Controllers\Platform\SupportBotController;
 use App\Http\Controllers\Platform\SupportController;
+use App\Http\Controllers\Platform\SupportWorkspaceController;
 use App\Http\Controllers\Platform\TenantInvitationController;
 use App\Http\Controllers\Platform\TenantLifecycleController;
 use App\Http\Controllers\Platform\TenantManagementController;
@@ -60,10 +62,28 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     });
 
     Route::middleware('admin.scope:platform,support.read')->group(function (): void {
+        Route::middleware('admin.scope:platform,support.hours.manage')->group(function () {
+            Route::get('/support/hours', [SupportWorkspaceController::class, 'hours']);
+            Route::post('/support/hours', [SupportWorkspaceController::class, 'saveHours'])->middleware('throttle:20,1');
+        });
+        Route::middleware('admin.scope:platform,support.replies.manage')->group(function () {
+            Route::get('/support/replies', [SupportWorkspaceController::class, 'replies']);
+            Route::post('/support/replies', [SupportWorkspaceController::class, 'saveReply'])->middleware('throttle:30,1');
+        });
+
         Route::get('/support', [SupportController::class, 'index'])->middleware('throttle:60,1');
         Route::get('/tenants/{tenant}/support/users/{user}', [SupportController::class, 'show'])->whereUuid(['tenant', 'user'])->middleware('throttle:60,1');
         Route::get('/tenants/{tenant}/support/images/{message}', [SupportController::class, 'image'])->whereUuid(['tenant', 'message'])->middleware('throttle:120,1');
+        Route::middleware('admin.scope:platform,support.bot.manage')->group(function (): void {
+            Route::get('/support/bot', [SupportBotController::class, 'index']);
+            Route::get('/support/bot/faqs/{faq}', [SupportBotController::class, 'show'])->whereUuid('faq');
+            Route::post('/support/bot/faqs', [SupportBotController::class, 'save'])->middleware('throttle:30,1');
+            Route::post('/support/bot/settings', [SupportBotController::class, 'configure'])->middleware('throttle:20,1');
+            Route::post('/support/bot/preview', [SupportBotController::class, 'preview'])->middleware('throttle:30,1');
+        });
         Route::middleware('admin.scope:platform,support.send')->group(function (): void {
+            Route::get('/tenants/{tenant}/support/replies', [SupportWorkspaceController::class, 'quick'])->whereUuid('tenant');
+            Route::post('/tenants/{tenant}/support/users/{user}/finish', [SupportController::class, 'finish'])->whereUuid(['tenant', 'user'])->middleware('throttle:20,1');
             Route::get('/tenants/{tenant}/support/candidates', [SupportController::class, 'candidates'])->whereUuid('tenant')->middleware('throttle:60,1');
             Route::post('/tenants/{tenant}/support/users/{user}/messages', [SupportController::class, 'send'])->whereUuid(['tenant', 'user'])->middleware('throttle:30,1');
             Route::post('/support/profile', [SupportController::class, 'profile'])->middleware('throttle:20,1');
@@ -136,6 +156,8 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware(['admin.scope:platform,cards.read', 'throttle:120,1'])->get('/tenants/{tenant}/cards/{card}/transactions', [CardOperationsController::class, 'transactions'])->whereUuid(['tenant', 'card'])->name('cards.transactions');
     Route::middleware(['admin.scope:platform,cards.read', 'admin.scope:platform,card_product.manage', 'throttle:10,1'])->post('/tenants/{tenant}/cards/{card}/transactions/sync', [CardOperationsController::class, 'syncTransactions'])->whereUuid(['tenant', 'card'])->name('cards.transactions.sync');
     Route::middleware(['admin.scope:platform,cards.read', 'throttle:30,1'])->post('/tenants/{tenant}/cards/{card}/refresh', [CardOperationsController::class, 'refresh'])->whereUuid(['tenant', 'card'])->name('cards.refresh');
+    Route::post('/tenants/{tenant}/users/{user}/support-agent', [SupportWorkspaceController::class, 'grantUser'])->whereUuid(['tenant', 'user'])->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,support.read', 'admin.scope:platform,support.agents.manage', 'throttle:30,1']);
+    Route::post('/tenants/{tenant}/users', \App\Http\Controllers\Platform\UserCreationController::class)->whereUuid('tenant')->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.create', 'throttle:20,1']);
     Route::middleware('admin.scope:platform,users.read')->get('/users', UserOperationsController::class)->name('users.index');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,ledger.read'])->get('/tenants/{tenant}/users/{user}/funds', UserFundsController::class)->whereUuid(['tenant', 'user'])->name('users.funds');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,kyc.read'])->get('/tenants/{tenant}/users/{user}/kyc', [KycDetailController::class, 'user'])->whereUuid(['tenant', 'user'])->name('users.kyc');

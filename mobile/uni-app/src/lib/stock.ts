@@ -1,5 +1,5 @@
 export type PartnerIdentity = { id: string; name: string; accountId: string };
-export type PartnerChildren = StockPage<PartnerIdentity & { teamCount: number }> & {
+export type PartnerChildren = StockPage<PartnerIdentity & { email: string | null; stock: string; teamCount: number }> & {
     subject: PartnerIdentity;
     listPath: string;
 };

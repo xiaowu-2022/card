@@ -482,3 +482,35 @@ activation snapshots, awards, Ledger entries or balances are changed by this rep
 Admin and uni-app/H5 explain the counting rule. Deploy matching backend and admin/H5
 assets; native clients require rebuilding for updated copy. No migration, historical
 data correction or financial/provider operations are required.
+
+### 2026-10-06 unified current member level filter
+
+The active uni-app App/H5 team-member screen has one promotion-level filter:
+All levels, Registered member, Ordinary member, then the company's agent ranks.
+Member sorting remains a separate control inside the same dialog. The independent
+deposit-balance filter is retired for this screen. Current list badges, matching
+counts and pagination use the same `ManualPromotion`/`OrdinaryMemberQuery` evidence:
+effective agents take precedence; non-agents with qualifying successful funding
+history are ordinary; all other non-agents are registered. The refund and latest
+agent-grant rules above remain unchanged. This does not alter actual deposit money,
+financial eligibility, historical source-rank commission filters, or Platform's
+existing member identity projection.
+
+`/promotion/direct` and its consumer API bridge accept `rank=all|registered|0|<agent
+rank>`; `0` retains its ordinary-member meaning. `registered` is accepted only by
+current member-list routes. Old `funding` query parameters are ignored, excluded
+from the returned filters and dropped on subsequent App/H5 navigation; they are
+not translated into a membership category. Search remains a case-insensitive name/
+email or account-ID substring via the existing `account_id` parameter. Empty search
+lists direct children; nonempty search covers the current authorized subtree.
+Team drilldown, sorting, reset, pagination and return memory preserve the selected
+rank and search. Reads revalidate company/ancestry and perform no provisioning,
+financial writes, provider calls or historical replay. No migration is required.
+
+Regression coverage: `PromotionMemberFiltersTest` uses isolated sealed evidence for
+refund retention, current agent precedence, expiry/downgrade and later funding,
+literal old-link cleanup, company/subtree isolation, matching counts, pagination,
+and web/native validation. `consumer-team-filters.mjs` verifies the two-control
+modal, registered/ordinary options and chips, URL cleanup, reset/return behavior,
+and four-language narrow layouts in Chrome and WebKit. Existing legacy KYC fixture
+failures are independent of this change; authentication rules are not relaxed.

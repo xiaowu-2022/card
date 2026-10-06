@@ -81,6 +81,7 @@ Route::middleware(['tenant.surface:end-user', RequireConsumerApiUser::class, Req
     Route::post('/account/information/contacts/{change}/verify', [AccountController::class, 'completeContact'])->whereUuid('change')->middleware('throttle:5,1');
     Route::get('/support', [SupportController::class, 'show'])->middleware('throttle:60,1');
     Route::get('/support/images/{message}', [SupportController::class, 'image'])->whereUuid('message');
+    Route::post('/support/handoff', [SupportController::class, 'handoff'])->middleware('throttle:20,1');
     Route::post('/support/messages', [SupportController::class, 'store'])->middleware('throttle:20,1');
     Route::get('/funds', [AssetsController::class, 'funds']);
     Route::get('/assets/{asset}/activity', [AssetsController::class, 'history'])->whereIn('asset', ['USDT', 'USDC', 'ETH', 'BTC']);

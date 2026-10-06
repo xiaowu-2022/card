@@ -26,6 +26,7 @@ type Row = {
     company: string;
     accountId: string;
     email: string;
+    mode?: 'BOT' | 'WAITING' | 'HUMAN';
     awaitingReply: boolean;
     updatedAt: string;
 };
@@ -99,6 +100,9 @@ export default function Support({ inbox, chat, companies, filters, supportName }
                         onChange={(e) => setQuery({ ...query, status: e.target.value })}
                     >
                         <option value="">{t('All statuses')}</option>
+                        <option value="BOT">{t('Bot support')}</option>
+                        <option value="WAITING">{t('Waiting for human support')}</option>
+                        <option value="HUMAN">{t('Human support')}</option>
                         <option value="awaiting">{t('Awaiting reply')}</option>
                         <option value="replied">{t('Replied')}</option>
                     </select>
@@ -126,7 +130,15 @@ export default function Support({ inbox, chat, companies, filters, supportName }
                                             {row.company}
                                         </span>
                                         <span className="shrink-0 text-xs text-muted-foreground">
-                                            {t(row.awaitingReply ? 'Awaiting reply' : 'Replied')}
+                                            {t(
+                                                row.mode === 'BOT'
+                                                    ? 'Bot support'
+                                                    : row.mode === 'WAITING'
+                                                      ? 'Waiting for human support'
+                                                      : row.awaitingReply
+                                                        ? 'Awaiting reply'
+                                                        : 'Replied',
+                                            )}
                                         </span>
                                     </div>
                                     <p className="mt-2 text-sm">{row.accountId}</p>
@@ -171,7 +183,7 @@ export default function Support({ inbox, chat, companies, filters, supportName }
                                 >
                                     {chat.email}
                                 </p>
-                                <SupportThread
+                                <SupportThread quickReplyUrl={`/platform/tenants/${chat.tenantId}/support/replies`}
                                     key={chat.tenantId + ':' + chat.userId}
                                     chat={chat}
                                     admin

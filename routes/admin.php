@@ -26,10 +26,12 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['tenant.surface:tenant-admin', CompanyConfigurationReadOnly::class])->prefix('admin')->name('tenant-admin.')->group(function (): void {
     Route::middleware('admin.scope:tenant,support.manage')->group(function (): void {
+        Route::get('/support/replies', [SupportController::class, 'quick']);
         Route::post('/support/profile', [SupportController::class, 'profile'])->middleware('throttle:20,1');
         Route::get('/support/images/{message}', [SupportController::class, 'image'])->whereUuid('message')->name('support.image');
         Route::get('/support', [SupportController::class, 'index'])->middleware('throttle:60,1')->name('support');
         Route::get('/support/{conversation}', [SupportController::class, 'show'])->whereUuid('conversation')->middleware('throttle:60,1')->name('support.show');
+    Route::post('/support/{conversation}/finish', [SupportController::class, 'finish'])->whereUuid('conversation')->middleware('throttle:20,1');
         Route::post('/support/{conversation}/messages', [SupportController::class, 'store'])->whereUuid('conversation')->middleware('throttle:20,1')->name('support.send');
     });
     Route::post('/locale', AdminLocaleController::class)->middleware('throttle:30,1')->name('locale.update');

@@ -39,7 +39,7 @@ final readonly class SupportChatQuery
             ->select(['support_conversations.*', 'users.account_id'])->simplePaginate(30, ['*'], 'page', $page);
 
         return ['page' => $page, 'hasMore' => $rows->hasMorePages(), 'items' => $rows->map(fn ($row): array => [
-            'id' => $row->id, 'accountId' => $row->account_id, 'awaitingReply' => $row->last_sender === 'USER',
+            'id' => $row->id, 'accountId' => $row->account_id, 'mode' => $row->mode, 'awaitingReply' => $row->mode === 'WAITING' || ($row->mode === 'HUMAN' && $row->last_sender === 'USER'),
             'updatedAt' => $row->updated_at->toIso8601String(),
         ])->all()];
     }
@@ -82,23 +82,24 @@ final readonly class SupportChatQuery
         return ['path' => $message->image_object_key, 'mime' => $message->image_mime];
     }
 
-    private function thread(string $tenantId, ?SupportConversation $conversation, int $before, bool $admin = false): array
+    public function thread(string $tenantId, ?SupportConversation $conversation, int $before, bool $admin = false): array
     {
         if (! $conversation) {
-            return ['id' => null, 'messages' => [], 'before' => 0, 'olderCursor' => null];
+            return ['id' => null, 'messages' => [], 'before' => 0, 'olderCursor' => null] + app(SupportBot::class)->metadata($tenantId, null);
         }
         $rows = SupportMessage::query()->where('tenant_id', $tenantId)->where('conversation_id', $conversation->id)
             ->when($before > 0, fn ($query) => $query->where('sequence', '<', $before))
             ->orderByDesc('sequence')->limit(51)->get();
         $visible = $rows->take(50)->reverse()->values();
 
-        return [
+        return app(SupportBot::class)->metadata($tenantId, $conversation) + [
             'id' => $conversation->id, 'before' => $before,
             'olderCursor' => $rows->count() > 50 ? $visible->first()->sequence : null,
             'messages' => $visible->map(fn (SupportMessage $message): array => [
                 'id' => $message->id, 'sequence' => $message->sequence,
-                'fromSupport' => $message->sender_admin_id !== null,
-                'supportName' => $message->sender_admin_id ? $message->support_name : null,
+                'fromSupport' => $message->is_bot || ($message->sender_admin_id !== null || $message->sender_support_user_id !== null),
+                'senderKind' => $message->is_bot ? 'BOT' : ($message->sender_support_user_id ? 'SUPPORT_AGENT' : ($message->sender_admin_id ? 'ADMIN' : 'USER')),
+                'supportName' => $message->is_bot ? '客服助手' : (($message->sender_admin_id || $message->sender_support_user_id) ? $message->support_name : null),
                 'text' => $message->support_message, 'createdAt' => $message->created_at->toIso8601String(),
                 'imageSources' => $message->image_object_key ? app(ImageStorage::class)->previewSources('private', $message->image_object_key) : [],
                 'imageUrl' => $message->image_mime ? (app(ImageStorage::class)->active()

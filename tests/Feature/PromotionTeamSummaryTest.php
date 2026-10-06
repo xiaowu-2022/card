@@ -111,7 +111,7 @@ it('lists every descendant once with filtered totals stable pagination and relat
         ->and($all->firstWhere('accountId', $deep->account_id)['relation'])->toBe('indirect');
     $filtered = $this->query->members($this->tenant->id, $this->user->id, ['account_id' => $deep->account_id, 'funding' => 'unfunded']);
     expect($filtered['total'])->toBe(1)->and($filtered['items'][0]['id'])->toBe(teamSummaryMember($deep));
-    expect($this->query->members($this->tenant->id, $this->user->id, ['funding' => 'funded'])['total'])->toBe(0);
+    expect($this->query->members($this->tenant->id, $this->user->id, ['rank' => '0'])['total'])->toBe(0);
     $summary = $this->query->memberTeam($this->tenant->id, $this->user->id, teamSummaryMember($child));
     expect($summary['registeredMembers'])->toBe(['direct' => 1, 'indirect' => 1])->and($summary['totalMembers'])->toBe(2)->and($summary['rows'][0])->toMatchArray(['rank' => 0, 'direct' => 0, 'indirect' => 0, 'annual' => '0.00000000', 'activation' => '0.00000000']);
     expect($this->query->memberTeam($this->tenant->id, $this->user->id, teamSummaryMember($deep))['totalMembers'])->toBe(0);
@@ -479,5 +479,83 @@ it('invalidates old deposits on manual agent grants including paid-rule restorat
     $restore = $manual->adjust($this->tenant->id, $child->id, $owner, 'paid', 'Restore effective paid rank', (string) Str::uuid(), $down->id);
     $manual->adjust($this->tenant->id, $child->id, $owner, 'ordinary', 'Downgrade again', (string) Str::uuid(), $restore->id);
     expect($ordinary())->toBeFalse(); // Effective rank on restoration invalidates newer funding too.
+    Http::assertNothingSent();
+});
+
+it('searches team account IDs names and emails with literal case insensitive fragments inside the current subtree', function () {
+    $branch = teamSummaryChild($this->user);
+    $leaf = teamSummaryChild($branch);
+    $sibling = teamSummaryChild($this->user);
+    $otherTenant = Tenant::where('slug', 'tenant-b')->firstOrFail();
+    $foreign = teamSummaryChild(User::where('tenant_id', $otherTenant->id)->firstOrFail());
+    foreach ([$leaf, $sibling, $foreign] as $index => $person) {
+        $person->forceFill(['email' => 'Mixed.Search'.$index.'@example.test'])->save();
+        \App\Domain\User\Models\UserProfile::create([
+            'tenant_id' => $person->tenant_id, 'user_id' => $person->id,
+            'display_name' => '成员 Alice 50%_\\团队',
+        ]);
+    }
+    $before = collect(['wallets', 'ledger_entries', 'promotion_members'])->mapWithKeys(fn ($table) => [$table => DB::table($table)->count()])->all();
+    foreach ([$leaf->account_id, '成员', 'aLiCe', 'mixed.search', 'EXAMPLE.TEST', '50%_', '\\团队', '  Alice  '] as $search) {
+        $report = $this->query->members($this->tenant->id, $this->user->id, [
+            'subject' => teamSummaryMember($branch), 'account_id' => $search,
+        ]);
+        expect(array_column($report['items'], 'id'))->toBe([teamSummaryMember($leaf)])
+            ->and($report['total'])->toBe(1)
+            ->and($report['memberCounts'])->toBe(['direct' => 1, 'total' => 1])
+            ->and($report['items'][0]['maskedEmail'])->not->toBe($leaf->email)
+            ->and($report['items'][0])->not->toHaveKey('email');
+    }
+    $root = $this->query->members($this->tenant->id, $this->user->id, ['account_id' => 'search']);
+    expect(array_column($root['items'], 'id'))->toEqualCanonicalizing([teamSummaryMember($leaf), teamSummaryMember($sibling)]);
+    expect($this->query->members($this->tenant->id, $this->user->id, ['account_id' => 'missing'])['total'])->toBe(0);
+    foreach (['%', '_', '\\'] as $literal) {
+        expect($this->query->members($this->tenant->id, $this->user->id, ['account_id' => $literal])['total'])->toBe(2);
+    }
+    expect($this->query->members($this->tenant->id, $this->user->id, ['account_id' => '   '])['total'])->toBe(2);
+    expect($this->query->members($this->tenant->id, $this->user->id, ['account_id' => 'Alice', 'rank' => '0'])['total'])->toBe(0);
+    foreach ($before as $table => $count) {
+        expect(DB::table($table)->count())->toBe($count);
+    }
+    $this->actingAs($this->user, 'tenant_user');
+    foreach (['成员', 'Mixed.Search0@EXAMPLE.TEST'] as $search) {
+        $this->get('http://a.localhost/promotion/direct?'.http_build_query(['account_id' => $search]))
+            ->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('report.filters.account_id', $search));
+    }
+    $this->getJson('http://a.localhost/promotion/direct?account_id='.str_repeat('a', 255))
+        ->assertUnprocessable()->assertJsonValidationErrors('account_id');
+    $this->getJson('http://a.localhost/promotion/commissions?account_id=Alice')
+        ->assertUnprocessable()->assertJsonValidationErrors('account_id');
+    Http::assertNothingSent();
+});
+
+it('paginates fuzzy email matches before returning team members and preserves their filters', function () {
+    $expected = [];
+    for ($i = 0; $i < 22; $i++) {
+        $child = teamSummaryChild($this->user);
+        $child->forceFill(['email' => 'search-page-'.$i.'@example.test', 'created_at' => now()->subDays(30 - $i)])->save();
+        $expected[] = teamSummaryMember($child);
+    }
+    $filters = ['account_id' => 'SEARCH-PAGE-', 'rank' => 'registered', 'sort' => 'registered_asc'];
+    $first = $this->query->members($this->tenant->id, $this->user->id, $filters);
+    $second = $this->query->members($this->tenant->id, $this->user->id, $filters + ['page' => 2]);
+    expect($first['total'])->toBe(22)->and($first['items'])->toHaveCount(20)->and($first['hasMore'])->toBeTrue()
+        ->and($second['items'])->toHaveCount(2)->and($second['hasMore'])->toBeFalse()
+        ->and(array_column([...$first['items'], ...$second['items']], 'id'))->toBe($expected)
+        ->and($second['filters'])->toMatchArray($filters);
+});
+
+it('accepts fuzzy team search through the native client bridge', function () {
+    $child = teamSummaryChild($this->user);
+    $child->forceFill(['email' => 'native-search@example.test'])->save();
+    $flow = $this->getJson('http://a.localhost/api/mobile/v1/bootstrap')->assertOk()->headers->get('X-Consumer-Flow');
+    $token = $this->postJson('http://a.localhost/api/mobile/v1/login', [
+        'identifier' => $this->user->email, 'password' => 'local-password',
+    ])->assertCreated()->json('token');
+    $this->withToken($token)->withHeader('X-Consumer-Flow', $flow)
+        ->getJson('http://a.localhost/api/mobile/v1/client/promotion/direct?account_id=NATIVE-SEARCH')
+        ->assertOk()->assertJsonPath('props.report.total', 1)
+        ->assertJsonPath('props.report.items.0.id', teamSummaryMember($child))
+        ->assertJsonPath('props.report.filters.account_id', 'NATIVE-SEARCH');
     Http::assertNothingSent();
 });

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import UiIcon from '../components/UiIcon.vue';
 import PageShell from '../components/PageShell.vue';
 import StockFlowDetails from '../components/StockFlowDetails.vue';
 import ReportPagination from '../components/ReportPagination.vue';
@@ -90,18 +91,19 @@ const more = computed(() =>
             ><text v-if="r.subject" class="heading">{{ r.subject.name }}</text
             ><text class="muted small"
                 >{{ t('Updated') }}: {{ dateTime(r.updatedAt) }} · {{ r.timezone }} · USDT</text
-            ><text class="heading">{{
-                t(r.version === 'partner' ? 'Partner version' : 'Standard version')
-            }}</text
             ><view class="hero"
                 ><text>{{ t('Current total stock') }}</text
                 ><text class="total">{{ value(r.stock) }}</text></view
             ><button
                 v-if="r.version === 'partner'"
-                class="panel row partner-entry"
+                class="partner-entry"
                 @click="go(r.partnersPath ?? '/promotion/stock/partners')"
             >
-                {{ t('Partner data') }} ›</button
+                <view class="partner-entry-icon"
+                    ><UiIcon name="users" :size="22" color="#27866d"
+                /></view>
+                <text class="partner-entry-title">{{ t('Partner data') }}</text>
+                <UiIcon name="chevron-right" :size="18" color="#77877f" /></button
             ><text v-if="r.missingRates > 0" class="warning"
                 >{{ t('Rates pending') }}: {{ r.missingRates }}.
                 {{
@@ -251,7 +253,42 @@ const more = computed(() =>
     >
 </template>
 <style scoped>
-.partner-entry { width: 100%; min-height: 44px; margin: 0; text-align: left; font-size: 16px; }
+.partner-entry {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 68px;
+    padding: 14px 18px;
+    margin: 0;
+    border: 1px solid #e1e7dd;
+    border-radius: 16px;
+    background: #fff;
+    color: #203b30;
+    text-align: left;
+    line-height: 24px;
+}
+.partner-entry::after {
+    border: 0;
+}
+.partner-entry:active {
+    background: #f3f8f4;
+}
+.partner-entry-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #edf6f1;
+}
+.partner-entry-title {
+    flex: 1;
+    font-size: 16px;
+    font-weight: 600;
+}
 .stock {
     display: flex;
     flex-direction: column;

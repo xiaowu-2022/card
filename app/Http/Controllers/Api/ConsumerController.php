@@ -9,9 +9,11 @@ use App\Application\Media\ImageStorage;
 use App\Application\Media\PublicAssets;
 use App\Application\Promotion\AccountActivationStatus;
 use App\Application\Support\SendSupportMessageAction;
+use App\Application\Support\SupportBot;
 use App\Application\Support\SupportChatQuery;
 use App\Application\Support\SupportImageStorage;
 use App\Application\Support\SupportUnread;
+use App\Application\Support\SupportUserAgents;
 use App\Application\User\AuthenticateUserAction;
 use App\Application\User\IssueConsumerDeviceToken;
 use App\Application\User\UpdateUserLocaleAction;
@@ -142,7 +144,7 @@ final class ConsumerController extends Controller
         $user = $request->attributes->get('consumer_user');
         $status = $activation->get($context->id(), $user->id);
 
-        return response()->json(['kycStatus' => $kyc->forUser($context->id(), $user->id)->value,
+        return response()->json(['supportAgent' => app(SupportUserAgents::class)->enabled($context->id(), $user->id), 'kycStatus' => $kyc->forUser($context->id(), $user->id)->value,
             'promotionRank' => (int) $status['rank'], 'accountQualified' => $status['qualified']]);
     }
 
@@ -209,5 +211,13 @@ final class ConsumerController extends Controller
         $image = $query->image($context->id(), $request->attributes->get('consumer_user')->id, $message, false);
 
         return $storage->response($image['path']);
+    }
+
+    public function supportHandoff(Request $request, TenantContext $context, SupportBot $bot)
+    {
+        $data = $request->validate(['request_id' => 'required|uuid']);
+        $bot->handoff($context->id(), $request->attributes->get('consumer_user')->id, $data['request_id']);
+
+        return response()->noContent();
     }
 }

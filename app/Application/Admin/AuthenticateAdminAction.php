@@ -7,6 +7,7 @@ use App\Domain\Admin\Enums\ScopeType;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Admin\Services\AuthorizationService;
 use App\Domain\Audit\Services\AuditLogger;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 final readonly class AuthenticateAdminAction
@@ -27,6 +28,7 @@ final readonly class AuthenticateAdminAction
     ): ?AdminUser {
         $admin = AdminUser::query()->whereRaw('LOWER(email) = ?', [strtolower(trim($email))])->first();
         $valid = $admin instanceof AdminUser
+            && ! DB::table('support_agent_accounts')->where('admin_id', $admin->id)->exists()
             && $admin->status === AdminUserStatus::Active
             && Hash::check($password, $admin->password)
             && $this->authorization->hasActiveMembership($admin, $scope, $scopeId);

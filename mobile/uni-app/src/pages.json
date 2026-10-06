@@ -30,7 +30,9 @@
     },
     {
       "path": "pages/support/index"
-    }
+    },
+    {"path":"pages/support-workspace/index"},
+    {"path":"pages/support-workspace/replies"}
   ],
   "globalStyle": {
     "navigationStyle": "custom",

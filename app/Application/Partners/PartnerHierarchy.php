@@ -2,6 +2,7 @@
 
 namespace App\Application\Partners;
 
+use Brick\Math\BigDecimal;
 use Illuminate\Support\Facades\DB;
 
 /** Read-only views over current invitation edges, never a second partner tree. */
@@ -67,7 +68,7 @@ final class PartnerHierarchy
                 ->join('users as u', 'u.id', 'children.user_id')->where('u.tenant_id', $tenant)
                 ->leftJoin('user_profiles as profile', fn ($j) => $j->on('profile.user_id', 'u.id')->on('profile.tenant_id', 'u.tenant_id'));
             $total = (clone $query)->count();
-            $rows = $query->orderBy('u.account_id')->orderBy('children.partner_id')->offset(($page - 1) * 20)->limit(20)->get(['children.partner_id', 'children.user_id', 'u.account_id', 'profile.display_name']);
+            $rows = $query->orderBy('u.account_id')->orderBy('children.partner_id')->offset(($page - 1) * 20)->limit(20)->get(['children.partner_id', 'children.user_id', 'u.account_id', 'u.email', 'profile.display_name']);
             $counts = collect();
             if ($rows->isNotEmpty()) {
                 $placeholders = implode(',', array_fill(0, $rows->count(), '?'));
@@ -77,10 +78,18 @@ final class PartnerHierarchy
                 ) SELECT root,COUNT(*) FILTER (WHERE user_id<>root) AS total FROM teams GROUP BY root", [$tenant, ...$rows->pluck('user_id')->all(), $tenant]))->keyBy('root');
             }
 
-            return ['subject' => $identity, 'listPath' => $base, 'items' => $rows->map(fn ($row) => [
-                'id' => $row->partner_id, 'name' => trim($row->display_name ?? '') ?: $row->account_id, 'accountId' => $row->account_id,
-                'teamCount' => (int) ($counts->get($row->user_id)?->total ?? 0),
-            ])->all(), 'page' => $page, 'total' => $total, 'hasMore' => $page * 20 < $total];
+            return ['subject' => $identity, 'listPath' => $base, 'items' => $rows->map(function ($row) use ($tenant, $counts) {
+                // Only the current page's scoped, enabled partners; reuse report evidence
+                // without loading journals, risk pages or performing financial writes.
+                $totals = app(PartnerBusinessStock::class)->totals($tenant, $row->user_id);
+
+                return [
+                    'id' => $row->partner_id, 'name' => trim($row->display_name ?? '') ?: $row->account_id, 'accountId' => $row->account_id,
+                    'email' => $row->email,
+                    'stock' => (string) BigDecimal::of($totals['inflow'])->minus($totals['outflow'])->toScale(8),
+                    'teamCount' => (int) ($counts->get($row->user_id)?->total ?? 0),
+                ];
+            })->all(), 'page' => $page, 'total' => $total, 'hasMore' => $page * 20 < $total];
         });
     }
 }

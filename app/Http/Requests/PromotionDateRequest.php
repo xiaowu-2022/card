@@ -27,9 +27,11 @@ final class PromotionDateRequest extends FormRequest
             'sort' => ['sometimes', 'in:registered_desc,registered_asc,commission_desc,commission_asc'],
             'kind' => ['sometimes', 'in:all,annual,activation,legacy,commission'],
             'activity' => ['sometimes', 'in:all,invitation,activation,annual,legacy,commission'],
-            'rank' => ['sometimes', Rule::in(array_merge(['all'], $this->routeIs('user.promotion.commissions') ? ['unknown'] : [], PromotionRanks::forTenant(app(TenantContext::class)->id())))],
+            'rank' => ['sometimes', Rule::in(array_merge(['all'], $this->route('section') === 'direct' ? ['registered'] : [], $this->routeIs('user.promotion.commissions') ? ['unknown'] : [], PromotionRanks::forTenant(app(TenantContext::class)->id())))],
             'relation' => ['sometimes', 'in:all,direct,indirect,unknown'],
             'date' => ['nullable', 'date_format:Y-m-d'], 'page' => ['sometimes', 'integer', 'min:1', 'max:1000000'],
-            'direct_page' => ['sometimes', 'integer', 'min:1', 'max:1000000'], 'account_id' => ['nullable', 'string', 'max:24', 'regex:/^[0-9]+$/'], 'funding' => ['sometimes', 'in:all,funded,unfunded']];
+            'direct_page' => ['sometimes', 'integer', 'min:1', 'max:1000000'], 'account_id' => $this->route('section') === 'direct'
+                ? ['nullable', 'string', 'max:254']
+                : ['nullable', 'string', 'max:24', 'regex:/^[0-9]+$/'], 'funding' => $this->route('section') === 'direct' ? ['exclude'] : ['sometimes', 'in:all,funded,unfunded']];
     }
 }

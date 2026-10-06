@@ -1,3 +1,5 @@
+import { QuickReplyPicker } from './QuickReplyPicker';
+import { supportRequest, SupportRequestError } from './supportRequest';
 import { PreviewImage } from '@/components/shared/PreviewImage';
 import { useSupportRead } from './useSupportRead';
 import { router, useForm } from '@inertiajs/react';
@@ -10,7 +12,11 @@ import { dateTime } from '@/i18n';
 import { useSupportPolling } from './useSupportPolling';
 
 export type SupportChat = {
+    humanSupport?: { available: boolean; timezone: string; nextOpenAt: string | null };
     id: string | null;
+    mode?: 'BOT' | 'WAITING' | 'HUMAN';
+    revision?: number;
+    botEnabled?: boolean;
     accountId?: string;
     before: number;
     olderCursor: number | null;
@@ -18,6 +24,7 @@ export type SupportChat = {
         id: string;
         sequence: number;
         fromSupport: boolean;
+        senderKind?: 'BOT' | 'ADMIN' | 'USER' | 'SUPPORT_AGENT';
         supportName?: string | null;
         text: string;
         createdAt: string;
@@ -33,12 +40,14 @@ export function SupportThread({
     baseUrl,
     canSend = true,
     workspace = false,
+    quickReplyUrl,
 }: {
     chat: SupportChat;
     admin?: boolean;
     baseUrl?: string;
     canSend?: boolean;
     workspace?: boolean;
+    quickReplyUrl?: string;
     t: (key: string) => string;
 }) {
     const base = baseUrl ?? (admin ? `/admin/support/${chat.id}` : '/support');
@@ -51,16 +60,21 @@ export function SupportThread({
         support_message: '',
         support_image: null,
     });
+    const transition = useForm({ request_id: crypto.randomUUID(), revision: chat.revision ?? 0 });
+    const [finishing, setFinishing] = useState(false);
+    const [finishError, setFinishError] = useState('');
+    const transitionIntent = useRef<{ request_id: string; revision: number } | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
     const [enlarged, setEnlarged] = useState<string | null>(null);
     const [enlargedSources, setEnlargedSources] = useState<string[]>([]);
     const [failed, setFailed] = useState(false);
+    const thread = useRef<HTMLElement>(null);
     const fileInput = useRef<HTMLInputElement>(null);
     const messages = useRef<HTMLDivElement>(null);
     const followLatest = useRef(true);
     const disconnected = useSupportPolling(
         workspace ? 'workspace' : 'chat',
-        !form.processing && chat.before === 0,
+        !form.processing && !transition.processing && !finishing && chat.before === 0,
     );
     const lastId = chat.messages.at(-1)?.id;
     useSupportRead(chat.messages.at(-1)?.sequence ?? 0, !admin);
@@ -79,16 +93,118 @@ export function SupportThread({
         }
     }, [lastId, chat.before]);
     const errors = form.errors as Record<string, string>;
-    const navigate = (before: number) =>
-        router.get(base, before ? { before } : {}, { preserveState: true, preserveScroll: true });
+    const navigate = (before: number) => {
+        const filters = workspace
+            ? Object.fromEntries(new URLSearchParams(window.location.search))
+            : {};
+        delete filters.before;
+        router.get(
+            base,
+            { ...filters, ...(before ? { before } : {}) },
+            { preserveState: true, preserveScroll: true },
+        );
+    };
 
     return (
-        <section className={`support-thread ${admin ? 'support-thread-admin' : ''}`}>
+        <section ref={thread} className={`support-thread ${admin ? 'support-thread-admin' : ''}`}>
             <p className="support-privacy">
                 {t(
                     'Do not send passwords, verification codes, full card numbers, CVV or identity documents.',
                 )}
             </p>
+            {chat.mode && (
+                <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                    <span>
+                        {t(
+                            chat.mode === 'BOT'
+                                ? 'Bot support'
+                                : chat.mode === 'WAITING'
+                                  ? 'Waiting for human support'
+                                  : 'Human support',
+                        )}
+                    </span>
+                    {admin && canSend && chat.id && chat.mode !== 'BOT' && chat.before === 0 && (
+                        <Button
+                            variant="secondary"
+                            disabled={form.processing || transition.processing || finishing}
+                            onClick={() => {
+                                void (async () => {
+                                    transitionIntent.current ??= {
+                                        request_id: crypto.randomUUID(),
+                                        revision: chat.revision ?? 0,
+                                    };
+                                    setFinishing(true);
+                                    setFinishError('');
+                                    try {
+                                        await supportRequest(
+                                            base + '/finish',
+                                            transitionIntent.current,
+                                        );
+                                        transitionIntent.current = null;
+                                        router.reload({ only: ['chat', 'inbox'] });
+                                    } catch (error) {
+                                        if (
+                                            error instanceof SupportRequestError &&
+                                            error.status === 409
+                                        ) {
+                                            transitionIntent.current = null;
+                                            setFinishError(
+                                                t(
+                                                    'Conversation changed. Refresh and read the latest messages before ending service.',
+                                                ),
+                                            );
+                                            router.reload({ only: ['chat', 'inbox'] });
+                                        } else
+                                            setFinishError(t('Unable to save. Please try again.'));
+                                    } finally {
+                                        setFinishing(false);
+                                    }
+                                })();
+                            }}
+                        >
+                            {t('End service')}
+                        </Button>
+                    )}
+                    {!admin && chat.mode === 'BOT' && (
+                        <Button
+                            variant="secondary"
+                            disabled={
+                                form.processing ||
+                                transition.processing ||
+                                finishing ||
+                                chat.humanSupport?.available === false
+                            }
+                            onClick={() =>
+                                transition.post(base + '/handoff', {
+                                    preserveScroll: true,
+                                    onSuccess: () =>
+                                        transition.setData('request_id', crypto.randomUUID()),
+                                })
+                            }
+                        >
+                            {t('Talk to a person')}
+                        </Button>
+                    )}
+                </div>
+            )}
+            {chat.humanSupport?.available === false && (
+                <p role="status" className="text-sm text-amber-800">
+                    {t('Customer support is currently offline.')}{' '}
+                    {chat.humanSupport.nextOpenAt
+                        ? `${t('Next service time')}: ${new Intl.DateTimeFormat(undefined, { timeZone: chat.humanSupport.timezone, dateStyle: 'short', timeStyle: 'short' }).format(new Date(chat.humanSupport.nextOpenAt))} (${chat.humanSupport.timezone})`
+                        : t('No upcoming service hours are scheduled.')}
+                </p>
+            )}
+            {finishError && (
+                <p role="alert" className="support-error">
+                    {finishError}
+                </p>
+            )}
+            {Object.values(transition.errors).map((error) => (
+                <p role="alert" key={error}>
+                    {error}
+                </p>
+            ))}
             {disconnected && (
                 <p role="status" className="support-error">
                     {t('Connection interrupted. Reconnecting… Your draft is saved on this page.')}
@@ -132,22 +248,27 @@ export function SupportThread({
                 ) : (
                     chat.messages.map((message) => (
                         <article
-                            className={`support-message ${message.fromSupport === admin ? 'support-message-own' : ''}`}
+                            className={`support-message ${message.senderKind !== 'BOT' && message.fromSupport === admin ? 'support-message-own' : ''}`}
                             key={message.id}
                         >
                             <p className="support-sender">
-                                {message.fromSupport
-                                    ? message.supportName || t('Customer support')
-                                    : admin
-                                      ? t('Customer')
-                                      : t('You')}
+                                {message.senderKind === 'BOT'
+                                    ? t('Support assistant')
+                                    : message.fromSupport
+                                      ? message.supportName || t('Customer support')
+                                      : admin
+                                        ? t('Customer')
+                                        : t('You')}
                             </p>
                             <div className="support-bubble">
                                 {message.imageUrl && (
                                     <button
                                         type="button"
                                         className="support-image-button"
-                                        onClick={() => { setEnlarged(message.imageUrl); setEnlargedSources(message.imageSources ?? []); }}
+                                        onClick={() => {
+                                            setEnlarged(message.imageUrl);
+                                            setEnlargedSources(message.imageSources ?? []);
+                                        }}
                                         aria-label={t('View image')}
                                     >
                                         <PreviewImage
@@ -174,6 +295,28 @@ export function SupportThread({
                     ))
                 )}
             </div>
+            {canSend && quickReplyUrl && (
+                <QuickReplyPicker
+                    url={quickReplyUrl}
+                    disabled={form.processing || finishing}
+                    onPick={(body) => {
+                        const input = thread.current?.querySelector('textarea');
+                        const start = input?.selectionStart ?? form.data.support_message.length;
+                        const end = input?.selectionEnd ?? start;
+                        const value =
+                            form.data.support_message.slice(0, start) +
+                            body +
+                            form.data.support_message.slice(end);
+                        if (value.length > 2000) return false;
+                        form.setData('support_message', value);
+                        requestAnimationFrame(() => {
+                            input?.focus();
+                            input?.setSelectionRange(start + body.length, start + body.length);
+                        });
+                        return true;
+                    }}
+                />
+            )}
             {canSend && (
                 <form
                     className="support-composer"
@@ -332,7 +475,7 @@ export function SupportThread({
                     <DialogTitle>{t('Chat image')}</DialogTitle>
                     {enlarged && (
                         <PreviewImage
-                                    sources={enlargedSources}
+                            sources={enlargedSources}
                             className="mt-4 max-h-[75dvh] w-full object-contain"
                             src={enlarged}
                             alt={t('Chat image')}

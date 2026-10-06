@@ -52,7 +52,12 @@ const offers = computed(() =>
     ranks.value.map((rank) => {
         const offer = p.value.levels.find((l) => l.rank === rank),
             current = rank === p.value.rank;
-        const fee = rank === 0 ? '0' : current && p.value.cycle ? p.value.cycle.tariff : offer?.fee;
+        const fee =
+            rank === 0
+                ? '0'
+                : current && !p.value.manualLevel && p.value.cycle
+                  ? p.value.cycle.tariff
+                  : offer?.fee;
         return {
             rank,
             offer,
@@ -181,18 +186,14 @@ async function share() {
                                     }}</text></view
                                 ><text class="price"
                                     >{{
-                                        offer.rank === 0 || (offer.current && p.manualLevel)
-                                            ? t('No annual fee')
+                                        offer.rank === 0
+                                            ? '300USDT'
                                             : offer.fee === undefined
                                               ? t('Not configured')
                                               : feeLabel(offer.fee)
                                     }}
                                     <text
-                                        v-if="
-                                            offer.rank > 0 &&
-                                            !(offer.current && p.manualLevel) &&
-                                            offer.fee !== undefined
-                                        "
+                                        v-if="offer.rank > 0 && offer.fee !== undefined"
                                         class="small"
                                         >{{ t('per year') }}</text
                                     ></text

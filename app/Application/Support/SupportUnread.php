@@ -11,7 +11,7 @@ final class SupportUnread
         return DB::table('support_messages as m')->join('support_conversations as c', function ($join) {
             $join->on('m.conversation_id', '=', 'c.id')->on('m.tenant_id', '=', 'c.tenant_id');
         })->where('c.tenant_id', $tenant)->where('c.user_id', $user)
-            ->whereNotNull('m.sender_admin_id')->whereColumn('m.sequence', '>', 'c.user_read_sequence')->count();
+            ->where(fn ($q) => $q->whereNotNull('m.sender_admin_id')->orWhereNotNull('m.sender_support_user_id')->orWhere('m.is_bot', true))->whereColumn('m.sequence', '>', 'c.user_read_sequence')->count();
     }
 
     public function read(string $tenant, string $user, int $through): void

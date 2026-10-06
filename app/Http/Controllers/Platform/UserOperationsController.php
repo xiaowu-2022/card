@@ -15,13 +15,14 @@ final class UserOperationsController extends Controller
 {
     public function __invoke(Request $request, PlatformListFilters $lists, PlatformUserQuery $query, AuthorizationService $authorization): Response
     {
-        $filters = $lists->validated($request, ['status' => ['nullable', 'in:ACTIVE,SUSPENDED,DISABLED']]);
+        $filters = $lists->validated($request, ['status' => ['nullable', 'in:ACTIVE,SUSPENDED,DISABLED'], 'support' => ['nullable', 'in:Enabled,Disabled']]);
         $allowed = fn (string $permission): bool => $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, $permission);
         $financialAccess = ['balances' => $allowed('wallet.read'), 'commission' => $allowed('ledger.read'), 'withdrawals' => $allowed('withdrawals.read')];
 
         return Inertia::render('platform/Users', [
-            'users' => $query->paginate($filters['company'] ?? null, $filters['search'] ?? null, $filters['status'] ?? null, $financialAccess),
-            'financialAccess' => $financialAccess,
+            'users' => $query->paginate($filters['company'] ?? null, $filters['search'] ?? null, $filters['status'] ?? null, $financialAccess, $filters['support'] ?? null),
+            'financialAccess' => $financialAccess, 'canManageSupport' => $allowed('support.read') && $allowed('support.agents.manage'),
+            'canCreateUser' => $allowed('users.create'),
             'canChangeReferrer' => $allowed('users.referrer.manage'),
             'canAdjustCommission' => $financialAccess['balances'] && $allowed('commissions.adjust'),
             'canViewKyc' => $allowed('kyc.read'),

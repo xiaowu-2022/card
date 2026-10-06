@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import { readFileSync, mkdirSync } from 'node:fs';
-import { chromium } from 'playwright';
+import { chromium, webkit } from 'playwright';
 import { addParityStates } from '../../scripts/client/parity-states.mjs';
 const fixture = addParityStates(
     JSON.parse(readFileSync('storage/framework/testing/uni-parity/fixtures.json', 'utf8')),
 );
 const origin = process.env.UNI_PARITY_ORIGIN ?? 'http://127.0.0.1:5202';
-const browser = await chromium.launch({ channel: 'chrome', headless: true });
+const browser = process.env.CARD_BROWSER === 'webkit'
+    ? await webkit.launch({ headless: true })
+    : await chromium.launch({ channel: 'chrome', headless: true });
 const id = '11111111-1111-4111-8111-111111111111';
 const out = 'artifacts/uni-parity/cards-acceptance';
 mkdirSync(out, { recursive: true });
@@ -61,6 +63,11 @@ async function scenario(
             return route.fulfill({ status: 404, json: {} });
         }
         if (req.method() !== 'GET' || u.origin !== origin) return route.abort();
+        if (state.withoutContainerUnits && u.pathname.endsWith('.css')) {
+            const response = await route.fetch();
+            const css = (await response.text()).replace(/[^{};]+:[^{};]*\bcq[whib][^{};]*(?:;|(?=\}))/g, '');
+            return route.fulfill({ response, body: css });
+        }
         return route.continue();
     });
     const target = path.startsWith('/cards')
@@ -218,6 +225,46 @@ async function chooseImage(page, label, mimeType = 'image/png') {
     });
 }
 try {
+    for (const width of [320, 375, 430]) {
+        for (const withoutContainerUnits of [false, true]) {
+            await scenario(
+                `preview-layout-${width}-${withoutContainerUnits ? 'legacy' : 'modern'}`,
+                '/cards?fixture=verified',
+                async ({ page, posts }) => {
+                    await openApplication(page);
+                    const card = page.locator('.modal-panel .user-card-product-preview');
+                    await card.waitFor();
+                    await card.scrollIntoViewIfNeeded();
+                    await page.waitForFunction(() => {
+                        const images = [...document.querySelectorAll('.modal-panel .user-card-product-preview img')];
+                        return images.length === 3 && images.every(image => image.complete && image.naturalWidth > 0);
+                    });
+                    const bounds = await card.boundingBox();
+                    assert.ok(bounds.width <= 320 && bounds.height < 250, JSON.stringify(bounds));
+                    for (const [selector, maxWidth] of [['.user-card-chip', 42], ['.user-card-preview-network', 64]]) {
+                        const icon = await card.locator(selector).boundingBox();
+                        assert.ok(icon.width > 0 && icon.width <= maxWidth + 1, JSON.stringify(icon));
+                        assert.ok(icon.height > 0 && icon.height < 60, JSON.stringify(icon));
+                        assert.ok(icon.x >= bounds.x && icon.x + icon.width <= bounds.x + bounds.width + 1);
+                        assert.ok(icon.y >= bounds.y && icon.y + icon.height <= bounds.y + bounds.height + 1);
+                    }
+                    const fees = await page.locator('.modal-panel .fee-details').boundingBox();
+                    assert.ok(fees.y >= bounds.y + bounds.height);
+                    assert.equal(await page.locator('.modal-scroll').evaluate(el => el.scrollWidth > el.clientWidth + 1), false);
+                    await field(page, 'Initial card balance').fill('20');
+                    await button(page, 'Open card').scrollIntoViewIfNeeded();
+                    assert.equal(await button(page, 'Open card').isEnabled(), true);
+                    assert.equal(posts.some(post => post.key === '/client/cards/issues'), false);
+                },
+                () => ({ json: {} }),
+                state => {
+                    readyApplication(state);
+                    state.viewport = { width, height: 740 };
+                    state.withoutContainerUnits = withoutContainerUnits;
+                },
+            );
+        }
+    }
     await scenario(
         'reveal-expiry',
         path,

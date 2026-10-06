@@ -62,7 +62,7 @@ watch(
                 rank: 'all',
                 relation: 'all',
                 activity: 'all',
-                funding: 'all',
+                sort: 'registered_desc',
             },
             Object.fromEntries(Object.entries(f).map(([k, v]) => [k, String(v ?? '')])),
         );
@@ -85,11 +85,31 @@ const filterKeys = computed(() =>
         ? ['account_id', 'kind', 'rank', 'relation']
         : daily.value
           ? ['activity']
-          : ['account_id', 'rank', 'funding'],
+          : ['account_id', 'rank', 'sort'],
 );
+function defaultFilter(key: string) {
+    return key === 'account_id' ? '' : key === 'sort' ? 'registered_desc' : 'all';
+}
 const active = computed(() =>
-    filterKeys.value.filter((key) => p.value.filters[key] && p.value.filters[key] !== 'all'),
+    filterKeys.value.filter(
+        (key) =>
+            p.value.filters[key] != null &&
+            String(p.value.filters[key]) !== '' &&
+            String(p.value.filters[key]) !== defaultFilter(key),
+    ),
 );
+const sortChoices = computed(() => [
+    { value: 'registered_desc', label: t('Registration: newest first') },
+    { value: 'registered_asc', label: t('Registration: oldest first') },
+    { value: 'commission_desc', label: t('Commission: highest first') },
+    { value: 'commission_asc', label: t('Commission: lowest first') },
+]);
+function openFilters() {
+    for (const key of filterKeys.value) {
+        draft[key] = String(p.value.filters[key] ?? '') || defaultFilter(key);
+    }
+    filtersOpen.value = true;
+}
 const activityLabels: Record<string, string> = {
     invitation: 'Invitation registration',
     activation: 'Deposit payment',
@@ -106,17 +126,21 @@ function chip(key: string) {
     const v = String(p.value.filters[key]);
     return key === 'account_id'
         ? v
-        : key === 'kind'
-          ? t(incomeLabels[v] ?? 'All income')
-          : key === 'rank'
-            ? v === 'unknown'
-                ? t('Historical record · not recorded')
-                : reportRank(Number(v))
-            : key === 'relation'
-              ? relationLabel(v)
-              : key === 'activity'
-                ? t(activityLabels[v] ?? 'All activity')
-                : t(v === 'funded' ? 'Deposit funded' : 'Deposit not funded');
+        : key === 'sort'
+          ? (sortChoices.value.find((option) => option.value === v)?.label ?? '')
+          : key === 'kind'
+            ? t(incomeLabels[v] ?? 'All income')
+            : key === 'rank'
+              ? v === 'unknown'
+                  ? t('Historical record · not recorded')
+                  : v === 'registered'
+                    ? t('Registered member')
+                    : reportRank(Number(v))
+              : key === 'relation'
+                ? relationLabel(v)
+                : key === 'activity'
+                  ? t(activityLabels[v] ?? 'All activity')
+                  : '';
 }
 const members = computed(() =>
         !daily.value && !commission.value ? ((p.value as Report).items as Member[]) : [],
@@ -125,7 +149,15 @@ const members = computed(() =>
     commissions = computed(() => props.page.history?.items ?? []),
     report = computed(() => props.page.report),
     rankChoices = computed(() =>
-        rankOptions(p.value.ranks, commission.value).map(([value, label]) => ({ value, label })),
+        (commission.value
+            ? rankOptions(p.value.ranks, true)
+            : [
+                  ['all', t('All levels')],
+                  ['registered', t('Registered member')],
+                  ['0', reportRank(0)],
+                  ...rankOptions(p.value.ranks.filter((rank) => rank > 0)).slice(1),
+              ]
+        ).map(([value, label]) => ({ value, label })),
     ),
     kindChoices = computed(() => [
         { value: 'all', label: t('All income') },
@@ -160,9 +192,7 @@ function apply() {
     filter(Object.fromEntries(filterKeys.value.map((key) => [key, draft[key]])));
 }
 function reset() {
-    filter(
-        Object.fromEntries(filterKeys.value.map((key) => [key, key === 'account_id' ? '' : 'all'])),
-    );
+    filter(Object.fromEntries(filterKeys.value.map((key) => [key, defaultFilter(key)])));
 }
 function teamCount(row: Member) {
     return t('Team: {{count}} members', { count: row.teamSize });
@@ -241,25 +271,58 @@ function activityChange(value: string) {
                 v-if="commission && p.totals"
                 :totals="p.totals"
                 :title="t('Commission income')"
-            /><view class="report-toolbar"
-                ><ReportDates
-                    v-if="daily || commission"
-                    :period="p"
-                    :allow-all="commission"
-                    @change="(from, to) => filter({ date_from: from, date_to: to })"
-                />
-                <form v-else class="member-search" @submit="filter({ account_id: search })">
-                    <input
-                        v-model="search"
-                        type="number"
-                        :maxlength="24"
-                        :placeholder="t('Search account ID')"
-                    /><button class="primary" form-type="submit">{{ t('Search') }}</button>
-                </form>
-                <button class="report-filter-button" @click="filtersOpen = true">
-                    <UiIcon name="sliders-horizontal" :size="16" />{{ t('Filters')
-                    }}{{ active.length ? ' (' + active.length + ')' : '' }}
-                </button></view
+            /><view class="report-controls" :class="{ 'member-controls': !daily && !commission }">
+                <view
+                    class="report-toolbar"
+                    :class="{ 'member-search-toolbar': !daily && !commission }"
+                    ><ReportDates
+                        v-if="daily || commission"
+                        :period="p"
+                        :allow-all="commission"
+                        @change="(from, to) => filter({ date_from: from, date_to: to })"
+                    />
+                    <form v-else class="member-search" @submit="filter({ account_id: search })">
+                        <view class="member-search-row"
+                            ><input
+                                v-model="search"
+                                type="text"
+                                :maxlength="254"
+                                :placeholder="t('Account ID, name or email')"
+                                :aria-label="t('Account ID, name or email')"
+                                confirm-type="search"
+                                @confirm="filter({ account_id: search })"
+                            /><button class="primary" form-type="submit">
+                                {{ t('Search') }}
+                            </button></view
+                        >
+                    </form>
+                    <button
+                        v-if="daily || commission"
+                        class="report-filter-button"
+                        @click="openFilters"
+                    >
+                        <UiIcon name="sliders-horizontal" :size="16" />{{ t('Filters')
+                        }}{{ active.length ? ' (' + active.length + ')' : '' }}
+                    </button></view
+                ><view v-if="!daily && !commission" class="report-toolbar member-results-toolbar"
+                    ><view class="member-count-copy"
+                        ><text>{{ countsCopy }}</text
+                        ><text v-if="p.filters.account_id || active.length">{{
+                            matchingCopy
+                        }}</text></view
+                    ><button class="report-filter-button" @click="openFilters">
+                        <UiIcon name="sliders-horizontal" :size="16" />{{ t('Filters')
+                        }}{{ active.length ? ' (' + active.length + ')' : '' }}
+                    </button></view
+                ><view v-if="!daily && !commission && active.length" class="report-chips"
+                    ><button
+                        v-for="key in active"
+                        :key="key"
+                        @click="filter({ [key]: defaultFilter(key) })"
+                    >
+                        {{ chip(key) }} ×
+                    </button></view
+                ></view
             ><text v-if="daily" class="report-period"
                 >{{ t('Reporting period') }}: {{ p.dateFrom }} — {{ p.dateTo }}</text
             ><template v-if="daily && report?.totals && report.counts"
@@ -278,30 +341,14 @@ function activityChange(value: string) {
                         ><text>{{ t(entry.label) }}</text></view
                     ></view
                 ><text class="report-section-title">{{ t('Team activity') }}</text></template
-            ><view v-if="!daily && !commission" class="report-toolbar"
-                ><view class="member-count-copy"
-                    ><text>{{ countsCopy }}</text
-                    ><text v-if="p.filters.account_id || active.length">{{
-                        matchingCopy
-                    }}</text></view
-                ><SelectField
-                    :model-value="String(p.filters.sort ?? 'registered_desc')"
-                    :label="t('Member sorting')"
-                    :options="[
-                        { value: 'registered_desc', label: t('Registration: newest first') },
-                        { value: 'registered_asc', label: t('Registration: oldest first') },
-                        { value: 'commission_desc', label: t('Commission: highest first') },
-                        { value: 'commission_asc', label: t('Commission: lowest first') },
-                    ]"
-                    @update:model-value="(value) => filter({ sort: value })" /></view
-            ><view v-if="active.length" class="report-chips"
-                ><button
+            ><view v-if="(daily || commission) && active.length" class="report-chips">
+                <button
                     v-for="key in active"
                     :key="key"
-                    @click="filter({ [key]: key === 'account_id' ? '' : 'all' })"
+                    @click="filter({ [key]: defaultFilter(key) })"
                 >
                     {{ chip(key) }} ×
-                </button></view
+                </button> </view
             ><Modal :open="filtersOpen" :title="t('Filters')" @close="filtersOpen = false"
                 ><template v-if="commission"
                     ><FormField
@@ -335,13 +382,9 @@ function activityChange(value: string) {
                         v-model="draft.rank"
                         :label="t('Current promotion level')"
                         :options="rankChoices" /><SelectField
-                        v-model="draft.funding"
-                        :label="t('Deposit status')"
-                        :options="[
-                            { value: 'all', label: t('All') },
-                            { value: 'funded', label: t('Deposit funded') },
-                            { value: 'unfunded', label: t('Deposit not funded') },
-                        ]" /></template
+                        v-model="draft.sort"
+                        :label="t('Member sorting')"
+                        :options="sortChoices" /></template
                 ><view class="report-filter-buttons"
                     ><button class="secondary" @click="reset">{{ t('Reset filters') }}</button
                     ><button class="primary" @click="apply">{{ t('Apply filters') }}</button></view

@@ -1,5 +1,6 @@
 export const partnerCatalog = {
     Details: ['详情', 'Butiran', 'Detalles'],
+    'Stock amount': ['存量金额', 'Jumlah baki', 'Importe del saldo'],
     'Partner data': ['合伙人数据', 'Data rakan kongsi', 'Datos de socios'],
     'Subordinate partners': ['下级', 'Rakan kongsi bawahan', 'Socios subordinados'],
     'No subordinate partners': ['暂无下级合伙人', 'Tiada rakan kongsi bawahan', 'No hay socios subordinados'],

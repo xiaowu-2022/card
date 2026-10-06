@@ -21,7 +21,7 @@ export default function SupportChatPage({ chat }: { chat: SupportChat }) {
                         </Button>
                     }
                 />
-                <SupportThread key={chat.id} chat={chat} admin t={t} />
+                <SupportThread quickReplyUrl="/admin/support/replies" key={chat.id} chat={chat} admin t={t} />
             </div>
         </TenantAdminLayout>
     );

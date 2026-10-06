@@ -136,7 +136,9 @@ Uni-app and shared SaaS reports show the three figures between stock composition
 Partner-version stock cards expose Partner data in uni-app/H5 and the Platform
 report drawer. Lists show the nearest enabled partner on each current invitation
 branch: traverse ordinary/disabled-partner nodes, stop at each enabled partner.
-Each row includes display name (account ID fallback), all-descendant headcount
+Each row includes display name (account ID fallback), email, current USDT business
+stock (an eight-decimal string using the same PartnerBusinessStock totals as its
+detail report, including negative values), and all-descendant headcount
 (excluding self, including descendant partners and their members), Details and
 Subordinate partners. Lists have stable account-ID ordering and 20-row pages;
 recursive UNION deduplicates nodes and terminates cycles. Counts are batched for

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AppReleaseController;
 use App\Http\Controllers\Api\ConsumerController;
 use App\Http\Controllers\Api\DirectImageUploadController;
+use App\Http\Controllers\Api\SupportWorkspaceController;
 use App\Http\Middleware\ConsumerFlowSession;
 use App\Http\Middleware\ConsumerPageResponse;
 use App\Http\Middleware\RequireConsumerApiUser;
@@ -37,5 +38,18 @@ Route::middleware(RequireConsumerApiUser::class.':operational')->group(function 
     Route::get('cards', [ConsumerController::class, 'cards']);
     Route::get('support', [ConsumerController::class, 'support'])->middleware('throttle:60,1');
     Route::get('support/images/{message}', [ConsumerController::class, 'supportImage'])->whereUuid('message');
+    Route::post('support/handoff', [ConsumerController::class, 'supportHandoff'])->middleware('throttle:20,1');
     Route::post('support/messages', [ConsumerController::class, 'supportSend'])->middleware('throttle:20,1');
+});
+
+Route::prefix('support-workspace')->middleware(RequireConsumerApiUser::class.':operational')->group(function () {
+    $controller = SupportWorkspaceController::class;
+    Route::get('/', [$controller, 'index'])->middleware('throttle:60,1');
+    Route::post('/profile', [$controller, 'profile'])->middleware('throttle:20,1');
+    Route::get('/replies', [$controller, 'replies']);
+    Route::post('/replies', [$controller, 'saveReply'])->middleware('throttle:30,1');
+    Route::get('/images/{message}', [$controller, 'image'])->whereUuid('message');
+    Route::get('/conversations/{conversation}', [$controller, 'show'])->whereUuid('conversation')->middleware('throttle:60,1');
+    Route::post('/conversations/{conversation}/messages', [$controller, 'send'])->whereUuid('conversation')->middleware('throttle:30,1');
+    Route::post('/conversations/{conversation}/finish', [$controller, 'finish'])->whereUuid('conversation')->middleware('throttle:20,1');
 });

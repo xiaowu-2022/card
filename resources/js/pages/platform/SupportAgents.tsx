@@ -1,13 +1,18 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
 import { PlatformSupportTabs } from '@/components/support/PlatformSupportTabs';
 import { SupportProfile } from '@/components/support/SupportProfile';
 import { t, useAdminTranslation } from '@/i18n/admin';
-type Agent = { id: string; name: string; email: string; supportName: string | null };
+type Agent = {
+    id: string;
+    name: string;
+    email: string;
+    supportName: string | null;
+};
 export default function SupportAgents({
     agents,
     filters,
@@ -19,7 +24,16 @@ export default function SupportAgents({
     const [editing, setEditing] = useState<Agent | null>(null);
     const [formState, setFormState] = useState({ dirty: false, busy: false });
     return (
-        <PlatformLayout title={t('Customer support')}>
+        <PlatformLayout
+            title={t('Customer support')}
+            actions={
+                <Button asChild>
+                    <Link href="/platform/users?support=Enabled">
+                        {t('Manage user support agents')}
+                    </Link>
+                </Button>
+            }
+        >
             <Head title={t('Support staff')} />
             <div className="space-y-4">
                 <PlatformSupportTabs agents />

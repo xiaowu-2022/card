@@ -7,6 +7,9 @@ const direct: Record<string, string> = {
     '/account': '/pages/account/index',
     '/messages': '/pages/messages/index',
     '/support': '/pages/support/index',
+    '/support-workspace': '/pages/support-workspace/index',
+    '/support-workspace/replies': '/pages/support-workspace/replies',
+    '/support-workspace/chat': '/pages/support/index',
 };
 export function internalUrl(path: string) {
     if (/^https?:\/\//i.test(path)) {

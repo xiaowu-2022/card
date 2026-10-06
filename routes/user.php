@@ -87,6 +87,7 @@ Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operat
     Route::post('/account/information/contacts/{change}/verify', [AccountController::class, 'completeContact'])->whereUuid('change')->middleware('throttle:5,1')->name('user.account.contact.verify');
     Route::get('/support', [SupportController::class, 'show'])->middleware('throttle:60,1')->name('user.support');
     Route::get('/support/images/{message}', [SupportController::class, 'image'])->whereUuid('message')->name('user.support.image');
+    Route::post('/support/handoff', [SupportController::class, 'handoff'])->middleware('throttle:20,1');
     Route::post('/support/messages', [SupportController::class, 'store'])->middleware('throttle:20,1')->name('user.support.send');
     Route::get('/funds', [AssetsController::class, 'funds'])->name('user.funds');
     Route::get('/assets/{asset}/activity', [AssetsController::class, 'history'])->whereIn('asset', ['USDT', 'USDC', 'ETH', 'BTC'])->name('user.assets.activity');

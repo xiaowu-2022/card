@@ -55,6 +55,7 @@ final class KycDetailController extends Controller
         return response()->json([
             'company' => ['id' => $tenant->id, 'name' => $tenant->name],
             'user' => ['id' => $member->id, 'displayName' => $member->profile?->display_name, 'email' => $member->email],
+            'platformVerified' => \Illuminate\Support\Facades\DB::table('platform_user_creations')->where('tenant_id', $tenant->id)->where('user_id', $member->id)->exists(),
             'applications' => ['items' => $page->map(fn ($application) => [
                 'id' => $application->id, 'reviewStatus' => $application->review_status->value,
                 'submittedAt' => $application->submitted_at->toIso8601String(),

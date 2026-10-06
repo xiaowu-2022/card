@@ -6,11 +6,16 @@ use App\Domain\Kyc\Enums\KycReviewStatus;
 use App\Domain\Kyc\Enums\KycUserStatus;
 use App\Domain\Kyc\Models\IdentityRecord;
 use App\Domain\Kyc\Models\KycApplication;
+use Illuminate\Support\Facades\DB;
 
 final class KycStatusService
 {
     public function forUser(string $tenantId, string $userId): KycUserStatus
     {
+        if (DB::table('platform_user_creations')->where('tenant_id', $tenantId)->where('user_id', $userId)->exists()) {
+            return KycUserStatus::Approved;
+        }
+
         if (IdentityRecord::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->exists()) {
             return KycUserStatus::Approved;
         }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\User;
 
 use App\Application\Support\SendSupportMessageAction;
+use App\Application\Support\SupportBot;
 use App\Application\Support\SupportChatQuery;
 use App\Application\Support\SupportImageStorage;
 use App\Application\Support\SupportUnread;
@@ -43,5 +44,13 @@ final class SupportController extends Controller
         $image = $query->image($context->id(), $request->user('tenant_user')->id, $message, false);
 
         return $images->response($image['path']);
+    }
+
+    public function handoff(Request $request, TenantContext $context, SupportBot $bot)
+    {
+        $data = $request->validate(['request_id' => 'required|uuid']);
+        $bot->handoff($context->id(), $request->user('tenant_user')->id, $data['request_id']);
+
+        return redirect('/support');
     }
 }

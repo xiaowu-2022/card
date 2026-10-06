@@ -10,7 +10,13 @@ import { useSupportPolling } from '@/components/support/useSupportPolling';
 type Inbox = {
     page: number;
     hasMore: boolean;
-    items: { id: string; accountId: string; awaitingReply: boolean; updatedAt: string }[];
+    items: {
+        id: string;
+        accountId: string;
+        mode?: 'BOT' | 'WAITING' | 'HUMAN';
+        awaitingReply: boolean;
+        updatedAt: string;
+    }[];
 };
 export default function SupportInbox({
     inbox,
@@ -70,7 +76,15 @@ export default function SupportInbox({
                             <span
                                 className={`rounded-full px-2 py-1 text-xs ${item.awaitingReply ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}
                             >
-                                {item.awaitingReply ? t('Awaiting reply') : t('Replied')}
+                                {t(
+                                    item.mode === 'BOT'
+                                        ? 'Bot support'
+                                        : item.mode === 'WAITING'
+                                          ? 'Waiting for human support'
+                                          : item.awaitingReply
+                                            ? 'Awaiting reply'
+                                            : 'Replied',
+                                )}
                             </span>
                             <ChevronRight className="size-4 shrink-0" />
                         </Link>

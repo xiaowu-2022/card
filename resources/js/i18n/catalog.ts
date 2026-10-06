@@ -1,3 +1,4 @@
+import { supportBotCatalog } from './support-bot-catalog';
 import { inboxCatalog } from './inbox-catalog';
 import { academyCatalog } from './academy-catalog';
 import { registrationGuideCatalog } from './registration-guide-catalog';
@@ -14,6 +15,7 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    ...supportBotCatalog,
     'Recognizing document number…': ['正在识别证件号码…', 'Mengenal pasti nombor dokumen…', 'Reconociendo el número de documento…'],
     'Recognized document number': ['识别到的证件号码', 'Nombor dokumen yang dikenal pasti', 'Número de documento reconocido'],
     'Please select and recognize the front image again.': ['请重新选择正面图片并识别。', 'Sila pilih dan kenal pasti imej hadapan semula.', 'Selecciona y reconoce de nuevo la imagen del anverso.'],

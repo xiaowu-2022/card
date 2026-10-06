@@ -50,7 +50,9 @@ onPageScroll((event) => {
     stockScroll = event.scrollTop;
 });
 onLoad((options) => {
-    const target = options?.path ? decodeURIComponent(options.path) : '/';
+    // H5 may already decode the outer route parameter. Keep query values encoded.
+    const routePath = options?.path || '/';
+    const target = routePath.startsWith('/') ? routePath : decodeURIComponent(routePath);
     const parts = target.split('#');
     path.value = parts[0];
     anchor.value = parts[1] ?? '';

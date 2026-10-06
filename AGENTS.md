@@ -1,3 +1,48 @@
+On 2026-10-06 the user approved Platform creation of consumer accounts with default
+completed verification. Require users.read + users.create and an explicit active company;
+create credentials/profile/default locale/zero wallet/promotion membership and immutable
+platform_user_creations audit evidence atomically. This flow alone bypasses consumer
+OTP/invitation submission; never fabricate identity documents, OCR, verified contact
+ownership or AdminUser identities. Keep ordinary registration and card-material gates.
+No historical conversion or financial entries. See USER_AUTH_RULES.md.
+
+On 2026-10-06 the user replaced dedicated admin-backed support accounts/workspaces
+with existing consumer user accounts selected in Platform Users. Require users.read,
+support.read and support.agents.manage to grant/revoke with revision and audit.
+Each agent serves only its own company; multiple agents share the inbox, excluding
+their own consultations. App/H5 My account exposes Support workspace only to active
+assigned users. Revalidate every read/image/send/finish/template operation; revocation
+does not log out normal consumer sessions. Preserve schedule-only availability,
+existing human chats, bot transitions, immutable encrypted messages and nickname
+snapshots. Use a separate consumer-agent sender, never a fabricated AdminUser or the
+customer sender column. Retire /support-agent routes and creation UI; retain legacy
+identities/history without automatic conversion. Personal replies belong to each
+consumer agent, shared replies stay Platform-managed. See SUPPORT_CHAT.md and
+PLATFORM_SUPPORT.md. This supersedes the dedicated multi-company model below.
+
+On 2026-10-06 the user added company-local weekly support hours and dedicated
+multi-company support accounts. Platform alone manages schedules, assignments and
+company quick replies; default hours are 24/7 and availability depends on schedule,
+not agent presence. Reject new offline handoffs without writes, retain successful
+UUID retries and existing WAITING/HUMAN conversations. Dedicated support_agent
+sessions and the support-only SUPPORT_AGENT role expose /support-agent/login and
+an isolated workspace; revalidate active assignments on every request and revoke
+sessions on account/access changes. Agents may change their nickname and personal
+quick replies. Shared/personal templates insert at the cursor and require explicit
+send; preserve historical sender/text snapshots. No live customer test messages,
+financial actions or external AI. See SUPPORT_CHAT.md and PLATFORM_SUPPORT.md.
+
+On 2026-10-06 the user approved local FAQ-based support robots with explicit
+consumer handoff. Platform support.read + support.bot.manage controls global FAQs,
+company entries/overrides and default-off switches. New enabled chats start BOT;
+existing chats remain HUMAN, handoff enters WAITING, staff replies take over, and
+revision-checked End service restores BOT if enabled. Replies are stored Chinese
+answers, with deterministic conservative matching and fallback; no external AI.
+Atomically persist user/bot messages, preserve encrypted immutable snapshots,
+request idempotency, company ownership and explicit bot identity without admin IDs.
+GET stays read-only; no live customer test messages. See docs/architecture/SUPPORT_CHAT.md and
+docs/deployment/PLATFORM_SUPPORT.md.
+
 On 2026-10-06 the user added Partner data below partner-version stock cards in
 consumer App/H5 and Platform. Lists traverse ordinary/disabled partners to the
 nearest enabled partners; headcounts include all descendants except self. Permit

@@ -9,9 +9,12 @@ import { explainError } from '../../lib/client';
 import PageShell from '../../components/PageShell.vue';
 import UiIcon from '../../components/UiIcon.vue';
 import FormErrors from '../../components/FormErrors.vue';
-const account = ref<{ kycStatus: string; promotionRank: number; accountQualified: boolean } | null>(
-        null,
-    ),
+const account = ref<{
+        supportAgent?: boolean;
+        kycStatus: string;
+        promotionRank: number;
+        accountQualified: boolean;
+    } | null>(null),
     errors = ref<Record<string, string>>({});
 onShow(async () => {
     setCurrentPage('/account');
@@ -52,14 +55,17 @@ const status = computed(() =>
         )[account.value?.kycStatus ?? ''] ?? 'Not verified',
     ),
 );
-const items = [
+const items = computed(() => [
+    ...(account.value?.supportAgent
+        ? [{ title: 'Support workspace', icon: 'support', path: '/support-workspace' }]
+        : []),
     { title: 'Account and security', icon: 'shield-check', path: '/account/security' },
     { title: 'Promotion center', icon: 'users', path: '/promotion' },
     { title: 'Invitation data', icon: 'chart-no-axes-combined', path: '/promotion/invitations' },
     { title: 'U Card Academy', icon: 'book-open', path: '/promotion/rules' },
     { title: 'Customer support', icon: 'support', path: '/support' },
     { title: 'Messages', icon: 'bell', path: '/messages' },
-];
+]);
 function count(path: string) {
     return path === '/messages' ? unread.messages : path === '/support' ? unread.support : 0;
 }

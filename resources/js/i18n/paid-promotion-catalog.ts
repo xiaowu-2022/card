@@ -7,6 +7,7 @@ export const paidPromotionCatalog = {
             'Bayaran balik deposit tidak mengurangkan bilangan ahli biasa. Apabila menjadi ejen, ahli dikira sebagai ejen sahaja; selepas status ejen tamat, deposit perlu dibayar semula.',
             'El reembolso del depósito no reduce el número de miembros ordinarios. Al convertirse en agente se cuenta solo como agente; al finalizar ese estado, debe pagar un nuevo depósito.',
         ],
+    'Account ID, name or email': ['账号 ID、名称或邮箱', 'ID akaun, nama atau e-mel', 'ID, nombre o correo'],
     'Member sorting': ['成员排序', 'Susunan ahli', 'Orden de miembros'],
     'Registration: newest first': [
         '注册时间：由新到旧',

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Platform;
 
 use App\Application\Support\SendSupportMessageAction;
 use App\Application\Support\SupportAccess;
+use App\Application\Support\SupportBot;
 use App\Application\Support\SupportChatQuery;
 use App\Application\Support\SupportImageStorage;
 use App\Application\Support\SupportProfiles;
@@ -32,16 +33,24 @@ final class SupportController extends Controller
 
     private function page(Request $r, PlatformListFilters $lists, ?array $chat = null)
     {
-        $filters = $lists->validated($r, ['status' => ['nullable', 'in:awaiting,replied']]);
+        $filters = $lists->validated($r, ['status' => ['nullable', 'in:awaiting,replied,BOT,WAITING,HUMAN']]);
         $rows = SupportConversation::query()->join('users as u', fn ($j) => $j->on('u.id', '=', 'support_conversations.user_id')->on('u.tenant_id', '=', 'support_conversations.tenant_id'))
             ->join('tenants as t', 't.id', '=', 'support_conversations.tenant_id')
             ->when($filters['company'] ?? null, fn ($q, $v) => $q->where('support_conversations.tenant_id', $v))
-            ->when($filters['status'] ?? null, fn ($q, $v) => $q->where('last_sender', $v === 'awaiting' ? 'USER' : 'ADMIN'))
+            ->when($filters['status'] ?? null, function ($q, $v) {
+                if ($v === 'awaiting') {
+                    $q->where(fn ($q) => $q->where('mode', 'WAITING')->orWhere(fn ($q) => $q->where('mode', 'HUMAN')->where('last_sender', 'USER')));
+                } elseif ($v === 'replied') {
+                    $q->where('mode', 'HUMAN')->whereIn('last_sender', ['ADMIN', 'AGENT']);
+                } else {
+                    $q->where('mode', $v);
+                }
+            })
             ->when($filters['search'] ?? null, fn ($q, $v) => $q->where(fn ($q) => $q->where('u.account_id', 'like', '%'.addcslashes($v, '%_').'%')->orWhere('u.email', 'ilike', '%'.addcslashes($v, '%_').'%')))
             ->select('support_conversations.*', 'u.account_id', 'u.email', 't.name as company_name')
             ->orderByDesc('support_conversations.updated_at')->orderBy('support_conversations.id')->paginate(30)->withQueryString()
             ->through(fn ($o) => ['id' => $o->id, 'tenantId' => $o->tenant_id, 'userId' => $o->user_id, 'company' => $o->company_name, 'accountId' => $o->account_id,
-                'email' => $o->email, 'awaitingReply' => $o->last_sender === 'USER', 'updatedAt' => $o->updated_at->toIso8601String()]);
+                'email' => $o->email, 'mode' => $o->mode, 'awaitingReply' => $o->mode === 'WAITING' || ($o->mode === 'HUMAN' && $o->last_sender === 'USER'), 'updatedAt' => $o->updated_at->toIso8601String()]);
 
         return Inertia::render('platform/Support', ['inbox' => $rows, 'chat' => $chat, 'companies' => $lists->companies(), 'filters' => $filters, 'supportName' => $r->user('platform_admin')->support_name])
             ->toResponse($r)->header('Cache-Control', 'private, no-store');
@@ -95,5 +104,13 @@ final class SupportController extends Controller
         $profiles->update($r->user('platform_admin')->id, $agent, $data['support_name'] ?? null);
 
         return back()->with('success', 'Support name saved.');
+    }
+
+    public function finish(Request $r, Tenant $tenant, string $user, SupportBot $bot)
+    {
+        $data = $r->validate(['request_id' => 'required|uuid', 'revision' => 'required|integer|min:1']);
+        $bot->finish($tenant->id, $user, $r->user('platform_admin')->id, $data['request_id'], $data['revision'], true);
+
+        return $r->expectsJson() ? response()->noContent() : back();
     }
 }
