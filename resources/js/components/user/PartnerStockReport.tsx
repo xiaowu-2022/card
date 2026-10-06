@@ -1,6 +1,7 @@
 import { displayMoney as adminAmount } from '@/lib/admin-amount';
 import { t, dateTime } from '@/i18n';
 import { fullMoney } from '@/lib/promotion-report';
+import { partnerJournalNote } from '@/lib/partner-journal-note';
 
 export type StockPage<T> = { items: T[]; page: number; total: number; hasMore: boolean };
 export type JournalRow = {
@@ -371,7 +372,7 @@ export function PartnerStockReport({
                     </dl>
                     <p className="stock-muted">
                         {t(
-                            'Theoretical balance = personal net advances + net commissions received − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
+                            'Theoretical balance = personal net advances (less paid agent annual fees) + net commissions received − personal net reimbursements. Annual fees include converted deposits. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
                         )}
                     </p>
                 </section>
@@ -478,7 +479,7 @@ export function PartnerStockReport({
                                 {row.reverses_id ? '−' : ''}
                                 {value(row.amount)} · {row.business_date}
                             </span>
-                            <p>{row.note}</p>
+                            <p>{partnerJournalNote(row.note, t)}</p>
                             {onReverse && (
                                 <small>
                                     {t('Recorded by')}: {row.actor_id} · {dateTime(row.created_at)}

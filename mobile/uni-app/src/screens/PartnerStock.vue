@@ -7,6 +7,7 @@ import ReportPagination from '../components/ReportPagination.vue';
 import { t, dateTime } from '../lib/i18n';
 import { go } from '../lib/navigation';
 import { fullMoney } from '../lib/promotion-report';
+import { partnerJournalNote } from '../generated/partner-journal-note';
 import type { StockReport } from '../lib/stock';
 const props = defineProps<{ page: { report: StockReport } }>(),
     r = computed(() => props.page.report),
@@ -162,7 +163,7 @@ const more = computed(() =>
                     }}</text></view
                 ><text class="muted small">{{
                     t(
-                        'Theoretical balance = personal net advances + net commissions received − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
+                        'Theoretical balance = personal net advances (less paid agent annual fees) + net commissions received − personal net reimbursements. Annual fees include converted deposits. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
                     )
                 }}</text></view
             ><view class="panel"
@@ -229,7 +230,7 @@ const more = computed(() =>
                     ><text
                         >{{ row.reverses_id ? '−' : '' }}{{ value(row.amount) }} ·
                         {{ row.business_date }}</text
-                    ><text class="plain">{{ row.note }}</text
+                    ><text class="plain">{{ partnerJournalNote(row.note, t) }}</text
                     ><text v-if="row.reversed" class="small muted">{{ t('Reversed') }}</text></view
                 ></view
             ><view v-if="r.missingRates > 0 && r.version !== 'partner'" class="panel"

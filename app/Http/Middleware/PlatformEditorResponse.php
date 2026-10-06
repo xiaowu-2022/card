@@ -37,7 +37,7 @@ final class PlatformEditorResponse
         $list = match (true) {
             $path === '/platform/settings/assets' && $request->filled('company') => '/platform/company-configurations',
             $path === '/platform/tenants/create' => '/platform/tenants',
-            preg_match('#^/platform/tenants/[^/]+/users/[^/]+/(wallet-adjustments|referrer|promotion|manual-commissions)$#', $path) === 1 => '/platform/users',
+            preg_match('#^/platform/tenants/[^/]+/users/[^/]+/(wallet-adjustments|referrer|invitation-code|promotion|manual-commissions)$#', $path) === 1 => '/platform/users',
             preg_match('#^/platform/tenants/[^/]+/configuration/(settings(/(branding|locales|business|articles|sms|email))?|promotion|paid-promotion|wealth)$#', $path) === 1 => '/platform/company-configurations',
             default => null,
         };

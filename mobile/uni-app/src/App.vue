@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onShow, onHide } from '@dcloudio/uni-app';
 import { checkAppUpdate } from './lib/app-update';
+import { pauseSupportReminder, resumeSupportReminder } from './lib/support-reminder';
 import { refreshUnread } from './lib/session';
 let timer: ReturnType<typeof setInterval> | undefined;
 function pause() {
+    pauseSupportReminder();
     clearInterval(timer);
     timer = undefined;
 }
@@ -12,7 +14,12 @@ function resume() {
     // #ifdef H5
     if (document.hidden) return;
     // #endif
-    void checkAppUpdate(true).then(() => refreshUnread()).catch(() => { /* Existing request error UI handles offline state. */ });
+    resumeSupportReminder();
+    void checkAppUpdate(true)
+        .then(() => refreshUnread())
+        .catch(() => {
+            /* Existing request error UI handles offline state. */
+        });
     timer = setInterval(() => void refreshUnread(), 30000);
 }
 onShow(resume);

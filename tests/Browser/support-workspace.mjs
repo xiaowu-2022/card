@@ -49,6 +49,8 @@ for (const [name, engine, options] of [
         ];
         const chat = () => ({
             id: conversation,
+            customerName: '测试客户',
+            customerOnline: true,
             mode: 'HUMAN',
             revision,
             botEnabled: true,
@@ -106,6 +108,8 @@ for (const [name, engine, options] of [
                 return route.fulfill({
                     json: {
                         profile,
+                        awaitingCount: 1,
+                        pendingMessageCount: 1,
                         inbox: paginate([
                             {
                                 id: conversation,
@@ -133,7 +137,9 @@ for (const [name, engine, options] of [
         await button('客服工作台').click();
         await page.getByText('测试客户', { exact: true }).waitFor();
         await page.screenshot({ path: `${out}/${name}-inbox.png` });
-        await page.locator('input:visible').first().fill('小王');
+        await page.getByRole('button', { name: '设置', exact: true }).click();
+        await button('修改客服名 ›').click();
+        await page.getByRole('dialog', { name: '修改客服名' }).getByRole('textbox', { name: '客服名称' }).fill('小王');
         await button('保存').click();
         await page.waitForTimeout(150);
         assert.ok(
@@ -174,9 +180,9 @@ for (const [name, engine, options] of [
         );
         assert.equal(writes.filter((w) => w.path.endsWith('/messages')).length, 1);
         assert.ok(writes.find((w) => w.path.endsWith('/messages')).path.includes(conversation));
-        await button('结束接待').click();
+        assert.equal(await button('结束接待').count(), 0);
         await page.waitForTimeout(100);
-        assert.ok(writes.some((w) => w.path.endsWith('/finish')));
+        assert.equal(writes.some((w) => w.path.endsWith('/finish')), false);
         await page.goto(h5 + '/#/pages/support-workspace/replies');
         await button('添加语录').click();
         const editor = page.locator('.editor');
@@ -288,7 +294,7 @@ for (const [name, engine, options] of [
         assert.deepEqual(errors, []);
         await desktop.close();
         console.log(
-            `${name}: user grant, My account entry, shared inbox, nickname, caret insertion, explicit send, finish, personal replies and revoked access passed`,
+            `${name}: user grant, My account entry, shared inbox, nickname, caret insertion, explicit send, compact header, personal replies and revoked access passed`,
         );
     } finally {
         await browser.close();

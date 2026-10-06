@@ -150,3 +150,13 @@ check fails during its legacy KYC approval setup (KYC_OCR_REQUIRED), before reac
 user-list query. No KYC/financial behavior or fixtures were changed to bypass it. Build
 output retains the existing admin chunk-size advisory. No production migration or
 release, real customer message, or automatic user support grant was performed.
+
+## Presence and editable consumer-agent replies (2026-10-06)
+
+Apply `2026_10_06_230000_add_support_presence_and_message_revisions.php` before publishing
+the new backend and H5/App bundles. This adds bounded current-user presence, immutable
+message revision history and version-specific customer read receipts. No backfill,
+original-message rewrite, scheduler, live customer message or financial replay is needed.
+Rebuild administration to display deleted/edited reply markers in its shared transcript.
+Publish H5 and rebuild native packages for long-press actions and foreground heartbeats.
+Keep all additive tables on rollback; older clients cannot acknowledge edited versions.

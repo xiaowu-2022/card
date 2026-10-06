@@ -1,4 +1,5 @@
 import { ReceiptTypeSelect } from '@/components/admin/ReceiptTypeSelect';
+import { WithdrawalExport } from '@/components/admin/WithdrawalExport';
 import { DetailDrawerContent } from '@/components/admin/DetailDrawer';
 import { AssetNavigation } from '@/components/admin/AssetNavigation';
 import type { SharedProps } from '@/types/global';
@@ -73,6 +74,11 @@ export default function AssetOrders({
     return (
         <PlatformLayout
             title={t(title)}
+            actions={
+                mode === 'withdrawal' ? (
+                    <WithdrawalExport filters={filters} total={orders.total} />
+                ) : undefined
+            }
             description={t(
                 mode === 'deposit'
                     ? 'Review deposits and confirm received funds.'

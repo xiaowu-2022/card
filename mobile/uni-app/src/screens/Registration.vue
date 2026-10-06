@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useSensitiveScreen } from '../lib/sensitive';
-import { computed, reactive } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import AuthLayout from '../components/AuthLayout.vue';
 import FormField from '../components/FormField.vue';
 import FormErrors from '../components/FormErrors.vue';
@@ -20,6 +20,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ reload: [] }>();
 const action = useAction();
+const invitationReleased = ref(false);
 const form = reactive({
     channel: 'EMAIL',
     destination: '',
@@ -55,6 +56,7 @@ async function submit() {
             destination: form.destination,
             invitation_code: form.invitation_code,
         });
+        if (action.failureCode.value === 'INVITATION_INVALID') invitationReleased.value = true;
         return;
     }
     if (verified.value) {
@@ -113,7 +115,7 @@ async function submit() {
                         type="number"
                         digits-only
                         :disabled="
-                            page.registration?.invitationLocked || action.pending.value
+                            (page.registration?.invitationLocked && !invitationReleased) || action.pending.value
                         " /></template
                 ><template v-else-if="verified"
                     ><FormField

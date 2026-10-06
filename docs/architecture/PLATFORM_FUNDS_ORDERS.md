@@ -1,5 +1,36 @@
 # Platform recharge and withdrawal lists
 
+## Withdrawal export (2026-10-06)
+
+The Platform withdrawal header offers a CSV download of all records matching the
+applied company/account/order/currency/network/status filters, independent of the
+current list page. Both withdrawal sources share the list query and ordering.
+At most 10,000 rows can be exported per request; larger results fail without a
+partial file and require narrower filters.
+
+The file includes company, account/email, full order ID, asset/network, gross
+withdrawal, fee, net payout, full destination, status, request/completion timestamps
+in the company timezone, and transaction hash. Additional columns show lifetime
+successful gross/net withdrawal totals and count in the row's currency, current
+effective agent rank (0 when none), and current enabled partner status. Totals
+combine TRON SUCCEEDED and asset COMPLETED orders across networks, ignoring list
+filters, within the same company/user/currency. No FX conversion is performed.
+Agent rank reuses ManualPromotion's effective paid/manual projection.
+
+POST /platform/asset-withdrawals/export requires withdrawals.read and
+withdrawals.review, the current administrator password, explicit confirmation,
+CSRF and throttling. Full addresses reuse the existing encryption protector;
+ordinary list GETs stay masked/read-only. Per-company WITHDRAWALS_EXPORTED audit
+evidence contains source/order IDs and counts, never passwords or full addresses.
+Generate entirely in memory before returning a no-store attachment, with UTF-8
+BOM, escaped CSV cells and formula-injection protection. Decimal strings retain
+all significant digits; import amount/account/hash columns as text in spreadsheet
+software to avoid its automatic numeric conversion.
+
+No money, wallet, order, promotion or partner changes, chain/provider requests,
+migration, or H5 rebuild are involved. Deploy PHP with rebuilt public/build.
+Offline acceptance: PlatformWithdrawalExportTest and platform-withdrawal-export.mjs.
+
 2026-09-27. SaaS administration is accepted on desktop, per user instruction. This does not change consumer H5/mobile requirements.
 
 ## Navigation and reads

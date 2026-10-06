@@ -127,7 +127,8 @@ function open(path: string, replace = false) {
                             @click="historyBack ? historyBackTo(back) : open(back, replaceBack)"
                         >
                             <UiIcon name="arrow-left" :size="20" /></button
-                        ><view v-else /><text class="header-title">{{ title }}</text
+                        ><view v-else /><slot name="header-title"
+                            ><text class="header-title">{{ title }}</text></slot
                         ><slot name="header-right"
                             ><button
                                 v-if="!guest && session?.user && !hideMessages"

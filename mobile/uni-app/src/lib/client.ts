@@ -26,6 +26,7 @@ export function useAction() {
     onScopeDispose(() => { disposed = true; });
     const pending = ref(false);
     const errors = ref<Record<string, string>>({});
+    const failureCode = ref<string | null>(null);
     const failureStatus = ref<number | null>(null);
     async function submit(
         path: string,
@@ -41,6 +42,7 @@ export function useAction() {
         pending.value = true;
         errors.value = {};
         failureStatus.value = null;
+        failureCode.value = null;
         try {
             const response = options.files?.length
                 ? await upload<ActionResult>(
@@ -68,13 +70,14 @@ export function useAction() {
             return response;
         } catch (error) {
             if (disposed) return;
+            failureCode.value = error instanceof ApiError ? error.payload?.error?.code ?? null : null;
             failureStatus.value = error instanceof ApiError ? error.status : 0;
             errors.value = explainError(error);
         } finally {
             pending.value = false;
         }
     }
-    return { pending, errors, failureStatus, submit };
+    return { pending, errors, failureStatus, failureCode, submit };
 }
 export function explainError(error: unknown): Record<string, string> {
     if (!(error instanceof ApiError)) return { form: t('Unable to load. Please try again.') };

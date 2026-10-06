@@ -32,7 +32,8 @@
       "path": "pages/support/index"
     },
     {"path":"pages/support-workspace/index"},
-    {"path":"pages/support-workspace/replies"}
+    {"path":"pages/support-workspace/replies"},
+    {"path":"pages/support-workspace/customer"}
   ],
   "globalStyle": {
     "navigationStyle": "custom",

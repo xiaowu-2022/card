@@ -38,6 +38,7 @@ type SettingsData = {
         supportUrl: string | null;
         copyrightText: string | null;
         logoUrl: string | null;
+        apkName: string | null;
         apkLogoUrl: string | null;
         apkLogoSources?: string[];
         faviconUrl: string | null;
@@ -161,6 +162,7 @@ function BrandingForm({ settings }: { settings: SettingsData }) {
     const configurationUrl = useCompanyConfigurationUrl();
     const form = useForm<{
         brand_name: string;
+        apk_name: string;
         primary_color: string;
         support_email: string;
         support_url: string;
@@ -170,6 +172,7 @@ function BrandingForm({ settings }: { settings: SettingsData }) {
         favicon: File | null;
     }>({
         brand_name: settings.branding.brandName,
+        apk_name: settings.branding.apkName ?? '',
         primary_color: settings.branding.primaryColor,
         support_email: settings.branding.supportEmail ?? '',
         support_url: settings.branding.supportUrl ?? '',
@@ -274,6 +277,21 @@ function BrandingForm({ settings }: { settings: SettingsData }) {
                                 onChange={(event) =>
                                     form.setData('logo', event.target.files?.[0] ?? null)
                                 }
+                            />
+                        </FormField>
+                        <FormField
+                            id="apk-name"
+                            label={t('APK name')}
+                            description={t(
+                                'Name shown after installation. Set before packaging; rebuild the APK after changes.',
+                            )}
+                            error={errorMessage(form.errors.apk_name)}
+                        >
+                            <Input
+                                id="apk-name"
+                                maxLength={60}
+                                value={form.data.apk_name}
+                                onChange={(event) => form.setData('apk_name', event.target.value)}
                             />
                         </FormField>
                         <FormField

@@ -84,10 +84,14 @@ final class LegacyStockReport
                 COALESCE(SUM(amount) FILTER(WHERE kind='annual'),0) AS annual, COALESCE(SUM(amount) FILTER(WHERE kind='commission'),0) AS unclassified")->first();
         $actual = DB::table('ledger_accounts')->where('tenant_id', $tenant)->where('user_id', $user)
             ->where('asset_code', 'USDT')->where('account_type', 'USER_AVAILABLE')->sum('balance');
-        $theoretical = BigDecimal::of($journal->advances)->plus($income->activation)->plus($income->annual)->plus($income->unclassified)->minus($journal->reimbursements);
+        // Personal reconciliation only: paid annual fees are negative advances, not journal writes.
+        $annualFees = DB::table('paid_promotion_orders')->where('tenant_id', $tenant)->where('user_id', $user)
+            ->where('status', 'COMPLETED')->whereNotNull('ledger_entry_id')->sum('settlement_total');
+        $advances = BigDecimal::of($journal->advances)->minus((string) $annualFees);
+        $theoretical = $advances->plus($income->activation)->plus($income->annual)->plus($income->unclassified)->minus($journal->reimbursements);
 
         return [
-            'advances' => $this->decimal($journal->advances),
+            'advances' => $this->decimal($advances),
             'activationCommission' => $this->decimal($income->activation),
             'annualCommission' => $this->decimal($income->annual),
             'unclassifiedCommission' => $this->decimal($income->unclassified),

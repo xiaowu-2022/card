@@ -1,4 +1,5 @@
 import { reactive, ref } from 'vue';
+import { remindSupportUnread, resetSupportReminder } from './support-reminder';
 import {
     ApiError,
     company,
@@ -32,7 +33,7 @@ export type Bootstrap = {
     timezone: string;
     csrfToken: string | null;
     restricted: boolean;
-    unread: { messages: number; support: number };
+    unread: { messages: number; support: number; agentSupport?: number };
 };
 export const session = ref<Bootstrap | null>(null);
 export const unread = reactive({ messages: 0, support: 0 });
@@ -63,6 +64,7 @@ export async function bootstrap() {
         setPublicAssets(data.publicAssets);
         session.value = data;
         Object.assign(unread, data.unread);
+        remindSupportUnread(data.unread.agentSupport ?? 0);
         setCsrf(data.csrfToken);
         configureLocale(data.locale, data.timezone);
     })().finally(() => {
@@ -71,6 +73,7 @@ export async function bootstrap() {
     return pending;
 }
 export function clearSession() {
+    resetSupportReminder();
     setToken(null);
     clearFlow();
     session.value = null;
@@ -96,12 +99,27 @@ export async function logout() {
     clearSession();
     uni.reLaunch({ url: '/pages/login/index' });
 }
+let lastPresence = 0;
 export async function refreshUnread() {
     if (!session.value?.user) return;
     const generation = sessionGeneration;
+    // Send foreground presence separately; reading counters remains read-only.
+    let foreground = true;
+    // #ifdef H5
+    foreground = document.visibilityState === 'visible';
+    // #endif
+    if (foreground && Date.now() - lastPresence > 20000) {
+        lastPresence = Date.now();
+        void request('/presence', 'POST', {}).catch(() => {});
+    }
     try {
-        const counts = await request<{ messages: number; support: number }>('/unread');
-        if (generation === sessionGeneration && session.value?.user) Object.assign(unread, counts);
+        const counts = await request<{ messages: number; support: number; agentSupport?: number }>(
+            '/unread',
+        );
+        if (generation === sessionGeneration && session.value?.user) {
+            Object.assign(unread, counts);
+            remindSupportUnread(counts.agentSupport ?? 0);
+        }
     } catch (error) {
         if (error instanceof ApiError && error.status === 401 && generation === sessionGeneration) {
             clearSession();

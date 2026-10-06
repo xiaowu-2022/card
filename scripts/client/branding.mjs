@@ -23,18 +23,21 @@ async function read(url, max, fetcher, development, redirects = 0) {
 }
 
 export async function prepareBranding(config, project, fetcher = fetch) {
-    let logo, source;
+    let logo, source, apkName;
     const failures = [];
     for (const origin of config.apiOrigins) {
         if (new URL(origin).hostname === 'zb33333.com') continue;
         try {
             const data = JSON.parse((await read(origin + '/api/mobile/v1/bootstrap', 1024 * 1024, fetcher, config.developmentOnly)).toString());
             if (data?.tenant?.slug !== config.tenantSlug || typeof data.tenant.id !== 'string' || !data.tenant.id || typeof data.tenant.apkLogoUrl !== 'string' || !data.tenant.apkLogoUrl) throw new Error('Company identity or logo missing');
+            const name = data.tenant.apkName;
+            if (typeof name !== 'string' || !name.trim() || [...name].length > 60 || /[<>\x00-\x1f\x7f]/.test(name)) throw new Error('APK name missing or invalid');
             const url = new URL(data.tenant.apkLogoUrl, origin).href;
             const bytes = await read(url, 8 * 1024 * 1024, fetcher, config.developmentOnly);
             const metadata = await sharp(bytes, { limitInputPixels: 25000000 }).metadata();
             if (!['png', 'jpeg', 'webp'].includes(metadata.format) || metadata.pages > 1 || !metadata.width || metadata.width < 192 || metadata.width !== metadata.height) throw new Error('Logo must be a static PNG/JPEG/WebP');
             logo = bytes;
+            apkName = name.trim();
             source = { tenantSlug: config.tenantSlug, apiOrigin: origin, sha256: createHash('sha256').update(bytes).digest('hex') };
             break;
         } catch {
@@ -42,7 +45,7 @@ export async function prepareBranding(config, project, fetcher = fetch) {
             failures.push(origin);
         }
     }
-    if (!logo) throw new Error(`Cannot load configured APK logo from API servers: ${failures.join(', ')}. Check company slug, backend logo and network. Native packaging stopped.`);
+    if (!logo) throw new Error(`Cannot load configured APK name and logo from API servers: ${failures.join(', ')}. Check company slug, backend APK name/logo and network. Native packaging stopped.`);
     // HBuilderX packaging resolves manifest icon/splash paths from the CLI
     // project root, not the directory containing src/manifest.json.
     const relative = 'src/static/native-branding';
@@ -63,5 +66,5 @@ export async function prepareBranding(config, project, fetcher = fetch) {
         splash[density] = `${relative}/${name}`;
     }
     await writeFile(resolve(output, 'source.json'), JSON.stringify(source, null, 2));
-    return { icons: { android }, splashscreen: { androidStyle: 'default', android: splash } };
+    return { apkName, icons: { android }, splashscreen: { androidStyle: 'default', android: splash } };
 }

@@ -3,6 +3,7 @@
 use App\Application\Assets\AssetAccess;
 use App\Application\Assets\WithdrawAssetsAction;
 use App\Application\Kyc\ApproveKycAction;
+use App\Application\Kyc\ProcessPendingKyc;
 use App\Application\Kyc\SubmitKycApplicationAction;
 use App\Application\Partners\FeeValuation;
 use App\Application\Partners\LegacyStockReport;
@@ -81,11 +82,21 @@ function stockEntry(string $kind, string $amount): array
 
 function stockFundWallet($test, User $user): void
 {
+    // Synthetic valid identity, recognized through the current asynchronous flow.
+    $digits = '11010519900101'.str_pad((string) (DB::table('kyc_applications')->count() + 1), 3, '0', STR_PAD_LEFT);
+    $weights = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2];
+    $sum = 0;
+    foreach ($weights as $index => $weight) {
+        $sum += (int) $digits[$index] * $weight;
+    }
+    $identity = $digits.'10X98765432'[$sum % 11];
+    config(['media.storage' => 'server']);
     $ocr = Mockery::mock(KycOcrProviderInterface::class);
     $ocr->shouldReceive('name')->andReturn('TEST');
-    $ocr->shouldReceive('extractIdentityDocument')->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, 'TEAM-'.$user->id));
+    $ocr->shouldReceive('extractIdentityDocument')->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, $identity));
     app()->instance(KycOcrProviderInterface::class, $ocr);
     $application = app(SubmitKycApplicationAction::class)->execute($test->tenant, $user, 'CN', 'TEAM-'.$user->id, kycTestImage(), kycTestImage());
+    app(ProcessPendingKyc::class)->execute($test->tenant->id, $application->id);
     app(ApproveKycAction::class)->execute($test->tenant->id, $application->id, AdminUser::where('email', 'owner@a.localhost')->firstOrFail());
     $wallet = app(ActivateUserWalletAction::class)->execute($test->tenant->id, $user->id)->wallet;
     $available = LedgerAccount::where('wallet_id', $wallet->id)->where('account_type', 'USER_AVAILABLE')->firstOrFail();
@@ -531,7 +542,7 @@ it('adds only posted commissions received by the report owner to theoretical bal
     $a = $r['accountBalance'];
     expect(BigDecimal::of($a['activationCommission'])->isPositive())->toBeTrue()
         ->and(BigDecimal::of($a['annualCommission'])->isPositive())->toBeTrue()
-        ->and($a['theoretical'])->toBe((string) BigDecimal::of($a['activationCommission'])->plus($a['annualCommission'])->toScale(8));
+        ->and($a['theoretical'])->toBe((string) BigDecimal::of($a['advances'])->plus($a['activationCommission'])->plus($a['annualCommission'])->toScale(8));
     $childReport = $this->report->read($this->tenant->id, $child->id);
     // The child's team generated payments to its ancestor; they are not the child's income.
     expect(BigDecimal::of($childReport['totals']['annualCommission'])->isPositive())->toBeTrue()
@@ -540,7 +551,7 @@ it('adds only posted commissions received by the report owner to theoretical bal
     DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
 });
 
-it('returns the agreed 140 theoretical 125 actual and 15 difference example', function () {
+it('deducts the owners paid annual fee from the personal reconciliation example', function () {
     $level = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->where('rank', 1)->first();
     app(ConfigurePaidPromotion::class)->execute($this->tenant->id, $this->admin, $level->id, [
         'fee' => '1000', 'percent' => 3, 'reward' => 20, 'target' => $level->target,
@@ -566,9 +577,9 @@ it('returns the agreed 140 theoretical 125 actual and 15 difference example', fu
     ]));
     $before = DB::table('ledger_entries')->count();
     expect($this->report->read($this->tenant->id, $this->user->id)['accountBalance'])->toBe([
-        'advances' => '100.00000000', 'activationCommission' => '20.00000000',
+        'advances' => '-900.00000000', 'activationCommission' => '20.00000000',
         'annualCommission' => '30.00000000', 'unclassifiedCommission' => '0.00000000', 'reimbursements' => '10.00000000',
-        'theoretical' => '140.00000000', 'actual' => '125.00000000', 'difference' => '15.00000000',
+        'theoretical' => '-860.00000000', 'actual' => '125.00000000', 'difference' => '-985.00000000',
     ])->and(DB::table('ledger_entries')->count())->toBe($before);
     DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
 });
@@ -911,4 +922,42 @@ it('deducts non-partner descendant net commission income and attributes details 
     stockPartner($this, $child, false);
     expect(app(PartnerReport::class)->read($this->tenant->id, $this->user->id)['totals']['outflow'])->toBe('17.12345678');
     Http::assertNothingSent();
+});
+
+it('counts own completed annual settlements as negative advances only in personal reconciliation', function () {
+    stockFundWallet($this, $this->user);
+    $partner = stockPartner($this, $this->user);
+    $this->management->journal($this->admin, $this->tenant->id, $partner->id, stockEntry('ADVANCE', '100.12345678'));
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $this->user->id, (string) Str::uuid(), '50');
+    $report = app(PartnerReport::class);
+    $before = $report->read($this->tenant->id, $this->user->id);
+    stockBuy($this, $this->user, 1);
+    $first = DB::table('paid_promotion_orders')->where('user_id', $this->user->id)->where('status', 'COMPLETED')->first();
+    expect($first->deposit_applied)->toBe('50.00000000');
+    stockBuy($this, $this->user, 2);
+    $orders = DB::table('paid_promotion_orders')->where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->where('status', 'COMPLETED');
+    $paid = (string) (clone $orders)->sum('settlement_total');
+    $walletPaid = (string) (clone $orders)->sum('amount');
+    $level = DB::table('paid_promotion_levels')->where('tenant_id', $this->tenant->id)->where('rank', 3)->value('id');
+    app(PaidPromotionPurchase::class)->quote($this->tenant->id, $this->user->id, $level, (string) Str::uuid());
+    // A descendant's purchase must not become the owner's negative advance.
+    $child = stockChild($this->user);
+    stockFundWallet($this, $child);
+    stockPartner($this, $child);
+    stockBuy($this, $child, 1);
+    $counts = [DB::table('ledger_entries')->count(), DB::table('partner_journal_entries')->count(), DB::table('paid_promotion_orders')->count()];
+    $after = $report->read($this->tenant->id, $this->user->id);
+    $a = $after['accountBalance'];
+    expect($a['advances'])->toBe((string) BigDecimal::of('100.12345678')->minus($paid)->toScale(8))
+        ->and(BigDecimal::of($a['advances'])->isNegative())->toBeTrue()
+        ->and($a['theoretical'])->toBe((string) BigDecimal::of($a['advances'])->plus($a['activationCommission'])->plus($a['annualCommission'])->plus($a['unclassifiedCommission'])->minus($a['reimbursements'])->toScale(8))
+        ->and($a['actual'])->toBe((string) BigDecimal::of($before['accountBalance']['actual'])->minus($walletPaid)->plus($a['activationCommission'])->plus($a['annualCommission'])->toScale(8))
+        ->and($a['difference'])->toBe((string) BigDecimal::of($a['theoretical'])->minus($a['actual'])->toScale(8))
+        ->and($after['stock'])->toBe($before['stock'])
+        ->and($after['totals']['advances'])->toBe('100.12345678')
+        ->and($after['journal'])->toEqual($before['journal'])
+        ->and($report->read($this->tenant->id, $this->user->id)['accountBalance'])->toBe($a)
+        ->and([DB::table('ledger_entries')->count(), DB::table('partner_journal_entries')->count(), DB::table('paid_promotion_orders')->count()])->toBe($counts);
+    Http::assertNothingSent();
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
 });

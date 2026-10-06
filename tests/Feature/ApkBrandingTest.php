@@ -36,3 +36,21 @@ it('rejects non-square APK logos and unauthorized writes', function (): void {
     $this->owner->update(['status' => 'SUSPENDED']);
     $this->actingAs($this->owner->fresh(), 'platform_admin')->post($this->url, $this->fields)->assertForbidden();
 });
+
+it('saves and audits a company APK name independently of website branding', function (): void {
+    $this->actingAs($this->owner, 'platform_admin')->post($this->url, $this->fields + ['apk_name' => '测试 App'])
+        ->assertSessionHasNoErrors();
+    expect($this->tenant->branding->fresh()->apk_name)->toBe('测试 App');
+    $this->getJson('http://a.localhost/api/mobile/v1/bootstrap')->assertOk()->assertJsonPath('tenant.apkName', '测试 App');
+    $this->getJson('http://b.localhost/api/mobile/v1/bootstrap')->assertOk()->assertJsonPath('tenant.apkName', null);
+    $audit = \App\Domain\Audit\Models\AuditLog::where('action', 'TENANT_BRANDING_UPDATED')->latest('created_at')->firstOrFail();
+    expect($audit->after_data['apk_name'])->toBe('测试 App');
+    $this->post($this->url, $this->fields)->assertSessionHasNoErrors();
+    expect($this->tenant->branding->fresh()->apk_name)->toBe('测试 App');
+});
+
+it('rejects invalid APK names without changing stored branding', function (string $name): void {
+    $this->actingAs($this->owner, 'platform_admin')->post($this->url, $this->fields + ['apk_name' => $name])
+        ->assertSessionHasErrors('apk_name');
+    expect($this->tenant->branding->fresh()->apk_name)->toBeNull();
+})->with(['too long' => str_repeat('名', 61), 'markup' => '<app>', 'control' => "Bad\nApp"]);

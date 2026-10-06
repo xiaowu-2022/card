@@ -28,6 +28,7 @@ Route::middleware(RequireConsumerApiUser::class)->group(function (): void {
     Route::post('messages/read-all', [ConsumerController::class, 'read'])->middleware('throttle:30,1');
     Route::get('messages/{message}', [ConsumerController::class, 'message'])->whereUuid('message');
     Route::post('messages/{message}/read', [ConsumerController::class, 'read'])->whereUuid('message')->middleware('throttle:120,1');
+    Route::post('presence', [ConsumerController::class, 'presence'])->middleware('throttle:6,1');
     Route::post('support/read', [ConsumerController::class, 'supportRead'])->middleware('throttle:120,1');
 });
 Route::middleware(RequireConsumerApiUser::class.':operational')->group(function (): void {
@@ -51,5 +52,9 @@ Route::prefix('support-workspace')->middleware(RequireConsumerApiUser::class.':o
     Route::get('/images/{message}', [$controller, 'image'])->whereUuid('message');
     Route::get('/conversations/{conversation}', [$controller, 'show'])->whereUuid('conversation')->middleware('throttle:60,1');
     Route::post('/conversations/{conversation}/messages', [$controller, 'send'])->whereUuid('conversation')->middleware('throttle:30,1');
+    Route::post('/conversations/{conversation}/messages/{message}/change', [$controller, 'changeMessage'])->whereUuid('conversation')->whereUuid('message')->middleware('throttle:30,1');
+    Route::post('/conversations/{conversation}/remark', [$controller, 'remark'])->whereUuid('conversation')->middleware('throttle:30,1');
+    Route::get('/conversations/{conversation}/customer', [$controller, 'customer'])->whereUuid('conversation')->middleware('throttle:60,1');
+    Route::post('/conversations/{conversation}/read', [$controller, 'read'])->whereUuid('conversation')->middleware('throttle:60,1');
     Route::post('/conversations/{conversation}/finish', [$controller, 'finish'])->whereUuid('conversation')->middleware('throttle:20,1');
 });

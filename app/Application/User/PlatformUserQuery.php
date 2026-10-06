@@ -30,7 +30,7 @@ final class PlatformUserQuery
                 $q->where('u.account_id', 'like', $pattern)->orWhere('u.email', 'ilike', $pattern)
                     ->orWhere('p.display_name', 'ilike', $pattern);
             }))
-            ->select(['u.id', 'u.tenant_id', 't.name as company_name', 'u.account_id', 'p.display_name', 'u.email', 'u.status', 'u.created_at', 'u.last_login_at'])
+            ->select(['u.id', 'u.tenant_id', 't.name as company_name', 'u.account_id', 'p.display_name', 'u.email', 'u.status', 'u.created_at', 'u.last_login_at', 'u.support_remark', 'u.support_remark_revision'])
             ->addSelect('sa.enabled as support_enabled', 'sa.revision as support_revision')
             ->selectRaw('ordinary.user_id IS NOT NULL AS ordinary_member')
             ->when($financialAccess['balances'] ?? false, fn ($q) => $q
@@ -49,6 +49,7 @@ final class PlatformUserQuery
             'accountId' => $row->account_id, 'displayName' => $row->display_name,
             'supportAgent' => (bool) $row->support_enabled, 'supportRevision' => (int) ($row->support_revision ?? 0),
             'ordinaryMember' => (bool) $row->ordinary_member,
+            'remark' => $row->support_remark, 'remarkRevision' => (int) $row->support_remark_revision,
             'email' => $row->email, 'promotionRank' => app(ManualPromotion::class)->benefit($row->tenant_id, $row->id, $at)?->rank ?? 0, 'status' => $row->status,
             'createdAt' => $row->created_at, 'lastLoginAt' => $row->last_login_at,
         ] + (($financialAccess['balances'] ?? false) ? [

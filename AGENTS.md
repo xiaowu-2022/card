@@ -1,3 +1,28 @@
+On 2026-10-06 the user required partners’ completed agent annual-fee purchases
+to count as negative advances in personal theoretical account balance only. Deduct
+own company/user completed Ledger-linked settlement totals, including deposit conversion
+and paid upgrade differences, from accountBalance.advances. Do not write journals,
+change wallets/Ledger, stock, team advance totals or annual return rules.
+See docs/architecture/PARTNER_STOCK.md.
+
+On 2026-10-06 the user required APK names to be configured in Platform company
+branding alongside APK Logo. Persist nullable apk_name through existing permission,
+company scope and audit; native packaging requires a valid bootstrap apkName and
+uses it for generated company/manifest names, with no local-name fallback. H5 naming
+and package identifiers remain independent. Rebuild/install to apply name changes.
+See docs/deployment/UNI_APP_PACKAGING.md.
+
+On 2026-10-06 the user approved Platform user invitation-code changes. Require
+users.read + users.invitation.manage, an active company/user and an existing member.
+Accept only manually specified unused six-digit codes at/after the global allocation
+position. Reserve codes globally forever; automatic company/user allocation skips
+reservations without skipping intervening unused codes. Change code/revision and
+immutable actor/request/reason evidence atomically, retaining database guards.
+Old codes and member legacy aliases stop accepting new registration challenges;
+existing challenges retain their member binding. Serialize new challenge acceptance
+and code changes with the company lock. Preserve relationships and all financial
+history; GET never provisions members. See PROMOTION_INVITATION_CODES.md.
+
 On 2026-10-06 the user approved Platform creation of consumer accounts with default
 completed verification. Require users.read + users.create and an explicit active company;
 create credentials/profile/default locale/zero wallet/promotion membership and immutable

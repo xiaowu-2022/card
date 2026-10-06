@@ -22,7 +22,9 @@ final class UserOperationsController extends Controller
         return Inertia::render('platform/Users', [
             'users' => $query->paginate($filters['company'] ?? null, $filters['search'] ?? null, $filters['status'] ?? null, $financialAccess, $filters['support'] ?? null),
             'financialAccess' => $financialAccess, 'canManageSupport' => $allowed('support.read') && $allowed('support.agents.manage'),
+            'canRemark' => $allowed('support.read') && $allowed('support.send'),
             'canCreateUser' => $allowed('users.create'),
+            'canChangeInvitation' => $allowed('users.invitation.manage'),
             'canChangeReferrer' => $allowed('users.referrer.manage'),
             'canAdjustCommission' => $financialAccess['balances'] && $allowed('commissions.adjust'),
             'canViewKyc' => $allowed('kyc.read'),

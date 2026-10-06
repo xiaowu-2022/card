@@ -1,3 +1,17 @@
+## Personal annual fees as negative advances (2026-10-06)
+
+Personal `accountBalance.advances` equals the owner's net ADVANCE journal amount minus
+completed, Ledger-linked agent annual-fee `settlement_total` in the same company/user
+scope. Include converted deposits and each paid upgrade difference once; unpaid quotes
+and other users' fees do not count. This is a read-only lifetime projection of existing
+orders, independent of when partner status was enabled. Annual returns keep their existing
+rules and are not netted against this purchase deduction.
+
+Only personal reconciliation changes: theoretical balance uses these adjusted advances,
+and difference remains theoretical minus actual. Team `totals.advances`, journals, business
+stock, standard stock, wallet balances and Ledger evidence remain unchanged. No migration,
+backfill or additional debit is required. Platform and App/H5 share this calculation.
+
 # Partner stock reports and cooperation journals
 
 Approved 2026-09-25. Local implementation only; no live partner designations, expense entries, historical financial changes, deployment or payment execution.

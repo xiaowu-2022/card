@@ -16,6 +16,7 @@ final class UpdateTenantBrandingRequest extends FormRequest
     {
         return [
             'brand_name' => ['required', 'string', 'max:120'],
+            'apk_name' => ['nullable', 'string', 'max:60', 'not_regex:/[<>\x00-\x1F\x7F]/u'],
             'primary_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'support_email' => ['nullable', 'email', 'max:255'],
             'support_url' => ['nullable', 'url:http,https', 'max:2048'],

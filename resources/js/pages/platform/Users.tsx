@@ -1,3 +1,5 @@
+import { CustomerRemarkDialog } from '@/components/admin/CustomerRemarkDialog';
+import { openAdminEditor } from '@/components/admin/editor-navigation';
 import { CreateUserDialog } from '@/components/admin/CreateUserDialog';
 import { supportRequest } from '@/components/support/supportRequest';
 import { Button } from '@/components/ui/button';
@@ -28,6 +30,8 @@ type Wallet = {
     held: string;
 };
 type User = {
+    remark: string | null;
+    remarkRevision: number;
     supportAgent: boolean;
     supportRevision: number;
     id: string;
@@ -54,6 +58,7 @@ export default function Users({
     filters,
     financialAccess,
     canAdjustWallet,
+    canChangeInvitation,
     canChangeReferrer,
     canAdjustCommission,
     canViewKyc,
@@ -61,10 +66,13 @@ export default function Users({
     canViewTopups,
     canManageSupport,
     canCreateUser,
+    canRemark,
 }: {
+    canRemark: boolean;
     canCreateUser: boolean;
     canManageSupport: boolean;
     canAdjustWallet: boolean;
+    canChangeInvitation: boolean;
     canChangeReferrer: boolean;
     canAdjustCommission: boolean;
     canViewKyc: boolean;
@@ -76,6 +84,7 @@ export default function Users({
     financialAccess: { balances: boolean; commission: boolean; withdrawals: boolean };
 }) {
     useAdminTranslation();
+    const [remarkUser, setRemarkUser] = useState<User | null>(null);
     const [createOpen, setCreateOpen] = useState(false);
     const [supportBusy, setSupportBusy] = useState(false);
     const [supportError, setSupportError] = useState('');
@@ -272,12 +281,14 @@ export default function Users({
                             label: 'Last login',
                             render: (row) => (row.lastLoginAt ? dateTime(row.lastLoginAt) : '—'),
                         },
-                        ...(canManageSupport ||
+                        ...(canRemark ||
+                        canManageSupport ||
                         canViewTopups ||
                         canViewFunds ||
                         financialAccess.withdrawals ||
                         canViewKyc ||
                         canAdjustWallet ||
+                        canChangeInvitation ||
                         canChangeReferrer ||
                         canAdjustCommission
                             ? [
@@ -291,6 +302,7 @@ export default function Users({
                                                   canViewTopups ||
                                                   financialAccess.withdrawals ||
                                                   canAdjustWallet ||
+                                                  canChangeInvitation ||
                                                   canChangeReferrer ||
                                                   canAdjustCommission) && (
                                                   <DropdownMenu>
@@ -316,6 +328,15 @@ export default function Users({
                                                               }
                                                           }}
                                                       >
+                                                          {canRemark && (
+                                                              <DropdownMenuItem
+                                                                  onSelect={() =>
+                                                                      setRemarkUser(row)
+                                                                  }
+                                                              >
+                                                                  {t('Customer remark')}
+                                                              </DropdownMenuItem>
+                                                          )}
                                                           {canManageSupport && (
                                                               <DropdownMenuItem
                                                                   disabled={
@@ -423,6 +444,19 @@ export default function Users({
                                                                   </Link>
                                                               </DropdownMenuItem>
                                                           )}
+                                                          {canChangeInvitation && (
+                                                              <DropdownMenuItem
+                                                                  onSelect={() => {
+                                                                      kycOpening.current = true;
+                                                                      openAdminEditor(
+                                                                          `/platform/tenants/${row.companyId}/users/${row.id}/invitation-code`,
+                                                                          kycTrigger.current,
+                                                                      );
+                                                                  }}
+                                                              >
+                                                                  {t('Change invitation code')}
+                                                              </DropdownMenuItem>
+                                                          )}
                                                           {canChangeReferrer && (
                                                               <DropdownMenuItem asChild>
                                                                   <Link
@@ -473,6 +507,9 @@ export default function Users({
                         setFundsTarget(null);
                     }}
                 />
+            )}
+            {remarkUser && (
+                <CustomerRemarkDialog user={remarkUser} onClose={() => setRemarkUser(null)} />
             )}
         </PlatformLayout>
     );

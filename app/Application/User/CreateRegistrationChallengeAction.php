@@ -2,6 +2,7 @@
 
 namespace App\Application\User;
 
+use App\Application\Promotion\PromotionMembershipAction;
 use App\Application\User\DTOs\CreatedRegistrationChallenge;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Notification\Contracts\EmailVerificationSender;
@@ -31,7 +32,7 @@ final readonly class CreateRegistrationChallengeAction
     ) {}
 
     /** @param list<string> $reusableChallengeIds */
-    public function execute(Tenant $tenant, RegistrationChannel $channel, string $destination, ?string $region = null, ?string $requestId = null, array $reusableChallengeIds = [], ?string $promotionInviterId = null, ?string $companyInvitationId = null): CreatedRegistrationChallenge
+    public function execute(Tenant $tenant, RegistrationChannel $channel, string $destination, ?string $region = null, ?string $requestId = null, array $reusableChallengeIds = [], ?string $promotionInviterId = null, ?string $companyInvitationId = null, ?string $invitationCode = null): CreatedRegistrationChallenge
     {
         if ($channel !== RegistrationChannel::Email) {
             throw new DomainException('EMAIL_AUTH_ONLY', 'Only email registration and sign in are available.');
@@ -46,8 +47,15 @@ final readonly class CreateRegistrationChallengeAction
         $timing = ['resend' => (int) config('user-auth.resend_cooldown_seconds'), 'ttl' => 60 * (int) config('user-auth.otp_ttl_minutes')];
 
         try {
-            [$challenge, $reusedVerified, $reusedDelivery] = DB::transaction(function () use ($tenant, $channel, $destination, $id, $rawCode, $requestId, $existing, $reusableChallengeIds, $timing, $promotionInviterId, $companyInvitationId): array {
+            [$challenge, $reusedVerified, $reusedDelivery] = DB::transaction(function () use ($tenant, $channel, $destination, $id, $rawCode, $requestId, $existing, $reusableChallengeIds, $timing, $promotionInviterId, $companyInvitationId, $invitationCode): array {
                 $tenant = Tenant::query()->whereKey($tenant->id)->lockForUpdate()->firstOrFail();
+                // Serialize code acceptance with Platform changes before any challenge writes.
+                if ($invitationCode !== null) {
+                    $invitation = app(PromotionMembershipAction::class)->enrollment($tenant->id, $invitationCode);
+                    if ($invitation['memberId'] !== $promotionInviterId || $invitation['companyId'] !== $companyInvitationId) {
+                        throw new DomainException('INVITATION_INVALID', 'Enter a valid invitation code.');
+                    }
+                }
                 DB::select('SELECT pg_advisory_xact_lock(?)', [$this->registrationLockKey($tenant->id, $channel, $destination)]);
                 $pending = RegistrationChallenge::query()
                     ->where('tenant_id', $tenant->id)

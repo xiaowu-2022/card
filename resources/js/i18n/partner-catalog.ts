@@ -1,9 +1,18 @@
 export const partnerCatalog = {
+    'Manual deposit · Order ID: {{id}}': [
+        '人工充值 · 订单号：{{id}}',
+        'Deposit manual · ID pesanan: {{id}}',
+        'Depósito manual · ID de pedido: {{id}}',
+    ],
     Details: ['详情', 'Butiran', 'Detalles'],
     'Stock amount': ['存量金额', 'Jumlah baki', 'Importe del saldo'],
     'Partner data': ['合伙人数据', 'Data rakan kongsi', 'Datos de socios'],
     'Subordinate partners': ['下级', 'Rakan kongsi bawahan', 'Socios subordinados'],
-    'No subordinate partners': ['暂无下级合伙人', 'Tiada rakan kongsi bawahan', 'No hay socios subordinados'],
+    'No subordinate partners': [
+        '暂无下级合伙人',
+        'Tiada rakan kongsi bawahan',
+        'No hay socios subordinados',
+    ],
     'Team members': ['团队人数', 'Bilangan ahli pasukan', 'Miembros del equipo'],
     Username: ['用户名', 'Nama pengguna', 'Nombre de usuario'],
     'Search username or email': [
@@ -68,11 +77,11 @@ export const partnerCatalog = {
         'Komisen yuran tahunan ditolak daripada dompet.',
         'La comisión de cuota anual se descontó de la billetera.',
     ],
-    'Theoretical balance = personal net advances + net commissions received − personal net reimbursements. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.':
+    'Theoretical balance = personal net advances (less paid agent annual fees) + net commissions received − personal net reimbursements. Annual fees include converted deposits. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.':
         [
-            '理论余额＝本人预支净额＋已到账佣金净额－本人报销净额。实际余额为本人 USDT 钱包可用余额。差额＝理论余额－实际余额。',
-            'Baki teori = pendahuluan bersih peribadi + komisen bersih diterima − bayaran balik bersih peribadi. Baki sebenar ialah baki USDT tersedia. Perbezaan = teori − sebenar.',
-            'Saldo teórico = anticipos personales netos + comisiones netas recibidas − reembolsos personales netos. Saldo real: USDT disponible. Diferencia = teórico − real.',
+            '理论余额＝本人预支净额（扣除已支付代理年费）＋已到账佣金净额－本人报销净额。年费包含保证金抵扣。实际余额为本人 USDT 钱包可用余额。差额＝理论余额－实际余额。',
+            'Baki teori = pendahuluan bersih peribadi (ditolak yuran tahunan ejen yang dibayar, termasuk deposit ditukar) + komisen bersih diterima − bayaran balik bersih peribadi. Baki sebenar ialah baki USDT tersedia. Perbezaan = teori − sebenar.',
+            'Saldo teórico = anticipos personales netos (menos cuotas anuales de agente pagadas, incluidos depósitos convertidos) + comisiones netas recibidas − reembolsos personales netos. Saldo real: USDT disponible. Diferencia = teórico − real.',
         ],
 
     'Team deposit details': [

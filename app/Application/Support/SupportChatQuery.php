@@ -7,6 +7,8 @@ use App\Domain\Support\Models\SupportConversation;
 use App\Domain\Support\Models\SupportMessage;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 
 final readonly class SupportChatQuery
 {
@@ -65,6 +67,7 @@ final readonly class SupportChatQuery
         $this->access->platform($adminId);
         $message = SupportMessage::query()->where('tenant_id', $tenantId)->whereKey($messageId)->firstOrFail();
         abort_unless($message->image_object_key, 404);
+        abort_if(app(SupportMessageChanges::class)->latest($tenantId, $messageId)?->operation === 'DELETE', 404);
 
         return ['path' => $message->image_object_key, 'mime' => $message->image_mime];
     }
@@ -78,11 +81,12 @@ final readonly class SupportChatQuery
         $conversation = SupportConversation::query()->where('tenant_id', $tenantId)->whereKey($message->conversation_id)->firstOrFail();
         abort_unless($admin || $conversation->user_id === $actorId, 404);
         abort_unless($message->image_object_key, 404);
+        abort_if(app(SupportMessageChanges::class)->latest($tenantId, $messageId)?->operation === 'DELETE', 404);
 
         return ['path' => $message->image_object_key, 'mime' => $message->image_mime];
     }
 
-    public function thread(string $tenantId, ?SupportConversation $conversation, int $before, bool $admin = false): array
+    public function thread(string $tenantId, ?SupportConversation $conversation, int $before, bool $admin = false, ?string $agent = null): array
     {
         if (! $conversation) {
             return ['id' => null, 'messages' => [], 'before' => 0, 'olderCursor' => null] + app(SupportBot::class)->metadata($tenantId, null);
@@ -91,21 +95,35 @@ final readonly class SupportChatQuery
             ->when($before > 0, fn ($query) => $query->where('sequence', '<', $before))
             ->orderByDesc('sequence')->limit(51)->get();
         $visible = $rows->take(50)->reverse()->values();
+        $changes = DB::table('support_message_revisions')->where('tenant_id', $tenantId)
+            ->whereIn('message_id', $visible->pluck('id'))->selectRaw('DISTINCT ON (message_id) *')
+            ->orderBy('message_id')->orderByDesc('revision')->get()->keyBy('message_id');
+
+        $reads = $admin ? DB::table('support_message_revision_reads')->where('tenant_id', $tenantId)->whereIn('message_id', $visible->pluck('id'))->pluck('revision', 'message_id') : collect();
 
         return app(SupportBot::class)->metadata($tenantId, $conversation) + [
             'id' => $conversation->id, 'before' => $before,
             'olderCursor' => $rows->count() > 50 ? $visible->first()->sequence : null,
-            'messages' => $visible->map(fn (SupportMessage $message): array => [
-                'id' => $message->id, 'sequence' => $message->sequence,
-                'fromSupport' => $message->is_bot || ($message->sender_admin_id !== null || $message->sender_support_user_id !== null),
-                'senderKind' => $message->is_bot ? 'BOT' : ($message->sender_support_user_id ? 'SUPPORT_AGENT' : ($message->sender_admin_id ? 'ADMIN' : 'USER')),
-                'supportName' => $message->is_bot ? '客服助手' : (($message->sender_admin_id || $message->sender_support_user_id) ? $message->support_name : null),
-                'text' => $message->support_message, 'createdAt' => $message->created_at->toIso8601String(),
-                'imageSources' => $message->image_object_key ? app(ImageStorage::class)->previewSources('private', $message->image_object_key) : [],
-                'imageUrl' => $message->image_mime ? (app(ImageStorage::class)->active()
-                    ? app(ImageStorage::class)->displayUrl('private', $message->image_object_key)
-                    : ($admin ? '/admin/support/images/' : '/support/images/').$message->id) : null,
-            ])->all(),
+            'messages' => $visible->map(function (SupportMessage $message) use ($changes, $reads, $conversation, $admin, $agent): array {
+                $change = $changes->get($message->id);
+                $deleted = $change?->operation === 'DELETE';
+
+                return [
+                    'id' => $message->id, 'sequence' => $message->sequence,
+                    'fromSupport' => $message->is_bot || ($message->sender_admin_id !== null || $message->sender_support_user_id !== null),
+                    'senderKind' => $message->is_bot ? 'BOT' : ($message->sender_support_user_id ? 'SUPPORT_AGENT' : ($message->sender_admin_id ? 'ADMIN' : 'USER')),
+                    'supportName' => $message->is_bot ? '客服助手' : (($message->sender_admin_id || $message->sender_support_user_id) ? $message->support_name : null),
+                    'text' => $deleted ? null : ($change ? Crypt::decryptString($change->body) : $message->support_message),
+                    'deleted' => $deleted, 'edited' => $change?->operation === 'EDIT',
+                    'messageRevision' => $change?->revision ?? 0,
+                    ...($admin ? ['readByUser' => ($message->sender_admin_id || $message->sender_support_user_id) ? ($change ? ($reads->get($message->id, 0) >= $change->revision) : $message->sequence <= $conversation->user_read_sequence) : null] : []),
+                    ...($agent ? ['canManage' => ! $deleted && $message->sender_support_user_id === $agent] : []), 'createdAt' => $message->created_at->toIso8601String(),
+                    'imageSources' => ! $deleted && $message->image_object_key ? app(ImageStorage::class)->previewSources('private', $message->image_object_key) : [],
+                    'imageUrl' => ! $deleted && $message->image_mime ? (app(ImageStorage::class)->active()
+                        ? app(ImageStorage::class)->displayUrl('private', $message->image_object_key)
+                        : ($admin ? '/admin/support/images/' : '/support/images/').$message->id) : null,
+                ];
+            })->all(),
         ];
     }
 }

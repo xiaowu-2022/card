@@ -9,6 +9,7 @@ const direct: Record<string, string> = {
     '/support': '/pages/support/index',
     '/support-workspace': '/pages/support-workspace/index',
     '/support-workspace/replies': '/pages/support-workspace/replies',
+    '/support-workspace/customer': '/pages/support-workspace/customer',
     '/support-workspace/chat': '/pages/support/index',
 };
 export function internalUrl(path: string) {

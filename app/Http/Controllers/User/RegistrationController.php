@@ -5,6 +5,7 @@ namespace App\Http\Controllers\User;
 use App\Application\Promotion\CompleteInvitedRegistrationAction;
 use App\Application\Promotion\PromotionMembershipAction;
 use App\Application\User\CreateRegistrationChallengeAction;
+use App\Application\User\IssueConsumerDeviceToken;
 use App\Application\User\VerifyRegistrationChallengeAction;
 use App\Domain\Notification\Contracts\EmailVerificationSender;
 use App\Domain\Tenant\TenantContext;
@@ -16,6 +17,7 @@ use App\Http\Requests\CompleteRegistrationRequest;
 use App\Http\Requests\CreateRegistrationChallengeRequest;
 use App\Http\Requests\VerifyRegistrationChallengeRequest;
 use App\Support\Errors\DomainException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -70,8 +72,19 @@ final class RegistrationController extends Controller
         $inviter = $members->enrollment($context->id(), $request->validated('invitation_code'));
         $code = $inviter['code'];
         $locked = $request->session()->get('promotion.invitation.'.$context->id());
-        if (is_string($locked) && ! hash_equals($members->enrollment($context->id(), $locked)['code'], $code)) {
-            throw new DomainException('INVITATION_IMMUTABLE', 'The invitation relationship cannot be changed.');
+        if (is_string($locked)) {
+            try {
+                $selection = $members->enrollment($context->id(), $locked);
+            } catch (DomainException $error) {
+                if ($error->errorCode !== 'INVITATION_INVALID') {
+                    throw $error;
+                }
+                $request->session()->forget('promotion.invitation.'.$context->id());
+                $selection = null;
+            }
+            if ($selection && ! hash_equals($selection['code'], $code)) {
+                throw new DomainException('INVITATION_IMMUTABLE', 'The invitation relationship cannot be changed.');
+            }
         }
         $request->ensureIsNotRateLimited($context->id());
         $request->hitRateLimiters($context->id());
@@ -85,6 +98,7 @@ final class RegistrationController extends Controller
             $ownedChallengeIds,
             $inviter['memberId'],
             $inviter['companyId'],
+            $request->validated('invitation_code'),
         );
         $request->session()->put('registration.challenge_ids', array_slice(array_values(array_unique([
             ...$ownedChallengeIds,
@@ -120,7 +134,7 @@ final class RegistrationController extends Controller
         return redirect("/register/challenges/{$challenge}")->with('success', 'Contact verified. Create your password to finish.');
     }
 
-    public function complete(CompleteRegistrationRequest $request, string $challenge, TenantContext $context, CompleteInvitedRegistrationAction $action): RedirectResponse|\Illuminate\Http\JsonResponse
+    public function complete(CompleteRegistrationRequest $request, string $challenge, TenantContext $context, CompleteInvitedRegistrationAction $action): RedirectResponse|JsonResponse
     {
         $this->assertSessionOwnsChallenge($request, $challenge);
         $user = $action->execute(
@@ -135,7 +149,7 @@ final class RegistrationController extends Controller
             $request->session()->forget(['registration.challenge_ids', 'promotion.invitation.'.$context->id()]);
             $request->session()->regenerate(true);
 
-            return response()->json(app(\App\Application\User\IssueConsumerDeviceToken::class)->execute(
+            return response()->json(app(IssueConsumerDeviceToken::class)->execute(
                 $context->id(), $user->id, $request->string('password')->toString(), 'uni-app',
             ) + ['redirect' => '/dashboard'], 201);
         }

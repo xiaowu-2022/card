@@ -282,3 +282,82 @@ support authorization. Their identity/message/private-template rows are retained
 there is no email-based mapping or implicit authorization of consumer users. Existing
 Platform and tenant administrator support pages remain available under their original
 permissions. Platform's staff nickname list links to Users for consumer-agent management.
+
+## Consumer-agent presence, reading and message changes (2026-10-06)
+
+Assigned consumer agents see customer online/offline state in their company inbox and
+conversation. Visible App/H5 activity posts `/api/v1/presence` at most once per 20 seconds
+(the app timer is 30 seconds). Online means an active user has a foreground heartbeat
+within 75 seconds; backgrounding, disconnection or logout expires by this timeout. It is
+an approximate presence signal, not a read receipt. Host/authentication owns identity;
+GETs do not write presence or create conversations. No last-seen history is exposed.
+
+Workspace messages expose `readByUser` from the customer's acknowledged visible sequence.
+After an edit, an explicit receipt for that exact revision is required before showing
+Read again. Receipt IDs/revisions must belong to the authenticated customer's own chat;
+concurrent older receipts cannot reduce an acknowledged revision. Consumer DTOs do not
+expose agent IDs, edit operators or staff-only permission/read flags.
+
+Long-press (or desktop context menu/keyboard Enter) on the current consumer agent's own
+message opens Edit/Delete. Edit replaces text or the image caption; image replacement is
+not included. Delete asks for confirmation and shows a tombstone for both sides. Neither
+a customer message, bot message, historical AdminUser reply nor another agent's message
+can be changed through this operation. Original encrypted messages, image objects and
+nickname snapshots remain immutable. Append-only encrypted revisions include the actor,
+request UUID, revision and operation; audit metadata does not contain message text.
+The current projection hides deleted text and images; authenticated image gateways reject
+deleted messages. Previously downloaded or public storage copies cannot be recalled.
+
+Mutations lock Tenant then conversation, revalidate the active assignment and ownership,
+and require matching message revision and stable request UUID. Identical retries succeed;
+changed-payload reuse/stale edits fail, and deletion cannot be undone or edited. Changes
+never resend messages, alter conversation ordering/sequences, transition bot state or
+create financial/notification entries. Multiple agents continue to share the queue.
+
+## Shared company history reaffirmed (2026-10-06)
+
+The consumer-agent inbox defaults to ALL, including replied, waiting and bot conversations.
+Awaiting reply is an optional filter; it never owns or partitions the chat. Every active
+assigned consumer agent reads the same company/customer transcript, including other
+agents' and administrators' replies, original nickname snapshots, images and current
+edit/delete markers. History uses the conversation-wide sequence cursor in batches of 50;
+changing agents does not create a new conversation or hide earlier pages. Exclude only
+the agent's own consumer consultation, as before. Company isolation and own-message-only
+edit/delete permissions remain unchanged. Tests cover two agents reading the same 105
+messages across three pages, images, default-list visibility after a reply and no GET writes.
+
+The consumer-agent workspace displays all company conversations without status tabs,
+with WAITING and HUMAN conversations last sent by the customer sorted first across
+pagination, then newest activity. The header pending-message count counts individual
+customer messages after the latest human staff reply in those conversations; it is
+company-wide regardless of search, excludes the agent's own consultation, and clears
+when staff replies. Opening the list does not mark messages handled or alter history.
+
+The workspace loads further conversation pages on reaching the bottom instead of
+manual pagination. Search resets the loaded range; periodic refresh replaces that
+range atomically and deduplicates conversation IDs, preserving already loaded history.
+
+Each consumer-agent inbox row now projects an agent-specific unread customer-message
+count and the actual latest message's created_at, independent of conversation metadata
+updates. A visible thread acknowledges its highest displayed sequence through a scoped
+POST; GET remains read-only. Cursors are monotonic and separate per agent, and every
+acknowledgement rechecks the current grant/company/own-consultation restrictions.
+Apply 2026_10_06_235000_add_support_agent_read_cursors before deploying these reads.
+The header still counts unhandled messages; reading alone does not count as replying.
+
+Logged-in consumer agents receive a global foreground voice reminder for their own
+unread customer messages. Fresh /unread counters revalidate active assignment; ordinary
+users and revoked agents receive agentSupport=0. The bundled Chinese AAC prompt plays
+at most once per minute, stops on logout/read/background, and resumes after fresh
+foreground counters. H5 requires a user gesture to unlock audio; background/closed-tab
+and device-muted playback are not guaranteed. No OS push permission or external TTS
+service is used. Header pending counts remain separate from unread reminders.
+
+Customer message initials open an agent-only customer profile page. The read endpoint
+resolves the customer from an authorized same-company conversation, excludes self,
+and revalidates active assignment on every request. It shows current effective agent
+rank, enabled partner flag, registration time, available Ledger balances, direct inviter
+identity and completed external top-up/withdrawal totals grouped by currency. Successful
+order totals require posting references; pending/failed orders, transfers and manual
+balance adjustments are excluded. No currency conversion, wallet provisioning, provider
+request, financial write or administrator identity is exposed.

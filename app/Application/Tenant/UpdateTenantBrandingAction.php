@@ -29,9 +29,10 @@ final readonly class UpdateTenantBrandingAction
 
             DB::transaction(function () use ($tenant, $data, $newLogo, $newFavicon, $newApkLogo, $actor, $requestId): void {
                 $branding = $tenant->branding()->lockForUpdate()->firstOrFail();
-                $before = $branding->only(['brand_name', 'logo_object_key', 'favicon_object_key', 'apk_logo_object_key', 'primary_color', 'support_email', 'support_url', 'copyright_text']);
+                $before = $branding->only(['brand_name', 'apk_name', 'logo_object_key', 'favicon_object_key', 'apk_logo_object_key', 'primary_color', 'support_email', 'support_url', 'copyright_text']);
                 $branding->update([
                     'brand_name' => $data['brand_name'],
+                    'apk_name' => array_key_exists('apk_name', $data) ? $data['apk_name'] : $branding->apk_name,
                     'primary_color' => $data['primary_color'],
                     'support_email' => $data['support_email'],
                     'support_url' => $data['support_url'],

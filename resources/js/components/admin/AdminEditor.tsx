@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import type { Page } from '@inertiajs/core';
+import { openEditorEvent, type OpenEditorDetail } from './editor-navigation';
 import { EditorContext, useEditor } from './editor-context';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -31,7 +32,7 @@ function editorPath(url: URL): boolean {
         url.origin === location.origin &&
         ((url.pathname === '/platform/settings/assets' && !!url.searchParams.get('company')) ||
             /^\/platform\/tenants\/create$/.test(url.pathname) ||
-            /^\/platform\/tenants\/[^/]+\/users\/[^/]+\/(wallet-adjustments|referrer|promotion|manual-commissions)$/.test(
+            /^\/platform\/tenants\/[^/]+\/users\/[^/]+\/(wallet-adjustments|referrer|invitation-code|promotion|manual-commissions)$/.test(
                 url.pathname,
             ) ||
             /^\/platform\/tenants\/[^/]+\/configuration\/(settings(\/(branding|locales|business|articles|sms|email))?|promotion|paid-promotion|wealth)$/.test(
@@ -193,6 +194,13 @@ function EditorHost({ children }: { children: ReactNode }) {
             if (!url) trigger.current = link;
             changeUrl(target.pathname + target.search);
         };
+        const openEditor = (event: Event) => {
+            const detail = (event as CustomEvent<OpenEditorDetail>).detail;
+            const target = new URL(detail.url, location.origin);
+            if (!editorPath(target) || !canClose()) return;
+            if (!url) trigger.current = detail.trigger;
+            changeUrl(target.pathname + target.search);
+        };
         const pop = () => {
             const next = new URL(location.href).searchParams.get('editor');
             if (next === url) return;
@@ -209,11 +217,13 @@ function EditorHost({ children }: { children: ReactNode }) {
             if (url && !canClose()) event.preventDefault();
         });
         document.addEventListener('click', click, true);
+        window.addEventListener(openEditorEvent, openEditor);
         window.addEventListener('popstate', pop);
         window.addEventListener('beforeunload', before);
         return () => {
             removeGuard();
             document.removeEventListener('click', click, true);
+            window.removeEventListener(openEditorEvent, openEditor);
             window.removeEventListener('popstate', pop);
             window.removeEventListener('beforeunload', before);
         };
@@ -289,6 +299,7 @@ function EditorHost({ children }: { children: ReactNode }) {
         { companyName?: string; accountId?: string; email?: string } | undefined;
     const titles: Record<string, string> = {
         'platform/WalletAdjustment': 'Wallet adjustment',
+        'platform/UserInvitationCode': 'Change invitation code',
         'platform/UserReferrer': 'Change referrer',
         'platform/UserPromotion': 'Adjust promotion level',
         'platform/ManualCommission': 'Adjust commission',

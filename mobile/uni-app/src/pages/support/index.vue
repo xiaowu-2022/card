@@ -4,6 +4,8 @@ import { onHide, onShow, onUnload, onLoad } from '@dcloudio/uni-app';
 import SupportReplyPicker from '../../components/SupportReplyPicker.vue';
 import { supportDenied } from '../../lib/support-workspace';
 import PageShell from '../../components/PageShell.vue';
+import { go } from '../../lib/navigation';
+import Modal from '../../components/Modal.vue';
 import SupportImage from '../../components/SupportImage.vue';
 import UiIcon from '../../components/UiIcon.vue';
 import { ApiError, request, upload } from '../../lib/api';
@@ -11,6 +13,9 @@ import { requestId } from '../../lib/client';
 import { refreshUnread, requireUser } from '../../lib/session';
 import { t, dateTime } from '../../lib/i18n';
 type Chat = {
+    customerOnline?: boolean;
+    customerName?: string;
+    customerEmail?: string | null;
     humanSupport?: { available: boolean; timezone: string; nextOpenAt: string | null };
     mode?: 'BOT' | 'WAITING' | 'HUMAN';
     revision?: number;
@@ -25,9 +30,63 @@ type Chat = {
         createdAt: string;
         imageUrl: string | null;
         imageSources?: string[];
+        readByUser?: boolean | null;
+        canManage?: boolean;
+        deleted?: boolean;
+        edited?: boolean;
+        messageRevision?: number;
     }[];
     olderCursor: number | null;
 };
+type Message = Chat['messages'][number];
+const selectedMessage = ref<Message | null>(null),
+    changeMode = ref<'menu' | 'edit' | 'delete'>('menu'),
+    changedText = ref(''),
+    changing = ref(false),
+    changeFailed = ref(false);
+let changeIntent: { request_id: string; revision: number; operation: string; text: string } | null =
+    null;
+function messageMenu(message: Message) {
+    if (!agent.value || !message.canManage || message.deleted || changing.value) return;
+    selectedMessage.value = { ...message };
+    changedText.value = message.text ?? '';
+    changeMode.value = 'menu';
+    changeFailed.value = false;
+    changeIntent = null;
+}
+function closeMessageMenu() {
+    if (changing.value) return;
+    selectedMessage.value = null;
+    changeIntent = null;
+}
+async function changeMessage() {
+    const message = selectedMessage.value;
+    if (!message || changing.value || changeMode.value === 'menu') return;
+    const operation = changeMode.value === 'delete' ? 'DELETE' : 'EDIT';
+    if (operation === 'EDIT' && !changedText.value.trim()) return;
+    changing.value = true;
+    changeFailed.value = false;
+    changeIntent ??= {
+        request_id: requestId(),
+        revision: message.messageRevision ?? 0,
+        operation,
+        text: operation === 'EDIT' ? changedText.value.trim() : '',
+    };
+    try {
+        await request(base.value + '/messages/' + message.id + '/change', 'POST', changeIntent);
+        selectedMessage.value = null;
+        changeIntent = null;
+        await load();
+    } catch (e) {
+        changeFailed.value = true;
+        if (supportDenied(e)) {
+            stop();
+            selectedMessage.value = null;
+        }
+    } finally {
+        changing.value = false;
+    }
+}
 const composerId = 'support-composer-' + requestId();
 const conversation = ref('');
 const agent = computed(() => !!conversation.value);
@@ -71,29 +130,6 @@ async function insertReply(body: string) {
     cursor.value = start + body.length;
     selectionStart = selectionEnd = cursor.value;
     composerFocus.value = true;
-}
-let finishIntent: { request_id: string; revision: number } | null = null;
-async function finish() {
-    if (busy.value || !chat.value.revision) return;
-    busy.value = true;
-    actionFailed.value = false;
-    finishIntent ??= { request_id: requestId(), revision: chat.value.revision };
-    try {
-        await request(base.value + '/finish', 'POST', finishIntent);
-        finishIntent = null;
-        await load(true);
-    } catch (e) {
-        if (e instanceof ApiError && e.status === 409) {
-            finishIntent = null;
-            await load(true);
-            uni.showToast({
-                title: t('Conversation changed. Read the latest messages before ending service.'),
-                icon: 'none',
-            });
-        } else if (!supportDenied(e)) actionFailed.value = true;
-    } finally {
-        busy.value = false;
-    }
 }
 const chat = ref<Chat>({ messages: [], olderCursor: null }),
     before = ref(0),
@@ -139,6 +175,7 @@ const locked = ref(false);
 let visible = false,
     followLatest = true,
     acknowledged = 0,
+    acknowledgedRevisions = '',
     generation = 0,
     timer: ReturnType<typeof setInterval> | undefined;
 function foreground() {
@@ -181,13 +218,21 @@ async function load(silent = false) {
     }
 }
 async function acknowledge() {
-    if (agent.value) return;
     await nextTick();
-    if (!foreground() || failed.value) return;
+    if (!foreground() || failed.value || (agent.value && !followLatest)) return;
     const through = Math.max(0, ...chat.value.messages.map((m) => m.sequence));
-    if (!through || through <= acknowledged) return;
+    const revisions = chat.value.messages
+        .filter((m) => (m.messageRevision ?? 0) > 0)
+        .map((m) => ({ id: m.id, revision: m.messageRevision! }));
+    const revisionKey = JSON.stringify(revisions);
+    if (!through || (through <= acknowledged && revisionKey === acknowledgedRevisions)) return;
     try {
-        await request('/support/read', 'POST', { through });
+        await request(
+            agent.value ? base.value + '/read' : '/support/read',
+            'POST',
+            agent.value ? { through } : { through, revisions },
+        );
+        acknowledgedRevisions = revisionKey;
         acknowledged = through;
         readFailed.value = false;
         await refreshUnread();
@@ -196,7 +241,7 @@ async function acknowledge() {
     }
 }
 function tick() {
-    if (!foreground() || busy.value || before.value) return;
+    if (!foreground() || busy.value || changing.value) return;
     void load(true);
 }
 onShow(() => {
@@ -337,17 +382,32 @@ function updateDraft(event: unknown) {
 </script>
 <template>
     <PageShell
-        :title="t(agent ? 'Support workspace' : 'Customer support')"
+        :title="agent ? chat.customerName || t('Customer') : t('Customer support')"
         :back="agent ? '/support-workspace' : '/account'"
         active="account"
+        hide-messages
         chat
-        ><view class="support-thread"
-            ><text class="support-privacy">{{
-                t(
-                    'Do not send passwords, verification codes, full card numbers, CVV or identity documents.',
-                )
-            }}</text
-            ><view v-if="chat.mode" class="support-mode"
+        ><template v-if="agent" #header-title>
+            <view class="customer-heading">
+                <view class="customer-title">
+                    <text class="customer-name">{{ chat.customerName || t('Customer') }}</text>
+                    <text
+                        v-if="chat.customerOnline !== undefined"
+                        class="customer-status"
+                        :class="{ online: chat.customerOnline }"
+                    >
+                        <text class="presence-dot" />{{
+                            t(chat.customerOnline ? 'Online' : 'Offline')
+                        }}
+                    </text>
+                </view>
+                <text v-if="chat.customerEmail" class="customer-email">{{
+                    chat.customerEmail
+                }}</text>
+            </view>
+        </template>
+        <view class="support-thread"
+            ><view v-if="!agent && chat.mode" class="support-mode"
                 ><text>{{
                     t(
                         chat.mode === 'BOT'
@@ -363,17 +423,10 @@ function updateDraft(event: unknown) {
                     :disabled="busy || loading || polling || chat.humanSupport?.available === false"
                     @click="handoff"
                 >
-                    {{ t('Talk to a person') }}</button
-                ><button
-                    v-if="agent && chat.mode !== 'BOT'"
-                    class="secondary"
-                    :disabled="busy || loading || polling"
-                    @click="finish"
-                >
-                    {{ t('End service') }}
+                    {{ t('Talk to a person') }}
                 </button></view
             ><view
-                v-if="chat.humanSupport?.available === false"
+                v-if="!agent && chat.humanSupport?.available === false"
                 class="support-offline"
                 role="status"
                 ><text>{{ t('Customer support is currently offline.') }}</text
@@ -425,10 +478,19 @@ function updateDraft(event: unknown) {
                     :key="message.id"
                     class="support-message"
                     :class="{
+                        'has-customer-avatar':
+                            agent && !message.fromSupport && message.senderKind !== 'BOT',
                         'support-message-own':
                             message.senderKind !== 'BOT' &&
                             (agent ? message.fromSupport : !message.fromSupport),
                     }"
+                    ><button
+                        v-if="agent && !message.fromSupport && message.senderKind !== 'BOT'"
+                        class="customer-avatar"
+                        :aria-label="t('Customer profile')"
+                        @click="go('/support-workspace/customer?conversation=' + conversation)"
+                    >
+                        {{ Array.from(chat.customerName || t('Customer'))[0] }}</button
                     ><text class="support-sender">{{
                         message.senderKind === 'BOT'
                             ? t('Support assistant')
@@ -436,15 +498,30 @@ function updateDraft(event: unknown) {
                               ? message.supportName || t('Customer support')
                               : t(agent ? 'Customer' : 'You')
                     }}</text
-                    ><view class="support-bubble"
-                        ><SupportImage
-                            v-if="message.imageUrl"
+                    ><view
+                        class="support-bubble"
+                        :role="agent && message.canManage ? 'button' : undefined"
+                        :tabindex="agent && message.canManage ? 0 : undefined"
+                        @keydown.enter.prevent="messageMenu(message)"
+                        @longpress="messageMenu(message)"
+                        @contextmenu.prevent="messageMenu(message)"
+                        ><text v-if="message.deleted" class="deleted-message">{{
+                            t('Message deleted')
+                        }}</text>
+                        <SupportImage
+                            v-if="!message.deleted && message.imageUrl"
                             :path="message.imageUrl"
                             :sources="message.imageSources"
-                        /><text v-if="message.text" class="support-text">{{
+                        /><text v-if="!message.deleted && message.text" class="support-text">{{
                             message.text
                         }}</text></view
-                    ><text class="support-time">{{ dateTime(message.createdAt) }}</text></view
+                    ><text class="support-time"
+                        >{{ dateTime(message.createdAt)
+                        }}<text v-if="message.edited && !message.deleted"> · {{ t('Edited') }}</text
+                        ><text v-if="agent && message.readByUser != null">
+                            · {{ t(message.readByUser ? 'Read' : 'Unread') }}</text
+                        ></text
+                    ></view
                 ><view id="support-last" style="height: 1px" /></scroll-view
             ><button v-if="readFailed" class="text-button" @click="acknowledge">
                 {{ t('Retry') }}
@@ -459,6 +536,77 @@ function updateDraft(event: unknown) {
             >
                 {{ t('Quick replies') }}
             </button>
+            <Modal
+                :open="!!selectedMessage"
+                :title="
+                    t(
+                        changeMode === 'edit'
+                            ? 'Edit message'
+                            : changeMode === 'delete'
+                              ? 'Delete message'
+                              : 'Message actions',
+                    )
+                "
+                :busy="changing"
+                @close="closeMessageMenu"
+            >
+                <view class="message-actions">
+                    <template v-if="changeMode === 'menu'">
+                        <button
+                            class="secondary"
+                            role="button"
+                            tabindex="0"
+                            @keydown.enter.prevent="changeMode = 'edit'"
+                            @click="changeMode = 'edit'"
+                        >
+                            {{ t('Edit message') }}
+                        </button>
+                        <button
+                            class="secondary"
+                            role="button"
+                            tabindex="0"
+                            @keydown.enter.prevent="changeMode = 'delete'"
+                            @click="changeMode = 'delete'"
+                        >
+                            {{ t('Delete message') }}
+                        </button>
+                    </template>
+                    <template v-else>
+                        <textarea
+                            v-if="changeMode === 'edit'"
+                            v-model="changedText"
+                            :maxlength="2000"
+                            :disabled="changing || !!changeIntent"
+                            :aria-label="t('Edit message')"
+                            class="edit-message-field"
+                        />
+                        <text v-else>{{ t('Delete this message for everyone?') }}</text>
+                        <text v-if="changeFailed" class="support-error">{{
+                            t('Message change failed. Retry or reopen the latest message.')
+                        }}</text>
+                        <button
+                            class="secondary"
+                            role="button"
+                            tabindex="0"
+                            :disabled="changing"
+                            @keydown.enter.prevent="closeMessageMenu"
+                            @click="closeMessageMenu"
+                        >
+                            {{ t('Cancel') }}
+                        </button>
+                        <button
+                            class="primary"
+                            :disabled="changing || (changeMode === 'edit' && !changedText.trim())"
+                            role="button"
+                            tabindex="0"
+                            @keydown.enter.prevent="changeMessage"
+                            @click="changeMessage"
+                        >
+                            {{ t(changeMode === 'delete' ? 'Delete message' : 'Save') }}
+                        </button>
+                    </template>
+                </view>
+            </Modal>
             <SupportReplyPicker v-if="picker" @select="insertReply" @close="picker = false" />
             <form class="support-composer" @submit="send">
                 <view v-if="image" class="support-preview"
@@ -470,46 +618,124 @@ function updateDraft(event: unknown) {
                     >
                         ×
                     </button></view
-                ><textarea
-                    :id="composerId"
-                    :value="draft"
-                    @input="updateDraft"
-                    :focus="composerFocus"
-                    :cursor="cursor"
-                    @blur="rememberSelection"
-                    :disabled="busy || locked"
-                    :maxlength="2000"
-                    :placeholder="t('Write your message…')"
-                    :adjust-position="true"
-                /><text v-if="actionFailed || imageFailed" class="support-error">{{
+                >
+                <view class="support-composer-actions">
+                    <button
+                        class="secondary support-attach"
+                        :disabled="busy || locked"
+                        :aria-label="t('Attach image')"
+                        @click="chooseImage"
+                    >
+                        <UiIcon name="image-plus" :size="20" />
+                    </button>
+                    <textarea
+                        :id="composerId"
+                        :value="draft"
+                        @input="updateDraft"
+                        :focus="composerFocus"
+                        :cursor="cursor"
+                        @blur="rememberSelection"
+                        :disabled="busy || locked"
+                        :maxlength="2000"
+                        :placeholder="t('Write your message…')"
+                        :adjust-position="true"
+                    />
+                    <button
+                        class="primary support-send"
+                        form-type="submit"
+                        :disabled="busy || (!draft.trim() && !image)"
+                    >
+                        {{ t(busy ? 'Sending…' : 'Send message') }}
+                    </button>
+                </view>
+                <text v-if="actionFailed || imageFailed" class="support-error">{{
                     t(
                         imageFailed
                             ? 'Use a JPG, PNG or WebP image up to 5 MB and 20 megapixels.'
                             : 'Message not confirmed. Your draft is kept; please retry.',
                     )
-                }}</text
-                ><view class="support-composer-actions"
-                    ><button
-                        class="secondary"
-                        :disabled="busy || locked"
-                        :aria-label="t('Attach image')"
-                        @click="chooseImage"
-                    >
-                        <UiIcon name="image-plus" :size="18" /></button
-                    ><text class="support-limit">JPG, PNG, WebP · 5 MB</text
-                    ><button
-                        class="primary"
-                        form-type="submit"
-                        :disabled="busy || (!draft.trim() && !image)"
-                    >
-                        <UiIcon name="send" :size="16" />{{ t(busy ? 'Sending…' : 'Send message') }}
-                    </button></view
-                >
+                }}</text>
             </form></view
         ></PageShell
     >
 </template>
 <style scoped>
+.customer-heading {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+}
+.customer-email {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #8b918e;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 400;
+}
+.customer-title {
+    max-width: 100%;
+    min-width: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+}
+.customer-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 20px;
+    font-weight: 600;
+}
+.customer-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    white-space: nowrap;
+    color: #8b918e;
+    font-size: 12px;
+    font-weight: 400;
+}
+.customer-status.online {
+    color: #279c70;
+}
+.presence-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+.deleted-message {
+    color: #7a867f;
+    font-style: italic;
+}
+.message-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.message-actions button {
+    margin: 0;
+    width: 100%;
+}
+.edit-message-field {
+    width: 100%;
+    min-height: 140px;
+    padding: 12px;
+    border: 1px solid #dce3dd;
+    border-radius: 12px;
+    box-sizing: border-box;
+}
+
 .support-offline {
     display: flex;
     flex-direction: column;
@@ -533,13 +759,6 @@ function updateDraft(event: unknown) {
     min-height: 0;
     flex-direction: column;
     margin-top: 12px;
-}
-.support-privacy {
-    color: #737e77;
-    font-size: 12px;
-    line-height: 1.6;
-    margin-bottom: 10px;
-    flex-shrink: 0;
 }
 .support-history-actions {
     display: flex;
@@ -571,6 +790,24 @@ function updateDraft(event: unknown) {
     font-size: 18px;
     font-weight: 600;
     color: #1b2922;
+}
+.support-message.has-customer-avatar {
+    position: relative;
+    padding-left: 46px;
+}
+.support-thread .customer-avatar {
+    position: absolute;
+    left: 0;
+    top: 20px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    margin: 0;
+    line-height: 36px;
+    border-radius: 10px;
+    background: #dcefe8;
+    color: #278b70;
+    font-size: 18px;
 }
 .support-message {
     display: flex;
@@ -615,31 +852,46 @@ function updateDraft(event: unknown) {
 .support-composer textarea {
     box-sizing: border-box;
     display: block;
-    width: 100%;
-    height: 56px;
+    flex: 1;
+    width: 0;
+    min-width: 0;
+    height: 44px;
     min-height: 44px;
-    max-height: 120px;
+    max-height: 44px;
     font-size: 16px;
-    border-radius: 16px;
+    line-height: 22px;
+    border-radius: 12px;
     background: white;
     border: 1px solid #e2e7e4;
-    padding: 12px 14px;
+    padding: 10px 12px;
 }
 .support-composer-actions {
     display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 8px;
-}
-.support-composer-actions > button:last-child {
-    margin-left: auto;
-    display: flex;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 8px;
+    width: 100%;
+    min-width: 0;
 }
-.support-limit {
-    color: #77847c;
-    font-size: 11px;
+.support-thread .support-composer-actions > button {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 44px;
+    min-height: 44px;
+    margin: 0;
+    font-size: 14px;
+    line-height: 20px;
+    white-space: nowrap;
+}
+.support-thread .support-composer-actions > .support-attach {
+    width: 44px;
+    padding: 0;
+}
+.support-thread .support-composer-actions > .support-send {
+    padding: 0 16px;
+    border-radius: 12px;
 }
 .support-preview {
     display: flex;
@@ -674,10 +926,5 @@ function updateDraft(event: unknown) {
 .loading {
     padding: 24px;
     text-align: center;
-}
-@media (max-width: 400px) {
-    .support-limit {
-        display: none;
-    }
 }
 </style>

@@ -57,7 +57,8 @@ try {
         if ((h5Base !== './' && !/^\/(?:[a-zA-Z0-9_-]+\/)*$/.test(h5Base)) || (flags['--base'] && platform !== 'h5'))
             throw new Error('Use --base ./, / or /directory/ with platform h5.');
         const config = readCompany(root, company, mode, platform);
-        const branding = platform === 'app' ? await prepareBranding(config, project) : {};
+        const { apkName, ...branding } = platform === 'app' ? await prepareBranding(config, project) : {};
+        if (platform === 'app') config.name = apkName;
         const generated = resolve(project, 'src/generated');
         mkdirSync(generated, { recursive: true });
         writeFileSync(resolve(generated, 'company.json'), JSON.stringify(config, null, 2));
@@ -195,6 +196,7 @@ try {
             'system-money.ts',
             'inbox-templates.ts',
             'exact-amount.ts',
+            'partner-journal-note.ts',
             'academy-registration.ts',
             'academy-guide.ts',
             'academy-features.ts',

@@ -1,4 +1,47 @@
 export const inboxCatalog = {
+    'Identity document account limit reached': [
+        '该证件认证账号数已达上限',
+        'Had akaun dokumen pengenalan telah dicapai',
+        'Límite de cuentas del documento alcanzado',
+    ],
+    'This document has reached the verification account limit for this company. Uploading it again will not resolve this. Please contact support.':
+        [
+            '该证件在当前公司的认证账号数已达到上限，重复上传无法解决，请联系客服处理。',
+            'Dokumen ini telah mencapai had akaun yang disahkan untuk syarikat ini. Memuat naiknya semula tidak akan menyelesaikan masalah. Sila hubungi sokongan.',
+            'Este documento ha alcanzado el límite de cuentas verificadas de esta empresa. Volver a subirlo no resolverá el problema. Contacta con soporte.',
+        ],
+    'The document number could not be recognized or validated. Please upload clear photos of your identity documents.':
+        [
+            '未能识别有效证件号码，请重新上传清晰的证件照片。',
+            'Nombor dokumen tidak dapat dikenal pasti atau disahkan. Sila muat naik foto dokumen pengenalan yang jelas.',
+            'No se pudo reconocer o validar el número del documento. Sube fotos claras de tus documentos de identidad.',
+        ],
+    'Document recognition is temporarily unavailable. Please contact support to retry verification.':
+        [
+            '证件识别服务暂时不可用，请联系客服重试认证。',
+            'Pengecaman dokumen tidak tersedia buat sementara waktu. Sila hubungi sokongan untuk mencuba pengesahan semula.',
+            'El reconocimiento de documentos no está disponible temporalmente. Contacta con soporte para reintentar la verificación.',
+        ],
+    'The document images could not be read. Please upload them again or contact support.': [
+        '证件照片读取失败，请重新上传或联系客服。',
+        'Imej dokumen tidak dapat dibaca. Sila muat naik semula atau hubungi sokongan.',
+        'No se pudieron leer las imágenes del documento. Súbelas de nuevo o contacta con soporte.',
+    ],
+    'The document images could not be verified. Please upload them again or contact support.': [
+        '证件照片校验失败，请重新上传或联系客服。',
+        'Imej dokumen tidak dapat disahkan. Sila muat naik semula atau hubungi sokongan.',
+        'No se pudieron verificar las imágenes del documento. Súbelas de nuevo o contacta con soporte.',
+    ],
+    'Identity verification is currently unavailable. Please contact support.': [
+        '当前暂不可进行身份认证，请联系客服。',
+        'Pengesahan identiti tidak tersedia pada masa ini. Sila hubungi sokongan.',
+        'La verificación de identidad no está disponible actualmente. Contacta con soporte.',
+    ],
+    'Verification could not be completed. Please contact support to check the reason.': [
+        '认证未能完成，请联系客服查询具体原因。',
+        'Pengesahan tidak dapat diselesaikan. Sila hubungi sokongan untuk menyemak sebabnya.',
+        'No se pudo completar la verificación. Contacta con soporte para consultar el motivo.',
+    ],
     'Verification processing failed': [
         '认证处理失败',
         'Pemprosesan pengesahan gagal',

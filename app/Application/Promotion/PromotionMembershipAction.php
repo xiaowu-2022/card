@@ -86,9 +86,13 @@ final readonly class PromotionMembershipAction
             $alias = DB::table('promotion_invitation_aliases')->where('tenant_id', $tenantId)->where('old_code', $code)->first();
             if ($alias) {
                 $code = $alias->member_id
-                    ? PromotionMember::query()->where('tenant_id', $tenantId)->whereKey($alias->member_id)->value('invitation_code')
+                    ? PromotionMember::query()->where('tenant_id', $tenantId)->whereKey($alias->member_id)->where('invitation_revision', 0)->value('invitation_code')
                     : CompanyInvitation::query()->where('tenant_id', $tenantId)->whereKey($alias->company_invitation_id)->value('invitation_code');
             }
+        }
+
+        if (! is_string($code)) {
+            throw new DomainException('INVITATION_INVALID', 'Enter a valid invitation code.');
         }
 
         return $code;

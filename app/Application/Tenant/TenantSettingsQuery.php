@@ -24,6 +24,7 @@ final class TenantSettingsQuery
         return [
             ...($section === null || $section === 'branding' ? ['branding' => [
                 'brandName' => $tenant->branding->brand_name,
+                'apkName' => $tenant->branding->apk_name,
                 'primaryColor' => $tenant->branding->primary_color,
                 'supportEmail' => $tenant->branding->support_email,
                 'supportUrl' => $tenant->branding->support_url,

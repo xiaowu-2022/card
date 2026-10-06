@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
+import { dirname, resolve } from 'node:path';
 
 function stateFor(kyc) {
     const exports = {};
@@ -50,4 +51,49 @@ test('unknown errors stay generic and stale failures do not override active or a
     assert.match(unknown.description, /contact support/);
     assert.equal(stateFor({ status: 'PENDING', processingStatus: 'QUEUED', processingError: 'IDENTITY_ACCOUNT_LIMIT_REACHED' }).title, 'Processing status');
     assert.equal(stateFor({ status: 'APPROVED', processingStatus: null }).title, 'Identity verified');
+});
+
+// Exercise the translator used by Kyc.vue, not uni-app's separate locale JSON.
+function loadRuntime(path) {
+    const exports = {};
+    const js = ts.transpileModule(readFileSync(path, 'utf8'), {
+        compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    }).outputText;
+    runInNewContext(js, {
+        exports,
+        uni: { setLocale() {} },
+        require: id => {
+            if (id === 'vue') return { ref: value => ({ value }) };
+            if (id === './api') return { setLanguage() {} };
+            return loadRuntime(resolve(dirname(path), `${id}.ts`));
+        },
+    });
+    return exports;
+}
+
+test('KYC status and failure banners follow the active language in the actual runtime catalog', () => {
+    const runtime = loadRuntime('mobile/uni-app/src/lib/i18n.ts');
+    const failures = [
+        'IDENTITY_ACCOUNT_LIMIT_REACHED', 'KYC_OCR_MISMATCH', 'KYC_OCR_UNAVAILABLE',
+        'KYC_DOCUMENT_STORAGE_FAILED', 'KYC_DOCUMENT_INTEGRITY_FAILED',
+        'KYC_SUBMISSION_UNAVAILABLE', 'UNKNOWN',
+    ].map(processingError => stateFor({ status: 'PENDING', processingStatus: 'FAILED', processingError }));
+    const states = [
+        ...failures,
+        ...['NOT_SUBMITTED', 'PENDING', 'APPROVED', 'REJECTED', 'RESUBMISSION_REQUIRED'].map(status => stateFor({ status })),
+        ...['QUEUED', 'PROCESSING', 'WAITING_REVIEW'].map(processingStatus => stateFor({ status: 'PENDING', processingStatus })),
+    ];
+    const { catalog } = loadRuntime('resources/js/i18n/catalog.ts');
+    for (const language of ['zh-CN', 'ms', 'es', 'en', 'zh-CN']) {
+        runtime.changeLocale(language);
+        const index = ['zh-CN', 'ms', 'es'].indexOf(language);
+        for (const state of states) {
+            for (const key of [state.title, state.description]) {
+                assert.ok(catalog[key], `Missing shared translation: ${key}`);
+                const translated = runtime.t(key);
+                assert.equal(translated, index < 0 ? key : catalog[key][index]);
+                if (index >= 0) assert.notEqual(translated, key, `${language}: ${key}`);
+            }
+        }
+    }
 });

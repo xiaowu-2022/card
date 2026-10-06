@@ -8,6 +8,7 @@ use App\Application\Inbox\InboxQuery;
 use App\Application\Media\ImageStorage;
 use App\Application\Media\PublicAssets;
 use App\Application\Promotion\AccountActivationStatus;
+use App\Application\Support\ConsumerPresence;
 use App\Application\Support\SendSupportMessageAction;
 use App\Application\Support\SupportBot;
 use App\Application\Support\SupportChatQuery;
@@ -87,6 +88,7 @@ final class ConsumerController extends Controller
             'tenant' => ['id' => $tenant->id, 'slug' => $tenant->slug, 'name' => $tenant->branding?->brand_name ?? $tenant->name,
                 'logoUrl' => $tenant->branding?->logo_object_key ? app(ImageStorage::class)->displayUrl('public', $tenant->branding->logo_object_key, 'brand') : null,
                 'logoSources' => app(ImageStorage::class)->previewSources('public', $tenant->branding?->logo_object_key, 'brand'),
+                'apkName' => $tenant->branding?->apk_name,
                 'apkLogoUrl' => $tenant->branding?->apk_logo_object_key ? app(ImageStorage::class)->displayUrl('public', $tenant->branding->apk_logo_object_key, 'original') : null,
                 'apkLogoSources' => app(ImageStorage::class)->previewSources('public', $tenant->branding?->apk_logo_object_key, 'original'),
                 'primaryColor' => $tenant->branding?->primary_color ?? '#39AD8D'],
@@ -96,7 +98,8 @@ final class ConsumerController extends Controller
             'user' => $authenticated ? ['id' => $user->id, 'accountId' => $user->account_id, 'displayName' => $user->profile?->display_name, 'email' => $user->email] : null,
             'restricted' => $tenant->status !== TenantStatus::Active || ($authenticated && $user->status !== UserStatus::Active),
             'unread' => ['messages' => $authenticated ? $inbox->unread($tenant->id, $user->id) : 0,
-                'support' => $authenticated ? $support->count($tenant->id, $user->id) : 0],
+                'support' => $authenticated ? $support->count($tenant->id, $user->id) : 0,
+                'agentSupport' => $authenticated ? $support->agentCount($tenant->id, $user->id) : 0],
             'csrfToken' => $request->attributes->get('consumer_mode') === 'web' && $request->hasSession() ? $request->session()->token() : null,
         ]);
     }
@@ -156,11 +159,18 @@ final class ConsumerController extends Controller
         return response()->json(['locale' => $data['locale']]);
     }
 
+    public function presence(Request $request, TenantContext $context)
+    {
+        app(ConsumerPresence::class)->touch($context->id(), $request->attributes->get('consumer_user')->id);
+
+        return response()->noContent();
+    }
+
     public function unread(Request $request, TenantContext $context, InboxQuery $inbox, SupportUnread $support)
     {
         $user = $request->attributes->get('consumer_user')->id;
 
-        return response()->json(['messages' => $inbox->unread($context->id(), $user), 'support' => $support->count($context->id(), $user)]);
+        return response()->json(['messages' => $inbox->unread($context->id(), $user), 'support' => $support->count($context->id(), $user), 'agentSupport' => $support->agentCount($context->id(), $user)]);
     }
 
     public function messages(Request $request, TenantContext $context, InboxQuery $query)
@@ -192,8 +202,8 @@ final class ConsumerController extends Controller
 
     public function supportRead(Request $request, TenantContext $context, SupportUnread $unread)
     {
-        $data = $request->validate(['through' => 'required|integer|min:1|max:2147483647']);
-        $unread->read($context->id(), $request->attributes->get('consumer_user')->id, $data['through']);
+        $data = $request->validate(['through' => 'required|integer|min:1|max:2147483647', 'revisions' => 'sometimes|array|max:50', 'revisions.*.id' => 'required|uuid|distinct', 'revisions.*.revision' => 'required|integer|min:1']);
+        $unread->read($context->id(), $request->attributes->get('consumer_user')->id, $data['through'], $data['revisions'] ?? []);
 
         return response()->noContent();
     }

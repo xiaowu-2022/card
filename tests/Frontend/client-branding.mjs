@@ -11,7 +11,7 @@ function fake(patch = {}) {
     return async (url, options) => {
         assert.equal(options.headers.Authorization, undefined);
         assert.ok(!url.includes('zb33333'));
-        if (url.endsWith('/bootstrap')) return Response.json({ tenant: { id: 'tenant-demo', slug: 'demo', apkLogoUrl: '/logo.png', ...patch } });
+        if (url.endsWith('/bootstrap')) return Response.json({ tenant: { id: 'tenant-demo', slug: 'demo', apkName: '测试 App', apkLogoUrl: '/logo.png', ...patch } });
         return new Response(logo);
     };
 }
@@ -19,6 +19,7 @@ test('generates correctly sized opaque icons and centered splash screens from ve
     const dir = await mkdtemp(join(tmpdir(), 'card-branding-'));
     try {
         const result = await prepareBranding(config, dir, fake());
+        assert.equal(result.apkName, '测试 App');
         for (const path of [...Object.values(result.icons.android), ...Object.values(result.splashscreen.android)]) {
             assert.ok(path.startsWith('src/static/native-branding/'));
             assert.equal((await sharp(join(dir, path)).metadata()).format, 'png');
@@ -36,7 +37,7 @@ test('generates correctly sized opaque icons and centered splash screens from ve
         assert.deepEqual([...data.subarray(center, center + 3)], [255, 0, 0]);
     } finally { await rm(dir, { recursive: true, force: true }); }
 });
-for (const patch of [{ slug: 'other' }, { apkLogoUrl: null }, { apkLogoUrl: 'file:///etc/passwd' }]) {
+for (const patch of [{ apkName: null }, { apkName: '  ' }, { apkName: 'x'.repeat(61) }, { apkName: '<bad>' }, { apkName: 'bad\nname' }, { slug: 'other' }, { apkLogoUrl: null }, { apkLogoUrl: 'file:///etc/passwd' }]) {
     test('rejects wrong company, missing logo or unsafe image URL ' + JSON.stringify(patch), async () => {
         await assert.rejects(prepareBranding(config, '/unused', fake(patch)), /Native packaging stopped/);
     });
@@ -45,7 +46,7 @@ test('tries alternate API seeds after outage and rejects invalid image bytes', a
     let count = 0;
     await assert.rejects(prepareBranding({ ...config, apiOrigins: ['https://one.example', 'https://two.example'] }, '/unused', async url => {
         if (url.includes('one.example')) { count++; throw new Error('offline'); }
-        if (url.endsWith('/bootstrap')) return Response.json({ tenant: { id: 'tenant-demo', slug: 'demo', apkLogoUrl: '/logo' } });
+        if (url.endsWith('/bootstrap')) return Response.json({ tenant: { id: 'tenant-demo', slug: 'demo', apkName: '测试 App', apkLogoUrl: '/logo' } });
         return new Response('not an image');
     }), /Native packaging stopped/);
     assert.equal(count, 1);

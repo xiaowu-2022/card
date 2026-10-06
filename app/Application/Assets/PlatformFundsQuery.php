@@ -10,6 +10,7 @@ use App\Domain\Payment\Models\WalletTopupOrder;
 use App\Domain\Withdrawal\Models\WithdrawalOrder;
 use App\Domain\Withdrawal\Services\WithdrawalAddressProtector;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
 /** A read-only union; every mutation still uses its original scoped application action. */
@@ -19,7 +20,7 @@ final class PlatformFundsQuery
 
     public const WITHDRAWAL_STATUSES = ['PENDING', 'APPROVED', 'PROCESSING', 'VERIFYING', 'UNKNOWN', 'COMPLETED', 'CANCELLED', 'REJECTED'];
 
-    public function paginate(string $mode, array $filters)
+    public function filtered(string $mode, array $filters): Builder
     {
         $withdrawal = $mode === 'withdrawal';
         $primary = $withdrawal ? 'withdrawal_orders' : 'wallet_topup_orders';
@@ -41,7 +42,14 @@ final class PlatformFundsQuery
             $q->where(fn ($q) => $q->where('u.email', 'ilike', $pattern)->orWhere('u.account_id', 'like', $pattern)
                 ->orWhereRaw("replace(o.id::text, '-', '') ilike ?", ['%'.str_replace('-', '', addcslashes($search, '%_')).'%']));
         });
-        $page = $query->orderByDesc('o.ordered_at')->orderBy('o.source')->orderBy('o.id')->paginate(25)->withQueryString();
+
+        return $query->orderByDesc('o.ordered_at')->orderBy('o.source')->orderBy('o.id');
+    }
+
+    public function paginate(string $mode, array $filters)
+    {
+        $withdrawal = $mode === 'withdrawal';
+        $page = $this->filtered($mode, $filters)->paginate(25)->withQueryString();
         $models = [];
         foreach (['primary' => $withdrawal ? WithdrawalOrder::class : WalletTopupOrder::class, 'asset' => $withdrawal ? AssetWithdrawalOrder::class : AssetDepositOrder::class] as $source => $class) {
             $builder = $class::query()->whereIn('id', $page->getCollection()->where('source', $source)->pluck('id'));

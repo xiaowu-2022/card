@@ -65,13 +65,14 @@ it('allows two assigned users to share a queue but blocks foreign and own consul
     $otherUser = User::where('tenant_id', $this->other->id)->firstOrFail();
     $foreign = $this->sender->user($this->other->id, $otherUser->id, (string) Str::uuid(), 'other company', kycTestImage());
     $foreignImage = SupportMessage::where('conversation_id', $foreign)->sole()->id;
-    $this->actingAs($this->agent, 'tenant_user')->getJson($this->url)->assertJsonPath('inbox.total', 1);
+    $this->actingAs($this->agent, 'tenant_user')->getJson($this->url)->assertJsonPath('inbox.total', 1)->assertJsonPath('awaitingCount', 1);
+    $this->getJson($this->url.'?status=BOT&search=not-found&page=2')->assertJsonPath('inbox.total', 0)->assertJsonPath('awaitingCount', 1);
     $this->getJson($this->url.'/conversations/'.$own)->assertNotFound();
     $this->getJson($this->url.'/conversations/'.$foreign)->assertNotFound();
     $this->getJson($this->url.'/images/'.$foreignImage)->assertNotFound();
     $this->postJson($this->url.'/conversations/'.$own.'/messages', ['request_id' => (string) Str::uuid(), 'support_message' => 'forged'])->assertNotFound();
     $this->getJson($this->url.'/conversations/'.$id)->assertOk();
-    $this->actingAs($this->second, 'tenant_user')->getJson($this->url)->assertJsonPath('inbox.total', 2);
+    $this->actingAs($this->second, 'tenant_user')->getJson($this->url)->assertJsonPath('inbox.total', 2)->assertJsonPath('awaitingCount', 2);
     $this->getJson($this->url.'/conversations/'.$id)->assertOk();
 });
 
@@ -174,4 +175,195 @@ it('denies a suspended support user and validates explicit platform permissions'
     $this->actingAs($this->owner, 'platform_admin')->postJson($this->grantUrl, ['enabled' => true, 'revision' => 2])->assertUnprocessable();
     DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'support.agents.manage')->value('id'))->delete();
     $this->postJson($this->grantUrl, ['enabled' => false, 'revision' => 2])->assertForbidden();
+});
+
+it('reports recent foreground presence without mutating reads or accepting selected identities', function () {
+    $this->agents->grant($this->company->id, $this->agent->id, $this->owner->id, ['enabled' => true, 'revision' => 0]);
+    $id = $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'hello');
+    $this->actingAs($this->agent, 'tenant_user')->getJson($this->url.'/conversations/'.$id)->assertJsonPath('customerOnline', false);
+    expect(DB::table('consumer_presence')->count())->toBe(0);
+    $this->actingAs($this->customer, 'tenant_user')->postJson('http://a.localhost/api/v1/presence', ['user_id' => $this->agent->id])->assertNoContent();
+    expect(DB::table('consumer_presence')->sole()->user_id)->toBe($this->customer->id);
+    $this->actingAs($this->agent, 'tenant_user')->getJson($this->url)->assertJsonPath('inbox.data.0.online', true);
+    $this->getJson($this->url.'/conversations/'.$id)->assertJsonPath('customerOnline', true)->assertJsonPath('customerEmail', $this->customer->email);
+    $this->travel(76)->seconds();
+    $this->getJson($this->url.'/conversations/'.$id)->assertJsonPath('customerOnline', false);
+});
+
+it('revises own messages with immutable encrypted history idempotency and version-specific read receipts', function () {
+    $this->agents->grant($this->company->id, $this->agent->id, $this->owner->id, ['enabled' => true, 'revision' => 0]);
+    $id = $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'hello');
+    $this->sender->agent($this->company->id, $this->agent->id, $id, (string) Str::uuid(), 'original answer', kycTestImage());
+    $message = SupportMessage::where('conversation_id', $id)->whereNotNull('sender_support_user_id')->sole();
+    $original = DB::table('support_messages')->where('id', $message->id)->first();
+    $url = $this->url.'/conversations/'.$id;
+    $change = $url.'/messages/'.$message->id.'/change';
+    $this->actingAs($this->agent, 'tenant_user')->getJson($url)->assertJsonPath('messages.1.canManage', true)->assertJsonPath('messages.1.readByUser', false);
+    $this->actingAs($this->customer, 'tenant_user')->postJson('http://a.localhost/api/v1/support/read', ['through' => $message->sequence])->assertNoContent();
+    $this->actingAs($this->agent, 'tenant_user')->getJson($url)->assertJsonPath('messages.1.readByUser', true);
+    $body = ['request_id' => (string) Str::uuid(), 'revision' => 0, 'operation' => 'EDIT', 'text' => 'corrected answer'];
+    $this->postJson($change, $body)->assertNoContent();
+    $this->postJson($change, $body)->assertNoContent();
+    $this->postJson($change, [...$body, 'text' => 'different'])->assertConflict();
+    $this->postJson($change, [...$body, 'request_id' => (string) Str::uuid()])->assertConflict();
+    expect(DB::table('support_message_revisions')->count())->toBe(1);
+    expect(DB::table('support_message_revisions')->sole()->body)->not->toContain('corrected answer');
+    expect(DB::table('support_messages')->where('id', $message->id)->first())->toEqual($original);
+    $this->getJson($url)->assertJsonPath('messages.1.text', 'corrected answer')->assertJsonPath('messages.1.readByUser', false)->assertJsonPath('messages.1.messageRevision', 1);
+    $this->actingAs($this->customer, 'tenant_user')->getJson('http://a.localhost/api/v1/support')->assertJsonPath('messages.1.text', 'corrected answer')->assertJsonMissingPath('messages.1.canManage')->assertJsonMissingPath('messages.1.readByUser');
+    $read = ['through' => $message->sequence, 'revisions' => [['id' => $message->id, 'revision' => 1]]];
+    $this->postJson('http://a.localhost/api/v1/support/read', $read)->assertNoContent();
+    $this->postJson('http://a.localhost/api/v1/support/read', [...$read, 'revisions' => [['id' => $message->id, 'revision' => 99]]])->assertUnprocessable();
+    $this->actingAs($this->agent, 'tenant_user')->getJson($url)->assertJsonPath('messages.1.readByUser', true);
+    $delete = ['request_id' => (string) Str::uuid(), 'revision' => 1, 'operation' => 'DELETE'];
+    $this->postJson($change, $delete)->assertNoContent();
+    $this->postJson($change, $delete)->assertNoContent();
+    $this->getJson($url)->assertJsonPath('messages.1.deleted', true)->assertJsonPath('messages.1.text', null)->assertJsonPath('messages.1.imageUrl', null)->assertJsonPath('messages.1.canManage', false);
+    $this->get($this->url.'/images/'.$message->id)->assertNotFound();
+    $this->postJson($change, [...$body, 'request_id' => (string) Str::uuid(), 'revision' => 2])->assertConflict();
+    $this->actingAs($this->customer, 'tenant_user')->getJson('http://a.localhost/api/v1/support')->assertJsonPath('messages.1.deleted', true)->assertJsonPath('messages.1.imageSources', []);
+    expect(DB::table('support_messages')->where('id', $message->id)->first())->toEqual($original);
+    expect(SupportMessage::where('conversation_id', $id)->count())->toBe(2);
+});
+
+it('forbids changing customer other-agent and cross-company messages and rechecks revoked grants', function () {
+    foreach ([$this->agent, $this->second] as $user) {
+        $this->agents->grant($this->company->id, $user->id, $this->owner->id, ['enabled' => true, 'revision' => 0]);
+    }
+    $id = $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'hello');
+    $customerMessage = SupportMessage::where('conversation_id', $id)->sole();
+    $this->sender->agent($this->company->id, $this->second->id, $id, (string) Str::uuid(), 'second agent');
+    $otherMessage = SupportMessage::where('conversation_id', $id)->whereNotNull('sender_support_user_id')->sole();
+    $foreignUser = User::where('tenant_id', $this->other->id)->firstOrFail();
+    $foreign = $this->sender->user($this->other->id, $foreignUser->id, (string) Str::uuid(), 'foreign');
+    $foreignMessage = SupportMessage::where('conversation_id', $foreign)->sole();
+    $body = ['request_id' => (string) Str::uuid(), 'revision' => 0, 'operation' => 'DELETE'];
+    $this->actingAs($this->agent, 'tenant_user');
+    foreach ([$customerMessage, $otherMessage] as $message) {
+        $this->postJson($this->url.'/conversations/'.$id.'/messages/'.$message->id.'/change', $body)->assertForbidden();
+    }
+    $this->postJson($this->url.'/conversations/'.$foreign.'/messages/'.$foreignMessage->id.'/change', $body)->assertNotFound();
+    $this->agents->grant($this->company->id, $this->second->id, $this->owner->id, ['enabled' => false, 'revision' => 1]);
+    $this->actingAs($this->second, 'tenant_user')->postJson($this->url.'/conversations/'.$id.'/messages/'.$otherMessage->id.'/change', $body)->assertForbidden();
+    expect(DB::table('support_message_revisions')->count())->toBe(0);
+});
+
+it('shares all conversation states and complete multi-page history between company agents', function () {
+    foreach ([$this->agent, $this->second] as $user) {
+        $this->agents->grant($this->company->id, $user->id, $this->owner->id, ['enabled' => true, 'revision' => 0]);
+    }
+    $id = $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'first customer message', kycTestImage());
+    for ($n = 1; $n <= 104; $n++) {
+        if ($n % 3 === 0) {
+            $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'customer '.$n);
+        } else {
+            $actor = $n % 3 === 1 ? $this->agent : $this->second;
+            $this->sender->agent($this->company->id, $actor->id, $id, (string) Str::uuid(), 'agent '.$n);
+        }
+    }
+    $ids = SupportMessage::where('conversation_id', $id)->orderBy('sequence')->pluck('id')->all();
+    $before = DB::table('support_conversations')->where('id', $id)->first();
+    $transcripts = [];
+    foreach ([$this->agent, $this->second] as $user) {
+        $this->actingAs($user, 'tenant_user');
+        // Last sender was another agent: default ALL still includes this conversation.
+        $this->getJson($this->url)->assertOk()->assertJsonPath('inbox.total', 1)->assertJsonPath('inbox.data.0.id', $id)->assertJsonPath('awaitingCount', 0);
+        $this->getJson($this->url.'?status=awaiting')->assertJsonPath('inbox.total', 0);
+        $cursor = 0;
+        $history = [];
+        do {
+            $response = $this->getJson($this->url.'/conversations/'.$id.'?before='.$cursor)->assertOk();
+            $batch = $response->json('messages');
+            $history = array_merge($batch, $history);
+            $cursor = $response->json('olderCursor');
+        } while ($cursor !== null);
+        expect(array_column($history, 'id'))->toBe($ids);
+        expect(array_column($history, 'sequence'))->toBe(range(1, 105));
+        expect($history[0]['imageUrl'])->not->toBeNull();
+        $this->get($this->url.'/images/'.$history[0]['id'])->assertOk();
+        $transcripts[] = array_map(fn ($m) => [$m['id'], $m['text'], $m['supportName'], $m['senderKind']], $history);
+    }
+    expect($transcripts[0])->toBe($transcripts[1]);
+    expect(DB::table('support_conversations')->where('id', $id)->first())->toEqual($before);
+    expect(SupportMessage::where('conversation_id', $id)->count())->toBe(105);
+    // Bot and waiting conversations also remain visible in the default shared list.
+    foreach (['BOT', 'WAITING'] as $mode) {
+        SupportConversation::whereKey($id)->update(['mode' => $mode]);
+        $this->getJson($this->url)->assertJsonPath('inbox.total', 1)->assertJsonPath('inbox.data.0.mode', $mode);
+    }
+});
+
+it('prioritizes pending company chats and counts individual unhandled customer messages', function () {
+    $this->agents->grant($this->company->id, $this->agent->id, $this->owner->id, ['enabled' => true, 'revision' => 0]);
+    $pending = $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'first question');
+    $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'second question');
+    $handled = $this->sender->user($this->company->id, $this->second->id, (string) Str::uuid(), 'handled question');
+    $this->sender->agent($this->company->id, $this->agent->id, $handled, (string) Str::uuid(), 'answer');
+    SupportConversation::whereKey($pending)->update(['updated_at' => now()->subDay()]);
+    $this->sender->user($this->company->id, $this->agent->id, (string) Str::uuid(), 'own consultation');
+    $foreign = User::where('tenant_id', $this->other->id)->firstOrFail();
+    $this->sender->user($this->other->id, $foreign->id, (string) Str::uuid(), 'foreign consultation');
+    $this->actingAs($this->agent, 'tenant_user')->getJson($this->url)->assertOk()
+        ->assertJsonPath('inbox.total', 2)->assertJsonPath('inbox.data.0.id', $pending)
+        ->assertJsonPath('inbox.data.1.id', $handled)->assertJsonPath('awaitingCount', 1)
+        ->assertJsonPath('pendingMessageCount', 2);
+    $this->getJson($this->url.'?search=no-match')->assertJsonPath('inbox.total', 0)->assertJsonPath('pendingMessageCount', 2);
+    $this->sender->agent($this->company->id, $this->agent->id, $pending, (string) Str::uuid(), 'both answered');
+    $this->getJson($this->url)->assertJsonPath('inbox.total', 2)->assertJsonPath('pendingMessageCount', 0);
+});
+
+it('tracks unread customer messages per agent without changing last message time', function () {
+    foreach ([$this->agent, $this->second] as $user) {
+        $this->agents->grant($this->company->id, $user->id, $this->owner->id, ['enabled' => true, 'revision' => 0]);
+    }
+    $id = $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'first');
+    $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'second');
+    $this->actingAs($this->agent, 'tenant_user');
+    $time = $this->getJson($this->url)->assertJsonPath('inbox.data.0.unreadCount', 2)->json('inbox.data.0.lastMessageAt');
+    expect($time)->not->toBeNull();
+    expect(DB::table('support_agent_reads')->count())->toBe(0);
+    $read = $this->url.'/conversations/'.$id.'/read';
+    $this->postJson($read, ['through' => 3])->assertUnprocessable();
+    $this->postJson($read, ['through' => 2])->assertNoContent();
+    $this->postJson($read, ['through' => 1])->assertNoContent();
+    $this->getJson($this->url)->assertJsonPath('inbox.data.0.unreadCount', 0)->assertJsonPath('inbox.data.0.lastMessageAt', $time);
+    $this->actingAs($this->second, 'tenant_user')->getJson($this->url)->assertJsonPath('inbox.data.0.unreadCount', 2);
+    $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'third');
+    $this->actingAs($this->agent, 'tenant_user')->getJson($this->url)->assertJsonPath('inbox.data.0.unreadCount', 1);
+    $this->agents->grant($this->company->id, $this->agent->id, $this->owner->id, ['enabled' => false, 'revision' => 1]);
+    $this->postJson($read, ['through' => 3])->assertForbidden();
+});
+
+it('exposes only the active agents own unread count for global reminders', function () {
+    $this->agents->grant($this->company->id, $this->agent->id, $this->owner->id, ['enabled' => true, 'revision' => 0]);
+    $id = $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'hello');
+    $this->actingAs($this->customer, 'tenant_user')->getJson('http://a.localhost/api/v1/unread')->assertJsonPath('agentSupport', 0);
+    $this->actingAs($this->agent, 'tenant_user')->getJson('http://a.localhost/api/v1/unread')->assertJsonPath('agentSupport', 1);
+    $this->postJson($this->url.'/conversations/'.$id.'/read', ['through' => 1])->assertNoContent();
+    $this->getJson('http://a.localhost/api/v1/unread')->assertJsonPath('agentSupport', 0);
+    $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'again');
+    $this->agents->grant($this->company->id, $this->agent->id, $this->owner->id, ['enabled' => false, 'revision' => 1]);
+    $this->getJson('http://a.localhost/api/v1/unread')->assertJsonPath('agentSupport', 0);
+});
+
+it('exposes a read-only scoped customer profile and denies foreign own and revoked access', function () {
+    $this->agents->grant($this->company->id, $this->agent->id, $this->owner->id, ['enabled' => true, 'revision' => 0]);
+    $id = $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'profile');
+    $url = $this->url.'/conversations/'.$id.'/customer';
+    $before = [DB::table('wallets')->count(), DB::table('ledger_entries')->count(), DB::table('promotion_members')->count()];
+    $this->actingAs($this->agent, 'tenant_user')->getJson($url)->assertOk()
+        ->assertJsonPath('accountId', $this->customer->account_id)->assertJsonPath('email', $this->customer->email)
+        ->assertJsonPath('rank', 0)->assertJsonPath('partner', false)
+        ->assertJsonPath('deposits', [])->assertJsonPath('withdrawals', [])
+        ->assertJsonMissingPath('password_hash')->assertJsonMissingPath('phone');
+    expect([DB::table('wallets')->count(), DB::table('ledger_entries')->count(), DB::table('promotion_members')->count()])->toBe($before);
+    $foreign = User::where('tenant_id', $this->other->id)->firstOrFail();
+    $foreignChat = $this->sender->user($this->other->id, $foreign->id, (string) Str::uuid(), 'foreign');
+    $own = $this->sender->user($this->company->id, $this->agent->id, (string) Str::uuid(), 'own');
+    foreach ([$foreignChat, $own] as $blocked) {
+        $this->getJson($this->url.'/conversations/'.$blocked.'/customer')->assertNotFound();
+    }
+    $this->actingAs($this->customer, 'tenant_user')->getJson($url)->assertForbidden();
+    $this->agents->grant($this->company->id, $this->agent->id, $this->owner->id, ['enabled' => false, 'revision' => 1]);
+    $this->actingAs($this->agent, 'tenant_user')->getJson($url)->assertForbidden();
 });

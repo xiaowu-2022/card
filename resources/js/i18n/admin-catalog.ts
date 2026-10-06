@@ -2,6 +2,45 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Customer remark': ['客户备注', 'Catatan pelanggan', 'Nota del cliente'],
+    'Customer name': ['客户名称', 'Nama pelanggan', 'Nombre del cliente'],
+    'Shared within the company. Clear to show the original name.': [
+        '公司内共享，清空后恢复显示原客户名称。',
+        'Dikongsi dalam syarikat. Kosongkan untuk nama asal.',
+        'Compartido en la empresa. Borre para mostrar el nombre original.',
+    ],
+    'Change invitation code': '修改邀请码',
+    'Current invitation code': '当前邀请码',
+    'Previous invitation code': '原邀请码',
+    'New invitation code': '新邀请码',
+    'Old invitation codes and invitation links will stop working. Existing team relationships remain unchanged.':
+        '旧邀请码和邀请链接将失效，已有团队关系保持不变。',
+    'Choose an active user in an active company.': '请选择有效公司下的有效用户。',
+    'Invitation codes are exhausted.': '邀请码已用尽。',
+    'Available invitation code range': '可选邀请码范围',
+    'The code must never have been used. Availability is checked on save.':
+        '号码必须从未使用过，保存时会再次检查是否可用。',
+    'I confirm the invitation code change and immediate expiry of old invitation links.':
+        '我确认修改邀请码，旧邀请码和邀请链接将立即失效。',
+    'Enter a reason for changing the invitation code.': '请输入修改邀请码的原因。',
+    'The invitation code has changed. Reload and try again.': '邀请码已变更，请重新打开后再试。',
+    'Choose an unused invitation code at or after the current allocation position.':
+        '请选择当前分配位置及之后从未使用过的邀请码。',
+    'Invitation code updated.': '邀请码已更新。',
+    'users.invitation.manage': '修改用户邀请码',
+
+    'Export withdrawals': '导出提现记录',
+    'Export all {{count}} filtered records as CSV.':
+        '按当前筛选条件导出全部 {{count}} 条记录（CSV）。',
+    'Includes full payout addresses, lifetime successful totals in each order currency, current agent rank and partner status. Rank 0 means no active agent level.':
+        '包含完整收款地址、订单同币种的历史累计提现成功金额、当前代理等级和合伙人状态。等级 0 表示当前无有效代理等级。',
+    'I confirm exporting these payout details.': '我确认导出这些出金明细。',
+    'Too many withdrawals. Narrow the filters to 10,000 records or fewer.':
+        '记录超过 10,000 条，请缩小筛选范围后导出。',
+    'Check your password and withdrawal permissions.': '请检查管理员密码和提现审核权限。',
+    'Unable to export. Refresh the list and try again.': '导出失败，请刷新列表后重试。',
+    'Exporting…': '正在导出…',
+    'Download CSV': '下载 CSV',
     'Verified on platform account creation. No identity documents were submitted.':
         '该账号由平台创建时默认完成实名，未提交身份证件。',
     'Display name': '昵称',
@@ -330,6 +369,9 @@ export const adminCatalog: Record<string, string> = {
     'Check the date range. Select at most 366 days through today.':
         '请检查日期范围，最多选择 366 天，结束日期不得晚于今天。',
     'Image failed to load. Click to retry.': '加载失败，点击重试',
+    'APK name': 'APK 名称',
+    'Name shown after installation. Set before packaging; rebuild the APK after changes.':
+        '安装后显示的应用名称。打包前请设置，修改后需重新打包 APK。',
     'APK Logo': 'APK 专用图标',
     'Square PNG, JPG or WEBP, at least 192 × 192, up to 2 MB. Used for Android icon and splash; rebuild the APK after changes.':
         '正方形 PNG、JPG 或 WEBP，至少 192 × 192，不超过 2 MB。用于安卓图标和启动页，修改后需重新打包 APK。',

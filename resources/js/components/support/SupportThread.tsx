@@ -30,6 +30,8 @@ export type SupportChat = {
         createdAt: string;
         imageUrl: string | null;
         imageSources?: string[];
+        deleted?: boolean;
+        edited?: boolean;
     }[];
 };
 
@@ -288,7 +290,12 @@ export function SupportThread({
                                         />
                                     </button>
                                 )}
-                                {message.text && <p>{message.text}</p>}
+                                {message.deleted ? (
+                                    <p>{t('Message deleted')}</p>
+                                ) : (
+                                    message.text && <p>{message.text}</p>
+                                )}
+                                {message.edited && !message.deleted && <small>{t('Edited')}</small>}
                             </div>
                             <time dateTime={message.createdAt}>{dateTime(message.createdAt)}</time>
                         </article>

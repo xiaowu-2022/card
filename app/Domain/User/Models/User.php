@@ -15,7 +15,7 @@ final class User extends Authenticatable
 
     protected $guarded = [];
 
-    protected $hidden = ['password_hash', 'session_version'];
+    protected $hidden = ['password_hash', 'session_version', 'support_remark', 'support_remark_revision'];
 
     protected function casts(): array
     {

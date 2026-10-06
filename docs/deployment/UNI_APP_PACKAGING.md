@@ -321,3 +321,17 @@ H5 的 uni-app 选择器整体使用层级 1100，高于筛选弹窗的 1000，�
 ### 存量报表双版本（2026-10-04）
 
 启用的合伙人账号自动展示团队下级外部总入金减总出金（提现申请总额），排除本人，按本次公开行情统一折算 USDT。非合伙人展示原存量公式。部署后端、后台及 H5 后生效；原生 App 需重新打包。无需迁移或历史资金修正。汇率不可用显示估值不完整，原币金额保留；仅 USDT 的报表不依赖行情。
+
+### Backend APK name (2026-10-06)
+
+Platform → Company configuration → Brand and support now includes **APK name**
+beside APK Logo. Save up to 60 characters; markup and control characters are rejected.
+The company-scoped branding save retains its existing permission and audit controls.
+Deploy the `add_apk_name_to_tenant_branding` migration and rebuilt admin assets first,
+then explicitly configure the name for each company. Existing rows start unconfigured.
+Native prepare/build reads `tenant.apkName` together with `tenant.apkLogoUrl` from the
+verified company bootstrap; missing/invalid names stop packaging. The downloaded name
+is written to generated company configuration and manifest, with no local-name fallback.
+The company JSON `name` continues to configure H5. Website branding, package identifiers
+and distribution filenames are independent. Name changes require rebuilding and installing
+the APK; they do not rename already installed applications remotely.

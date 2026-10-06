@@ -14,6 +14,12 @@ use Inertia\Inertia;
 
 final class SupportWorkspaceController extends Controller
 {
+    public function remark(Request $r, string $tenant, string $user)
+    {
+        app(\App\Application\Support\SupportCustomerRemark::class)->save($tenant, $r->user('platform_admin')->id, $r->all(), null, $user);
+        return response()->noContent();
+    }
+
     public function grantUser(Request $r, string $tenant, string $user, SupportUserAgents $agents)
     {
         $agents->grant($tenant, $user, $r->user('platform_admin')->id, $r->all());
