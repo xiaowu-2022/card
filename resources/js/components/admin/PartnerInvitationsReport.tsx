@@ -462,11 +462,6 @@ export function PartnerInvitationsReport({
                                         'Deposit refunds do not reduce ordinary member counts. Becoming an agent replaces ordinary membership; after agent status ends, a new deposit payment is required.',
                                     )}
                                 </p>
-                                <p className="text-sm text-muted-foreground">
-                                    {t(
-                                        'Cumulative commission includes income without a source level. The level table only includes attributable rewards.',
-                                    )}
-                                </p>
                             </>
                         )}
                     </>

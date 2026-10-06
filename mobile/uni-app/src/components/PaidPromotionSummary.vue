@@ -43,11 +43,8 @@ const visible = computed(() =>
 );
 const kinds = ['ANNUAL', 'ACTIVATION'] as const,
     relations = ['direct', 'indirect'] as const;
-function count(kind: string, value: number) {
-    return t(
-        kind === 'ANNUAL' ? '{{count}} paid orders' : '{{count}} ordinary member activations',
-        { count: value },
-    );
+function currentCount(value: number) {
+    return t('Current members: {{count}}', { count: value });
 }
 function price(cell: { minimum: string; maximum: string }) {
     return cell.minimum === cell.maximum
@@ -113,7 +110,7 @@ function tableHeading(label: string) {
                         ><view v-for="relation in relations" :key="relation" class="cell"
                             ><text
                                 >{{ t(relation === 'direct' ? 'Direct' : 'Indirect') }} ·
-                                {{ count(kind, row[kind][relation].count) }}</text
+                                {{ currentCount(relation === 'direct' ? row.directPeople : row.indirectPeople) }}</text
                             ><text v-if="kind !== 'ANNUAL'" class="muted"
                                 >{{ t(relation === 'direct' ? 'Unit price' : 'Difference') }}:
                                 {{

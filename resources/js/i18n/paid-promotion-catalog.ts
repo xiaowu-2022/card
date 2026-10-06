@@ -490,6 +490,7 @@ export const paidPromotionCatalog = {
         'Tahap dengan data sahaja',
         'Solo niveles con datos',
     ],
+    'Current members: {{count}}': ['当前人数：{{count}}', 'Ahli semasa: {{count}}', 'Miembros actuales: {{count}}'],
     'Members: current level. Commission: level at the time earned.': [
         '人数按当前有效等级统计；佣金按产生时的等级归属。',
         'Ahli: tahap sah semasa. Komisen: tahap ketika diperoleh.',
