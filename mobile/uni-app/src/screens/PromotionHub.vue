@@ -266,11 +266,6 @@ async function share() {
                         ›
                     </button></view
                 ><text class="swipe-note muted">{{ t('Swipe to compare levels') }}</text
-                ><text v-if="p.manualLevel" class="note muted">{{
-                    t(
-                        'Your promotion level is managed by the platform. No annual payment is needed. Contact support to change it.',
-                    )
-                }}</text
                 ><text v-if="!home.canPurchase" class="note muted">{{
                     t('An active verified USDT wallet is required to purchase a level.')
                 }}</text

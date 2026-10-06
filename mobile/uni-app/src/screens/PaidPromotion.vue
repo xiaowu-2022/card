@@ -63,9 +63,7 @@ const title = computed(() =>
 );
 const expiry = computed(() =>
     p.value.manualLevel
-        ? t(
-              'Your promotion level is managed by the platform. No annual payment is needed. Contact support to change it.',
-          )
+        ? ''
         : p.value.cycle
           ? t('Valid until {{time}}', { time: dateTime(p.value.cycle.endsAt) })
           : t('Ordinary members earn 20 USDT for direct activation only.'),
@@ -141,7 +139,7 @@ async function submit() {
             ><view class="summary"
                 ><text class="small muted">{{ t('My promotion level') }}</text
                 ><text class="level-title">{{ promotionLevel(p.rank) }}</text
-                ><text>{{ expiry }}</text
+                ><text v-if="expiry">{{ expiry }}</text
                 ><text v-if="p.membershipStatus === 'EXPIRED'">{{ previousExpiry }}</text
                 ><text class="small muted">{{ rateCopy(p.percent) }}</text
                 ><text class="small muted">{{ rewardCopy(p.reward) }}</text
@@ -292,7 +290,7 @@ async function submit() {
                             : 'Choose a level and pay to activate one year of membership. No automatic renewal.',
                     )
                 }}</text
-                ><text v-if="p.cycle" class="small">{{ expiry }}</text
+                ><text v-if="p.cycle && expiry" class="small">{{ expiry }}</text
                 ><template v-if="q.status === 'QUOTED'"
                     ><text class="small">{{ quoteTime }}</text
                     ><text v-if="promotionUnits(q.depositApplied) > 0n" class="small muted">{{
