@@ -1,3 +1,12 @@
+On 2026-10-06 the user requested Android version publication in Platform company
+configuration instead of requiring CLI commands. Under tenant.manage, upload the
+signed APK and exact version/AppID metadata in Branding; serialize per company,
+reject stale editors, regressions and AppID changes, and commit metadata with actor
+and request audit. Keep legacy file releases readable and GET read-only. Native
+checks remain on company APIs; fixed download http://zb33333.com/specpay.apk still
+requires the same artifact on the separate download host. No automatic live release.
+See docs/deployment/UNI_APP_PACKAGING.md.
+
 On 2026-10-06 the user required partners’ completed agent annual-fee purchases
 to count as negative advances in personal theoretical account balance only. Deduct
 own company/user completed Ledger-linked settlement totals, including deposit conversion

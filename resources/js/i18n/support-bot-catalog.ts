@@ -48,6 +48,7 @@ export const supportBotCatalog = {
     'Message actions': ['消息操作', 'Tindakan mesej', 'Acciones del mensaje'],
     'Edit message': ['修改消息', 'Edit mesej', 'Editar mensaje'],
     'Delete message': ['删除消息', 'Padam mesej', 'Eliminar mensaje'],
+    '[Image]': ['[图片]', '[Imej]', '[Imagen]'],
     'Message deleted': ['消息已删除', 'Mesej dipadam', 'Mensaje eliminado'],
     Edited: ['已修改', 'Disunting', 'Editado'],
     'Delete this message for everyone?': [

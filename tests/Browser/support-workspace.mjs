@@ -110,6 +110,7 @@ for (const [name, engine, options] of [
                         profile,
                         awaitingCount: 1,
                         pendingMessageCount: 1,
+                    unreadMessageCount: 1,
                         inbox: paginate([
                             {
                                 id: conversation,

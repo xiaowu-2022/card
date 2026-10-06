@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Platform\CompanyConfiguration;
 
 use App\Application\Notification\TenantEmailSettingsQuery;
 use App\Application\Notification\TenantSmsSettingsQuery;
+use App\Application\Tenant\AndroidAppRelease;
 use App\Application\Tenant\TenantSettingsQuery;
 use App\Application\Tenant\UpdateTenantBrandingAction;
 use App\Application\Tenant\UpdateTenantBusinessSettingsAction;
@@ -34,6 +35,7 @@ final class TenantSettingsController extends Controller
             'section' => $request->route('section', 'branding'),
             'settings' => [
                 ...$query->execute($tenant, $request->route('section') === 'articles', $request->route('section') ?? 'branding'),
+                ...(($request->route('section') ?? 'branding') === 'branding' ? ['androidRelease' => app(AndroidAppRelease::class)->settings($tenant)] : []),
                 ...($request->route('section') === 'sms' ? ['sms' => $sms->execute($tenant->id, true)] : []),
                 ...($request->route('section') === 'email' ? ['email' => $email->execute($tenant->id, true)] : []),
             ],

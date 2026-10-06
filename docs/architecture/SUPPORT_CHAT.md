@@ -370,3 +370,13 @@ Workspace search/list, conversation heading and customer sender labels prefer th
 profile shows original customer name and editable remark separately. Consumer identity,
 original display name and immutable message snapshots remain unchanged. Apply migration
 2026_10_06_236000_add_customer_remark before deploying.
+
+The consumer-agent inbox's second line shows a single-line latest-message preview
+instead of account ID or reception mode. Batch-read only the authorized page's latest
+messages and revisions; deleted text is never returned, edits use the current revision,
+and image attachments use an image placeholder. Preview reads do not acknowledge messages.
+
+The workspace header now uses the current agent's company-wide unreadMessageCount,
+matching /unread.agentSupport and row read cursors. Reading messages reduces it and
+zero hides the badge. This supersedes the earlier header unhandled-message count;
+pendingMessageCount remains a separate backward-compatible API field only.

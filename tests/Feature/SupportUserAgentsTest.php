@@ -319,14 +319,14 @@ it('tracks unread customer messages per agent without changing last message time
     $id = $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'first');
     $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'second');
     $this->actingAs($this->agent, 'tenant_user');
-    $time = $this->getJson($this->url)->assertJsonPath('inbox.data.0.unreadCount', 2)->json('inbox.data.0.lastMessageAt');
+    $time = $this->getJson($this->url)->assertJsonPath('inbox.data.0.unreadCount', 2)->assertJsonPath('unreadMessageCount', 2)->json('inbox.data.0.lastMessageAt');
     expect($time)->not->toBeNull();
     expect(DB::table('support_agent_reads')->count())->toBe(0);
     $read = $this->url.'/conversations/'.$id.'/read';
     $this->postJson($read, ['through' => 3])->assertUnprocessable();
     $this->postJson($read, ['through' => 2])->assertNoContent();
     $this->postJson($read, ['through' => 1])->assertNoContent();
-    $this->getJson($this->url)->assertJsonPath('inbox.data.0.unreadCount', 0)->assertJsonPath('inbox.data.0.lastMessageAt', $time);
+    $this->getJson($this->url)->assertJsonPath('inbox.data.0.unreadCount', 0)->assertJsonPath('unreadMessageCount', 0)->assertJsonPath('inbox.data.0.lastMessageAt', $time);
     $this->actingAs($this->second, 'tenant_user')->getJson($this->url)->assertJsonPath('inbox.data.0.unreadCount', 2);
     $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'third');
     $this->actingAs($this->agent, 'tenant_user')->getJson($this->url)->assertJsonPath('inbox.data.0.unreadCount', 1);
@@ -388,4 +388,18 @@ it('shares revision checked customer remarks between Platform and company agents
     $this->agents->grant($this->company->id, $this->agent->id, $this->owner->id, ['enabled' => false, 'revision' => 1]);
     $this->postJson($url.'/remark', ['remark' => 'denied', 'revision' => 3])->assertForbidden();
     $this->actingAs($this->customer, 'tenant_user')->postJson($url.'/remark', ['remark' => 'denied', 'revision' => 3])->assertForbidden();
+});
+
+it('previews the latest message including edits images and deletion without exposing old text', function () {
+    $this->agents->grant($this->company->id, $this->agent->id, $this->owner->id, ['enabled' => true, 'revision' => 0]);
+    $id = $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), "customer\nquestion");
+    $this->actingAs($this->agent, 'tenant_user')->getJson($this->url)->assertJsonPath('inbox.data.0.lastMessage.text', 'customer question');
+    $this->sender->agent($this->company->id, $this->agent->id, $id, (string) Str::uuid(), '', kycTestImage());
+    $message = SupportMessage::where('conversation_id', $id)->orderByDesc('sequence')->firstOrFail();
+    $this->getJson($this->url)->assertJsonPath('inbox.data.0.lastMessage.image', true)->assertJsonPath('inbox.data.0.lastMessage.text', '');
+    $change = $this->url.'/conversations/'.$id.'/messages/'.$message->id.'/change';
+    $this->postJson($change, ['request_id' => (string) Str::uuid(), 'revision' => 0, 'operation' => 'EDIT', 'text' => 'updated reply'])->assertNoContent();
+    $this->getJson($this->url)->assertJsonPath('inbox.data.0.lastMessage.text', 'updated reply');
+    $this->postJson($change, ['request_id' => (string) Str::uuid(), 'revision' => 1, 'operation' => 'DELETE'])->assertNoContent();
+    $this->getJson($this->url)->assertJsonPath('inbox.data.0.lastMessage', ['text' => '', 'deleted' => true, 'image' => false]);
 });

@@ -271,6 +271,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::post('/settings/sms', [TenantSmsSettingsController::class, 'update'])->middleware('throttle:5,1')->name('settings.sms');
         Route::post('/settings/articles/{article}/{locale}', [TenantArticleController::class, 'update'])
             ->whereIn('article', ['terms', 'privacy', 'account-closure'])->whereIn('locale', ['zh-CN', 'en', 'ms', 'es'])->name('settings.articles.update');
+        Route::post('/settings/android-release', App\Http\Controllers\Platform\CompanyConfiguration\AndroidReleaseController::class)->middleware('throttle:5,1')->name('settings.android-release');
         Route::post('/settings/branding', [TenantSettingsController::class, 'branding'])->name('settings.branding');
         Route::post('/settings/locales', [TenantSettingsController::class, 'locales'])->name('settings.locales');
         Route::post('/settings/business', [TenantSettingsController::class, 'business'])->name('settings.business');

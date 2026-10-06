@@ -55,9 +55,10 @@ final class SupportWorkspaceController extends Controller
             ->orderByRaw("CASE WHEN mode = 'WAITING' OR (mode = 'HUMAN' AND last_sender = 'USER') THEN 0 ELSE 1 END")
             ->orderByDesc('support_conversations.updated_at')->orderBy('support_conversations.id')->paginate(30);
         $online = app(ConsumerPresence::class)->onlineUsers($tenant, $rows->getCollection()->pluck('user_id')->all());
-        $rows->through(fn ($row) => ['id' => $row->id, 'accountId' => $row->account_id, 'name' => $row->support_remark ?? $row->display_name, 'online' => in_array($row->user_id, $online, true), 'mode' => $row->mode, 'updatedAt' => $row->updated_at->toIso8601String(), 'unreadCount' => (int) $row->unread_count, 'lastMessageAt' => $row->last_message_at ? \Carbon\Carbon::parse($row->last_message_at)->toIso8601String() : null]);
+        $previews = app(SupportChatQuery::class)->previews($tenant, $rows->getCollection()->pluck('id')->all());
+        $rows->through(fn ($row) => ['id' => $row->id, 'lastMessage' => $previews[$row->id] ?? null, 'accountId' => $row->account_id, 'name' => $row->support_remark ?? $row->display_name, 'online' => in_array($row->user_id, $online, true), 'mode' => $row->mode, 'updatedAt' => $row->updated_at->toIso8601String(), 'unreadCount' => (int) $row->unread_count, 'lastMessageAt' => $row->last_message_at ? \Carbon\Carbon::parse($row->last_message_at)->toIso8601String() : null]);
 
-        return response()->json(['inbox' => $rows, 'awaitingCount' => $awaitingCount, 'pendingMessageCount' => $pendingMessageCount, 'profile' => app(SupportUserAgents::class)->profile($tenant, $actor)])->header('Cache-Control', 'private, no-store');
+        return response()->json(['inbox' => $rows, 'awaitingCount' => $awaitingCount, 'pendingMessageCount' => $pendingMessageCount, 'unreadMessageCount' => app(\App\Application\Support\SupportUnread::class)->agentCount($tenant, $actor), 'profile' => app(SupportUserAgents::class)->profile($tenant, $actor)])->header('Cache-Control', 'private, no-store');
     }
 
     public function show(Request $r, TenantContext $context, string $conversation, SupportChatQuery $query)

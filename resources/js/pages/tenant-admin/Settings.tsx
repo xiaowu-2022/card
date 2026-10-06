@@ -22,6 +22,10 @@ import {
 } from '@/components/ui/select';
 import { CompanyConfigurationLayout as TenantAdminLayout } from '@/components/admin/CompanyConfiguration';
 import { TenantArticleSettings } from '@/components/admin/TenantArticleSettings';
+import {
+    AndroidReleaseForm,
+    type AndroidReleaseSettings,
+} from '@/components/admin/AndroidReleaseForm';
 import type { SmsSettings } from '@/components/admin/TenantSmsSettings';
 import {
     CompanyNotificationProfile,
@@ -31,6 +35,7 @@ import type { EmailSettings } from '@/components/admin/TenantEmailSettings';
 import type { TenantArticleContent } from '@/lib/tenant-articles';
 
 type SettingsData = {
+    androidRelease?: AndroidReleaseSettings;
     branding: {
         brandName: string;
         primaryColor: string;
@@ -99,6 +104,14 @@ export default function Settings({
                     </div>
                 )}
                 {section === 'branding' && <BrandingForm settings={settings} />}
+                {section === 'branding' &&
+                    Boolean(configurationBase) &&
+                    settings.androidRelease && (
+                        <AndroidReleaseForm
+                            key={settings.androidRelease.revision}
+                            release={settings.androidRelease}
+                        />
+                    )}
                 {section === 'locales' && <LocalesForm settings={settings} />}
                 {section === 'business' && <BusinessForm settings={settings} />}
                 {section === 'kyc' && (

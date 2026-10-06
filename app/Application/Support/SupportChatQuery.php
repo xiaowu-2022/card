@@ -86,6 +86,24 @@ final readonly class SupportChatQuery
         return ['path' => $message->image_object_key, 'mime' => $message->image_mime];
     }
 
+    /** Only the already authorized inbox page; no image delivery or read acknowledgements. */
+    public function previews(string $tenant, array $conversations): array
+    {
+        if ($conversations === []) return [];
+        $messages = SupportMessage::where('tenant_id', $tenant)->whereIn('conversation_id', $conversations)
+            ->selectRaw('DISTINCT ON (conversation_id) id, conversation_id, support_message, image_mime')
+            ->orderBy('conversation_id')->orderByDesc('sequence')->get();
+        $changes = DB::table('support_message_revisions')->where('tenant_id', $tenant)->whereIn('message_id', $messages->pluck('id'))
+            ->selectRaw('DISTINCT ON (message_id) message_id, operation, body')->orderBy('message_id')->orderByDesc('revision')->get()->keyBy('message_id');
+        return $messages->mapWithKeys(function ($message) use ($changes) {
+            $change = $changes->get($message->id);
+            $deleted = $change?->operation === 'DELETE';
+            $text = $deleted ? '' : ($change ? Crypt::decryptString($change->body) : ($message->support_message ?? ''));
+            return [$message->conversation_id => ['text' => mb_substr(preg_replace('/\s+/u', ' ', trim($text)), 0, 120),
+                'deleted' => $deleted, 'image' => ! $deleted && (bool) $message->image_mime]];
+        })->all();
+    }
+
     public function thread(string $tenantId, ?SupportConversation $conversation, int $before, bool $admin = false, ?string $agent = null): array
     {
         if (! $conversation) {

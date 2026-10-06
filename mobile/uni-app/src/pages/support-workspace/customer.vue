@@ -104,21 +104,24 @@ const amounts = (values: Amount[]) =>
             ><button @click="load">{{ t('Retry loading conversations') }}</button></view
         >
         <view v-else-if="profile" class="profile">
-            <view class="identity"
-                ><view class="avatar">{{ Array.from(profile.name)[0] }}</view
-                ><text class="name">{{ profile.name }}</text
-                ><text>{{ profile.email }}</text
-                ><text>{{ profile.accountId }}</text></view
-            >
             <view class="details">
                 <view
                     ><text>{{ t('Customer name') }}</text
                     ><text>{{ profile.name }}</text></view
                 >
+                <view
+                    ><text>{{ t('Email') }}</text
+                    ><text>{{ profile.email || '—' }}</text></view
+                >
+                <view
+                    ><text>{{ t('Account ID') }}</text
+                    ><text>{{ profile.accountId }}</text></view
+                >
                 <view class="remark-editor"
                     ><text>{{ t('Customer remark') }}</text
-                    ><view
+                    ><view class="remark-controls"
                         ><TextInput
+                            class="remark-input"
                             v-model="remark"
                             :maxlength="60"
                             :disabled="saving"
@@ -177,55 +180,52 @@ const amounts = (values: Amount[]) =>
     </PageShell>
 </template>
 <style scoped>
-.remark-editor > view {
+.details > .remark-editor {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+}
+.remark-controls {
     display: flex;
-    flex: 1;
     min-width: 0;
-    gap: 8px;
+    gap: 10px;
     align-items: center;
 }
-.remark-editor input {
-    min-width: 0;
+.remark-input {
     flex: 1;
+    width: 0;
+    min-width: 0;
+    height: 42px;
+    box-sizing: border-box;
     border: 1px solid #dce3dd;
-    border-radius: 8px;
-    padding: 8px;
+    border-radius: 10px;
+    padding: 0 12px;
+    background: #fafbf9;
+    font-size: 14px;
+}
+.remark-input:focus {
+    border-color: #39ad8d;
+    outline: none;
+    box-shadow: 0 0 0 2px #39ad8d20;
 }
 .remark-editor button {
     flex-shrink: 0;
-    padding: 0 12px;
-    line-height: 36px;
-    font-size: 13px;
+    height: 42px;
+    margin: 0;
+    padding: 0 16px;
+    line-height: 42px;
+    border-radius: 10px;
+    font-size: 14px;
+    background: #e5f3ed;
     color: #278b70;
+}
+.remark-editor button[disabled] {
+    opacity: 0.5;
 }
 .profile {
     display: flex;
     flex-direction: column;
     gap: 20px;
-}
-.identity {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 20px 0;
-    font-size: 13px;
-    color: #77857e;
-}
-.avatar {
-    width: 60px;
-    height: 60px;
-    line-height: 60px;
-    text-align: center;
-    border-radius: 16px;
-    background: #dcefe8;
-    color: #278b70;
-    font-size: 28px;
-}
-.name {
-    font-size: 20px;
-    color: #171c19;
-    font-weight: 600;
 }
 .details {
     background: white;

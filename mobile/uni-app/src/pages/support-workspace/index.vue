@@ -11,7 +11,7 @@ import { go } from '../../lib/navigation';
 import { t, dateTime, locale } from '../../lib/i18n';
 import { supportDenied } from '../../lib/support-workspace';
 type Data = {
-    pendingMessageCount: number;
+    unreadMessageCount: number;
     profile: { support_name: string | null; revision: number };
     inbox: {
         data: {
@@ -23,6 +23,7 @@ type Data = {
             updatedAt: string;
             lastMessageAt: string | null;
             unreadCount: number;
+            lastMessage: { text: string; deleted: boolean; image: boolean } | null;
         }[];
         current_page: number;
         last_page: number;
@@ -162,10 +163,10 @@ onBeforeUnmount(stop);
             <view class="workspace-title">
                 <text>{{ t('Support workspace') }}</text>
                 <text
-                    v-if="data"
+                    v-if="data && data.unreadMessageCount > 0"
                     class="unread-badge"
-                    :aria-label="t('Unhandled messages') + ': ' + data.pendingMessageCount"
-                    >{{ data.pendingMessageCount }}</text
+                    :aria-label="t('Unread messages') + ': ' + data.unreadMessageCount"
+                    >{{ data.unreadMessageCount }}</text
                 >
             </view>
         </template>
@@ -217,18 +218,16 @@ onBeforeUnmount(stop);
                         ><text
                             >{{ row.name || row.accountId }} ·
                             {{ t(row.online ? 'Online' : 'Offline') }}</text
-                        ><text
-                            >{{ row.accountId }} ·
-                            {{
-                                t(
-                                    row.mode === 'BOT'
-                                        ? 'Bot support'
-                                        : row.mode === 'WAITING'
-                                          ? 'Waiting for human support'
-                                          : 'Human support',
-                                )
-                            }}</text
-                        ></view
+                        ><text class="conversation-preview">{{
+                            row.lastMessage?.deleted
+                                ? t('Message deleted')
+                                : [
+                                      row.lastMessage?.image ? t('[Image]') : '',
+                                      row.lastMessage?.text,
+                                  ]
+                                      .filter(Boolean)
+                                      .join(' ')
+                        }}</text></view
                     ><view class="conversation-meta"
                         ><text
                             class="conversation-time"
@@ -426,6 +425,14 @@ onBeforeUnmount(stop);
     color: #fff;
     background: #dc5353;
     text-align: center;
+}
+.conversation-preview {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 13px;
+    color: #84918b;
 }
 .conversation-info {
     flex: 1;
