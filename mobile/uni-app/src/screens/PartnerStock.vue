@@ -28,6 +28,7 @@ const lines = computed(() =>
               ['outflow', 'Stock deductions', '−'],
               ['activation', 'Activation commissions paid', ''],
               ['annualCommission', 'Annual fee commissions paid', ''],
+                  ['otherCommission', 'Other commissions paid', ''],
               ['rebates', 'Annual fees returned', ''],
               ['reimbursements', 'Reimbursed expenses', ''],
           ]

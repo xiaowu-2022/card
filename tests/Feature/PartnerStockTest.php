@@ -664,7 +664,7 @@ it('counts partner business contributions only and never values wallet topups wi
     expect(fn () => $query->read($outside->tenant_id, $this->user->id))->toThrow(HttpException::class);
 });
 
-it('converts guarantees into annual business stock once and deducts posted source commissions including partner and outside recipients', function () {
+it('converts guarantees once and excludes commissions received by the owner and outside ancestors', function () {
     stockFundWallet($this, $this->user);
     stockBuy($this, $this->user, 8);
     $owner = stockChild($this->user);
@@ -678,14 +678,14 @@ it('converts guarantees into annual business stock once and deducts posted sourc
     $r = $query->read($this->tenant->id, $owner->id);
     expect($r['totals']['deposits'])->toBe('50.00000000');
     $cost = $r['totals']['activation'];
-    expect(BigDecimal::of($cost)->isPositive())->toBeTrue();
+    expect($cost)->toBe('0.00000000');
     stockBuy($this, $child, 1);
     $order = DB::table('paid_promotion_orders')->where('user_id', $child->id)->where('status', 'COMPLETED')->first();
     expect($order->deposit_applied)->toBe('50.00000000');
     $r = $query->read($this->tenant->id, $owner->id, true, 1, 'outflow');
     expect($r['totals']['deposits'])->toBe('0.00000000')->and($r['totals']['annual'])->toBe($order->settlement_total)
-        ->and($r['totals']['annualCommission'])->toBe($order->amount)->and($r['totals']['activation'])->toBe($cost)
-        ->and($r['stock'])->toBe((string) BigDecimal::of($order->settlement_total)->minus($order->amount)->minus($cost)->toScale(8));
+        ->and($r['totals']['annualCommission'])->toBe('0.00000000')->and($r['totals']['activation'])->toBe($cost)
+        ->and($r['stock'])->toBe((string) BigDecimal::of($order->settlement_total)->minus($cost)->toScale(8));
     $sum = collect($r['flowDetails']['items'])->reduce(fn ($sum, $row) => $sum->plus($row['amount']), BigDecimal::zero());
     expect((string) $sum->toScale(8))->toBe($r['totals']['outflow']);
     stockPartner($this, $child);
@@ -869,5 +869,46 @@ it('deducts only completed annual returns from eligible partner business contrib
         ->and(collect($r['flowDetails']['items'])->where('source', 'rebates'))->toHaveCount(1);
     stockPartner($this, $child);
     expect($query->read($this->tenant->id, $this->user->id)['totals']['rebates'])->toBe('0.00000000');
+    Http::assertNothingSent();
+});
+
+it('deducts non-partner descendant net commission income and attributes details to the recipient branch', function () {
+    stockPartner($this, $this->user);
+    $child = stockChild($this->user);
+    $nested = stockChild($this->user);
+    stockPartner($this, $nested);
+    $grandchild = stockChild($nested);
+    $outside = User::where('tenant_id', '<>', $this->tenant->id)->firstOrFail();
+    foreach ([$this->user, $child, $nested, $grandchild, $outside] as $recipient) {
+        app(ActivateUserWalletAction::class)->execute($recipient->tenant_id, $recipient->id);
+    }
+    $adjust = function (User $recipient, string $kind, string $amount, string $direction = 'INCREASE') {
+        app(AdjustManualCommission::class)->execute($recipient->tenant_id, $recipient->id, $this->admin, [
+            'commission_type' => $kind, 'direction' => $direction, 'amount' => $amount,
+            'reason' => 'Offline beneficiary stock fixture', 'request_id' => (string) Str::uuid(),
+        ]);
+    };
+    $adjust($this->user, 'activation', '100');
+    $adjust($nested, 'activation', '200');
+    $adjust($outside, 'activation', '300');
+    $adjust($child, 'activation', '12.12345678');
+    $adjust($child, 'activation', '2', 'DECREASE');
+    $adjust($grandchild, 'annual', '7');
+    $balances = DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all();
+    $entries = DB::table('ledger_entries')->count();
+    $r = app(PartnerReport::class)->read($this->tenant->id, $this->user->id, true, 1, 'outflow');
+    expect($r['totals']['activation'])->toBe('10.12345678')
+        ->and($r['totals']['annualCommission'])->toBe('7.00000000')
+        ->and($r['totals']['outflow'])->toBe('17.12345678')
+        ->and($r['stock'])->toBe('-17.12345678')->and($r['flowDetails']['total'])->toBe(3);
+    $annual = collect($r['flowDetails']['items'])->firstWhere('source', 'annualCommission');
+    expect($annual['account_id'])->toBe($grandchild->account_id)
+        ->and($annual['direct_account_id'])->toBe($nested->account_id)
+        ->and(DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all())->toBe($balances)
+        ->and(DB::table('ledger_entries')->count())->toBe($entries);
+    stockPartner($this, $child);
+    expect(app(PartnerReport::class)->read($this->tenant->id, $this->user->id)['totals']['outflow'])->toBe('7.00000000');
+    stockPartner($this, $child, false);
+    expect(app(PartnerReport::class)->read($this->tenant->id, $this->user->id)['totals']['outflow'])->toBe('17.12345678');
     Http::assertNothingSent();
 });

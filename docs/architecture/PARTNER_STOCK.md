@@ -14,8 +14,13 @@ while traversing through them to retain their non-partner descendants/current di
 Security deposits use actual USDT `USER_SECURITY_DEPOSIT` balances. Converted or refunded
 principal no longer lives there; annual fees use completed, Ledger-linked `settlement_total`
 (including converted deposit) once. Commissions reuse the deduplicated posted income query,
-restricted by eligible source user, including awards to this partner/outside beneficiaries.
-Source-less manual adjustments cannot be allocated to a descendant and are excluded.
+restricted by **beneficiary**: the current team's non-partner descendants. This supersedes
+source-scoped costs, regardless of where the original payer now belongs. Exclude the owner
+and currently enabled descendant partners, but retain non-partner members below them.
+Include posted signed manual commission adjustments in each beneficiary's net income;
+unclassified income is shown as other commissions. Do not infer a source payer.
+Details identify the recipient and their current first-level branch. Actual posted amounts,
+legacy deduplication and historical financial records remain unchanged.
 Returns must be approved and Ledger-linked. Reimbursements include the owner's and all
 descendant partner journals, including disabled configurations, with reversals subtracted;
 advances remain informational. Wallet top-ups/withdrawals, withdrawal fees, card/wealth
@@ -25,7 +30,7 @@ The two existing `flow=inflow|outflow` links now mean contribution and deduction
 `totals.inflow/outflow` are business subtotals and `cashFlow` is null. `stockBasis` is
 `BUSINESS_CONTRIBUTIONS`. Per-item `source` identifies the component. Guarantee detail rows
 are current balances (nullable `posted_at`, explicitly labeled), not invented transactions.
-Own reimbursement entries have no direct branch; other entries retain source account/email
+Own reimbursement entries have no direct branch; commission entries use beneficiary account/email; other entries retain source account/email
 and the current direct branch. No internal notes or staff fields are added to these details.
 Both UI surfaces show the six components plus two clickable subtotals and the formula.
 Standard reports, personal reconciliation and independent alerts remain unchanged.

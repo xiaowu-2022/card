@@ -22,7 +22,7 @@ final class PromotionReportQuery
         return Money::of((string) $this->income($tenant, $user)->sum('amount'), 'USDT')->amount();
     }
 
-    public function income(string $tenant, ?string $user): Builder
+    public function income(string $tenant, ?string $user, bool $withBeneficiary = false): Builder
     {
         $paid = DB::table('paid_promotion_shares as s')
             ->join('paid_promotion_events as e', fn ($j) => $j->on('e.id', '=', 's.event_id')->on('e.tenant_id', '=', 's.tenant_id'))
@@ -52,6 +52,12 @@ final class PromotionReportQuery
                 NULL::integer AS beneficiary_rank, NULL::integer AS depth, NULL::numeric AS source_amount,
                 NULL::numeric AS rate, NULL::integer AS standard, NULL::integer AS covered,
                 NULL::uuid AS source_id, l.posted_at AS occurred_at, l.posted_at AS business_at");
+
+        if ($withBeneficiary) {
+            $paid->addSelect('s.user_id as beneficiary_user_id');
+            $legacy->addSelect('a.user_id as beneficiary_user_id');
+            $manual->addSelect('a.user_id as beneficiary_user_id');
+        }
 
         return DB::query()->fromSub($paid->unionAll($legacy)->unionAll($manual), 'income');
     }

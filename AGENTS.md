@@ -1,3 +1,12 @@
+On 2026-10-05 the user revised partner business stock commission deductions to the
+net posted commissions received by all current non-partner descendants. Exclude the
+owner and currently enabled descendant partners personally, traversing through their
+branches. This supersedes source-payer/all-beneficiary commission cost scope for
+partner stock only. Include activation, annual, deduplicated legacy and signed manual
+income; show unclassified income separately. Totals and details share the beneficiary
+scope and current branch. Standard stock and personal reconciliation are unchanged;
+no financial writes or historical replay. See docs/architecture/PARTNER_STOCK.md.
+
 On 2026-10-05 the user replaced front-upload OCR gating with retained asynchronous
 KYC submission. Accept both national-ID sides into encrypted server originals, then
 persist the application before OSS upload/repair, front-only OCR and configured

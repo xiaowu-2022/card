@@ -248,6 +248,7 @@ export const partnerCatalog = {
         'Komisen yuran tahunan dibayar',
         'Comisiones de cuotas anuales pagadas',
     ],
+    'Other commissions paid': ['已付其他佣金', 'Komisen lain dibayar', 'Otras comisiones pagadas'],
     'Annual fees returned': ['已返还年费', 'Yuran tahunan dipulangkan', 'Cuotas anuales devueltas'],
     'Reimbursed expenses': ['已报销费用', 'Perbelanjaan dibayar balik', 'Gastos reembolsados'],
     'Partner share': ['合伙人占比', 'Peratus bahagian rakan kongsi', 'Porcentaje del socio'],

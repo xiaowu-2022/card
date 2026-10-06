@@ -112,6 +112,7 @@ const stockEntryLabels: Record<string, string> = {
     annual: 'Total annual fees paid',
     activation: 'Activation commissions paid',
     annualCommission: 'Annual fee commissions paid',
+    otherCommission: 'Other commissions paid',
     rebates: 'Annual fees returned',
     reimbursements: 'Reimbursed expenses',
 };
@@ -151,6 +152,7 @@ export function PartnerStockReport({
                   ['outflow', 'Stock deductions', '−'],
                   ['activation', 'Activation commissions paid', ''],
                   ['annualCommission', 'Annual fee commissions paid', ''],
+                  ['otherCommission', 'Other commissions paid', ''],
                   ['rebates', 'Annual fees returned', ''],
                   ['reimbursements', 'Reimbursed expenses', ''],
               ]
