@@ -1,3 +1,8 @@
+export type PartnerIdentity = { id: string; name: string; accountId: string };
+export type PartnerChildren = StockPage<PartnerIdentity & { teamCount: number }> & {
+    subject: PartnerIdentity;
+    listPath: string;
+};
 export type StockPage<T> = { items: T[]; page: number; total: number; hasMore: boolean };
 export type JournalRow = {
     id: string;
@@ -35,6 +40,9 @@ export type StockFlowDetails = StockPage<{
     posted_at: string | null;
 }> & { direction: 'inflow' | 'outflow' };
 export type StockReport = {
+    subject?: PartnerIdentity;
+    reportPath?: string;
+    partnersPath?: string;
     flowDetails?: StockFlowDetails | null;
     version: 'partner' | 'standard';
     stockBasis?: 'BUSINESS_CONTRIBUTIONS';

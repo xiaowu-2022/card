@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue';
-import { onLoad, onShow, onHide } from '@dcloudio/uni-app';
+import { onLoad, onShow, onHide, onPageScroll } from '@dcloudio/uni-app';
 import { getPage, ensureBootstrap, explainError, type ClientPage } from '../../lib/client';
 import { clearSession } from '../../lib/session';
 import { ApiError, setCurrentPage } from '../../lib/api';
@@ -35,6 +35,7 @@ import PromotionReport from '../../screens/PromotionReport.vue';
 import Promotion from '../../screens/Promotion.vue';
 import PromotionRewardDetails from '../../screens/PromotionRewardDetails.vue';
 import Wallet from '../../screens/Wallet.vue';
+import PartnerChildren from '../../screens/PartnerChildren.vue';
 import PartnerStock from '../../screens/PartnerStock.vue';
 import FormErrors from '../../components/FormErrors.vue';
 const path = ref(''),
@@ -44,6 +45,10 @@ const path = ref(''),
 let generation = 0;
 let returningToKycDraft = false;
 const anchor = ref('');
+let stockScroll = 0;
+onPageScroll((event) => {
+    stockScroll = event.scrollTop;
+});
 onLoad((options) => {
     const target = options?.path ? decodeURIComponent(options.path) : '/';
     const parts = target.split('#');
@@ -56,7 +61,15 @@ onShow(() => {
         // Keep the mounted form and any in-flight submit when returning from the photo picker.
         if (data.value) return;
     }
-    if (path.value) void load();
+    if (path.value) {
+        const restore = stockScroll;
+        void load().then(async () => {
+            if (path.value.startsWith('/promotion/stock')) {
+                await nextTick();
+                uni.pageScrollTo({ scrollTop: restore, duration: 0 });
+            }
+        });
+    }
 });
 onHide(() => {
     // #ifdef H5
@@ -71,6 +84,7 @@ onHide(() => {
 async function load() {
     const run = ++generation;
     loading.value = true;
+    if (path.value.startsWith('/promotion/stock/partners')) data.value = null;
     errors.value = {};
     try {
         await ensureBootstrap();
@@ -211,6 +225,9 @@ async function load() {
         v-else-if="data.component === 'user/Wallet'"
         :page="data.props"
         @reload="load"
+    /><PartnerChildren
+        v-else-if="data.component === 'user/PartnerChildren'"
+        :page="data.props"
     /><PartnerStock
         v-else-if="data.component === 'user/PartnerStock'"
         :page="data.props"

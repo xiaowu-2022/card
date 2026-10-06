@@ -1,4 +1,9 @@
 export const partnerCatalog = {
+    Details: ['详情', 'Butiran', 'Detalles'],
+    'Partner data': ['合伙人数据', 'Data rakan kongsi', 'Datos de socios'],
+    'Subordinate partners': ['下级', 'Rakan kongsi bawahan', 'Socios subordinados'],
+    'No subordinate partners': ['暂无下级合伙人', 'Tiada rakan kongsi bawahan', 'No hay socios subordinados'],
+    'Team members': ['团队人数', 'Bilangan ahli pasukan', 'Miembros del equipo'],
     Username: ['用户名', 'Nama pengguna', 'Nombre de usuario'],
     'Search username or email': [
         '搜索用户名或邮箱',

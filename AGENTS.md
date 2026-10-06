@@ -1,3 +1,12 @@
+On 2026-10-06 the user added Partner data below partner-version stock cards in
+consumer App/H5 and Platform. Lists traverse ordinary/disabled partners to the
+nearest enabled partners; headcounts include all descendants except self. Permit
+enabled consumer partners to read complete same-company descendant partner reports,
+including reconciliation and cooperation notes, but never administrator identities.
+Revalidate current ancestry/enabled state on every list, report and detail page;
+keep GET read-only and reuse existing stock calculations. Platform keeps
+partners.manage, company scope and drawer/list position. See PARTNER_STOCK.md.
+
 On 2026-10-06 the user added ACTUAL/ADVANCE to Platform manual deposit confirmation.
 Default ACTUAL; ADVANCE only for enabled same-company partners in USDT, requiring
 wallet_topups.confirm plus partners.manage. Atomically credit once and append the

@@ -125,6 +125,8 @@ Route::middleware(['tenant.surface:end-user', RequireConsumerApiUser::class, Req
     Route::get('/promotion/poster-background', [InvitationPosterController::class, 'userImage']);
     Route::get('/promotion', [PromotionController::class, 'show']);
     Route::get('/promotion/stock', PartnerReportController::class)->middleware('throttle:60,1');
+    Route::get('/promotion/stock/partners/{partner}/report', [PartnerReportController::class, 'hierarchy'])->whereUuid('partner')->middleware('throttle:60,1');
+    Route::get('/promotion/stock/partners/{partner?}', [PartnerReportController::class, 'hierarchy'])->whereUuid('partner')->middleware('throttle:60,1');
     Route::get('/promotion/members/{member}/team-summary', [PromotionController::class, 'memberTeam'])->whereUuid('member')->middleware('throttle:60,1');
     Route::get('/promotion/commissions', [PromotionController::class, 'commissions']);
     Route::get('/promotion/{section}', [PromotionController::class, 'show'])->whereIn('section', ['team', 'daily', 'direct', 'invitations', 'rules', 'features', 'reward-guide', 'registration']);

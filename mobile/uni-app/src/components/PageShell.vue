@@ -6,7 +6,7 @@ import { computed } from 'vue';
 import { t } from '../lib/i18n';
 import { unread, session } from '../lib/session';
 import { photoUrl } from '../lib/api';
-import { go, home } from '../lib/navigation';
+import { go, home, back as navigateBack } from '../lib/navigation';
 import UiIcon from './UiIcon.vue';
 import LanguagePicker from './LanguagePicker.vue';
 const props = withDefaults(
@@ -15,6 +15,7 @@ const props = withDefaults(
         active?: string;
         back?: string;
         replaceBack?: boolean;
+        historyBack?: boolean;
         guest?: boolean;
         article?: boolean;
         overview?: boolean;
@@ -64,6 +65,9 @@ const navigationStyle = computed(() => ({
         : 'clamp(64px, 12vw, 90px)',
 }));
 const badge = (n: number) => (n > 99 ? '99+' : String(n));
+function historyBackTo(path: string) {
+    navigateBack(path);
+}
 function open(path: string, replace = false) {
     if (path.startsWith('/pages/')) uni.navigateTo({ url: path });
     else go(path, replace);
@@ -120,7 +124,7 @@ function open(path: string, replace = false) {
                             v-if="back"
                             class="icon"
                             :aria-label="t('Back')"
-                            @click="open(back, replaceBack)"
+                            @click="historyBack ? historyBackTo(back) : open(back, replaceBack)"
                         >
                             <UiIcon name="arrow-left" :size="20" /></button
                         ><view v-else /><text class="header-title">{{ title }}</text

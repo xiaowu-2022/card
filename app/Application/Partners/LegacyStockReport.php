@@ -18,7 +18,7 @@ final class LegacyStockReport
     }
 
     /** UNION deduplicates nodes and also makes corrupt invitation cycles terminate safely. */
-    private function team(string $tenant, string $user): Builder
+    public function team(string $tenant, string $user): Builder
     {
         return DB::query()->fromRaw('(WITH RECURSIVE team AS (
             SELECT id,user_id FROM promotion_members WHERE tenant_id=? AND user_id=?

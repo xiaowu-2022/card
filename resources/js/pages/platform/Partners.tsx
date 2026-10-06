@@ -1,3 +1,4 @@
+import { PartnerHierarchyPanel } from '@/components/admin/PartnerHierarchyPanel';
 import { DetailDrawerContent } from '@/components/admin/DetailDrawer';
 import { PartnerInvitationsReport } from '@/components/admin/PartnerInvitationsReport';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -89,6 +90,12 @@ export default function Partners({
         return () => window.removeEventListener('popstate', sync);
     }, [url]);
     const [reportOpen, setReportOpen] = useState(Boolean(report));
+    const [hierarchyPartner, setHierarchyPartner] = useState<string | null>(null);
+    const hierarchyScroll = useRef(0);
+    const hierarchyTrigger = useRef<HTMLButtonElement | null>(null);
+    useEffect(() => {
+        setHierarchyPartner(null);
+    }, [reportOpen, report?.partnerId]);
     const [reportLoading, setReportLoading] = useState(false);
     const [reportError, setReportError] = useState(false);
     const reportRequest = useRef<(() => void) | null>(null);
@@ -762,22 +769,61 @@ export default function Partners({
                                             </div>
                                         ) : (
                                             report && (
-                                                <PartnerStockReport
-                                                    compactDecimals
-                                                    compactHeader
-                                                    showUserIdentity
-                                                    report={report}
-                                                    onPage={(page) => visit(report.partnerId, page)}
-                                                    onReverse={reverse}
-                                                    onFlow={(flow, page) =>
-                                                        visit(
-                                                            report.partnerId,
-                                                            report.journal.page,
-                                                            flow,
-                                                            page,
-                                                        )
-                                                    }
-                                                />
+                                                <div>
+                                                    {hierarchyPartner && (
+                                                        <PartnerHierarchyPanel
+                                                            partner={hierarchyPartner}
+                                                            company={reportCompanyId}
+                                                            onClose={() => {
+                                                                setHierarchyPartner(null);
+                                                                requestAnimationFrame(() => {
+                                                                    const el =
+                                                                        hierarchyTrigger.current?.closest(
+                                                                            '[data-detail-body]',
+                                                                        );
+                                                                    if (el)
+                                                                        el.scrollTop =
+                                                                            hierarchyScroll.current;
+                                                                    hierarchyTrigger.current?.focus(
+                                                                        { preventScroll: true },
+                                                                    );
+                                                                });
+                                                            }}
+                                                        />
+                                                    )}
+                                                    <div hidden={!!hierarchyPartner}>
+                                                        <PartnerStockReport
+                                                            onPartners={() => {
+                                                                const el = document.querySelector(
+                                                                    '[data-detail-body][scroll-region]',
+                                                                );
+                                                                hierarchyScroll.current =
+                                                                    el?.scrollTop ?? 0;
+                                                                hierarchyTrigger.current =
+                                                                    document.activeElement as HTMLButtonElement;
+                                                                setHierarchyPartner(
+                                                                    report.partnerId,
+                                                                );
+                                                            }}
+                                                            compactDecimals
+                                                            compactHeader
+                                                            showUserIdentity
+                                                            report={report}
+                                                            onPage={(page) =>
+                                                                visit(report.partnerId, page)
+                                                            }
+                                                            onReverse={reverse}
+                                                            onFlow={(flow, page) =>
+                                                                visit(
+                                                                    report.partnerId,
+                                                                    report.journal.page,
+                                                                    flow,
+                                                                    page,
+                                                                )
+                                                            }
+                                                        />
+                                                    </div>
+                                                </div>
                                             )
                                         )}
                                     </TabsContent>

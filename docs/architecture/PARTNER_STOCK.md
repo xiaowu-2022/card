@@ -130,3 +130,35 @@ The Platform landing view is a paginated partner list (account, nickname, split,
 ### 2026-10-03 personal account reconciliation
 The report adds accountBalance under the existing read-only repeatable-read snapshot. All seven fields are eight-decimal USDT strings: advances, activationCommission, annualCommission, reimbursements, theoretical, actual, difference. Personal journal net totals include reversals and are restricted to the selected partner/company; personal posted activation (including deduplicated legacy) and annual commissions are beneficiary-scoped. Theoretical = advances + activationCommission + annualCommission - reimbursements. Actual reads only the owner's USDT USER_AVAILABLE Ledger balance, defaulting to zero without wallet creation; difference = theoretical - actual. It is neither a debt determination nor a settlement action.
 Uni-app and shared SaaS reports show the three figures between stock composition and team alerts. Existing team stock totals remain unchanged. No migration/backfill; deploy backend and admin/H5 assets together, and repackage native apps to include the new panel.
+
+## Partner hierarchy drilldown (2026-10-06)
+
+Partner-version stock cards expose Partner data in uni-app/H5 and the Platform
+report drawer. Lists show the nearest enabled partner on each current invitation
+branch: traverse ordinary/disabled-partner nodes, stop at each enabled partner.
+Each row includes display name (account ID fallback), all-descendant headcount
+(excluding self, including descendant partners and their members), Details and
+Subordinate partners. Lists have stable account-ID ordering and 20-row pages;
+recursive UNION deduplicates nodes and terminates cycles. Counts are batched for
+one page, never computed with membership creation or financial writes.
+
+Consumer routes under `/promotion/stock/partners/{partner?}` list children;
+`/promotion/stock/partners/{partner}/report` returns the complete selected report,
+including personal reconciliation and cooperation notes as explicitly authorized.
+The host-owned company and enabled signed-in partner scope are checked against the
+current invitation tree on every list/report/flow page in the same repeatable-read
+read-only transaction as the report. Unrelated, ancestor, moved or disabled targets
+fail closed. Administrator actor identifiers are removed from consumer journals.
+The original `/promotion/stock` self-report and ordinary-user behavior remain.
+
+Platform `/platform/partners/{partner}/children` and `/stock` JSON endpoints require
+partners.manage and enforce any explicit company filter. Nested browsing stays in
+the existing drawer with its own navigation stack, leaving list filters and outer
+report state intact. Consumer navigation uses independent cached pages, revalidates
+on return, clears stale child reports on access failure, and restores pagination and
+scroll. No client-selected tenant or alternate financial formula is introduced.
+
+No migration is required. Publish rebuilt admin assets and compile/synchronize H5
+into public/h5. `PartnerHierarchyTest` exercises scope, tree projection, pagination,
+full report consistency and read-only behavior; `tests/Browser/partner-hierarchy.mjs`
+uses offline fixtures to exercise desktop/mobile navigation without real mutations.

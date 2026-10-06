@@ -130,8 +130,10 @@ export function PartnerStockReport({
     showUserIdentity = false,
     compactHeader = false,
     onFlow,
+    onPartners,
 }: {
     report: StockReport;
+    onPartners?: () => void;
     onPage: (page: number) => void;
     onReverse?: (row: JournalRow) => void;
     showShare?: boolean;
@@ -275,6 +277,11 @@ export function PartnerStockReport({
                     </p>
                 )}
             </section>
+            {r.version === 'partner' && onPartners && (
+                <button className="stock-panel w-full text-left" onClick={onPartners}>
+                    {t('Partner data')} ›
+                </button>
+            )}
             {r.missingRates > 0 && (
                 <p className="stock-warning" role="status">
                     {t('Rates pending')}: {r.missingRates}.{' '}

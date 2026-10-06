@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Platform;
 
 use App\Application\Partners\FeeValuation;
+use App\Application\Partners\PartnerHierarchy;
 use App\Application\Partners\PartnerInvitationReport;
 use App\Application\Partners\PartnerManagement;
 use App\Application\Partners\PartnerReport;
@@ -15,6 +16,13 @@ use Inertia\Inertia;
 
 final class PartnerController extends Controller
 {
+    public function hierarchy(Request $request, string $partner, PartnerHierarchy $query)
+    {
+        $data = $request->validate(['company' => 'nullable|uuid|exists:tenants,id', 'page' => 'nullable|integer|min:1|max:100000', 'flow' => 'nullable|in:inflow,outflow', 'flow_page' => 'nullable|integer|min:1|max:100000', 'user_id' => 'prohibited', 'tenant_id' => 'prohibited']);
+
+        return response()->json($query->read($data['company'] ?? null, null, $partner, str_ends_with($request->path(), '/stock') ? 'report' : 'children', $request->integer('page', 1), $request->query('flow'), $request->integer('flow_page', 1)))->header('Cache-Control', 'private, no-store');
+    }
+
     public function invitations(Request $request, string $partner, PartnerInvitationReport $query)
     {
         $data = $request->validate([

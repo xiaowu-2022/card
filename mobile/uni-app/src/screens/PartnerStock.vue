@@ -10,6 +10,7 @@ import type { StockReport } from '../lib/stock';
 const props = defineProps<{ page: { report: StockReport } }>(),
     r = computed(() => props.page.report),
     expanded = ref<Record<number, boolean>>({});
+const reportPath = computed(() => r.value.reportPath ?? '/promotion/stock');
 const legacyLines = [
     ['annual', 'Total annual fees paid', '+'],
     ['deposits', 'Ordinary member deposit balances', '+'],
@@ -28,7 +29,7 @@ const lines = computed(() =>
               ['outflow', 'Stock deductions', '−'],
               ['activation', 'Activation commissions paid', ''],
               ['annualCommission', 'Annual fee commissions paid', ''],
-                  ['otherCommission', 'Other commissions paid', ''],
+              ['otherCommission', 'Other commissions paid', ''],
               ['rebates', 'Annual fees returned', ''],
               ['reimbursements', 'Reimbursed expenses', ''],
           ]
@@ -63,7 +64,14 @@ const more = computed(() =>
             )
         "
         :replace-back="!!r.flowDetails"
-        :back="r.flowDetails ? '/promotion/stock' : '/promotion/daily'"
+        :history-back="!!r.subject && !r.flowDetails"
+        :back="
+            r.flowDetails
+                ? reportPath
+                : r.subject
+                  ? '/promotion/stock/partners'
+                  : '/promotion/daily'
+        "
         active="account"
         white
     >
@@ -73,12 +81,13 @@ const more = computed(() =>
             @page="
                 (page) =>
                     go(
-                        '/promotion/stock?flow=' + r.flowDetails!.direction + '&flow_page=' + page,
+                        reportPath + '?flow=' + r.flowDetails!.direction + '&flow_page=' + page,
                         true,
                     )
             "
         />
         <view v-else class="stock"
+            ><text v-if="r.subject" class="heading">{{ r.subject.name }}</text
             ><text class="muted small"
                 >{{ t('Updated') }}: {{ dateTime(r.updatedAt) }} · {{ r.timezone }} · USDT</text
             ><text class="heading">{{
@@ -87,6 +96,12 @@ const more = computed(() =>
             ><view class="hero"
                 ><text>{{ t('Current total stock') }}</text
                 ><text class="total">{{ value(r.stock) }}</text></view
+            ><button
+                v-if="r.version === 'partner'"
+                class="panel row partner-entry"
+                @click="go(r.partnersPath ?? '/promotion/stock/partners')"
+            >
+                {{ t('Partner data') }} ›</button
             ><text v-if="r.missingRates > 0" class="warning"
                 >{{ t('Rates pending') }}: {{ r.missingRates }}.
                 {{
@@ -103,7 +118,7 @@ const more = computed(() =>
                     <button
                         v-if="r.version === 'partner' && ['inflow', 'outflow'].includes(key)"
                         class="row flow-link"
-                        @click="go('/promotion/stock?flow=' + key, true)"
+                        @click="go(reportPath + '?flow=' + key, true)"
                     >
                         <view class="flow-label">
                             <text>{{ sign }} {{ t(label) }}</text>
@@ -224,7 +239,7 @@ const more = computed(() =>
             ><ReportPagination
                 :page="r.journal.page"
                 :has-more="more"
-                @change="(page) => go('/promotion/stock?page=' + page, true)"
+                @change="(page) => go(reportPath + '?page=' + page, true)"
             /><text class="muted small">{{
                 t(
                     r.version === 'partner'
@@ -236,6 +251,7 @@ const more = computed(() =>
     >
 </template>
 <style scoped>
+.partner-entry { width: 100%; min-height: 44px; margin: 0; text-align: left; font-size: 16px; }
 .stock {
     display: flex;
     flex-direction: column;
