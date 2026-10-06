@@ -9,7 +9,7 @@ use Illuminate\Validation\ValidationException;
 
 final class PublishAppRelease extends Command
 {
-    protected $signature = 'app:publish-android {tenant : Company slug} {apk : Signed APK path} {--code= : APK versionCode} {--release-version= : APK versionName} {--appid= : DCloud appid from manifest.json}';
+    protected $signature = 'app:publish-android {tenant : Company slug} {apk? : Deprecated compatibility argument; ignored} {--code= : APK versionCode} {--release-version= : APK versionName} {--appid= : DCloud appid from manifest.json}';
 
     protected $description = 'Publish a company Android release for mandatory App updates';
 
@@ -17,7 +17,7 @@ final class PublishAppRelease extends Command
     {
         $tenant = Tenant::where('slug', $this->argument('tenant'))->firstOrFail();
         try {
-            $releases->publish($tenant, $this->argument('apk'), [
+            $releases->publish($tenant, [
                 'versionCode' => $this->option('code'),
                 'versionName' => $this->option('release-version'),
                 'appId' => $this->option('appid'),

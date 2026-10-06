@@ -10,6 +10,19 @@ import { go } from '../lib/navigation';
 import { t } from '../lib/i18n';
 const errors = ref<Record<string, string>>({}),
     pending = ref(false);
+const native = import.meta.env.UNI_PLATFORM === 'app';
+let installedVersion = '',
+    installedVersionCode = '';
+if (native) {
+    try {
+        const installed = uni.getAppBaseInfo();
+        installedVersion = installed.appVersion?.trim() ?? '';
+        const code = Number(installed.appVersionCode);
+        if (Number.isSafeInteger(code) && code > 0) installedVersionCode = String(code);
+    } catch {
+        // Missing runtime metadata must not be replaced with a server/build version.
+    }
+}
 async function signout() {
     if (pending.value) return;
     pending.value = true;
@@ -32,7 +45,20 @@ async function signout() {
                 ><UiIcon name="circle-alert" :size="20" /><text class="grow">{{
                     t('About us')
                 }}</text
-                ><UiIcon name="chevron-right" :size="16" /></view></view
+                ><UiIcon name="chevron-right" :size="16"
+            /></view>
+            <view v-if="native" class="settings-item">
+                <text class="grow">{{ t('Installed app version') }}</text>
+                <text class="version-value" selectable>{{
+                    installedVersion || t('Unavailable')
+                }}</text>
+            </view>
+            <view v-if="native" class="settings-item">
+                <text class="grow">{{ t('Version code') }}</text>
+                <text class="version-value" selectable>{{
+                    installedVersionCode || t('Unavailable')
+                }}</text>
+            </view></view
         ><button class="signout" :disabled="pending" @click="signout">
             {{ t('Log out') }}
         </button></PageShell
@@ -57,6 +83,12 @@ async function signout() {
 }
 .grow {
     flex: 1;
+}
+.version-value {
+    max-width: 55%;
+    overflow-wrap: anywhere;
+    text-align: right;
+    color: #68736e;
 }
 .signout {
     margin: 24px auto 0;

@@ -13,11 +13,11 @@ final class AndroidReleaseController extends Controller
     public function __invoke(Tenant $tenant, Request $request, AndroidAppRelease $releases): RedirectResponse
     {
         $data = $request->validate(AndroidAppRelease::rules() + [
-            'apk' => ['required', 'file', 'max:256000', 'extensions:apk'],
+            'apk' => ['prohibited'],
             'revision' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/D'],
             'confirmed' => ['accepted'],
         ]);
-        $releases->publish($tenant, $request->file('apk')->getPathname(), $data,
+        $releases->publish($tenant, $data,
             $request->user('platform_admin'), $request->attributes->get('request_id'), $data['revision']);
 
         return back()->with('success', 'Android release published.');

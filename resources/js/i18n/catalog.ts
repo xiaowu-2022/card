@@ -15,6 +15,8 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    'Installed app version': ['当前安装版本', 'Versi aplikasi dipasang', 'Versión instalada'],
+    'Version code': ['版本代码', 'Kod versi', 'Código de versión'],
     ...supportBotCatalog,
     'Recognizing document number…': ['正在识别证件号码…', 'Mengenal pasti nombor dokumen…', 'Reconociendo el número de documento…'],
     'Recognized document number': ['识别到的证件号码', 'Nombor dokumen yang dikenal pasti', 'Número de documento reconocido'],

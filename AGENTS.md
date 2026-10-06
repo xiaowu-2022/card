@@ -1,10 +1,10 @@
-On 2026-10-06 the user requested Android version publication in Platform company
-configuration instead of requiring CLI commands. Under tenant.manage, upload the
-signed APK and exact version/AppID metadata in Branding; serialize per company,
-reject stale editors, regressions and AppID changes, and commit metadata with actor
-and request audit. Keep legacy file releases readable and GET read-only. Native
-checks remain on company APIs; fixed download http://zb33333.com/specpay.apk still
-requires the same artifact on the separate download host. No automatic live release.
+On 2026-10-06 the user revised Android publication to metadata-only Platform
+company configuration: version name/code and DCloud AppID, with no APK upload or
+API-server artifact requirement. APKs live only at http://zb33333.com/specpay.apk.
+Preserve tenant.manage, company locking, stale revision checks, monotonic versions,
+fixed AppID and atomic actor/request audit. Legacy metadata remains readable; GET
+stays read-only. Retain the legacy response path shape for installed static-download
+clients as a compatibility identifier, without claiming a local file or checksum.
 See docs/deployment/UNI_APP_PACKAGING.md.
 
 On 2026-10-06 the user required partners’ completed agent annual-fee purchases

@@ -22,7 +22,6 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
         versionName: '',
         versionCode: '',
         revision: release.revision,
-        apk: null as File | null,
         confirmed: false,
     });
     return (
@@ -41,12 +40,12 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
                 </p>
                 <p className="text-sm text-muted-foreground">
                     {t(
-                        'Upload the signed APK and enter its exact packaging metadata. Publishing a newer version requires older apps to update.',
+                        'Enter the version details of the APK on the download site. Publishing a newer version requires older apps to update.',
                     )}
                 </p>
                 <p className="break-all text-sm text-muted-foreground">
                     {t(
-                        'Place the same APK at the fixed download address before publishing. This form does not upload to the download host.',
+                        'Upload the APK to this download address before publishing. No APK upload is needed here.',
                     )}{' '}
                     <a
                         className="underline"
@@ -62,7 +61,6 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
                     onSubmit={(event) => {
                         event.preventDefault();
                         form.post(configurationUrl('/admin/settings/android-release'), {
-                            forceFormData: true,
                             preserveScroll: true,
                             onSuccess: () => {
                                 form.reset();
@@ -72,24 +70,6 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
                     }}
                 >
                     <fieldset disabled={form.processing} className="space-y-4">
-                        <FormField
-                            id="android-apk"
-                            label={t('Signed APK file')}
-                            error={errorMessage(form.errors.apk)}
-                        >
-                            <Input
-                                id="android-apk"
-                                type="file"
-                                accept=".apk"
-                                required
-                                onChange={(event) =>
-                                    form.setData('apk', event.target.files?.[0] ?? null)
-                                }
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                {t('APK files only, up to 250 MB.')}
-                            </p>
-                        </FormField>
                         <FormField
                             id="android-appid"
                             label={t('DCloud AppID')}
@@ -156,7 +136,7 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
                                     }
                                 />
                                 {t(
-                                    'I confirm the version details match this APK and the same APK is ready at the download address.',
+                                    'I confirm these version details match the APK available at the download address.',
                                 )}
                             </label>
                         </FormField>
@@ -165,15 +145,7 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
                                 {errorMessage(form.errors.revision)}
                             </p>
                         )}
-                        {form.progress && (
-                            <p role="status" className="text-sm">
-                                {t('Uploading APK')}: {form.progress.percentage}%
-                            </p>
-                        )}
-                        <Button
-                            type="submit"
-                            disabled={form.processing || !form.data.confirmed || !form.data.apk}
-                        >
+                        <Button type="submit" disabled={form.processing || !form.data.confirmed}>
                             {t(
                                 form.processing
                                     ? 'Publishing Android release…'

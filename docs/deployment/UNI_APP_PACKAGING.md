@@ -228,7 +228,7 @@ name). Current Spec Pay source is 2.3.58 / 2358. On the server:
 
 ```sh
 cd /www/wwwroot/card
-/www/server/php/84/bin/php artisan app:publish-android tenant-a /path/to/signed-specpay.apk --code=2358 --release-version=2.3.58 --appid=__UNI__GBE57092
+/www/server/php/84/bin/php artisan app:publish-android tenant-a --code=2358 --release-version=2.3.58 --appid=__UNI__GBE57092
 ```
 
 Replace `tenant-a` with the deployed company's actual slug if different. Keep the
@@ -238,16 +238,12 @@ Android signing certificates or parse APK manifest metadata. Each distinct APK m
 increase versionCode; update `mobile/companies/specpay.json` before prepare/packaging
 and confirm the generated manifest matches. Do not advertise an unsigned/test APK.
 
-The command checksum-verifies the copied APK at an immutable
-`public/app-releases/<tenant UUID>/<sha256>.apk`, then publishes metadata through the
-same company-locked database transaction and audit as the Platform form below.
-Legacy `storage/app/app-releases/<tenant UUID>/android.json` pointers remain readable
-until an explicit publication replaces them in the database. Old APKs remain.
-Both release directories and the database are deployment data and must survive code uploads.
-All active company domains must serve these same files, with HTTPS and APK downloads
-allowed. The public GET `/api/mobile/v1/app-release` contains no secrets/session
-creation; unavailable releases return 503. The existing H5 `/specpay.apk` download
-is independent; replace that file with the same signed APK when releasing for H5.
+The command publishes version metadata and audit in the database. It no longer
+copies an APK to the API server. The public GET `/api/mobile/v1/app-release` exposes
+company release metadata without sessions; missing/invalid metadata returns 503.
+Legacy private `storage/app/app-releases/<tenant UUID>/android.json` pointers remain
+readable until an explicit publication replaces them in the database. The fixed
+static download host must contain the matching signed APK before publication.
 
 
 ### 2026-10-02 Static distribution host and API routing
@@ -257,9 +253,8 @@ ignored even if present in an old cached/server domain list. Startup, foreground
 and explicit update retries refresh the full company directory, select a verified
 API origin, then fetch `/api/mobile/v1/app-release` there. Downloads open the fixed
 `http://zb33333.com/specpay.apk`; upload the same signed release to that static
-host. The API still requires published company release metadata and its retained
-release artifact (use `app:publish-android` on the API server). A static APK upload
-alone does not publish metadata. Do not query the static host for app-release.
+host. The API requires published company release metadata (Platform form or optional
+CLI), but no local release artifact. A static APK upload alone does not publish metadata. Do not query the static host for app-release.
 Recompile and cloud-package the native app; an H5 deployment cannot patch an
 already installed APK. This supersedes the API-host download URL above.
 
@@ -339,48 +334,51 @@ and distribution filenames are independent. Name changes require rebuilding and 
 the APK; they do not rename already installed applications remotely.
 
 
-### Platform Android release publication (2026-10-06)
+### Platform Android release publication (2026-10-06, metadata only)
 
-Platform → Company configuration → Branding now includes **Android release**.
-The form shows the current version and whether its retained artifact is available.
-Upload the actual signed `.apk` (maximum 250 MiB), enter its exact version name,
-positive increasing version code and DCloud AppID (`__UNI__…`, not the Android
-package name), confirm matching metadata/distribution, and click Publish Android
-release. Existing AppIDs are filled automatically and cannot be changed. APK
-archive signature/size and copied SHA-256 are checked; signing certificates and
-embedded version metadata are not parsed or independently verified.
+Platform → Company configuration → Branding includes **Android release**. Enter
+only the exact version name, positive increasing version code and DCloud AppID
+(`__UNI__…`, not the Android package name). Existing AppIDs are filled automatically
+and cannot be changed. Confirm that the download site has the matching APK, then
+publish. The form does not upload APKs; API servers do not read, copy or require one.
+APK signing/embedded metadata and download availability are not independently verified.
 
-The fixed download URL remains `http://zb33333.com/specpay.apk`. Put the same APK
-on that separate static host **before** publishing metadata; this form does not
-upload there, fetch arbitrary URLs or change installed App names/icons.
-Publishing a newer version activates the existing mandatory-update gate.
-Existing compatible APKs do not need rebuilding to consume this server change.
+Upload the signed APK only to `http://zb33333.com/specpay.apk`, before publishing its
+metadata. Publishing a higher code activates the existing mandatory-update gate.
+Installed clients using the fixed download host do not need rebuilding for this change.
 
-Deployment:
-
-1. Deploy PHP code and run `php artisan migrate --force` (new table
-   `tenant_android_releases`); deploy matching rebuilt administration assets.
-2. Allow the upload in the Platform web server and PHP: `upload_max_filesize=250M`,
-   `post_max_size=260M`, and Nginx `client_max_body_size 260m`. Configure proxy/request
-   timeouts for the expected upload speed, then reload the corresponding services.
-   `docker/php/uploads.ini` carries the local PHP limits; image-specific validation
-   limits are unchanged. Ensure temporary upload space and release storage are writable.
-3. Preserve `public/app-releases`, legacy `storage/app/app-releases` and the database
-   across deployment. All API nodes need the same database and release artifact storage.
+Deploy PHP and rebuilt administration assets. Run migrations if the earlier
+`tenant_android_releases` table has not been deployed yet; this revision adds no new
+migration or large-upload requirements. Existing APK files are left untouched.
+Retain the database and any legacy `storage/app/app-releases` metadata still in use.
 
 Publication requires active Platform `tenant.manage` authority on the routed
 company. The company row serializes web/CLI publication; revision checks reject
-stale editors, and different APKs require strictly increasing version codes with
-the original AppID. An identical retry is a no-op. Metadata and immutable
-`ANDROID_RELEASE_PUBLISHED` audit commit together; failures preserve the old
-published version. Content-addressed files are installed before the transaction;
-failed publications may leave an unreferenced artifact, never an advertised missing
-one. The legacy pointer is a read-only fallback only when no database publication
-exists; missing current artifacts return 503, without silently downgrading.
-Only the selected Branding editor reads the new Platform DTO. API GET remains
-company Host-scoped, credential-free and read-only. The existing CLI command is
-optional and shares these rules. Do not run an old CLI publisher after deployment.
+stale editors, changes require a strictly increasing version code and the original
+AppID, and identical version metadata is a no-op even for legacy rows containing
+an old artifact path. Metadata and immutable `ANDROID_RELEASE_PUBLISHED` actor/request
+audit commit together; failures preserve the prior release.
 
-Offline validation: `PlatformAndroidReleaseTest`, `AppReleaseTest`, `ApkBrandingTest`,
-and `tests/Browser/platform-android-release.mjs` (Chromium/WebKit, synthetic uploads,
-375/768/1440 px, no real publication or external traffic).
+API GET remains Host-scoped, credential-free and read-only. Legacy JSON metadata is
+used only when no database publication exists. Missing metadata returns 503; missing
+local APKs no longer block version checks. `downloadUrl` is the fixed distribution URL.
+Installed static-download clients still validate `path`, so preserve an existing
+valid path or generate a deterministic legacy-shaped compatibility identifier. That
+identifier is neither an APK checksum nor a promise of an API-hosted download file.
+Do not remove/change its shape until those installed clients are retired.
+
+The optional CLI shares the same metadata-only publisher. It no longer requires an
+APK argument; an old positional APK argument is accepted but ignored for script
+compatibility. Do not run a pre-upgrade CLI publisher after deploying this version.
+Offline coverage includes metadata-only publication without directories/files,
+legacy reads, company isolation, audit rollback, revision/version protection and
+Chromium/WebKit form behavior at 375/768/1440 px with no uploads or external traffic.
+
+
+### Installed version in App settings (2026-10-06)
+
+Native App → My account → Settings shows the installed app version and version code
+from `uni.getAppBaseInfo()`, the same runtime source used for update comparisons.
+Missing metadata displays Unavailable; server release metadata and generated company
+configuration are never used as a substitute. H5 omits these native-only rows.
+Rebuild/cloud-package and install the new APK to add this UI to existing devices.

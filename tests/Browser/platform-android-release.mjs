@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { chromium, webkit } from 'playwright';
 
-// Synthetic offline traffic only: no real APK or company publication.
+// Synthetic offline traffic only: no real company publication.
 const origin = 'http://admin.localhost:8000';
 const entry = JSON.parse(readFileSync('public/build/manifest.json'))['resources/js/app.tsx'];
 const out = 'artifacts/uni-parity/platform-android-release';
@@ -44,23 +44,23 @@ for (const [name, engine, launch] of [['chrome', chromium, {channel:'chrome'}], 
         assert.equal(writes.length,0);
         for(const width of [375,768,1440]) {
             await page.setViewportSize({width,height:900});
-            await dialog.locator('#android-apk').scrollIntoViewIfNeeded();
+            await dialog.locator('#android-appid').scrollIntoViewIfNeeded();
             assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
             await page.screenshot({path:`${out}/${name}-${width}.png`});
         }
         const publish=dialog.getByRole('button',{name:'发布 Android 版本',exact:true});
         assert.equal(await publish.isDisabled(),true);
-        await dialog.locator('#android-apk').setInputFiles({name:'fixture.apk',mimeType:'application/vnd.android.package-archive',buffer:Buffer.from('PK-offline-fixture')});
+        assert.equal(await dialog.locator('input[type=file][accept=".apk"]').count(),0);
         await dialog.locator('#android-appid').fill('__UNI__TEST');
         await dialog.locator('#android-version-name').fill('2.3.59');
         await dialog.locator('#android-version-code').fill('2359');
         assert.equal(await publish.isDisabled(),true);
         await dialog.locator('#android-confirmed').check();
         await publish.click();
-        assert.equal(await dialog.locator('#android-apk').isDisabled(),true);
+        assert.equal(await dialog.locator('#android-appid').isDisabled(),true);
         await dialog.getByText('Android 版本已被其他人更新，请重新打开编辑器后重试。',{exact:true}).waitFor();
         assert.equal(await dialog.locator('#android-version-name').inputValue(),'2.3.59');
-        assert.match(writes[0],/name="revision"/);assert.match(writes[0],/name="apk"; filename="fixture.apk"/);
+        assert.match(writes[0],/name="revision"/);assert.doesNotMatch(writes[0],/name="apk"|filename=/);
         fail=false;await publish.click();await dialog.waitFor({state:'hidden'});
         assert.equal(writes.length,2);assert.equal(new URL(page.url()).searchParams.get('page'),'2');
         await page.goto(origin+'/platform/company-configurations?page=2&section=settings%2Fbranding&editor='+encodeURIComponent(base+'/settings/branding'));
@@ -68,6 +68,6 @@ for (const [name, engine, launch] of [['chrome', chromium, {channel:'chrome'}], 
         assert.equal(await dialog.locator('#android-appid').getAttribute('readonly'),'');
         assert.match(await dialog.textContent(),/2\.3\.59 \(2359\)/);
         assert.deepEqual(errors,[]);assert.deepEqual(unexpected,[]);
-        console.log(`${name}: Android release form at 3 widths, confirmation, multipart upload, stale error, busy guards, refresh and scoped list state passed`);
+        console.log(`${name}: Android release form at 3 widths, confirmation, metadata-only publication, stale error, busy guards, refresh and scoped list state passed`);
     } finally {await browser.close();}
 }
