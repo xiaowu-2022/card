@@ -361,3 +361,12 @@ identity and completed external top-up/withdrawal totals grouped by currency. Su
 order totals require posting references; pending/failed orders, transfers and manual
 balance adjustments are excluded. No currency conversion, wallet provisioning, provider
 request, financial write or administrator identity is exposed.
+
+Customer remarks are company-owned shared aliases, editable from Platform Users
+(users.read + support.read + support.send) and from an active consumer agent's scoped
+customer profile. A maximum 60-character plain-text alias has a locked revision and
+actor audit; concurrent stale saves fail with 409. Clearing restores the original name.
+Workspace search/list, conversation heading and customer sender labels prefer the alias;
+profile shows original customer name and editable remark separately. Consumer identity,
+original display name and immutable message snapshots remain unchanged. Apply migration
+2026_10_06_236000_add_customer_remark before deploying.

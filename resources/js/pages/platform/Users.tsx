@@ -170,6 +170,14 @@ export default function Users({
                                             </span>
                                         )}
                                     </p>
+                                    {row.remark && (
+                                        <p
+                                            className="truncate text-xs text-emerald-700"
+                                            title={row.remark}
+                                        >
+                                            {t('Customer remark')}: {row.remark}
+                                        </p>
+                                    )}
                                     <p
                                         className="truncate text-xs text-muted-foreground"
                                         title={row.email ?? undefined}

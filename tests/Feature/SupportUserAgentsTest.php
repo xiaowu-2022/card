@@ -367,3 +367,25 @@ it('exposes a read-only scoped customer profile and denies foreign own and revok
     $this->agents->grant($this->company->id, $this->agent->id, $this->owner->id, ['enabled' => false, 'revision' => 1]);
     $this->actingAs($this->agent, 'tenant_user')->getJson($url)->assertForbidden();
 });
+
+it('shares revision checked customer remarks between Platform and company agents without changing names', function () {
+    foreach ([$this->agent, $this->second] as $user) $this->agents->grant($this->company->id, $user->id, $this->owner->id, ['enabled' => true, 'revision' => 0]);
+    $id = $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'hello');
+    $url = $this->url.'/conversations/'.$id;
+    $name = $this->customer->profile?->display_name ?: $this->customer->account_id;
+    $this->actingAs($this->agent, 'tenant_user')->postJson($url.'/remark', ['remark' => '  重点客户  ', 'revision' => 0])->assertNoContent();
+    $this->actingAs($this->second, 'tenant_user')->getJson($url)->assertJsonPath('customerName', '重点客户');
+    $this->getJson($this->url.'?search='.urlencode('重点客户'))->assertJsonPath('inbox.total', 1)->assertJsonPath('inbox.data.0.name', '重点客户');
+    $this->getJson($url.'/customer')->assertJsonPath('name', $name)->assertJsonPath('remark', '重点客户')->assertJsonPath('remarkRevision', 1);
+    $this->postJson($url.'/remark', ['remark' => 'stale', 'revision' => 0])->assertConflict();
+    $this->postJson($url.'/remark', ['remark' => str_repeat('x', 61), 'revision' => 1])->assertUnprocessable();
+    $platform = 'http://admin.localhost/platform/tenants/'.$this->company->id.'/users/'.$this->customer->id.'/support-remark';
+    $this->actingAs($this->owner, 'platform_admin')->postJson($platform, ['remark' => '后台备注', 'revision' => 1])->assertNoContent();
+    $this->postJson(str_replace($this->company->id, $this->other->id, $platform), ['remark' => 'foreign', 'revision' => 2])->assertNotFound();
+    $this->actingAs($this->agent, 'tenant_user')->getJson($url.'/customer')->assertJsonPath('name', $name)->assertJsonPath('remark', '后台备注');
+    $this->postJson($url.'/remark', ['remark' => '', 'revision' => 2])->assertNoContent();
+    $this->getJson($url)->assertJsonPath('customerName', $name);
+    $this->agents->grant($this->company->id, $this->agent->id, $this->owner->id, ['enabled' => false, 'revision' => 1]);
+    $this->postJson($url.'/remark', ['remark' => 'denied', 'revision' => 3])->assertForbidden();
+    $this->actingAs($this->customer, 'tenant_user')->postJson($url.'/remark', ['remark' => 'denied', 'revision' => 3])->assertForbidden();
+});

@@ -496,7 +496,9 @@ function updateDraft(event: unknown) {
                             ? t('Support assistant')
                             : message.fromSupport
                               ? message.supportName || t('Customer support')
-                              : t(agent ? 'Customer' : 'You')
+                              : agent
+                                ? chat.customerName || t('Customer')
+                                : t('You')
                     }}</text
                     ><view
                         class="support-bubble"

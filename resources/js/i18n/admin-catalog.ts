@@ -2,13 +2,9 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
-    'Customer remark': ['客户备注', 'Catatan pelanggan', 'Nota del cliente'],
-    'Customer name': ['客户名称', 'Nama pelanggan', 'Nombre del cliente'],
-    'Shared within the company. Clear to show the original name.': [
-        '公司内共享，清空后恢复显示原客户名称。',
-        'Dikongsi dalam syarikat. Kosongkan untuk nama asal.',
-        'Compartido en la empresa. Borre para mostrar el nombre original.',
-    ],
+    'Customer remark': '客户备注',
+    'Customer name': '客户名称',
+    'Shared within the company. Clear to show the original name.': '公司内共享，清空后恢复显示原客户名称。',
     'Change invitation code': '修改邀请码',
     'Current invitation code': '当前邀请码',
     'Previous invitation code': '原邀请码',

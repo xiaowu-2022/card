@@ -67,7 +67,13 @@ const items = computed(() => [
     { title: 'Messages', icon: 'bell', path: '/messages' },
 ]);
 function count(path: string) {
-    return path === '/messages' ? unread.messages : path === '/support' ? unread.support : 0;
+    return path === '/messages'
+        ? unread.messages
+        : path === '/support'
+          ? unread.support
+          : path === '/support-workspace' && account.value?.supportAgent
+            ? unread.agentSupport
+            : 0;
 }
 function copy() {
     if (session.value?.user)

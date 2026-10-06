@@ -36,7 +36,7 @@ export type Bootstrap = {
     unread: { messages: number; support: number; agentSupport?: number };
 };
 export const session = ref<Bootstrap | null>(null);
-export const unread = reactive({ messages: 0, support: 0 });
+export const unread = reactive({ messages: 0, support: 0, agentSupport: 0 });
 let pending: Promise<void> | null = null;
 export async function bootstrap() {
     if (pending) return pending;
@@ -63,7 +63,7 @@ export async function bootstrap() {
         }
         setPublicAssets(data.publicAssets);
         session.value = data;
-        Object.assign(unread, data.unread);
+        Object.assign(unread, data.unread, { agentSupport: data.unread.agentSupport ?? 0 });
         remindSupportUnread(data.unread.agentSupport ?? 0);
         setCsrf(data.csrfToken);
         configureLocale(data.locale, data.timezone);
@@ -77,7 +77,7 @@ export function clearSession() {
     setToken(null);
     clearFlow();
     session.value = null;
-    Object.assign(unread, { messages: 0, support: 0 });
+    Object.assign(unread, { messages: 0, support: 0, agentSupport: 0 });
 }
 export async function login(identifier: string, password: string) {
     if (pending) await pending;
@@ -117,7 +117,7 @@ export async function refreshUnread() {
             '/unread',
         );
         if (generation === sessionGeneration && session.value?.user) {
-            Object.assign(unread, counts);
+            Object.assign(unread, counts, { agentSupport: counts.agentSupport ?? 0 });
             remindSupportUnread(counts.agentSupport ?? 0);
         }
     } catch (error) {

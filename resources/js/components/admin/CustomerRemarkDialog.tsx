@@ -64,7 +64,7 @@ export function CustomerRemarkDialog({
                     </p>
                     {error && <p role="alert">{t('Unable to save. Refresh and try again.')}</p>}
                     <div className="flex justify-end gap-2">
-                        <Button type="button" variant="outline" disabled={busy} onClick={close}>
+                        <Button type="button" variant="secondary" disabled={busy} onClick={close}>
                             {t('Cancel')}
                         </Button>
                         <Button disabled={busy} type="submit">

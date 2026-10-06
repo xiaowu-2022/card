@@ -167,9 +167,14 @@ function open(path: string, replace = false) {
                                     tabActive(item.name) ? session?.tenant.primaryColor : undefined
                                 "
                             /><text
-                                v-if="item.name === 'account' && unread.messages + unread.support"
+                                v-if="
+                                    item.name === 'account' &&
+                                    unread.messages + unread.support + unread.agentSupport
+                                "
                                 class="badge"
-                                >{{ badge(unread.messages + unread.support) }}</text
+                                >{{
+                                    badge(unread.messages + unread.support + unread.agentSupport)
+                                }}</text
                             ></view
                         ><text>{{ t(item.label) }}</text>
                     </button></view

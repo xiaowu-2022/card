@@ -23,7 +23,8 @@ final class SupportCustomerRemark
             $user = User::where('tenant_id', $tenant)->whereKey($userId)->lockForUpdate()->firstOrFail();
             abort_if((int) $user->support_remark_revision !== (int) $data['revision'], 409, 'Customer remark changed. Refresh and try again.');
             $old = $user->support_remark;
-            $remark = trim($data['remark'] ?? '') ?: null;
+            $remark = trim($data['remark'] ?? '');
+            $remark = $remark === '' ? null : $remark;
             $user->forceFill(['support_remark' => $remark, 'support_remark_revision' => $user->support_remark_revision + 1])->save();
             app(AuditLogger::class)->record($tenant, $conversation ? 'USER' : 'ADMIN', $actor, 'CUSTOMER_REMARK_UPDATED', 'user', $user->id, ['remark' => $old], ['remark' => $remark]);
         });

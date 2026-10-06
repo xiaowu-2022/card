@@ -55,7 +55,7 @@ final class SupportWorkspaceController extends Controller
             ->orderByRaw("CASE WHEN mode = 'WAITING' OR (mode = 'HUMAN' AND last_sender = 'USER') THEN 0 ELSE 1 END")
             ->orderByDesc('support_conversations.updated_at')->orderBy('support_conversations.id')->paginate(30);
         $online = app(ConsumerPresence::class)->onlineUsers($tenant, $rows->getCollection()->pluck('user_id')->all());
-        $rows->through(fn ($row) => ['id' => $row->id, 'accountId' => $row->account_id, 'name' => $row->support_remark ?: $row->display_name, 'online' => in_array($row->user_id, $online, true), 'mode' => $row->mode, 'updatedAt' => $row->updated_at->toIso8601String(), 'unreadCount' => (int) $row->unread_count, 'lastMessageAt' => $row->last_message_at ? \Carbon\Carbon::parse($row->last_message_at)->toIso8601String() : null]);
+        $rows->through(fn ($row) => ['id' => $row->id, 'accountId' => $row->account_id, 'name' => $row->support_remark ?? $row->display_name, 'online' => in_array($row->user_id, $online, true), 'mode' => $row->mode, 'updatedAt' => $row->updated_at->toIso8601String(), 'unreadCount' => (int) $row->unread_count, 'lastMessageAt' => $row->last_message_at ? \Carbon\Carbon::parse($row->last_message_at)->toIso8601String() : null]);
 
         return response()->json(['inbox' => $rows, 'awaitingCount' => $awaitingCount, 'pendingMessageCount' => $pendingMessageCount, 'profile' => app(SupportUserAgents::class)->profile($tenant, $actor)])->header('Cache-Control', 'private, no-store');
     }
@@ -68,7 +68,7 @@ final class SupportWorkspaceController extends Controller
         $chat = $query->thread($tenant, $row, $r->integer('before'), true, $actor);
         $customer = User::where('tenant_id', $tenant)->with('profile')->findOrFail($row->user_id);
         $chat['customerEmail'] = $customer->email;
-        $chat['customerName'] = $customer->support_remark ?: ($customer->profile?->display_name ?: $customer->account_id);
+        $chat['customerName'] = $customer->support_remark ?? ($customer->profile?->display_name ?: $customer->account_id);
         $chat['customerOnline'] = app(ConsumerPresence::class)->online($tenant, $row->user_id);
         foreach ($chat['messages'] as &$message) {
             if ($message['imageUrl'] && str_starts_with($message['imageUrl'], '/admin/')) {

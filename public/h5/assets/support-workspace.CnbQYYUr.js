@@ -1,0 +1,1 @@
+import{ae as s,S as a,f as n,m as e}from"./index-C5grqaTW.js";function o(o){return!!(o instanceof s&&[401,403,404].includes(o.status))&&(a({title:n("Support access is no longer available."),icon:"none"}),e("/account",!0),!0)}export{o as s};
