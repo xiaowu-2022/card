@@ -29,6 +29,7 @@ const props = withDefaults(
 const brand = computed(() => session.value?.tenant.name ?? '');
 const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
 const isHome = computed(() => !!props.active && !props.back);
+const isAccountHome = computed(() => props.active === 'account' && isHome.value);
 function tabActive(name: string) {
     const pages = getCurrentPages();
     const page = pages[pages.length - 1] as any;
@@ -65,9 +66,11 @@ const navigationStyle = computed(() => ({
     '--shell-safe-top': import.meta.env.UNI_PLATFORM === 'h5'
         ? 'max(24px, var(--status-bar-height, 0px), env(safe-area-inset-top, 0px))'
         : 'max(var(--status-bar-height, 0px), env(safe-area-inset-top, 0px))',
-    '--shell-header-height': isHome.value
-        ? 'clamp(64px, 11.867vw, 89px)'
-        : 'clamp(64px, 12vw, 90px)',
+    '--shell-header-height': isAccountHome.value
+        ? '0px'
+        : isHome.value
+          ? 'clamp(64px, 11.867vw, 89px)'
+          : 'clamp(64px, 12vw, 90px)',
 }));
 const badge = (n: number) => (n > 99 ? '99+' : String(n));
 function historyBackTo(path: string) {
@@ -92,7 +95,7 @@ function open(path: string, replace = false) {
                 'home-shell': isHome,
             }"
             ><ViewportLayer :class="navigationClasses" :style="navigationStyle"
-                ><view v-if="isHome" class="brand-header"
+                ><view v-if="isHome && !isAccountHome" class="brand-header"
                     ><view class="brand" @click="home()"
                         ><PreviewImage
                             :sources="session?.tenant.logoSources"
@@ -232,7 +235,7 @@ function open(path: string, replace = false) {
     /* Keep the last row comfortably above fixed navigation, even on old WebViews. */
     padding: 16px 20px 128px;
     padding: clamp(16px, 3.2vw, 24px) clamp(20px, 4.267vw, 32px)
-        calc(var(--shell-tab-height) + 48px + env(safe-area-inset-bottom, 0px));
+        calc(var(--shell-tab-height) + 48px + env(safe-area-inset-bottom, 0px) + var(--shell-viewport-bottom, 0px));
     padding-left: calc(clamp(20px, 4.267vw, 32px) + env(safe-area-inset-left, 0px));
     padding-right: calc(clamp(20px, 4.267vw, 32px) + env(safe-area-inset-right, 0px));
 }
@@ -345,6 +348,7 @@ function open(path: string, replace = false) {
     position: fixed;
     transform: none;
     bottom: 0;
+    bottom: var(--shell-viewport-bottom, 0px);
     left: 0;
     right: 0;
     margin-inline: auto;

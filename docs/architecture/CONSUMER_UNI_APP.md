@@ -288,3 +288,15 @@ The offline Chrome/WebKit navigation regression also checks 320/390/750px conten
 insets and maximum-scroll clearance on assets, account, KYC and promotion fixtures.
 H5 assets must be rebuilt/deployed; native resources require repackaging/installing.
 No API, accounting, permissions or database changes are involved.
+# 2026-10-09 H5 底部导航兼容
+
+用户反馈同一手机浏览器正常，只有旧 APK 在更新网页后出现底部黑边及菜单文字
+裁切。本次只改 H5：html/body 使用不透明白底，底部导航根据 VisualViewport
+与布局视口的差值调整底边，视口 resize/scroll、pageshow 和回到前台时刷新。
+内容底部留白及推广页悬浮操作同步补偿；缩放时保持原有页面平移行为。
+“我的”首页移除 Logo 栏及栏高，保留顶部安全间距。
+
+参考 [VisualViewport 文档](https://developer.mozilla.org/en-US/docs/Web/API/VisualViewport)。
+离线浏览器回归增加可见区域比布局区域矮 24px 的模拟，检查文字、命中位置和
+恢复后的导航定位。该模拟验证兼容逻辑，不证明已复现用户手机的原生裁切；
+实际效果需部署 H5 后在原 APK 验证，不要求为这次网页修改重新打包。

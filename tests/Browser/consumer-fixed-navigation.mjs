@@ -30,13 +30,14 @@ for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome
         async function aligned(label) {
             const tabs = page.locator('.tabs:visible'), header = page.locator('.header:visible, .brand-header:visible');
             await tabs.first().waitFor();
-            await header.first().waitFor();
+            const accountHome = await page.locator('.shell.account-shell:visible').count() > 0;
+            if (!accountHome) await header.first().waitFor();
             assert.equal(await tabs.count(), 1, label + ': exactly one bottom bar');
-            assert.equal(await header.count(), 1, label + ': exactly one header');
-            const nav = await tabs.boundingBox(), top = await header.boundingBox();
+            assert.equal(await header.count(), accountHome ? 0 : 1, label + ': account home omits the header');
+            const nav = await tabs.boundingBox(), top = accountHome ? null : await header.boundingBox();
             const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
             assert.ok(Math.abs(nav.y + nav.height - viewport.height) < 2, JSON.stringify({ label, nav, viewport }));
-            assert.ok(Math.abs(top.y) < 2, JSON.stringify({ label, top }));
+            if (top) assert.ok(Math.abs(top.y) < 2, JSON.stringify({ label, top }));
             assert.ok(nav.x >= 0 && nav.x + nav.width <= viewport.width + 1 && nav.height >= 60, label);
             // Must remain tappable, not merely have the right computed coordinates.
             assert.ok(await tabs.evaluate(el => {
@@ -46,6 +47,32 @@ for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome
         }
         await page.goto(origin + '/#/pages/cards/index');
         await page.locator('.tabs').waitFor();
+        // Simulate an embedded viewport clipped by 24px without resizing its
+        // layout viewport. Ordinary browser resize tests cannot cover this.
+        await page.evaluate(() => {
+            Object.defineProperty(window.visualViewport, 'height', { configurable: true, get: () => innerHeight - 24 });
+            window.visualViewport.dispatchEvent(new Event('resize'));
+        });
+        await page.waitForTimeout(80);
+        const clipped = await page.evaluate(() => {
+            const tabs = document.querySelector('.tabs');
+            const bottom = innerHeight - 24;
+            return {
+                bottom: tabs.getBoundingClientRect().bottom,
+                visibleBottom: bottom,
+                labelsVisible: [...tabs.querySelectorAll('.tab > uni-text')].every(el => el.getBoundingClientRect().bottom <= bottom),
+                tappable: tabs.contains(document.elementFromPoint(innerWidth / 2, bottom - 12)),
+                background: getComputedStyle(document.documentElement).backgroundColor,
+            };
+        });
+        assert.ok(Math.abs(clipped.bottom - clipped.visibleBottom) < 2, JSON.stringify(clipped));
+        assert.ok(clipped.labelsVisible && clipped.tappable, 'clipped viewport keeps labels and hit targets visible');
+        assert.equal(clipped.background, 'rgb(255, 255, 255)');
+        await page.evaluate(() => {
+            delete window.visualViewport.height;
+            window.visualViewport.dispatchEvent(new Event('resize'));
+        });
+        await aligned('visible viewport restored');
         for (const ancestor of ['.user-root', 'uni-page-wrapper']) {
             for (const property of ['transform', 'contain', 'willChange']) {
                 await page.evaluate(({ ancestor, property }) => {

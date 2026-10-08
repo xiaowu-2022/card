@@ -3,6 +3,7 @@ import { onShow, onHide } from '@dcloudio/uni-app';
 import { checkAppUpdate } from './lib/app-update';
 import { pauseSupportReminder, resumeSupportReminder } from './lib/support-reminder';
 import { refreshUnread } from './lib/session';
+import { syncNavigationViewport } from './lib/navigation-viewport';
 let timer: ReturnType<typeof setInterval> | undefined;
 function pause() {
     pauseSupportReminder();
@@ -13,6 +14,7 @@ function resume() {
     pause();
     // #ifdef H5
     if (document.hidden) return;
+    syncNavigationViewport();
     // #endif
     resumeSupportReminder();
     void checkAppUpdate(true);
@@ -26,6 +28,11 @@ onHide(pause);
 // #ifdef H5
 document.addEventListener('visibilitychange', () => (document.hidden ? pause() : resume()));
 window.addEventListener('focus', resume);
+window.addEventListener('resize', syncNavigationViewport);
+window.addEventListener('pageshow', syncNavigationViewport);
+window.visualViewport?.addEventListener('resize', syncNavigationViewport);
+window.visualViewport?.addEventListener('scroll', syncNavigationViewport);
+syncNavigationViewport();
 // #endif
 </script>
 <style>
@@ -43,6 +50,12 @@ uni-app .uni-picker-container {
 :root {
     color-scheme: light;
     color-scheme: only light;
+}
+/* Paint the document canvas too: page backgrounds do not cover exposed areas
+   around body portals when an embedded WebView changes its visible viewport. */
+html,
+body {
+    background: #fff;
 }
 /* Style the actual HTML input, not just uni-input's outer component. */
 .form-input .uni-input-input,
