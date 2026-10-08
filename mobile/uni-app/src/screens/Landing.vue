@@ -99,7 +99,7 @@ function toggle(index: number) {
         }}</view>
         <view class="marketing-header"
             ><view class="marketing-brand" @click="scroll('home')"
-                ><image v-if="logo" :src="logo" mode="aspectFit" :aria-label="brand" /><template
+                ><image v-if="logo" :src="logo" mode="heightFix" :aria-label="brand" /><template
                     v-else
                     ><UiIcon name="aperture" :size="44" /><text>{{ brand }}</text></template
                 ></view
