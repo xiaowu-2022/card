@@ -1,8 +1,8 @@
 {
     "name" : "U卡",
     "appid" : "__UNI__30F90A0",
-    "versionName" : "2.5.05",
-    "versionCode" : 2505,
+    "versionName" : "2.5.06",
+    "versionCode" : 2506,
     "vueVersion" : "3",
     "transformPx" : false,
     "uniStatistics" : {

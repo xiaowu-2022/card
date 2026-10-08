@@ -1,3 +1,10 @@
+On 2026-10-08 the user restored the standalone Platform identity verification
+menu. List all applications newest first with company/search/status filters and
+pagination; provide View details and a modal Review action. Preserve the user-row
+entry, scoped permissions, masked read-only detail GETs, document password gates,
+manual approval identity requirements, confirmation and atomic audit. This supersedes
+the 2026-10-05 standalone-menu removal. See docs/architecture/ASYNC_KYC.md.
+
 On 2026-10-08 the user enabled direct Platform app-release metadata edits.
 Prefill existing version values; permit valid same/lower version corrections and
 destination updates without repackaging. Preserve fixed AppID, tenant.manage,

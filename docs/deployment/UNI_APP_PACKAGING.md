@@ -191,8 +191,8 @@ App manifest 已显式包含相机／相册 Camera 和系统分享 Share 模块�
 ```
 
 以上仅为格式示例，必须替换为该公司的真实域名。`apiOrigin` 也会自动加入初始列表，
-同时继续用于本地 H5 代理。specpay 配置按用户指定内置 `specpay.cc`、
-`specpay.top`、`specpay.vip`、`113b.my`、`27m.my`、`18k.my`，全部使用 HTTPS。
+同时继续用于本地 H5 代理。specpay 配置按用户 2026-10-08 指定仅内置 `27m.my`、`113b.my`、`18k.my`，全部使用 HTTPS。
+`specpay.cc`、`specpay.top`、`specpay.vip` 已从内置种子移除；服务器目录和缓存的动态发现规则不变。
 `zb33333.com` 是静态下载站，不加入 API 入口列表。release 对每一个域名检查 HTTPS
 和非测试域名要求。修改后重新 prepare／打包。
 
@@ -480,3 +480,12 @@ remain readable; configure the iOS destination in Platform before offering downl
 
 H5 My account also inserts Download app immediately before Customer support, including for support agents. It shares the homepage platform-selection
 action and published URLs. Native account menus retain their previous entries.
+
+
+### H5 登录语言（2026-10-08）
+
+首次直接进入登录页默认英文，恢复登录／注册页右上角公司已启用语言的选择器。
+手动选定语言继续通过原有服务端接口和公司作用域 Cookie 保存；注册页继承所选语言，
+不再强制切回中文。已有用户或 Cookie 偏好仍由 bootstrap 按公司启用语言规则解析。
+部署匹配的 `public/h5/index.html` 与全部新增哈希资源，保留旧资源供已打开页面使用。
+网页壳 APK 读取线上 H5，无需为此重新打包；本次不改变旧原生业务 App 的中文规则。

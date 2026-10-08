@@ -1,5 +1,5 @@
 {
-  "builtAt": "2026-10-08T12:50:14.269017+00:00",
-  "purpose": "WebView shell Chinese login and registration",
-  "source": "mobile/uni-app/dist/build/h5"
+  "builtAt": "2026-10-08T13:48:47.554574+00:00",
+  "purpose": "H5 English login default and restored language switch",
+  "source": "dist/clients/specpay/release/h5"
 }

@@ -69,6 +69,7 @@ const groups: { label: string; items: PlatformNavItem[] }[] = [
                 permission: 'support.read',
             },
             { label: 'Users', href: '/platform/users', icon: Users, permission: 'users.read' },
+            { label: 'KYC', href: '/platform/kyc', icon: ShieldCheck, permission: 'kyc.read' },
             { label: 'Cards', href: '/platform/cards', icon: CreditCard },
             {
                 label: 'Deposit orders',

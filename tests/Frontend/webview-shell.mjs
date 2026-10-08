@@ -34,3 +34,61 @@ test('rejects a different tenant, wrong company and malformed directories',async
 test('all-offline fails visibly instead of loading an unverified cached host',async()=>{
  await assert.rejects(discover([a],'company',{tenantId:'tenant',origins:[b],selected:b},async()=>{throw Error('offline')}),/连接服务器/);
 });
+
+test('a lost native callback cannot block a healthy line', async () => {
+ const result = await discover([a,b], 'company', null,
+  host => host === a ? new Promise(() => {}) : Promise.resolve(reply([a,b])),
+  Date.now, {probeMs: 20, totalMs: 100});
+ assert.equal(result.selected, b);
+});
+test('all hung callbacks release discovery so the UI can offer retry', async () => {
+ await assert.rejects(discover([a,b], 'company', null, () => new Promise(() => {}),
+  Date.now, {probeMs: 20, totalMs: 100}), /连接服务器/);
+});
+test('a large cached directory has one total deadline', async () => {
+ const origins = Array.from({length: 100}, (_, i) => `https://host${i}.example.com`);
+ const calls = [];
+ await assert.rejects(discover([a], 'company', {origins}, host => {
+  calls.push(host); return new Promise(() => {});
+ }, Date.now, {probeMs: 100, totalMs: 20}), /连接服务器/);
+ assert.ok(calls.length <= 6);
+});
+
+// Exercise the page's native event handling with an offline Webview adapter.
+test('child window ignores empty loads, recovers after timeout and fills the area below the status bar', async () => {
+ const {runInNewContext} = await import('node:vm');
+ let script = readFileSync('mobile/webview-shell/src/pages/index/index.vue', 'utf8').split('<script setup lang="ts">')[1].split('</script>')[0];
+ script = script.replace(/^import .*;\n/gm, '').replace(/\/\/ #ifndef APP-PLUS[\s\S]*?\/\/ #endif/g, '');
+ const hooks = {}, events = {}, styles = [];
+ let loadedURL = '', timer, appended = false, reloaded = false;
+ const view = {
+  addEventListener: (name, fn) => { events[name] = fn; },
+  getURL: () => loadedURL,
+  setStyle: value => styles.push(value),
+  loadURL: url => { assert.equal(url, a + '/#/pages/login/index'); }, reload: () => { reloaded = true; }, close: () => {},
+  // Appended children must not be shown as independent windows.
+  show: () => assert.fail('show() on appended child'), hide: () => assert.fail('hide() on appended child'),
+ };
+ const context = {
+  ref: value => ({value}), config: JSON.parse(readFileSync('mobile/webview-shell/src/config.json', 'utf8')),
+  uni: {getSystemInfoSync: () => ({statusBarHeight: 24, windowHeight: 800}),
+   onWindowResize: () => {}, offWindowResize: () => {}},
+  plus: {webview: {create: () => view}},
+  getCurrentPages: () => [{$getAppWebview: () => ({append: child => {assert.equal(child, view); appended = true;}})}],
+  onReady: fn => {hooks.ready = fn;}, onShow: () => {}, onUnload: () => {}, onBackPress: () => {},
+  setTimeout: fn => {timer = fn; return 1;}, clearTimeout: () => {},
+ };
+ const js = ts.transpileModule(script + '\nglobalThis.pageTest = {open, retry, state, active};',
+  {compilerOptions: {target: ts.ScriptTarget.ES2022}}).outputText;
+ runInNewContext(js, context);
+ const page = context.pageTest;
+ page.open(a); page.active.value = a;
+ assert.equal(appended, true);
+ events.loaded(); assert.equal(page.state.value, 'loading');
+ loadedURL = a + '/'; events.loaded();
+ assert.equal(page.state.value, 'ready'); assert.equal(styles.at(-1).height, '776px');
+ page.retry(); assert.equal(reloaded, true); timer();
+ assert.equal(page.state.value, 'error'); assert.equal(styles.at(-1).height, '0px');
+ events.loaded(); assert.equal(page.state.value, 'error');
+ page.retry(); events.loaded(); assert.equal(page.state.value, 'ready');
+});

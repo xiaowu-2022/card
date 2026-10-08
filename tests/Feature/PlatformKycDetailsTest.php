@@ -117,3 +117,38 @@ it('paginates user certification history and requires KYC read permission', func
     DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'kyc.read')->value('id'))->delete();
     $this->actingAs($this->admin->fresh(), 'platform_admin')->getJson($url)->assertForbidden();
 });
+
+it('loads standalone dialog details as scoped masked no-store JSON', function () {
+    $before = DB::table('audit_logs')->count();
+    $this->getJson($this->base)->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('application.id', $this->kyc->id)
+        ->assertJsonPath('company.id', $this->tenant->id)
+        ->assertJsonPath('canReview', true)
+        ->assertJsonMissingPath('application.identity_number_encrypted')
+        ->assertJsonMissingPath('documents');
+    expect(DB::table('audit_logs')->count())->toBe($before);
+    $other = Tenant::where('slug', 'tenant-b')->firstOrFail();
+    $this->getJson(str_replace($this->tenant->id, $other->id, $this->base))->assertNotFound();
+    DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'kyc.read')->value('id'))->delete();
+    $this->actingAs($this->admin->fresh(), 'platform_admin')->getJson($this->base)->assertForbidden();
+});
+
+
+it('lists all applications newest first with pagination and explicit company filters', function () {
+    $ids = [];
+    for ($i = 1; $i <= 21; $i++) {
+        $application = $this->kyc->replicate();
+        $application->forceFill(['submitted_at' => now()->addSeconds($i)])->save();
+        $ids[] = $application->id;
+    }
+    $url = 'https://admin.localhost/platform/kyc';
+    $this->get($url)->assertOk()->assertInertia(fn ($p) => $p->component('platform/Kyc')
+        ->where('applications.total', 22)->has('applications.data', 20)
+        ->where('applications.data.0.id', $ids[20]));
+    $this->get($url.'?company='.$this->tenant->id.'&page=2')->assertOk()->assertInertia(fn ($p) => $p
+        ->has('applications.data', 2)->where('applications.data.1.id', $this->kyc->id));
+    $other = Tenant::where('slug', 'tenant-b')->firstOrFail();
+    $this->get($url.'?company='.$other->id)->assertOk()->assertInertia(fn ($p) => $p->where('applications.total', 0));
+    $this->get($url.'?status=PENDING')->assertOk()->assertInertia(fn ($p) => $p->where('applications.total', 0));
+    $this->getJson($url.'?company=invalid')->assertUnprocessable();
+});

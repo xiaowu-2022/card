@@ -116,3 +116,16 @@ approval transitions without a number and leaves historical numberless approvals
 unchanged. Deploy it before matching PHP and rebuilt admin assets. Consumer forms
 need no identity-number entry for these approvals; card birth dates derive from the
 saved national ID. Existing historical numberless card flows remain compatible.
+
+## Standalone Platform application list (2026-10-08)
+
+Platform Identity verification (`/platform/kyc`, `kyc.read`) lists all applications
+newest first, with company, account and review-status filters and pagination.
+View details opens a read-only right drawer; pending rows expose Review to
+`kyc.review` actors in a centered modal. Both lazily read the existing scoped
+detail route as no-store JSON; legacy Inertia detail links remain supported.
+Review retains confirmation, required national ID on new manual approvals,
+immutable completed decisions, document password/audit gates and server checks.
+Refresh after review preserves the list filters/page; closing restores trigger focus.
+The existing user-row Verification entry remains available. Deploy matching PHP
+and rebuilt admin assets; this navigation change requires no migration or H5 rebuild.

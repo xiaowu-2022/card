@@ -1,4 +1,8 @@
-import { Head, Link } from '@inertiajs/react';
+import { useRef, useState } from 'react';
+import type { SharedProps } from '@/types/global';
+import { Button } from '@/components/ui/button';
+import { KycApplicationDialog } from '@/components/admin/KycApplicationDialog';
+import { Head, router, usePage } from '@inertiajs/react';
 import { useAdminTranslation, t, dateTime, countryName } from '@/i18n/admin';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -24,6 +28,10 @@ export default function Kyc({
     filters: { search?: string; status?: string; company?: string };
 }) {
     useAdminTranslation();
+    const canReview =
+        usePage<SharedProps>().props.auth.admin?.permissions.includes('kyc.review') ?? false;
+    const [selection, setSelection] = useState<{ row: Application; review: boolean } | null>(null);
+    const trigger = useRef<HTMLButtonElement | null>(null);
     return (
         <PlatformLayout
             title={t('KYC')}
@@ -78,18 +86,46 @@ export default function Kyc({
                         {
                             label: 'Actions',
                             render: (row) => (
-                                <Link
-                                    className="text-primary underline"
-                                    href={`/platform/tenants/${row.companyId}/kyc/${row.id}`}
-                                >
-                                    {t('View details')}
-                                </Link>
+                                <div className="flex items-center gap-2 whitespace-nowrap">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(event) => {
+                                            trigger.current = event.currentTarget;
+                                            setSelection({ row, review: false });
+                                        }}
+                                    >
+                                        {t('View details')}
+                                    </Button>
+                                    {canReview && row.reviewStatus === 'PENDING' && (
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            onClick={(event) => {
+                                                trigger.current = event.currentTarget;
+                                                setSelection({ row, review: true });
+                                            }}
+                                        >
+                                            {t('Review')}
+                                        </Button>
+                                    )}
+                                </div>
                             ),
                         },
                         { label: 'Submitted', render: (row) => dateTime(row.submittedAt) },
                     ]}
                 />
             </div>
+            {selection && (
+                <KycApplicationDialog
+                    companyId={selection.row.companyId}
+                    applicationId={selection.row.id}
+                    review={selection.review}
+                    trigger={trigger}
+                    onClose={() => setSelection(null)}
+                    onChanged={() => router.reload({ only: ['applications'] })}
+                />
+            )}
         </PlatformLayout>
     );
 }

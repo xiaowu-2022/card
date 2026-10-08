@@ -4,6 +4,7 @@ import { useSensitiveScreen } from '../../lib/sensitive';
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { bootstrap, login, session } from '../../lib/session';
+import { native } from '../../lib/api';
 import { t, changeLocale } from '../../lib/i18n';
 import { go, home } from '../../lib/navigation';
 import { explainError } from '../../lib/client';
@@ -15,15 +16,15 @@ const email = ref(''),
     show = ref(false),
     pending = ref(false),
     errors = ref<Record<string, string>>({});
-// Set before first render and again after guest bootstrap, which may use a saved locale.
-changeLocale('zh-CN');
+// Fresh H5 visitors start in English; bootstrap retains saved, enabled preferences.
+if (!session.value) changeLocale(native ? 'zh-CN' : 'en');
 onShow(async () => {
-    changeLocale('zh-CN');
+    if (native) changeLocale('zh-CN');
     try {
         await bootstrap();
         if (session.value?.user)
             home(session.value.restricted ? '/account/restricted' : '/dashboard');
-        else changeLocale('zh-CN');
+        else if (native) changeLocale('zh-CN');
     } catch (e) {
         errors.value = explainError(e);
     }

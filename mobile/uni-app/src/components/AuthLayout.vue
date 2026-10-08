@@ -31,7 +31,7 @@ const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
                         @click="go(login ? '/' : '/login', true)"
                     >
                         <UiIcon name="arrow-left" :size="recovery ? 20 : 28" /></button
-                    ><LanguagePicker v-if="!login && !registration" /></view
+                    ><LanguagePicker v-if="!native || (!login && !registration)" /></view
                 ><view v-if="!recovery" class="auth-promotion"
                     ><PreviewImage
                         :sources="session?.tenant.logoSources"

@@ -2,12 +2,9 @@
   "tenantSlug": "tenant-a",
   "seeds": [
     "https://27m.my",
-    "https://specpay.cc",
-    "https://specpay.top",
-    "https://specpay.vip",
     "https://113b.my",
     "https://18k.my"
   ],
-  "entryPath": "/h5/#/pages/login/index",
+  "entryPath": "/#/pages/login/index",
   "cacheKey": "specpay-webview-directory-v1"
 }

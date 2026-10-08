@@ -9,17 +9,32 @@ function clean(values: unknown): string[] {
     return Array.isArray(values) ? [...new Set(values.map(origin).filter((s): s is string => !!s))].slice(0, 100) : [];
 }
 export async function discover(seeds: string[], slug: string, cached: Partial<DirectoryCache> | null,
-    probe: (url: string) => Promise<unknown>, now = Date.now): Promise<DirectoryCache> {
+    probe: (url: string) => Promise<unknown>, now = Date.now,
+    limits = { probeMs: 4500, totalMs: 15000 }): Promise<DirectoryCache> {
+    const deadline = now() + limits.totalMs;
+    // Native request callbacks can be lost during DNS/TLS or runtime failures.
+    // Bound each worker independently, including newly discovered/cache entries.
+    async function boundedProbe(url: string): Promise<unknown> {
+        const remaining = Math.min(limits.probeMs, deadline - now());
+        if (remaining <= 0) throw new Error('timeout');
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+            return await Promise.race([
+                Promise.resolve().then(() => probe(url)),
+                new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), remaining); }),
+            ]);
+        } finally { clearTimeout(timer); }
+    }
     const trustedSeeds = clean(seeds);
     const candidates = clean([...trustedSeeds, ...clean(cached?.origins)]);
     async function measure(urls: string[], tenantId?: string) {
         const results: { url: string; elapsed: number; directory: Directory }[] = [];
         let next = 0;
         await Promise.all(Array.from({ length: Math.min(6, urls.length) }, async () => {
-            while (next < urls.length) {
+            while (next < urls.length && now() < deadline) {
                 const url = urls[next++], start = now();
                 try {
-                    const d = await probe(url) as Directory;
+                    const d = await boundedProbe(url) as Directory;
                     if (d?.tenant?.slug !== slug || typeof d.tenant.id !== 'string' || !d.tenant.id
                         || (tenantId && d.tenant.id !== tenantId)) continue;
                     const origins = clean(d.origins);

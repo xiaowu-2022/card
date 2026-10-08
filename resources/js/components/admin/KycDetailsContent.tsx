@@ -27,17 +27,20 @@ export function KycDetailsContent({
     canViewDocuments,
     canReview = false,
     onChanged,
+    onBusyChange,
 }: {
     application: KycApplication;
     company: { id: string; name: string };
     canViewDocuments: boolean;
     canReview?: boolean;
     onChanged?: (id: string) => void;
+    onBusyChange?: (busy: boolean) => void;
 }) {
     useAdminTranslation();
     const [reason, setReason] = useState('');
     const [identityNumber, setIdentityNumber] = useState('');
-    const needsIdentityNumber = application.requiresIdentityNumber ??
+    const needsIdentityNumber =
+        application.requiresIdentityNumber ??
         (application.documentType === 'NATIONAL_ID' && application.maskedIdentityNumber === '—');
     const [reviewBusy, setReviewBusy] = useState(false);
     const retryId = useRef<string | null>(null);
@@ -62,6 +65,9 @@ export function KycDetailsContent({
             generation.current++;
         };
     }, [application.id, company.id]);
+    useEffect(() => {
+        onBusyChange?.(reviewBusy || busy);
+    }, [reviewBusy, busy, onBusyChange]);
     async function showPhotos() {
         if (busy) return;
         const current = generation.current;
@@ -144,7 +150,12 @@ export function KycDetailsContent({
                         decision === 'retry'
                             ? { request_id: retryId.current, reason: reason.trim() }
                             : decision === 'approve'
-                              ? { decision, ...(needsIdentityNumber ? { identity_number: identityNumber.trim() } : {}) }
+                              ? {
+                                    decision,
+                                    ...(needsIdentityNumber
+                                        ? { identity_number: identityNumber.trim() }
+                                        : {}),
+                                }
                               : { decision, reason_code: 'OTHER', review_message: reason.trim() },
                     ),
                 },
@@ -203,6 +214,7 @@ export function KycDetailsContent({
             </dl>
             <Button
                 variant="secondary"
+                disabled={reviewBusy || busy}
                 onClick={() => (onChanged ? onChanged(application.id) : router.reload())}
             >
                 {t('Refresh status')}
@@ -216,13 +228,19 @@ export function KycDetailsContent({
                                 <span>{t('Identity number')}</span>
                                 <Input
                                     value={identityNumber}
-                                    onChange={(event) => setIdentityNumber(event.target.value.toUpperCase())}
+                                    onChange={(event) =>
+                                        setIdentityNumber(event.target.value.toUpperCase())
+                                    }
                                     maxLength={18}
                                     autoComplete="off"
                                     disabled={reviewBusy}
                                     aria-label={t('Identity number')}
                                 />
-                                <p className="text-sm text-muted-foreground">{t('Enter the identity number before approving. Existing numbers cannot be changed.')}</p>
+                                <p className="text-sm text-muted-foreground">
+                                    {t(
+                                        'Enter the identity number before approving. Existing numbers cannot be changed.',
+                                    )}
+                                </p>
                             </label>
                         )}
                         <label className="block space-y-2">

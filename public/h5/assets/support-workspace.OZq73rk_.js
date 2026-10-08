@@ -1,0 +1,1 @@
+import{af as a,s,S as n,f as e,m as t,aJ as o}from"./index-DMWDvCDA.js";function i(i){return!!(i instanceof a&&[401,403,404].includes(i.status))&&(s.value&&(s.value.supportAgent=!1),o(),n({title:e("Support access is no longer available."),icon:"none"}),t("/account",!0),!0)}export{i as s};

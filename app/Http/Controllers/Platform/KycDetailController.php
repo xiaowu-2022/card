@@ -68,12 +68,17 @@ final class KycDetailController extends Controller
 
     public function show(Tenant $tenant, string $kyc, Request $request, TenantKycQueueQuery $query, AuthorizationService $authorization)
     {
-        return Inertia::render('platform/KycDetail', [
+        $detail = [
             ...$query->detail($tenant->id, $kyc),
             'company' => ['id' => $tenant->id, 'name' => $tenant->name],
             'canViewDocuments' => $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'kyc.document.view'),
             'canReview' => $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'kyc.review'),
-        ])->toResponse($request)->header('Cache-Control', 'private, no-store');
+        ];
+        if ($request->expectsJson() && ! $request->header('X-Inertia')) {
+            return response()->json($detail)->header('Cache-Control', 'private, no-store');
+        }
+
+        return Inertia::render('platform/KycDetail', $detail)->toResponse($request)->header('Cache-Control', 'private, no-store');
     }
 
     public function access(Tenant $tenant, string $kyc, Request $request, PlatformAdminRecentAuthentication $recent, AuditLogger $audit)
