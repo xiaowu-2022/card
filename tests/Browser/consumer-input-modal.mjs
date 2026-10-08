@@ -119,6 +119,15 @@ for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome
         assert.equal(await diagnostics.count(), 0);
         assert.equal(await page.locator('meta[name="viewport"]').getAttribute('content'), originalViewport);
         await page.screenshot({ path: `${out}/${name}-password.png` });
+        for (let i = 0; i < 5; i++) await page.locator('.auth-promotion').click();
+        await page.getByText('打开静态对照页', { exact: true }).click();
+        await page.waitForURL(/static\/diagnostics\/viewport\.html$/);
+        const plain = JSON.parse(await page.locator('#report').innerText());
+        assert.equal(plain.diagnostic, 'plain-viewport-1');
+        assert.ok(Math.abs(plain.blueEdgeBottom - plain.window[1]) < 1);
+        assert.equal(await page.locator('script[src], input').count(), 0);
+        await page.getByText('返回登录页', { exact: true }).click();
+        await page.locator('.auth-root').waitFor();
         assert.deepEqual(errors, []);
         assert.ok(mutations.every(path => path === '/api/v1/wallet/ensure'), JSON.stringify(mutations));
         await context.close();

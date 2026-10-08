@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>网页视口对照</title>
+<style>
+html,body { margin:0; min-height:100%; background:#fff; color:#17221d; font:16px/1.5 sans-serif; }
+/* This plain custom element also satisfies the existing APK readiness probe.
+   No uni-app runtime, API calls, login fields or native bridge are loaded. */
+uni-page-body { display:block; min-height:100vh; box-sizing:border-box; padding:32px 20px 60px; }
+h1 { font-size:20px; } pre { font:13px/1.5 monospace; white-space:pre-wrap; }
+button,a { display:inline-block; font:inherit; padding:10px; margin:4px 0; }
+#edge { position:fixed; left:0; right:0; bottom:0; height:12px; background:#00b8d4; pointer-events:none; }
+</style>
+</head>
+<body>
+<uni-page-body>
+<h1>网页视口对照</h1>
+<p>这是不加载业务框架的静态页面。观察蓝色底边下面是否仍有黑条。</p>
+<p>本页不读取账号、输入框或 Cookie，不上传数据。</p>
+<button id="refresh" type="button">刷新尺寸</button>
+<a href="../../#/pages/login/index">返回登录页</a>
+<pre id="report"></pre>
+</uni-page-body>
+<div id="edge" aria-hidden="true"></div>
+<script>
+(function () {
+    function refresh() {
+        var v = window.visualViewport;
+        document.getElementById('report').textContent = JSON.stringify({
+            diagnostic: 'plain-viewport-1',
+            window: [window.innerWidth, window.innerHeight],
+            document: [document.documentElement.clientWidth, document.documentElement.clientHeight],
+            visual: v ? [v.width, v.height, v.offsetTop, v.scale] : null,
+            blueEdgeBottom: document.getElementById('edge').getBoundingClientRect().bottom
+        }, null, 2);
+    }
+    document.getElementById('refresh').onclick = refresh;
+    refresh();
+}());
+</script>
+</body>
+</html>

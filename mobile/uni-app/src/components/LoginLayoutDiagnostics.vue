@@ -47,6 +47,11 @@ function refresh() {
 function copy() {
     uni.setClipboardData({ data: report.value, success: () => { copied.value = true; } });
 }
+function reloadLogin() { window.location.reload(); }
+function openPlainPage() {
+    const base = new URL(import.meta.env.BASE_URL, window.location.href);
+    window.location.assign(new URL('static/diagnostics/viewport.html', base).href);
+}
 onMounted(refresh);
 // Reports change only on explicit Refresh, so opening this panel cannot create
 // a resize/repaint loop or overwrite the pre-keyboard sample.
@@ -66,6 +71,10 @@ onBeforeUnmount(() => {
             <view class="diagnostic-actions">
                 <button @click="testViewport">测试普通视口</button>
                 <button @click="restoreViewport">恢复原设置</button>
+            </view>
+            <view class="diagnostic-actions">
+                <button @click="reloadLogin">重新加载登录页</button>
+                <button @click="openPlainPage">打开静态对照页</button>
             </view>
             <text class="diagnostic-report" selectable>{{ report }}</text>
         </view>
