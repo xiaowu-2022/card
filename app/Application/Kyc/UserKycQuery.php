@@ -58,7 +58,7 @@ final readonly class UserKycQuery
             'submittedAt' => $application?->submitted_at?->toIso8601String(),
             'verifiedAt' => $identity ? ($application?->reviewed_at ?? $identity->verified_at)?->toIso8601String() : ($platformVerifiedAt ? \Illuminate\Support\Carbon::parse($platformVerifiedAt)->toIso8601String() : null),
             'documentCountry' => $identity?->document_country ?? $application?->document_country,
-            'maskedIdentityNumber' => $identity ? $this->identities->maskEncrypted($identity->identity_number_encrypted) : null,
+            'maskedIdentityNumber' => $identity?->identity_number_encrypted ? $this->identities->maskEncrypted($identity->identity_number_encrypted) : null,
         ];
     }
 

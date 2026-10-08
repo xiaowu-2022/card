@@ -215,9 +215,7 @@ export function KycDetailsContent({
                             {application.reviewStatus === 'PENDING' && (
                                 <>
                                     <Button
-                                        disabled={
-                                            reviewBusy || application.ocrStatus !== 'SUCCEEDED'
-                                        }
+                                        disabled={reviewBusy}
                                         onClick={() => void review('approve')}
                                     >
                                         {t('Approve')}

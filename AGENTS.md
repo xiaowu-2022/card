@@ -1,3 +1,12 @@
+On 2026-10-08 the user allowed manual administrator KYC approval or rejection
+regardless of OCR progress or failure. Preserve scoped kyc.review authorization,
+confirmation, actor/request audit, terminal review immutability and known-number
+account limits. Manual approvals may retain null identity numbers/hashes with
+explicit MANUAL provenance; never fabricate OCR evidence or numbers. Automatic
+approval still requires successful OCR. Stop scheduling terminal reviews and never
+let in-flight OCR overwrite a manual decision. Deploy the manual-KYC migration
+and matching PHP/admin assets. See docs/architecture/ASYNC_KYC.md.
+
 On 2026-10-08 the user approved doubling routine operation rate allowances
 across App/H5 and administration. Preserve time windows, scope keys, permissions,
 idempotency and provider-side limits. Login, OTP, password/recent-auth and contact

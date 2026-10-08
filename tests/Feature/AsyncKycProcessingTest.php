@@ -254,3 +254,134 @@ it('exposes only safe failure categories to the consumer and clears them while p
     $application->forceFill(['processing_status' => 'QUEUED'])->save();
     expect(app(\App\Application\Kyc\UserKycQuery::class)->get($this->tenant->id, $this->user->id)['processingError'])->toBeNull();
 });
+
+it('allows platform manual decisions before or after OCR failure without fabricating recognition', function (string $state, string $decision) {
+    $application = queuedKyc($this);
+    $ocr = $state === 'FAILED' ? 'FAILED' : 'NOT_STARTED';
+    $application->forceFill(['processing_status' => $state, 'ocr_status' => $ocr,
+        'processing_error' => $state === 'FAILED' ? 'KYC_OCR_UNAVAILABLE' : null])->save();
+    $provider = Mockery::mock(KycOcrProviderInterface::class);
+    $provider->shouldNotReceive('extractIdentityDocument');
+    app()->instance(KycOcrProviderInterface::class, $provider);
+    $this->actingAs($this->admin, 'platform_admin')->postJson("http://admin.localhost/platform/tenants/{$this->tenant->id}/kyc/{$application->id}/review", [
+        'decision' => $decision, 'reason_code' => 'OTHER', 'review_message' => 'Manual document review',
+    ])->assertOk();
+    $application->refresh();
+    expect($application->review_status->value)->toBe($decision === 'approve' ? 'APPROVED' : 'REJECTED')
+        ->and($application->reviewed_by_admin_user_id)->toBe($this->admin->id)
+        ->and($application->automatically_approved)->toBeFalse()
+        ->and($application->next_processing_at)->toBeNull()
+        ->and($application->ocr_status->value)->toBe($ocr)
+        ->and($application->identity_hash)->toBeNull()
+        ->and($application->ocr_result_encrypted)->toBeNull();
+    if ($decision === 'approve') {
+        $identity = IdentityRecord::sole();
+        expect($identity->verification_basis)->toBe('MANUAL')->and($identity->identity_hash)->toBeNull()
+            ->and($identity->identity_number_encrypted)->toBeNull();
+        $view = app(\App\Application\Kyc\UserKycQuery::class)->get($this->tenant->id, $this->user->id);
+        expect($view['status'])->toBe('APPROVED')->and($view['maskedIdentityNumber'])->toBeNull()->and($view['verifiedAt'])->not->toBeNull();
+        expect(fn () => app(\App\Application\Card\AccountCardholderMaterials::class)->resolve($this->tenant->id, $this->user->id))
+            ->toThrow(\App\Support\Errors\DomainException::class);
+    } else {
+        expect(IdentityRecord::count())->toBe(0);
+    }
+    $before = $application->getAttributes();
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    expect($application->fresh()->getAttributes())->toBe($before);
+    $this->postJson("http://admin.localhost/platform/tenants/{$this->tenant->id}/kyc/{$application->id}/review", [
+        'decision' => $decision, 'reason_code' => 'OTHER', 'review_message' => 'Repeated manual decision',
+    ])->assertStatus(409);
+    expect(DB::table('inbox_events')->where('template', $decision === 'approve' ? 'kyc_approved' : 'kyc_rejected')->count())->toBe(1);
+    DB::statement('SET CONSTRAINTS manual_identity_source_check IMMEDIATE');
+    Http::assertNothingSent();
+})->with(['QUEUED', 'PROCESSING', 'FAILED'])->with(['approve', 'reject']);
+
+it('keeps automatic approval closed without successful OCR', function () {
+    $application = queuedKyc($this);
+    expect(fn () => app(ApproveKycAction::class)->executeAutomatic($this->tenant->id, $application->id))
+        ->toThrow(\App\Support\Errors\DomainException::class);
+    expect($application->fresh()->review_status->value)->toBe('PENDING')->and(IdentityRecord::count())->toBe(0);
+});
+
+it('retains manual decisions made while OCR is in flight', function (string $decision) {
+    $application = queuedKyc($this);
+    $provider = Mockery::mock(KycOcrProviderInterface::class);
+    $provider->shouldReceive('name')->andReturn('TEST');
+    $provider->shouldReceive('extractIdentityDocument')->once()->andReturnUsing(function () use ($application, $decision) {
+        if ($decision === 'approve') {
+            app(ApproveKycAction::class)->execute($this->tenant->id, $application->id, $this->admin);
+        } else {
+            app(RejectKycAction::class)->execute($this->tenant->id, $application->id, $this->admin, KycReviewReason::Other, 'Manual review while processing');
+        }
+        return new KycOcrResultDTO(KycOcrOutcome::Success, '11010519491231002X');
+    });
+    app()->instance(KycOcrProviderInterface::class, $provider);
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    expect($application->fresh()->review_status->value)->toBe($decision === 'approve' ? 'APPROVED' : 'REJECTED')
+        ->and($application->fresh()->identity_hash)->toBeNull()->and($application->fresh()->ocr_status->value)->toBe('NOT_STARTED')
+        ->and($application->fresh()->next_processing_at)->toBeNull();
+    DB::statement('SET CONSTRAINTS manual_identity_source_check IMMEDIATE');
+})->with(['approve', 'reject']);
+
+it('does not manually review superseded failures or bypass platform permissions and company scope', function () {
+    $old = queuedKyc($this);
+    $old->forceFill(['processing_status' => 'FAILED', 'next_processing_at' => null])->save();
+    $this->travel(1)->seconds();
+    $current = queuedKyc($this);
+    foreach (['approve', 'reject'] as $decision) {
+        $payload = ['decision' => $decision, 'reason_code' => 'OTHER', 'review_message' => 'Manual decision'];
+        $this->actingAs($this->admin, 'platform_admin')->postJson("http://admin.localhost/platform/tenants/{$this->tenant->id}/kyc/{$old->id}/review", $payload)->assertStatus(409);
+        $other = Tenant::where('id', '<>', $this->tenant->id)->firstOrFail();
+        $this->postJson("http://admin.localhost/platform/tenants/{$other->id}/kyc/{$current->id}/review", $payload)->assertNotFound();
+        $unauthorized = AdminUser::where('email', 'owner@a.localhost')->firstOrFail();
+        $this->actingAs($unauthorized, 'platform_admin')->postJson("http://admin.localhost/platform/tenants/{$this->tenant->id}/kyc/{$current->id}/review", $payload)->assertForbidden();
+    }
+    expect(IdentityRecord::count())->toBe(0)->and($current->fresh()->review_status->value)->toBe('PENDING');
+});
+
+it('preserves known number limits for manual approval after successful recognition', function () {
+    PlatformKycSetting::current()->update(['review_mode' => 'MANUAL', 'max_accounts_per_identity' => 1]);
+    fakeMatchingKycOcr('11010519491231002X');
+    $first = queuedKyc($this);
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $first->id);
+    app(ApproveKycAction::class)->execute($this->tenant->id, $first->id, $this->admin);
+    $this->user = User::create(['tenant_id' => $this->tenant->id, 'email' => 'manual-duplicate@example.test',
+        'password_hash' => \Illuminate\Support\Facades\Hash::make('synthetic-password'), 'status' => 'ACTIVE']);
+    $second = queuedKyc($this);
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $second->id);
+    $this->actingAs($this->admin, 'platform_admin')->postJson("http://admin.localhost/platform/tenants/{$this->tenant->id}/kyc/{$second->id}/review", ['decision' => 'approve'])
+        ->assertStatus(409);
+    expect($second->fresh()->review_status->value)->toBe('PENDING')->and(IdentityRecord::count())->toBe(1);
+    DB::statement('SET CONSTRAINTS manual_identity_source_check IMMEDIATE');
+});
+
+it('keeps legacy OCR jobs from touching manually approved applications', function () {
+    $application = queuedKyc($this);
+    app(ApproveKycAction::class)->execute($this->tenant->id, $application->id, $this->admin);
+    $provider = Mockery::mock(KycOcrProviderInterface::class);
+    $provider->shouldNotReceive('extractIdentityDocument');
+    app()->instance(KycOcrProviderInterface::class, $provider);
+    $before = $application->fresh()->getAttributes();
+    $job = new \App\Jobs\ProcessKycOcrJob($this->tenant->id, $application->id);
+    app()->call([$job, 'handle']);
+    $job->failed(new RuntimeException('Late failure'));
+    expect($application->fresh()->getAttributes())->toBe($before);
+});
+
+it('requires real manual approval provenance for a numberless identity at the database boundary', function () {
+    $application = queuedKyc($this);
+    expect(fn () => DB::transaction(function () use ($application) {
+        DB::table('identity_records')->insert([
+            'id' => (string) Str::uuid(), 'tenant_id' => $this->tenant->id, 'user_id' => $this->user->id,
+            'source_kyc_application_id' => $application->id, 'document_type' => 'NATIONAL_ID', 'document_country' => 'CN',
+            'identity_number_encrypted' => null, 'identity_hash' => null, 'verification_basis' => 'MANUAL',
+            'verified_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::statement('SET CONSTRAINTS manual_identity_source_check IMMEDIATE');
+    }))->toThrow(\Illuminate\Database\QueryException::class);
+    expect(IdentityRecord::count())->toBe(0);
+    expect(fn () => DB::transaction(fn () => DB::table('kyc_applications')->where('id', $application->id)
+        ->update(['review_status' => 'APPROVED', 'automatically_approved' => true, 'reviewed_at' => now()])))
+        ->toThrow(\Illuminate\Database\QueryException::class);
+    expect($application->fresh()->review_status->value)->toBe('PENDING');
+});

@@ -39,23 +39,32 @@ final readonly class ApproveKycAction
             return DB::transaction(function () use ($tenantId, $applicationId, $reviewer, $requestId): IdentityRecord {
                 Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
                 $application = KycApplication::query()->where('tenant_id', $tenantId)->whereKey($applicationId)->lockForUpdate()->firstOrFail();
-                if ($application->review_status !== KycReviewStatus::Pending || $application->processing_status === 'FAILED') {
+                if ($application->review_status !== KycReviewStatus::Pending || ($reviewer === null && $application->processing_status === 'FAILED')
+                    || KycApplication::where('tenant_id', $tenantId)->where('resubmission_of_id', $application->id)->exists()) {
                     throw new DomainException('KYC_ALREADY_REVIEWED', 'This application has already been reviewed.', 409);
                 }
-                $evidence = $application->ocr_result_encrypted ? json_decode(app(KycDataCipher::class)->decrypt($application->ocr_result_encrypted), true) : [];
-                if ($application->ocr_status !== KycOcrStatus::Succeeded || (($evidence['candidate_identity_match'] ?? null) !== 'MATCH' && ! (($evidence['identity_number_source'] ?? null) === 'OCR' && ($evidence['identity_number_recognized'] ?? false) === true))) {
-                    throw new DomainException('KYC_OCR_REQUIRED', 'Document recognition must succeed and match before approval.', 409);
+                // Automatic approval still requires successful encrypted OCR evidence.
+                // Manual review records its own decision without inventing OCR or a number.
+                if ($reviewer === null) {
+                    $evidence = $application->ocr_result_encrypted ? json_decode(app(KycDataCipher::class)->decrypt($application->ocr_result_encrypted), true) : [];
+                    if ($application->ocr_status !== KycOcrStatus::Succeeded || ! $application->identity_hash || ! $application->identity_number_encrypted
+                        || (($evidence['candidate_identity_match'] ?? null) !== 'MATCH' && ! (($evidence['identity_number_source'] ?? null) === 'OCR' && ($evidence['identity_number_recognized'] ?? false) === true))) {
+                        throw new DomainException('KYC_OCR_REQUIRED', 'Document recognition must succeed and match before approval.', 409);
+                    }
                 }
                 $settings = PlatformKycSetting::current(true);
                 if ($reviewer === null && (! $settings->enabled || $settings->review_mode !== KycReviewMode::Automatic)) {
                     throw new DomainException('KYC_SUBMISSION_UNAVAILABLE', 'Identity verification submission is not currently available.', 403);
                 }
-                DB::select('SELECT pg_advisory_xact_lock(?)', [$this->hashes->advisoryLockKey($application->identity_hash)]);
                 $existing = IdentityRecord::where('tenant_id', $tenantId)->where('user_id', $application->user_id)->first();
-                $count = IdentityRecord::query()->where('tenant_id', $tenantId)->where('identity_hash', $application->identity_hash)->where('user_id', '<>', $application->user_id)->count();
-                if ($count >= $settings->max_accounts_per_identity) {
-                    throw new DomainException('IDENTITY_ACCOUNT_LIMIT_REACHED', 'This identity has reached the Tenant account limit.', 409);
+                if ($application->identity_hash !== null) {
+                    DB::select('SELECT pg_advisory_xact_lock(?)', [$this->hashes->advisoryLockKey($application->identity_hash)]);
+                    $count = IdentityRecord::query()->where('tenant_id', $tenantId)->where('identity_hash', $application->identity_hash)->where('user_id', '<>', $application->user_id)->count();
+                    if ($count >= $settings->max_accounts_per_identity) {
+                        throw new DomainException('IDENTITY_ACCOUNT_LIMIT_REACHED', 'This identity has reached the Tenant account limit.', 409);
+                    }
                 }
+                $basis = $reviewer ? 'MANUAL' : 'OCR';
 
                 if ($existing) {
                     abort_unless($application->resubmission_of_id, 409);
@@ -63,7 +72,7 @@ final readonly class ApproveKycAction
                     // Prior applications, cardholder snapshots and ledger records are retained.
                     DB::table('identity_records')->where('id', $existing->id)->where('tenant_id', $tenantId)
                         ->where('user_id', $application->user_id)->update([
-                            'source_kyc_application_id' => $application->id,
+                            'source_kyc_application_id' => $application->id, 'verification_basis' => $basis,
                             'document_type' => $application->document_type->value,
                             'document_country' => $application->document_country,
                             'identity_number_encrypted' => $application->identity_number_encrypted,
@@ -78,7 +87,7 @@ final readonly class ApproveKycAction
                     $identity = new IdentityRecord;
                     $identity->forceFill([
                         'id' => (string) Str::uuid(), 'tenant_id' => $tenantId, 'user_id' => $application->user_id,
-                        'source_kyc_application_id' => $application->id, 'document_type' => $application->document_type,
+                        'source_kyc_application_id' => $application->id, 'verification_basis' => $basis, 'document_type' => $application->document_type,
                         'document_country' => $application->document_country, 'identity_number_encrypted' => $application->identity_number_encrypted,
                         'identity_hash' => $application->identity_hash, 'verified_at' => now(),
                     ])->save();
@@ -89,7 +98,7 @@ final readonly class ApproveKycAction
                     'reviewed_at' => now(), 'review_reason_code' => null, 'review_message' => null,
                     'processing_status' => $application->processing_status ? 'COMPLETE' : null, 'next_processing_at' => null,
                 ])->save();
-                $this->audit->record($tenantId, $reviewer ? 'ADMIN' : 'SYSTEM', $reviewer?->id, 'KYC_APPLICATION_APPROVED', 'kyc_application', $application->id, ['review_status' => KycReviewStatus::Pending->value], ['review_status' => KycReviewStatus::Approved->value, 'review_mode' => $reviewer ? 'MANUAL' : 'AUTOMATIC'], $requestId);
+                $this->audit->record($tenantId, $reviewer ? 'ADMIN' : 'SYSTEM', $reviewer?->id, 'KYC_APPLICATION_APPROVED', 'kyc_application', $application->id, ['review_status' => KycReviewStatus::Pending->value], ['review_status' => KycReviewStatus::Approved->value, 'review_mode' => $reviewer ? 'MANUAL' : 'AUTOMATIC', 'ocr_status' => $application->ocr_status->value, 'identity_number_available' => $application->identity_hash !== null], $requestId);
 
                 return $identity;
             });

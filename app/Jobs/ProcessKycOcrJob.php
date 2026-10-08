@@ -7,6 +7,8 @@ use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
 use App\Domain\Kyc\DTOs\KycOcrRequestDTO;
 use App\Domain\Kyc\Enums\KycOcrOutcome;
 use App\Domain\Kyc\Enums\KycOcrStatus;
+use App\Domain\Kyc\Enums\KycReviewStatus;
+use Illuminate\Support\Facades\DB;
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Kyc\Services\IdentityNumberNormalizer;
 use App\Domain\Kyc\Services\IdentityNumberProtector;
@@ -43,10 +45,11 @@ final class ProcessKycOcrJob implements ShouldQueue
         $context->set($tenant);
         try {
             $application = KycApplication::query()->where('tenant_id', $this->tenantId)->whereKey($this->kycApplicationId)->firstOrFail();
-            if ($application->ocr_status === KycOcrStatus::Succeeded) {
+            if ($application->review_status !== KycReviewStatus::Pending || $application->processing_status !== null
+                || $application->ocr_status === KycOcrStatus::Succeeded) {
                 return;
             }
-            $application->forceFill(['ocr_status' => KycOcrStatus::Processing])->save();
+            if (! $this->savePending(['ocr_status' => KycOcrStatus::Processing])) return;
             try {
                 $disk = (string) config('kyc.document_disk');
                 $images = app(ImageStorage::class);
@@ -61,7 +64,7 @@ final class ProcessKycOcrJob implements ShouldQueue
             }
 
             if ($result->outcome === KycOcrOutcome::Failed) {
-                $application->forceFill(['ocr_status' => KycOcrStatus::Failed, 'ocr_provider' => $provider->name(), 'ocr_reference' => $this->bounded($result->providerReference, 255), 'ocr_result_encrypted' => null])->save();
+                $this->savePending(['ocr_status' => KycOcrStatus::Failed, 'ocr_provider' => $provider->name(), 'ocr_reference' => $this->bounded($result->providerReference, 255), 'ocr_result_encrypted' => null]);
 
                 return;
             }
@@ -70,12 +73,12 @@ final class ProcessKycOcrJob implements ShouldQueue
                 'candidate_name' => $this->bounded($result->candidateName, 200),
                 'confidence' => preg_match('/^(0(\.\d{1,4})?|1(\.0{1,4})?)$/', (string) $result->confidence) ? $result->confidence : null,
             ];
-            $application->forceFill([
+            $this->savePending([
                 'ocr_status' => KycOcrStatus::Succeeded,
                 'ocr_provider' => $provider->name(),
                 'ocr_reference' => $this->bounded($result->providerReference, 255),
                 'ocr_result_encrypted' => $cipher->encrypt(json_encode($payload, JSON_THROW_ON_ERROR)),
-            ])->save();
+            ]);
         } finally {
             $context->clear();
         }
@@ -84,8 +87,20 @@ final class ProcessKycOcrJob implements ShouldQueue
     public function failed(?Throwable $exception): void
     {
         KycApplication::query()->where('tenant_id', $this->tenantId)->whereKey($this->kycApplicationId)
+            ->where('review_status', KycReviewStatus::Pending->value)->whereNull('processing_status')
             ->where('ocr_status', '!=', KycOcrStatus::Succeeded->value)
             ->update(['ocr_status' => KycOcrStatus::Failed->value]);
+    }
+
+    private function savePending(array $values): bool
+    {
+        return DB::transaction(function () use ($values): bool {
+            $application = KycApplication::where('tenant_id', $this->tenantId)->whereKey($this->kycApplicationId)->lockForUpdate()->firstOrFail();
+            if ($application->review_status !== KycReviewStatus::Pending || $application->processing_status !== null
+                || $application->ocr_status === KycOcrStatus::Succeeded) return false;
+            $application->forceFill($values)->save();
+            return true;
+        });
     }
 
     private function bounded(?string $value, int $length): ?string

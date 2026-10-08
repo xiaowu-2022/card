@@ -18,8 +18,10 @@ final readonly class RejectKycAction
     public function execute(string $tenantId, string $applicationId, AdminUser $reviewer, KycReviewReason $reason, string $message, ?string $requestId = null): void
     {
         DB::transaction(function () use ($tenantId, $applicationId, $reviewer, $reason, $message, $requestId): void {
+            \App\Domain\Tenant\Models\Tenant::whereKey($tenantId)->lockForUpdate()->firstOrFail();
             $application = KycApplication::query()->where('tenant_id', $tenantId)->whereKey($applicationId)->lockForUpdate()->firstOrFail();
-            if ($application->review_status !== KycReviewStatus::Pending) {
+            if ($application->review_status !== KycReviewStatus::Pending
+                || KycApplication::where('tenant_id', $tenantId)->where('resubmission_of_id', $application->id)->exists()) {
                 throw new DomainException('KYC_ALREADY_REVIEWED', 'This application has already been reviewed.', 409);
             }
             $this->assertSafeMessage($application, $message);

@@ -17,7 +17,7 @@ final class AccountCardholderMaterials
         $identity = IdentityRecord::where('tenant_id', $tenantId)->where('user_id', $userId)->first();
         $application = $identity ? KycApplication::where('tenant_id', $tenantId)->where('user_id', $userId)
             ->where('review_status', 'APPROVED')->find($identity->source_kyc_application_id) : null;
-        if (! $identity || ! $application || $application->document_country !== 'CN') {
+        if (! $identity || ! $application || ! $identity->identity_number_encrypted || $application->document_country !== 'CN') {
             throw new DomainException('CARD_SETUP_INVALID', 'Approved identity verification is required before Card setup.', 422);
         }
         $birth = $user->profile?->date_of_birth?->format('Y-m-d');

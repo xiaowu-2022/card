@@ -69,3 +69,28 @@ without rewriting historical applications. All new KYC upload tickets use encryp
 server originals even in OSS mode; unsubmitted legacy URL-only tickets require re-upload.
 Existing failed URL-only applications may be left intact and replaced by a consumer
 submission with new photos. No historical OCR or automatic retry is performed.
+
+## Manual decisions independent of OCR (2026-10-08)
+
+Authorized administrators may approve or reject a current pending application
+while it is queued, processing, awaiting review, or technically failed. OCR success
+is no longer a manual approval prerequisite. Existing review permissions, company
+scope, confirmation, rejection reasons and immutable actor/request audit remain.
+A superseded application or completed review cannot be changed by this operation.
+
+Manual approval creates or rebinds the identity projection with `verification_basis=MANUAL`.
+If no number has been recognized, both encrypted number and hash remain null;
+OCR status, errors and evidence are retained, never fabricated. Known identity
+numbers still use the existing company account limit. Unknown numbers cannot
+participate in number-based deduplication until a later explicit re-verification
+recognizes one. Automatic approval retains its successful encrypted OCR prerequisite.
+
+Both manual outcomes stop scheduled processing. In-flight recognition must recheck
+the locked review state before storing evidence or completing review. Consumer
+verification reads accept manual identities with no number; card material extraction
+still requires a real identity number and does not invent missing card information.
+
+Deploy `2026_10_08_230000_allow_manual_kyc_without_ocr.php` before the matching PHP
+and rebuilt administration assets. The migration changes constraints and adds
+identity review provenance without replaying or approving historical applications.
+No consumer rebuild or live OCR/financial testing is needed for this change.
