@@ -8,6 +8,17 @@ use App\Http\Controllers\Controller;
 
 final class AppReleaseController extends Controller
 {
+    public function debug(TenantContext $context, AndroidAppRelease $releases)
+    {
+        $release = $releases->current($context->id());
+
+        return response()->json([
+            'tenantId' => $context->id(),
+            'tenantSlug' => $context->tenant()->slug,
+            'enabled' => ($release['debugEnabled'] ?? false) === true,
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
     public function __invoke(TenantContext $context, AndroidAppRelease $releases)
     {
         $release = $releases->current($context->id());

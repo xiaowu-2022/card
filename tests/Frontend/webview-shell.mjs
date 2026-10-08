@@ -54,41 +54,59 @@ test('a large cached directory has one total deadline', async () => {
  assert.ok(calls.length <= 6);
 });
 
-// Exercise the page's native event handling with an offline Webview adapter.
-test('child window ignores empty loads, recovers after timeout and fills the area below the status bar', async () => {
+// Exercise native event ordering, including a document whose JS never renders.
+test('native loaded cannot dismiss welcome; only current rendered content can reveal full-size child', async () => {
  const {runInNewContext} = await import('node:vm');
+ const readinessJs = ts.transpileModule(readFileSync('mobile/webview-shell/src/lib/readiness.ts','utf8'), {compilerOptions:{module:ts.ModuleKind.ES2022}}).outputText;
+ const debugJs = ts.transpileModule(readFileSync('mobile/webview-shell/src/lib/debug.ts','utf8'), {compilerOptions:{module:ts.ModuleKind.ES2022}}).outputText;
+ const {safeAddress,debugScript,debugMessages} = await import('data:text/javascript;base64,'+Buffer.from(debugJs).toString('base64'));
+ const {readinessScript} = await import('data:text/javascript;base64,'+Buffer.from(readinessJs).toString('base64'));
  let script = readFileSync('mobile/webview-shell/src/pages/index/index.vue', 'utf8').split('<script setup lang="ts">')[1].split('</script>')[0];
  script = script.replace(/^import .*;\n/gm, '').replace(/\/\/ #ifndef APP-PLUS[\s\S]*?\/\/ #endif/g, '');
- const hooks = {}, events = {}, styles = [];
- let loadedURL = '', timer, appended = false, reloaded = false;
- const view = {
-  addEventListener: (name, fn) => { events[name] = fn; },
-  getURL: () => loadedURL,
-  setStyle: value => styles.push(value),
-  loadURL: url => { assert.equal(url, a + '/#/pages/login/index'); }, reload: () => { reloaded = true; }, close: () => {},
-  // Appended children must not be shown as independent windows.
-  show: () => assert.fail('show() on appended child'), hide: () => assert.fail('hide() on appended child'),
- };
+ const requests = [], windows = [], timers = new Map(); let sequence = 0;
  const context = {
-  ref: value => ({value}), config: JSON.parse(readFileSync('mobile/webview-shell/src/config.json', 'utf8')),
-  uni: {getSystemInfoSync: () => ({statusBarHeight: 24, windowHeight: 800}),
-   onWindowResize: () => {}, offWindowResize: () => {}},
-  plus: {webview: {create: () => view}},
-  getCurrentPages: () => [{$getAppWebview: () => ({append: child => {assert.equal(child, view); appended = true;}})}],
-  onReady: fn => {hooks.ready = fn;}, onShow: () => {}, onUnload: () => {}, onBackPress: () => {},
-  setTimeout: fn => {timer = fn; return 1;}, clearTimeout: () => {},
+  safeAddress, debugScript, debugMessages, readinessScript, ref: value => ({value}), config: JSON.parse(readFileSync('mobile/webview-shell/src/config.json', 'utf8')),
+  uni: {getStorageSync: () => ({tenantId:'tenant'}), request: request => requests.push(request),getSystemInfoSync: () => ({statusBarHeight: 24, windowHeight: 0}),onWindowResize: () => {},offWindowResize: () => {}},
+  plus: {webview: {create: (url,id,styles) => {
+   const view = {events:{}, styles:[styles], url:'', scripts:[], closed:false,
+    addEventListener(name,fn){this.events[name]=fn;},getURL(){return this.url;},setStyle(s){this.styles.push(s);},
+    evalJS(s){this.scripts.push(s);},loadURL(url){this.requestedURL=url;},close(){this.closed=true;},
+    show(){assert.fail('no independent show');},hide(){assert.fail('no independent hide');}};
+   windows.push(view);return view;
+  }}},
+  getCurrentPages: () => [{$getAppWebview: () => ({append: () => {}})}],
+  onReady: () => {}, onShow: () => {}, onHide: () => {}, onUnload: () => {}, onBackPress: () => {},
+  setTimeout: (fn,delay) => {const id=++sequence;timers.set(id,{fn,delay});return id;},
+  clearTimeout: id => timers.delete(id),
  };
- const js = ts.transpileModule(script + '\nglobalThis.pageTest = {open, retry, state, active};',
-  {compilerOptions: {target: ts.ScriptTarget.ES2022}}).outputText;
+ const js = ts.transpileModule(script + '\nglobalThis.pageTest = {open, retry, state, active, token:()=>readinessToken,refreshDebug,debugEnabled,debugRows};', {compilerOptions: {target: ts.ScriptTarget.ES2022}}).outputText;
  runInNewContext(js, context);
- const page = context.pageTest;
- page.open(a); page.active.value = a;
- assert.equal(appended, true);
- events.loaded(); assert.equal(page.state.value, 'loading');
- loadedURL = a + '/'; events.loaded();
- assert.equal(page.state.value, 'ready'); assert.equal(styles.at(-1).height, '776px');
- page.retry(); assert.equal(reloaded, true); timer();
- assert.equal(page.state.value, 'error'); assert.equal(styles.at(-1).height, '0px');
- events.loaded(); assert.equal(page.state.value, 'error');
- page.retry(); events.loaded(); assert.equal(page.state.value, 'ready');
+ const page = context.pageTest;page.open(a);page.active.value=a;
+ const view=windows[0];
+ assert.equal(view.requestedURL,a+'/#/pages/login/index');
+ assert.equal(view.styles[0].bottom,'0px');assert.equal(view.styles[0].height,undefined);
+ assert.equal(view.styles[0].opacity,0);assert.equal(view.styles[0].render,'always');
+ view.events.loaded();assert.equal(view.scripts.length,0);
+ view.url=a+'/';view.events.loaded();assert.equal(page.state.value,'loading');assert.equal(view.scripts.length,1);
+ const oldToken=page.token();
+ view.events.titleUpdate({title:'Spec Pay'});assert.equal(page.state.value,'loading');
+ [...timers.values()].find(t=>t.delay===30000).fn();assert.equal(page.state.value,'error');assert.equal(view.closed,true);
+ view.events.titleUpdate({title:oldToken});assert.equal(page.state.value,'error');
+ page.retry();const retry=windows[1];retry.url=a+'/';retry.events.loaded();
+ retry.events.titleUpdate({title:oldToken});assert.equal(page.state.value,'loading');
+ retry.events.titleUpdate({title:page.token()});assert.equal(page.state.value,'ready');
+ assert.equal(retry.styles.at(-1).opacity,1);assert.equal(timers.size,0);
+ page.refreshDebug();
+ requests.at(-1).success({statusCode:200,data:{tenantId:'tenant',tenantSlug:'tenant-a',enabled:true}});
+ assert.equal(page.debugEnabled.value,true);assert.equal(retry.styles.at(-1).bottom,'300px');
+ assert.ok(retry.scripts.at(-1).includes('__specpayDiagnostics'));
+ page.refreshDebug();
+ requests.at(-1).success({statusCode:200,data:{tenantId:'other',tenantSlug:'tenant-a',enabled:true}});
+ assert.equal(page.debugEnabled.value,false);assert.equal(page.debugRows.value.length,0);assert.equal(retry.styles.at(-1).bottom,'0px');
+ page.refreshDebug();requests.at(-1).success({statusCode:200,data:{tenantId:'tenant',tenantSlug:'tenant-a',enabled:true}});
+ page.refreshDebug();const oldRequest=requests.at(-1);page.refreshDebug();
+ oldRequest.success({statusCode:200,data:{tenantId:'tenant',tenantSlug:'tenant-a',enabled:false}});
+ assert.equal(page.debugEnabled.value,true);
+ requests.at(-1).fail();assert.equal(page.debugEnabled.value,false);assert.equal(page.debugRows.value.length,0);
+
 });

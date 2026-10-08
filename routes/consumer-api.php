@@ -10,6 +10,7 @@ use App\Http\Middleware\RequireConsumerApiUser;
 use App\Http\Middleware\ThrottleConsumerMedia;
 use Illuminate\Support\Facades\Route;
 
+Route::get('app-debug', [AppReleaseController::class, 'debug'])->middleware('throttle:240,1,consumer-debug:');
 Route::get('app-release', AppReleaseController::class)->middleware('throttle:240,1,consumer-release:');
 Route::get('domains', [ConsumerController::class, 'domains'])->middleware('throttle:consumer-domains');
 Route::get('bootstrap', [ConsumerController::class, 'bootstrap'])->middleware(['throttle:240,1,consumer-bootstrap:', ConsumerFlowSession::class]);

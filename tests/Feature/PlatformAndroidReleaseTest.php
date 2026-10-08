@@ -166,3 +166,25 @@ it('edits destinations at the same version and corrects version metadata without
         ->assertJsonPath('versionCode', 2358)->assertJsonPath('versionName', '2.3.58');
     expect(AuditLog::where('action', 'ANDROID_RELEASE_PUBLISHED')->count())->toBe(3);
 });
+
+it('switches company app diagnostics with revision confirmation and audit without a new version', function (): void {
+    $this->getJson('http://a.localhost/api/mobile/v1/app-debug')->assertOk()->assertJsonPath('enabled', false);
+    $this->actingAs($this->owner, 'platform_admin')->post($this->releaseUrl, $this->releaseFields + ['debugEnabled' => true])->assertSessionHasNoErrors();
+    $response = $this->getJson('http://a.localhost/api/mobile/v1/app-debug?tenant_id='.$this->releaseOther->id)
+        ->assertOk()->assertJsonPath('enabled', true)->assertJsonPath('tenantId', $this->releaseTenant->id);
+    expect($response->headers->get('Cache-Control'))->toContain('no-store');
+    $this->getJson('http://b.localhost/api/mobile/v1/app-debug')->assertOk()->assertJsonPath('enabled', false);
+    $this->getJson('http://admin.localhost/api/mobile/v1/app-debug')->assertNotFound();
+    $this->post($this->releaseUrl, $this->releaseFields + ['debugEnabled' => false])->assertSessionHasErrors('revision');
+    $next = array_replace($this->releaseFields, ['debugEnabled' => false,
+        'revision' => app(AndroidAppRelease::class)->settings($this->releaseTenant)['revision']]);
+    $this->post($this->releaseUrl, array_replace($next, ['confirmed' => false]))->assertSessionHasErrors('confirmed');
+    $this->post($this->releaseUrl, array_replace($next, ['debugEnabled' => 'unsafe']))->assertSessionHasErrors('debugEnabled');
+    $this->post($this->releaseUrl, $next)->assertSessionHasNoErrors();
+    $this->getJson('http://a.localhost/api/mobile/v1/app-debug')->assertOk()->assertJsonPath('enabled', false);
+    expect(AuditLog::where('action', 'ANDROID_RELEASE_PUBLISHED')->count())->toBe(2)
+        ->and(app(AndroidAppRelease::class)->current($this->releaseTenant->id)['versionCode'])->toBe(2359);
+    $this->owner->memberships()->delete();
+    $next['revision'] = app(AndroidAppRelease::class)->settings($this->releaseTenant)['revision'];
+    $this->post($this->releaseUrl, array_replace($next, ['debugEnabled' => true]))->assertForbidden();
+});

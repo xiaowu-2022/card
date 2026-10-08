@@ -19,6 +19,7 @@ final class AndroidAppRelease
         return [
             'androidDownloadUrl' => ['sometimes', 'required', 'string', 'max:2048', 'url:http,https', 'not_regex:/[\s\\\\]/', 'regex:#^https?://[^/@]+(?:[/?\#]|$)#i'],
             'iosDistributionUrl' => ['sometimes', 'nullable', 'string', 'max:2048', 'url:http,https', 'not_regex:/[\s\\\\]/', 'regex:#^https?://[^/@]+(?:[/?\#]|$)#i'],
+            'debugEnabled' => ['sometimes', 'boolean'],
             'versionCode' => ['required', 'integer', 'min:1', 'max:2100000000'],
             'versionName' => ['required', 'string', 'max:100', 'regex:/^\d+\.\d+\.\d+(?:[.-][a-zA-Z0-9]+)*$/D'],
             'appId' => ['required', 'string', 'max:100', 'regex:/^__UNI__[A-Z0-9]+$/D'],
@@ -69,6 +70,7 @@ final class AndroidAppRelease
         $release = $this->current($tenant->id);
 
         return ['current' => $release === null ? null : array_intersect_key($release, array_flip(['appId', 'versionCode', 'versionName'])),
+            'debugEnabled' => ($release['debugEnabled'] ?? false) === true,
             'revision' => $this->revision($release), 'available' => $this->available($release),
             ...$this->destinations($release)];
     }
@@ -89,19 +91,23 @@ final class AndroidAppRelease
         }
         $metadata = Validator::make($data, self::rules())->validate();
         $metadata['versionCode'] = (int) $metadata['versionCode'];
+        if (array_key_exists('debugEnabled', $metadata)) {
+            $metadata['debugEnabled'] = (bool) $metadata['debugEnabled'];
+        }
         DB::transaction(function () use ($tenant, $metadata, $actor, $requestId, $expectedRevision): void {
             Tenant::whereKey($tenant->id)->lockForUpdate()->firstOrFail();
             if ($actor) {
                 app(CompanyConfigurationAuthority::class)->assert($actor);
             }
             $old = $this->current($tenant->id);
-            // Legacy CLI callers preserve configured destinations rather than resetting them.
+            // Legacy CLI callers preserve configured debug mode and destinations rather than resetting them.
             $metadata += [
+                'debugEnabled' => ($old['debugEnabled'] ?? false) === true,
                 'androidDownloadUrl' => $old['androidDownloadUrl'] ?? self::DOWNLOAD_URL,
                 'iosDistributionUrl' => $old['iosDistributionUrl'] ?? null,
             ];
             // Identical retries do not create a second publication/audit entry.
-            if ($old !== null && array_intersect_key($old + ['androidDownloadUrl' => self::DOWNLOAD_URL, 'iosDistributionUrl' => null], $metadata) == $metadata) {
+            if ($old !== null && array_intersect_key($old + ['debugEnabled' => false, 'androidDownloadUrl' => self::DOWNLOAD_URL, 'iosDistributionUrl' => null], $metadata) == $metadata) {
                 return;
             }
             if ($expectedRevision !== null && ! hash_equals($this->revision($old), $expectedRevision)) {

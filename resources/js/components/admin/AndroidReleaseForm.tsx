@@ -12,6 +12,7 @@ export type AndroidReleaseSettings = {
     current: { appId: string; versionName: string; versionCode: number } | null;
     revision: string;
     available: boolean;
+    debugEnabled?: boolean;
     downloadUrl: string;
     androidDownloadUrl: string;
     iosDistributionUrl: string | null;
@@ -27,6 +28,7 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
         versionCode: release.current ? String(release.current.versionCode) : '',
         revision: release.revision,
         confirmed: false,
+        debugEnabled: release.debugEnabled ?? false,
     });
     return (
         <Card className="max-w-3xl">
@@ -141,6 +143,24 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
                                 />
                             </FormField>
                         ))}
+                        <FormField
+                            id="app-debug-enabled"
+                            label={t('App debug mode')}
+                            error={errorMessage(form.errors.debugEnabled)}
+                        >
+                            <label className="flex items-start gap-2 text-sm">
+                                <Checkbox
+                                    id="app-debug-enabled"
+                                    checked={form.data.debugEnabled}
+                                    onCheckedChange={(checked) =>
+                                        form.setData('debugEnabled', checked === true)
+                                    }
+                                />
+                                {t(
+                                    'Show page address, loading status and sanitized diagnostics in the app. Turning off clears diagnostics within 15 seconds while online. Requires a compatible APK.',
+                                )}
+                            </label>
+                        </FormField>
                         <FormField
                             id="android-confirmed"
                             label={t('Publish confirmation')}
