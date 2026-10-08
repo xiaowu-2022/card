@@ -1,3 +1,7 @@
+On 2026-10-08 the user changed the fixed OCR service origin to
+http://202.95.12.20:9601, superseding the previous .185 address. Preserve
+GET /ocr with the server-generated image query and existing recognition rules.
+
 On 2026-10-08 the user removed the Platform company drawer Basic information tab
 and placed lifecycle switches on company list rows. Configuration defaults to Domains;
 legacy onboarding editor links map to Domains. Preserve confirmation, tenant.manage,

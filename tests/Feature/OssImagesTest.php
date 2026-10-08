@@ -153,7 +153,7 @@ it('keeps stored objects bound to immutable configuration versions and retains a
 it('sends OCR only direct OSS original URLs and no image bytes', function () {
     enableOssFixture($this);
     config(['kyc.ocr_driver' => 'image_url']);
-    Http::fake(['202.95.12.185:9601/*' => Http::response(['texts' => ['Passport No: E12345678']])]);
+    Http::fake(['202.95.12.20:9601/*' => Http::response(['texts' => ['Passport No: E12345678']])]);
     $app = app(SubmitKycApplicationAction::class)->execute($this->company, $this->user, 'CN', 'E12345678', kycTestImage(), null, documentType: KycDocumentType::Passport);
     Http::assertSent(function ($request) use ($app) {
         parse_str(parse_url($request->url(), PHP_URL_QUERY), $query);

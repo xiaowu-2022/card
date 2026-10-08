@@ -1,7 +1,7 @@
 # Image URL KYC (2026-10-01)
 
 The user replaced Aliyun and OCR.Space with the fixed endpoint
-`http://202.95.12.185:9601/ocr`. Laravel sends one GET with an `image` query
+`http://202.95.12.20:9601/ocr`. Laravel sends one GET with an `image` query
 parameter containing its own generated front-original URL. Query encoding preserves
 the complete signed URL. As requested on 2026-10-01, OSS original URLs sent to OCR
 use HTTP even when the configured public prefix uses HTTPS. Only the scheme is

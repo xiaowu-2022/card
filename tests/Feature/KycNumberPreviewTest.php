@@ -20,7 +20,7 @@ beforeEach(function () {
     Storage::fake('private');
     Http::preventStrayRequests();
     $this->ocrTexts = ['测试姓名', '公民身份号码11010519491231002X'];
-    Http::fake(['202.95.12.185:9601/*' => fn () => Http::response(['texts' => $this->ocrTexts])]);
+    Http::fake(['202.95.12.20:9601/*' => fn () => Http::response(['texts' => $this->ocrTexts])]);
     $this->tenant = Tenant::where('slug', 'tenant-a')->firstOrFail();
     $this->user = User::where('tenant_id', $this->tenant->id)->where('email', 'user@a.localhost')->firstOrFail();
     PlatformKycSetting::current()->update(['review_mode' => 'AUTOMATIC']);
