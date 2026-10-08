@@ -1,4 +1,4 @@
-import { ReceiptTypeSelect } from '@/components/admin/ReceiptTypeSelect';
+import { ManualReceiptForm } from '@/components/admin/ManualReceiptForm';
 import { WithdrawalExport } from '@/components/admin/WithdrawalExport';
 import { DetailDrawerContent } from '@/components/admin/DetailDrawer';
 import { AssetNavigation } from '@/components/admin/AssetNavigation';
@@ -35,6 +35,7 @@ type Order = {
     asset: string;
     network: string | null;
     amount: string;
+    actualReceivedAmount?: string | null;
     status: string;
     created_at: string;
     arrival_at: string | null;
@@ -443,7 +444,16 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
                         )}
                     </>
                 )}
-            {action && (
+            {action === 'confirm' && (
+                <ManualReceiptForm
+                    amount={o.amount}
+                    asset={o.asset}
+                    canAdvance={o.canAdvance && permissions.includes('partners.manage')}
+                    url={`/platform/tenants/${o.tenant_id}/${o.legacy ? 'topups' : 'asset-orders'}/${o.id}/confirm`}
+                    onSuccess={() => setAction('')}
+                />
+            )}
+            {action && action !== 'confirm' && (
                 <div className="space-y-3 rounded-xl bg-muted p-4">
                     <p className="text-sm">
                         {t(
@@ -467,17 +477,6 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
                         />
                     )}
 
-                    {action === 'confirm' && (
-                        <ReceiptTypeSelect
-                            value={form.data.receipt_type}
-                            canAdvance={o.canAdvance && permissions.includes('partners.manage')}
-                            disabled={form.processing}
-                            onChange={(value) => {
-                                form.setData('receipt_type', value);
-                                form.setData('confirmed', false);
-                            }}
-                        />
-                    )}
                     <label className="flex min-h-11 items-center gap-3 text-sm">
                         <input
                             type="checkbox"
@@ -490,6 +489,11 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
                         {t('Confirm')}
                     </Button>
                 </div>
+            )}
+            {o.actualReceivedAmount && (
+                <p className="text-sm">
+                    {t('Actual received amount')}: {exactAmount(o.actualReceivedAmount)} {o.asset}
+                </p>
             )}
             {!!o.operations?.length && <ManualOperationHistory operations={o.operations} />}
             {Object.values(form.errors).map((m, i) => (

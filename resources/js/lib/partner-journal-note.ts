@@ -10,3 +10,21 @@ export function partnerJournalNote(
     const id = receipt?.[1];
     return id ? translate('Manual deposit · Order ID: {{id}}', { id }) : note;
 }
+
+export function partnerJournalKind(kind: string): string {
+    return (
+        (
+            {
+                ADVANCE: 'Advance',
+                REIMBURSEMENT: 'Reimbursement',
+                ADJUSTMENT_INCREASE: 'Increase theoretical balance',
+                ADJUSTMENT_DECREASE: 'Decrease theoretical balance',
+            } as Record<string, string>
+        )[kind] ?? kind
+    );
+}
+
+export function partnerJournalSign(kind: string, reversal: string | null): string {
+    const negative = (kind === 'ADJUSTMENT_DECREASE') !== Boolean(reversal);
+    return negative ? '−' : kind.startsWith('ADJUSTMENT_') ? '+' : '';
+}

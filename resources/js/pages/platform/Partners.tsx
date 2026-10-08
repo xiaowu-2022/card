@@ -1,3 +1,4 @@
+import { partnerJournalKind } from '@/lib/partner-journal-note';
 import { PartnerHierarchyPanel } from '@/components/admin/PartnerHierarchyPanel';
 import { DetailDrawerContent } from '@/components/admin/DetailDrawer';
 import { PartnerInvitationsReport } from '@/components/admin/PartnerInvitationsReport';
@@ -216,6 +217,15 @@ export default function Partners({
     };
     const submitJournal = (e: FormEvent) => {
         e.preventDefault();
+        const adjustment = journal.data.kind.startsWith('ADJUSTMENT_');
+        if (
+            adjustment &&
+            !confirm(
+                `${journalAccount} · ${t(partnerJournalKind(journal.data.kind))} · ${journal.data.amount} USDT${journal.data.reverses_id ? ` · ${t('Reversal')}` : ''}\n${t('Confirm this theoretical balance adjustment?')}`,
+            )
+        )
+            return;
+        journal.transform((data) => ({ ...data, ...(adjustment ? { confirmed: true } : {}) }));
         if (targetCompany && (journalPartner || report?.partnerId))
             journal.post(
                 `/platform/tenants/${targetCompany}/partners/${journalPartner || report?.partnerId}/journal`,
@@ -507,6 +517,12 @@ export default function Partners({
                                                 {t('Reimbursement')}
                                             </option>
                                             <option value="ADVANCE">{t('Advance')}</option>
+                                            <option value="ADJUSTMENT_INCREASE">
+                                                {t('Increase theoretical balance')}
+                                            </option>
+                                            <option value="ADJUSTMENT_DECREASE">
+                                                {t('Decrease theoretical balance')}
+                                            </option>
                                         </select>
                                     </label>
                                     <label>

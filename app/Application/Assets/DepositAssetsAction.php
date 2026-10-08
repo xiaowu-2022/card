@@ -74,7 +74,7 @@ final readonly class DepositAssetsAction
         }, 3);
     }
 
-    public function manual(string $tenantId, string $id, AdminUser $actor, string $requestId, bool $confirmed, string $receiptType = 'ACTUAL'): AssetDepositOrder
+    public function manual(string $tenantId, string $id, AdminUser $actor, string $requestId, bool $confirmed, string $receiptType = 'ACTUAL', ?string $actualReceivedAmount = null): AssetDepositOrder
     {
         $this->access->platform($actor, 'wallet_topups.confirm');
         AssetAccess::requestId($requestId);
@@ -82,7 +82,7 @@ final readonly class DepositAssetsAction
             throw new DomainException('CONFIRMATION_REQUIRED', 'Explicit confirmation is required.');
         }
 
-        return DB::transaction(function () use ($tenantId, $id, $actor, $requestId, $receiptType) {
+        return DB::transaction(function () use ($tenantId, $id, $actor, $requestId, $receiptType, $actualReceivedAmount) {
             AssetAccess::lock('asset-manual:'.$actor->id.':'.$requestId);
             $order = AssetDepositOrder::query()->where('tenant_id', $tenantId)->whereKey($id)->lockForUpdate()->firstOrFail();
             $this->access->platform($actor, 'wallet_topups.confirm');
@@ -90,7 +90,8 @@ final readonly class DepositAssetsAction
             if ($used && ($used->id !== $order->id || $used->tenant_id !== $tenantId)) {
                 throw new DomainException('IDEMPOTENCY_CONFLICT', 'This request identifier was already used.', 409);
             }
-            app(ManualDepositReceipt::class)->checkRetry($order, $receiptType, $requestId, 'manual_request_id', $actor);
+            $amount = app(ManualDepositReceipt::class)->amount($order, $actualReceivedAmount);
+            app(ManualDepositReceipt::class)->checkRetry($order, $receiptType, $requestId, 'manual_request_id', $actor, $amount);
             if ($order->status === 'CREDITED') {
                 return $order;
             }
@@ -98,7 +99,7 @@ final readonly class DepositAssetsAction
                 throw new DomainException('TOPUP_CONFIRMATION_UNAVAILABLE', 'This deposit is not eligible for manual confirmation.', 409);
             }
 
-            $order->forceFill(app(ManualDepositReceipt::class)->attributes($order, $actor, $receiptType));
+            $order->forceFill(app(ManualDepositReceipt::class)->attributes($order, $actor, $receiptType, $amount));
 
             return $this->credit($order, null, $actor, $requestId);
         }, 3);
@@ -135,13 +136,14 @@ final readonly class DepositAssetsAction
         $wallet = Wallet::query()->where('tenant_id', $order->tenant_id)->where('user_id', $order->user_id)->where('asset_code', $order->asset_code)->whereKey($order->wallet_id)->firstOrFail();
         $available = $this->access->account($wallet, 'USER_AVAILABLE');
         $clearing = $this->access->companyAccount($order->tenant_id, $order->asset_code, 'TENANT_TOPUP_CLEARING');
-        $entry = $this->ledger->post(new LedgerPostingPlan($order->tenant_id, $order->asset_code, 'asset_deposit:'.$order->id.':credit', 'ASSET_DEPOSIT', 'ASSET_DEPOSIT', $order->id, null, [new LedgerPostingInstruction($clearing->id, Money::of('-'.$order->amount, $order->asset_code)), new LedgerPostingInstruction($available->id, Money::of($order->amount, $order->asset_code))]));
+        $amount = $order->actual_received_amount ?? $order->amount;
+        $entry = $this->ledger->post(new LedgerPostingPlan($order->tenant_id, $order->asset_code, 'asset_deposit:'.$order->id.':credit', 'ASSET_DEPOSIT', 'ASSET_DEPOSIT', $order->id, null, [new LedgerPostingInstruction($clearing->id, Money::of('-'.$amount, $order->asset_code)), new LedgerPostingInstruction($available->id, Money::of($amount, $order->asset_code))]));
         $changes = ['status' => 'CREDITED', 'chain_event_id' => $event, 'ledger_entry_id' => $entry->id];
         if ($actor) {
             $changes += ['manual_confirmed_by' => $actor->id, 'manual_confirmed_at' => now(), 'manual_request_id' => $request];
         }
         $order->update($changes);
-        $this->audit->record($order->tenant_id, $actor ? 'ADMIN' : 'SYSTEM', $actor?->id, $actor ? 'ASSET_DEPOSIT_MANUALLY_CONFIRMED' : 'ASSET_DEPOSIT_CREDITED', 'asset_deposit_order', $order->id, null, ['amount' => $order->amount, 'asset' => $order->asset_code, 'chain_verified' => $event !== null, 'manual_receipt_type' => $order->manual_receipt_type, 'advance_journal_id' => $order->advance_journal_id], $request);
+        $this->audit->record($order->tenant_id, $actor ? 'ADMIN' : 'SYSTEM', $actor?->id, $actor ? 'ASSET_DEPOSIT_MANUALLY_CONFIRMED' : 'ASSET_DEPOSIT_CREDITED', 'asset_deposit_order', $order->id, null, ['order_amount' => $order->amount, 'amount' => $amount, 'difference' => (string) BigDecimal::of($amount)->minus($order->amount), 'asset' => $order->asset_code, 'chain_verified' => $event !== null, 'manual_receipt_type' => $order->manual_receipt_type, 'advance_journal_id' => $order->advance_journal_id], $request);
 
         return $order->refresh();
     }

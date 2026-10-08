@@ -1,3 +1,30 @@
+## Theoretical balance adjustments (2026-10-08)
+
+Platform Partners → Record entry now offers Increase theoretical balance and Decrease
+theoretical balance. Both accept positive USDT decimal strings (up to 18 integer and
+8 fractional digits), business date and required note. Explicit confirmation is
+required for adjustments and their reversals. Existing partners.manage checks,
+company/partner locking, request idempotency, immutable actor/request audit and
+append-only journals remain in force. The types are ADJUSTMENT_INCREASE and
+ADJUSTMENT_DECREASE. Reversal reuses the same type/amount and negates its original
+effect; each original may be reversed only once.
+
+Personal accountBalance.adjustments is the signed net of only the selected company's
+selected partner records. Add it to the existing theoretical formula; difference
+remains theoretical minus actual. accountBalance.hasAdjustments indicates any own
+adjustment history, so App/H5 and Platform show Adjustment amount even when offsetting
+entries or reversals net to zero. No adjustment history means the extra row is hidden.
+Cooperation journals retain their existing owner/descendant visibility and show the
+new types, amounts and signed reversal effects. Descendant entries do not alter the
+parent's personal theoretical balance.
+
+These entries do not post Ledger, create wallets, mutate actual balances, affect
+business stock/shares/trends, or enter advance/reimbursement totals. Historical
+records are unchanged. GETs remain read-only. Deploy migration
+2026_10_08_190000_add_partner_theoretical_adjustments with PHP and rebuilt admin/H5;
+native apps require a new build for the display. Migration rollback fails if new
+adjustment history exists, preserving immutable cooperation evidence.
+
 On 2026-10-08 the user restricted consumer stock reports to currently enabled
 partners only. Default, ordinary and disabled users have no access, regardless of
 KYC progress. Check company-scoped partner status before report reads, hide the

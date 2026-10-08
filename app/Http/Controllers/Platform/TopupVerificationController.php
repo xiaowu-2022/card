@@ -40,13 +40,13 @@ final class TopupVerificationController extends Controller
     public function confirm(Request $request, Tenant $tenant, string $topup, ConfirmPlatformTopupAction $confirm)
     {
         $data = $request->validate([
-            'receipt_type' => ['sometimes', 'required', 'in:ACTUAL,ADVANCE'],
+            'actual_received_amount' => ['required', 'string', 'max:31'], 'receipt_type' => ['sometimes', 'required', 'in:ACTUAL,ADVANCE'],
             'request_id' => ['required', 'uuid'], 'confirmed' => ['required', 'accepted'],
             'amount' => ['prohibited'], 'asset' => ['prohibited'], 'tenant_id' => ['prohibited'],
             'user_id' => ['prohibited'], 'wallet_id' => ['prohibited'], 'status' => ['prohibited'],
         ]);
-        $confirm->execute($tenant->id, $topup, $data['request_id'], $request->user('platform_admin'), true, $data['receipt_type'] ?? 'ACTUAL');
+        $confirm->execute($tenant->id, $topup, $data['request_id'], $request->user('platform_admin'), true, $data['receipt_type'] ?? 'ACTUAL', $data['actual_received_amount']);
 
-        return back()->with('success', 'Top-up confirmed. The full order amount has been credited.');
+        return back()->with('success', 'Top-up confirmed. The actual received amount has been credited.');
     }
 }

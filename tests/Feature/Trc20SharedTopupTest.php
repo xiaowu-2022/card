@@ -235,10 +235,10 @@ it('manually confirms the exact full amount without any online call and credits 
     $order = createTrc20Topup($this);
     $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
     $url = "http://admin.localhost/platform/tenants/{$this->tenant->id}/topups/{$order->id}/confirm";
-    $data = ['request_id' => (string) Str::uuid(), 'confirmed' => true];
+    $data = ['request_id' => (string) Str::uuid(), 'confirmed' => true, 'actual_received_amount' => '100.01'];
     $this->actingAs($owner, 'platform_admin')->postJson($url, $data)->assertRedirect();
     $this->postJson($url, $data)->assertRedirect();
-    $this->postJson($url, ['request_id' => (string) Str::uuid(), 'confirmed' => true])->assertRedirect();
+    $this->postJson($url, ['request_id' => (string) Str::uuid(), 'confirmed' => true, 'actual_received_amount' => '100.01'])->assertRedirect();
     Http::assertNothingSent();
     $saved = $order->fresh();
     expect($saved->status)->toBe(WalletTopupStatus::Credited)
@@ -263,16 +263,16 @@ it('requires explicit acknowledgement and separate SaaS permission for manual co
     $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
     $company = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
     $url = "http://admin.localhost/platform/tenants/{$this->tenant->id}/topups/{$order->id}/confirm";
-    $data = ['request_id' => (string) Str::uuid(), 'confirmed' => true];
+    $data = ['request_id' => (string) Str::uuid(), 'confirmed' => true, 'actual_received_amount' => '100.01'];
     $this->actingAs($company, 'platform_admin')->postJson($url, $data)->assertForbidden();
     $this->actingAs($company, 'tenant_admin')->postJson("http://a.localhost/admin/topups/{$order->id}/confirm", $data)->assertNotFound();
-    expect(fn () => app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $order->id, $data['request_id'], $company, true))->toThrow(DomainException::class);
+    expect(fn () => app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $order->id, $data['request_id'], $company, true, 'ACTUAL', $order->amount))->toThrow(DomainException::class);
     $this->actingAs($owner, 'platform_admin')->postJson($url, ['request_id' => $data['request_id']])->assertUnprocessable();
     $this->postJson($url, [...$data, 'confirmed' => false])->assertUnprocessable();
     $this->postJson($url, [...$data, 'amount' => '999', 'tenant_id' => $this->tenant->id])->assertUnprocessable();
     $permission = DB::table('permissions')->where('name', 'wallet_topups.confirm')->value('id');
     DB::table('role_permissions')->where('permission_id', $permission)->delete();
-    expect(fn () => app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $order->id, $data['request_id'], $owner, true))->toThrow(DomainException::class)
+    expect(fn () => app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $order->id, $data['request_id'], $owner, true, 'ACTUAL', $order->amount))->toThrow(DomainException::class)
         ->and($order->fresh()->status)->toBe(WalletTopupStatus::Pending)->and(LedgerEntry::query()->count())->toBe(0);
 });
 
@@ -283,16 +283,16 @@ it('binds manual request identity and company ownership and rolls back atomicall
     $action = app(ConfirmPlatformTopupAction::class);
     $request = (string) Str::uuid();
     $foreign = Tenant::query()->where('slug', 'tenant-b')->value('id');
-    expect(fn () => $action->execute($foreign, $first->id, $request, $owner, true))->toThrow(ModelNotFoundException::class);
+    expect(fn () => $action->execute($foreign, $first->id, $request, $owner, true, 'ACTUAL', $first->amount))->toThrow(ModelNotFoundException::class);
     expect(fn () => DB::transaction(function () use ($action, $first, $request, $owner): void {
-        $action->execute($this->tenant->id, $first->id, $request, $owner, true);
+        $action->execute($this->tenant->id, $first->id, $request, $owner, true, 'ACTUAL', $first->amount);
         throw new RuntimeException('Rollback test');
     }))->toThrow(RuntimeException::class);
     expect($first->fresh()->status)->toBe(WalletTopupStatus::Pending)->and($first->fresh()->manual_confirmed_at)->toBeNull()
         ->and(LedgerEntry::query()->count())->toBe(0)
         ->and(DB::table('audit_logs')->where('action', 'PLATFORM_TOPUP_MANUALLY_CONFIRMED')->count())->toBe(0);
-    $action->execute($this->tenant->id, $first->id, $request, $owner, true);
-    expect(fn () => $action->execute($this->tenant->id, $second->id, $request, $owner, true))->toThrow(DomainException::class)
+    $action->execute($this->tenant->id, $first->id, $request, $owner, true, 'ACTUAL', $first->amount);
+    expect(fn () => $action->execute($this->tenant->id, $second->id, $request, $owner, true, 'ACTUAL', $second->amount))->toThrow(DomainException::class)
         ->and($second->fresh()->status)->toBe(WalletTopupStatus::Pending);
     expect(fn () => DB::transaction(fn () => DB::table('wallet_topup_orders')->where('id', $first->id)->update(['manual_confirmed_at' => now()->addSecond()])))->toThrow(QueryException::class)
         ->and(fn () => $first->fresh()->forceFill(['manual_confirmed_by' => null])->save())->toThrow(LogicException::class);
@@ -302,14 +302,14 @@ it('does not revive expired failed cancelled or review topups by manual confirma
     $order = createTrc20Topup($this);
     DB::table('wallet_topup_orders')->where('id', $order->id)->update(['status' => $status]);
     $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
-    expect(fn () => app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $order->id, (string) Str::uuid(), $owner, true))->toThrow(DomainException::class)
+    expect(fn () => app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $order->id, (string) Str::uuid(), $owner, true, 'ACTUAL', $order->amount))->toThrow(DomainException::class)
         ->and(LedgerEntry::query()->count())->toBe(0);
 })->with(['EXPIRED', 'FAILED', 'CANCELLED', 'REQUIRES_REVIEW']);
 
 it('keeps manually confirmed amounts reserved and ignores later matching receipts without double credit', function (): void {
     $order = createTrc20Topup($this);
     $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
-    app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $order->id, (string) Str::uuid(), $owner, true);
+    app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $order->id, (string) Str::uuid(), $owner, true, 'ACTUAL', $order->amount);
     expect(app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($order)))->toBe('UNMATCHED');
     $next = createTrc20Topup($this);
     expect($next->expected_amount)->toBe('100.02000000')
@@ -326,13 +326,13 @@ it('serializes manual confirmation with detected or already credited chain recei
     $transfer = trc20Transfer($order, 1);
     expect(app(ProcessIncomingTrc20TransferAction::class)->execute($transfer))->toBe('CONFIRMING');
     $owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
-    app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $order->id, (string) Str::uuid(), $owner, true);
+    app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $order->id, (string) Str::uuid(), $owner, true, 'ACTUAL', $order->amount);
     expect(app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($order)))->toBe('CREDITED')
         ->and($order->fresh()->matched_tx_hash)->toBe($transfer->txHash)
         ->and($order->fresh()->blockchain_confirmed_at)->toBeNull();
     $automatic = createTrc20Topup($this, '200');
     app(ProcessIncomingTrc20TransferAction::class)->execute(trc20Transfer($automatic));
-    app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $automatic->id, (string) Str::uuid(), $owner, true);
+    app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $automatic->id, (string) Str::uuid(), $owner, true, 'ACTUAL', $automatic->amount);
     expect($automatic->fresh()->manual_confirmed_at)->toBeNull()
         ->and(LedgerEntry::query()->where('event_type', 'WALLET_TOPUP_CREDIT')->count())->toBe(2);
 });

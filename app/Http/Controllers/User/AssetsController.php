@@ -88,7 +88,7 @@ final class AssetsController extends Controller
 
     private function dto($o, string $mode): array
     {
-        $base = ['id' => $o->id, 'asset' => $o->asset_code, 'amount' => $o->amount, 'state' => match ($o->status) {
+        $base = ['id' => $o->id, 'asset' => $o->asset_code, 'amount' => $o->actual_received_amount ?? $o->amount, 'state' => match ($o->status) {
             'CREDITED','COMPLETED' => 'Completed','QUOTED' => 'Review exchange','CANCELLED' => 'Cancelled','REJECTED' => 'Rejected','REQUIRES_REVIEW' => 'Under review',default => 'Processing'
         }];
 

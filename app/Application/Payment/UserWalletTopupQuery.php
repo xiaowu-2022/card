@@ -54,9 +54,12 @@ final readonly class UserWalletTopupQuery
         return [
             'id' => $order->id,
             'reference' => strtoupper(substr(str_replace('-', '', $order->id), 0, 12)),
-            'amount' => $order->amount,
+            'amount' => $order->actual_received_amount ?? $order->amount,
             'requestedAmount' => $order->requested_amount ?? $order->amount,
-            'expectedAmount' => $order->expected_amount ?? $order->amount,
+            // Installed clients render this field on the completed receipt as well.
+            // Keep the original payment instruction separately; database matching is unchanged.
+            'orderAmount' => $order->expected_amount ?? $order->amount,
+            'expectedAmount' => $order->actual_received_amount ?? $order->expected_amount ?? $order->amount,
             'identificationIncrement' => $order->identification_increment,
             'asset' => $order->asset_code,
             'status' => match (true) {

@@ -33,7 +33,10 @@ final class PartnerManagement
     public function journal(AdminUser $actor, string $tenant, string $partner, array $input): object
     {
         app(AssetAccess::class)->platform($actor, 'partners.manage');
-        $data = Validator::make($input, ['kind' => 'required|in:REIMBURSEMENT,ADVANCE', 'amount' => ['required', 'regex:/^\d{1,18}(\.\d{1,8})?$/', 'numeric', 'gt:0'], 'business_date' => 'required|date_format:Y-m-d', 'note' => 'required|string|max:2000', 'request_id' => 'required|uuid', 'reverses_id' => 'nullable|uuid'])->validate();
+        $data = Validator::make($input, ['kind' => 'required|in:REIMBURSEMENT,ADVANCE,ADJUSTMENT_INCREASE,ADJUSTMENT_DECREASE', 'amount' => ['required', 'regex:/^\d{1,18}(\.\d{1,8})?$/', 'numeric', 'gt:0'], 'business_date' => 'required|date_format:Y-m-d', 'note' => 'required|string|max:2000', 'request_id' => 'required|uuid', 'reverses_id' => 'nullable|uuid'])->validate();
+        if (in_array($data['kind'], ['ADJUSTMENT_INCREASE', 'ADJUSTMENT_DECREASE'], true)) {
+            Validator::make($input, ['confirmed' => 'required|accepted'])->validate();
+        }
         $data['amount'] = (string) BigDecimal::of($data['amount'])->toScale(8);
         $data['reverses_id'] ??= null;
         $hash = hash('sha256', json_encode([$partner, $data]));

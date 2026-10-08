@@ -1,7 +1,11 @@
 import { displayMoney as adminAmount } from '@/lib/admin-amount';
 import { t, dateTime } from '@/i18n';
 import { fullMoney } from '@/lib/promotion-report';
-import { partnerJournalNote } from '@/lib/partner-journal-note';
+import {
+    partnerJournalNote,
+    partnerJournalKind,
+    partnerJournalSign,
+} from '@/lib/partner-journal-note';
 
 export type StockPage<T> = { items: T[]; page: number; total: number; hasMore: boolean };
 export type JournalRow = {
@@ -77,6 +81,8 @@ export type StockReport = {
         annualCommission: string;
         unclassifiedCommission: string;
         reimbursements: string;
+        adjustments: string;
+        hasAdjustments: boolean;
         theoretical: string;
         actual: string;
         difference: string;
@@ -363,6 +369,9 @@ export function PartnerStockReport({
                     <dl>
                         {(
                             [
+                                ...(r.accountBalance.hasAdjustments
+                                    ? [['adjustments', 'Adjustment amount'] as const]
+                                    : []),
                                 ['theoretical', 'Theoretical account balance'],
                                 ['actual', 'Actual account balance'],
                                 ['difference', 'Account balance difference'],
@@ -376,7 +385,7 @@ export function PartnerStockReport({
                     </dl>
                     <p className="stock-muted">
                         {t(
-                            'Theoretical balance = personal net advances (less paid agent annual fees) + net commissions received − personal net reimbursements. Annual fees include converted deposits. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
+                            'Theoretical balance = personal net advances (less paid agent annual fees) + net commissions received − personal net reimbursements + net adjustments. Annual fees include converted deposits. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
                         )}
                     </p>
                 </section>
@@ -483,11 +492,11 @@ export function PartnerStockReport({
                                 {showUserIdentity
                                     ? `${row.display_name || '—'} · ${row.email || '—'}`
                                     : row.account_id}{' '}
-                                · {t(row.kind === 'ADVANCE' ? 'Advance' : 'Reimbursement')}{' '}
+                                · {t(partnerJournalKind(row.kind))}{' '}
                                 {row.reverses_id && `· ${t('Reversal')}`}
                             </strong>
                             <span>
-                                {row.reverses_id ? '−' : ''}
+                                {partnerJournalSign(row.kind, row.reverses_id)}
                                 {value(row.amount)} · {row.business_date}
                             </span>
                             <p>{partnerJournalNote(row.note, t)}</p>

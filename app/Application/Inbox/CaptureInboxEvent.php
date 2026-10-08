@@ -58,7 +58,7 @@ final class CaptureInboxEvent
         }
         $data = [];
         $asset = $row->asset_code ?? $row->wallet_asset ?? 'USDT';
-        $amount = $row->amount ?? $row->initial_load_amount ?? $row->principal ?? null;
+        $amount = $row->actual_received_amount ?? $row->amount ?? $row->initial_load_amount ?? $row->principal ?? null;
         $identity = $row->id;
         if ($template === 'withdrawal_success') {
             $amount = $row->receive_amount ?? (string) BigDecimal::of($row->amount)->minus($row->fee_amount);

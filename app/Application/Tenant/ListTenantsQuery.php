@@ -16,7 +16,7 @@ final class ListTenantsQuery
         return $this->filtered($search, $status, $company)->select('tenants.*')
             ->with(['domains' => fn ($query) => $query->orderBy('hostname')])
             ->when($financialAccess['inflow'] ?? false, fn ($query) => $query->selectSub(
-                $this->orders('wallet_topup_orders', 'CREDITED')->whereColumn('tenant_id', 'tenants.id')->selectRaw('COALESCE(SUM(amount), 0)::text'), 'inflow'))
+                $this->orders('wallet_topup_orders', 'CREDITED')->whereColumn('tenant_id', 'tenants.id')->selectRaw('COALESCE(SUM(COALESCE(actual_received_amount, amount)), 0)::text'), 'inflow'))
             ->when($financialAccess['outflow'] ?? false, fn ($query) => $query->selectSub(
                 $this->orders('withdrawal_orders', 'SUCCEEDED')->whereColumn('tenant_id', 'tenants.id')->selectRaw('COALESCE(SUM(amount), 0)::text'), 'outflow'))
             ->latest()->orderBy('id')
@@ -40,7 +40,7 @@ final class ListTenantsQuery
             if ($financialAccess[$key] ?? false) {
                 // Identical company filters, deliberately before pagination; orders are counted once.
                 $sum = $this->orders($table, $state)->whereIn('tenant_id', $this->filtered($search, $status, $company)->select('id'))
-                    ->selectRaw('COALESCE(SUM(amount), 0)::text AS total')->first()->total;
+                    ->selectRaw('COALESCE(SUM('.($key === 'inflow' ? 'COALESCE(actual_received_amount, amount)' : 'amount').'), 0)::text AS total')->first()->total;
                 $totals[$key] = $this->decimal($sum);
             }
         }

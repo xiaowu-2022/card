@@ -22,10 +22,11 @@ final class PlatformDailyFundsQuery
             // Platform-only reporting: persisted company IDs, independent order aggregates,
             // half-open UTC boundaries, and completion date rather than order creation date.
             $companies = Tenant::query()->select('id')->when($filters['scope'] === 'selected', fn ($q) => $q->whereIn('id', $filters['companies']));
+            $amountColumn = $key === 'inflow' ? 'COALESCE(actual_received_amount, amount)' : 'amount';
             $daily[$key] = DB::table($table)->whereIn('tenant_id', $companies)
                 ->where('asset_code', 'USDT')->where('status', $state)
                 ->where($timestamp, '>=', $start->utc())->where($timestamp, '<', $end->addDay()->utc())
-                ->selectRaw("({$timestamp} AT TIME ZONE ?)::date::text AS day, SUM(amount)::text AS amount", [PlatformFundsFilters::TIMEZONE])
+                ->selectRaw("({$timestamp} AT TIME ZONE ?)::date::text AS day, SUM({$amountColumn})::text AS amount", [PlatformFundsFilters::TIMEZONE])
                 ->groupByRaw('1')->pluck('amount', 'day');
             $totals[$key] = BigDecimal::zero()->toScale(8);
         }

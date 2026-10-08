@@ -87,6 +87,7 @@ final class PlatformFundsQuery
                 'companyId' => $o->tenant_id, 'companyName' => $row->company_name,
                 'accountId' => $row->account_id, 'userEmail' => $row->email,
                 'asset' => $o->asset_code, 'network' => $row->network,
+                'actualReceivedAmount' => $withdrawal ? null : $o->actual_received_amount,
                 'amount' => $o->amount, 'status' => $row->status,
                 'created_at' => CarbonImmutable::parse($row->ordered_at)->toIso8601String(),
                 'arrival_at' => $arrival ? CarbonImmutable::parse($arrival)->toIso8601String() : null,

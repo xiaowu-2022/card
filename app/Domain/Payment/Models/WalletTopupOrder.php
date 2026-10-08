@@ -21,6 +21,7 @@ final class WalletTopupOrder extends Model
         return [
             'status' => WalletTopupStatus::class,
             'amount' => 'decimal:8',
+            'actual_received_amount' => 'decimal:8',
             'requested_amount' => 'decimal:8',
             'expected_amount' => 'decimal:8',
             'identification_increment' => 'decimal:8',

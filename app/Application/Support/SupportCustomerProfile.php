@@ -19,6 +19,7 @@ final class SupportCustomerProfile
             ->leftJoin('user_profiles as profile', fn ($j) => $j->on('profile.user_id', '=', 'u.id')->on('profile.tenant_id', '=', 'u.tenant_id'))
             ->where('m.tenant_id', $tenant)->where('m.user_id', $user->id)
             ->first(['u.account_id', 'u.email', 'profile.display_name']);
+
         return [
             'name' => $user->profile?->display_name ?: $user->account_id, 'accountId' => $user->account_id,
             'remark' => $user->support_remark, 'remarkRevision' => (int) $user->support_remark_revision,
@@ -37,11 +38,12 @@ final class SupportCustomerProfile
         $primary = DB::table($withdrawal ? 'withdrawal_orders' : 'wallet_topup_orders')
             ->where('tenant_id', $tenant)->where('user_id', $user)
             ->where('status', $withdrawal ? 'SUCCEEDED' : 'CREDITED')
-            ->whereNotNull($withdrawal ? 'settlement_ledger_entry_id' : 'ledger_entry_id')->select('asset_code', 'amount');
+            ->whereNotNull($withdrawal ? 'settlement_ledger_entry_id' : 'ledger_entry_id')->selectRaw('asset_code, '.($withdrawal ? 'amount' : 'COALESCE(actual_received_amount, amount)').' AS amount');
         $asset = DB::table($withdrawal ? 'asset_withdrawal_orders' : 'asset_deposit_orders')
             ->where('tenant_id', $tenant)->where('user_id', $user)
             ->where('status', $withdrawal ? 'COMPLETED' : 'CREDITED')
-            ->whereNotNull('ledger_entry_id')->select('asset_code', 'amount');
+            ->whereNotNull('ledger_entry_id')->selectRaw('asset_code, '.($withdrawal ? 'amount' : 'COALESCE(actual_received_amount, amount)').' AS amount');
+
         return DB::query()->fromSub($primary->unionAll($asset), 'orders')->groupBy('asset_code')->orderBy('asset_code')
             ->selectRaw('asset_code AS asset, SUM(amount)::text AS amount')->get();
     }

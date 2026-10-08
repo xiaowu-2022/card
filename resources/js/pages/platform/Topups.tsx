@@ -1,11 +1,10 @@
-import { ReceiptTypeSelect } from '@/components/admin/ReceiptTypeSelect';
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { ManualReceiptForm } from '@/components/admin/ManualReceiptForm';
+import { Head, usePage } from '@inertiajs/react';
 import { useState } from 'react';
-import { t, useAdminTranslation, errorMessage, dateTime } from '@/i18n/admin';
+import { t, useAdminTranslation, dateTime } from '@/i18n/admin';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { MoneyDisplay } from '@/components/admin/MoneyDisplay';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -41,74 +40,10 @@ type Props = {
     orders: AccountPage<Order>;
 };
 
-function ConfirmForm({
-    companyId,
-    order,
-    close,
-}: {
-    companyId: string;
-    order: Order;
-    close: () => void;
-}) {
-    const permissions = usePage<SharedProps>().props.auth.admin?.permissions ?? [];
-    const form = useForm({
-        request_id: crypto.randomUUID(),
-        confirmed: false,
-        receipt_type: 'ACTUAL' as 'ACTUAL' | 'ADVANCE',
-    });
-    return (
-        <form
-            className="space-y-4"
-            onSubmit={(event) => {
-                event.preventDefault();
-                form.post(`/platform/tenants/${companyId}/topups/${order.id}/confirm`, {
-                    onSuccess: close,
-                });
-            }}
-        >
-            <p>
-                {order.companyName} · {order.accountId} · {t('Order')}: {order.reference} ·{' '}
-                <MoneyDisplay amount={order.amount} asset={order.asset} compact />
-            </p>
-            <ReceiptTypeSelect
-                value={form.data.receipt_type}
-                canAdvance={order.canAdvance && permissions.includes('partners.manage')}
-                disabled={form.processing}
-                onChange={(value) => {
-                    form.setData('receipt_type', value);
-                    form.setData('confirmed', false);
-                }}
-            />
-            <label className="flex items-start gap-3 text-sm">
-                <Checkbox
-                    checked={form.data.confirmed}
-                    disabled={form.processing}
-                    onCheckedChange={(checked) => form.setData('confirmed', checked === true)}
-                />
-                <span>
-                    {t(
-                        form.data.receipt_type === 'ADVANCE'
-                            ? 'I authorize crediting the full order amount as an advance.'
-                            : 'I confirm receipt of the full order amount and authorize crediting this user wallet without an on-chain check.',
-                    )}
-                </span>
-            </label>
-            {Object.values(form.errors).map((error, index) => (
-                <p key={index} role="alert" className="text-sm text-destructive">
-                    {errorMessage(error)}
-                </p>
-            ))}
-            <Button type="submit" disabled={form.processing || !form.data.confirmed}>
-                {form.processing ? t('Confirming…') : t('Confirm and credit')}
-            </Button>
-        </form>
-    );
-}
-
 export default function Topups({ companies, filters, orders }: Props) {
     useAdminTranslation();
-    const canConfirm =
-        usePage<SharedProps>().props.auth.admin?.permissions.includes('wallet_topups.confirm');
+    const permissions = usePage<SharedProps>().props.auth.admin?.permissions ?? [];
+    const canConfirm = permissions.includes('wallet_topups.confirm');
     const [selected, setSelected] = useState<Order | null>(null);
     return (
         <PlatformLayout title={t('Payment orders')}>
@@ -116,7 +51,7 @@ export default function Topups({ companies, filters, orders }: Props) {
 
             <p className="my-4 text-sm text-muted-foreground">
                 {t(
-                    'SaaS administrators can confirm receipt manually. The full order amount is credited once; company administrators have read-only access.',
+                    'Verify the actual receipt before crediting. The actual received amount will be credited once.',
                 )}
             </p>
             <PlatformAccountTable
@@ -233,16 +168,18 @@ export default function Topups({ companies, filters, orders }: Props) {
                         <DialogTitle>{t('Confirm receipt')}</DialogTitle>
                         <DialogDescription>
                             {t(
-                                'This credits the full order amount immediately without an on-chain check. Confirm only after you have verified receipt yourself. This action cannot be undone here.',
+                                'Verify the actual receipt before crediting. The actual received amount will be credited once.',
                             )}
                         </DialogDescription>
                     </DialogHeader>
                     {selected && (
-                        <ConfirmForm
+                        <ManualReceiptForm
                             key={selected.id}
-                            companyId={selected.companyId}
-                            order={selected}
-                            close={() => setSelected(null)}
+                            amount={selected.amount}
+                            asset={selected.asset}
+                            canAdvance={selected.canAdvance && permissions.includes('partners.manage')}
+                            url={`/platform/tenants/${selected.companyId}/topups/${selected.id}/confirm`}
+                            onSuccess={() => setSelected(null)}
                         />
                     )}
                 </DialogContent>

@@ -78,7 +78,9 @@ final class LegacyStockReport
     {
         $journal = DB::table('partner_journal_entries')->where('tenant_id', $tenant)->where('partner_id', $partner)
             ->selectRaw("COALESCE(SUM(CASE WHEN reverses_id IS NULL THEN amount ELSE -amount END) FILTER(WHERE kind='ADVANCE'),0) AS advances,
-                COALESCE(SUM(CASE WHEN reverses_id IS NULL THEN amount ELSE -amount END) FILTER(WHERE kind='REIMBURSEMENT'),0) AS reimbursements")->first();
+                COALESCE(SUM(CASE WHEN reverses_id IS NULL THEN amount ELSE -amount END) FILTER(WHERE kind='REIMBURSEMENT'),0) AS reimbursements,
+                COALESCE(SUM((CASE WHEN reverses_id IS NULL THEN amount ELSE -amount END) * (CASE WHEN kind='ADJUSTMENT_DECREASE' THEN -1 ELSE 1 END)) FILTER(WHERE kind IN ('ADJUSTMENT_INCREASE','ADJUSTMENT_DECREASE')),0) AS adjustments,
+                COUNT(*) FILTER(WHERE kind IN ('ADJUSTMENT_INCREASE','ADJUSTMENT_DECREASE')) AS adjustment_count")->first();
         $income = app(PromotionReportQuery::class)->income($tenant, $user)
             ->selectRaw("COALESCE(SUM(amount) FILTER(WHERE kind IN ('activation','legacy')),0) AS activation,
                 COALESCE(SUM(amount) FILTER(WHERE kind='annual'),0) AS annual, COALESCE(SUM(amount) FILTER(WHERE kind='commission'),0) AS unclassified")->first();
@@ -88,7 +90,7 @@ final class LegacyStockReport
         $annualFees = DB::table('paid_promotion_orders')->where('tenant_id', $tenant)->where('user_id', $user)
             ->where('status', 'COMPLETED')->whereNotNull('ledger_entry_id')->sum('settlement_total');
         $advances = BigDecimal::of($journal->advances)->minus((string) $annualFees);
-        $theoretical = $advances->plus($income->activation)->plus($income->annual)->plus($income->unclassified)->minus($journal->reimbursements);
+        $theoretical = $advances->plus($income->activation)->plus($income->annual)->plus($income->unclassified)->minus($journal->reimbursements)->plus($journal->adjustments);
 
         return [
             'advances' => $this->decimal($advances),
@@ -96,6 +98,8 @@ final class LegacyStockReport
             'annualCommission' => $this->decimal($income->annual),
             'unclassifiedCommission' => $this->decimal($income->unclassified),
             'reimbursements' => $this->decimal($journal->reimbursements),
+            'adjustments' => $this->decimal($journal->adjustments),
+            'hasAdjustments' => (int) $journal->adjustment_count > 0,
             'theoretical' => $this->decimal($theoretical),
             'actual' => $this->decimal($actual),
             'difference' => $this->decimal($theoretical->minus((string) $actual)),

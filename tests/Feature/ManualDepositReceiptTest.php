@@ -1,9 +1,11 @@
 <?php
 
+use App\Application\Admin\FinancialOperationQuery;
 use App\Application\Assets\DepositAssetsAction;
 use App\Application\Partners\PartnerManagement;
 use App\Application\Payment\ConfirmPlatformTopupAction;
 use App\Application\Payment\CreditWalletTopupAction;
+use App\Application\Payment\PaymentLedgerReconciliationService;
 use App\Application\Payment\ProcessIncomingTrc20TransferAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Assets\AssetDepositOrder;
@@ -54,12 +56,12 @@ function receiptOrder($test, string $source): object
     return AssetDepositOrder::findOrFail($id);
 }
 
-function confirmReceipt($test, object $order, string $request, string $type = 'ACTUAL'): void
+function confirmReceipt($test, object $order, string $request, string $type = 'ACTUAL', ?string $amount = '100.01'): void
 {
     if ($order instanceof WalletTopupOrder) {
-        app(ConfirmPlatformTopupAction::class)->execute($test->tenant->id, $order->id, $request, $test->actor, true, $type);
+        app(ConfirmPlatformTopupAction::class)->execute($test->tenant->id, $order->id, $request, $test->actor, true, $type, $amount);
     } else {
-        app(DepositAssetsAction::class)->manual($test->tenant->id, $order->id, $test->actor, $request, true, $type);
+        app(DepositAssetsAction::class)->manual($test->tenant->id, $order->id, $test->actor, $request, true, $type, $amount);
     }
 }
 
@@ -76,7 +78,7 @@ it('credits exactly once and atomically records the selected receipt type', func
         ->and(array_key_exists('advance_journal_id', $order->toArray()))->toBeFalse();
     $balance = DB::table('ledger_accounts')->where('wallet_id', $this->wallet->id)->where('account_type', 'USER_AVAILABLE')->value('balance');
     expect(BigDecimal::of($balance)->minus($before)->isEqualTo('100.01'))->toBeTrue();
-    $operations = app(\App\Application\Admin\FinancialOperationQuery::class)->forOrder($order->tenant_id, $source === 'primary' ? 'wallet_topup_order' : 'asset_deposit_order', $order->id);
+    $operations = app(FinancialOperationQuery::class)->forOrder($order->tenant_id, $source === 'primary' ? 'wallet_topup_order' : 'asset_deposit_order', $order->id);
     expect($operations[0]['receiptType'])->toBe($type);
     if ($type === 'ADVANCE') {
         $journal = DB::table('partner_journal_entries')->find($order->advance_journal_id);
@@ -165,7 +167,7 @@ it('accepts omitted type on both HTTP endpoints and rejects unsupported types', 
     $order = receiptOrder($this, $source);
     $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/'.($source === 'primary' ? 'topups' : 'asset-orders').'/'.$order->id.'/confirm';
     $this->actingAs($this->actor, 'platform_admin')->post($url, ['request_id' => (string) Str::uuid(), 'confirmed' => true, 'receipt_type' => 'INVALID'])->assertSessionHasErrors('receipt_type');
-    $this->actingAs($this->actor, 'platform_admin')->post($url, ['request_id' => (string) Str::uuid(), 'confirmed' => true])->assertRedirect();
+    $this->actingAs($this->actor, 'platform_admin')->post($url, ['request_id' => (string) Str::uuid(), 'confirmed' => true, 'actual_received_amount' => '100.01'])->assertRedirect();
     expect($order->fresh()->manual_receipt_type)->toBe('ACTUAL');
 })->with(['primary', 'asset']);
 
@@ -240,4 +242,34 @@ it('serializes simultaneous advance confirmation and chain settlement', function
     expect(DB::table('ledger_entries')->where('event_key', ($source === 'primary' ? 'wallet_topup:' : 'asset_deposit:').$order->id.':credit')->count())->toBe(1);
     expect(DB::table('partner_journal_entries')->where('partner_id', $this->partner->id)->count())->toBe($order->manual_receipt_type === 'ADVANCE' ? 1 : 0);
     expect(BigDecimal::of(DB::table('ledger_accounts')->where('wallet_id', $this->wallet->id)->where('account_type', 'USER_AVAILABLE')->value('balance'))->isEqualTo('100.01'))->toBeTrue();
+})->with(['primary', 'asset']);
+
+it('credits the actual amount and preserves the original amount and retry identity', function ($source, $amount) {
+    $order = receiptOrder($this, $source);
+    $request = (string) Str::uuid();
+    confirmReceipt($this, $order, $request, 'ADVANCE', $amount);
+    confirmReceipt($this, $order, $request, 'ADVANCE', $amount);
+    $order->refresh();
+    expect(BigDecimal::of($order->amount)->isEqualTo('100.01'))->toBeTrue()
+        ->and(BigDecimal::of($order->actual_received_amount)->isEqualTo($amount))->toBeTrue()
+        ->and(BigDecimal::of(DB::table('ledger_accounts')->where('wallet_id', $this->wallet->id)->where('account_type', 'USER_AVAILABLE')->value('balance'))->isEqualTo($amount))->toBeTrue()
+        ->and(BigDecimal::of(DB::table('partner_journal_entries')->find($order->advance_journal_id)->amount)->isEqualTo($amount))->toBeTrue();
+    expect(fn () => confirmReceipt($this, $order, $request, 'ADVANCE', '102'))->toThrow(DomainException::class);
+    expect(fn () => DB::transaction(fn () => DB::table($order->getTable())->where('id', $order->id)->update(['actual_received_amount' => '102'])))->toThrow(QueryException::class);
+    if ($source === 'primary') {
+        expect(app(PaymentLedgerReconciliationService::class)->mismatches($this->tenant->id))->toBe([]);
+    }
+})->with(['primary', 'asset'])->with(['99.12345678', '101.01']);
+
+it('rejects missing or invalid actual amounts without financial writes', function ($source, $amount) {
+    $order = receiptOrder($this, $source);
+    expect(fn () => confirmReceipt($this, $order, (string) Str::uuid(), 'ACTUAL', $amount))->toThrow(DomainException::class);
+    expect($order->fresh()->ledger_entry_id)->toBeNull();
+})->with(['primary', 'asset'])->with([null, '', '0', '-1', '1e2', '1.000000001', '1000000000000']);
+
+it('requires an actual amount through both HTTP endpoints', function ($source) {
+    $order = receiptOrder($this, $source);
+    $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/'.($source === 'primary' ? 'topups' : 'asset-orders').'/'.$order->id.'/confirm';
+    $this->actingAs($this->actor, 'platform_admin')->post($url, ['request_id' => (string) Str::uuid(), 'confirmed' => true])->assertSessionHasErrors('actual_received_amount');
+    expect($order->fresh()->ledger_entry_id)->toBeNull();
 })->with(['primary', 'asset']);

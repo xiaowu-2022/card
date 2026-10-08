@@ -104,3 +104,19 @@ export function withdrawalPercentageFee(
     const digits = fee.toString().padStart(scale + 1, '0');
     return `${digits.slice(0, -scale)}.${digits.slice(-scale)}`;
 }
+
+// Manual receipt review uses exact integer arithmetic, including native ETH precision.
+export function receiptDifference(actual: string, order: string, asset: string): string | null {
+    const scale = asset === 'ETH' ? 18 : asset === 'USDC' ? 6 : 8;
+    if (!/^\d{1,12}(?:\.\d{1,18})?$/.test(actual) || !/^\d{1,12}(?:\.\d{1,18})?$/.test(order))
+        return null;
+    if (/[1-9]/.test((actual.split('.')[1] ?? '').slice(scale))) return null;
+    const units = (value: string) => {
+        const [integer, fraction = ''] = value.split('.');
+        return BigInt(integer!) * 10n ** 18n + BigInt(fraction.padEnd(18, '0'));
+    };
+    if (units(actual) <= 0n) return null;
+    const difference = units(actual) - units(order);
+    const digits = (difference < 0n ? -difference : difference).toString().padStart(19, '0');
+    return exactAmount(`${difference < 0n ? '-' : ''}${digits.slice(0, -18)}.${digits.slice(-18)}`);
+}

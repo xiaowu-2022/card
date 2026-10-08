@@ -1,5 +1,7 @@
 export type PartnerIdentity = { id: string; name: string; accountId: string };
-export type PartnerChildren = StockPage<PartnerIdentity & { email: string | null; stock: string; teamCount: number }> & {
+export type PartnerChildren = StockPage<
+    PartnerIdentity & { email: string | null; stock: string; teamCount: number }
+> & {
     subject: PartnerIdentity;
     listPath: string;
 };
@@ -72,6 +74,8 @@ export type StockReport = {
         annualCommission: string;
         unclassifiedCommission: string;
         reimbursements: string;
+        adjustments: string;
+        hasAdjustments: boolean;
         theoretical: string;
         actual: string;
         difference: string;

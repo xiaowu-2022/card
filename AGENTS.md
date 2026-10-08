@@ -1,3 +1,20 @@
+On 2026-10-08 the user added signed theoretical-balance adjustments through
+Platform partner Record entry. ADJUSTMENT_INCREASE/ADJUSTMENT_DECREASE use positive
+USDT amounts, explicit confirmation and the existing scoped partners.manage,
+idempotency, immutable journal/audit and reversal workflow. Personal theoretical
+balance includes net own-partner adjustments; show Adjustment amount when any
+adjustment history exists, including net zero after reversals. Cooperation journals
+include the entries, but actual wallets/Ledger, business stock, shares, team advances
+and reimbursements do not change. See docs/architecture/PARTNER_STOCK.md.
+
+On 2026-10-08 the user required an entered actual received amount for Platform
+manual deposit confirmation. Check amount opens a review of original order amount,
+actual receipt and signed difference, with Confirm receipt or Return to edit.
+Credit the positive validated native-precision actual amount exactly once and use it
+for ADVANCE journals, reports and notifications; preserve original matching amounts,
+reservations, scope/permission checks, atomic audit and immutable receipt evidence.
+This supersedes fixed-full-order manual credit only. See PLATFORM_FUNDS_ORDERS.md.
+
 On 2026-10-08 the user restored the standalone Platform identity verification
 menu. List all applications newest first with company/search/status filters and
 pagination; provide View details and a modal Review action. Preserve the user-row

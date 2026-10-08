@@ -10,6 +10,7 @@ use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Payment\Enums\WalletTopupStatus;
 use App\Domain\Payment\Models\WalletTopupOrder;
 use App\Support\Errors\DomainException;
+use Brick\Math\BigDecimal;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -17,12 +18,12 @@ final readonly class ConfirmPlatformTopupAction
 {
     public function __construct(private AuthorizationService $authorization, private CreditWalletTopupAction $credit, private AuditLogger $audit) {}
 
-    public function execute(string $tenantId, string $orderId, string $requestId, AdminUser $actor, bool $confirmed = false, string $receiptType = 'ACTUAL'): void
+    public function execute(string $tenantId, string $orderId, string $requestId, AdminUser $actor, bool $confirmed = false, string $receiptType = 'ACTUAL', ?string $actualReceivedAmount = null): void
     {
         if (! $confirmed || ! Str::isUuid($requestId)) {
             throw new DomainException('TOPUP_CONFIRMATION_REQUIRED', 'Confirm receipt before crediting this order.');
         }
-        DB::transaction(function () use ($tenantId, $orderId, $requestId, $actor, $receiptType): void {
+        DB::transaction(function () use ($tenantId, $orderId, $requestId, $actor, $receiptType, $actualReceivedAmount): void {
             $actor = $actor->fresh();
             if (! $actor || $actor->status !== AdminUserStatus::Active
                 || ! $this->authorization->allows($actor, ScopeType::Platform, null, 'wallet_topups.confirm')) {
@@ -37,14 +38,15 @@ final readonly class ConfirmPlatformTopupAction
             if ($order->payment_rail !== 'TRC20_SHARED' || $order->asset_code !== 'USDT') {
                 throw new DomainException('TOPUP_CONFIRMATION_NOT_ALLOWED', 'This order cannot be manually confirmed.');
             }
-            app(ManualDepositReceipt::class)->checkRetry($order, $receiptType, $requestId, 'manual_confirmation_request_id', $actor);
+            $amount = app(ManualDepositReceipt::class)->amount($order, $actualReceivedAmount);
+            app(ManualDepositReceipt::class)->checkRetry($order, $receiptType, $requestId, 'manual_confirmation_request_id', $actor, $amount);
             if ($order->status === WalletTopupStatus::Credited) {
                 return; // Chain and manual confirmation race on this same aggregate lock.
             }
             if (! in_array($order->status->value, ['PENDING', 'PROCESSING', 'UNKNOWN'], true)) {
                 throw new DomainException('TOPUP_CONFIRMATION_NOT_ALLOWED', 'This order cannot be manually confirmed.');
             }
-            $receipt = app(ManualDepositReceipt::class)->attributes($order, $actor, $receiptType);
+            $receipt = app(ManualDepositReceipt::class)->attributes($order, $actor, $receiptType, $amount);
             $order->forceFill($receipt);
             $before = $order->status->value;
             $order->manual_confirmed_at = now();
@@ -56,7 +58,7 @@ final readonly class ConfirmPlatformTopupAction
             // Preserve provider/chain evidence as-is; no fabricated hash or provider success.
             $entry = $this->credit->execute($tenantId, $orderId);
             $this->audit->record($tenantId, 'ADMIN', $actor->id, 'PLATFORM_TOPUP_MANUALLY_CONFIRMED', 'wallet_topup_order', $orderId,
-                ['status' => $before], $receipt + ['amount' => $order->amount, 'asset' => 'USDT', 'source' => 'PLATFORM_MANUAL', 'ledger_entry_id' => $entry->id], $requestId);
+                ['status' => $before], $receipt + ['order_amount' => $order->amount, 'amount' => $amount, 'difference' => (string) BigDecimal::of($amount)->minus($order->amount), 'asset' => 'USDT', 'source' => 'PLATFORM_MANUAL', 'ledger_entry_id' => $entry->id], $requestId);
         }, 3);
     }
 }

@@ -1161,6 +1161,16 @@ export const adminCatalog: Record<string, string> = {
     'Top-up management': '充值管理',
     'Available balance': '可用余额',
     'Account ID': '账号 ID',
+    'Order amount': '订单金额',
+    'Check amount': '核对金额',
+    'Actual received amount': '实际到账金额',
+    'Difference (actual minus order)': '差额（实际到账－订单金额）',
+    'Return to edit': '返回修改',
+    'Verify the actual receipt before crediting. The actual received amount will be credited once.':
+        '请核对实际到账金额，确认后将按实际到账金额入账一次。',
+    'Enter a valid positive actual received amount.': '请输入有效且大于零的实际到账金额。',
+    'Top-up confirmed. The actual received amount has been credited.':
+        '已确认到账，实际到账金额已入账。',
     'Confirm receipt': '确认到账',
     'Confirm and credit': '确认并入账',
     'Confirming…': '确认中…',

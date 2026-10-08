@@ -7,7 +7,11 @@ import ReportPagination from '../components/ReportPagination.vue';
 import { t, dateTime } from '../lib/i18n';
 import { go } from '../lib/navigation';
 import { fullMoney } from '../lib/promotion-report';
-import { partnerJournalNote } from '../generated/partner-journal-note';
+import {
+    partnerJournalNote,
+    partnerJournalKind,
+    partnerJournalSign,
+} from '../generated/partner-journal-note';
 import type { StockReport } from '../lib/stock';
 const props = defineProps<{ page: { report: StockReport } }>(),
     r = computed(() => props.page.report),
@@ -155,6 +159,9 @@ const more = computed(() =>
                 ><text class="heading">{{ t('Account balance reconciliation') }}</text
                 ><view
                     v-for="[key, label] in [
+                        ...(r.accountBalance.hasAdjustments
+                            ? [['adjustments', 'Adjustment amount']]
+                            : []),
                         ['theoretical', 'Theoretical account balance'],
                         ['actual', 'Actual account balance'],
                         ['difference', 'Account balance difference'],
@@ -163,11 +170,15 @@ const more = computed(() =>
                     class="row"
                     ><text>{{ t(label) }}</text
                     ><text>{{
-                        value(r.accountBalance[key as 'theoretical' | 'actual' | 'difference'])
+                        value(
+                            r.accountBalance[
+                                key as 'adjustments' | 'theoretical' | 'actual' | 'difference'
+                            ],
+                        )
                     }}</text></view
                 ><text class="muted small">{{
                     t(
-                        'Theoretical balance = personal net advances (less paid agent annual fees) + net commissions received − personal net reimbursements. Annual fees include converted deposits. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
+                        'Theoretical balance = personal net advances (less paid agent annual fees) + net commissions received − personal net reimbursements + net adjustments. Annual fees include converted deposits. Actual balance is your available USDT wallet balance. Difference = theoretical − actual.',
                     )
                 }}</text></view
             ><view class="panel"
@@ -234,11 +245,11 @@ const more = computed(() =>
                 ><view v-for="row in r.journal.items" :key="row.id" class="detail"
                     ><text class="strong"
                         >{{ row.account_id }} ·
-                        {{ t(row.kind === 'ADVANCE' ? 'Advance' : 'Reimbursement') }}
+                        {{ t(partnerJournalKind(row.kind)) }}
                         {{ row.reverses_id ? '· ' + t('Reversal') : '' }}</text
                     ><text
-                        >{{ row.reverses_id ? '−' : '' }}{{ value(row.amount) }} ·
-                        {{ row.business_date }}</text
+                        >{{ partnerJournalSign(row.kind, row.reverses_id)
+                        }}{{ value(row.amount) }} · {{ row.business_date }}</text
                     ><text class="plain">{{ partnerJournalNote(row.note, t) }}</text
                     ><text v-if="row.reversed" class="small muted">{{ t('Reversed') }}</text></view
                 ></view

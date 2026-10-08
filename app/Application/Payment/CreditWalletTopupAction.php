@@ -41,7 +41,7 @@ final readonly class CreditWalletTopupAction
             if (! $available || ! $clearing) {
                 throw new DomainException('TOPUP_SETTLEMENT_ACCOUNTS_MISSING', 'Top-up settlement accounts are unavailable.', 409);
             }
-            $money = Money::of($order->amount, $order->asset_code);
+            $money = Money::of($order->actual_received_amount ?? $order->amount, $order->asset_code);
             $entry = $this->ledger->post(new LedgerPostingPlan(
                 $tenantId,
                 $order->asset_code,

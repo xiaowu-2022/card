@@ -69,13 +69,13 @@ final class AssetsController extends Controller
 
     private function dto($o): array
     {
-        return ['operations' => app(FinancialOperationQuery::class)->forOrder($o->tenant_id, $o instanceof AssetWithdrawalOrder ? 'asset_withdrawal_order' : 'asset_deposit_order', $o->id), 'id' => $o->id, 'tenant_id' => $o->tenant_id, 'company' => Tenant::findOrFail($o->tenant_id)->name, 'user_id' => $o->user_id, 'asset' => $o->asset_code, 'network' => $o->network, 'amount' => $o->amount, 'status' => $o->status, 'created_at' => $o->created_at->toIso8601String(), 'operator' => ($actorId = ($o->manual_confirmed_by ?? $o->reviewed_by)) ? AdminUser::find($actorId)?->name : null, 'operated_at' => ($o->manual_confirmed_at ?? $o->reviewed_at)?->toIso8601String(), 'fee' => $o instanceof AssetWithdrawalOrder ? $o->fee_amount : null, 'address' => $o instanceof AssetWithdrawalOrder ? app(WithdrawalAddressProtector::class)->mask($o->address) : $o->address, 'tx_hash' => $o->submitted_tx_hash ?? ''];
+        return ['operations' => app(FinancialOperationQuery::class)->forOrder($o->tenant_id, $o instanceof AssetWithdrawalOrder ? 'asset_withdrawal_order' : 'asset_deposit_order', $o->id), 'id' => $o->id, 'tenant_id' => $o->tenant_id, 'company' => Tenant::findOrFail($o->tenant_id)->name, 'user_id' => $o->user_id, 'asset' => $o->asset_code, 'network' => $o->network, 'amount' => $o->amount, 'actualReceivedAmount' => $o instanceof AssetDepositOrder ? $o->actual_received_amount : null, 'status' => $o->status, 'created_at' => $o->created_at->toIso8601String(), 'operator' => ($actorId = ($o->manual_confirmed_by ?? $o->reviewed_by)) ? AdminUser::find($actorId)?->name : null, 'operated_at' => ($o->manual_confirmed_at ?? $o->reviewed_at)?->toIso8601String(), 'fee' => $o instanceof AssetWithdrawalOrder ? $o->fee_amount : null, 'address' => $o instanceof AssetWithdrawalOrder ? app(WithdrawalAddressProtector::class)->mask($o->address) : $o->address, 'tx_hash' => $o->submitted_tx_hash ?? ''];
     }
 
     public function confirm(Request $r, Tenant $tenant, string $order, DepositAssetsAction $action)
     {
-        $d = $r->validate(['request_id' => 'required|uuid', 'receipt_type' => 'sometimes|required|in:ACTUAL,ADVANCE', 'confirmed' => 'required|accepted']);
-        $action->manual($tenant->id, $order, $r->user('platform_admin'), $d['request_id'], true, $d['receipt_type'] ?? 'ACTUAL');
+        $d = $r->validate(['request_id' => 'required|uuid', 'actual_received_amount' => ['required', 'string', 'max:31'], 'receipt_type' => 'sometimes|required|in:ACTUAL,ADVANCE', 'confirmed' => 'required|accepted']);
+        $action->manual($tenant->id, $order, $r->user('platform_admin'), $d['request_id'], true, $d['receipt_type'] ?? 'ACTUAL', $d['actual_received_amount']);
 
         return back();
     }

@@ -190,7 +190,7 @@ it('shares manual and verified credit paths without duplicate credit', function 
     $deposits = app(DepositAssetsAction::class);
     $o = $deposits->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', (string) Str::uuid());
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
-    $deposits->manual($this->tenant->id, $o->id, $actor, (string) Str::uuid(), true);
+    $deposits->manual($this->tenant->id, $o->id, $actor, (string) Str::uuid(), true, 'ACTUAL', $o->amount);
     $before = LedgerEntry::count();
     $obs = ChainObservation::create(['network' => 'ETHEREUM', 'event_id' => 'tx:trace:0', 'rail_code' => $o->rail_code, 'address' => $o->address, 'amount' => $o->amount, 'block_height' => 101, 'block_hash' => 'block', 'occurred_at' => now(), 'status' => 'MATCHED', 'order_id' => $o->id]);
     $deposits->verified($obs);
@@ -203,9 +203,9 @@ it('shares manual and verified credit paths without duplicate credit', function 
 it('does not allow company admins or expired orders to use manual confirmation', function () {
     $a = app(DepositAssetsAction::class);
     $o = $a->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', (string) Str::uuid());
-    expect(fn () => $a->manual($this->tenant->id, $o->id, AdminUser::where('email', 'owner@a.localhost')->firstOrFail(), (string) Str::uuid(), true))->toThrow(HttpException::class);
+    expect(fn () => $a->manual($this->tenant->id, $o->id, AdminUser::where('email', 'owner@a.localhost')->firstOrFail(), (string) Str::uuid(), true, 'ACTUAL', $o->amount))->toThrow(HttpException::class);
     $this->travel(31)->minutes();
-    expect(fn () => $a->manual($this->tenant->id, $o->id, AdminUser::where('email', 'owner@platform.local')->firstOrFail(), (string) Str::uuid(), true))->toThrow(DomainException::class);
+    expect(fn () => $a->manual($this->tenant->id, $o->id, AdminUser::where('email', 'owner@platform.local')->firstOrFail(), (string) Str::uuid(), true, 'ACTUAL', $o->amount))->toThrow(DomainException::class);
 });
 it('keeps deposit and commission accounts untouched during exchange', function () {
     ($this->fund)('ETH', '1');
@@ -265,9 +265,9 @@ it('leaves contract-only ETH pending for idempotent manual receipt confirmation'
     Http::assertNotSent(fn ($r) => $r['method'] === 'debug_traceBlockByNumber');
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $id = (string) Str::uuid();
-    app(DepositAssetsAction::class)->manual($this->tenant->id, $o->id, $actor, $id, true);
+    app(DepositAssetsAction::class)->manual($this->tenant->id, $o->id, $actor, $id, true, 'ACTUAL', $o->amount);
     $count = LedgerEntry::count();
-    app(DepositAssetsAction::class)->manual($this->tenant->id, $o->id, $actor, $id, true);
+    app(DepositAssetsAction::class)->manual($this->tenant->id, $o->id, $actor, $id, true, 'ACTUAL', $o->amount);
     app(ScanAssetNetwork::class)->execute('ETHEREUM');
     expect($o->fresh()->status)->toBe('CREDITED')->and(LedgerEntry::count())->toBe($count);
 });
@@ -475,7 +475,7 @@ it('credits exactly once when manual receipt confirmation races automatic verifi
     $tenant = $this->tenant->id;
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $results = raceAssetOperations([
-        fn () => app(DepositAssetsAction::class)->manual($tenant, $order->id, $actor, (string) Str::uuid(), true),
+        fn () => app(DepositAssetsAction::class)->manual($tenant, $order->id, $actor, (string) Str::uuid(), true, 'ACTUAL', $order->amount),
         fn () => app(DepositAssetsAction::class)->verified($observation),
     ]);
     expect($results)->toBe(['completed', 'completed']);
@@ -852,9 +852,9 @@ it('accepts four-asset deposits and proven withdrawals with configured stablecoi
     CompanyRail::updateOrCreate(['tenant_id' => $this->tenant->id, 'rail_code' => $code], ['deposit_enabled' => true, 'withdrawal_enabled' => true, 'minimum_deposit' => '1', 'withdrawal_fee_percent' => $fee]);
     $deposits = app(DepositAssetsAction::class);
     $deposit = $deposits->create($this->tenant->id, $this->user->id, $code, '100', (string) Str::uuid());
-    $deposits->manual($this->tenant->id, $deposit->id, $actor, (string) Str::uuid(), true);
+    $deposits->manual($this->tenant->id, $deposit->id, $actor, (string) Str::uuid(), true, 'ACTUAL', $deposit->amount);
     $entries = LedgerEntry::count();
-    $deposits->manual($this->tenant->id, $deposit->id, $actor, (string) Str::uuid(), true);
+    $deposits->manual($this->tenant->id, $deposit->id, $actor, (string) Str::uuid(), true, 'ACTUAL', $deposit->amount);
     expect(LedgerEntry::count())->toBe($entries);
     $withdraw = app(WithdrawAssetsAction::class);
     if ($asset === 'BTC') {
@@ -966,7 +966,7 @@ it('saves all receiving rails offline and accepts manual deposits with scanning 
     expect(AssetRail::where('enabled', true)->count())->toBe(4);
     $o = app(DepositAssetsAction::class)->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', (string) Str::uuid());
     expect($o->fresh()->status)->toBe('PENDING');
-    app(DepositAssetsAction::class)->manual($this->tenant->id, $o->id, $actor, (string) Str::uuid(), true);
+    app(DepositAssetsAction::class)->manual($this->tenant->id, $o->id, $actor, (string) Str::uuid(), true, 'ACTUAL', $o->amount);
     expect($o->fresh()->status)->toBe('CREDITED');
     Http::assertNothingSent();
 });

@@ -527,6 +527,7 @@ it('reconciles only personal journal net amounts and available USDT without crea
     expect($r['accountBalance'])->toBe([
         'advances' => '100.00000001', 'activationCommission' => '0.00000000',
         'annualCommission' => '0.00000000', 'unclassifiedCommission' => '0.00000000', 'reimbursements' => '10.00000000',
+        'adjustments' => '0.00000000', 'hasAdjustments' => false,
         'theoretical' => '90.00000001', 'actual' => '0.00000000', 'difference' => '90.00000001',
     ])->and($r['totals']['advances'])->toBe('1000.00000001')
         ->and($r['totals']['reimbursements'])->toBe('810.00000000')
@@ -595,6 +596,7 @@ it('deducts the owners paid annual fee from the personal reconciliation example'
     expect($this->report->read($this->tenant->id, $this->user->id)['accountBalance'])->toBe([
         'advances' => '-900.00000000', 'activationCommission' => '20.00000000',
         'annualCommission' => '30.00000000', 'unclassifiedCommission' => '0.00000000', 'reimbursements' => '10.00000000',
+        'adjustments' => '0.00000000', 'hasAdjustments' => false,
         'theoretical' => '-860.00000000', 'actual' => '125.00000000', 'difference' => '-985.00000000',
     ])->and(DB::table('ledger_entries')->count())->toBe($before);
     DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
@@ -979,4 +981,59 @@ it('counts own completed annual settlements as negative advances only in persona
         ->and([DB::table('ledger_entries')->count(), DB::table('partner_journal_entries')->count(), DB::table('paid_promotion_orders')->count()])->toBe($counts);
     Http::assertNothingSent();
     DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+});
+
+it('records theoretical adjustments and reversals without moving money or business stock', function () {
+    $partner = stockPartner($this, $this->user);
+    $child = stockChild($this->user);
+    $nested = stockPartner($this, $child);
+    $before = app(PartnerReport::class)->read($this->tenant->id, $this->user->id);
+    $wallets = DB::table('wallets')->count();
+    $ledger = DB::table('ledger_entries')->count();
+    $balance = DB::table('ledger_accounts')->sum('balance');
+    $up = stockEntry('ADJUSTMENT_INCREASE', '100.12345678') + ['confirmed' => true];
+    $increase = $this->management->journal($this->admin, $this->tenant->id, $partner->id, $up);
+    expect($this->management->journal($this->admin, $this->tenant->id, $partner->id, $up)->id)->toBe($increase->id);
+    $down = stockEntry('ADJUSTMENT_DECREASE', '120') + ['confirmed' => true];
+    $decrease = $this->management->journal($this->admin, $this->tenant->id, $partner->id, $down);
+    $this->management->journal($this->admin, $this->tenant->id, $nested->id, stockEntry('ADJUSTMENT_INCREASE', '900') + ['confirmed' => true]);
+    $report = app(PartnerReport::class)->read($this->tenant->id, $this->user->id);
+    expect($report['accountBalance']['adjustments'])->toBe('-19.87654322')
+        ->and($report['accountBalance']['hasAdjustments'])->toBeTrue()
+        ->and($report['accountBalance']['theoretical'])->toBe('-19.87654322')
+        ->and($report['accountBalance']['actual'])->toBe($before['accountBalance']['actual'])
+        ->and($report['accountBalance']['difference'])->toBe('-19.87654322')
+        ->and($report['stock'])->toBe($before['stock'])->and($report['totals'])->toBe($before['totals'])
+        ->and($report['journal']['total'])->toBe(3);
+    expect(fn () => $this->management->journal($this->admin, $this->tenant->id, $partner->id, array_replace($up, ['amount' => '1'])))->toThrow(HttpException::class);
+    foreach ([$increase, $decrease] as $row) {
+        $this->management->journal($this->admin, $this->tenant->id, $partner->id, stockEntry($row->kind, $row->amount) + ['confirmed' => true, 'reverses_id' => $row->id]);
+        expect(fn () => $this->management->journal($this->admin, $this->tenant->id, $partner->id, stockEntry($row->kind, $row->amount) + ['confirmed' => true, 'reverses_id' => $row->id]))->toThrow(HttpException::class);
+    }
+    $after = app(PartnerReport::class)->read($this->tenant->id, $this->user->id);
+    expect($after['accountBalance']['adjustments'])->toBe('0.00000000')->and($after['accountBalance']['hasAdjustments'])->toBeTrue()
+        ->and($after['accountBalance']['theoretical'])->toBe($before['accountBalance']['theoretical'])
+        ->and(DB::table('wallets')->count())->toBe($wallets)->and(DB::table('ledger_entries')->count())->toBe($ledger)
+        ->and(DB::table('ledger_accounts')->sum('balance'))->toBe($balance)
+        ->and(DB::table('audit_logs')->where('action', 'PARTNER_JOURNAL_RECORDED')->where('resource_id', $increase->id)->count())->toBe(1);
+    expect(fn () => DB::transaction(fn () => DB::table('partner_journal_entries')->where('id', $increase->id)->update(['amount' => '1'])))->toThrow(QueryException::class);
+    Http::assertNothingSent();
+});
+
+it('requires confirmed positive theoretical adjustments within the authorized company', function () {
+    $partner = stockPartner($this, $this->user);
+    $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/partners/'.$partner->id.'/journal';
+    $data = stockEntry('ADJUSTMENT_DECREASE', '25');
+    $this->actingAs($this->admin, 'platform_admin')->postJson($url, $data)->assertUnprocessable();
+    $this->postJson($url, $data + ['confirmed' => false])->assertUnprocessable();
+    foreach (['0', '-1', '1.000000001', '1e2'] as $amount) {
+        $this->postJson($url, array_replace($data, ['confirmed' => true, 'amount' => $amount]))->assertUnprocessable();
+    }
+    $foreign = Tenant::where('slug', 'tenant-b')->firstOrFail();
+    $this->postJson(str_replace($this->tenant->id, $foreign->id, $url), $data + ['confirmed' => true])->assertNotFound();
+    $this->postJson($url, $data + ['confirmed' => true])->assertRedirect();
+    expect($this->report->read($this->tenant->id, $this->user->id)['accountBalance']['adjustments'])->toBe('-25.00000000');
+    $permission = DB::table('permissions')->where('name', 'partners.manage')->value('id');
+    DB::table('role_permissions')->where('permission_id', $permission)->delete();
+    $this->postJson($url, stockEntry('ADJUSTMENT_INCREASE', '1') + ['confirmed' => true])->assertForbidden();
 });

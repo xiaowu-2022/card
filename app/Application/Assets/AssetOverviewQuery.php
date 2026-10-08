@@ -91,7 +91,7 @@ final readonly class AssetOverviewQuery
             $orders = collect();
             foreach (['deposit' => AssetDepositOrder::class, 'withdrawal' => AssetWithdrawalOrder::class, 'exchange' => ExchangeOrder::class] as $mode => $model) {
                 $orders = $orders->merge($model::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', $asset)->latest()->limit(5)->get()->map(fn ($o) => [
-                    'id' => $o->id, 'mode' => $mode, 'amount' => $o->amount, 'time' => $o->created_at->toIso8601String(),
+                    'id' => $o->id, 'mode' => $mode, 'amount' => $o->actual_received_amount ?? $o->amount, 'time' => $o->created_at->toIso8601String(),
                     'state' => match ($o->status) {
                         'CREDITED', 'COMPLETED' => 'Completed', 'CANCELLED' => 'Cancelled', 'REJECTED' => 'Rejected', 'QUOTED' => 'Review exchange', default => 'Processing'
                     },

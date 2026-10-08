@@ -78,3 +78,27 @@ application/admin build, then publish the compiled H5 at public/h5. Keep old has
 H5 assets during publication. Do not roll back classification columns after real
 classified receipts without preserving their audit associations. Verification uses
 ManualDepositReceiptTest in isolated card_ui_test only, never real transfers.
+
+## Actual manual receipt amounts (2026-10-08)
+
+Both manual receipt endpoints now require `actual_received_amount` as a positive
+plain decimal string within the asset's Ledger precision and 12 integer digits.
+The input starts empty. Check amount opens a confirmation dialog showing original
+order amount, actual received amount and actual minus order. Return to edit retains
+the input and classification; only Confirm receipt sends the idempotent POST.
+
+`actual_received_amount` is separate immutable settlement evidence. Original amount,
+expected/requested amount and chain reservations remain unchanged. Existing
+LedgerWriter flows credit the actual amount, with matching ADVANCE journals and
+atomic actor/request/original/actual/difference audit. Same-request amount/type
+changes fail; chain/manual races still credit once. Historical rows remain null and
+use their original amount. Consumer receipts, notifications, support totals and
+Platform inflow aggregates use the actual settlement amount when present. Legacy
+consumer receipt DTO `expectedAmount` also returns the settled amount for manual
+receipts because installed clients render it on completion; `orderAmount` retains
+the original instruction. Pending payment instructions and database matching are unchanged.
+
+Deploy `2026_10_08_180000_add_actual_deposit_receipt_amount` before the matching PHP
+and rebuilt admin assets. Do not drop receipt evidence after real settlements;
+application rollback must preserve the column and actual-amount settlement logic.
+No historical replay or consumer rebuild is required.
