@@ -121,6 +121,10 @@ const trendNames: Record<string, string> = {
     activation: 'Activation commissions paid',
     deposits: 'First deposit activations',
     annual: 'Annual fee income',
+    annualCommission: 'Annual fee commissions paid',
+    otherCommission: 'Other commissions paid',
+    rebates: 'Annual fees returned',
+    reimbursements: 'Reimbursed expenses',
 };
 export function PartnerStockReport({
     report: r,
@@ -437,6 +441,13 @@ export function PartnerStockReport({
                             'Averages cover complete calendar days before today, including zero-activity days, in the company timezone.',
                         )}
                     </p>
+                    {r.version === 'partner' && (
+                        <p className="stock-muted">
+                            {t(
+                                'Daily trends show activity amounts, not historical stock balances. Deposits count first funding only.',
+                            )}
+                        </p>
+                    )}
                     {Object.entries(r.trends).map(([key, trend]) => (
                         <div className="stock-trend" key={key}>
                             <h3>{t(trendNames[key] ?? key)}</h3>

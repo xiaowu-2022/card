@@ -297,6 +297,16 @@ it('calculates natural day averages excluding today and counts zero days', funct
     $r = $this->report->read($this->tenant->id, $this->user->id);
     expect($r['trends']['deposits']['today'])->toBe('50.00000000')->and($r['trends']['deposits'][3])->toBe('16.66666667')->and($r['trends']['deposits'][30])->toBe('1.66666667');
     expect($r['trends']['annual']['today'])->toBe('0.00000000')->and($r['trends']['annual'][7])->toBe((string) BigDecimal::of($annual)->dividedBy(7, 8, RoundingMode::HalfUp));
+    $entries = DB::table('ledger_entries')->count();
+    $partner = app(PartnerReport::class)->read($this->tenant->id, $this->user->id);
+    expect($partner['trends']['deposits'])->toBe($r['trends']['deposits'])
+        ->and($partner['trends']['annual'])->toBe($r['trends']['annual'])
+        ->and($partner['risks'])->toBe($r['risks'])
+        ->and(DB::table('ledger_entries')->count())->toBe($entries);
+    stockPartner($this, $second);
+    $excluded = app(PartnerReport::class)->read($this->tenant->id, $this->user->id);
+    expect($excluded['trends']['deposits']['today'])->toBe('0.00000000')
+        ->and($excluded['trends']['deposits'][3])->toBe('16.66666667');
     Http::assertNothingSent();
 });
 
@@ -908,6 +918,9 @@ it('deducts non-partner descendant net commission income and attributes details 
     $balances = DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all();
     $entries = DB::table('ledger_entries')->count();
     $r = app(PartnerReport::class)->read($this->tenant->id, $this->user->id, true, 1, 'outflow');
+    expect($r['trends']['activation']['today'])->toBe('10.12345678')
+        ->and($r['trends']['annualCommission']['today'])->toBe('7.00000000')
+        ->and($r['trends']['activation'][3])->toBe('0.00000000');
     expect($r['totals']['activation'])->toBe('10.12345678')
         ->and($r['totals']['annualCommission'])->toBe('7.00000000')
         ->and($r['totals']['outflow'])->toBe('17.12345678')

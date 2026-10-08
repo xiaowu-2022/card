@@ -41,6 +41,10 @@ const trends: Record<string, string> = {
     activation: 'Activation commissions paid',
     deposits: 'First deposit activations',
     annual: 'Annual fee income',
+    annualCommission: 'Annual fee commissions paid',
+    otherCommission: 'Other commissions paid',
+    rebates: 'Annual fees returned',
+    reimbursements: 'Reimbursed expenses',
 };
 function value(v: string | null | undefined) {
     return v == null ? t('Incomplete valuation') : fullMoney(v);
@@ -206,6 +210,11 @@ const more = computed(() =>
                 ><text class="muted small">{{
                     t(
                         'Averages cover complete calendar days before today, including zero-activity days, in the company timezone.',
+                    )
+                }}</text
+                ><text v-if="r.version === 'partner'" class="muted small">{{
+                    t(
+                        'Daily trends show activity amounts, not historical stock balances. Deposits count first funding only.',
                     )
                 }}</text
                 ><view v-for="(trend, key) in r.trends" :key="key" class="trend"

@@ -2,25 +2,46 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'App release': 'App 版本发布',
+    'Current app release': '当前 App 版本',
+    'Android download URL': 'Android 下载地址',
+    'iOS distribution page URL': 'iOS 分发页面地址',
+    'Android and iOS share the version details below. Publishing a newer version requires older apps to update.':
+        'Android 和 iOS 共用以下版本信息。发布更高版本后，旧版 App 将要求更新。',
+    'I confirm both destinations provide the published version for their platform.':
+        '我已确认两个地址分别提供对应平台的已发布版本。',
+    'Publishing app release…': '正在发布 App 版本…',
+    'Publish app release': '发布 App 版本',
+    'App release published.': 'App 版本已发布。',
+    'The app release changed. Reload this editor and try again.':
+        'App 版本已被其他人更新，请重新打开编辑器后重试。',
+    'Keep the DCloud AppID unchanged and increase the version code for each new release.':
+        'DCloud AppID 不能更改，每次发布的版本代码必须递增。',
     'Android release': 'Android 版本发布',
     'Current Android release': '当前 Android 版本',
     'Not published': '尚未发布',
     'Version check unavailable': '版本检查不可用',
-    'Enter the version details of the APK on the download site. Publishing a newer version requires older apps to update.': '填写下载站 APK 对应的版本信息。发布更高版本后，旧版 App 将要求更新。',
-    'Upload the APK to this download address before publishing. No APK upload is needed here.': '发布前请将 APK 上传到此下载地址，后台无需上传安装包。',
+    'Enter the version details of the APK on the download site. Publishing a newer version requires older apps to update.':
+        '填写下载站 APK 对应的版本信息。发布更高版本后，旧版 App 将要求更新。',
+    'Upload the APK to this download address before publishing. No APK upload is needed here.':
+        '发布前请将 APK 上传到此下载地址，后台无需上传安装包。',
     'DCloud AppID': 'DCloud AppID',
     'Version name': '版本号',
     'Version code': '版本代码',
     'Publish confirmation': '发布确认',
-    'I confirm these version details match the APK available at the download address.': '我已确认版本信息与下载地址的 APK 一致。',
+    'I confirm these version details match the APK available at the download address.':
+        '我已确认版本信息与下载地址的 APK 一致。',
     'Publishing Android release…': '正在发布 Android 版本…',
     'Publish Android release': '发布 Android 版本',
     'Android release published.': 'Android 版本已发布。',
-    'The Android release changed. Reload this editor and try again.': 'Android 版本已被其他人更新，请重新打开编辑器后重试。',
-    'Keep the DCloud AppID unchanged and increase the version code for each new APK.': 'DCloud AppID 不能更改，每个新 APK 的版本代码必须递增。',
+    'The Android release changed. Reload this editor and try again.':
+        'Android 版本已被其他人更新，请重新打开编辑器后重试。',
+    'Keep the DCloud AppID unchanged and increase the version code for each new APK.':
+        'DCloud AppID 不能更改，每个新 APK 的版本代码必须递增。',
     'Customer remark': '客户备注',
     'Customer name': '客户名称',
-    'Shared within the company. Clear to show the original name.': '公司内共享，清空后恢复显示原客户名称。',
+    'Shared within the company. Clear to show the original name.':
+        '公司内共享，清空后恢复显示原客户名称。',
     'Change invitation code': '修改邀请码',
     'Current invitation code': '当前邀请码',
     'Previous invitation code': '原邀请码',

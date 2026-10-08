@@ -25,7 +25,7 @@ for (const [name, engine, launch] of [['chrome', chromium, {channel:'chrome'}], 
             if (request.method()==='POST' && url.pathname===base+'/settings/android-release') {
                 writes.push(request.postData());
                 await new Promise(r=>setTimeout(r,350));
-                if(fail) return route.fulfill({status:422,json:{errors:{revision:['The Android release changed. Reload this editor and try again.']}}});
+                if(fail) return route.fulfill({status:422,json:{errors:{revision:['The app release changed. Reload this editor and try again.']}}});
                 published=true;return route.fulfill({json:{saved:true}});
             }
             let component, props;
@@ -40,7 +40,7 @@ for (const [name, engine, launch] of [['chrome', chromium, {channel:'chrome'}], 
         });
         await page.goto(origin+'/platform/company-configurations?page=2&section=settings%2Fbranding&editor='+encodeURIComponent(base+'/settings/branding'));
         const dialog=page.getByRole('dialog');
-        await dialog.getByText('Android 版本发布',{exact:true}).waitFor();
+        await dialog.getByText('App 版本发布',{exact:true}).waitFor();
         assert.equal(writes.length,0);
         for(const width of [375,768,1440]) {
             await page.setViewportSize({width,height:900});
@@ -48,19 +48,21 @@ for (const [name, engine, launch] of [['chrome', chromium, {channel:'chrome'}], 
             assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
             await page.screenshot({path:`${out}/${name}-${width}.png`});
         }
-        const publish=dialog.getByRole('button',{name:'发布 Android 版本',exact:true});
+        const publish=dialog.getByRole('button',{name:'发布 App 版本',exact:true});
         assert.equal(await publish.isDisabled(),true);
         assert.equal(await dialog.locator('input[type=file][accept=".apk"]').count(),0);
         await dialog.locator('#android-appid').fill('__UNI__TEST');
         await dialog.locator('#android-version-name').fill('2.3.59');
         await dialog.locator('#android-version-code').fill('2359');
+        await dialog.locator('#androidDownloadUrl').fill('https://download.example/app.apk');
+        await dialog.locator('#iosDistributionUrl').fill('https://install.example/ios');
         assert.equal(await publish.isDisabled(),true);
         await dialog.locator('#android-confirmed').check();
         await publish.click();
         assert.equal(await dialog.locator('#android-appid').isDisabled(),true);
-        await dialog.getByText('Android 版本已被其他人更新，请重新打开编辑器后重试。',{exact:true}).waitFor();
+        await dialog.getByText('App 版本已被其他人更新，请重新打开编辑器后重试。',{exact:true}).waitFor();
         assert.equal(await dialog.locator('#android-version-name').inputValue(),'2.3.59');
-        assert.match(writes[0],/name="revision"/);assert.doesNotMatch(writes[0],/name="apk"|filename=/);
+        assert.match(writes[0],/name="revision"/);assert.match(writes[0],/https:\/\/download.example\/app.apk/);assert.match(writes[0],/https:\/\/install.example\/ios/);assert.doesNotMatch(writes[0],/name="apk"|filename=/);
         fail=false;await publish.click();await dialog.waitFor({state:'hidden'});
         assert.equal(writes.length,2);assert.equal(new URL(page.url()).searchParams.get('page'),'2');
         await page.goto(origin+'/platform/company-configurations?page=2&section=settings%2Fbranding&editor='+encodeURIComponent(base+'/settings/branding'));

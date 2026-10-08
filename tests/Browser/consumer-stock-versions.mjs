@@ -37,7 +37,7 @@ for (const [name, engine, options] of [
                               outflow: '420.00000000',
                               advances: '0', deposits: '500', annual: '720.1', activation: '100', annualCommission: '200', rebates: '100', reimbursements: '20',
                           },
-                          trends: {},
+                          trends: Object.fromEntries(['deposits', 'annual', 'activation', 'annualCommission', 'otherCommission', 'rebates', 'reimbursements'].map(key => [key, {today:'12.12345678', '3':'4.04115226', '7':'1.73192240', '15':'0.80823045', '30':'0.40411523'}])),
                       }
                     : {}),
             });
@@ -90,9 +90,7 @@ for (const [name, engine, options] of [
                 return route.continue();
             });
             await page.goto(origin + '/#/pages/screen/index?path=%2Fpromotion%2Fstock');
-            await page
-                .getByText(partner ? 'Partner version' : 'Standard version', { exact: true })
-                .waitFor();
+            await page.locator('.stock').waitFor();
             const content = await page.locator('.stock').innerText();
             assert.equal(
                 content.includes('Wallet top-ups and withdrawals do not count'),
@@ -115,6 +113,10 @@ for (const [name, engine, options] of [
                 fullPage: true,
             });
             if (partner) {
+                assert.equal(await page.locator('.trend').count(), 7);
+                await page.getByText('Daily trends', {exact:true}).waitFor();
+                await page.getByText('Team alerts', {exact:true}).waitFor();
+                assert.equal(await page.getByText('Previous 30 days average', {exact:true}).count(), 7);
                 for (const [index, title] of [
                     [0, 'Contribution details'],
                     [1, 'Deduction details'],

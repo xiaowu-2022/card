@@ -4,6 +4,7 @@ namespace App\Application\Partners;
 
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 final class PartnerReport
@@ -52,7 +53,7 @@ final class PartnerReport
             if ($flow !== null) {
                 $report['flowDetails'] = $business->details($tenant, $user, $flow, max(1, $flowPage));
             }
-            $report['trends'] = [];
+            $report['trends'] = $business->trends($tenant, $user, CarbonImmutable::parse($report['updatedAt']), $report['timezone']);
             $report['unvalued'] = ['items' => [], 'page' => $page, 'total' => 0, 'hasMore' => false];
 
             return $report;

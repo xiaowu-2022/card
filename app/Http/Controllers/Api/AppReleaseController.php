@@ -19,7 +19,7 @@ final class AppReleaseController extends Controller
             'versionCode' => (int) $release['versionCode'],
             'versionName' => $release['versionName'],
             'path' => $releases->compatibilityPath($context->id(), $release),
-            'downloadUrl' => AndroidAppRelease::DOWNLOAD_URL,
+            ...$releases->destinations($release),
         ])->header('Cache-Control', 'private, no-store');
     }
 }

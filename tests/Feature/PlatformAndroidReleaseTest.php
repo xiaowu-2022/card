@@ -19,6 +19,7 @@ beforeEach(function (): void {
     $this->owner = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $this->releaseUrl = 'http://admin.localhost/platform/tenants/'.$this->releaseTenant->id.'/configuration/settings/android-release';
     $this->releaseFields = [
+        'androidDownloadUrl' => 'http://zb33333.com/specpay.apk', 'iosDistributionUrl' => 'https://install.example/ios',
         'appId' => '__UNI__TEST', 'versionCode' => 2359, 'versionName' => '2.3.59',
         'revision' => app(AndroidAppRelease::class)->revision(null), 'confirmed' => true,
     ];
@@ -108,4 +109,35 @@ it('rolls back the release when audit persistence fails', function (): void {
         ->toThrow(RuntimeException::class, 'Synthetic audit failure');
     expect(DB::table('tenant_android_releases')->count())->toBe(0);
     $this->getJson('http://a.localhost/api/mobile/v1/app-release')->assertStatus(503);
+});
+
+it('publishes platform destinations with shared version checks and rejects unsafe links', function (): void {
+    $this->actingAs($this->owner, 'platform_admin');
+    foreach (['javascript:alert(1)', '//example.com/app', 'https://user:pass@example.com/app', 'file:///tmp/app', 'https://example.com/has space'] as $url) {
+        foreach (['androidDownloadUrl', 'iosDistributionUrl'] as $field) {
+            $this->post($this->releaseUrl, array_replace($this->releaseFields, [$field => $url]))->assertSessionHasErrors($field);
+        }
+    }
+    foreach (['androidDownloadUrl', 'iosDistributionUrl'] as $field) {
+        $fields = $this->releaseFields;
+        unset($fields[$field]);
+        $this->post($this->releaseUrl, $fields)->assertSessionHasErrors($field);
+    }
+    $fields = array_replace($this->releaseFields, ['androidDownloadUrl' => 'https://download.example/new.apk']);
+    $this->post($this->releaseUrl, $fields)->assertSessionHasNoErrors();
+    $this->getJson('http://a.localhost/api/mobile/v1/app-release')->assertOk()
+        ->assertJsonPath('androidDownloadUrl', $fields['androidDownloadUrl'])
+        ->assertJsonPath('downloadUrl', $fields['androidDownloadUrl'])
+        ->assertJsonPath('iosDistributionUrl', $fields['iosDistributionUrl']);
+    $this->getJson('http://a.localhost/api/v1/bootstrap')->assertOk()
+        ->assertJsonPath('appDownloads.androidDownloadUrl', $fields['androidDownloadUrl'])
+        ->assertJsonPath('appDownloads.iosDistributionUrl', $fields['iosDistributionUrl']);
+    $this->getJson('http://b.localhost/api/v1/bootstrap')->assertOk()
+        ->assertJsonPath('appDownloads.iosDistributionUrl', null);
+    $audit = AuditLog::where('action', 'ANDROID_RELEASE_PUBLISHED')->sole();
+    expect($audit->after_data['iosDistributionUrl'])->toBe($fields['iosDistributionUrl']);
+    app(AndroidAppRelease::class)->publish($this->releaseTenant, ['appId' => '__UNI__TEST', 'versionName' => '2.3.60', 'versionCode' => 2360]);
+    $this->getJson('http://a.localhost/api/mobile/v1/app-release')->assertOk()
+        ->assertJsonPath('androidDownloadUrl', $fields['androidDownloadUrl'])
+        ->assertJsonPath('iosDistributionUrl', $fields['iosDistributionUrl']);
 });

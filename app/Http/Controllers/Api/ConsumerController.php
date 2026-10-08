@@ -15,6 +15,7 @@ use App\Application\Support\SupportChatQuery;
 use App\Application\Support\SupportImageStorage;
 use App\Application\Support\SupportUnread;
 use App\Application\Support\SupportUserAgents;
+use App\Application\Tenant\AndroidAppRelease;
 use App\Application\User\AuthenticateUserAction;
 use App\Application\User\IssueConsumerDeviceToken;
 use App\Application\User\UpdateUserLocaleAction;
@@ -76,7 +77,7 @@ final class ConsumerController extends Controller
         return response()->json(['cards' => $data['cards']]);
     }
 
-    public function bootstrap(Request $request, TenantContext $context, InboxQuery $inbox, SupportUnread $support)
+    public function bootstrap(Request $request, TenantContext $context, InboxQuery $inbox, SupportUnread $support, AndroidAppRelease $releases)
     {
         $tenant = $context->tenant();
         $user = $request->attributes->get('consumer_user');
@@ -84,6 +85,7 @@ final class ConsumerController extends Controller
 
         return response()->json([
             'apiVersion' => 1,
+            'appDownloads' => $releases->destinations($releases->current($tenant->id)),
             'publicAssets' => app(PublicAssets::class)->manifest(),
             'tenant' => ['id' => $tenant->id, 'slug' => $tenant->slug, 'name' => $tenant->branding?->brand_name ?? $tenant->name,
                 'logoUrl' => $tenant->branding?->logo_object_key ? app(ImageStorage::class)->displayUrl('public', $tenant->branding->logo_object_key, 'brand') : null,

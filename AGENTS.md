@@ -1,3 +1,25 @@
+On 2026-10-08 the user unified H5 homepage/menu/footer download links as Download
+app with automatic Android/iPhone/iPad selection from the company's published
+Android URL/iOS distribution page. Desktop/unknown platforms choose explicitly;
+unconfigured iOS never falls back to APK. Native apps omit these H5-only links.
+This supersedes fixed H5 Android links. See UNI_APP_PACKAGING.md.
+
+On 2026-10-08 the user restored daily statistics in partner stock reports:
+today and preceding 3/7/15/30 full-day averages, with existing alerts/details.
+Use current business-stock contributor/commission-beneficiary scope, signed evidence
+and company-local days including zeros. Deposits mean first funding activity, not
+historical stock balances. Preserve existing alert scope, read-only GETs, company
+and descendant authorization; no snapshots, financial writes or historical replay.
+See docs/architecture/PARTNER_STOCK.md.
+
+On 2026-10-07 the user replaced the fixed native Android update URL with company
+configured Android download and iOS distribution-page URLs. Both platforms share
+version name/code, DCloud AppID, company checks and mandatory update rules. No
+Apple signature checks or APK uploads. Preserve Platform tenant.manage, company
+locking, revision checks, monotonic versions and atomic audit. Legacy release
+metadata and installed-client path compatibility remain readable; GET is read-only.
+See docs/deployment/UNI_APP_PACKAGING.md.
+
 On 2026-10-06 the user revised Android publication to metadata-only Platform
 company configuration: version name/code and DCloud AppID, with no APK upload or
 API-server artifact requirement. APKs live only at http://zb33333.com/specpay.apk.

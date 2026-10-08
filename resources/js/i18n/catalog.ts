@@ -624,6 +624,9 @@ export const catalog = {
     FAQ: ['常见问题', 'Soalan lazim', 'Preguntas frecuentes'],
     'Company sign in': ['公司后台登录', 'Log masuk syarikat', 'Acceso de empresa'],
     'Explore your account': ['进入我的账户', 'Terokai akaun anda', 'Explora tu cuenta'],
+    'Download app': ['下载 App', 'Muat turun aplikasi', 'Descargar aplicación'],
+    'Download iOS app': ['下载苹果 App', 'Muat turun aplikasi iOS', 'Descargar aplicación iOS'],
+    'App download is not available yet.': ['暂未配置此系统的 App 下载地址。', 'Muat turun aplikasi untuk sistem ini belum tersedia.', 'La descarga de la aplicación para este sistema aún no está disponible.'],
     'Download Android app': [
         '下载安卓版 App',
         'Muat turun aplikasi Android',

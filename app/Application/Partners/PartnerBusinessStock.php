@@ -26,6 +26,39 @@ final class PartnerBusinessStock
         return $totals;
     }
 
+    /** Daily activity, not historical snapshots of the current deposit balance. */
+    public function trends(string $tenant, string $user, CarbonImmutable $at, string $timezone): array
+    {
+        $today = $at->setTimezone($timezone)->startOfDay();
+        $team = app(PartnerStockTeam::class)->members($tenant, $user)->select('user_id');
+        $firstDeposits = DB::table('account_activations as x')
+            ->join('ledger_postings as p', fn ($j) => $j->on('p.ledger_entry_id', '=', 'x.ledger_entry_id')->on('p.tenant_id', '=', 'x.tenant_id'))
+            ->join('ledger_accounts as a', fn ($j) => $j->on('a.id', '=', 'p.ledger_account_id')->on('a.tenant_id', '=', 'p.tenant_id')->on('a.user_id', '=', 'x.user_id'))
+            ->where('x.tenant_id', $tenant)->whereIn('x.user_id', $team)->where('x.source_type', 'DEPOSIT')
+            ->where('a.account_type', 'USER_SECURITY_DEPOSIT')->where('a.asset_code', 'USDT')->where('p.delta', '>', 0)
+            ->selectRaw("'deposits'::text AS category, p.delta AS amount, x.activated_at AS posted_at");
+        $activity = DB::query()->fromSub($this->entries($tenant, $user), 'entries')
+            ->where('category', '<>', 'deposits')->select('category', 'amount', 'posted_at')->unionAll($firstDeposits);
+        $sql = 'COALESCE(SUM(amount) FILTER(WHERE posted_at>=?),0) AS today';
+        $bindings = [$today->utc()];
+        foreach ([3, 7, 15, 30] as $days) {
+            $sql .= ", COALESCE(SUM(amount) FILTER(WHERE posted_at>=? AND posted_at<?),0) AS d$days";
+            array_push($bindings, $today->subDays($days)->utc(), $today->utc());
+        }
+        $rows = DB::query()->fromSub($activity, 'activity')->where('posted_at', '>=', $today->subDays(30)->utc())
+            ->where('posted_at', '<=', $at)->select('category')->selectRaw($sql, $bindings)->groupBy('category')->get()->keyBy('category');
+        $trends = [];
+        foreach (['deposits', 'annual', 'activation', 'annualCommission', 'otherCommission', 'rebates', 'reimbursements'] as $category) {
+            $row = $rows->get($category);
+            $trends[$category] = ['today' => (string) BigDecimal::of($row->today ?? '0')->toScale(8, RoundingMode::HalfUp)];
+            foreach ([3, 7, 15, 30] as $days) {
+                $trends[$category][(string) $days] = (string) BigDecimal::of($row->{'d'.$days} ?? '0')->dividedBy($days, 8, RoundingMode::HalfUp);
+            }
+        }
+
+        return $trends;
+    }
+
     public function details(string $tenant, string $user, string $direction, int $page): array
     {
         abort_unless(in_array($direction, ['inflow', 'outflow'], true), 422);

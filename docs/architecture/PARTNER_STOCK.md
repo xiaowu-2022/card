@@ -1,3 +1,31 @@
+## Partner daily trends restored (2026-10-08)
+
+Partner stock pages in App/H5 and Platform display today plus the preceding
+3/7/15/30 complete company-local calendar-day averages, including zero days.
+The user selected these summary statistics rather than a daily line chart.
+This supersedes the historical suppression of partner trends below.
+
+`PartnerBusinessStock::trends` reuses the business contribution/deduction evidence
+and current non-partner descendant scope used by stock totals. It excludes the
+owner and enabled descendant partners personally, while retaining their branches.
+Posted activation/legacy, annual and unclassified commissions retain signed manual
+adjustments and beneficiary scope. Annual settlements, approved returns and signed
+cooperation reimbursements reuse the exact stock evidence and posting timestamps;
+reimbursements retain their separate owner/all-descendant-partner journal scope.
+
+The deposit stream is first DEPOSIT account activation funding only, linked to
+positive postings in the same user's USDT security-deposit account. It is activity,
+not historical stock or balance snapshots: later conversions/refunds do not erase
+the first-funding event, and repeated funding/supplements are not counted again.
+No closing-stock history is invented. The seven streams remain separate and must
+not be added together as a historical stock balance.
+
+Existing 70%-progress/remaining-return/expired-pending alerts, detail pagination,
+personal reconciliation and team advances remain unchanged with their existing
+team scope. Reads use the report's read-only snapshot and timestamp, with no
+migration, provider calls, pricing, wallet writes or financial replay. Deploy PHP
+and matching Platform/H5 assets; native App changes require repackaging.
+
 ## Personal annual fees as negative advances (2026-10-06)
 
 Personal `accountBalance.advances` equals the owner's net ADVANCE journal amount minus

@@ -28,15 +28,20 @@ export function checkAppUpdate(force = false): Promise<void> {
             }));
             const installed = uni.getAppBaseInfo();
             const code = Number(installed.appVersionCode);
+            const platform = uni.getSystemInfoSync().platform;
+            const url = platform === 'android' ? (data.androidDownloadUrl ?? data.downloadUrl)
+                : platform === 'ios' ? data.iosDistributionUrl : undefined;
             if (data?.tenantSlug !== company.tenantSlug || data?.appId !== installed.appId
                 || !Number.isSafeInteger(data.versionCode) || data.versionCode < 1
                 || !Number.isSafeInteger(code) || code < 1
                 || typeof data.versionName !== 'string'
-                || typeof data.path !== 'string' || !/^\/app-releases\/[a-f0-9-]+\/[a-f0-9]{64}\.apk$/.test(data.path)) {
+                || (code < data.versionCode && (typeof url !== 'string'
+                    || !/^https?:\/\/[^/@\s\\]+(?:[/?#][^\s\\]*)?$/i.test(url)))
+                || !['android', 'ios'].includes(platform)) {
                 throw new Error('Invalid release');
             }
             checkedAt = Date.now();
-            appUpdate.value = { status: code < data.versionCode ? 'required' : 'ready', version: data.versionName, url: 'http://zb33333.com/specpay.apk' };
+            appUpdate.value = { status: code < data.versionCode ? 'required' : 'ready', version: data.versionName, url: code < data.versionCode ? url : '' };
         } catch {
             appUpdate.value = { ...appUpdate.value, status: 'error' };
         } finally {

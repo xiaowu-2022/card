@@ -17,6 +17,8 @@ final class AndroidAppRelease
     public static function rules(): array
     {
         return [
+            'androidDownloadUrl' => ['sometimes', 'required', 'string', 'max:2048', 'url:http,https', 'not_regex:/[\s\\\\]/', 'regex:#^https?://[^/@]+(?:[/?\#]|$)#i'],
+            'iosDistributionUrl' => ['sometimes', 'nullable', 'string', 'max:2048', 'url:http,https', 'not_regex:/[\s\\\\]/', 'regex:#^https?://[^/@]+(?:[/?\#]|$)#i'],
             'versionCode' => ['required', 'integer', 'min:1', 'max:2100000000'],
             'versionName' => ['required', 'string', 'max:100', 'regex:/^\d+\.\d+\.\d+(?:[.-][a-zA-Z0-9]+)*$/D'],
             'appId' => ['required', 'string', 'max:100', 'regex:/^__UNI__[A-Z0-9]+$/D'],
@@ -68,7 +70,16 @@ final class AndroidAppRelease
 
         return ['current' => $release === null ? null : array_intersect_key($release, array_flip(['appId', 'versionCode', 'versionName'])),
             'revision' => $this->revision($release), 'available' => $this->available($release),
-            'downloadUrl' => self::DOWNLOAD_URL];
+            ...$this->destinations($release)];
+    }
+
+    public function destinations(?array $release): array
+    {
+        return [
+            'downloadUrl' => $release['androidDownloadUrl'] ?? self::DOWNLOAD_URL,
+            'androidDownloadUrl' => $release['androidDownloadUrl'] ?? self::DOWNLOAD_URL,
+            'iosDistributionUrl' => $release['iosDistributionUrl'] ?? null,
+        ];
     }
 
     public function publish(Tenant $tenant, array $data, ?AdminUser $actor = null, ?string $requestId = null, ?string $expectedRevision = null): void
@@ -84,15 +95,20 @@ final class AndroidAppRelease
                 app(CompanyConfigurationAuthority::class)->assert($actor);
             }
             $old = $this->current($tenant->id);
+            // Legacy CLI callers preserve configured destinations rather than resetting them.
+            $metadata += [
+                'androidDownloadUrl' => $old['androidDownloadUrl'] ?? self::DOWNLOAD_URL,
+                'iosDistributionUrl' => $old['iosDistributionUrl'] ?? null,
+            ];
             // Identical retries do not create a second publication/audit entry.
-            if ($old !== null && array_intersect_key($old, $metadata) == $metadata) {
+            if ($old !== null && array_intersect_key($old + ['androidDownloadUrl' => self::DOWNLOAD_URL, 'iosDistributionUrl' => null], $metadata) == $metadata) {
                 return;
             }
             if ($expectedRevision !== null && ! hash_equals($this->revision($old), $expectedRevision)) {
-                throw ValidationException::withMessages(['revision' => 'The Android release changed. Reload this editor and try again.']);
+                throw ValidationException::withMessages(['revision' => 'The app release changed. Reload this editor and try again.']);
             }
             if ($old && (($old['appId'] ?? null) !== $metadata['appId'] || $metadata['versionCode'] <= ($old['versionCode'] ?? 0))) {
-                throw ValidationException::withMessages(['versionCode' => 'Keep the DCloud AppID unchanged and increase the version code for each new APK.']);
+                throw ValidationException::withMessages(['versionCode' => 'Keep the DCloud AppID unchanged and increase the version code for each new release.']);
             }
             DB::table('tenant_android_releases')->updateOrInsert(['tenant_id' => $tenant->id], [
                 'metadata' => json_encode($metadata, JSON_THROW_ON_ERROR),

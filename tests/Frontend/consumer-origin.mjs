@@ -8,7 +8,7 @@ import ts from 'typescript';
 function client(platform, base = '/', initialAssets = {}) {
     const cache = new Map();
     const calls = [];
-    const uni = { getAppBaseInfo: () => ({ appId: '__UNI__TEST', appVersionCode: '2' }), getLocale: () => 'en', getStorageSync: () => [], setStorageSync() {},
+    const uni = { getSystemInfoSync: () => ({ platform: 'android' }), getAppBaseInfo: () => ({ appId: '__UNI__TEST', appVersionCode: '2' }), getLocale: () => 'en', getStorageSync: () => [], setStorageSync() {},
         request(options) {
             calls.push(options);
             if (options.url.endsWith('/domains')) options.success({ statusCode: 200, data: { tenant: { id: 'tenant-a', slug: 'company-a' }, origins: ['https://primary.example.org'] } });

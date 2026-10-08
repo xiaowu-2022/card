@@ -1,4 +1,10 @@
 export const partnerCatalog = {
+    'Daily trends show activity amounts, not historical stock balances. Deposits count first funding only.':
+        [
+            '日趋势统计业务发生金额，并非历史存量余额；保证金仅统计首次缴纳金额。',
+            'Trend harian menunjukkan jumlah aktiviti, bukan baki stok sejarah. Deposit hanya mengira pembiayaan pertama.',
+            'Las tendencias diarias muestran importes de actividad, no saldos históricos. Los depósitos solo cuentan la primera aportación.',
+        ],
     'Manual deposit · Order ID: {{id}}': [
         '人工充值 · 订单号：{{id}}',
         'Deposit manual · ID pesanan: {{id}}',

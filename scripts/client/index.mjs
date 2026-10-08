@@ -242,6 +242,19 @@ try {
                             android: {
                                 packagename: config.appId,
                                 abiFilters: ['arm64-v8a', 'armeabi-v7a'],
+                                // Cloud packaging adds defaults; custompermissions alone cannot remove them.
+                                // Keep photo/storage APIs, but never request storage or device IDs at startup.
+                                permissionPhoneState: { request: 'none' },
+                                permissionExternalStorage: { request: 'none' },
+                                excludePermissions: [
+                                    '<uses-permission android:name="android.permission.READ_PHONE_STATE"/>',
+                                    '<uses-permission android:name="android.permission.READ_PHONE_NUMBERS"/>',
+                                    '<uses-permission android:name="android.permission.READ_PRIVILEGED_PHONE_STATE"/>',
+                                    '<uses-permission android:name="android.permission.RECORD_AUDIO"/>',
+                                    '<uses-permission android:name="android.permission.INSTALL_PACKAGES"/>',
+                                    '<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>',
+                                    '<uses-permission android:name="com.asus.msa.SupplementaryDID.ACCESS"/>',
+                                ],
                                 permissions: [
                                     '<uses-permission android:name="android.permission.INTERNET"/>',
                                     '<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>',

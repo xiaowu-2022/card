@@ -5,6 +5,7 @@ import { session, unread, requireUser, refreshUnread } from '../../lib/session';
 import { request, setCurrentPage } from '../../lib/api';
 import { t } from '../../lib/i18n';
 import { go } from '../../lib/navigation';
+import { openAppDownload } from '../../lib/open-app-download';
 import { explainError } from '../../lib/client';
 import PageShell from '../../components/PageShell.vue';
 import UiIcon from '../../components/UiIcon.vue';
@@ -55,17 +56,33 @@ const status = computed(() =>
         )[account.value?.kycStatus ?? ''] ?? 'Not verified',
     ),
 );
-const items = computed(() => [
-    ...(account.value?.supportAgent
-        ? [{ title: 'Support workspace', icon: 'support', path: '/support-workspace' }]
-        : []),
-    { title: 'Account and security', icon: 'shield-check', path: '/account/security' },
-    { title: 'Promotion center', icon: 'users', path: '/promotion' },
-    { title: 'Invitation data', icon: 'chart-no-axes-combined', path: '/promotion/invitations' },
-    { title: 'U Card Academy', icon: 'book-open', path: '/promotion/rules' },
-    { title: 'Customer support', icon: 'support', path: '/support' },
-    { title: 'Messages', icon: 'bell', path: '/messages' },
-]);
+const items = computed(() => {
+    const entries = [
+        ...(account.value?.supportAgent
+            ? [{ title: 'Support workspace', icon: 'support', path: '/support-workspace' }]
+            : []),
+        { title: 'Account and security', icon: 'shield-check', path: '/account/security' },
+        { title: 'Promotion center', icon: 'users', path: '/promotion' },
+        {
+            title: 'Invitation data',
+            icon: 'chart-no-axes-combined',
+            path: '/promotion/invitations',
+        },
+        { title: 'U Card Academy', icon: 'book-open', path: '/promotion/rules' },
+        { title: 'Customer support', icon: 'support', path: '/support' },
+        { title: 'Messages', icon: 'bell', path: '/messages' },
+    ];
+    // #ifdef H5
+    entries.splice(entries.findIndex((item) => item.path === '/support'), 0, {
+        title: 'Download app', icon: 'download', path: '#app-download',
+    });
+    // #endif
+    return entries;
+});
+function openItem(path: string) {
+    if (path === '#app-download') openAppDownload();
+    else go(path);
+}
 function count(path: string) {
     return path === '/messages'
         ? unread.messages
@@ -133,7 +150,7 @@ function copy() {
                     v-for="item in items"
                     :key="item.path"
                     class="menu-item"
-                    @click="go(item.path)"
+                    @click="openItem(item.path)"
                 >
                     <view class="menu-icon"
                         ><UiIcon :name="item.icon" :size="24" /><text

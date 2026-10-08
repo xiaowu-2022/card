@@ -169,8 +169,9 @@ App manifest 已显式包含相机／相册 Camera 和系统分享 Share 模块�
 ```
 
 以上仅为格式示例，必须替换为该公司的真实域名。`apiOrigin` 也会自动加入初始列表，
-同时继续用于本地 H5 代理。specpay 配置按用户指定内置 `zb33333.com`、`specpay.cc`、
-`specpay.top`、`specpay.vip`、`113b.my`，全部使用 HTTPS。release 对每一个域名检查 HTTPS
+同时继续用于本地 H5 代理。specpay 配置按用户指定内置 `specpay.cc`、
+`specpay.top`、`specpay.vip`、`113b.my`、`27m.my`、`18k.my`，全部使用 HTTPS。
+`zb33333.com` 是静态下载站，不加入 API 入口列表。release 对每一个域名检查 HTTPS
 和非测试域名要求。修改后重新 prepare／打包。
 
 日常新增域名在 SaaS「系统设置 → 域名」中启用并分配给该公司，无需重新打包。
@@ -382,3 +383,78 @@ from `uni.getAppBaseInfo()`, the same runtime source used for update comparisons
 Missing metadata displays Unavailable; server release metadata and generated company
 configuration are never used as a substitute. H5 omits these native-only rows.
 Rebuild/cloud-package and install the new APK to add this UI to existing devices.
+
+
+### Shared Android/iOS update configuration (2026-10-07)
+
+Platform company configuration → Branding → App release now publishes one shared
+DCloud AppID, version name and monotonically increasing version code, plus required
+Android download URL and iOS distribution-page URL. Both destinations accept HTTP(S)
+without embedded credentials. Publication is metadata-only: no APK/IPA upload,
+Apple signature check, remote download verification or server-side link fetch.
+The existing tenant.manage permission, company lock, revision and atomic actor/request
+audit apply. Every changed publication still requires a higher version code.
+
+The historical `tenant_android_releases` JSON storage, editor route, DTO property and
+audit action remain for compatibility; no migration is needed. Legacy releases retain
+the fixed Android default and a null iOS destination without GET writes. The legacy
+CLI preserves existing destinations. Public release JSON adds `androidDownloadUrl`
+and `iosDistributionUrl`; `downloadUrl` aliases the configured Android URL. The
+legacy APK-shaped `path` is only an installed-client compatibility identifier.
+
+New native clients use the same company/AppID/version checks on Android and iOS.
+An outdated Android opens its configured download URL; an outdated iOS opens its
+configured distribution page. Missing/invalid destinations block an outdated client
+with retry, never send iOS to an APK. A current client does not need a download link.
+No certificate or signature inspection occurs during version checking. H5 download
+links are unchanged by this native-update change.
+
+Deploy backend and rebuilt admin assets, then configure both real destinations and
+matching release metadata. Rebuild and sign/install native packages to adopt this
+logic: existing Android packages with a hardcoded URL continue using the former
+static download host. Keep that host usable during transition. Deploying backend
+alone does not change already installed client code.
+
+
+### Android permission reduction (2026-10-08)
+
+The Huawei installer screenshot lists storage read/write, phone state/device identifiers
+and camera. This is a declaration list, not proof all permissions have been granted.
+DCloud cloud packaging adds default/module permissions independently of our short
+`permissions` list; `custompermissions` does not reliably suppress SDK additions.
+The persistent generator now uses `app-plus.distribute.android.excludePermissions`
+(XML permission strings) to remove phone state/numbers/privileged phone state, audio
+recording, APK installation permissions and ASUS device-ID access. Updates open the
+browser, so this App does not need to install APKs itself. Both
+`permissionPhoneState.request` and `permissionExternalStorage.request` are `none`.
+
+Camera and existing image/storage module permissions remain for explicit document or
+support photo selection and saving invitation posters, including older Android phones.
+Older installers can still list storage read/write and camera; do not promise a
+permission-free package or remove these blindly. Eliminating broad storage access
+requires a separately verified system-picker/MediaStore implementation for the supported
+OS/toolchain versions. No microphone/video recording is used by our image UI.
+
+The current generated manifest is synchronized, but a new cloud-packaged APK and
+real-device acceptance are still required. Inspect the final APK permissions, verify
+startup does not request phone/storage access, and test camera, album selection,
+poster saving, permission denial and browser update links. No final signed APK was
+available to inspect in this change. Reference:
+https://uniapp.dcloud.net.cn/tutorial/app-permission-android
+https://uniapp.dcloud.net.cn/tutorial/app-nativeresource-android.html
+
+
+### H5 automatic App download (2026-10-08)
+
+The homepage/menu/footer now show Download app. Public company bootstrap includes
+`appDownloads` from the same release metadata used for native updates. H5 chooses
+Android download URL for Android and the iOS distribution page for iPhone/iPad
+(including iPad desktop user agents). Desktop/unknown devices choose a platform.
+Missing or invalid destinations show an unavailable message; iOS never falls back
+to the Android APK. Links are HTTP(S), without credentials; no `download` attribute
+is applied to distribution pages. Native apps still omit these H5-only links.
+This supersedes the fixed H5 Android link rule above. Legacy Android release defaults
+remain readable; configure the iOS destination in Platform before offering downloads.
+
+H5 My account also inserts Download app immediately before Customer support, including for support agents. It shares the homepage platform-selection
+action and published URLs. Native account menus retain their previous entries.

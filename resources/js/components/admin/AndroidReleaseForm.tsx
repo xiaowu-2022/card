@@ -13,12 +13,16 @@ export type AndroidReleaseSettings = {
     revision: string;
     available: boolean;
     downloadUrl: string;
+    androidDownloadUrl: string;
+    iosDistributionUrl: string | null;
 };
 
 export function AndroidReleaseForm({ release }: { release: AndroidReleaseSettings }) {
     const configurationUrl = useCompanyConfigurationUrl();
     const form = useForm({
         appId: release.current?.appId ?? '',
+        androidDownloadUrl: release.androidDownloadUrl ?? release.downloadUrl,
+        iosDistributionUrl: release.iosDistributionUrl ?? '',
         versionName: '',
         versionCode: '',
         revision: release.revision,
@@ -27,11 +31,11 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
     return (
         <Card className="max-w-3xl">
             <CardHeader>
-                <CardTitle>{t('Android release')}</CardTitle>
+                <CardTitle>{t('App release')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
                 <p className="text-sm">
-                    {t('Current Android release')}:{' '}
+                    {t('Current app release')}:{' '}
                     {release.current
                         ? `${release.current.versionName} (${release.current.versionCode})`
                         : t('Not published')}
@@ -40,21 +44,8 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
                 </p>
                 <p className="text-sm text-muted-foreground">
                     {t(
-                        'Enter the version details of the APK on the download site. Publishing a newer version requires older apps to update.',
+                        'Android and iOS share the version details below. Publishing a newer version requires older apps to update.',
                     )}
-                </p>
-                <p className="break-all text-sm text-muted-foreground">
-                    {t(
-                        'Upload the APK to this download address before publishing. No APK upload is needed here.',
-                    )}{' '}
-                    <a
-                        className="underline"
-                        href={release.downloadUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                    >
-                        {release.downloadUrl}
-                    </a>
                 </p>
                 <ConfigurationForm
                     className="space-y-4"
@@ -122,6 +113,27 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
                                 />
                             </FormField>
                         </div>
+                        {(['androidDownloadUrl', 'iosDistributionUrl'] as const).map((field) => (
+                            <FormField
+                                key={field}
+                                id={field}
+                                label={t(
+                                    field === 'androidDownloadUrl'
+                                        ? 'Android download URL'
+                                        : 'iOS distribution page URL',
+                                )}
+                                error={errorMessage(form.errors[field])}
+                            >
+                                <Input
+                                    id={field}
+                                    type="url"
+                                    required
+                                    maxLength={2048}
+                                    value={form.data[field]}
+                                    onChange={(event) => form.setData(field, event.target.value)}
+                                />
+                            </FormField>
+                        ))}
                         <FormField
                             id="android-confirmed"
                             label={t('Publish confirmation')}
@@ -136,7 +148,7 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
                                     }
                                 />
                                 {t(
-                                    'I confirm these version details match the APK available at the download address.',
+                                    'I confirm both destinations provide the published version for their platform.',
                                 )}
                             </label>
                         </FormField>
@@ -146,11 +158,7 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
                             </p>
                         )}
                         <Button type="submit" disabled={form.processing || !form.data.confirmed}>
-                            {t(
-                                form.processing
-                                    ? 'Publishing Android release…'
-                                    : 'Publish Android release',
-                            )}
+                            {t(form.processing ? 'Publishing app release…' : 'Publish app release')}
                         </Button>
                     </fieldset>
                 </ConfigurationForm>

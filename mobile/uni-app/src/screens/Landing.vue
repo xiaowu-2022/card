@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { openAppDownload } from '../lib/open-app-download';
 import { staticAsset } from '../lib/origin';
 import { computed, ref } from 'vue';
 import { session } from '../lib/session';
@@ -8,6 +9,10 @@ import { go } from '../lib/navigation';
 import UiIcon from '../components/UiIcon.vue';
 import LanguagePicker from '../components/LanguagePicker.vue';
 import MarketingCard from '../components/MarketingCard.vue';
+function downloadApp() {
+    menuOpen.value = false;
+    openAppDownload();
+}
 const services = [
     {
         icon: 'wallet',
@@ -129,12 +134,11 @@ function toggle(index: number) {
                     {{ t(item.title) }}</button
                 ><button @click="go('/login')">{{ t('Log in') }}</button>
                 <!-- #ifdef H5 -->
-                <a href="http://zb33333.com/specpay.apk" download="specpay.apk" @click="menuOpen = false">
-                    {{ t('Download Android app') }}
+                <a href="#" @click.prevent="downloadApp">
+                    {{ t('Download app') }}
                 </a>
                 <!-- #endif -->
-                </view
-            ></view
+            </view></view
         >
         <view class="marketing-hero"
             ><view class="marketing-hero-inner"
@@ -151,14 +155,14 @@ function toggle(index: number) {
                             mode="widthFix" /></view></view
                 ><view class="marketing-hero-action"
                     ><button class="marketing-cta" @click="go('/login')">
-                        {{ t('Explore your account')
-                        }}<UiIcon name="arrow-up-right" :size="18" /></button>
+                        {{ t('Explore your account') }}<UiIcon name="arrow-up-right" :size="18" />
+                    </button>
                     <!-- #ifdef H5 -->
-                    <a class="marketing-download" href="http://zb33333.com/specpay.apk" download="specpay.apk">
-                        <UiIcon name="download" :size="18" />{{ t('Download Android app') }}
+                    <a class="marketing-download" href="#" @click.prevent="downloadApp">
+                        <UiIcon name="download" :size="18" />{{ t('Download app') }}
                     </a>
                     <!-- #endif -->
-                    </view></view
+                </view></view
             ><view class="marketing-hero-footer"
                 ><button
                     class="marketing-scroll"
@@ -292,9 +296,8 @@ function toggle(index: number) {
                     ><text @click="go('/cards')">{{ t('Mastercard U Card') }}</text
                     ><text @click="go('/wallet')">{{ t('Wallet') }}</text>
                     <!-- #ifdef H5 -->
-                    <a href="http://zb33333.com/specpay.apk" download="specpay.apk">{{ t('Download Android app') }}</a>
-                    <!-- #endif -->
-                    </view
+                    <a href="#" @click.prevent="downloadApp">{{ t('Download app') }}</a>
+                    <!-- #endif --> </view
                 ><view
                     ><text class="h3">{{ t('Help') }}</text
                     ><text @click="scroll('faq')">{{ t('FAQ') }}</text></view

@@ -14,6 +14,7 @@ import { setPublicAssets } from './origin';
 import { configureLocale } from './i18n';
 export type Bootstrap = {
     publicAssets?: Record<string, string>;
+    appDownloads?: import('./app-download').AppDownloads;
     tenant: {
         id: string;
         slug: string;
