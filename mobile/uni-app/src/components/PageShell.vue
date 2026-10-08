@@ -195,7 +195,7 @@ function open(path: string, replace = false) {
 <style scoped>
 .user-root {
     min-height: 100vh;
-    background: #f7f6f0;
+    background: #fff;
     color: #171c19;
     --user-primary: #39ad8d;
     --user-border: #e2e7e4;
@@ -208,7 +208,7 @@ function open(path: string, replace = false) {
     max-width: 750px;
     min-height: 100vh;
     margin: auto;
-    background: #f7f6f0;
+    background: #fff;
     padding: 64px 0 0;
     padding: calc(var(--shell-header-height) + var(--shell-safe-top)) 0 0;
 }
@@ -224,12 +224,7 @@ function open(path: string, replace = false) {
     font-size: 22px;
 }
 .overview-shell {
-    background-image:
-        radial-gradient(ellipse 66% 63% at 38% 44%, #9bd8c5, transparent),
-        radial-gradient(ellipse 68% 60% at 69% 10%, #d7f0cd, transparent),
-        linear-gradient(180deg, #e6f4ee 0%, #e5f2e9 72%, #f7f6f0 100%);
-    background-size: 100% min(126.667vw, 950px);
-    background-repeat: no-repeat;
+    background: #fff;
 }
 .shell-main {
     /* Keep the last row comfortably above fixed navigation, even on old WebViews. */
@@ -317,7 +312,7 @@ function open(path: string, replace = false) {
     padding-left: calc(clamp(20px, 4.267vw, 32px) + env(safe-area-inset-left, 0px));
     padding-right: calc(clamp(20px, 4.267vw, 32px) + env(safe-area-inset-right, 0px));
     z-index: 50;
-    background: #f7f6f0;
+    background: #fff;
     box-shadow: 0 1px 0 #171c190d;
 }
 .white-shell .header,
@@ -325,7 +320,7 @@ function open(path: string, replace = false) {
     background: #fff;
 }
 .overview-shell .brand-header {
-    background: #e6f4ee;
+    background: #fff;
 }
 .header-title {
     white-space: nowrap;
