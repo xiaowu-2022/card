@@ -8,8 +8,7 @@ final class TenantAdminUrlGenerator
 {
     public function invitation(Tenant $tenant, string $rawToken): string
     {
-        $hostname = $tenant->domains()->where('is_primary', true)->value('hostname')
-            ?? $tenant->domains()->where('domain_type', 'SYSTEM_SUBDOMAIN')->value('hostname');
+        $hostname = $tenant->domains()->where('status', 'ACTIVE')->orderBy('hostname')->value('hostname');
 
         if (! is_string($hostname)) {
             throw new \LogicException('Tenant has no usable invitation domain.');

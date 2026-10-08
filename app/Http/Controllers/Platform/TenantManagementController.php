@@ -63,7 +63,7 @@ final class TenantManagementController extends Controller
         $actor = $request->user('platform_admin');
         $created = $create->execute($request->validated(), $actor, $request->attributes->get('request_id'));
 
-        return redirect('/platform/tenants?'.http_build_query(['editor' => '/platform/tenants/'.$created->tenant->id.'/configuration/onboarding']))->with('success', 'Tenant created and Owner invitation sent.');
+        return redirect('/platform/tenants?'.http_build_query(['editor' => '/platform/tenants/'.$created->tenant->id.'/configuration/domains']))->with('success', 'Tenant created and Owner invitation sent.');
     }
 
     public function show(string $tenant, TenantDetailQuery $query, Request $request, AuthorizationService $authorization): Response|RedirectResponse
@@ -71,7 +71,7 @@ final class TenantManagementController extends Controller
         if ($authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'tenant.manage')) {
             Tenant::query()->findOrFail($tenant);
 
-            return redirect('/platform/tenants?'.http_build_query(['editor' => '/platform/tenants/'.$tenant.'/configuration/onboarding']));
+            return redirect('/platform/tenants?'.http_build_query(['editor' => '/platform/tenants/'.$tenant.'/configuration/domains']));
         }
 
         return Inertia::render('platform/TenantDetail', ['tenantRecord' => $query->execute($tenant)]);

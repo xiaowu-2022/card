@@ -1659,8 +1659,8 @@ export const adminCatalog: Record<string, string> = {
         '创建公司并管理其生命周期，不删除历史记录。',
     'Create your admin identity': '创建管理员身份',
     Created: '创建时间',
-    'Creates a draft tenant, its immutable system domain, baseline configuration, and a Tenant Owner invitation.':
-        '创建草稿公司、不可变的系统域名、基础配置及公司所有者邀请。',
+    'Creates a draft tenant, a reassignable system domain, baseline configuration, and a Tenant Owner invitation.':
+        '创建草稿公司、可重新分配的系统域名、基础配置及公司所有者邀请。',
     Credited: '已入账',
     'Cross-tenant operational overview using mock metrics only.':
         '跨公司运营概览，仅展示模拟指标。',
@@ -2042,8 +2042,8 @@ export const adminEnglish: Record<string, string> = {
         'Adjust the filters or create a company foundation.',
     'Create tenant foundations and control their lifecycle without deleting historical records.':
         'Create company foundations and control their lifecycle without deleting historical records.',
-    'Creates a draft tenant, its immutable system domain, baseline configuration, and a Tenant Owner invitation.':
-        'Creates a draft company, its immutable system domain, baseline configuration, and a company owner invitation.',
+    'Creates a draft tenant, a reassignable system domain, baseline configuration, and a Tenant Owner invitation.':
+        'Creates a draft company, a reassignable system domain, baseline configuration, and a company owner invitation.',
     TENANT: 'Company',
     'Tenant created': 'Company created',
     'Tenant Owner active': 'Company owner active',

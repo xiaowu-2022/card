@@ -61,21 +61,28 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
                     }}
                 >
                     <fieldset disabled={form.processing} className="space-y-4">
-                        <FormField
-                            id="android-appid"
-                            label={t('DCloud AppID')}
-                            error={errorMessage(form.errors.appId)}
-                        >
-                            <Input
+                        {!release.current?.appId && (
+                            <FormField
                                 id="android-appid"
-                                value={form.data.appId}
-                                placeholder="__UNI__…"
-                                required
-                                maxLength={100}
-                                readOnly={Boolean(release.current?.appId)}
-                                onChange={(event) => form.setData('appId', event.target.value)}
-                            />
-                        </FormField>
+                                label={t('DCloud AppID')}
+                                error={errorMessage(form.errors.appId)}
+                            >
+                                <Input
+                                    id="android-appid"
+                                    value={form.data.appId}
+                                    placeholder="__UNI__…"
+                                    required
+                                    maxLength={100}
+                                    readOnly={Boolean(release.current?.appId)}
+                                    onChange={(event) => form.setData('appId', event.target.value)}
+                                />
+                            </FormField>
+                        )}
+                        {release.current?.appId && form.errors.appId && (
+                            <p role="alert" className="text-sm text-destructive">
+                                {errorMessage(form.errors.appId)}
+                            </p>
+                        )}
                         <div className="grid gap-4 sm:grid-cols-2">
                             <FormField
                                 id="android-version-name"

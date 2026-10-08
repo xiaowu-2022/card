@@ -90,6 +90,11 @@ function EditorHost({ children }: { children: ReactNode }) {
             const parsed = new URL(target, location.origin);
             if (/^\/platform\/tenants\/[^/]+\/domains$/.test(parsed.pathname))
                 parsed.pathname = parsed.pathname.replace('/domains', '/configuration/domains');
+            if (parsed.pathname.endsWith('/configuration/onboarding'))
+                parsed.pathname = parsed.pathname.replace(
+                    '/configuration/onboarding',
+                    '/configuration/domains',
+                );
             if (!editorPath(parsed)) throw new Error(t('This operation is unavailable.'));
             const response = await fetch(parsed, {
                 credentials: 'same-origin',
@@ -241,7 +246,11 @@ function EditorHost({ children }: { children: ReactNode }) {
     }, [url, changeUrl, canClose, close]);
     useEffect(() => {
         const body = bodyRef.current;
-        if (!body || !Component || companyEditor(url)) {
+        if (
+            !body ||
+            !Component ||
+            (companyEditor(url) && companyEditor(url)?.section !== 'assets')
+        ) {
             setActions([]);
             return;
         }

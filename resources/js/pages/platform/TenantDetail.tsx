@@ -46,7 +46,7 @@ type Detail = {
         kycEnabled: boolean;
         kycReviewMode: string;
     };
-    domains: { id: string; hostname: string; type: string; status: string; primary: boolean }[];
+    domains: { id: string; hostname: string; type: string; status: string }[];
     admins: { name: string; email: string; role: string; status: string }[];
     invitations: { id: string; email: string; role: string; status: string; expiresAt: string }[];
     onboarding: { foundation_ready: boolean; business_ready: boolean; items: CheckItem[] };
@@ -240,7 +240,6 @@ export default function TenantDetail({ tenantRecord: tenant }: { tenantRecord: D
                                     <TableHead>{t('Hostname')}</TableHead>
                                     <TableHead>{t('Type')}</TableHead>
                                     <TableHead>{t('Status')}</TableHead>
-                                    <TableHead>{t('Primary')}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -249,7 +248,6 @@ export default function TenantDetail({ tenantRecord: tenant }: { tenantRecord: D
                                         <TableCell>{domain.hostname}</TableCell>
                                         <TableCell>{t(domain.type)}</TableCell>
                                         <TableCell>{t(domain.status)}</TableCell>
-                                        <TableCell>{domain.primary ? t('Yes') : t('No')}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>

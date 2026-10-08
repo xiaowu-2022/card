@@ -44,7 +44,6 @@ type Domain = {
     hostname: string;
     type: 'SYSTEM_SUBDOMAIN' | 'CUSTOM_DOMAIN';
     status: 'PENDING_VERIFICATION' | 'VERIFIED' | 'ACTIVE' | 'FAILED' | 'DISABLED';
-    primary: boolean;
     sslStatus: string;
     companyId: string | null;
     companyName: string | null;
@@ -74,8 +73,7 @@ export default function Domains({
     const base = company ? `/platform/tenants/${company.id}/domains` : '/platform/settings/domains';
     const Layout = company ? CompanyConfigurationLayout : PlatformSettingsLayout;
     const availableDomains = domains.filter(
-        (domain) =>
-            domain.type === 'CUSTOM_DOMAIN' && domain.status === 'ACTIVE' && !domain.companyId,
+        (domain) => domain.status === 'ACTIVE' && !domain.companyId,
     );
     const [candidate, setCandidate] = useState('');
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -90,7 +88,7 @@ export default function Domains({
     });
     const prepareAssignment = (tenantId: string, ids: string[], mode: 'assign' | 'unassign') => {
         const originalIds = domains
-            .filter((domain) => domain.type === 'CUSTOM_DOMAIN' && domain.companyId === tenantId)
+            .filter((domain) => domain.companyId === tenantId)
             .map((domain) => domain.id);
         assignment.setData({
             original_ids: originalIds,
@@ -111,7 +109,7 @@ export default function Domains({
     };
     const [confirmation, setConfirmation] = useState<{
         domain: Domain;
-        action: 'activate' | 'primary' | 'remove';
+        action: 'activate' | 'remove';
     } | null>(null);
     const [processing, setProcessing] = useState(false);
     const confirm = () => {
@@ -125,12 +123,6 @@ export default function Domains({
         };
         if (confirmation.action === 'remove')
             router.delete(`${base}/${confirmation.domain.id}`, options);
-        else if (confirmation.action === 'primary')
-            router.post(
-                `/platform/tenants/${confirmation.domain.companyId}/domains/${confirmation.domain.id}/primary`,
-                {},
-                options,
-            );
         else router.post(`${base}/${confirmation.domain.id}/${confirmation.action}`, {}, options);
     };
     return (
@@ -256,7 +248,6 @@ export default function Domains({
                                             <p className="font-medium">{domain.hostname}</p>
                                             <p className="text-xs text-muted-foreground">
                                                 {t(domain.type)}
-                                                {domain.primary ? t(' · Primary') : ''}
                                             </p>
                                         </TableCell>
                                         {!company && (
@@ -297,23 +288,21 @@ export default function Domains({
                                                         {t('Assign to company')}
                                                     </Button>
                                                 )}
-                                                {domain.type === 'CUSTOM_DOMAIN' &&
-                                                    domain.companyId &&
-                                                    !domain.primary && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="secondary"
-                                                            onClick={() =>
-                                                                openAssignment(
-                                                                    [domain.id],
-                                                                    'unassign',
-                                                                    domain.companyId!,
-                                                                )
-                                                            }
-                                                        >
-                                                            {t('Unassign')}
-                                                        </Button>
-                                                    )}
+                                                {domain.companyId && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="secondary"
+                                                        onClick={() =>
+                                                            openAssignment(
+                                                                [domain.id],
+                                                                'unassign',
+                                                                domain.companyId!,
+                                                            )
+                                                        }
+                                                    >
+                                                        {t('Unassign')}
+                                                    </Button>
+                                                )}
 
                                                 {!company &&
                                                     domain.type === 'CUSTOM_DOMAIN' &&
@@ -332,26 +321,9 @@ export default function Domains({
                                                             {t('Activate')}
                                                         </Button>
                                                     )}
-                                                {domain.companyId &&
-                                                    domain.status === 'ACTIVE' &&
-                                                    !domain.primary && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="secondary"
-                                                            onClick={() =>
-                                                                setConfirmation({
-                                                                    domain,
-                                                                    action: 'primary',
-                                                                })
-                                                            }
-                                                        >
-                                                            {t('Make primary')}
-                                                        </Button>
-                                                    )}
                                                 {!company &&
                                                     domain.type === 'CUSTOM_DOMAIN' &&
-                                                    !domain.companyId &&
-                                                    !domain.primary && (
+                                                    !domain.companyId && (
                                                         <Button
                                                             size="sm"
                                                             variant="ghost"

@@ -16,18 +16,17 @@ final class DomainConfigurationQuery
     {
         $query = TenantDomain::query()->with('tenant:id,name');
         if ($unassigned) {
-            $query->whereNull('tenant_id')->where('status', 'ACTIVE')->where('domain_type', 'CUSTOM_DOMAIN');
+            $query->whereNull('tenant_id')->where('status', 'ACTIVE');
         }
         if ($tenantId !== null) {
             $query->where('tenant_id', $tenantId);
         }
 
-        return $query->orderByDesc('is_primary')->orderBy('hostname')->get()->map(fn ($domain) => [
+        return $query->orderBy('hostname')->get()->map(fn ($domain) => [
             'id' => $domain->id,
             'hostname' => $domain->hostname,
             'type' => $domain->domain_type->value,
             'status' => $domain->status->value,
-            'primary' => $domain->is_primary,
             'sslStatus' => $domain->ssl_status,
             'companyId' => $domain->tenant_id,
             'companyName' => $domain->tenant?->name,

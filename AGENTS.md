@@ -1,3 +1,17 @@
+On 2026-10-08 the user removed the Platform company drawer Basic information tab
+and placed lifecycle switches on company list rows. Configuration defaults to Domains;
+legacy onboarding editor links map to Domains. Preserve confirmation, tenant.manage,
+existing activation readiness, lifecycle endpoints, company locks, audit and list state.
+
+On 2026-10-08 the user removed primary-domain semantics. All company domains,
+including generated system subdomains, may be explicitly unassigned and reassigned
+through Platform domain allocation. Preserve company locks, original-ID revision
+checks, exclusive ownership, active-domain eligibility, permissions and atomic audit.
+Never auto-transfer assigned domains; unassigned hosts resolve to no company.
+Legacy is_primary flags are ignored and cleared on allocation changes; retired
+primary-selection writes fail closed. Deploy the reassignable-system-domain migration
+and matching PHP/admin assets. See docs/deployment/PLATFORM_LAYOUT.md.
+
 On 2026-10-08 the user unified all company-owned Platform configuration into one
 right drawer from /platform/tenants, removing the separate company configuration
 menu/list. Use sixteen lazy categories, save without closing, preserve independent

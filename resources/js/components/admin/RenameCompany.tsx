@@ -38,9 +38,11 @@ export function RenameCompany({
                 });
             }}
         >
-            <FormField id="company-slug" label={t('Company identifier')}>
-                <Input id="company-slug" value={company.slug} readOnly className="bg-muted" />
-            </FormField>
+            {!editor && (
+                <FormField id="company-slug" label={t('Company identifier')}>
+                    <Input id="company-slug" value={company.slug} readOnly className="bg-muted" />
+                </FormField>
+            )}
             <FormField
                 id="company-name"
                 label={t('Company name')}

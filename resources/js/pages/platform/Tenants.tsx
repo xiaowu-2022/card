@@ -5,7 +5,7 @@ import { Search } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { MoneyDisplay } from '@/components/admin/MoneyDisplay';
-import { StatusBadge, type StatusTone } from '@/components/shared/StatusBadge';
+import { CompanyLifecycleControls } from '@/components/admin/CompanyLifecycleControls';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -30,7 +30,6 @@ type TenantRow = {
     id: string;
     name: string;
     slug: string;
-    domain: string | null;
     status: 'DRAFT' | 'ACTIVE' | 'SUSPENDED' | 'CLOSED';
     createdAt: string;
     inflow?: string;
@@ -43,12 +42,6 @@ type Paginator = {
     prev_page_url: string | null;
     next_page_url: string | null;
     total: number;
-};
-const tones: Record<TenantRow['status'], StatusTone> = {
-    DRAFT: 'NEUTRAL',
-    ACTIVE: 'SUCCESS',
-    SUSPENDED: 'WARNING',
-    CLOSED: 'DANGER',
 };
 
 export default function Tenants({
@@ -89,9 +82,6 @@ export default function Tenants({
     return (
         <PlatformLayout
             title={t('Tenants')}
-            description={t(
-                'Create tenant foundations and control their lifecycle without deleting historical records.',
-            )}
             actions={
                 canManage ? (
                     <Button asChild>
@@ -171,7 +161,6 @@ export default function Tenants({
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>{t('Tenant')}</TableHead>
-                                        <TableHead>{t('Primary domain')}</TableHead>
                                         {financialAccess.inflow && (
                                             <TableHead className="text-right">
                                                 {t('Inflow (top-ups)')}
@@ -198,9 +187,6 @@ export default function Tenants({
                                                     {tenant.slug}
                                                 </p>
                                             </TableCell>
-                                            <TableCell className="whitespace-nowrap text-muted-foreground">
-                                                {tenant.domain ?? '—'}
-                                            </TableCell>
                                             {financialAccess.inflow && (
                                                 <TableCell className="text-right whitespace-nowrap">
                                                     <MoneyDisplay
@@ -223,10 +209,12 @@ export default function Tenants({
                                                 </TableCell>
                                             )}
                                             <TableCell>
-                                                <StatusBadge
-                                                    status={tones[tenant.status]}
-                                                    label={t(tenant.status)}
-                                                />
+                                                <div className="flex items-center gap-2 whitespace-nowrap">
+                                                    <CompanyLifecycleControls
+                                                        company={tenant}
+                                                        toggle
+                                                    />
+                                                </div>
                                             </TableCell>
                                             <TableCell className="whitespace-nowrap">
                                                 {dateTime(tenant.createdAt)}

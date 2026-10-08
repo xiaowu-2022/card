@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Link } from '@inertiajs/react';
 import { t } from '@/i18n/admin';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import {
     AlertDialog,
@@ -21,13 +22,15 @@ import type { SharedProps } from '@/types/global';
 
 export function CompanyLifecycleControls({
     company,
+    toggle = false,
 }: {
     company: { id: string; name: string; status?: string };
+    toggle?: boolean;
 }) {
     const router = useEditorRouter();
     const canManage =
         usePage<SharedProps>().props.auth.admin?.permissions.includes('tenant.manage');
-    const [action, setAction] = useState<'suspend' | 'reactivate' | null>(null);
+    const [action, setAction] = useState<'suspend' | 'reactivate' | 'activate' | null>(null);
     const [processing, setProcessing] = useState(false);
     if (!company.status) return null;
     return (
@@ -42,7 +45,25 @@ export function CompanyLifecycleControls({
                 }
                 label={t(company.status)}
             />
-            {canManage && ['DRAFT', 'ACTIVE', 'SUSPENDED'].includes(company.status) && (
+            {toggle && canManage && (
+                <Switch
+                    aria-label={`${t('Company status')} · ${company.name}`}
+                    checked={company.status === 'ACTIVE'}
+                    disabled={
+                        processing || !['DRAFT', 'ACTIVE', 'SUSPENDED'].includes(company.status)
+                    }
+                    onCheckedChange={(checked) =>
+                        setAction(
+                            checked
+                                ? company.status === 'DRAFT'
+                                    ? 'activate'
+                                    : 'reactivate'
+                                : 'suspend',
+                        )
+                    }
+                />
+            )}
+            {!toggle && canManage && ['DRAFT', 'ACTIVE', 'SUSPENDED'].includes(company.status) && (
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="secondary" size="sm">
@@ -80,17 +101,27 @@ export function CompanyLifecycleControls({
             >
                 <AlertDialogContent>
                     <AlertDialogTitle>
-                        {t(action === 'suspend' ? 'Suspend tenant' : 'Reactivate tenant')} ·{' '}
-                        {company.name}
+                        {t(
+                            action === 'suspend'
+                                ? 'Suspend tenant'
+                                : action === 'activate'
+                                  ? 'Activate foundation'
+                                  : 'Reactivate tenant',
+                        )}{' '}
+                        · {company.name}
                     </AlertDialogTitle>
                     <AlertDialogDescription>
                         {action === 'suspend'
                             ? t(
                                   'Current status: ACTIVE. Registration and business access will be blocked. Historical users, balances, cards, and Ledger records are never deleted or modified by this lifecycle action.',
                               )
-                            : t(
-                                  'Reactivate this company to restore access under its existing configuration.',
-                              )}
+                            : action === 'activate'
+                              ? t(
+                                    'All required checks are computed from persisted state. There is no manual readiness override.',
+                                )
+                              : t(
+                                    'Reactivate this company to restore access under its existing configuration.',
+                                )}
                     </AlertDialogDescription>
                     <div className="mt-5 flex justify-end gap-2">
                         <Button
@@ -107,7 +138,9 @@ export function CompanyLifecycleControls({
                                 if (!action || processing) return;
                                 setProcessing(true);
                                 router.post(
-                                    `/platform/tenants/${company.id}/${action}`,
+                                    action === 'activate'
+                                        ? `/platform/tenants/${company.id}/configuration/onboarding/activate`
+                                        : `/platform/tenants/${company.id}/${action}`,
                                     {},
                                     {
                                         preserveScroll: true,

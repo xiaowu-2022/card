@@ -164,12 +164,6 @@ export default function PaidPromotion({
             <Head title={t('Paid promotion settings')} />
             <div className="min-w-0 space-y-4">
                 <CompanyConfigurationHeader title={t('Paid promotion settings')} />
-                <p className="text-sm font-medium">{p.companyName}</p>
-                <p className="text-sm text-muted-foreground">
-                    {t(
-                        'Rules apply to new payments only. Qualification requires payment; manual level assignment is unavailable.',
-                    )}
-                </p>
                 <InvitationPosterSettings tenant={p.tenantId} background={posterBackground} />
                 <Tariffs
                     key={p.levels.map((level) => `${level.id}:${level.revision}`).join(',')}

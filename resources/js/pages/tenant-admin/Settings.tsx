@@ -198,7 +198,7 @@ function BrandingForm({ settings }: { settings: SettingsData }) {
         <>
             <Card className="max-w-3xl">
                 <CardHeader>
-                    <CardTitle>{t('Brand and support')}</CardTitle>
+                    <CardTitle>{t('Brand and App')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <ConfigurationForm
@@ -250,49 +250,6 @@ function BrandingForm({ settings }: { settings: SettingsData }) {
                             </div>
                         </FormField>
                         <FormField
-                            id="support-email"
-                            label={t('Support email')}
-                            error={errorMessage(form.errors.support_email)}
-                        >
-                            <Input
-                                id="support-email"
-                                type="email"
-                                value={form.data.support_email}
-                                onChange={(event) =>
-                                    form.setData('support_email', event.target.value)
-                                }
-                            />
-                        </FormField>
-                        <FormField
-                            id="support-url"
-                            label={t('Support URL')}
-                            error={errorMessage(form.errors.support_url)}
-                        >
-                            <Input
-                                id="support-url"
-                                type="url"
-                                value={form.data.support_url}
-                                onChange={(event) =>
-                                    form.setData('support_url', event.target.value)
-                                }
-                            />
-                        </FormField>
-                        <FormField
-                            id="logo"
-                            label={t('Logo')}
-                            description={t('PNG, JPG or WEBP up to 2 MB.')}
-                            error={errorMessage(form.errors.logo)}
-                        >
-                            <Input
-                                id="logo"
-                                type="file"
-                                accept=".png,.jpg,.jpeg,.webp"
-                                onChange={(event) =>
-                                    form.setData('logo', event.target.files?.[0] ?? null)
-                                }
-                            />
-                        </FormField>
-                        <FormField
                             id="apk-name"
                             label={t('APK name')}
                             description={t(
@@ -332,35 +289,7 @@ function BrandingForm({ settings }: { settings: SettingsData }) {
                                 }
                             />
                         </FormField>
-                        <FormField
-                            id="favicon"
-                            label={t('Favicon')}
-                            description={t('PNG or ICO up to 512 KB.')}
-                            error={errorMessage(form.errors.favicon)}
-                        >
-                            <Input
-                                id="favicon"
-                                type="file"
-                                accept=".png,.ico"
-                                onChange={(event) =>
-                                    form.setData('favicon', event.target.files?.[0] ?? null)
-                                }
-                            />
-                        </FormField>
-                        <FormField
-                            id="copyright"
-                            label={t('Copyright text')}
-                            error={errorMessage(form.errors.copyright_text)}
-                        >
-                            <Input
-                                id="copyright"
-                                value={form.data.copyright_text}
-                                onChange={(event) =>
-                                    form.setData('copyright_text', event.target.value)
-                                }
-                            />
-                        </FormField>
-                        <div className="flex items-end sm:justify-end">
+                        <div className="flex justify-end sm:col-span-2">
                             <Button className="w-full sm:w-auto" disabled={form.processing}>
                                 {t('Save branding')}
                             </Button>

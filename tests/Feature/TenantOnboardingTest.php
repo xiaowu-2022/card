@@ -42,7 +42,7 @@ it('creates a complete draft foundation and sends the owner invitation', functio
 
     $tenant = Tenant::query()->where('slug', 'acme-cards')->firstOrFail();
     expect($tenant->status)->toBe(TenantStatus::Draft)
-        ->and($tenant->domains()->where('hostname', 'acme-cards.localhost')->where('is_primary', true)->exists())->toBeTrue()
+        ->and($tenant->domains()->where('hostname', 'acme-cards.localhost')->where('is_primary', false)->exists())->toBeTrue()
         ->and($tenant->branding()->exists())->toBeTrue()
         ->and($tenant->businessSettings()->value('required_security_deposit_amount'))->toBe('0.00000000')
         ->and(AdminInvitation::query()->where('tenant_id', $tenant->id)->where('email', 'owner@acme.test')->exists())->toBeTrue()
@@ -162,12 +162,10 @@ it('enforces the custom domain state machine and tenant ownership', function ():
     expect($domain->hostname)->toBe('cards.example.test')->and($domain->status)->toBe(TenantDomainStatus::Active);
     expect(fn () => app(ActivateTenantDomainAction::class)->execute($tenantA->id, $domain->id, $actor))->toThrow(DomainException::class);
     expect(fn () => app(ActivateTenantDomainAction::class)->execute($tenantB->id, $domain->id, $actor))->toThrow(ModelNotFoundException::class);
-    app(ChangePrimaryDomainAction::class)->execute($tenantA->id, $domain->id, $actor);
-
-    expect($domain->fresh()->status)->toBe(TenantDomainStatus::Active)
-        ->and($domain->fresh()->is_primary)->toBeTrue()
-        ->and(TenantDomain::query()->where('tenant_id', $tenantA->id)->where('is_primary', true)->count())->toBe(1);
-    expect(fn () => app(DeleteTenantDomainAction::class)->execute($tenantA->id, $domain->id, $actor))->toThrow(DomainException::class);
+    expect(fn () => app(ChangePrimaryDomainAction::class)->execute($tenantA->id, $domain->id, $actor))->toThrow(DomainException::class);
+    expect($domain->fresh()->is_primary)->toBeFalse();
+    app(DeleteTenantDomainAction::class)->execute($tenantA->id, $domain->id, $actor);
+    expect(TenantDomain::find($domain->id))->toBeNull();
 });
 
 it('rejects duplicate hostnames and protects the immutable system domain', function (): void {

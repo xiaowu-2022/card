@@ -161,11 +161,6 @@ function AssetSettingsForm(p: Props) {
                         </Link>
                     </Button>
                 )}
-                <p className="text-sm text-muted-foreground">
-                    {t(
-                        'Manage receiving addresses and company deposit, withdrawal and exchange settings.',
-                    )}
-                </p>
                 <SettingsContext.Provider
                     value={{
                         sections: form.data.sections,
@@ -202,11 +197,17 @@ function AssetSettingsForm(p: Props) {
                         <div
                             className={
                                 editor
-                                    ? 'space-y-3 rounded-xl border bg-surface p-4'
+                                    ? 'contents'
                                     : 'sticky top-16 z-20 space-y-3 rounded-xl border bg-surface p-4 shadow-sm'
                             }
                         >
-                            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                            <div
+                                className={
+                                    editor
+                                        ? 'hidden'
+                                        : 'flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between'
+                                }
+                            >
                                 <label className="block w-full space-y-2 text-sm sm:max-w-sm">
                                     <span>{t('Company')}</span>
                                     {editor ? (
@@ -241,7 +242,7 @@ function AssetSettingsForm(p: Props) {
                                     )}
                                 </label>
                                 <Button type="submit" disabled={form.processing || !dirty.length}>
-                                    {t('Save all changes')}
+                                    {t(editor ? 'Save' : 'Save all changes')}
                                 </Button>
                             </div>
                             {Object.keys(form.errors).length > 0 && (

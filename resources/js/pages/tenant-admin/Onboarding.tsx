@@ -1,7 +1,6 @@
 import { useEditorRouter } from '@/components/admin/useEditorRouter';
-import { RenameCompany } from '@/components/admin/RenameCompany';
 import { CompanyLifecycleControls } from '@/components/admin/CompanyLifecycleControls';
-import { usePage } from '@/components/admin/editor-context';
+import { usePage, useEditor } from '@/components/admin/editor-context';
 import { useCompanyConfigurationUrl } from '@/hooks/useCompanyConfigurationUrl';
 import { useAdminTranslation, t } from '@/i18n/admin';
 import { Head, Link } from '@inertiajs/react';
@@ -23,6 +22,7 @@ export default function Onboarding({
     onboarding: { foundation_ready: boolean; business_ready: boolean; items: Item[] };
 }) {
     const router = useEditorRouter();
+    const editor = useEditor();
     useAdminTranslation();
     const configurationUrl = useCompanyConfigurationUrl();
     const required = onboarding.items.filter((item) => item.required);
@@ -43,8 +43,6 @@ export default function Onboarding({
             <div className="space-y-6">
                 {configurationProps.configurationCompany && (
                     <div className="flex flex-wrap items-center gap-3">
-                        <span>{configurationProps.configurationCompany.slug}</span>
-                        <RenameCompany company={configurationProps.configurationCompany} />
                         <CompanyLifecycleControls
                             company={configurationProps.configurationCompany}
                         />
@@ -57,10 +55,12 @@ export default function Onboarding({
                         'Complete the administrative requirements, then activate tenant access. Business readiness is a separate future milestone.',
                     )}
                     actions={
-                        <StatusBadge
-                            status={tenantRecord.status === 'ACTIVE' ? 'SUCCESS' : 'NEUTRAL'}
-                            label={t(tenantRecord.status)}
-                        />
+                        !editor && (
+                            <StatusBadge
+                                status={tenantRecord.status === 'ACTIVE' ? 'SUCCESS' : 'NEUTRAL'}
+                                label={t(tenantRecord.status)}
+                            />
+                        )
                     }
                 />
                 <Alert>

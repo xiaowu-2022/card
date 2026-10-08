@@ -56,7 +56,6 @@ final readonly class TenantDetailQuery
                 'hostname' => $domain->hostname,
                 'type' => $domain->domain_type->value,
                 'status' => $domain->status->value,
-                'primary' => $domain->is_primary,
             ]),
             'admins' => $tenant->adminMemberships->map(fn ($membership) => [
                 'name' => $membership->adminUser->name,

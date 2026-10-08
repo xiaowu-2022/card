@@ -50,7 +50,7 @@ final class ProcessPendingKyc
             if ($tenant->status->value !== 'ACTIVE' || $application->user->status->value !== 'ACTIVE' || ! PlatformKycSetting::current()->enabled) {
                 throw new DomainException('KYC_SUBMISSION_UNAVAILABLE', 'Identity verification is unavailable.', 403);
             }
-            $domain = TenantDomain::where('tenant_id', $tenantId)->where('status', 'ACTIVE')->orderByDesc('is_primary')->firstOrFail();
+            $domain = TenantDomain::where('tenant_id', $tenantId)->where('status', 'ACTIVE')->orderBy('hostname')->firstOrFail();
             $scheme = str_ends_with($domain->hostname, '.localhost') ? 'http' : 'https';
             URL::forceRootUrl($scheme.'://'.$domain->hostname);
             URL::forceScheme($scheme);

@@ -18,7 +18,7 @@ final class CompanyConfigurationListController
         if ($request->filled('editor')) {
             $query['editor'] = $request->input('editor');
         } elseif (! empty($filters['company'])) {
-            $section = $request->input('section', 'onboarding');
+            $section = $request->input('section', 'domains');
             $allowed = ['onboarding', 'domains', 'card-products', 'team', 'assets', 'settings/branding', 'settings/locales', 'settings/business', 'settings/kyc', 'settings/articles', 'settings/sms', 'settings/email', 'promotion', 'wealth', 'support/hours', 'support/replies', 'support/bot'];
             abort_unless(in_array($section, $allowed, true), 422);
             $query['editor'] = $section === 'assets' ? '/platform/settings/assets?company='.$filters['company']

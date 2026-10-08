@@ -26,10 +26,6 @@ final readonly class DeleteTenantDomainAction
             if ($domain->domain_type === TenantDomainType::SystemSubdomain) {
                 throw new DomainException('SYSTEM_DOMAIN_IMMUTABLE', 'The system domain cannot be deleted.');
             }
-            if ($domain->is_primary) {
-                throw new DomainException('PRIMARY_DOMAIN_DELETE_FORBIDDEN', 'Choose another primary domain before deleting this domain.');
-            }
-
             $snapshot = ['hostname' => $domain->hostname, 'status' => $domain->status->value];
             $domain->delete();
             $this->audit->record($tenantId, 'ADMIN', $actor->id, 'DOMAIN_REMOVED', 'tenant_domain', $domainId, $snapshot, null, $requestId);

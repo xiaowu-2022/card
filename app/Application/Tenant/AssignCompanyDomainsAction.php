@@ -5,7 +5,6 @@ namespace App\Application\Tenant;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Tenant\Enums\TenantDomainStatus;
-use App\Domain\Tenant\Enums\TenantDomainType;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\Tenant\Models\TenantDomain;
 use App\Support\Errors\DomainException;
@@ -21,7 +20,7 @@ final readonly class AssignCompanyDomainsAction
         DB::transaction(function () use ($tenantId, $selectedIds, $originalIds, $actor, $requestId): void {
             Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
             $this->authority->assert($actor);
-            $currentIds = TenantDomain::query()->where('tenant_id', $tenantId)->where('domain_type', TenantDomainType::CustomDomain)->pluck('id')->all();
+            $currentIds = TenantDomain::query()->where('tenant_id', $tenantId)->pluck('id')->all();
             sort($currentIds);
             sort($originalIds);
             if ($currentIds !== $originalIds) {
@@ -31,7 +30,7 @@ final readonly class AssignCompanyDomainsAction
             $domains = TenantDomain::query()->whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             foreach ($selectedIds as $id) {
                 $domain = $domains->get($id);
-                if (! $domain || $domain->domain_type !== TenantDomainType::CustomDomain || ($domain->tenant_id !== null && $domain->tenant_id !== $tenantId)) {
+                if (! $domain || ($domain->tenant_id !== null && $domain->tenant_id !== $tenantId)) {
                     throw new DomainException('DOMAIN_UNAVAILABLE', 'A selected domain is no longer available. Reload and try again.');
                 }
                 if ($domain->tenant_id === null && $domain->status !== TenantDomainStatus::Active) {
@@ -39,15 +38,10 @@ final readonly class AssignCompanyDomainsAction
                 }
             }
             foreach (array_diff($currentIds, $selectedIds) as $id) {
-                if ($domains[$id]->is_primary) {
-                    throw new DomainException('PRIMARY_DOMAIN_DELETE_FORBIDDEN', 'Choose another primary domain before removing this assignment.');
-                }
-            }
-            foreach (array_diff($currentIds, $selectedIds) as $id) {
-                $domains[$id]->update(['tenant_id' => null]);
+                $domains[$id]->update(['tenant_id' => null, 'is_primary' => false]);
             }
             foreach (array_diff($selectedIds, $currentIds) as $id) {
-                $domains[$id]->update(['tenant_id' => $tenantId]);
+                $domains[$id]->update(['tenant_id' => $tenantId, 'is_primary' => false]);
             }
             sort($selectedIds);
             if ($currentIds !== $selectedIds) {

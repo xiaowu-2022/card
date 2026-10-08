@@ -1,5 +1,4 @@
 export const companySettings = [
-    { value: 'onboarding', label: 'Basic information' },
     { value: 'domains', label: 'Domains' },
     { value: 'settings/branding', label: 'Brand and App' },
     { value: 'settings/locales', label: 'Locales' },
@@ -25,7 +24,7 @@ export function allowedCompanySettings(permissions: string[]) {
     );
 }
 export function companySection(value: string | null): string {
-    return companySettings.some((item) => item.value === value) ? value! : 'onboarding';
+    return companySettings.some((item) => item.value === value) ? value! : 'domains';
 }
 export function companySettingsUrl(company: string, section: string): string {
     if (section.startsWith('support/'))
@@ -51,9 +50,11 @@ export function companyEditor(target: string | null): { company: string; section
         const section =
             match[2] === 'paid-promotion'
                 ? 'promotion'
-                : match[2] === 'settings'
-                  ? 'settings/branding'
-                  : match[2]!;
+                : match[2] === 'onboarding'
+                  ? 'domains'
+                  : match[2] === 'settings'
+                    ? 'settings/branding'
+                    : match[2]!;
         return companySettings.some((item) => item.value === section) || section === 'settings/kyc'
             ? { company: decodeURIComponent(match[1]!), section }
             : null;

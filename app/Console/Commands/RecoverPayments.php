@@ -56,7 +56,7 @@ final class RecoverPayments extends Command
             ->oldest('created_at')->limit($limit)->get();
         foreach ($uninitiated as $transaction) {
             $hostname = TenantDomain::query()->where('tenant_id', $transaction->tenant_id)
-                ->where('status', TenantDomainStatus::Active->value)->orderByDesc('is_primary')->value('hostname');
+                ->where('status', TenantDomainStatus::Active->value)->orderBy('hostname')->value('hostname');
             if ($hostname) {
                 $scheme = app()->environment(['local', 'testing']) ? 'http' : 'https';
                 InitiateWalletTopupPaymentJob::dispatch(

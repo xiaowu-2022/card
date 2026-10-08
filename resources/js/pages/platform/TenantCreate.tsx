@@ -37,7 +37,7 @@ export default function TenantCreate({
         <PlatformLayout
             title={t('Create tenant foundation')}
             description={t(
-                'Creates a draft tenant, its immutable system domain, baseline configuration, and a Tenant Owner invitation.',
+                'Creates a draft tenant, a reassignable system domain, baseline configuration, and a Tenant Owner invitation.',
             )}
             actions={
                 <Button asChild variant="secondary">

@@ -14,7 +14,7 @@ final class ListTenantsQuery
     public function execute(?string $search, ?string $status, array $financialAccess = [], ?string $company = null): LengthAwarePaginator
     {
         return $this->filtered($search, $status, $company)->select('tenants.*')
-            ->with(['domains' => fn ($query) => $query->where('is_primary', true)])
+            ->with(['domains' => fn ($query) => $query->orderBy('hostname')])
             ->when($financialAccess['inflow'] ?? false, fn ($query) => $query->selectSub(
                 $this->orders('wallet_topup_orders', 'CREDITED')->whereColumn('tenant_id', 'tenants.id')->selectRaw('COALESCE(SUM(amount), 0)::text'), 'inflow'))
             ->when($financialAccess['outflow'] ?? false, fn ($query) => $query->selectSub(
@@ -26,7 +26,7 @@ final class ListTenantsQuery
                 'id' => $tenant->id,
                 'name' => $tenant->name,
                 'slug' => $tenant->slug,
-                'domain' => $tenant->domains->first()?->hostname,
+                'domains' => $tenant->domains->pluck('hostname')->all(),
                 'status' => $tenant->status->value,
                 'createdAt' => $tenant->created_at->toIso8601String(),
             ] + (($financialAccess['inflow'] ?? false) ? ['inflow' => $this->decimal($tenant->inflow)] : [])

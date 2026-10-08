@@ -17,6 +17,7 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         const context = await browser.newContext({viewport:{width:1024,height:800}});
         const page = await context.newPage(); page.setDefaultTimeout(12000);
         const errors=[], unexpected=[], reads=[], writes=[];
+        let lifecycleWrites=0;
         let failure='', mismatch=false, saveFails=true, slow='', savedBrand='Offline brand';
         const shared={errors:{},publicAssets:[],tenant:null,auth:{admin:{name:'Fixture Admin',permissions:['tenant.manage','tenant.read','storage.manage','support.read','support.hours.manage','support.replies.manage','support.bot.manage']},user:null},flash:{},i18n:{locale:'en',enabledLocales:['en','zh-CN'],timezone:'Asia/Shanghai',surface:'platform'},requestId:'fixture'};
         page.on('pageerror', e=>errors.push(e.message));
@@ -24,9 +25,14 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
             const request=route.request(), url=new URL(request.url());
             if(url.origin!==origin){unexpected.push(url.href);return route.abort();}
             if(url.pathname.startsWith('/build/'))return route.fulfill({body:readFileSync('public'+url.pathname),contentType:url.pathname.endsWith('.css')?'text/css':'text/javascript'});
+            if(url.pathname===`/platform/tenants/${company.id}/suspend` && request.method()==='POST') {
+                lifecycleWrites++; company.status='SUSPENDED';
+                // Emulate the final Inertia response after the lifecycle redirect.
+                url.pathname='/platform/tenants';url.search='?search=offline&status=ACTIVE&page=2';
+            }
             let component, props;
             if(url.pathname==='/platform/tenants'){
-                component='platform/Tenants';props={financialAccess:{inflow:false,outflow:false},totals:{},tenants:paginate([company,other].map(c=>({...c,domain:'offline.test',createdAt:'2026-10-08T00:00:00Z'}))),filters:Object.fromEntries(['company','search','status'].filter(k=>url.searchParams.has(k)).map(k=>[k,url.searchParams.get(k)]))};
+                component='platform/Tenants';props={financialAccess:{inflow:false,outflow:false},totals:{},tenants:paginate([company,other].map(c=>({...c,domains:['offline.test','alternate.test'],createdAt:'2026-10-08T00:00:00Z'}))),filters:Object.fromEntries(['company','search','status'].filter(k=>url.searchParams.has(k)).map(k=>[k,url.searchParams.get(k)]))};
             } else if(url.pathname==='/platform/settings/oss'){
                 component='platform/OssSettings';props={configuration:null,serverStorage:true,driverRevision:0};
             } else if(url.pathname==='/platform/settings/kyc') {
@@ -34,8 +40,8 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
             } else if(url.pathname==='/admin/settings/branding'){
                 component='tenant-admin/Settings';props={configurationBase:null,section:'branding',configurationReadOnly:true,settings:{branding:{brandName:'Tenant unchanged',primaryColor:'#155eef'}},auth:{admin:{name:'Tenant Admin',permissions:[]},user:null},tenant:{id:company.id,name:company.name,branding:{brandName:company.name,primaryColor:'#155eef'}},i18n:{...shared.i18n,surface:'tenant'}};
             } else {
-                const section=url.pathname==='/platform/settings/assets'?'assets':url.pathname.startsWith('/platform/support/')?url.pathname.slice('/platform/'.length):url.pathname.split('/configuration/')[1];
-                const id=section==='assets'||section.startsWith('support/')?url.searchParams.get('company'):url.pathname.split('/')[3];
+                const section=(url.pathname==='/platform/settings/assets'||url.pathname.endsWith('/assets/settings'))?'assets':url.pathname.startsWith('/platform/support/')?url.pathname.slice('/platform/'.length):url.pathname.split('/configuration/')[1];
+                const id=url.pathname.endsWith('/assets/settings')?url.pathname.split('/')[3]:section==='assets'||section.startsWith('support/')?url.searchParams.get('company'):url.pathname.split('/')[3];
                 if(!sections.includes(section)||id!==company.id){unexpected.push(request.method()+' '+url.pathname);return route.abort();}
                 if(request.method()!=='GET') {
                     writes.push({section,url:url.href});
@@ -52,7 +58,7 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
                 if(section==='onboarding') {
                     component='tenant-admin/Onboarding'; props={...props,tenantRecord:c,onboarding:{foundation_ready:true,business_ready:false,items:[]}};
                 } else if(section==='domains') {
-                    component='platform/Domains';props={...props,company:c,domains:[]};
+                    component='platform/Domains';props={...props,company:c,domains:[{id:'33333333-3333-4333-8333-333333333333',hostname:'system.localhost',type:'SYSTEM_SUBDOMAIN',status:'ACTIVE',companyId:c.id,companyName:c.name,sslStatus:'LOCAL'}]};
                 } else if(section==='card-products') {
                     component='tenant-admin/CardProducts';props={...props,products:[]};
                 } else if(section==='team') {
@@ -84,30 +90,46 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         await page.goto(list);
         await page.getByRole('link',{name:'Configure',exact:true}).first().waitFor();
         assert.equal(reads.length,0);
+        const toggle=page.getByRole('switch',{name:`Company status · ${company.name}`,exact:true});
+        await toggle.click();
+        const confirmation=page.getByRole('alertdialog');
+        await confirmation.getByRole('button',{name:'Cancel',exact:true}).click();
+        assert.equal(lifecycleWrites,0);assert.equal(await toggle.isChecked(),true);
+        await toggle.click();await confirmation.getByRole('button',{name:'Confirm',exact:true}).click();
+        await confirmation.waitFor({state:'hidden'});
+        assert.equal(lifecycleWrites,1);assert.equal(await toggle.isChecked(),false);
+        assert.equal(new URL(page.url()).searchParams.get('page'),'2');
+        company.status='ACTIVE';await page.reload();
+
         assert.equal(await page.getByRole('link',{name:'Company configuration',exact:true}).count(),0);
         for(const width of [375,768,1440,1920]) {
             await page.setViewportSize({width,height:850});
             await page.getByRole('link',{name:'Configure',exact:true}).first().click();
-            await dialog.getByText('Required foundation',{exact:true}).waitFor();
+            await dialog.getByText('Configured domains',{exact:true}).waitFor();
             const rect=await dialog.boundingBox();
             assert.ok(Math.abs(rect.x+rect.width-width)<2); assert.ok(rect.width<=1201); assert.equal(rect.y,0);
-            assert.equal(await dialog.getByRole('tab').count(),16);
+            assert.equal(await dialog.getByRole('tab').count(),15);
             await page.screenshot({path:`${out}/${name}-drawer-${width}.png`});
             await dialog.getByRole('button',{name:'Close',exact:true}).last().click();
             await dialog.waitFor({state:'hidden'});
         }
         await page.setViewportSize({width:1440,height:850});
         await page.getByRole('link',{name:'Configure',exact:true}).first().click();
-        await dialog.getByText('Required foundation',{exact:true}).waitFor();
+        await dialog.getByText('Configured domains',{exact:true}).waitFor();
         const labels=['Domains','Brand and App','Locales','Business rules','Asset settings','Card products','Promotion','Wealth settings','About us articles','Aliyun SMS','Proton email','Admin team','Service hours','Quick replies','Bot and FAQ'];
         for(const label of labels) {
             const before=reads.length;
+            const alreadySelected=await dialog.getByRole('tab',{name:label,exact:true}).getAttribute('aria-selected')==='true';
             await dialog.getByRole('tab',{name:label,exact:true}).click();
             await page.waitForFunction(()=>!document.querySelector('[data-admin-editor-body] [role=status]') && document.querySelector('[data-admin-editor-body]')?.textContent.trim().length>0);
-            assert.equal(reads.length,before+1);
+            assert.equal(reads.length,before+(alreadySelected?0:1));
             assert.equal(await dialog.count(),1);
             assert.equal(new URL(page.url()).searchParams.get('page'),'2');
             assert.equal(new URL(page.url()).searchParams.get('search'),'offline');
+            if(label==='Domains') {
+                assert.equal(await dialog.getByRole('button',{name:'Unassign',exact:true}).count(),1);
+                assert.equal(await dialog.getByRole('button',{name:'Make primary',exact:true}).count(),0);
+            }
             if(label==='Admin team') {
                 await dialog.getByRole('button',{name:'Add administrator',exact:true}).click();
                 assert.equal(await dialog.count(),1,'Inline team editor must not open another dialog');
@@ -124,9 +146,9 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         const beforeKeyboard=reads.length;
         await dialog.getByRole('tab',{name:'Bot and FAQ',exact:true}).focus();
         await page.keyboard.press('Home');
-        assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Basic information');
+        assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Domains');
         assert.equal(reads.length,beforeKeyboard);
-        await page.keyboard.press('Enter');await dialog.getByText('Required foundation',{exact:true}).waitFor();
+        await page.keyboard.press('Enter');await dialog.getByText('Configured domains',{exact:true}).waitFor();
         await dialog.getByRole('tab',{name:'Brand and App',exact:true}).click();
         await dialog.locator('#brand-name').fill('Unsaved fixture');
         const count=reads.length;
@@ -164,6 +186,15 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         await dialog.getByRole('button',{name:'Close',exact:true}).last().click();await dialog.waitFor({state:'hidden'});
         await page.goto(list+'&editor='+encodeURIComponent(`/platform/tenants/${company.id}/configuration/wealth`));
         await dialog.locator('#minimum-USDT').waitFor();
+        await dialog.getByRole('tab',{name:'Asset settings',exact:true}).click();
+        const assetSave=dialog.getByRole('button',{name:'Save',exact:true});
+        await assetSave.waitFor();assert.equal(await assetSave.isDisabled(),true);
+        assert.equal(await dialog.getByText('Manage receiving addresses and company deposit, withdrawal and exchange settings.',{exact:true}).count(),0);
+        assert.equal(await assetSave.evaluate(el=>Boolean(el.closest('[data-admin-editor-body]'))),false);
+        await dialog.getByLabel('Minimum deposit',{exact:true}).fill('12');
+        await assetSave.click();
+        await dialog.getByText('Saved successfully.',{exact:true}).waitFor();
+        assert.equal(await dialog.count(),1);assert.equal(writes.at(-1).section,'assets');
         await page.goto(origin+'/admin/settings/branding');await page.locator('#brand-name').waitFor();
         assert.equal(await page.locator('[data-platform-header]').count(),0);
         assert.equal((await page.locator('#brand-name').boundingBox()).height,40);
@@ -174,6 +205,6 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         assert.equal(await dialog.getByRole('tab').count(),1);
         assert.equal(await dialog.getByRole('tab',{name:'Brand and App',exact:true}).count(),0);
         assert.deepEqual(errors,[]);assert.deepEqual(unexpected,[]);
-        await context.close();console.log(`${name}: 16 sections, 4 widths, inline edits, save/dirty/busy guards, history, retries, company isolation passed`);
+        await context.close();console.log(`${name}: 15 sections, 4 widths, inline edits, save/dirty/busy guards, history, retries, company isolation passed`);
     } finally { await browser.close(); }
 }

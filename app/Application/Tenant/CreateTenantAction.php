@@ -49,7 +49,7 @@ final readonly class CreateTenantAction
                 'hostname' => $hostname,
                 'domain_type' => TenantDomainType::SystemSubdomain,
                 'status' => TenantDomainStatus::Active,
-                'is_primary' => true,
+                'is_primary' => false,
                 'verified_at' => now(),
                 'ssl_status' => app()->environment('local') ? 'LOCAL' : 'PENDING',
             ]);
