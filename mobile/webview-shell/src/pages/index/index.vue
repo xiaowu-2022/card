@@ -23,6 +23,7 @@ const statusHeight = uni.getSystemInfoSync().statusBarHeight ?? 24;
 let child: Webview | null = null, timer: ReturnType<typeof setTimeout> | undefined;
 let disposed = false, detecting = false, lastRefresh = 0;
 let readinessTimer: ReturnType<typeof setTimeout> | undefined, readinessToken = '', loadSequence = 0;
+let measuredParentHeight = 0, layoutRevision = 0;
 function debugLog(message: string) {
     if (debugEnabled.value) debugRows.value = [...debugRows.value.slice(-59), `${new Date().toLocaleTimeString()} ${message}`];
 }
@@ -93,7 +94,12 @@ function failure(message: string) {
     const previous = child; child = null; previous?.close();
     error.value = message; state.value = 'error';
 }
-function contentBounds() { return { position: 'absolute', top: `${statusHeight}px`, bottom: debugEnabled.value ? `${debugHeight}px` : '0px', left: '0px', width: '100%' }; }
+function contentBounds() {
+    const bottom = debugEnabled.value ? debugHeight : 0;
+    const height = measuredParentHeight - statusHeight - bottom;
+    return { position: 'absolute', top: `${statusHeight}px`, bottom: `${bottom}px`, left: '0px', width: '100%',
+        ...(height > 0 ? { height: `${height}px` } : {}) };
+}
 function loading() {
     stopTimer(); state.value = 'loading'; error.value = '';
     debugInstalled = false; debugPrefix = ''; debugLog('网页开始加载');
@@ -101,7 +107,29 @@ function loading() {
     child?.setStyle({ opacity: 0 });
     timer = setTimeout(() => failure('网页未能显示，请重试或重新连接。'), 30000);
 }
-function resizeContent() { child?.setStyle(contentBounds()); }
+function resizeContent() {
+    const view = child, revision = ++layoutRevision;
+    if (!view || disposed) return;
+    void nextTick(() => {
+        if (disposed || child !== view || revision !== layoutRevision) return;
+        let finished = false;
+        const apply = (height?: number) => {
+            if (finished || disposed || child !== view || revision !== layoutRevision) return;
+            finished = true; clearTimeout(fallback);
+            if (typeof height === 'number' && Number.isFinite(height) && height > statusHeight + (debugEnabled.value ? debugHeight : 0)) measuredParentHeight = height;
+            const bounds = contentBounds();
+            view.setStyle({ ...bounds, opacity: state.value === 'ready' ? 1 : 0 });
+            debugLog(`窗口布局 parent=${measuredParentHeight} top=${statusHeight} height=${bounds.height ?? 'auto'} bottom=${bounds.bottom}`);
+        };
+        // A missing measurement callback must not strand a verified page hidden.
+        // Never substitute screenHeight or a zero startup windowHeight.
+        const fallback = setTimeout(() => apply(), 250);
+        uni.createSelectorQuery().select('.shell').boundingClientRect(result => {
+            const rect = Array.isArray(result) ? result[0] : result;
+            apply(rect?.height);
+        }).exec();
+    });
+}
 function checkContent(view: Webview) {
     if (disposed || child !== view || state.value !== 'loading') return;
     clearTimeout(readinessTimer);
@@ -141,11 +169,7 @@ function open(url: string) {
         stopTimer(); state.value = 'ready';
         // Remove the welcome layout before sizing/revealing the attached window.
         // A stale callback must never reveal a replaced, failed or unloaded view.
-        void nextTick(() => {
-            if (disposed || child !== view || state.value !== 'ready') return;
-            view.setStyle({ ...contentBounds(), opacity: 1 });
-            debugLog('内容已渲染，显示网页');
-        });
+        resizeContent();
     });
     view.addEventListener('error', () => { if (child === view) failure('网页无法打开，请检查网络后重试。'); });
     page.$getAppWebview().append(view);
@@ -189,7 +213,7 @@ function back() {
 onReady(() => { uni.onWindowResize(resizeContent); void connect(); });
 onShow(() => {
     background = false; refreshDebug();
-    void nextTick(() => { if (!disposed) resizeContent(); });
+    resizeContent();
     // Refresh the directory cache without moving an active login or replaying an operation.
     if (!child || detecting || Date.now() - lastRefresh < 60000) return;
     lastRefresh = Date.now();

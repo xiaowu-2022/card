@@ -74,11 +74,13 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  script = script.replace(/^import .*;\n/gm, '').replace(/\/\/ #ifndef APP-PLUS[\s\S]*?\/\/ #endif/g, '');
  const requests = [], windows = [], ticks = [], timers = new Map(); let sequence = 0;
  let finishDiscovery;
+ let parentHeight = 828;
+ const flushLayout = () => { while (ticks.length) ticks.shift()(); };
  const context = {
   nextTick: callback => { ticks.push(callback); },
   discover: () => new Promise(resolve => { finishDiscovery = resolve; }),
   safeAddress, debugScript, debugMessages, readinessScript, ref: value => ({value}), config: JSON.parse(readFileSync('mobile/webview-shell/src/config.json', 'utf8')),
-  uni: {getStorageSync: () => ({tenantId:'tenant'}), request: request => requests.push(request),getSystemInfoSync: () => ({statusBarHeight: 24, windowHeight: 0}),onWindowResize: () => {},offWindowResize: () => {}},
+  uni: {createSelectorQuery: () => { let callback; const query = {select:()=>query,boundingClientRect:fn=>{callback=fn;return query;},exec:()=>callback({height:parentHeight})};return query;},getStorageSync: () => ({tenantId:'tenant'}), request: request => requests.push(request),getSystemInfoSync: () => ({statusBarHeight: 24, windowHeight: 0}),onWindowResize: () => {},offWindowResize: () => {}},
   plus: {webview: {create: (url,id,styles) => {
    const view = {events:{}, styles:[styles], url:'', scripts:[], closed:false,
     addEventListener(name,fn){this.events[name]=fn;},getURL(){return this.url;},setStyle(s){this.styles.push(s);},
@@ -91,7 +93,7 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
   setTimeout: (fn,delay) => {const id=++sequence;timers.set(id,{fn,delay});return id;},
   clearTimeout: id => timers.delete(id),
  };
- const js = ts.transpileModule(script + '\nglobalThis.pageTest = {open, retry, state, active, token:()=>readinessToken,refreshDebug,debugEnabled,debugRows};', {compilerOptions: {target: ts.ScriptTarget.ES2022}}).outputText;
+ const js = ts.transpileModule(script + '\nglobalThis.pageTest = {open, retry, state, active, token:()=>readinessToken,resizeContent,refreshDebug,debugEnabled,debugRows};', {compilerOptions: {target: ts.ScriptTarget.ES2022}}).outputText;
  runInNewContext(js, context);
  const page = context.pageTest;page.open(a);page.active.value=a;
  const view=windows[0];
@@ -114,16 +116,27 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  retry.events.titleUpdate({title:oldToken});assert.equal(page.state.value,'loading');
  retry.events.titleUpdate({title:page.token()});assert.equal(page.state.value,'ready');
  assert.equal(retry.styles.at(-1).opacity,0, 'remain transparent until welcome layout is removed');
- ticks.shift()();
+ flushLayout();
  assert.equal(retry.styles.at(-1).opacity,1);
+ assert.equal(retry.styles.at(-1).height,'804px');
+ parentHeight=500; page.resizeContent(); flushLayout();
+ assert.equal(retry.styles.at(-1).height,'476px');
+ parentHeight=0; page.resizeContent(); flushLayout();
+ assert.equal(retry.styles.at(-1).height,'476px', 'zero measurements cannot collapse the child');
+ parentHeight=828; page.resizeContent(); flushLayout();
+ assert.equal(retry.styles.at(-1).height,'804px');
  assert.equal([...timers.values()].some(t=>t.delay===30000 || t.delay===350),false);
  page.refreshDebug();
  requests.at(-1).success({statusCode:200,data:{tenantId:'tenant',tenantSlug:'tenant-a',enabled:true}});
+ flushLayout();
  assert.equal(page.debugEnabled.value,true);assert.equal(retry.styles.at(-1).bottom,'300px');
+ assert.equal(retry.styles.at(-1).height,'504px');
  assert.ok(retry.scripts.at(-1).includes('__specpayDiagnostics'));
  page.refreshDebug();
  requests.at(-1).success({statusCode:200,data:{tenantId:'other',tenantSlug:'tenant-a',enabled:true}});
+ flushLayout();
  assert.equal(page.debugEnabled.value,false);assert.equal(page.debugRows.value.length,0);assert.equal(retry.styles.at(-1).bottom,'0px');
+ assert.equal(retry.styles.at(-1).height,'804px');
  page.refreshDebug();requests.at(-1).success({statusCode:200,data:{tenantId:'tenant',tenantSlug:'tenant-a',enabled:true}});
  page.refreshDebug();const oldRequest=requests.at(-1);page.refreshDebug();
  oldRequest.success({statusCode:200,data:{tenantId:'tenant',tenantSlug:'tenant-a',enabled:false}});
@@ -134,7 +147,7 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  const stale=windows.at(-1);stale.url=a+'/';
  stale.events.titleUpdate({title:page.token()});
  page.open(b);
- ticks.shift()();
+ flushLayout();
  assert.ok(stale.closed);
  assert.equal(stale.styles.some(style=>style.opacity===1),false, 'replaced window cannot be revealed by a pending layout callback');
 
