@@ -3,7 +3,11 @@ import PreviewImage from './PreviewImage.vue';
 import AppUpdateGate from './AppUpdateGate.vue';
 import ViewportLayer from './ViewportLayer.vue';
 import { staticAsset } from '../lib/origin';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import { onHide } from '@dcloudio/uni-app';
+// #ifdef H5
+import LoginLayoutDiagnostics from './LoginLayoutDiagnostics.vue';
+// #endif
 import { session } from '../lib/session';
 import { native, photoUrl } from '../lib/api';
 import { go } from '../lib/navigation';
@@ -15,10 +19,22 @@ withDefaults(defineProps<{ recovery?: boolean; title?: string; login?: boolean; 
 });
 const brand = computed(() => session.value?.tenant.name ?? '');
 const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
+const layoutDiagnostics = ref(false);
+onHide(() => { layoutDiagnostics.value = false; });
+let diagnosticTaps = 0, lastDiagnosticTap = 0;
+function inspectLayout() {
+    // #ifdef H5
+    const now = Date.now();
+    diagnosticTaps = now - lastDiagnosticTap < 1500 ? diagnosticTaps + 1 : 1;
+    lastDiagnosticTap = now;
+    if (diagnosticTaps >= 5) { diagnosticTaps = 0; layoutDiagnostics.value = true; }
+    // #endif
+}
 </script>
 <template>
     <AppUpdateGate />
     <!-- #ifdef H5 -->
+    <LoginLayoutDiagnostics v-if="layoutDiagnostics" @close="layoutDiagnostics = false" />
     <ViewportLayer><view class="auth-viewport-background" aria-hidden="true" /></ViewportLayer>
     <!-- #endif -->
     <view
@@ -36,7 +52,7 @@ const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
                     >
                         <UiIcon name="arrow-left" :size="recovery ? 20 : 28" /></button
                     ><LanguagePicker v-if="!native || (!login && !registration)" /></view
-                ><view v-if="!recovery" class="auth-promotion"
+                ><view v-if="!recovery" class="auth-promotion" @click="inspectLayout"
                     ><PreviewImage
                         :sources="session?.tenant.logoSources"
                         v-if="logo"

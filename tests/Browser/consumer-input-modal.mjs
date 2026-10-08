@@ -99,6 +99,18 @@ for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome
         await page.locator('[aria-label="Show password"]').click();
         assert.equal(await password.getAttribute('type'), 'text');
         assert.equal(await password.inputValue(), 'OfflinePassword123');
+        assert.equal(await page.locator('.layout-diagnostics').count(), 0);
+        for (let i = 0; i < 5; i++) await page.locator('.auth-promotion').click();
+        const diagnostics = page.locator('.layout-diagnostics');
+        await diagnostics.waitFor();
+        const reportText = await diagnostics.locator('.diagnostic-report').innerText();
+        const report = JSON.parse(reportText);
+        assert.equal(report.diagnostic, 'login-layout-1');
+        assert.equal(report.window[0], 390);
+        assert.ok(report.login[1] > 0);
+        assert.equal(reportText.includes('OfflinePassword123'), false);
+        await diagnostics.getByText('关闭', { exact: true }).click();
+        assert.equal(await diagnostics.count(), 0);
         await page.screenshot({ path: `${out}/${name}-password.png` });
         assert.deepEqual(errors, []);
         assert.ok(mutations.every(path => path === '/api/v1/wallet/ensure'), JSON.stringify(mutations));
