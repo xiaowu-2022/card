@@ -79,6 +79,18 @@ for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome
         assert.ok(Math.abs((await page.evaluate(() => window.scrollY)) - scrollBefore) < 3);
         loggedIn = false;
         await page.goto(origin + '/#/pages/login/index');
+        await page.locator('.auth-root').waitFor();
+        // Check the initial login paint before focusing any field. The backdrop
+        // must cover the viewport independently of the login content's height.
+        for (const height of [640, 950]) {
+            await page.setViewportSize({ width: 390, height });
+            const background = page.locator('.auth-viewport-background');
+            const rect = await background.boundingBox();
+            assert.ok(Math.abs(rect.y) < 1 && Math.abs(rect.height - height) < 1);
+            assert.equal(await background.evaluate(el => getComputedStyle(el).pointerEvents), 'none');
+            assert.equal(await background.evaluate(el => el.parentElement.parentElement === document.body), true);
+        }
+        await page.setViewportSize({ width: 390, height: 750 });
         const password = page.locator('input[aria-label="Password"]');
         await password.fill('OfflinePassword123');
         await password.focus();

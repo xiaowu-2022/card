@@ -295,6 +295,10 @@ function show(value: string | null) {
 .activity-panel {
     padding-bottom: 8px;
 }
+.account-panel {
+    padding-left: 12px;
+    padding-right: 12px;
+}
 .panel-heading {
     display: flex;
     justify-content: space-between;
@@ -331,13 +335,13 @@ function show(value: string | null) {
     flex-direction: column;
     align-items: center;
     text-align: center;
-    min-width: 112px;
+    min-width: 0;
     width: calc((100% - 24px) / 3);
     flex-shrink: 0;
     margin: 0;
     background: #f7f6f1;
     border-radius: 12px;
-    padding: 12px 8px;
+    padding: 12px 4px;
     line-height: 20px;
 }
 /* Older Android WebViews support flex layout but ignore flex gap. */

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import PreviewImage from './PreviewImage.vue';
 import AppUpdateGate from './AppUpdateGate.vue';
+import ViewportLayer from './ViewportLayer.vue';
 import { staticAsset } from '../lib/origin';
 import { computed } from 'vue';
 import { session } from '../lib/session';
@@ -17,6 +18,9 @@ const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
 </script>
 <template>
     <AppUpdateGate />
+    <!-- #ifdef H5 -->
+    <ViewportLayer><view class="auth-viewport-background" aria-hidden="true" /></ViewportLayer>
+    <!-- #endif -->
     <view
         class="auth-root"
         :class="{ recovery }"
@@ -56,7 +60,16 @@ const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
     ></view>
 </template>
 <style scoped>
+.auth-viewport-background {
+    position: fixed;
+    inset: 0;
+    background: #f7f6f0;
+    pointer-events: none;
+    z-index: 0;
+}
 .auth-root {
+    position: relative;
+    z-index: 1;
     min-height: 100vh;
     background: #f7f6f0;
     color: #25241f;
