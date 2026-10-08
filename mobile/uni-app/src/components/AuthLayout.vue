@@ -9,7 +9,7 @@ import { go } from '../lib/navigation';
 import { t } from '../lib/i18n';
 import UiIcon from './UiIcon.vue';
 import LanguagePicker from './LanguagePicker.vue';
-withDefaults(defineProps<{ recovery?: boolean; title?: string; login?: boolean }>(), {
+withDefaults(defineProps<{ recovery?: boolean; title?: string; login?: boolean; registration?: boolean }>(), {
     recovery: false,
 });
 const brand = computed(() => session.value?.tenant.name ?? '');
@@ -31,7 +31,7 @@ const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
                         @click="go(login ? '/' : '/login', true)"
                     >
                         <UiIcon name="arrow-left" :size="recovery ? 20 : 28" /></button
-                    ><LanguagePicker v-if="!login" /></view
+                    ><LanguagePicker v-if="!login && !registration" /></view
                 ><view v-if="!recovery" class="auth-promotion"
                     ><PreviewImage
                         :sources="session?.tenant.logoSources"

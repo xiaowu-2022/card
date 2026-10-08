@@ -1,23 +1,5 @@
 {
-  "name": "Spec Pay",
-  "appId": "cc.specpay.cards",
-  "dcloudAppId": "__UNI__GBE57092",
-  "tenantSlug": "tenant-a",
-  "apiOrigin": "https://27m.my",
-  "version": "2.5.02",
-  "buildNumber": 2502,
-  "developmentOnly": false,
-  "apiOrigins": [
-    "https://27m.my",
-    "https://specpay.cc",
-    "https://specpay.top",
-    "https://specpay.vip",
-    "https://113b.my",
-    "https://18k.my"
-  ],
-  "mode": "release",
-  "company": "specpay",
-  "platform": "h5",
-  "h5Base": "./",
-  "builtAt": "2026-10-08T08:17:28.315Z"
+  "builtAt": "2026-10-08T12:50:14.269017+00:00",
+  "purpose": "WebView shell Chinese login and registration",
+  "source": "mobile/uni-app/dist/build/h5"
 }

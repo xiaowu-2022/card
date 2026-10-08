@@ -4,7 +4,7 @@ import { computed, reactive, ref } from 'vue';
 import AuthLayout from '../components/AuthLayout.vue';
 import FormField from '../components/FormField.vue';
 import FormErrors from '../components/FormErrors.vue';
-import { t, locale } from '../lib/i18n';
+import { t, locale, changeLocale } from '../lib/i18n';
 import { useAction } from '../lib/client';
 import { go } from '../lib/navigation';
 const props = defineProps<{
@@ -18,6 +18,7 @@ const props = defineProps<{
         challenge?: { id: string; status: string };
     };
 }>();
+changeLocale('zh-CN');
 const emit = defineEmits<{ reload: [] }>();
 const action = useAction();
 const invitationReleased = ref(false);
@@ -77,7 +78,7 @@ async function submit() {
 }
 </script>
 <template>
-    <AuthLayout
+    <AuthLayout registration
         ><view class="registration-content"
             ><text class="auth-heading">{{
                 t(

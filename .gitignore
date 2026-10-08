@@ -42,3 +42,6 @@ Thumbs.db
 /public/app-releases/
 
 /mobile/uni-app/src/static/native-branding/
+
+/mobile/webview-shell/node_modules
+/mobile/webview-shell/dist

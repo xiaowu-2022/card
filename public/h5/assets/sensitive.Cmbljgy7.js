@@ -1,0 +1,1 @@
+import{U as n,P as e}from"./index-Co5jBsxL.js";function i(i,t={}){function o(){!document.hidden||t.retainOnBackground||t.retainUntilUnmount||i()}n(()=>{t.retainUntilUnmount||t.retainOnBackground&&document.hidden||i()}),e(()=>{i(),document.removeEventListener("visibilitychange",o)}),document.addEventListener("visibilitychange",o)}export{i as u};
