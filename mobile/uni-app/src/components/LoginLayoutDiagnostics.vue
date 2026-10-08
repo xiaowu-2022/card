@@ -3,6 +3,21 @@ import { onBeforeUnmount, onMounted, ref } from 'vue';
 const emit = defineEmits<{ close: [] }>();
 const report = ref('');
 const copied = ref(false);
+const viewportMeta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+const originalViewport = viewportMeta?.content ?? '';
+let changedViewport = false;
+function testViewport() {
+    if (!viewportMeta) return;
+    viewportMeta.content = originalViewport.split(',').map(part => part.trim())
+        .filter(part => !/^viewport-fit\s*=/i.test(part)).concat('viewport-fit=auto').join(',');
+    changedViewport = true;
+    refresh();
+}
+function restoreViewport() {
+    if (changedViewport && viewportMeta) viewportMeta.content = originalViewport;
+    changedViewport = false;
+    refresh();
+}
 const number = (value: number | undefined) => value === undefined ? null : Math.round(value * 100) / 100;
 function refresh() {
     const viewport = window.visualViewport;
@@ -14,9 +29,10 @@ function refresh() {
     const vh = probe.getBoundingClientRect().height;
     const safeBottom = getComputedStyle(probe).paddingBottom;
     probe.remove();
-    // Numeric layout data only. Never read fields, cookies, URLs or session data.
+    // Layout and viewport configuration only. Never read fields, cookies, URLs or session data.
     report.value = JSON.stringify({
         diagnostic: 'login-layout-1',
+        viewportFit: viewportMeta?.content.match(/viewport-fit\s*=\s*(auto|contain|cover)/i)?.[1] ?? 'auto',
         screen: [screen.width, screen.height, screen.availHeight, window.devicePixelRatio],
         window: [innerWidth, innerHeight],
         document: [document.documentElement.clientWidth, document.documentElement.clientHeight],
@@ -34,7 +50,10 @@ function copy() {
 onMounted(refresh);
 // Reports change only on explicit Refresh, so opening this panel cannot create
 // a resize/repaint loop or overwrite the pre-keyboard sample.
-onBeforeUnmount(() => { report.value = ''; });
+onBeforeUnmount(() => {
+    if (changedViewport && viewportMeta) viewportMeta.content = originalViewport;
+    report.value = '';
+});
 </script>
 <template>
     <Teleport to="body">
@@ -43,6 +62,10 @@ onBeforeUnmount(() => { report.value = ''; });
                 <button @click="refresh">刷新尺寸</button>
                 <button @click="copy">{{ copied ? '已复制' : '复制尺寸' }}</button>
                 <button @click="emit('close')">关闭</button>
+            </view>
+            <view class="diagnostic-actions">
+                <button @click="testViewport">测试普通视口</button>
+                <button @click="restoreViewport">恢复原设置</button>
             </view>
             <text class="diagnostic-report" selectable>{{ report }}</text>
         </view>

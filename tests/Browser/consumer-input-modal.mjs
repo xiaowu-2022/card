@@ -109,8 +109,15 @@ for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome
         assert.equal(report.window[0], 390);
         assert.ok(report.login[1] > 0);
         assert.equal(reportText.includes('OfflinePassword123'), false);
+        const originalViewport = await page.locator('meta[name="viewport"]').getAttribute('content');
+        await diagnostics.getByText('测试普通视口', { exact: true }).click();
+        assert.match(await page.locator('meta[name="viewport"]').getAttribute('content'), /viewport-fit=auto/);
+        await diagnostics.getByText('恢复原设置', { exact: true }).click();
+        assert.equal(await page.locator('meta[name="viewport"]').getAttribute('content'), originalViewport);
+        await diagnostics.getByText('测试普通视口', { exact: true }).click();
         await diagnostics.getByText('关闭', { exact: true }).click();
         assert.equal(await diagnostics.count(), 0);
+        assert.equal(await page.locator('meta[name="viewport"]').getAttribute('content'), originalViewport);
         await page.screenshot({ path: `${out}/${name}-password.png` });
         assert.deepEqual(errors, []);
         assert.ok(mutations.every(path => path === '/api/v1/wallet/ensure'), JSON.stringify(mutations));

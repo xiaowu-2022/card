@@ -310,3 +310,13 @@ H5 的认证页品牌图片区连续点击五次可手动打开 `login-layout-1`
 只在用户主动点击时复制当前尺寸快照。面板默认关闭，刷新也是手动操作，
 离开页面即关闭。应采集首次打开黑边时和键盘收起后的两份快照，保留同一 APK
 与同一 H5 构建作对比。此面板用于取证，不代表黑边已修复。
+
+2026-10-09 真机诊断照片：有黑边时 window/document 高 775，visual/vh/login 高
+775.27；无黑边时分别为 804/804，safeBottom 两次均 0px，scrollY 均 0，缩放均 1。
+页面已填满其收到的视口，不能再把差额当作页面底部 padding。无黑边照片顶部
+内容同时延伸至状态栏/刘海区域；尚未确认引发窗口模式变化的具体机制。
+面板新增手动 `viewport-fit=auto` 对比，保留其他 viewport 参数，点击恢复、
+关闭或离开页面时还原原设置；不改变默认入口。点击测试后等待画面稳定再刷新
+尺寸。此对比用于检验当前 `viewport-fit=cover` 与系统区域布局的交互，不保证
+动态修改可复现冷启动行为。参考 Chromium 官方 display cutout 说明：
+https://chromium.googlesource.com/chromium/src/+/HEAD/docs/ui/android/display_cutout.md
