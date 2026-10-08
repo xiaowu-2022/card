@@ -114,9 +114,17 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  const retry=windows[1];assert.equal(retry.requestedURL,b+'/#/pages/login/index');
  retry.url=b+'/';retry.events.loaded();
  retry.events.titleUpdate({title:oldToken});assert.equal(page.state.value,'loading');
- retry.events.titleUpdate({title:page.token()});assert.equal(page.state.value,'ready');
- assert.equal(retry.styles.at(-1).opacity,0, 'remain transparent until welcome layout is removed');
+ retry.events.titleUpdate({title:page.token()});assert.equal(page.state.value,'loading');
+ assert.equal(retry.styles.at(-1).opacity,0, 'welcome remains during startup pulse');
  flushLayout();
+ assert.equal(page.debugEnabled.value,false);
+ assert.equal(page.state.value,'loading');
+ assert.equal(retry.styles.at(-1).height,'504px', 'actual native window shrinks with debug disabled');
+ assert.equal(retry.styles.at(-1).opacity,0);
+ const pulse = [...timers.values()].find(t=>t.delay===120);
+ assert.ok(pulse);
+ pulse.fn(); flushLayout();
+ assert.equal(page.state.value,'ready');
  assert.equal(retry.styles.at(-1).opacity,1);
  assert.equal(retry.styles.at(-1).height,'804px');
  parentHeight=500; page.resizeContent(); flushLayout();
@@ -150,5 +158,13 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  flushLayout();
  assert.ok(stale.closed);
  assert.equal(stale.styles.some(style=>style.opacity===1),false, 'replaced window cannot be revealed by a pending layout callback');
+
+ const current=windows.at(-1);current.url=b+'/';
+ current.events.titleUpdate({title:page.token()});flushLayout();
+ assert.equal(page.state.value,'ready');
+ assert.equal(current.styles.at(-1).height,'804px');
+ assert.equal(current.styles.some(style=>style.height==='504px'),false, 'retry cannot repeat startup pulse');
+ pulse.fn();flushLayout();
+ assert.equal(current.styles.at(-1).opacity,1, 'stale pulse callback has no effect');
 
 });

@@ -1,15 +1,8 @@
 <script setup lang="ts">
 import TextInput from '../../components/TextInput.vue';
 import { useSensitiveScreen } from '../../lib/sensitive';
-import { ref, onBeforeUnmount } from 'vue';
-import { onShow, onReady, onHide } from '@dcloudio/uni-app';
-// #ifdef H5
-import { pulseLoginViewportOnce } from '../../lib/login-viewport-pulse';
-let stopViewportPulse = () => {};
-onReady(() => { stopViewportPulse = pulseLoginViewportOnce(); });
-onHide(() => stopViewportPulse());
-onBeforeUnmount(() => stopViewportPulse());
-// #endif
+import { ref } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 import { bootstrap, login, session } from '../../lib/session';
 import { native } from '../../lib/api';
 import { t, changeLocale } from '../../lib/i18n';

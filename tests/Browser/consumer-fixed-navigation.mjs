@@ -30,11 +30,10 @@ for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome
         async function aligned(label) {
             const tabs = page.locator('.tabs:visible'), header = page.locator('.header:visible, .brand-header:visible');
             await tabs.first().waitFor();
-            const accountHome = await page.locator('.shell.account-shell:visible').count() > 0;
-            if (!accountHome) await header.first().waitFor();
+            await header.first().waitFor();
             assert.equal(await tabs.count(), 1, label + ': exactly one bottom bar');
-            assert.equal(await header.count(), accountHome ? 0 : 1, label + ': account home omits the header');
-            const nav = await tabs.boundingBox(), top = accountHome ? null : await header.boundingBox();
+            assert.equal(await header.count(), 1, label + ': exactly one header, including account home');
+            const nav = await tabs.boundingBox(), top = await header.boundingBox();
             const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
             assert.ok(Math.abs(nav.y + nav.height - viewport.height) < 2, JSON.stringify({ label, nav, viewport }));
             if (top) assert.ok(Math.abs(top.y) < 2, JSON.stringify({ label, top }));

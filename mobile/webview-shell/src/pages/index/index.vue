@@ -24,6 +24,8 @@ let child: Webview | null = null, timer: ReturnType<typeof setTimeout> | undefin
 let disposed = false, detecting = false, lastRefresh = 0;
 let readinessTimer: ReturnType<typeof setTimeout> | undefined, readinessToken = '', loadSequence = 0;
 let measuredParentHeight = 0, layoutRevision = 0;
+let revealPending = false, startupPulseDone = false, startupPulseActive = false;
+let startupPulseTimer: ReturnType<typeof setTimeout> | undefined;
 function debugLog(message: string) {
     if (debugEnabled.value) debugRows.value = [...debugRows.value.slice(-59), `${new Date().toLocaleTimeString()} ${message}`];
 }
@@ -86,6 +88,8 @@ function stopTimer() {
     clearTimeout(timer); timer = undefined;
     clearTimeout(readinessTimer); readinessTimer = undefined;
     readinessToken = '';
+    clearTimeout(startupPulseTimer); startupPulseTimer = undefined;
+    revealPending = false; startupPulseActive = false;
 }
 function failure(message: string) {
     if (disposed) return;
@@ -120,6 +124,7 @@ function resizeContent() {
             const bounds = contentBounds();
             view.setStyle({ ...bounds, opacity: state.value === 'ready' ? 1 : 0 });
             debugLog(`窗口布局 parent=${measuredParentHeight} top=${statusHeight} height=${bounds.height ?? 'auto'} bottom=${bounds.bottom}`);
+            if (revealPending) finishStartupLayout(view, bounds);
         };
         // A missing measurement callback must not strand a verified page hidden.
         // Never substitute screenHeight or a zero startup windowHeight.
@@ -129,6 +134,27 @@ function resizeContent() {
             apply(rect?.height);
         }).exec();
     });
+}
+function finishStartupLayout(view: Webview, bounds: ReturnType<typeof contentBounds>) {
+    if (startupPulseActive || disposed || child !== view || state.value !== 'loading') return;
+    const reveal = () => {
+        if (disposed || child !== view || state.value !== 'loading' || !revealPending) return;
+        startupPulseActive = false; startupPulseTimer = undefined; revealPending = false;
+        view.setStyle({ ...contentBounds(), opacity: 0 });
+        state.value = 'ready';
+        // Restore current bounds, including any debug/rotation changes during the pulse.
+        resizeContent();
+    };
+    const height = Number.parseFloat(bounds.height ?? '');
+    if (!startupPulseDone && Number.isFinite(height) && height > 2) {
+        startupPulseDone = true; startupPulseActive = true;
+        // Keep the local welcome visible while resizing the actual H5 window.
+        // Reproduce the debug panel's height change without enabling diagnostics.
+        const shrink = Math.min(debugHeight, Math.floor(height / 2));
+        view.setStyle({ ...bounds, height: `${height - shrink}px`,
+            bottom: `${Number.parseFloat(bounds.bottom) + shrink}px`, opacity: 0 });
+        startupPulseTimer = setTimeout(reveal, 120);
+    } else reveal();
 }
 function checkContent(view: Webview) {
     if (disposed || child !== view || state.value !== 'loading') return;
@@ -166,9 +192,9 @@ function open(url: string) {
         if (disposed || child !== view || state.value !== 'loading'
             || !readinessToken || event.title !== readinessToken
             || !/^https:\/\//i.test(view.getURL())) return;
-        stopTimer(); state.value = 'ready';
-        // Remove the welcome layout before sizing/revealing the attached window.
-        // A stale callback must never reveal a replaced, failed or unloaded view.
+        stopTimer(); revealPending = true;
+        // Once content is ready, pulse its native bounds behind the welcome page.
+        // Only reveal after restoring; stale windows cannot complete this sequence.
         resizeContent();
     });
     view.addEventListener('error', () => { if (child === view) failure('网页无法打开，请检查网络后重试。'); });

@@ -29,7 +29,6 @@ const props = withDefaults(
 const brand = computed(() => session.value?.tenant.name ?? '');
 const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
 const isHome = computed(() => !!props.active && !props.back);
-const isAccountHome = computed(() => props.active === 'account' && isHome.value);
 function tabActive(name: string) {
     const pages = getCurrentPages();
     const page = pages[pages.length - 1] as any;
@@ -66,11 +65,9 @@ const navigationStyle = computed(() => ({
     '--shell-safe-top': import.meta.env.UNI_PLATFORM === 'h5'
         ? 'max(24px, var(--status-bar-height, 0px), env(safe-area-inset-top, 0px))'
         : 'max(var(--status-bar-height, 0px), env(safe-area-inset-top, 0px))',
-    '--shell-header-height': isAccountHome.value
-        ? '0px'
-        : isHome.value
-          ? 'clamp(64px, 11.867vw, 89px)'
-          : 'clamp(64px, 12vw, 90px)',
+    '--shell-header-height': isHome.value
+        ? 'clamp(64px, 11.867vw, 89px)'
+        : 'clamp(64px, 12vw, 90px)',
 }));
 const badge = (n: number) => (n > 99 ? '99+' : String(n));
 function historyBackTo(path: string) {
@@ -95,7 +92,7 @@ function open(path: string, replace = false) {
                 'home-shell': isHome,
             }"
             ><ViewportLayer :class="navigationClasses" :style="navigationStyle"
-                ><view v-if="isHome && !isAccountHome" class="brand-header"
+                ><view v-if="isHome" class="brand-header"
                     ><view class="brand" @click="home()"
                         ><PreviewImage
                             :sources="session?.tenant.logoSources"
