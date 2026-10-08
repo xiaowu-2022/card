@@ -1004,6 +1004,9 @@ export const adminCatalog: Record<string, string> = {
     Onboarding: '公司启用',
     'Company product availability and limits are managed by SaaS.':
         '公司产品启用状态及持卡限制由 SaaS 统一配置。',
+    'Basic information': '基本信息',
+    'Brand and App': '品牌与 App',
+    'Saved successfully.': '保存成功。',
     'Company configuration': '公司配置',
     'Configure company': '配置公司',
     'Company details': '公司详情',

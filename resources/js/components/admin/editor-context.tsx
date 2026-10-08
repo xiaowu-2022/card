@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useForm as useInertiaForm, usePage as useInertiaPage } from '@inertiajs/react';
+import { companyEditor } from './company-settings';
 import { readEditorResponse } from './editor-response';
 import type {
     FormDataType,
@@ -13,8 +14,10 @@ import type {
 export type EditorContextValue = {
     page: Page;
     load: (url: string) => Promise<Page>;
-    saved: () => void;
+    saved: (page?: Page, location?: string) => void;
+    refresh: () => Promise<void>;
     navigate: (url: string) => void;
+    canNavigate: () => boolean;
     error: (message: string) => void;
     state: (id: object, dirty: boolean, busy: boolean) => void;
 };
@@ -55,6 +58,22 @@ export function useForm<T extends FormDataType<T>>(data: T | (() => T)) {
         const key = id.current;
         return () => editor?.state(key, false, false);
     }, [editor, form.isDirty, busy]);
+    const initial = typeof data === 'function' ? data() : data;
+    const signature = JSON.stringify(initial);
+    const baseline = useRef(signature);
+    useEffect(() => {
+        if (
+            editor &&
+            companyEditor(editor.page.url) &&
+            !busy &&
+            !form.isDirty &&
+            baseline.current !== signature
+        ) {
+            baseline.current = signature;
+            form.setDefaults(initial);
+            form.setData(initial);
+        }
+    }, [editor, busy, form.isDirty, signature]);
     if (!editor) return form;
     const submit = async (method: string, url: string, options: UseFormSubmitOptions = {}) => {
         if (inFlight.current) return;
@@ -76,6 +95,9 @@ export function useForm<T extends FormDataType<T>>(data: T | (() => T)) {
                 headers: {
                     Accept: 'application/json',
                     'X-Admin-Dialog': '1',
+                    ...(companyEditor(editor.page.url)
+                        ? { 'X-Admin-Company': companyEditor(editor.page.url)!.company }
+                        : {}),
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-XSRF-TOKEN': decodeURIComponent(
                         document.cookie
@@ -88,6 +110,7 @@ export function useForm<T extends FormDataType<T>>(data: T | (() => T)) {
             });
             const result = (await readEditorResponse(response)) as {
                 saved?: boolean;
+                location?: string;
                 errors?: Record<string, string | string[]>;
                 error?: { message?: string };
                 message?: string;
@@ -110,9 +133,16 @@ export function useForm<T extends FormDataType<T>>(data: T | (() => T)) {
             }
             if (result.saved !== true)
                 throw new Error('Unexpected response. Please reload and try again.');
+            if (result.location && editor.page.component === 'platform/TenantCreate') {
+                form.setDefaults(form.data);
+                editor.saved(undefined, result.location);
+                return;
+            }
             const refreshed = await editor.load(editor.page.url).catch(() => editor.page);
+            form.setDefaults(form.data);
             options.onSuccess?.(refreshed);
-            editor.saved();
+            editor.state(id.current, false, true);
+            editor.saved(refreshed);
         } catch (error) {
             editor.error(error instanceof Error ? error.message : 'Unable to save.');
             form.setError({

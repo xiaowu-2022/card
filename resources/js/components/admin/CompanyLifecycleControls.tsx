@@ -1,5 +1,7 @@
+import { useEditorRouter } from '@/components/admin/useEditorRouter';
+import { usePage } from '@/components/admin/editor-context';
 import { useState } from 'react';
-import { Link, router, usePage } from '@inertiajs/react';
+import { Link } from '@inertiajs/react';
 import { t } from '@/i18n/admin';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -22,6 +24,7 @@ export function CompanyLifecycleControls({
 }: {
     company: { id: string; name: string; status?: string };
 }) {
+    const router = useEditorRouter();
     const canManage =
         usePage<SharedProps>().props.auth.admin?.permissions.includes('tenant.manage');
     const [action, setAction] = useState<'suspend' | 'reactivate' | null>(null);

@@ -8,6 +8,7 @@ use App\Http\Controllers\Platform\CardOperationsController;
 use App\Http\Controllers\Platform\CardProductController;
 use App\Http\Controllers\Platform\CardProviderController;
 use App\Http\Controllers\Platform\CardTransactionBatchController;
+use App\Http\Controllers\Platform\CompanyConfiguration\AndroidReleaseController;
 use App\Http\Controllers\Platform\CompanyConfiguration\InvitationPosterController;
 use App\Http\Controllers\Platform\CompanyConfiguration\OnboardingController;
 use App\Http\Controllers\Platform\CompanyConfiguration\PaidPromotionController;
@@ -40,12 +41,15 @@ use App\Http\Controllers\Platform\TenantLifecycleController;
 use App\Http\Controllers\Platform\TenantManagementController;
 use App\Http\Controllers\Platform\TopupVerificationController;
 use App\Http\Controllers\Platform\TronWithdrawalsController;
+use App\Http\Controllers\Platform\UserCreationController;
 use App\Http\Controllers\Platform\UserFundsController;
+use App\Http\Controllers\Platform\UserInvitationCodeController;
 use App\Http\Controllers\Platform\UserOperationsController;
 use App\Http\Controllers\Platform\UserPromotionController;
 use App\Http\Controllers\Platform\UserReferrerController;
 use App\Http\Controllers\Platform\WalletAdjustmentController;
 use App\Http\Controllers\Platform\WealthController;
+use App\Http\Middleware\CompanyDirectoryAccess;
 use App\Http\Middleware\PlatformCompanyConfiguration;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -140,10 +144,11 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::get('/login', [PlatformAuthController::class, 'create'])->name('login');
     Route::post('/login', [PlatformAuthController::class, 'store'])->name('login.store');
 
+    Route::get('/tenants', [TenantManagementController::class, 'index'])->middleware(CompanyDirectoryAccess::class)->name('tenants.index');
     Route::middleware('admin.scope:platform,tenant.read')->group(function (): void {
         Route::get('/', fn () => redirect('/platform/tenants'))->name('home');
         Route::get('/demo', DashboardController::class)->name('dashboard');
-        Route::get('/tenants', [TenantManagementController::class, 'index'])->name('tenants.index');
+
         Route::get('/tenants/{tenant}', [TenantManagementController::class, 'show'])->whereUuid('tenant')->name('tenants.show');
         Route::post('/logout', [PlatformAuthController::class, 'destroy'])->name('logout');
     });
@@ -159,13 +164,13 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware(['admin.scope:platform,cards.read', 'throttle:30,1'])->post('/tenants/{tenant}/cards/{card}/refresh', [CardOperationsController::class, 'refresh'])->whereUuid(['tenant', 'card'])->name('cards.refresh');
     Route::post('/tenants/{tenant}/users/{user}/support-remark', [SupportWorkspaceController::class, 'remark'])->whereUuid(['tenant', 'user'])->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,support.read', 'admin.scope:platform,support.send', 'throttle:30,1']);
     Route::post('/tenants/{tenant}/users/{user}/support-agent', [SupportWorkspaceController::class, 'grantUser'])->whereUuid(['tenant', 'user'])->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,support.read', 'admin.scope:platform,support.agents.manage', 'throttle:30,1']);
-    Route::post('/tenants/{tenant}/users', \App\Http\Controllers\Platform\UserCreationController::class)->whereUuid('tenant')->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.create', 'throttle:20,1']);
+    Route::post('/tenants/{tenant}/users', UserCreationController::class)->whereUuid('tenant')->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.create', 'throttle:20,1']);
     Route::middleware('admin.scope:platform,users.read')->get('/users', UserOperationsController::class)->name('users.index');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,ledger.read'])->get('/tenants/{tenant}/users/{user}/funds', UserFundsController::class)->whereUuid(['tenant', 'user'])->name('users.funds');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,kyc.read'])->get('/tenants/{tenant}/users/{user}/kyc', [KycDetailController::class, 'user'])->whereUuid(['tenant', 'user'])->name('users.kyc');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.invitation.manage'])->group(function () {
-        Route::get('/tenants/{tenant}/users/{user}/invitation-code', [\App\Http\Controllers\Platform\UserInvitationCodeController::class, 'show'])->whereUuid(['tenant', 'user']);
-        Route::post('/tenants/{tenant}/users/{user}/invitation-code', [\App\Http\Controllers\Platform\UserInvitationCodeController::class, 'update'])->middleware('throttle:20,1')->whereUuid(['tenant', 'user']);
+        Route::get('/tenants/{tenant}/users/{user}/invitation-code', [UserInvitationCodeController::class, 'show'])->whereUuid(['tenant', 'user']);
+        Route::post('/tenants/{tenant}/users/{user}/invitation-code', [UserInvitationCodeController::class, 'update'])->middleware('throttle:20,1')->whereUuid(['tenant', 'user']);
     });
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.referrer.manage'])->group(function () {
         Route::get('/tenants/{tenant}/users/{user}/referrer', [UserReferrerController::class, 'show'])->whereUuid(['tenant', 'user']);
@@ -271,7 +276,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::post('/settings/sms', [TenantSmsSettingsController::class, 'update'])->middleware('throttle:5,1')->name('settings.sms');
         Route::post('/settings/articles/{article}/{locale}', [TenantArticleController::class, 'update'])
             ->whereIn('article', ['terms', 'privacy', 'account-closure'])->whereIn('locale', ['zh-CN', 'en', 'ms', 'es'])->name('settings.articles.update');
-        Route::post('/settings/android-release', App\Http\Controllers\Platform\CompanyConfiguration\AndroidReleaseController::class)->middleware('throttle:5,1')->name('settings.android-release');
+        Route::post('/settings/android-release', AndroidReleaseController::class)->middleware('throttle:5,1')->name('settings.android-release');
         Route::post('/settings/branding', [TenantSettingsController::class, 'branding'])->name('settings.branding');
         Route::post('/settings/locales', [TenantSettingsController::class, 'locales'])->name('settings.locales');
         Route::post('/settings/business', [TenantSettingsController::class, 'business'])->name('settings.business');

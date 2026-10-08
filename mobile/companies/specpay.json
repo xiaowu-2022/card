@@ -3,16 +3,16 @@
   "appId": "cc.specpay.cards",
   "dcloudAppId": "__UNI__GBE57092",
   "tenantSlug": "tenant-a",
-  "apiOrigin": "https://specpay.cc",
-  "version": "2.3.59",
-  "buildNumber": 2359,
+  "apiOrigin": "https://27m.my",
+  "version": "2.5.02",
+  "buildNumber": 2502,
   "developmentOnly": false,
   "apiOrigins": [
+    "https://27m.my",
     "https://specpay.cc",
     "https://specpay.top",
     "https://specpay.vip",
     "https://113b.my",
-    "https://27m.my",
     "https://18k.my"
   ]
 }

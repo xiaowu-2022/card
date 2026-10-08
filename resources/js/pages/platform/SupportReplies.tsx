@@ -1,4 +1,6 @@
-import { Head, router } from '@inertiajs/react';
+import { useEditorRouter } from '@/components/admin/useEditorRouter';
+import { useEditor } from '@/components/admin/editor-context';
+import { Head } from '@inertiajs/react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { PlatformSupportTabs } from '@/components/support/PlatformSupportTabs';
 import { QuickReplyManager, type QuickReply } from '@/components/support/QuickReplyManager';
@@ -15,6 +17,8 @@ export default function SupportReplies({
     companies: { id: string; name: string }[];
     filters: { company?: string; search?: string };
 }) {
+    const router = useEditorRouter();
+    const editor = useEditor();
     useAdminTranslation();
     return (
         <PlatformLayout title={t('Customer support')}>
@@ -27,24 +31,26 @@ export default function SupportReplies({
                         e.preventDefault();
                         const f = new FormData(e.currentTarget);
                         router.get('/platform/support/replies', {
-                            company: f.get('company') as string,
+                            company: editor ? filters.company : (f.get('company') as string),
                             search: f.get('search') as string,
                         });
                     }}
                 >
-                    <select
-                        name="company"
-                        aria-label={t('Company')}
-                        className="h-9 rounded-lg border px-3"
-                        defaultValue={filters.company ?? ''}
-                    >
-                        <option value="">{t('All companies')}</option>
-                        {companies.map((c) => (
-                            <option key={c.id} value={c.id}>
-                                {c.name}
-                            </option>
-                        ))}
-                    </select>
+                    {!editor && (
+                        <select
+                            name="company"
+                            aria-label={t('Company')}
+                            className="h-9 rounded-lg border px-3"
+                            defaultValue={filters.company ?? ''}
+                        >
+                            <option value="">{t('All companies')}</option>
+                            {companies.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                    {c.name}
+                                </option>
+                            ))}
+                        </select>
+                    )}
                     <Input
                         name="search"
                         maxLength={120}
@@ -56,7 +62,7 @@ export default function SupportReplies({
                 <QuickReplyManager
                     replies={replies}
                     url="/platform/support/replies"
-                    companies={companies}
+                    companies={editor ? undefined : companies}
                     company={filters.company}
                 />
             </div>

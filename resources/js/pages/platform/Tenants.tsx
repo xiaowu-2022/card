@@ -1,4 +1,4 @@
-import { RenameCompany } from '@/components/admin/RenameCompany';
+import { allowedCompanySettings, companySettingsUrl } from '@/components/admin/company-settings';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Search } from 'lucide-react';
@@ -58,7 +58,7 @@ export default function Tenants({
     financialAccess,
 }: {
     tenants: Paginator;
-    filters: { search?: string; status?: string };
+    filters: { search?: string; status?: string; company?: string };
     totals: { inflow?: string; outflow?: string };
     financialAccess: { inflow: boolean; outflow: boolean };
 }) {
@@ -67,11 +67,21 @@ export default function Tenants({
     const [status, setStatus] = useState(filters.status ?? 'ALL');
     const canManage =
         usePage<SharedProps>().props.auth.admin?.permissions.includes('tenant.manage');
+    const sections = allowedCompanySettings(
+        usePage<SharedProps>().props.auth.admin?.permissions ?? [],
+    );
+    const preferred = new URL(location.href).searchParams.get('section');
+    const initialSection =
+        sections.find((item) => item.value === preferred)?.value ?? sections[0]?.value;
     const apply = (event?: FormEvent) => {
         event?.preventDefault();
         router.get(
             '/platform/tenants',
-            { search: search || undefined, status: status === 'ALL' ? undefined : status },
+            {
+                company: filters.company,
+                search: search || undefined,
+                status: status === 'ALL' ? undefined : status,
+            },
             { preserveState: true, replace: true },
         );
     };
@@ -222,10 +232,18 @@ export default function Tenants({
                                                 {dateTime(tenant.createdAt)}
                                             </TableCell>
                                             <TableCell className="sticky right-0 z-10 whitespace-nowrap bg-surface text-right">
-                                                <RenameCompany company={tenant} />
                                                 <Button asChild variant="ghost" size="sm">
-                                                    <Link href={`/platform/tenants/${tenant.id}`}>
-                                                        {t('View')}
+                                                    <Link
+                                                        href={
+                                                            sections.length
+                                                                ? companySettingsUrl(
+                                                                      tenant.id,
+                                                                      initialSection!,
+                                                                  )
+                                                                : `/platform/tenants/${tenant.id}`
+                                                        }
+                                                    >
+                                                        {t(sections.length ? 'Configure' : 'View')}
                                                     </Link>
                                                 </Button>
                                             </TableCell>

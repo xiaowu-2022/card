@@ -3,21 +3,32 @@
 namespace App\Http\Controllers\Platform;
 
 use App\Application\Tenant\PlatformListFilters;
-use App\Domain\Tenant\Models\Tenant;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 
 final class CompanyConfigurationListController
 {
     public function __invoke(Request $request, PlatformListFilters $lists)
     {
         $filters = $lists->validated($request, ['status' => 'nullable|in:DRAFT,ACTIVE,SUSPENDED,CLOSED']);
-        $rows = Tenant::query()->when($filters['company'] ?? null, fn ($q, $id) => $q->whereKey($id))
-            ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
-            ->when($filters['search'] ?? null, fn ($q, $search) => $q->where(fn ($q) => $q->whereRaw('strpos(lower(name), lower(?)) > 0', [$search])->orWhereRaw('strpos(lower(slug), lower(?)) > 0', [$search])))
-            ->orderBy('name')->orderBy('id')->paginate(20, ['id', 'name', 'slug', 'status', 'default_locale', 'timezone'])->withQueryString();
+        $query = array_filter($filters, fn ($value) => $value !== null && $value !== '');
+        $request->validate(['section' => 'nullable|string|max:80', 'editor' => 'nullable|string|max:2000', 'page' => 'nullable|integer|min:1']);
+        if ($request->filled('section')) {
+            $query['section'] = $request->input('section');
+        }
+        if ($request->filled('editor')) {
+            $query['editor'] = $request->input('editor');
+        } elseif (! empty($filters['company'])) {
+            $section = $request->input('section', 'onboarding');
+            $allowed = ['onboarding', 'domains', 'card-products', 'team', 'assets', 'settings/branding', 'settings/locales', 'settings/business', 'settings/kyc', 'settings/articles', 'settings/sms', 'settings/email', 'promotion', 'wealth', 'support/hours', 'support/replies', 'support/bot'];
+            abort_unless(in_array($section, $allowed, true), 422);
+            $query['editor'] = $section === 'assets' ? '/platform/settings/assets?company='.$filters['company']
+                : (str_starts_with($section, 'support/') ? '/platform/'.$section.'?company='.$filters['company']
+                : '/platform/tenants/'.$filters['company'].'/configuration/'.$section);
+        }
+        if ($request->filled('page')) {
+            $query['page'] = $request->integer('page');
+        }
 
-        return Inertia::render('platform/CompanyConfigurations', ['companies' => $lists->companies(), 'records' => $rows, 'filters' => $filters])
-            ->toResponse($request)->header('Cache-Control', 'private, no-store');
+        return redirect('/platform/tenants'.($query ? '?'.http_build_query($query) : ''));
     }
 }

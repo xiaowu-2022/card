@@ -1,3 +1,13 @@
+On 2026-10-08 the user unified all company-owned Platform configuration into one
+right drawer from /platform/tenants, removing the separate company configuration
+menu/list. Use sixteen lazy categories, save without closing, preserve independent
+list/editor history, dirty/busy guards, old links, company identity and existing
+permissions. Include company domains/products/team/lifecycle and company support
+hours/replies/bot settings; global settings/FAQs, support inbox and consumer-agent
+grants remain separate. Configuration-only access must not expose financial totals.
+No financial mutations on reads, schema migration or consumer rebuild is required.
+See docs/deployment/PLATFORM_LAYOUT.md.
+
 On 2026-10-08 the user unified H5 homepage/menu/footer download links as Download
 app with automatic Android/iPhone/iPad selection from the company's published
 Android URL/iOS distribution page. Desktop/unknown platforms choose explicitly;

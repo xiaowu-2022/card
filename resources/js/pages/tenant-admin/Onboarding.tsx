@@ -1,8 +1,12 @@
+import { useEditorRouter } from '@/components/admin/useEditorRouter';
+import { RenameCompany } from '@/components/admin/RenameCompany';
+import { CompanyLifecycleControls } from '@/components/admin/CompanyLifecycleControls';
+import { usePage } from '@/components/admin/editor-context';
 import { useCompanyConfigurationUrl } from '@/hooks/useCompanyConfigurationUrl';
 import { useAdminTranslation, t } from '@/i18n/admin';
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { CheckCircle2, Circle, LockKeyhole } from 'lucide-react';
-import { PageHeader } from '@/components/shared/PageHeader';
+import { CompanyConfigurationHeader as PageHeader } from '@/components/admin/CompanyConfiguration';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -18,12 +22,17 @@ export default function Onboarding({
     tenantRecord: { name: string; status: 'DRAFT' | 'ACTIVE' | 'SUSPENDED' | 'CLOSED' };
     onboarding: { foundation_ready: boolean; business_ready: boolean; items: Item[] };
 }) {
+    const router = useEditorRouter();
     useAdminTranslation();
     const configurationUrl = useCompanyConfigurationUrl();
     const required = onboarding.items.filter((item) => item.required);
     const later = onboarding.items.filter((item) => !item.required);
     const configurationProps = usePage<
-        SharedProps & { configurationBase?: string; configurationReadOnly?: boolean }
+        SharedProps & {
+            configurationBase?: string;
+            configurationReadOnly?: boolean;
+            configurationCompany?: { id: string; name: string; slug: string; status: string };
+        }
     >().props;
     const canActivate =
         Boolean(configurationProps.configurationBase) &&
@@ -32,6 +41,15 @@ export default function Onboarding({
         <TenantAdminLayout>
             <Head title={t('Setup')} />
             <div className="space-y-6">
+                {configurationProps.configurationCompany && (
+                    <div className="flex flex-wrap items-center gap-3">
+                        <span>{configurationProps.configurationCompany.slug}</span>
+                        <RenameCompany company={configurationProps.configurationCompany} />
+                        <CompanyLifecycleControls
+                            company={configurationProps.configurationCompany}
+                        />
+                    </div>
+                )}
                 <PageHeader
                     eyebrow={t('Tenant setup')}
                     title={t('{{value1}} foundation', { value1: tenantRecord.name })}

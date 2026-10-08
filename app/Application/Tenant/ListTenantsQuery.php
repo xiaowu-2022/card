@@ -11,9 +11,9 @@ use Illuminate\Support\Facades\DB;
 
 final class ListTenantsQuery
 {
-    public function execute(?string $search, ?string $status, array $financialAccess = []): LengthAwarePaginator
+    public function execute(?string $search, ?string $status, array $financialAccess = [], ?string $company = null): LengthAwarePaginator
     {
-        return $this->filtered($search, $status)->select('tenants.*')
+        return $this->filtered($search, $status, $company)->select('tenants.*')
             ->with(['domains' => fn ($query) => $query->where('is_primary', true)])
             ->when($financialAccess['inflow'] ?? false, fn ($query) => $query->selectSub(
                 $this->orders('wallet_topup_orders', 'CREDITED')->whereColumn('tenant_id', 'tenants.id')->selectRaw('COALESCE(SUM(amount), 0)::text'), 'inflow'))
@@ -33,13 +33,13 @@ final class ListTenantsQuery
                 + (($financialAccess['outflow'] ?? false) ? ['outflow' => $this->decimal($tenant->outflow)] : []));
     }
 
-    public function totals(?string $search, ?string $status, array $financialAccess = []): array
+    public function totals(?string $search, ?string $status, array $financialAccess = [], ?string $company = null): array
     {
         $totals = [];
         foreach (['inflow' => ['wallet_topup_orders', 'CREDITED'], 'outflow' => ['withdrawal_orders', 'SUCCEEDED']] as $key => [$table, $state]) {
             if ($financialAccess[$key] ?? false) {
                 // Identical company filters, deliberately before pagination; orders are counted once.
-                $sum = $this->orders($table, $state)->whereIn('tenant_id', $this->filtered($search, $status)->select('id'))
+                $sum = $this->orders($table, $state)->whereIn('tenant_id', $this->filtered($search, $status, $company)->select('id'))
                     ->selectRaw('COALESCE(SUM(amount), 0)::text AS total')->first()->total;
                 $totals[$key] = $this->decimal($sum);
             }
@@ -48,9 +48,9 @@ final class ListTenantsQuery
         return $totals;
     }
 
-    private function filtered(?string $search, ?string $status): Builder
+    private function filtered(?string $search, ?string $status, ?string $company = null): Builder
     {
-        return Tenant::query()->when($search, fn ($query, $value) => $query->where(function ($nested) use ($value): void {
+        return Tenant::query()->when($company, fn ($query) => $query->whereKey($company))->when($search, fn ($query, $value) => $query->where(function ($nested) use ($value): void {
             $nested->where('name', 'ILIKE', '%'.$value.'%')
                 ->orWhere('slug', 'ILIKE', '%'.$value.'%')
                 ->orWhereHas('domains', fn ($domains) => $domains->where('hostname', 'ILIKE', '%'.$value.'%'));

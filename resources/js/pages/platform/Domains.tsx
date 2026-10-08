@@ -1,13 +1,20 @@
+import { useEditorRouter } from '@/components/admin/useEditorRouter';
+import { useForm } from '@/components/admin/editor-context';
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/admin/InlineEditorDialog';
 import {
     AlertDialog,
     AlertDialogContent,
     AlertDialogTitle,
     AlertDialogDescription,
 } from '@/components/ui/alert-dialog';
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,11 +53,14 @@ export default function Domains({
     domains,
     company,
     companies = [],
+    availableDomains: pool = [],
 }: {
     domains: Domain[];
     company: { id: string; name: string } | null;
     companies?: { id: string; name: string }[];
+    availableDomains?: Domain[];
 }) {
+    const router = useEditorRouter();
     useAdminTranslation();
     const form = useForm({ hostname: '' });
     const [addOpen, setAddOpen] = useState(false);
@@ -67,6 +77,7 @@ export default function Domains({
         (domain) =>
             domain.type === 'CUSTOM_DOMAIN' && domain.status === 'ACTIVE' && !domain.companyId,
     );
+    const [candidate, setCandidate] = useState('');
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [targetCompanyId, setTargetCompanyId] = useState('');
     const [assignOpen, setAssignOpen] = useState(false);
@@ -131,6 +142,31 @@ export default function Domains({
                         <CardTitle>
                             {t(company ? 'Configured domains' : 'Domain configurations')}
                         </CardTitle>
+                        {company && (
+                            <div className="flex flex-wrap items-center gap-2">
+                                <select
+                                    aria-label={t('Domains')}
+                                    className="h-9 rounded border px-3"
+                                    value={candidate}
+                                    onChange={(e) => setCandidate(e.target.value)}
+                                >
+                                    <option value="">{t('Unassigned')}</option>
+                                    {pool.map((domain) => (
+                                        <option key={domain.id} value={domain.id}>
+                                            {domain.hostname}
+                                        </option>
+                                    ))}
+                                </select>
+                                <Button
+                                    disabled={!candidate || assignment.processing}
+                                    onClick={() =>
+                                        openAssignment([candidate], 'assign', company.id)
+                                    }
+                                >
+                                    {t('Assign to company')}
+                                </Button>
+                            </div>
+                        )}
                         {!company && (
                             <div className="flex items-center gap-2">
                                 <Button
@@ -185,7 +221,7 @@ export default function Domains({
                                     <TableHead>{t('Domain')}</TableHead>
                                     {!company && <TableHead>{t('Assigned company')}</TableHead>}
                                     <TableHead>{t('State')}</TableHead>
-                                    {!company && <TableHead>{t('Controls')}</TableHead>}
+                                    <TableHead>{t('Controls')}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -246,104 +282,97 @@ export default function Domains({
                                                 )}
                                             />
                                         </TableCell>
-                                        {!company && (
-                                            <TableCell>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {availableDomains.some(
-                                                        (available) => available.id === domain.id,
-                                                    ) && (
+                                        <TableCell>
+                                            <div className="flex flex-wrap gap-2">
+                                                {availableDomains.some(
+                                                    (available) => available.id === domain.id,
+                                                ) && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="secondary"
+                                                        onClick={() =>
+                                                            openAssignment([domain.id], 'assign')
+                                                        }
+                                                    >
+                                                        {t('Assign to company')}
+                                                    </Button>
+                                                )}
+                                                {domain.type === 'CUSTOM_DOMAIN' &&
+                                                    domain.companyId &&
+                                                    !domain.primary && (
                                                         <Button
                                                             size="sm"
                                                             variant="secondary"
                                                             onClick={() =>
                                                                 openAssignment(
                                                                     [domain.id],
-                                                                    'assign',
+                                                                    'unassign',
+                                                                    domain.companyId!,
                                                                 )
                                                             }
                                                         >
-                                                            {t('Assign to company')}
+                                                            {t('Unassign')}
                                                         </Button>
                                                     )}
-                                                    {domain.type === 'CUSTOM_DOMAIN' &&
-                                                        domain.companyId &&
-                                                        !domain.primary && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="secondary"
-                                                                onClick={() =>
-                                                                    openAssignment(
-                                                                        [domain.id],
-                                                                        'unassign',
-                                                                        domain.companyId!,
-                                                                    )
-                                                                }
-                                                            >
-                                                                {t('Unassign')}
-                                                            </Button>
-                                                        )}
 
-                                                    {!company &&
-                                                        domain.type === 'CUSTOM_DOMAIN' &&
-                                                        [
-                                                            'PENDING_VERIFICATION',
-                                                            'VERIFIED',
-                                                        ].includes(domain.status) && (
-                                                            <Button
-                                                                size="sm"
-                                                                onClick={() =>
-                                                                    setConfirmation({
-                                                                        domain,
-                                                                        action: 'activate',
-                                                                    })
-                                                                }
-                                                            >
-                                                                {t('Activate')}
-                                                            </Button>
-                                                        )}
-                                                    {!company &&
-                                                        domain.companyId &&
-                                                        domain.status === 'ACTIVE' &&
-                                                        !domain.primary && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="secondary"
-                                                                onClick={() =>
-                                                                    setConfirmation({
-                                                                        domain,
-                                                                        action: 'primary',
-                                                                    })
-                                                                }
-                                                            >
-                                                                {t('Make primary')}
-                                                            </Button>
-                                                        )}
-                                                    {!company &&
-                                                        domain.type === 'CUSTOM_DOMAIN' &&
-                                                        !domain.companyId &&
-                                                        !domain.primary && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="ghost"
-                                                                onClick={() =>
-                                                                    setConfirmation({
-                                                                        domain,
-                                                                        action: 'remove',
-                                                                    })
-                                                                }
-                                                            >
-                                                                {t('Remove')}
-                                                            </Button>
-                                                        )}
-                                                </div>
-                                            </TableCell>
-                                        )}
+                                                {!company &&
+                                                    domain.type === 'CUSTOM_DOMAIN' &&
+                                                    ['PENDING_VERIFICATION', 'VERIFIED'].includes(
+                                                        domain.status,
+                                                    ) && (
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                setConfirmation({
+                                                                    domain,
+                                                                    action: 'activate',
+                                                                })
+                                                            }
+                                                        >
+                                                            {t('Activate')}
+                                                        </Button>
+                                                    )}
+                                                {domain.companyId &&
+                                                    domain.status === 'ACTIVE' &&
+                                                    !domain.primary && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="secondary"
+                                                            onClick={() =>
+                                                                setConfirmation({
+                                                                    domain,
+                                                                    action: 'primary',
+                                                                })
+                                                            }
+                                                        >
+                                                            {t('Make primary')}
+                                                        </Button>
+                                                    )}
+                                                {!company &&
+                                                    domain.type === 'CUSTOM_DOMAIN' &&
+                                                    !domain.companyId &&
+                                                    !domain.primary && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            onClick={() =>
+                                                                setConfirmation({
+                                                                    domain,
+                                                                    action: 'remove',
+                                                                })
+                                                            }
+                                                        >
+                                                            {t('Remove')}
+                                                        </Button>
+                                                    )}
+                                            </div>
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                                 {domains.length === 0 && (
                                     <TableRow>
                                         <TableCell
-                                            colSpan={company ? 2 : 5}
+                                            colSpan={company ? 3 : 5}
                                             className="py-8 text-center text-muted-foreground"
                                         >
                                             {t('No domains yet.')}
@@ -434,7 +463,7 @@ export default function Domains({
                             'Assigned domains will open this company. Removed domains will stop opening it.',
                         )}
                     </AlertDialogDescription>
-                    {assignmentMode === 'assign' ? (
+                    {assignmentMode === 'assign' && !company ? (
                         <FormField id="domain-company" label={t('Assigned company')}>
                             <Select
                                 value={targetCompanyId}
@@ -458,7 +487,8 @@ export default function Domains({
                         </FormField>
                     ) : (
                         <p className="font-medium">
-                            {companies.find((tenant) => tenant.id === targetCompanyId)?.name}
+                            {company?.name ??
+                                companies.find((tenant) => tenant.id === targetCompanyId)?.name}
                         </p>
                     )}
                     <div>
@@ -466,7 +496,7 @@ export default function Domains({
                             {t(assignmentMode === 'assign' ? 'Assign' : 'Unassign')}
                         </p>
                         <ul className="mt-2 space-y-1 break-all text-sm">
-                            {domains
+                            {[...domains, ...pool]
                                 .filter((domain) => assignmentIds.includes(domain.id))
                                 .map((domain) => (
                                     <li key={domain.id}>{domain.hostname}</li>
@@ -490,7 +520,9 @@ export default function Domains({
                             disabled={!targetCompanyId || assignment.processing}
                             onClick={() =>
                                 assignment.post(
-                                    `/platform/settings/domains/assign/${targetCompanyId}`,
+                                    company
+                                        ? `/platform/tenants/${company.id}/configuration/domains`
+                                        : `/platform/settings/domains/assign/${targetCompanyId}`,
                                     {
                                         onSuccess: () => {
                                             setAssignOpen(false);

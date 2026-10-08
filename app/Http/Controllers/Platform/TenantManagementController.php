@@ -33,15 +33,16 @@ final class TenantManagementController extends Controller
     {
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:120'],
+            'company' => ['nullable', 'uuid', 'exists:tenants,id'],
             'status' => ['nullable', 'in:DRAFT,ACTIVE,SUSPENDED,CLOSED'],
         ]);
 
         $allowed = fn (string $permission): bool => $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, $permission);
-        $financialAccess = ['inflow' => $allowed('wallet_topups.read'), 'outflow' => $allowed('withdrawals.read')];
+        $financialAccess = ['inflow' => $allowed('tenant.read') && $allowed('wallet_topups.read'), 'outflow' => $allowed('tenant.read') && $allowed('withdrawals.read')];
 
         return Inertia::render('platform/Tenants', [
-            'tenants' => $query->execute($filters['search'] ?? null, $filters['status'] ?? null, $financialAccess),
-            'totals' => $query->totals($filters['search'] ?? null, $filters['status'] ?? null, $financialAccess),
+            'tenants' => $query->execute($filters['search'] ?? null, $filters['status'] ?? null, $financialAccess, $filters['company'] ?? null),
+            'totals' => $query->totals($filters['search'] ?? null, $filters['status'] ?? null, $financialAccess, $filters['company'] ?? null),
             'financialAccess' => $financialAccess,
             'filters' => $filters,
         ]);
@@ -62,7 +63,7 @@ final class TenantManagementController extends Controller
         $actor = $request->user('platform_admin');
         $created = $create->execute($request->validated(), $actor, $request->attributes->get('request_id'));
 
-        return redirect('/platform/tenants/'.$created->tenant->id)->with('success', 'Tenant created and Owner invitation sent.');
+        return redirect('/platform/tenants?'.http_build_query(['editor' => '/platform/tenants/'.$created->tenant->id.'/configuration/onboarding']))->with('success', 'Tenant created and Owner invitation sent.');
     }
 
     public function show(string $tenant, TenantDetailQuery $query, Request $request, AuthorizationService $authorization): Response|RedirectResponse
@@ -70,7 +71,7 @@ final class TenantManagementController extends Controller
         if ($authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'tenant.manage')) {
             Tenant::query()->findOrFail($tenant);
 
-            return redirect('/platform/company-configurations?company='.$tenant);
+            return redirect('/platform/tenants?'.http_build_query(['editor' => '/platform/tenants/'.$tenant.'/configuration/onboarding']));
         }
 
         return Inertia::render('platform/TenantDetail', ['tenantRecord' => $query->execute($tenant)]);

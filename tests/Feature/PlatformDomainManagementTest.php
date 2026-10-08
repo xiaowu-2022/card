@@ -38,7 +38,7 @@ it('allows the platform owner to manage only domains belonging to the selected c
     $this->actingAs($this->owner, 'platform_admin');
     $configurationUrl = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/configuration/domains';
     $this->get($this->url)->assertRedirect($configurationUrl);
-    $this->get($configurationUrl)->assertOk()->assertInertia(fn ($page) => $page->component('platform/Domains')
+    $this->get($configurationUrl, ['X-Admin-Dialog' => '1'])->assertOk()->assertInertia(fn ($page) => $page->component('platform/Domains')
         ->where('company.id', $this->tenant->id)->where('configurationCompany.id', $this->tenant->id));
     $this->postJson($this->url, ['hostname' => 'blocked.example.test'])->assertForbidden();
     $global = 'http://admin.localhost/platform/settings/domains';
@@ -98,7 +98,7 @@ it('assigns multiple ready domains atomically and excludes unassigned hosts from
         $this->deleteJson($global.'/'.$id)->assertUnprocessable();
     }
     $otherUrl = 'http://admin.localhost/platform/tenants/'.$this->other->id.'/configuration/domains';
-    $this->get($otherUrl)->assertInertia(fn ($page) => $page->has('domains', 1));
+    $this->get($otherUrl, ['X-Admin-Dialog' => '1'])->assertInertia(fn ($page) => $page->has('domains', 1));
     $this->postJson($otherUrl, $payload)->assertUnprocessable();
     $this->postJson($url, $payload)->assertUnprocessable(); // stale selection
     $this->postJson($url, ['domain_ids' => [$ids[0]], 'original_ids' => $ids, 'confirmed' => true])->assertRedirect();
@@ -156,12 +156,12 @@ it('allocates domains from the global catalog using a persisted company route an
         $ids[] = $domain->id;
     }
     $companyView = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/configuration/domains';
-    $this->get($companyView)->assertInertia(fn ($page) => $page->has('domains', 1)->missing('companies'));
+    $this->get($companyView, ['X-Admin-Dialog' => '1'])->assertInertia(fn ($page) => $page->has('domains', 1)->missing('companies'));
     $assignmentUrl = $global.'/assign/'.$this->tenant->id;
     $payload = ['domain_ids' => $ids, 'original_ids' => [], 'confirmed' => true];
     $this->postJson($assignmentUrl, [...$payload, 'tenant_id' => $this->other->id])->assertUnprocessable();
     $this->postJson($assignmentUrl, $payload)->assertRedirect();
-    $this->get($companyView)->assertInertia(fn ($page) => $page->has('domains', 3));
+    $this->get($companyView, ['X-Admin-Dialog' => '1'])->assertInertia(fn ($page) => $page->has('domains', 3));
     expect(TenantDomain::query()->whereIn('id', $ids)->where('tenant_id', $this->tenant->id)->count())->toBe(2);
     $this->postJson($global.'/assign/'.$this->other->id, $payload)->assertUnprocessable();
     $this->postJson($assignmentUrl, ['domain_ids' => [$ids[0]], 'original_ids' => $ids, 'confirmed' => true])->assertRedirect();

@@ -1,3 +1,6 @@
+import { useEditorRouter } from '@/components/admin/useEditorRouter';
+import { usePage, useEditor } from '@/components/admin/editor-context';
+import { useForm } from '@/components/admin/editor-context';
 import { useState } from 'react';
 import {
     Dialog,
@@ -5,11 +8,11 @@ import {
     DialogHeader,
     DialogTitle,
     DialogDescription,
-} from '@/components/ui/dialog';
+} from '@/components/admin/InlineEditorDialog';
 import { useCompanyConfigurationUrl } from '@/hooks/useCompanyConfigurationUrl';
 import { ConfigurationForm } from '@/components/admin/CompanyConfiguration';
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
-import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { CompanyConfigurationHeader as PageHeader } from '@/components/admin/CompanyConfiguration';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
@@ -47,7 +50,9 @@ type TeamData = {
     roles: string[];
 };
 export default function Team({ team }: { team: TeamData }) {
+    const router = useEditorRouter();
     useAdminTranslation();
+    const editor = useEditor();
     const configurationUrl = useCompanyConfigurationUrl();
     const [createOpen, setCreateOpen] = useState(false);
     const [editing, setEditing] = useState<TeamData['members'][number] | null>(null);
@@ -66,7 +71,7 @@ export default function Team({ team }: { team: TeamData }) {
         Boolean(configurationProps.configurationBase) &&
         configurationProps.auth.admin?.permissions.includes('tenant.manage');
     const closeCreate = () => {
-        if (form.processing) return;
+        if (form.processing || (form.isDirty && !confirm(t('Discard unsaved changes?')))) return;
         setCreateOpen(false);
         form.reset();
         form.clearErrors();
@@ -81,6 +86,8 @@ export default function Team({ team }: { team: TeamData }) {
                     <div className="flex justify-end">
                         <Button
                             onClick={() => {
+                                if (editor && !editor.canNavigate()) return;
+                                setEditing(null);
                                 form.reset();
                                 form.clearErrors();
                                 setCreateOpen(true);
@@ -309,7 +316,16 @@ export default function Team({ team }: { team: TeamData }) {
                                                         <Button
                                                             size="sm"
                                                             variant="secondary"
-                                                            onClick={() => setEditing(member)}
+                                                            onClick={() => {
+                                                                if (
+                                                                    !editor ||
+                                                                    editor.canNavigate()
+                                                                ) {
+                                                                    form.reset();
+                                                                    setCreateOpen(false);
+                                                                    setEditing(member);
+                                                                }
+                                                            }}
                                                         >
                                                             {t('Edit')}
                                                         </Button>
@@ -410,7 +426,7 @@ function EditMemberDialog({
     const configurationUrl = useCompanyConfigurationUrl();
     const form = useForm({ role: member.role, status: member.status });
     const close = () => {
-        if (!form.processing) {
+        if (!form.processing && (!form.isDirty || confirm(t('Discard unsaved changes?')))) {
             form.reset();
             form.clearErrors();
             onClose();

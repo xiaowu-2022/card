@@ -82,7 +82,7 @@ export function CompanyConfigurationLayout({ children }: { children: ReactNode }
                         />
                         <CompanyLifecycleControls company={configurationCompany} />
                         <Button asChild variant="ghost" size="sm">
-                            <Link href="/platform/company-configurations">
+                            <Link href="/platform/tenants">
                                 <ArrowLeft className="size-4" />
                                 {t('Company configuration')}
                             </Link>

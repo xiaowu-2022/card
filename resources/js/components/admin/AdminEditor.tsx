@@ -12,16 +12,12 @@ import type { Page } from '@inertiajs/core';
 import { openEditorEvent, type OpenEditorDetail } from './editor-navigation';
 import { EditorContext, useEditor } from './editor-context';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { DetailDrawerContent } from './DetailDrawer';
 import { Button } from '@/components/ui/button';
 import { t, errorMessage } from '@/i18n/admin';
 import { readEditorResponse } from './editor-response';
 import { SettingsTabs } from './SettingsTabs';
-import {
-    companyEditor,
-    companySettings,
-    companySettingsUrl,
-    companySectionEvent,
-} from './company-settings';
+import { companyEditor, allowedCompanySettings, companySettingsUrl } from './company-settings';
 import type { SharedProps } from '@/types/global';
 
 const pages = import.meta.glob<ComponentType<Record<string, unknown>>>('../../pages/**/*.tsx', {
@@ -30,12 +26,9 @@ const pages = import.meta.glob<ComponentType<Record<string, unknown>>>('../../pa
 function editorPath(url: URL): boolean {
     return (
         url.origin === location.origin &&
-        ((url.pathname === '/platform/settings/assets' && !!url.searchParams.get('company')) ||
+        (!!companyEditor(url.href) ||
             /^\/platform\/tenants\/create$/.test(url.pathname) ||
             /^\/platform\/tenants\/[^/]+\/users\/[^/]+\/(wallet-adjustments|referrer|invitation-code|promotion|manual-commissions)$/.test(
-                url.pathname,
-            ) ||
-            /^\/platform\/tenants\/[^/]+\/configuration\/(settings(\/(branding|locales|business|articles|sms|email))?|promotion|paid-promotion|wealth)$/.test(
                 url.pathname,
             ))
     );
@@ -57,6 +50,7 @@ function EditorHost({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(false);
     const [busy, setBusy] = useState(false);
     const [retry, setRetry] = useState(0);
+    const [notice, setNotice] = useState('');
     const bodyRef = useRef<HTMLDivElement>(null);
     const [actions, setActions] = useState<
         { node: HTMLButtonElement; label: string; disabled: boolean }[]
@@ -76,23 +70,26 @@ function EditorHost({ children }: { children: ReactNode }) {
                 confirm(t('Discard unsaved changes?'))),
         [],
     );
-    const changeUrl = useCallback((next: string | null) => {
+    const changeUrl = useCallback((next: string | null, replace = false) => {
         const target = new URL(location.href);
         if (next) target.searchParams.set('editor', next);
         else target.searchParams.delete('editor');
-        const config = companyEditor(next);
-        if (config && target.pathname === '/platform/company-configurations')
-            target.searchParams.set('section', config.section);
-        history.replaceState(history.state, '', target);
-        window.dispatchEvent(new Event(companySectionEvent));
+        if (target.href !== location.href)
+            history[replace ? 'replaceState' : 'pushState'](history.state, '', target);
         setUrl(next);
     }, []);
     const close = useCallback(() => {
-        if (canClose()) changeUrl(null);
-    }, [canClose, changeUrl]);
+        if (canClose()) {
+            states.current.clear();
+            changeUrl(null);
+            if (companyEditor(url)) router.reload({ only: ['tenants', 'totals'] });
+        }
+    }, [canClose, changeUrl, url]);
     const load = useCallback(
         async (target: string): Promise<Page> => {
             const parsed = new URL(target, location.origin);
+            if (/^\/platform\/tenants\/[^/]+\/domains$/.test(parsed.pathname))
+                parsed.pathname = parsed.pathname.replace('/domains', '/configuration/domains');
             if (!editorPath(parsed)) throw new Error(t('This operation is unavailable.'));
             const response = await fetch(parsed, {
                 credentials: 'same-origin',
@@ -102,6 +99,9 @@ function EditorHost({ children }: { children: ReactNode }) {
                     'X-Inertia': 'true',
                     'X-Inertia-Version': version ?? '',
                     'X-Admin-Dialog': '1',
+                    ...(companyEditor(target)
+                        ? { 'X-Admin-Company': companyEditor(target)!.company }
+                        : {}),
                     'X-Requested-With': 'XMLHttpRequest',
                 },
             });
@@ -139,6 +139,7 @@ function EditorHost({ children }: { children: ReactNode }) {
         setComponent(null);
         setError('');
         setOperationError('');
+        setNotice('');
         const ticket = ++generation.current;
         if (!url) return;
         setLoading(true);
@@ -148,7 +149,7 @@ function EditorHost({ children }: { children: ReactNode }) {
                 if (!resolve) throw new Error(t('This operation is unavailable.'));
                 const component = await resolve();
                 if (ticket === generation.current) {
-                    changeUrl(url);
+                    changeUrl(url, true);
                     setPage(result);
                     setComponent(() => component);
                 }
@@ -176,6 +177,16 @@ function EditorHost({ children }: { children: ReactNode }) {
             const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href]');
             if (!link || link.target === '_blank') return;
             const target = new URL(link.href, location.origin);
+            if (
+                url &&
+                companyEditor(url) &&
+                editorPath(target) &&
+                companyEditor(target.href)?.company !== companyEditor(url)?.company
+            ) {
+                event.preventDefault();
+                event.stopPropagation();
+                return;
+            }
             if (!editorPath(target)) {
                 if (
                     url &&
@@ -205,7 +216,7 @@ function EditorHost({ children }: { children: ReactNode }) {
             const next = new URL(location.href).searchParams.get('editor');
             if (next === url) return;
             if (canClose()) setUrl(next);
-            else changeUrl(url);
+            else changeUrl(url, true);
         };
         const before = (event: BeforeUnloadEvent) => {
             if ([...states.current.values()].some((entry) => entry.dirty || entry.busy)) {
@@ -230,7 +241,7 @@ function EditorHost({ children }: { children: ReactNode }) {
     }, [url, changeUrl, canClose, close]);
     useEffect(() => {
         const body = bodyRef.current;
-        if (!body || !Component) {
+        if (!body || !Component || companyEditor(url)) {
             setActions([]);
             return;
         }
@@ -274,11 +285,34 @@ function EditorHost({ children }: { children: ReactNode }) {
         });
         return () => observer.disconnect();
     }, [Component, url]);
-    const saved = useCallback(() => {
-        states.current.clear();
-        changeUrl(null);
-        router.reload();
-    }, [changeUrl]);
+    const saved = useCallback(
+        (refreshed?: Page, destination?: string) => {
+            if (destination) {
+                const next = new URL(destination, location.origin);
+                const target = next.searchParams.get('editor');
+                if (next.origin === location.origin && companyEditor(target)) {
+                    states.current.clear();
+                    changeUrl(target);
+                    return;
+                }
+            }
+            if (companyEditor(url)) {
+                if (refreshed) setPage(refreshed);
+                setNotice(t('Saved successfully.'));
+                return;
+            }
+            states.current.clear();
+            changeUrl(null);
+            router.reload();
+        },
+        [changeUrl, url],
+    );
+    const refresh = useCallback(async () => {
+        if (!url) return;
+        const ticket = generation.current;
+        const refreshed = await load(url);
+        if (ticket === generation.current) setPage(refreshed);
+    }, [url, load]);
     const context = useMemo(
         () =>
             page
@@ -286,14 +320,21 @@ function EditorHost({ children }: { children: ReactNode }) {
                       page,
                       load,
                       saved,
+                      refresh,
                       state,
+                      canNavigate: canClose,
                       error: setOperationError,
                       navigate: (next: string) => {
+                          if (
+                              companyEditor(url) &&
+                              companyEditor(next)?.company !== companyEditor(url)?.company
+                          )
+                              return;
                           if (canClose()) changeUrl(next);
                       },
                   }
                 : null,
-        [page, load, saved, state, canClose, changeUrl],
+        [page, load, saved, refresh, state, canClose, changeUrl, url],
     );
     const account = page?.props.account as
         { companyName?: string; accountId?: string; email?: string } | undefined;
@@ -314,6 +355,9 @@ function EditorHost({ children }: { children: ReactNode }) {
         readCompanyName(page?.props.company) ??
         backgroundCompanies?.find((c) => c.id === config?.company)?.name;
 
+    const Content = config ? DetailDrawerContent : DialogContent;
+    const identity = page?.props.configurationCompany as
+        { slug?: string; status?: string } | undefined;
     return (
         <>
             {children}
@@ -323,8 +367,12 @@ function EditorHost({ children }: { children: ReactNode }) {
                     if (!open) close();
                 }}
             >
-                <DialogContent
-                    className="flex max-w-6xl flex-col overflow-hidden p-0"
+                <Content
+                    className={
+                        config
+                            ? 'w-full sm:w-[min(94vw,1200px)] p-0'
+                            : 'flex max-w-6xl flex-col overflow-hidden p-0'
+                    }
                     closeLabel={t('Close')}
                     closeDisabled={busy}
                     onCloseAutoFocus={(event) => {
@@ -343,14 +391,18 @@ function EditorHost({ children }: { children: ReactNode }) {
                                 ? [account.companyName, account.accountId, account.email]
                                       .filter(Boolean)
                                       .join(' · ')
-                                : t('Changes apply only to the record shown here.')}
+                                : config
+                                  ? [identity?.slug, identity?.status && t(identity.status)]
+                                        .filter(Boolean)
+                                        .join(' · ') || t('Loading…')
+                                  : t('Changes apply only to the record shown here.')}
                         </DialogDescription>
                     </div>
-                    {config && permissions.includes('tenant.manage') && (
+                    {config && (
                         <div className="min-w-0 shrink-0 px-4">
                             <SettingsTabs
                                 label={t('Company configuration')}
-                                items={companySettings}
+                                items={allowedCompanySettings(permissions)}
                                 value={config.section}
                                 disabled={busy}
                                 onChange={(section) => {
@@ -363,9 +415,14 @@ function EditorHost({ children }: { children: ReactNode }) {
                     <div
                         ref={bodyRef}
                         data-admin-editor-body="true"
-                        className="min-h-0 overflow-y-auto overscroll-contain p-4 [&_button[data-editor-action]]:hidden"
+                        className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 [&_button[data-editor-action]]:hidden"
                         scroll-region="true"
                     >
+                        {notice && (
+                            <p role="status" className="mb-4 text-success">
+                                {notice}
+                            </p>
+                        )}
                         {operationError && (
                             <p
                                 role="alert"
@@ -392,7 +449,9 @@ function EditorHost({ children }: { children: ReactNode }) {
                         )}
                         {context && Component && (
                             <EditorContext.Provider value={context}>
-                                <Component {...page!.props} />
+                                <fieldset disabled={Boolean(config) && busy} className="min-w-0">
+                                    <Component {...page!.props} />
+                                </fieldset>
                             </EditorContext.Provider>
                         )}
                     </div>
@@ -410,7 +469,7 @@ function EditorHost({ children }: { children: ReactNode }) {
                             {t('Close')}
                         </Button>
                     </div>
-                </DialogContent>
+                </Content>
             </Dialog>
         </>
     );

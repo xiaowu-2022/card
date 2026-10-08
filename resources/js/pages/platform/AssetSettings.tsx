@@ -156,7 +156,7 @@ function AssetSettingsForm(p: Props) {
             <div className="min-w-0 space-y-4">
                 {!editor && (
                     <Button asChild variant="secondary">
-                        <Link href="/platform/company-configurations?section=assets">
+                        <Link href="/platform/tenants?section=assets">
                             {t('Company configuration')}
                         </Link>
                     </Button>
@@ -220,7 +220,7 @@ function AssetSettingsForm(p: Props) {
                                             onChange={(e) =>
                                                 router.get(
                                                     e.target.value
-                                                        ? '/platform/company-configurations'
+                                                        ? '/platform/tenants'
                                                         : '/platform/settings/assets',
                                                     e.target.value
                                                         ? {

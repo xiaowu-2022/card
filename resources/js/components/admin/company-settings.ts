@@ -1,18 +1,35 @@
 export const companySettings = [
-    { value: 'assets', label: 'Asset settings' },
-    { value: 'settings/branding', label: 'Branding' },
+    { value: 'onboarding', label: 'Basic information' },
+    { value: 'domains', label: 'Domains' },
+    { value: 'settings/branding', label: 'Brand and App' },
     { value: 'settings/locales', label: 'Locales' },
     { value: 'settings/business', label: 'Business rules' },
+    { value: 'assets', label: 'Asset settings' },
+    { value: 'card-products', label: 'Card products' },
+    { value: 'promotion', label: 'Promotion' },
+    { value: 'wealth', label: 'Wealth settings' },
     { value: 'settings/articles', label: 'About us articles' },
     { value: 'settings/sms', label: 'Aliyun SMS' },
     { value: 'settings/email', label: 'Proton email' },
-    { value: 'promotion', label: 'Promotion' },
-    { value: 'wealth', label: 'Wealth settings' },
+    { value: 'team', label: 'Admin team' },
+    { value: 'support/hours', label: 'Service hours' },
+    { value: 'support/replies', label: 'Quick replies' },
+    { value: 'support/bot', label: 'Bot and FAQ' },
 ] as const;
+export function allowedCompanySettings(permissions: string[]) {
+    return companySettings.filter(({ value }) =>
+        value.startsWith('support/')
+            ? permissions.includes('support.read') &&
+              permissions.includes(`support.${value.split('/')[1]}.manage`)
+            : permissions.includes('tenant.manage'),
+    );
+}
 export function companySection(value: string | null): string {
-    return companySettings.some((item) => item.value === value) ? value! : 'settings/branding';
+    return companySettings.some((item) => item.value === value) ? value! : 'onboarding';
 }
 export function companySettingsUrl(company: string, section: string): string {
+    if (section.startsWith('support/'))
+        return `/platform/${section}?company=${encodeURIComponent(company)}`;
     return section === 'assets'
         ? `/platform/settings/assets?company=${encodeURIComponent(company)}`
         : `/platform/tenants/${encodeURIComponent(company)}/configuration/${companySection(section)}`;
@@ -22,21 +39,25 @@ export function companyEditor(target: string | null): { company: string; section
     try {
         const url = new URL(target, location.origin);
         if (url.origin !== location.origin) return null;
-        if (url.pathname === '/platform/settings/assets' && url.searchParams.get('company'))
-            return { company: url.searchParams.get('company')!, section: 'assets' };
-        const match =
-            /^\/platform\/tenants\/([^/]+)\/configuration\/(settings(?:\/(?:branding|locales|business|articles|sms|email))?|promotion|paid-promotion|wealth)$/.exec(
-                url.pathname,
-            );
-        return match
-            ? {
-                  company: decodeURIComponent(match[1]!),
-                  section: companySection(match[2] === 'paid-promotion' ? 'promotion' : match[2]!),
-              }
+        const company = url.searchParams.get('company');
+        if (url.pathname === '/platform/settings/assets' && company)
+            return { company, section: 'assets' };
+        if (/^\/platform\/support\/(hours|replies|bot)$/.test(url.pathname) && company)
+            return { company, section: url.pathname.slice('/platform/'.length) };
+        const legacy = /^\/platform\/tenants\/([^/]+)\/domains$/.exec(url.pathname);
+        if (legacy) return { company: decodeURIComponent(legacy[1]!), section: 'domains' };
+        const match = /^\/platform\/tenants\/([^/]+)\/configuration\/(.+)$/.exec(url.pathname);
+        if (!match) return null;
+        const section =
+            match[2] === 'paid-promotion'
+                ? 'promotion'
+                : match[2] === 'settings'
+                  ? 'settings/branding'
+                  : match[2]!;
+        return companySettings.some((item) => item.value === section) || section === 'settings/kyc'
+            ? { company: decodeURIComponent(match[1]!), section }
             : null;
     } catch {
-        // Malformed legacy/editor query parameters must not break the background list.
         return null;
     }
 }
-export const companySectionEvent = 'platform-company-section';

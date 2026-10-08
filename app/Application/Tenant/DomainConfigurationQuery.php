@@ -12,9 +12,12 @@ final class DomainConfigurationQuery
         return Tenant::query()->orderBy('name')->get(['id', 'name'])->map(fn ($tenant) => ['id' => $tenant->id, 'name' => $tenant->name])->all();
     }
 
-    public function execute(?string $tenantId = null): array
+    public function execute(?string $tenantId = null, bool $unassigned = false): array
     {
         $query = TenantDomain::query()->with('tenant:id,name');
+        if ($unassigned) {
+            $query->whereNull('tenant_id')->where('status', 'ACTIVE')->where('domain_type', 'CUSTOM_DOMAIN');
+        }
         if ($tenantId !== null) {
             $query->where('tenant_id', $tenantId);
         }

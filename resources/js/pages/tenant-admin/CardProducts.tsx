@@ -1,3 +1,5 @@
+import { usePage, useEditor } from '@/components/admin/editor-context';
+import { useForm } from '@/components/admin/editor-context';
 import { useCompanyConfigurationUrl } from '@/hooks/useCompanyConfigurationUrl';
 import { ConfigurationForm } from '@/components/admin/CompanyConfiguration';
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
@@ -9,7 +11,7 @@ import {
     DialogHeader,
     DialogTitle,
     DialogDescription,
-} from '@/components/ui/dialog';
+} from '@/components/admin/InlineEditorDialog';
 import {
     Table,
     TableHeader,
@@ -18,7 +20,7 @@ import {
     TableHead,
     TableCell,
 } from '@/components/ui/table';
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { CompanyConfigurationHeader as PageHeader } from '@/components/admin/CompanyConfiguration';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { displayMoney } from '@/lib/admin-amount';
@@ -56,6 +58,7 @@ type Product = {
 
 export default function CardProducts({ products }: { products: Product[] }) {
     useAdminTranslation();
+    const editor = useEditor();
     const { configurationBase, auth } = usePage<SharedProps & { configurationBase?: string }>()
         .props;
     const canManage =
@@ -150,7 +153,10 @@ export default function CardProducts({ products }: { products: Product[] }) {
                                                 variant="secondary"
                                                 size="sm"
                                                 className="whitespace-nowrap"
-                                                onClick={() => setEditing(product)}
+                                                onClick={() => {
+                                                    if (!editor || editor.canNavigate())
+                                                        setEditing(product);
+                                                }}
                                             >
                                                 {t('Edit')}
                                             </Button>
@@ -193,7 +199,7 @@ function TenantProductEditor({ product, onClose }: { product: Product; onClose: 
         sort_order: product.config?.sortOrder ?? 10,
     });
     const close = () => {
-        if (!form.processing) {
+        if (!form.processing && (!form.isDirty || confirm(t('Discard unsaved changes?')))) {
             form.reset();
             form.clearErrors();
             onClose();

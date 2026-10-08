@@ -1,3 +1,4 @@
+import { useEditor } from '@/components/admin/editor-context';
 import { Link, usePage } from '@inertiajs/react';
 import type { SharedProps } from '@/types/global';
 import { t } from '@/i18n/admin';
@@ -14,6 +15,8 @@ export function PlatformSupportTabs({
     replies?: boolean;
 }) {
     const permissions = usePage<SharedProps>().props.auth.admin?.permissions ?? [];
+    const editor = useEditor();
+    if (editor) return null;
     return (
         <nav aria-label={t('Customer support')} className="flex gap-5 border-b">
             <Link
@@ -49,28 +52,13 @@ export function PlatformSupportTabs({
                     {t('Bot and FAQ')}
                 </Link>
             )}
-            {permissions.includes('support.hours.manage') && (
-                <Link
-                    href="/platform/support/hours"
-                    className={cn(
-                        'border-b-2 py-3',
-                        hours ? 'border-primary text-primary' : 'border-transparent',
-                    )}
-                >
-                    {t('Service hours')}
-                </Link>
-            )}
-            {permissions.includes('support.replies.manage') && (
-                <Link
-                    href="/platform/support/replies"
-                    className={cn(
-                        'border-b-2 py-3',
-                        replies ? 'border-primary text-primary' : 'border-transparent',
-                    )}
-                >
-                    {t('Quick replies')}
-                </Link>
-            )}
+            {permissions.includes('support.read') &&
+                (permissions.includes('support.hours.manage') ||
+                    permissions.includes('support.replies.manage')) && (
+                    <Link href="/platform/tenants" className="border-b-2 border-transparent py-3">
+                        {t('Company configuration')}
+                    </Link>
+                )}
         </nav>
     );
 }

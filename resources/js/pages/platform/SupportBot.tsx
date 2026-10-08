@@ -1,13 +1,16 @@
+import { useEditorRouter } from '@/components/admin/useEditorRouter';
+import { useEditor } from '@/components/admin/editor-context';
+import { useEditorState } from '@/components/admin/useEditorRouter';
 import { useEffect, useRef, useState } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { PlatformSupportTabs } from '@/components/support/PlatformSupportTabs';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
-import { supportRequest, SupportRequestError } from '@/components/support/supportRequest';
+import { useSupportRequest, SupportRequestError } from '@/components/support/supportRequest';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/admin/InlineEditorDialog';
 import { t, useAdminTranslation } from '@/i18n/admin';
 
 type FAQ = {
@@ -55,6 +58,9 @@ export default function SupportBot({
     companies: { id: string; name: string }[];
     settings: { enabled: boolean; revision: number } | null;
 }) {
+    const router = useEditorRouter();
+    const editor = useEditor();
+    const supportRequest = useSupportRequest();
     useAdminTranslation();
     const saved = useRef(false);
     const company = filters.company ?? '';
@@ -70,7 +76,9 @@ export default function SupportBot({
     useEffect(() => {
         setMatch(null);
     }, [company, settings?.revision]);
+    useEditorState(dirty, busy || configBusy);
     useEffect(() => {
+        if (editor) return;
         const unload = (event: BeforeUnloadEvent) => {
             if (dirty || busy) {
                 event.preventDefault();
@@ -86,8 +94,9 @@ export default function SupportBot({
             window.removeEventListener('beforeunload', unload);
             remove();
         };
-    }, [dirty, busy]);
+    }, [dirty, busy, editor]);
     const open = async (id?: string) => {
+        if (busy || configBusy || (dirty && !confirm(t('Discard unsaved changes?')))) return;
         saved.current = false;
         setBusy(true);
         setError('');
@@ -121,28 +130,30 @@ export default function SupportBot({
             <div className="space-y-4">
                 <PlatformSupportTabs bot />
                 <div className="flex items-center gap-4 rounded-xl border bg-surface p-4">
-                    <label>
-                        {t('FAQ scope')}{' '}
-                        <select
-                            disabled={configBusy || busy}
-                            aria-label={t('FAQ scope')}
-                            className="ml-3 h-9 rounded-md border px-3"
-                            value={company}
-                            onChange={(e) =>
-                                router.get(
-                                    '/platform/support/bot',
-                                    e.target.value ? { company: e.target.value } : {},
-                                )
-                            }
-                        >
-                            <option value="">{t('Public FAQ')}</option>
-                            {companies.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                    {c.name}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
+                    {!editor && (
+                        <label>
+                            {t('FAQ scope')}{' '}
+                            <select
+                                disabled={configBusy || busy}
+                                aria-label={t('FAQ scope')}
+                                className="ml-3 h-9 rounded-md border px-3"
+                                value={company}
+                                onChange={(e) =>
+                                    router.get(
+                                        '/platform/support/bot',
+                                        e.target.value ? { company: e.target.value } : {},
+                                    )
+                                }
+                            >
+                                <option value="">{t('Public FAQ')}</option>
+                                {companies.map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                        {c.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                    )}
                     {settings && (
                         <Button
                             variant="secondary"

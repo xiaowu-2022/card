@@ -1,8 +1,11 @@
+import { useEditorRouter } from '@/components/admin/useEditorRouter';
+import { useEditor } from '@/components/admin/editor-context';
+import { useEditorState } from '@/components/admin/useEditorRouter';
 import { useEffect, useRef, useState } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { PlatformSupportTabs } from '@/components/support/PlatformSupportTabs';
-import { supportRequest } from '@/components/support/supportRequest';
+import { useSupportRequest } from '@/components/support/supportRequest';
 import { Button } from '@/components/ui/button';
 import { t, useAdminTranslation } from '@/i18n/admin';
 type Config = { timezone: string; revision: number; weekly: { start: string; end: string }[][] };
@@ -15,6 +18,9 @@ export default function SupportHours({
     filters: { company?: string };
     configuration: Config | null;
 }) {
+    const router = useEditorRouter();
+    const editor = useEditor();
+    const supportRequest = useSupportRequest();
     useAdminTranslation();
     const [draft, setDraft] = useState(configuration),
         [busy, setBusy] = useState(false),
@@ -24,7 +30,9 @@ export default function SupportHours({
     useEffect(() => {
         setDraft(configuration);
     }, [configuration]);
+    useEditorState(dirty, busy);
     useEffect(() => {
+        if (editor) return;
         const unload = (e: BeforeUnloadEvent) => {
             if (dirty || busy) {
                 e.preventDefault();
@@ -40,7 +48,7 @@ export default function SupportHours({
             off();
             window.removeEventListener('beforeunload', unload);
         };
-    }, [dirty, busy]);
+    }, [dirty, busy, editor]);
     const change = (day: number, slots: { start: string; end: string }[]) => {
         if (!draft) return;
         saved.current = false;
@@ -51,28 +59,30 @@ export default function SupportHours({
             <Head title={t('Service hours')} />
             <div className="space-y-4">
                 <PlatformSupportTabs hours />
-                <label>
-                    {t('Company')}
-                    <select
-                        aria-label={t('Company')}
-                        className="ml-3 h-9 rounded-lg border px-3"
-                        disabled={busy}
-                        value={filters.company ?? ''}
-                        onChange={(e) =>
-                            router.get(
-                                '/platform/support/hours',
-                                e.target.value ? { company: e.target.value } : {},
-                            )
-                        }
-                    >
-                        <option value="">{t('Select company')}</option>
-                        {companies.map((c) => (
-                            <option key={c.id} value={c.id}>
-                                {c.name}
-                            </option>
-                        ))}
-                    </select>
-                </label>
+                {!editor && (
+                    <label>
+                        {t('Company')}
+                        <select
+                            aria-label={t('Company')}
+                            className="ml-3 h-9 rounded-lg border px-3"
+                            disabled={busy}
+                            value={filters.company ?? ''}
+                            onChange={(e) =>
+                                router.get(
+                                    '/platform/support/hours',
+                                    e.target.value ? { company: e.target.value } : {},
+                                )
+                            }
+                        >
+                            <option value="">{t('Select company')}</option>
+                            {companies.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                    {c.name}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                )}
                 {draft && (
                     <form
                         className="space-y-4 rounded-xl border bg-surface p-4"
@@ -178,7 +188,9 @@ export default function SupportHours({
                                         </div>
                                     ))}
                                     {!draft.weekly[index]!.length && (
-                                        <p className="py-2 text-muted-foreground">{t('Service closed')}</p>
+                                        <p className="py-2 text-muted-foreground">
+                                            {t('Service closed')}
+                                        </p>
                                     )}
                                 </div>
                                 <Button

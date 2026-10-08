@@ -1,11 +1,14 @@
+import { useEditorRouter } from '@/components/admin/useEditorRouter';
+import { useEditor } from '@/components/admin/editor-context';
+import { useEditorState } from '@/components/admin/useEditorRouter';
 import { useEffect, useRef, useState } from 'react';
-import { Link, router } from '@inertiajs/react';
+import { Link } from '@inertiajs/react';
 import type { AccountPage } from '@/components/shared/PlatformAccountTable';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { supportRequest } from './supportRequest';
+import { Dialog, DialogContent, DialogTitle } from '@/components/admin/InlineEditorDialog';
+import { useSupportRequest } from './supportRequest';
 import { t } from '@/i18n/admin';
 export type QuickReply = {
     id: string;
@@ -26,13 +29,18 @@ export function QuickReplyManager({
     companies?: { id: string; name: string }[];
     company?: string;
 }) {
+    const router = useEditorRouter();
+    const editor = useEditor();
+    const supportRequest = useSupportRequest();
     const [draft, setDraft] = useState<(QuickReply & { archived: boolean }) | null>(null),
         [busy, setBusy] = useState(false),
         [error, setError] = useState('');
     const original = useRef(''),
         saved = useRef(false);
     const dirty = draft !== null && JSON.stringify(draft) !== original.current;
+    useEditorState(dirty, busy);
     useEffect(() => {
+        if (editor) return;
         const unload = (e: BeforeUnloadEvent) => {
             if (dirty || busy) {
                 e.preventDefault();
@@ -48,8 +56,9 @@ export function QuickReplyManager({
             off();
             window.removeEventListener('beforeunload', unload);
         };
-    }, [dirty, busy]);
+    }, [dirty, busy, editor]);
     const open = (row?: QuickReply) => {
+        if (busy || (dirty && !confirm(t('Discard unsaved changes?')))) return;
         saved.current = false;
         setError('');
         const d = {

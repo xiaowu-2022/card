@@ -27,6 +27,7 @@ final class DomainManagementController extends Controller
         return Inertia::render('platform/Domains', [
             'company' => ['id' => $tenant->id, 'name' => $tenant->name],
             'domains' => app(DomainConfigurationQuery::class)->execute($tenant->id),
+            'availableDomains' => app(DomainConfigurationQuery::class)->execute(null, true),
         ]);
     }
 

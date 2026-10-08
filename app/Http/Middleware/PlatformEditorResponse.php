@@ -25,7 +25,7 @@ final class PlatformEditorResponse
                     return response()->json(['errors' => $errors], 422);
                 }
 
-                return response()->json(['saved' => true])->header('Cache-Control', 'private, no-store');
+                return response()->json(['saved' => true, 'location' => $request->is('platform/tenants') ? $location : null])->header('Cache-Control', 'private, no-store');
             }
 
             return $response;
@@ -34,11 +34,16 @@ final class PlatformEditorResponse
             return $response;
         }
         $path = '/'.$request->path();
+        if (in_array($path, ['/platform/support/hours', '/platform/support/replies'], true) && ! $request->filled('company')) {
+            return redirect('/platform/tenants?'.http_build_query(['section' => substr($path, strlen('/platform/'))]));
+        }
         $list = match (true) {
-            $path === '/platform/settings/assets' && $request->filled('company') => '/platform/company-configurations',
+            $path === '/platform/settings/assets' && $request->filled('company') => '/platform/tenants',
             $path === '/platform/tenants/create' => '/platform/tenants',
             preg_match('#^/platform/tenants/[^/]+/users/[^/]+/(wallet-adjustments|referrer|invitation-code|promotion|manual-commissions)$#', $path) === 1 => '/platform/users',
-            preg_match('#^/platform/tenants/[^/]+/configuration/(settings(/(branding|locales|business|articles|sms|email))?|promotion|paid-promotion|wealth)$#', $path) === 1 => '/platform/company-configurations',
+            preg_match('#^/platform/tenants/[^/]+/configuration/(settings(/(branding|locales|business|kyc|articles|sms|email))?|promotion|paid-promotion|wealth|onboarding|domains|card-products|team)$#', $path) === 1 => '/platform/tenants',
+            preg_match('#^/platform/tenants/[^/]+/domains$#', $path) === 1 => '/platform/tenants',
+            preg_match('#^/platform/support/(hours|replies|bot)$#', $path) === 1 && $request->filled('company') => '/platform/tenants',
             default => null,
         };
 

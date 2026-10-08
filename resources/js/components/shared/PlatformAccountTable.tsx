@@ -1,4 +1,5 @@
-import { Link, router } from '@inertiajs/react';
+import { useEditorRouter } from '@/components/admin/useEditorRouter';
+import { Link } from '@inertiajs/react';
 import { useState, type ReactNode } from 'react';
 import { t } from '@/i18n/admin';
 import { cn } from '@/lib/utils';
@@ -64,6 +65,7 @@ export function PlatformAccountTable<T extends { id: string }>({
     statuses?: string[];
     searchLabel: string;
 }) {
+    const router = useEditorRouter();
     const [additional, setAdditional] = useState<Record<string, string>>(() =>
         Object.fromEntries(selectFilters.map((item) => [item.key, filters[item.key] ?? 'ALL'])),
     );

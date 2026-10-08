@@ -45,12 +45,6 @@ const groups: { label: string; items: PlatformNavItem[] }[] = [
         items: [
             { label: 'Dashboard', href: '/platform/demo', icon: Activity },
             { label: 'Tenants', href: '/platform/tenants', icon: Building2 },
-            {
-                label: 'Company configuration',
-                href: '/platform/company-configurations',
-                icon: ServerCog,
-                permission: 'tenant.manage',
-            },
         ],
     },
     {
@@ -189,6 +183,7 @@ export function PlatformLayout({ children, title, description, actions }: Platfo
         return (
             <>
                 {description && <p className="mb-4 text-sm text-muted-foreground">{description}</p>}
+                {actions && <div className="mb-4 flex justify-end gap-2">{actions}</div>}
                 {children}
             </>
         );

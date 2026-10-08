@@ -90,8 +90,6 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
                 component='platform/Notifications';props={companies,company:null,batches:paginate([])};
             } else if(url.pathname==='/platform/card-products') {
                 component='platform/CardProducts';props={products:[],cardProviders:[],pagination:{total:0,previous:null,next:null}};
-            } else if(url.pathname==='/platform/company-configurations') {
-                component='platform/CompanyConfigurations';props={companies,records:paginate(companies.map(c=>({...c,slug:'fixture',status:'ACTIVE',default_locale:'en',timezone:'Asia/Shanghai'}))),filters:{}};
             } else if(/\/configuration\/wealth$/.test(url.pathname)) {
                 detailReads++;component='platform/WealthSettings';const c=companies.find(c=>url.pathname.includes(c.id));props={company:c,configurationCompany:{...c,slug:'fixture',status:'ACTIVE'},configurationBase:`/platform/tenants/${c.id}/configuration`,readOnly:false,settings:['USDT','USDC','ETH','BTC'].map(asset=>({asset,minimum:'100.00000000',products:[1,3,6,9,12,24,36].map(months=>({months,enabled:true,rate:'10.00000000'}))}))};
             } else {unexpected.push(request.method()+' '+url.pathname);return route.abort();}
@@ -113,7 +111,7 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         assert.equal(await dialog.count(),1);
         fail=false;await save.click();await dialog.waitFor({state:'hidden'});
         assert.equal(saves,2);assert.match(page.url(),/search=fixture/);assert.ok(!page.url().includes('editor='));
-        await page.goto(origin+'/platform/company-configurations?section=wealth');
+        await page.goto(origin+'/platform/tenants?section=wealth');
         for(const width of [1024,1366,1920]) {
             await page.setViewportSize({width,height:850});await assertPlatformLayout(page,width);
             await page.locator('a[href$="/configuration/wealth"]').first().click();await dialog.waitFor();
@@ -187,12 +185,14 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         await page.goto(origin+'/platform/partners?page=2&fees_page=3');
         for(const width of [1024,1366,1920]) {
             await page.setViewportSize({width,height:850});await assertPlatformLayout(page,width);
-            await page.getByRole('button',{name:'邀请数据',exact:true}).first().click();await dialog.waitFor();
+            await page.getByRole('button',{name:'查看报表',exact:true}).first().click();await dialog.waitFor();
+            await dialog.getByRole('tab',{name:'邀请数据',exact:true}).click();
             if(width===1024) { await dialog.getByRole('alert').waitFor(); await dialog.getByRole('button',{name:'重试',exact:true}).click(); }
             await dialog.getByRole('columnheader',{name:'直属人数',exact:true}).waitFor();
-            assert.equal(await dialog.locator('tbody tr').count(),3);
+            const invitations=dialog.getByRole('tabpanel',{name:'邀请数据',exact:true});
+            assert.equal(await invitations.locator('tbody tr').count(),4); // Registered members plus three rank rows.
             assert.ok((await dialog.textContent()).includes('100.12345678'));
-            const levelRow=dialog.locator('tbody tr').nth(2);await levelRow.locator('button').first().click();
+            const levelRow=invitations.locator('tbody tr').filter({has:page.getByRole('button',{name:/12/})});await levelRow.locator('button').first().click();
             await dialog.getByRole('button',{name:'查看明细',exact:true}).first().waitFor();
             await page.screenshot({path:`${out}/${name}-partner-invitations-${width}.png`});
             await levelRow.locator('td').nth(3).getByRole('button').click();
@@ -206,9 +206,9 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
             if(width===1366) { await page.reload(); await dialog.getByText('source-2@example.test',{exact:true}).waitFor(); }
             await dialog.getByRole('button',{name:'返回邀请数据',exact:true}).click();
             await dialog.getByRole('columnheader',{name:'直属人数',exact:true}).waitFor();
-            await dialog.getByRole('button',{name:'关闭',exact:true}).last().click();await dialog.waitFor({state:'hidden'});
+            await dialog.getByRole('button',{name:'收起报表',exact:true}).click();await dialog.waitFor({state:'hidden'});
             assert.equal(new URL(page.url()).searchParams.get('page'),'2');assert.equal(new URL(page.url()).searchParams.get('fees_page'),'3');
-            if(width!==1366) await page.waitForFunction(()=>document.activeElement?.textContent==='邀请数据');
+            if(width!==1366) await page.waitForFunction(()=>document.activeElement?.textContent==='查看报表');
         }
         await page.goto(origin+'/platform/users');
         assert.equal(await page.locator('a[href="/platform/wallets"]').count(),0);

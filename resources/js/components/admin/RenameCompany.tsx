@@ -1,4 +1,4 @@
-import { useForm, usePage } from '@/components/admin/editor-context';
+import { useForm, usePage, useEditor } from '@/components/admin/editor-context';
 import { useState } from 'react';
 import { t, errorMessage, useAdminTranslation } from '@/i18n/admin';
 import { Button } from '@/components/ui/button';
@@ -20,12 +20,59 @@ export function RenameCompany({
     company: { id: string; name: string; slug: string };
 }) {
     useAdminTranslation();
+    const editor = useEditor();
     const canManage =
         usePage<SharedProps>().props.auth.admin?.permissions.includes('tenant.manage');
     const [open, setOpen] = useState(false);
     const form = useForm({ name: company.name });
     if (!canManage) return null;
 
+    const fields = (
+        <form
+            className="space-y-5"
+            onSubmit={(event) => {
+                event.preventDefault();
+                form.put(`/platform/tenants/${company.id}/name`, {
+                    preserveScroll: true,
+                    onSuccess: () => setOpen(false),
+                });
+            }}
+        >
+            <FormField id="company-slug" label={t('Company identifier')}>
+                <Input id="company-slug" value={company.slug} readOnly className="bg-muted" />
+            </FormField>
+            <FormField
+                id="company-name"
+                label={t('Company name')}
+                error={errorMessage(form.errors.name)}
+            >
+                <Input
+                    id="company-name"
+                    value={form.data.name}
+                    onChange={(event) => form.setData('name', event.target.value)}
+                    maxLength={120}
+                    required
+                    disabled={form.processing}
+                />
+            </FormField>
+            <div className="flex justify-end gap-2">
+                <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={form.processing}
+                    onClick={() => {
+                        if (editor) form.reset();
+                        else if (!form.isDirty || confirm(t('Discard unsaved changes?')))
+                            setOpen(false);
+                    }}
+                >
+                    {t('Cancel')}
+                </Button>
+                <Button disabled={form.processing || !form.data.name.trim()}>{t('Save')}</Button>
+            </div>
+        </form>
+    );
+    if (editor) return <div className="w-full max-w-2xl">{fields}</div>;
     return (
         <Dialog
             open={open}
@@ -53,52 +100,7 @@ export function RenameCompany({
                         )}
                     </DialogDescription>
                 </DialogHeader>
-                <form
-                    className="space-y-5"
-                    onSubmit={(event) => {
-                        event.preventDefault();
-                        form.put(`/platform/tenants/${company.id}/name`, {
-                            preserveScroll: true,
-                            onSuccess: () => setOpen(false),
-                        });
-                    }}
-                >
-                    <FormField id="company-slug" label={t('Company identifier')}>
-                        <Input
-                            id="company-slug"
-                            value={company.slug}
-                            readOnly
-                            className="bg-muted"
-                        />
-                    </FormField>
-                    <FormField
-                        id="company-name"
-                        label={t('Company name')}
-                        error={errorMessage(form.errors.name)}
-                    >
-                        <Input
-                            id="company-name"
-                            value={form.data.name}
-                            onChange={(event) => form.setData('name', event.target.value)}
-                            maxLength={120}
-                            required
-                            disabled={form.processing}
-                        />
-                    </FormField>
-                    <div className="flex justify-end gap-2">
-                        <Button
-                            type="button"
-                            variant="secondary"
-                            disabled={form.processing}
-                            onClick={() => setOpen(false)}
-                        >
-                            {t('Cancel')}
-                        </Button>
-                        <Button disabled={form.processing || !form.data.name.trim()}>
-                            {t('Save')}
-                        </Button>
-                    </div>
-                </form>
+                {fields}
             </DialogContent>
         </Dialog>
     );

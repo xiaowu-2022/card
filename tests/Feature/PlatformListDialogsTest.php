@@ -18,8 +18,10 @@ beforeEach(function () {
 
 it('lists every company configuration with pagination and rejects invalid company filters', function () {
     $tenant = Tenant::where('slug', 'tenant-a')->firstOrFail();
-    $this->get('http://admin.localhost/platform/company-configurations')->assertOk()->assertInertia(fn (Assert $page) => $page->component('platform/CompanyConfigurations')->where('records.total', Tenant::count()));
-    $this->get('http://admin.localhost/platform/company-configurations?company='.$tenant->id)->assertOk()->assertInertia(fn (Assert $page) => $page->has('records.data', 1)->where('records.data.0.id', $tenant->id));
+    $this->get('http://admin.localhost/platform/company-configurations')->assertRedirect('/platform/tenants');
+    $this->get('http://admin.localhost/platform/tenants')->assertOk()->assertInertia(fn (Assert $page) => $page->component('platform/Tenants')->where('tenants.total', Tenant::count()));
+    $this->get('http://admin.localhost/platform/company-configurations?company='.$tenant->id)->assertRedirectContains('/platform/tenants?company=');
+    $this->get('http://admin.localhost/platform/tenants?company='.$tenant->id)->assertOk()->assertInertia(fn (Assert $page) => $page->has('tenants.data', 1)->where('tenants.data.0.id', $tenant->id));
     $this->getJson('http://admin.localhost/platform/company-configurations?company='.(string) Str::uuid())->assertUnprocessable();
     Http::assertNothingSent();
 });
