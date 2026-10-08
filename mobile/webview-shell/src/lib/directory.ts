@@ -50,8 +50,8 @@ export async function discover(seeds: string[], slug: string, cached: Partial<Di
     const authoritative = initial[0].directory;
     const extra = await measure(authoritative.origins.filter(s => !candidates.includes(s)), authoritative.tenant.id);
     const valid = [...initial,...extra].filter(r => r.directory.tenant.id === authoritative.tenant.id && authoritative.origins.includes(r.url)).sort((a,b)=>a.elapsed-b.elapsed);
-    const selected = valid.find(r => r.url === cached?.selected) ?? valid[0];
+    const selected = valid[0];
     if (!selected) throw new Error('暂无可用线路，请稍后重试。');
-    // Preserve an available previous origin so host-only login cookies keep working.
+    // Cached origins are discovery candidates, never a preference over fresh timing.
     return { tenantId: authoritative.tenant.id, origins: authoritative.origins, selected: selected.url, fetchedAt: now() };
 }

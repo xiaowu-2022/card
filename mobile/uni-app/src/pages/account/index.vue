@@ -61,7 +61,7 @@ const items = computed(() => {
         ...(isSupportAgent.value
             ? [{ title: 'Support workspace', icon: 'support', path: '/support-workspace' }]
             : []),
-        { title: 'Account and security', icon: 'shield-check', path: '/account/security' },
+        { title: 'Account security', icon: 'shield-check', path: '/account/security' },
         { title: 'Promotion center', icon: 'users', path: '/promotion' },
         {
             title: 'Invitation data',
@@ -243,7 +243,7 @@ function copy() {
     margin-top: 8px;
     min-height: 68px;
     padding: 12px 0;
-    font-size: 14px;
+    font-size: 13px;
 }
 .verification-text {
     flex: 1;
@@ -280,7 +280,7 @@ function copy() {
     min-height: 88px;
     padding: 8px 4px;
     background: transparent;
-    font-size: clamp(13px, 2.133cqw, 16px);
+    font-size: 12px;
     line-height: 1.4;
     color: #171c19;
 }
@@ -299,7 +299,7 @@ function copy() {
     border-top: 1px solid #e2e7e4;
     min-height: 64px;
     padding: 12px 0;
-    font-size: 14px;
+    font-size: 13px;
 }
 .settings-row > text {
     flex: 1;

@@ -17,15 +17,24 @@ test('downloads the authoritative list, probes newly discovered hosts and replac
  });
  assert.deepEqual(result.origins,[a,c]);assert.ok([a,c].includes(result.selected));assert.ok(calls.includes(c));
 });
-test('keeps a verified previously selected host to preserve login cookies',async()=>{
+test('selects the fastest verified host even when a slower cached host remains available',async()=>{
  const result=await discover([a,b],'company',{tenantId:'tenant',selected:b,origins:[a,b]},async host=>{
   if(host===b)await new Promise(r=>setTimeout(r,20));return reply([a,b]);
- });assert.equal(result.selected,b);
+ });assert.equal(result.selected,a);
 });
 test('recovers unavailable seeds using a verified cached domain',async()=>{
  const result=await discover([a],'company',{tenantId:'tenant',origins:[b],selected:b},async host=>{
   if(host===a)throw Error('offline');return reply([b]);
  });assert.equal(result.selected,b);
+});
+test('measures a newly discovered domain before selecting it over cached and seed hosts',async()=>{
+ const calls=[];
+ const result=await discover([a],'company',{tenantId:'tenant',origins:[a,b],selected:b},async host=>{
+  calls.push(host);
+  await new Promise(resolve=>setTimeout(resolve,host===c?1:30));
+  return reply([a,b,c]);
+ });
+ assert.equal(result.selected,c);assert.deepEqual(calls.sort(),[a,b,c]);
 });
 test('rejects a different tenant, wrong company and malformed directories',async()=>{
  for(const data of [reply([a],'other'),reply([a],'tenant','other'),reply([b]),{}])
@@ -64,7 +73,9 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  let script = readFileSync('mobile/webview-shell/src/pages/index/index.vue', 'utf8').split('<script setup lang="ts">')[1].split('</script>')[0];
  script = script.replace(/^import .*;\n/gm, '').replace(/\/\/ #ifndef APP-PLUS[\s\S]*?\/\/ #endif/g, '');
  const requests = [], windows = [], timers = new Map(); let sequence = 0;
+ let finishDiscovery;
  const context = {
+  discover: () => new Promise(resolve => { finishDiscovery = resolve; }),
   safeAddress, debugScript, debugMessages, readinessScript, ref: value => ({value}), config: JSON.parse(readFileSync('mobile/webview-shell/src/config.json', 'utf8')),
   uni: {getStorageSync: () => ({tenantId:'tenant'}), request: request => requests.push(request),getSystemInfoSync: () => ({statusBarHeight: 24, windowHeight: 0}),onWindowResize: () => {},offWindowResize: () => {}},
   plus: {webview: {create: (url,id,styles) => {
@@ -92,10 +103,16 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  view.events.titleUpdate({title:'Spec Pay'});assert.equal(page.state.value,'loading');
  [...timers.values()].find(t=>t.delay===30000).fn();assert.equal(page.state.value,'error');assert.equal(view.closed,true);
  view.events.titleUpdate({title:oldToken});assert.equal(page.state.value,'error');
- page.retry();const retry=windows[1];retry.url=a+'/';retry.events.loaded();
+ const reconnect = page.retry();
+ assert.equal(page.state.value,'discovering');assert.equal(windows.length,1);
+ finishDiscovery({tenantId:'tenant',origins:[a,b],selected:b,fetchedAt:Date.now()});
+ await reconnect;
+ const retry=windows[1];assert.equal(retry.requestedURL,b+'/#/pages/login/index');
+ retry.url=b+'/';retry.events.loaded();
  retry.events.titleUpdate({title:oldToken});assert.equal(page.state.value,'loading');
  retry.events.titleUpdate({title:page.token()});assert.equal(page.state.value,'ready');
- assert.equal(retry.styles.at(-1).opacity,1);assert.equal(timers.size,0);
+ assert.equal(retry.styles.at(-1).opacity,1);
+ assert.equal([...timers.values()].some(t=>t.delay===30000 || t.delay===350),false);
  page.refreshDebug();
  requests.at(-1).success({statusCode:200,data:{tenantId:'tenant',tenantSlug:'tenant-a',enabled:true}});
  assert.equal(page.debugEnabled.value,true);assert.equal(retry.styles.at(-1).bottom,'300px');

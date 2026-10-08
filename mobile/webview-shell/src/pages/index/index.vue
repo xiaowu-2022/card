@@ -149,14 +149,12 @@ function open(url: string) {
     failure('请使用 HBuilderX 运行到手机或云打包，此工程是 App 网页容器。');
     // #endif
 }
-async function connect(reselect = false) {
+async function connect() {
     if (detecting || disposed) return;
     detecting = true; state.value = 'discovering'; error.value = ''; stopTimer();
     const previousChild = child; child = null; previousChild?.close();
     try {
-        const previous = cache();
-        const result = await discover(config.seeds, config.tenantSlug,
-            reselect && previous ? { ...previous, selected: '' } : previous, probe);
+        const result = await discover(config.seeds, config.tenantSlug, cache(), probe);
         if (disposed) return;
         save(result); lastRefresh = Date.now(); active.value = result.selected;
         stopDebug(); refreshDebug(); open(result.selected);
@@ -164,14 +162,12 @@ async function connect(reselect = false) {
     finally { detecting = false; }
 }
 function retry() {
-    if (detecting) return;
-    if (active.value) open(active.value);
-    else void connect();
+    return connect();
 }
 function changeLine() {
     if (detecting) return;
     uni.showModal({ title: '重新连接', content: '将重新连接服务并打开登录页，可能需要重新登录。请确认没有正在提交的操作。',
-        confirmText: '继续', cancelText: '取消', success: result => { if (result.confirm) void connect(true); } });
+        confirmText: '继续', cancelText: '取消', success: result => { if (result.confirm) void connect(); } });
 }
 function back() {
     if (!child) return;
@@ -227,7 +223,7 @@ onUnload(() => { disposed = true; stopDebug(); uni.offWindowResize(resizeContent
                 </view>
                 <view v-else class="loading-state" role="status">
                     <view class="loading-track"><view class="loading-glow"/></view>
-                    <text class="loading-label">正在为您开启全球支付</text>
+                    <text class="loading-label">{{ state === 'discovering' ? '正在检测线路速度，选择最快线路' : '正在为您开启全球支付' }}</text>
                 </view>
             </view>
             <text class="security-note">保护账户安全，请勿向任何人透露密码或验证码。</text>

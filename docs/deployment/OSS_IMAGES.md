@@ -1,3 +1,20 @@
+## 2026-10-09：当前公司 Logo 单独发布到 CDN
+
+按用户要求，使用当前已配置的 OSS（配置 ID `01a0ee40-762a-73b4-996c-fbf3b142c945`）
+上传现有公开 Logo，未切换全局 server 存储模式，也未迁移其他图片。
+对象路径为 `assets/branding/0061b65cbcbd00c086abaf0a3e15cf756fe67f95c23e871fc5ab9326d843c802/logo.png`，
+访问域名为 `https://zb33333.com`。OSS 回读和匿名 CDN 下载的 SHA-256 均与原图一致。
+
+`config/media.php` 的 `public_branding_urls` 按完整原始 Logo 对象键精确匹配；
+`ImageStorage` 在生成该公开图片的原图、展示及候选 URL 时直接返回已验证 CDN 地址。
+其他公司、新上传 Logo 对象键及私有图片继续使用原有存储策略。读取不上传、不写数据库。
+公开原图保存在 `artifacts/logo-cdn-20261009/logo.png`，没有保存 OSS 密钥。
+
+线上生效需部署 `config/media.php` 与 `app/Application/Media/ImageStorage.php`，
+执行 `php artisan config:cache` 并按现有流程刷新 PHP 进程；然后刷新 H5 以重新读取
+bootstrap 的 `tenant.logoUrl` / `logoSources`。无需重建 H5 或重新打包 WebView 壳。
+本次已完成真实上传与 CDN 校验、本地 URL 行为及 PHP 语法验证；尚未部署远程后端。
+
 # 双份图片与自动降级（2026-09-29）
 
 部署后端、管理端资源与 public/h5 后运行：

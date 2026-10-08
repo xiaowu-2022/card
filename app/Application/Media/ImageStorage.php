@@ -131,6 +131,9 @@ final class ImageStorage
 
     public function url(string $disk, ?string $key): ?string
     {
+        if ($published = $this->publishedBrandingUrl($disk, $key)) {
+            return $published;
+        }
         if (! $key) {
             return null;
         }
@@ -151,6 +154,9 @@ final class ImageStorage
 
     public function displayUrl(string $disk, ?string $key, string $profile = 'preview'): ?string
     {
+        if ($published = $this->publishedBrandingUrl($disk, $key)) {
+            return $published;
+        }
         $url = $this->url($disk, $key);
         $image = $key ? $this->record($disk, $key) : null;
         if ($image) {
@@ -169,6 +175,9 @@ final class ImageStorage
     /** Browser candidates only; URL generation never contacts storage. */
     public function previewSources(string $disk, ?string $key, string $profile = 'preview'): array
     {
+        if ($published = $this->publishedBrandingUrl($disk, $key)) {
+            return [$published];
+        }
         if (! $key) {
             return [];
         }
@@ -184,6 +193,16 @@ final class ImageStorage
         }
 
         return array_values(array_unique(array_filter($sources)));
+    }
+
+    private function publishedBrandingUrl(string $disk, ?string $key): ?string
+    {
+        if ($disk !== 'public' || ! $key || ! str_starts_with($key, 'tenant-branding/')) {
+            return null;
+        }
+        $url = config('media.public_branding_urls', [])[$key] ?? null;
+
+        return is_string($url) && preg_match('#^https://[a-z0-9.-]+/[^\s\\\\]+$#iD', $url) ? $url : null;
     }
 
     private function previewFailure(?StoredImage $image, string $stage, \Throwable $error): void

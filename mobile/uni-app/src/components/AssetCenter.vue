@@ -174,7 +174,9 @@ function show(value: string | null) {
 .asset-center {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+}
+.asset-center > view + view {
+    margin-top: 16px;
 }
 .balance-hero {
     padding: 4px 8px;
@@ -316,30 +318,36 @@ function show(value: string | null) {
 }
 .account-track {
     display: flex;
-    gap: 12px;
     overflow-x: auto;
     padding-bottom: 4px;
 }
 .account-track.expanded {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
 }
 .account-tile {
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
-    min-width: 96px;
+    min-width: 112px;
     width: calc((100% - 24px) / 3);
     flex-shrink: 0;
+    margin: 0;
     background: #f7f6f1;
     border-radius: 12px;
     padding: 12px 8px;
     line-height: 20px;
 }
+/* Older Android WebViews support flex layout but ignore flex gap. */
+.account-tile + .account-tile {
+    margin-left: 12px;
+}
 .expanded .account-tile {
     min-width: 0;
     width: 100%;
+    margin: 0;
 }
 .managed-symbol {
     display: flex;
@@ -355,7 +363,6 @@ function show(value: string | null) {
     display: flex;
     justify-content: center;
     align-items: baseline;
-    gap: 4px;
     width: 100%;
     min-width: 0;
     font-size: 14px;
@@ -367,6 +374,7 @@ function show(value: string | null) {
     white-space: nowrap;
 }
 .tile-currency {
+    margin-left: 4px;
     font-size: 10px;
     font-weight: 400;
     flex-shrink: 0;
@@ -381,6 +389,11 @@ function show(value: string | null) {
 }
 .semibold {
     font-weight: 600;
+}
+@media (max-width: 359px) {
+    .account-track.expanded {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 @media (min-width: 640px) {
     .balance-value {

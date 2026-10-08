@@ -61,7 +61,10 @@ const navigationClasses = computed(() => ({
 const navigationStyle = computed(() => ({
     '--user-primary': session.value?.tenant.primaryColor || '#39ad8d',
     '--shell-tab-height': 'clamp(80px, 14.133vw, 106px)',
-    '--shell-safe-top': 'max(var(--status-bar-height, 0px), env(safe-area-inset-top, 0px))',
+    // Some Android H5 WebViews report zero even beneath a status bar or cutout.
+    '--shell-safe-top': import.meta.env.UNI_PLATFORM === 'h5'
+        ? 'max(24px, var(--status-bar-height, 0px), env(safe-area-inset-top, 0px))'
+        : 'max(var(--status-bar-height, 0px), env(safe-area-inset-top, 0px))',
     '--shell-header-height': isHome.value
         ? 'clamp(64px, 11.867vw, 89px)'
         : 'clamp(64px, 12vw, 90px)',
@@ -80,6 +83,7 @@ function open(path: string, replace = false) {
     <view class="user-root" :style="{ '--user-primary': session?.tenant.primaryColor || '#39ad8d' }"
         ><view
             class="shell"
+            :style="navigationStyle"
             :class="{
                 'account-shell': active === 'account' && isHome,
                 'overview-shell': overview,
