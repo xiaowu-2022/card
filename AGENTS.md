@@ -12,7 +12,7 @@ new versions offer dismissible downloads, and download failure leaves the app us
 This supersedes mandatory update and client release-identity checks below.
 
 On 2026-10-08 the user changed the fixed OCR service origin to
-http://202.95.12.20:9601, superseding the previous .185 address. Preserve
+http://202.95.12.200:9601, superseding the previous .20 and .185 addresses. Preserve
 GET /ocr with the server-generated image query and existing recognition rules.
 
 On 2026-10-08 the user removed the Platform company drawer Basic information tab

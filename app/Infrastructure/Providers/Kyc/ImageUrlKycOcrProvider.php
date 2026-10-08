@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 
 final class ImageUrlKycOcrProvider implements KycOcrProviderInterface
 {
-    public const ENDPOINT = 'http://202.95.12.20:9601/ocr';
+    public const ENDPOINT = 'http://202.95.12.200:9601/ocr';
 
     public function name(): string
     {

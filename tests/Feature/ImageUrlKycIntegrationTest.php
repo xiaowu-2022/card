@@ -52,7 +52,7 @@ it('extracts only the front number without requiring name or back OCR and encryp
     Http::assertSent(function ($request) use ($application) {
         parse_str(parse_url($request->url(), PHP_URL_QUERY), $query);
 
-        return str_starts_with($request->url(), 'http://202.95.12.20:9601/ocr?')
+        return str_starts_with($request->url(), 'http://202.95.12.200:9601/ocr?')
             && $request->method() === 'GET'
             && $query === ['image' => app(ImageStorage::class)->ocrUrl('private', $application->front_object_key)]
             && ! $request->hasHeader('apikey') && ! $request->hasHeader('Authorization')
