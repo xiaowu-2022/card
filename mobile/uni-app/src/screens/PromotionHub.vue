@@ -574,9 +574,8 @@ async function share() {
 .share-dock {
     position: fixed;
     /* Match PageShell tabs; older App WebViews do not support container units. */
-    bottom: 64px;
-    bottom: calc(64px + env(safe-area-inset-bottom));
-    bottom: calc(clamp(64px, 14.133vw, 106px) + env(safe-area-inset-bottom));
+    bottom: 80px;
+    bottom: calc(var(--shell-tab-height, 80px) + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
     width: 100%;
@@ -585,7 +584,7 @@ async function share() {
     background: white;
     border-top: 1px solid #e2e7e4;
     padding: 8px 16px;
-    padding: 8px min(4.267vw, 32px);
+    padding: 8px clamp(20px, 4.267vw, 32px);
     z-index: 30;
 }
 .share-buttons {

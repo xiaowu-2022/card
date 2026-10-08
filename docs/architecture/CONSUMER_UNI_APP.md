@@ -271,3 +271,20 @@ layout-contained and will-change ancestors, multiple portrait/landscape sizes, c
 bars, route replacement, cached-page navigation/back and modal masking in Chrome/WebKit.
 All API responses are synthetic. Deploy the rebuilt H5 bundle; no PHP or migration required.
 Native resource compilation is a compatibility check, not a signed APK release.
+
+### 2026-10-09 mobile content clearance
+
+PageShell uses viewport units for its shared layout, avoiding container-query units in
+critical padding on older Android WebViews. Content has at least 20px horizontal and
+16px top padding; its scrollable bottom reserve is the tab height plus the safe-area
+inset and 48px of breathing room. Native top clearance uses the greater of uni-app's
+status-bar height and the CSS top safe area, with the same value on the fixed header
+and its content spacer. Bottom tabs have an 80px minimum height and separated icon
+highlight/label spacing. Promotion's fixed share dock follows the shared tab height;
+its existing additional content reserve remains in place so the invitation code can
+scroll above both controls. Chat retains its bounded composer layout.
+
+The offline Chrome/WebKit navigation regression also checks 320/390/750px content
+insets and maximum-scroll clearance on assets, account, KYC and promotion fixtures.
+H5 assets must be rebuilt/deployed; native resources require repackaging/installing.
+No API, accounting, permissions or database changes are involved.

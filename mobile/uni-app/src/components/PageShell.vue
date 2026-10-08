@@ -60,6 +60,8 @@ const navigationClasses = computed(() => ({
 }));
 const navigationStyle = computed(() => ({
     '--user-primary': session.value?.tenant.primaryColor || '#39ad8d',
+    '--shell-tab-height': 'clamp(80px, 14.133vw, 106px)',
+    '--shell-safe-top': 'max(var(--status-bar-height, 0px), env(safe-area-inset-top, 0px))',
     '--shell-header-height': isHome.value
         ? 'clamp(64px, 11.867vw, 89px)'
         : 'clamp(64px, 12vw, 90px)',
@@ -194,12 +196,14 @@ function open(path: string, replace = false) {
 }
 .shell {
     --shell-header-height: clamp(64px, 12vw, 90px);
+    --shell-tab-height: clamp(80px, 14.133vw, 106px);
+    --shell-safe-top: max(var(--status-bar-height, 0px), env(safe-area-inset-top, 0px));
     max-width: 750px;
     min-height: 100vh;
     margin: auto;
     background: #f7f6f0;
     padding: 64px 0 0;
-    padding: calc(var(--shell-header-height) + env(safe-area-inset-top, 0px)) 0 0;
+    padding: calc(var(--shell-header-height) + var(--shell-safe-top)) 0 0;
 }
 .home-shell {
     --shell-header-height: clamp(64px, 11.867vw, 89px);
@@ -217,31 +221,34 @@ function open(path: string, replace = false) {
         radial-gradient(ellipse 66% 63% at 38% 44%, #9bd8c5, transparent),
         radial-gradient(ellipse 68% 60% at 69% 10%, #d7f0cd, transparent),
         linear-gradient(180deg, #e6f4ee 0%, #e5f2e9 72%, #f7f6f0 100%);
-    background-size: 100% min(126.667cqw, 950px);
+    background-size: 100% min(126.667vw, 950px);
     background-repeat: no-repeat;
 }
 .shell-main {
-    padding: 16px 20px 112px;
-    padding: min(3.2cqw, 24px) min(4.267cqw, 32px)
-        calc(clamp(96px, 18cqw, 135px) + env(safe-area-inset-bottom));
+    /* Keep the last row comfortably above fixed navigation, even on old WebViews. */
+    padding: 16px 20px 128px;
+    padding: clamp(16px, 3.2vw, 24px) clamp(20px, 4.267vw, 32px)
+        calc(var(--shell-tab-height) + 48px + env(safe-area-inset-bottom, 0px));
+    padding-left: calc(clamp(20px, 4.267vw, 32px) + env(safe-area-inset-left, 0px));
+    padding-right: calc(clamp(20px, 4.267vw, 32px) + env(safe-area-inset-right, 0px));
 }
 .overview-main {
-    padding-top: 0;
+    padding-top: 16px;
 }
 .brand-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 16px;
-    height: clamp(64px, 11.867cqw, 89px);
-    padding: 0 min(5.333cqw, 40px);
+    height: clamp(64px, 11.867vw, 89px);
+    padding: 0 min(5.333vw, 40px);
 }
 .brand {
     display: flex;
     align-items: center;
-    gap: min(2.133cqw, 16px);
+    gap: min(2.133vw, 16px);
     min-width: 0;
-    font-size: clamp(19px, 4.533cqw, 34px);
+    font-size: clamp(19px, 4.533vw, 34px);
     font-weight: 600;
 }
 .brand > text {
@@ -254,7 +261,7 @@ function open(path: string, replace = false) {
     display: block;
     max-width: min(48vw, 360px);
     width: 180px;
-    height: clamp(40px, 8cqw, 60px);
+    height: clamp(40px, 8vw, 60px);
 }
 .header-actions {
     display: flex;
@@ -262,13 +269,13 @@ function open(path: string, replace = false) {
 }
 .header-actions .icon,
 .header-actions :deep(.iconOnly) {
-    width: clamp(44px, 9.6cqw, 72px);
-    height: clamp(44px, 9.6cqw, 72px);
+    width: clamp(44px, 9.6vw, 72px);
+    height: clamp(44px, 9.6vw, 72px);
     padding: 0;
 }
 .header-actions :deep(uni-image) {
-    width: clamp(24px, 5.867cqw, 44px) !important;
-    height: clamp(24px, 5.867cqw, 44px) !important;
+    width: clamp(24px, 5.867vw, 44px) !important;
+    height: clamp(24px, 5.867vw, 44px) !important;
 }
 .header {
     display: grid;
@@ -280,7 +287,7 @@ function open(path: string, replace = false) {
 }
 .header-title {
     text-align: center;
-    font-size: clamp(24px, 4.8cqw, 36px);
+    font-size: clamp(24px, 4.8vw, 36px);
     line-height: 1.3;
     font-weight: 600;
     overflow-wrap: anywhere;
@@ -295,11 +302,13 @@ function open(path: string, replace = false) {
     width: 100%;
     max-width: 750px;
     height: 64px;
-    height: calc(var(--shell-header-height) + env(safe-area-inset-top));
+    height: calc(var(--shell-header-height) + var(--shell-safe-top));
     min-height: 0;
     margin: 0 auto;
     padding: 0 20px;
-    padding: env(safe-area-inset-top) min(4.267vw, 32px) 0;
+    padding: var(--shell-safe-top) clamp(20px, 4.267vw, 32px) 0;
+    padding-left: calc(clamp(20px, 4.267vw, 32px) + env(safe-area-inset-left, 0px));
+    padding-right: calc(clamp(20px, 4.267vw, 32px) + env(safe-area-inset-right, 0px));
     z-index: 50;
     background: #f7f6f0;
     box-shadow: 0 1px 0 #171c190d;
@@ -337,12 +346,13 @@ function open(path: string, replace = false) {
     margin-inline: auto;
     max-width: 750px;
     width: 100%;
-    height: 64px;
-    height: calc(clamp(64px, 14.133vw, 106px) + env(safe-area-inset-bottom));
+    height: 80px;
+    height: calc(var(--shell-tab-height) + env(safe-area-inset-bottom, 0px));
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    padding: 0;
-    padding: 0 0 env(safe-area-inset-bottom);
+    padding: 10px 0;
+    padding: 10px env(safe-area-inset-right, 0px)
+        calc(10px + env(safe-area-inset-bottom, 0px)) env(safe-area-inset-left, 0px);
     border: 0;
     z-index: 40;
     background: #fff;
@@ -352,7 +362,7 @@ function open(path: string, replace = false) {
     align-items: center;
     justify-content: center;
     flex-direction: column;
-    gap: min(0.8vw, 6px);
+    gap: 7px;
     background: transparent;
     color: #68736e;
     min-height: 44px;
@@ -381,7 +391,7 @@ function open(path: string, replace = false) {
 .tab.active .tab-icon:before {
     content: '';
     position: absolute;
-    inset: -8px;
+    inset: -5px;
     background: #f2f4f2;
     border-radius: 50%;
     z-index: -1;
@@ -402,7 +412,7 @@ function open(path: string, replace = false) {
     z-index: 2;
 }
 .article-main {
-    padding: min(3.2cqw, 24px) min(5.333cqw, 40px) 48px;
+    padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px));
 }
 .chat-shell {
     height: 100dvh;
@@ -415,14 +425,14 @@ function open(path: string, replace = false) {
     flex: 1;
     min-height: 0;
     flex-direction: column;
-    padding-bottom: calc(clamp(64px, 14.133cqw, 106px) + env(safe-area-inset-bottom) + 12px);
+    padding-bottom: calc(var(--shell-tab-height) + env(safe-area-inset-bottom, 0px) + 12px);
 }
 .chat-shell .header {
     flex-shrink: 0;
     margin-bottom: 0;
 }
 .brand-symbol {
-    width: clamp(36px, 8cqw, 52px) !important;
-    height: clamp(36px, 8cqw, 52px) !important;
+    width: clamp(36px, 8vw, 52px) !important;
+    height: clamp(36px, 8vw, 52px) !important;
 }
 </style>

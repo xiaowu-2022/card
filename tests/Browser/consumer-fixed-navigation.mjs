@@ -97,8 +97,40 @@ for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome
         assert.ok(await page.evaluate(() => document.elementFromPoint(10, innerHeight - 10)?.closest('.modal-backdrop')));
         await dialog.locator('[aria-label="Close"]').click();
         await aligned('modal closed');
+        // At maximum scroll the final content must clear every fixed bottom control.
+        for (const path of ['/dashboard', '/account', '/kyc', '/promotion']) {
+            await page.goto(origin + '/#/pages/screen/index?path=' + encodeURIComponent(path));
+            await page.locator('.shell-main').waitFor();
+            await page.waitForTimeout(200);
+            for (const width of [320, 390, 750]) {
+                await page.setViewportSize({ width, height: 640 });
+                await page.evaluate(() => {
+                    const main = document.querySelector('.shell-main');
+                    let marker = main.querySelector('#last-content');
+                    if (!marker) {
+                        marker = document.createElement('div');
+                        marker.id = 'last-content';
+                        marker.style.height = '1500px';
+                        // Keep the promotion hub's own dock clearance after its last content.
+                        (main.querySelector('.hub') || main).append(marker);
+                    }
+                    window.scrollTo(0, document.documentElement.scrollHeight);
+                });
+                await page.waitForTimeout(60);
+                const bounds = await page.evaluate(() => {
+                    const main = document.querySelector('.shell-main');
+                    const style = getComputedStyle(main);
+                    const end = document.querySelector('#last-content').getBoundingClientRect();
+                    const bar = document.querySelector('.share-dock') || document.querySelector('.tabs');
+                    return { left: parseFloat(style.paddingLeft), right: parseFloat(style.paddingRight),
+                        gap: bar.getBoundingClientRect().top - end.bottom };
+                });
+                assert.ok(bounds.left >= 20 && bounds.right >= 20, JSON.stringify({ path, width, bounds }));
+                assert.ok(bounds.gap >= 47, JSON.stringify({ path, width, bounds }));
+            }
+        }
         assert.deepEqual(errors, []);
-        assert.ok(mutations.every(path => ['/api/v1/wallet/ensure', '/api/v1/messages/read-all'].includes(path)), JSON.stringify(mutations));
+        assert.ok(mutations.every(path => ['/api/v1/wallet/ensure', '/api/v1/messages/read-all', '/api/v1/presence'].includes(path)), JSON.stringify(mutations));
         await context.close();
         console.log(`PASS ${name}: fixed long-page bars, transformed ancestors, resizing, page lifecycle and modal layering`);
     } finally { await browser.close(); }
