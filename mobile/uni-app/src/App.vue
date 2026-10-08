@@ -54,12 +54,7 @@ uni-app .uni-picker-container {
 /* Paint the document canvas too: page backgrounds do not cover exposed areas
    around body portals when an embedded WebView changes its visible viewport. */
 html,
-body,
-#app,
-uni-app,
-uni-page,
-uni-page-wrapper,
-uni-page-body {
+body {
     background: #fff;
 }
 /* Style the actual HTML input, not just uni-input's outer component. */
@@ -83,7 +78,7 @@ uni-page-body {
 page {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background: #fff;
+    background: #f7f6f0;
     color: #171c19;
     font-family:
         Inter,
