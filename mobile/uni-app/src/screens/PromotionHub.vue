@@ -575,7 +575,7 @@ async function share() {
     position: fixed;
     /* Match PageShell tabs; older App WebViews do not support container units. */
     bottom: 80px;
-    bottom: calc(var(--shell-tab-height, 80px) + env(safe-area-inset-bottom, 0px) + var(--shell-viewport-bottom, 0px));
+    bottom: calc(var(--shell-tab-height, 80px) + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
     width: 100%;

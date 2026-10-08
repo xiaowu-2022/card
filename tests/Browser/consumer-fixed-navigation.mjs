@@ -54,20 +54,7 @@ for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome
             window.visualViewport.dispatchEvent(new Event('resize'));
         });
         await page.waitForTimeout(80);
-        const clipped = await page.evaluate(() => {
-            const tabs = document.querySelector('.tabs');
-            const bottom = innerHeight - 24;
-            return {
-                bottom: tabs.getBoundingClientRect().bottom,
-                visibleBottom: bottom,
-                labelsVisible: [...tabs.querySelectorAll('.tab > uni-text')].every(el => el.getBoundingClientRect().bottom <= bottom),
-                tappable: tabs.contains(document.elementFromPoint(innerWidth / 2, bottom - 12)),
-                background: getComputedStyle(document.documentElement).backgroundColor,
-            };
-        });
-        assert.ok(Math.abs(clipped.bottom - clipped.visibleBottom) < 2, JSON.stringify(clipped));
-        assert.ok(clipped.labelsVisible && clipped.tappable, 'clipped viewport keeps labels and hit targets visible');
-        assert.equal(clipped.background, 'rgb(255, 255, 255)');
+        await aligned('visual viewport change does not add bottom space');
         await page.evaluate(() => {
             delete window.visualViewport.height;
             window.visualViewport.dispatchEvent(new Event('resize'));

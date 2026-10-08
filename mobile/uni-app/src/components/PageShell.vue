@@ -235,7 +235,7 @@ function open(path: string, replace = false) {
     /* Keep the last row comfortably above fixed navigation, even on old WebViews. */
     padding: 16px 20px 128px;
     padding: clamp(16px, 3.2vw, 24px) clamp(20px, 4.267vw, 32px)
-        calc(var(--shell-tab-height) + 48px + env(safe-area-inset-bottom, 0px) + var(--shell-viewport-bottom, 0px));
+        calc(var(--shell-tab-height) + 48px + env(safe-area-inset-bottom, 0px));
     padding-left: calc(clamp(20px, 4.267vw, 32px) + env(safe-area-inset-left, 0px));
     padding-right: calc(clamp(20px, 4.267vw, 32px) + env(safe-area-inset-right, 0px));
 }
@@ -348,7 +348,6 @@ function open(path: string, replace = false) {
     position: fixed;
     transform: none;
     bottom: 0;
-    bottom: var(--shell-viewport-bottom, 0px);
     left: 0;
     right: 0;
     margin-inline: auto;
