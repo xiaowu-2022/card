@@ -194,3 +194,21 @@ minute scheduler now runs `messages:recover` (bounded 500-event batches); use
 messages. This command does not replay financial or provider operations. The migration
 adds `notifications.read`/`notifications.send` to Platform Owner/Admin and does not send
 messages or backfill historical orders. See [inbox architecture and recovery](../architecture/INBOX_MESSAGES.md).
+
+
+## 2026-10-08 Routine operation rate allowances
+
+Routine numeric route allowances in consumer API/H5, legacy consumer, tenant admin
+and Platform routes are doubled without changing minute windows or scope keys.
+Named domain discovery, upload stages, OCR preview, card operations and transaction
+reads are also doubled. Login, OTP, password reset/change, session revocation,
+contact verification and recent-password checks keep their existing limits;
+webhook and provider-internal limits are unchanged.
+
+Default configurable allowances are now KYC document access 60/minute and wallet
+topup, withdrawal creation and security-deposit funding 20/minute. Existing `.env`
+overrides take precedence. When deploying, update the explicitly configured
+`KYC_DOCUMENT_ACCESS_RATE_LIMIT_PER_MINUTE`, `PAYMENT_TOPUP_RATE_LIMIT_PER_MINUTE`,
+`WITHDRAWAL_RATE_LIMIT_PER_MINUTE` and `SECURITY_DEPOSIT_FUNDING_RATE_LIMIT_PER_MINUTE`
+values to the intended doubled quotas, then rebuild Laravel config/route caches
+using the normal deployment procedure. No migration or native/H5 rebuild is required.

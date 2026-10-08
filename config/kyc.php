@@ -12,6 +12,6 @@ return [
     'document_disk' => env('KYC_DOCUMENT_DISK', 'private'),
     'document_max_mb' => (int) env('KYC_DOCUMENT_MAX_MB', 10),
     'document_access_ttl_seconds' => (int) env('KYC_DOCUMENT_ACCESS_TTL_SECONDS', 300),
-    'document_access_rate_limit_per_minute' => (int) env('KYC_DOCUMENT_ACCESS_RATE_LIMIT_PER_MINUTE', 30),
+    'document_access_rate_limit_per_minute' => (int) env('KYC_DOCUMENT_ACCESS_RATE_LIMIT_PER_MINUTE', 60),
     'admin_recent_auth_ttl_seconds' => (int) env('KYC_ADMIN_RECENT_AUTH_TTL_SECONDS', 900),
 ];

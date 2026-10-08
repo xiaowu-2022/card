@@ -155,12 +155,12 @@ class AppServiceProvider extends ServiceProvider
             $app->make(TenantContext::class),
         ));
         // A large domain list must not exhaust one shared IP bucket while probing aliases.
-        RateLimiter::for('consumer-domains', fn ($request): Limit => Limit::perMinute(30)
+        RateLimiter::for('consumer-domains', fn ($request): Limit => Limit::perMinute(60)
             ->by(hash('sha256', strtolower($request->getHost()).':'.$request->ip())));
         // Upload stages and OCR must not consume each other's allowance or the
         // unnamed browser/IP bucket. API identity is resolved before these routes.
-        foreach (['image-upload-authorize' => 20, 'image-upload-backup' => 30,
-            'image-upload-complete' => 30, 'kyc-number-preview' => 10] as $name => $attempts) {
+        foreach (['image-upload-authorize' => 40, 'image-upload-backup' => 60,
+            'image-upload-complete' => 60, 'kyc-number-preview' => 20] as $name => $attempts) {
             RateLimiter::for($name, function ($request) use ($attempts): Limit {
                 $tenantId = app(TenantContext::class)->id();
                 $user = $request->attributes->get('consumer_user');
@@ -199,7 +199,7 @@ class AppServiceProvider extends ServiceProvider
             $tenantId = app(TenantContext::class)->hasTenant() ? app(TenantContext::class)->id() : 'unknown';
             $userId = Auth::guard('tenant_user')->id() ?? 'guest';
 
-            return Limit::perMinute(10)->by("{$tenantId}:{$userId}");
+            return Limit::perMinute(20)->by("{$tenantId}:{$userId}");
         });
     }
 }

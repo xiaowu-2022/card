@@ -1,3 +1,9 @@
+On 2026-10-08 the user approved doubling routine operation rate allowances
+across App/H5 and administration. Preserve time windows, scope keys, permissions,
+idempotency and provider-side limits. Login, OTP, password/recent-auth and contact
+verification protections remain unchanged. Configured deployment overrides remain
+explicit; see docs/deployment/PRODUCTION_DEPLOYMENT.md.
+
 On 2026-10-08 the user made native version checks advisory for all companies'
 common app versions. Compare version codes without release AppID/tenantSlug matching;
 retain company domain routing and safe platform-specific download URLs. Never gate

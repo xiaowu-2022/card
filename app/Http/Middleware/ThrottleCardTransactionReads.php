@@ -21,7 +21,7 @@ final readonly class ThrottleCardTransactionReads
         // Unlike Laravel's priority-sorted generic throttle, this route middleware
         // runs AFTER tenant resolution and user scope restoration.
         $key = 'card-transactions:'.$this->context->id().':'.$user->id;
-        if (RateLimiter::tooManyAttempts($key, 120)) {
+        if (RateLimiter::tooManyAttempts($key, 240)) {
             throw new TooManyRequestsHttpException(RateLimiter::availableIn($key));
         }
         RateLimiter::hit($key, 60);
