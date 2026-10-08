@@ -1,3 +1,10 @@
+On 2026-10-08 the user enabled direct Platform app-release metadata edits.
+Prefill existing version values; permit valid same/lower version corrections and
+destination updates without repackaging. Preserve fixed AppID, tenant.manage,
+company locking, stale revision checks, confirmation and atomic audit. Legacy CLI
+new-release publication still requires increasing codes. This supersedes the
+Platform monotonic-version requirement below.
+
 ## 2026-10-08 Advisory updates for common app versions
 
 Native release checks now compare only valid installed/published version codes;

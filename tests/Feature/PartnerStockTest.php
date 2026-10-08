@@ -117,13 +117,19 @@ function stockBuy($test, User $user, int $rank): void
 
 it('selects the stock version from current company partner status and rejects caller identities', function () {
     $url = 'http://a.localhost/promotion/stock';
-    $this->actingAs($this->user, 'tenant_user')->getJson($url)->assertOk()->assertJsonPath('version', 'standard');
-    $this->get('http://a.localhost/promotion/daily')->assertOk()->assertInertia(fn (Assert $p) => $p->where('canViewStock', true)->missing('stock'));
+    $this->actingAs($this->user, 'tenant_user')->getJson($url)->assertForbidden();
+    $this->get('http://a.localhost/promotion/daily')->assertOk()->assertInertia(fn (Assert $p) => $p->where('canViewStock', false)->missing('stock'));
+    $this->getJson('http://a.localhost/api/v1/client/promotion/stock')->assertForbidden();
+    $this->getJson('http://a.localhost/api/v1/client/promotion/stock/partners')->assertForbidden();
     $partner = stockPartner($this, $this->user);
+    $this->get('http://a.localhost/promotion/daily')->assertOk()->assertInertia(fn (Assert $p) => $p->where('canViewStock', true));
+    $this->getJson('http://a.localhost/api/v1/client/promotion/stock')->assertOk()->assertJsonPath('props.report.version', 'partner');
     $this->getJson($url)->assertOk()->assertJsonPath('stock', '0.00000000')->assertJsonPath('version', 'partner')->assertJsonPath('totals.inflow', '0.00000000')->assertHeader('Cache-Control', 'no-store, private');
     $this->getJson($url.'?user_id='.Str::uuid())->assertUnprocessable();
     stockPartner($this, $this->user, false);
-    $this->getJson($url)->assertOk()->assertJsonPath('version', 'standard');
+    $this->getJson($url)->assertForbidden();
+    $this->getJson('http://a.localhost/api/v1/client/promotion/stock')->assertForbidden();
+    $this->get('http://a.localhost/promotion/daily')->assertOk()->assertInertia(fn (Assert $p) => $p->where('canViewStock', false));
     expect(DB::table('partner_configurations')->where('id', $partner->id)->exists())->toBeTrue();
     $tenantAdmin = AdminUser::where('email', 'owner@a.localhost')->firstOrFail();
     expect(fn () => $this->management->configure($tenantAdmin, $this->tenant->id, ['account_id' => $this->user->account_id, 'enabled' => true, 'share_percent' => 40]))->toThrow(HttpException::class);
@@ -746,7 +752,7 @@ it('paginates business contribution details and retains current direct branches 
         stockGuarantee($member, '10.00000001');
     }
     $query = app(PartnerReport::class);
-    $standard = $query->read($this->tenant->id, $leaf->id);
+    $standard = $query->read($this->tenant->id, $leaf->id, false);
     $check = function (string $total, array $members) use ($query, $direct) {
         $r = $query->read($this->tenant->id, $this->user->id, true, 1, 'inflow');
         expect($r['stock'])->toBe($total)->and($r['flowDetails']['total'])->toBe(count($members))
@@ -764,7 +770,7 @@ it('paginates business contribution details and retains current direct branches 
     $check('20.00000002', [$direct, $leaf]);
     stockPartner($this, $nested, false);
     $check('30.00000003', [$direct, $nested, $leaf]);
-    expect($query->read($this->tenant->id, $leaf->id)['totals'])->toBe($standard['totals']);
+    expect($query->read($this->tenant->id, $leaf->id, false)['totals'])->toBe($standard['totals']);
     foreach (range(1, 18) as $_) {
         stockGuarantee(stockChild($nested), '1.00000001');
     }

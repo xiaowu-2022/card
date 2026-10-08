@@ -31,10 +31,10 @@ final class KycDetailController extends Controller
 
     public function review(Tenant $tenant, string $kyc, Request $request)
     {
-        $data = $request->validate(['decision' => 'required|in:approve,reject', 'reason_code' => ['required_if:decision,reject', \Illuminate\Validation\Rule::enum(\App\Domain\Kyc\Enums\KycReviewReason::class)],
+        $data = $request->validate(['decision' => 'required|in:approve,reject', 'identity_number' => 'nullable|string|max:128', 'reason_code' => ['required_if:decision,reject', \Illuminate\Validation\Rule::enum(\App\Domain\Kyc\Enums\KycReviewReason::class)],
             'review_message' => 'required_if:decision,reject|string|min:3|max:500|not_regex:/[<>]/']);
         if ($data['decision'] === 'approve') {
-            app(\App\Application\Kyc\ApproveKycAction::class)->execute($tenant->id, $kyc, $request->user('platform_admin'), $request->attributes->get('request_id'));
+            app(\App\Application\Kyc\ApproveKycAction::class)->execute($tenant->id, $kyc, $request->user('platform_admin'), $request->attributes->get('request_id'), $data['identity_number'] ?? null);
         } else {
             app(\App\Application\Kyc\RejectKycAction::class)->execute($tenant->id, $kyc, $request->user('platform_admin'),
                 \App\Domain\Kyc\Enums\KycReviewReason::from($data['reason_code']), $data['review_message'], $request->attributes->get('request_id'));

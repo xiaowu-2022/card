@@ -573,7 +573,10 @@ async function share() {
 }
 .share-dock {
     position: fixed;
-    bottom: calc(clamp(64px, 14.133cqw, 106px) + env(safe-area-inset-bottom));
+    /* Match PageShell tabs; older App WebViews do not support container units. */
+    bottom: 64px;
+    bottom: calc(64px + env(safe-area-inset-bottom));
+    bottom: calc(clamp(64px, 14.133vw, 106px) + env(safe-area-inset-bottom));
     left: 50%;
     transform: translateX(-50%);
     width: 100%;
@@ -581,7 +584,8 @@ async function share() {
     box-sizing: border-box;
     background: white;
     border-top: 1px solid #e2e7e4;
-    padding: 8px min(4.267cqw, 32px);
+    padding: 8px 16px;
+    padding: 8px min(4.267vw, 32px);
     z-index: 30;
 }
 .share-buttons {
@@ -593,10 +597,12 @@ async function share() {
     gap: 8px;
     width: 100%;
     border-radius: 999px;
-    font-size: clamp(16px, 3.2cqw, 24px);
+    font-size: 16px;
+    font-size: clamp(16px, 3.2vw, 24px);
     line-height: 1.5;
     padding: 4px 24px;
-    min-height: clamp(48px, 10.667cqw, 80px);
+    min-height: 48px;
+    min-height: clamp(48px, 10.667vw, 80px);
 }
 .share-buttons :deep(button text) {
     font-size: inherit;

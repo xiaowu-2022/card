@@ -1,5 +1,5 @@
 import company from '../generated/company.json';
-import { companyOrigin, ensureCompanyOrigin } from './origin';
+import { companyOrigin, ensureCompanyOrigin, refreshCompanyOrigins } from './origin';
 import { androidCredentialVault, type AndroidBridge } from './device-credentials';
 export const native = import.meta.env.UNI_PLATFORM === 'app';
 let token: string | null = null;
@@ -91,7 +91,8 @@ export async function request<T>(
     await ensureCompanyOrigin().catch(() => {
         throw new ApiError(0);
     });
-    return new Promise((resolve, reject) =>
+    const generation = sessionGeneration;
+    const send = () => new Promise<T>((resolve, reject) =>
         uni.request({
             url: url(path),
             method,
@@ -114,6 +115,16 @@ export async function request<T>(
             },
         }),
     );
+    try {
+        return await send();
+    } catch (error) {
+        // Retry reads once after rediscovery. Never replay financial writes/uploads.
+        if (!native || method !== 'GET' || !(error instanceof ApiError)
+            || ![0, 502, 503, 504].includes(error.status) || generation !== sessionGeneration) throw error;
+        await refreshCompanyOrigins().catch(() => { throw new ApiError(0); });
+        if (generation !== sessionGeneration) throw error;
+        return send();
+    }
 }
 type UploadTicket = { id: string; mode?: string; url: string; imageUrl?: string; fields: Record<string, string> };
 export type UploadProgress = { stage: 'uploading' | 'submitting'; completed: number; total: number };

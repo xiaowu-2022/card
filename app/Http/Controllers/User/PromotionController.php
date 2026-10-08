@@ -42,7 +42,7 @@ final class PromotionController extends Controller
         if (in_array($section, ['daily', 'direct'], true)) {
             $reports = app(PromotionReportQuery::class);
 
-            return Inertia::render('user/PromotionReport', ['canViewStock' => true, 'section' => $section, 'report' => $section === 'daily'
+            return Inertia::render('user/PromotionReport', ['canViewStock' => app(\App\Application\Partners\PartnerReport::class)->enabled($context->id(), $request->user('tenant_user')->id), 'section' => $section, 'report' => $section === 'daily'
                 ? $reports->daily($context->id(), $request->user('tenant_user')->id, $request->validated())
                 : $reports->members($context->id(), $request->user('tenant_user')->id, $request->validated())])
                 ->toResponse($request)->header('Cache-Control', 'private, no-store');

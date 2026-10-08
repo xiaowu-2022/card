@@ -23,8 +23,9 @@ final class PartnerReport
             if ($outer === 0) {
                 DB::statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
             }
-            $report = app(LegacyStockReport::class)->read($tenant, $user, false, $page);
             $partner = $this->enabled($tenant, $user);
+            abort_if($consumer && ! $partner, 403);
+            $report = app(LegacyStockReport::class)->read($tenant, $user, false, $page);
             $report['version'] = $partner ? 'partner' : 'standard';
             $report['cashFlow'] = null;
             $report['flowDetails'] = null;

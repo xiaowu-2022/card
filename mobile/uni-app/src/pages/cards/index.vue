@@ -205,6 +205,7 @@ function requirements() {
                     </button></view
                 ><FormErrors :errors="action.errors.value" /><IdentityVerificationDialog
                     :open="verification"
+                    :pending="page.kycStatus === 'PENDING'"
                     @close="
                         verification = false;
                         go('/dashboard', true);

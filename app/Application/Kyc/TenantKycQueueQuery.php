@@ -53,6 +53,7 @@ final readonly class TenantKycQueueQuery
                 'user' => ['id' => $application->user_id, 'displayName' => $application->user->profile?->display_name, 'contact' => $application->user->email ?? $application->user->phone],
                 'documentType' => $application->document_type->value,
                 'documentCountry' => $application->document_country,
+                'requiresIdentityNumber' => $application->document_type->value === 'NATIONAL_ID' && $application->identity_hash === null,
                 'maskedIdentityNumber' => $application->identity_number_encrypted ? $this->identities->maskEncrypted($application->identity_number_encrypted) : '—',
                 'processingStatus' => $application->processing_status,
                 'processingError' => $application->processing_error,

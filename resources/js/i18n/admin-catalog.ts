@@ -2,6 +2,8 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Version details and download URLs can be edited directly. Updating a URL does not require a new version or repackaging.': '版本信息和下载地址可直接修改。仅更新下载地址无需提高版本号或重新打包。',
+    'Keep the DCloud AppID unchanged.': 'DCloud AppID 不能更改。',
     'App release': 'App 版本发布',
     'Current app release': '当前 App 版本',
     'Android download URL': 'Android 下载地址',
@@ -1708,6 +1710,9 @@ export const adminCatalog: Record<string, string> = {
     Hostname: '主机名',
     'Hostname only; no scheme, port or path.': '仅填写主机名，不含协议、端口或路径。',
     'Identity comparison': '身份比对',
+    'Enter a valid identity number.': '请输入有效的身份证号码。',
+    'The existing identity number cannot be changed.': '已有身份证号码不能修改。',
+    'Enter the identity number before approving. Existing numbers cannot be changed.': '审核通过前请填写身份证号码，已有号码不能修改。',
     'Identity number': '证件号码',
     'Identity operations': '身份管理',
     Inactive: '未启用',

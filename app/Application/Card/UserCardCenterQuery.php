@@ -59,11 +59,14 @@ final readonly class UserCardCenterQuery
         $displayNames = TenantCardProductConfig::query()->where('tenant_id', $tenantId)
             ->pluck('display_name', 'card_product_id');
 
+        $kycStatus = $this->kycStatus->forUser($tenantId, $userId);
+
         return $this->catalog->user($tenantId, $userId) + [
             'refundPending' => RefundCardPolicy::blocked($tenantId, $userId),
             'providerAvailable' => $providerAvailable,
             'cardholderBirthDateRequired' => app(AccountCardholderMaterials::class)->requiresBirthDate($tenantId, $userId),
-            'kycApproved' => $this->kycStatus->forUser($tenantId, $userId) === KycUserStatus::Approved,
+            'kycApproved' => $kycStatus === KycUserStatus::Approved,
+            'kycStatus' => $kycStatus->value,
             'availableBalance' => $available?->balance,
             'walletAsset' => $wallet?->asset_code,
             'cardholder' => $cardholder ? [

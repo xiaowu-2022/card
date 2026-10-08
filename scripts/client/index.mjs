@@ -261,7 +261,7 @@ try {
                                 ],
                             },
                             ios: {
-                                appid: config.appId,
+                                appid: config.iosAppId ? config.iosAppId + (mode === 'debug' ? '.debug' : '') : config.appId,
                                 privacyDescription: {
                                     NSCameraUsageDescription: 'Take a photo when you choose to submit identity documents or attach an image to customer support.',
                                     NSPhotoLibraryUsageDescription: 'Select photos when you choose to submit identity documents or attach an image to customer support.',

@@ -34,11 +34,18 @@ final class KycApplication extends Model
             if ($application->isDirty($immutable)) {
                 throw new LogicException('Submitted KYC identity data and documents are immutable.');
             }
-            if ($application->isDirty(['identity_number_encrypted', 'identity_hash']) &&
-                ($application->getRawOriginal('identity_hash') !== null || $application->getRawOriginal('identity_number_encrypted') !== null
+            if ($application->isDirty(['identity_number_encrypted', 'identity_hash', 'identity_number_source'])) {
+                $manualApproval = $application->identity_number_source === 'ADMIN'
+                    && $application->review_status === KycReviewStatus::Approved
+                    && $application->reviewed_by_admin_user_id !== null && ! $application->automatically_approved;
+                $recognized = $application->ocr_status === KycOcrStatus::Succeeded && $application->ocr_result_encrypted
+                    && $application->identity_number_source !== 'ADMIN';
+                if ($application->getRawOriginal('identity_hash') !== null || $application->getRawOriginal('identity_number_encrypted') !== null
+                    || $application->getRawOriginal('identity_number_source') !== null
                     || ! $application->getRawOriginal('processing_status') || $application->getRawOriginal('review_status') !== 'PENDING'
-                    || $application->ocr_status !== KycOcrStatus::Succeeded || ! $application->ocr_result_encrypted)) {
-                throw new LogicException('Recognized KYC identity is immutable.');
+                    || ! $application->identity_hash || ! $application->identity_number_encrypted || (! $manualApproval && ! $recognized)) {
+                    throw new LogicException('Recorded KYC identity is immutable.');
+                }
             }
 
             $reviewFields = ['review_status', 'review_reason_code', 'review_message', 'reviewed_by_admin_user_id', 'reviewed_at', 'automatically_approved'];

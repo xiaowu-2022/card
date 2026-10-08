@@ -107,7 +107,12 @@ final class AndroidAppRelease
             if ($expectedRevision !== null && ! hash_equals($this->revision($old), $expectedRevision)) {
                 throw ValidationException::withMessages(['revision' => 'The app release changed. Reload this editor and try again.']);
             }
-            if ($old && (($old['appId'] ?? null) !== $metadata['appId'] || $metadata['versionCode'] <= ($old['versionCode'] ?? 0))) {
+            if ($old && ($old['appId'] ?? null) !== $metadata['appId']) {
+                throw ValidationException::withMessages(['appId' => 'Keep the DCloud AppID unchanged.']);
+            }
+            // Platform edits may correct metadata or destinations without a new binary.
+            // The legacy CLI remains a new-release publisher.
+            if (! $actor && $old && $metadata['versionCode'] <= ($old['versionCode'] ?? 0)) {
                 throw ValidationException::withMessages(['versionCode' => 'Keep the DCloud AppID unchanged and increase the version code for each new release.']);
             }
             DB::table('tenant_android_releases')->updateOrInsert(['tenant_id' => $tenant->id], [

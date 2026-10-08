@@ -12,6 +12,7 @@ export type KycApplication = {
     documentType: string;
     documentCountry: string;
     maskedIdentityNumber: string;
+    requiresIdentityNumber?: boolean;
     reviewStatus: string;
     submittedAt: string;
     reviewedAt: string | null;
@@ -35,6 +36,9 @@ export function KycDetailsContent({
 }) {
     useAdminTranslation();
     const [reason, setReason] = useState('');
+    const [identityNumber, setIdentityNumber] = useState('');
+    const needsIdentityNumber = application.requiresIdentityNumber ??
+        (application.documentType === 'NATIONAL_ID' && application.maskedIdentityNumber === '—');
     const [reviewBusy, setReviewBusy] = useState(false);
     const retryId = useRef<string | null>(null);
     const [password, setPassword] = useState('');
@@ -47,6 +51,7 @@ export function KycDetailsContent({
         generation.current++;
         retryId.current = null;
         setReason('');
+        setIdentityNumber('');
         setDocuments({});
         setPassword('');
         setError('');
@@ -113,6 +118,10 @@ export function KycDetailsContent({
             setError(t('Enter a reason.'));
             return;
         }
+        if (decision === 'approve' && needsIdentityNumber && !identityNumber.trim()) {
+            setError(t('Enter a valid identity number.'));
+            return;
+        }
         if (!window.confirm(t('Confirm this verification operation?'))) return;
         setReviewBusy(true);
         setError('');
@@ -135,7 +144,7 @@ export function KycDetailsContent({
                         decision === 'retry'
                             ? { request_id: retryId.current, reason: reason.trim() }
                             : decision === 'approve'
-                              ? { decision }
+                              ? { decision, ...(needsIdentityNumber ? { identity_number: identityNumber.trim() } : {}) }
                               : { decision, reason_code: 'OTHER', review_message: reason.trim() },
                     ),
                 },
@@ -152,6 +161,7 @@ export function KycDetailsContent({
                         Object.values(data.errors ?? {}).flat()[0] ??
                         'Unable to load. Please retry.',
                 );
+            setIdentityNumber('');
             if (onChanged) onChanged(data.applicationId ?? application.id);
             else router.reload();
         } catch (error) {
@@ -201,6 +211,20 @@ export function KycDetailsContent({
                 (application.reviewStatus === 'PENDING' ||
                     (application.processingStatus && application.reviewStatus === 'REJECTED')) && (
                     <section className="space-y-3 rounded-lg border p-4">
+                        {application.reviewStatus === 'PENDING' && needsIdentityNumber && (
+                            <label className="block space-y-2">
+                                <span>{t('Identity number')}</span>
+                                <Input
+                                    value={identityNumber}
+                                    onChange={(event) => setIdentityNumber(event.target.value.toUpperCase())}
+                                    maxLength={18}
+                                    autoComplete="off"
+                                    disabled={reviewBusy}
+                                    aria-label={t('Identity number')}
+                                />
+                                <p className="text-sm text-muted-foreground">{t('Enter the identity number before approving. Existing numbers cannot be changed.')}</p>
+                            </label>
+                        )}
                         <label className="block space-y-2">
                             <span>{t('Reason')}</span>
                             <textarea

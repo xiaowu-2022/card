@@ -7,6 +7,7 @@ import { setCurrentPage } from '../../lib/api';
 import { go } from '../../lib/navigation';
 import { t } from '../../lib/i18n';
 import type { AssetOverview } from '../../lib/assets';
+import PageSkeleton from '../../components/PageSkeleton.vue';
 import PageShell from '../../components/PageShell.vue';
 import AssetCenter from '../../components/AssetCenter.vue';
 import FormErrors from '../../components/FormErrors.vue';
@@ -88,9 +89,7 @@ const next = computed(
                 :description="t(next.description)"
                 :tone="next.tone"
                 :action="next.action" /></view
-        ><view v-if="!data && !Object.keys(errors).length" class="empty">{{
-            t('Loading…')
-        }}</view></PageShell
+        ><PageSkeleton v-if="!data && !Object.keys(errors).length" /></PageShell
     >
 </template>
 <style scoped>

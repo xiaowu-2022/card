@@ -1,3 +1,9 @@
+On 2026-10-08 the user restricted consumer stock reports to currently enabled
+partners only. Default, ordinary and disabled users have no access, regardless of
+KYC progress. Check company-scoped partner status before report reads, hide the
+entry, and clear cached stock pages while revalidating. This supersedes ordinary
+consumer standard-report access; Platform permissions and accounting stay unchanged.
+
 ## Partner daily trends restored (2026-10-08)
 
 Partner stock pages in App/H5 and Platform display today plus the preceding

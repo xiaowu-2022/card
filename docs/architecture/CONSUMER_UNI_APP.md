@@ -1,3 +1,12 @@
+## 2026-10-08 Native read recovery
+
+Native GET requests retry at most once after company-directory rediscovery on
+transport failures or HTTP 502/503/504. Keep tenant verification and fastest valid
+origin selection; do not replay POSTs, uploads, authorization failures, or requests
+whose session changed during recovery. H5 retains its same-origin behavior.
+The shared screen catches child setup/render errors and displays a retry message;
+this is a recovery boundary, not proof of the reported Android blank-page cause.
+
 > 2026-10-04 update: Android now uses Keystore-encrypted persistent credentials
 > and sliding 30-day expiry. This supersedes the memory-only/cold-start-login notes
 > below for Android only. H5 has independent secure remembered-login cookies;

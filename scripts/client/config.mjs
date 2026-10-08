@@ -4,10 +4,11 @@ import { resolve } from 'node:path';
 export function validateCompany(value, mode = 'debug', platform = 'app') {
     if (!['debug', 'release'].includes(mode)) throw new Error('Mode must be debug or release.');
     if (!['h5', 'app'].includes(platform)) throw new Error('Platform must be h5 or app.');
-    const allowed = ['name', 'appId', 'dcloudAppId', 'tenantSlug', 'apiOrigin', 'apiOrigins', 'version', 'buildNumber', 'developmentOnly'];
+    const allowed = ['name', 'appId', 'iosAppId', 'dcloudAppId', 'tenantSlug', 'apiOrigin', 'apiOrigins', 'version', 'buildNumber', 'developmentOnly'];
     if (Object.keys(value).some((key) => !allowed.includes(key))) throw new Error('Unknown company field. Never put signing secrets in company JSON.');
     if (typeof value.name !== 'string' || !value.name.trim() || value.name.length > 60 || /[<>\r\n]/.test(value.name)) throw new Error('Invalid app name.');
     if (!/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*){2,}$/.test(value.appId ?? '')) throw new Error('Use a reverse-domain appId.');
+    if (value.iosAppId !== undefined && !/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*){2,}$/.test(value.iosAppId)) throw new Error('Use a reverse-domain iosAppId.');
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.tenantSlug ?? '')) throw new Error('Invalid tenant slug.');
     if (!/^\d+\.\d+\.\d+$/.test(value.version ?? '')) throw new Error('Use a numeric three-part version.');
     if (!Number.isSafeInteger(value.buildNumber) || value.buildNumber < 1) throw new Error('Invalid build number.');

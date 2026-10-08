@@ -1,11 +1,11 @@
 {
   "name": "Spec Pay",
   "appId": "cc.specpay.cards",
-  "dcloudAppId": "__UNI__GBE57092",
+  "dcloudAppId": "__UNI__C523F9C",
   "tenantSlug": "tenant-a",
   "apiOrigin": "https://27m.my",
-  "version": "2.5.02",
-  "buildNumber": 2502,
+  "version": "2.5.03",
+  "buildNumber": 2503,
   "developmentOnly": false,
   "apiOrigins": [
     "https://27m.my",
@@ -14,5 +14,6 @@
     "https://specpay.vip",
     "https://113b.my",
     "https://18k.my"
-  ]
+  ],
+  "iosAppId": "com.tng.pingqiu"
 }

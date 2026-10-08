@@ -1,3 +1,25 @@
+On 2026-10-08 the user enabled direct Platform app-release metadata edits.
+Prefill existing version values; permit valid same/lower version corrections and
+destination updates without repackaging. Preserve fixed AppID, tenant.manage,
+company locking, stale revision checks, confirmation and atomic audit. Legacy CLI
+new-release publication still requires increasing codes. This supersedes the
+Platform monotonic-version requirement below.
+
+On 2026-10-08 the user restricted consumer stock reports to currently enabled
+partners only. Default, ordinary and disabled users have no access, regardless of
+KYC progress. Check company-scoped partner status before report reads, hide the
+entry, and clear cached stock pages while revalidating. This supersedes ordinary
+consumer standard-report access; Platform permissions and accounting stay unchanged.
+
+On 2026-10-08 the user required a national identity number before new manual
+KYC approval. The Platform review form only requests it when the application has
+no number; existing numbers remain masked and immutable. Validate the national-ID
+format/date/checksum, encrypt/hash the supplied number and enforce existing account
+limits atomically with the administrator decision. Record ADMIN number provenance
+without fabricating successful OCR. Rejection does not require a number. Preserve
+historical numberless approvals; no automatic history rewrite. Deploy the identity
+approval migration and matching PHP/admin assets. See ASYNC_KYC.md.
+
 On 2026-10-08 the user reported manually approved KYC users could not open cards.
 Card setup must accept their approved originals without requiring an OCR number.
 Use the existing valid profile birth date when available; otherwise a numberless

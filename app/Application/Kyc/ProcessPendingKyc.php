@@ -90,7 +90,7 @@ final class ProcessPendingKyc
                 DB::transaction(function () use ($application, $protected, $result) {
                     $row = KycApplication::whereKey($application->id)->lockForUpdate()->firstOrFail();
                     abort_unless($row->review_status === KycReviewStatus::Pending && $row->processing_generation === $application->processing_generation, 409);
-                    $row->forceFill(['identity_number_encrypted' => $protected['encrypted'], 'identity_hash' => $protected['hash'],
+                    $row->forceFill(['identity_number_encrypted' => $protected['encrypted'], 'identity_hash' => $protected['hash'], 'identity_number_source' => 'OCR',
                         'ocr_status' => KycOcrStatus::Succeeded, 'ocr_provider' => app(KycOcrProviderInterface::class)->name(),
                         'ocr_reference' => $result->providerReference,
                         'ocr_result_encrypted' => app(KycDataCipher::class)->encrypt(json_encode(['identity_number_source' => 'OCR', 'identity_number_recognized' => true], JSON_THROW_ON_ERROR))])->save();

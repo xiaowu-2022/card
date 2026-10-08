@@ -96,3 +96,23 @@ Deploy `2026_10_08_230000_allow_manual_kyc_without_ocr.php` before the matching 
 and rebuilt administration assets. The migration changes constraints and adds
 identity review provenance without replaying or approving historical applications.
 No consumer rebuild or live OCR/financial testing is needed for this change.
+
+## Required national ID number on new manual approvals (2026-10-08)
+
+This supersedes numberless new national-ID approvals above. Platform's review form
+shows an identity-number input only when the selected application lacks a number.
+Existing numbers stay masked and cannot be replaced. Rejection requires no number;
+passport behavior is unchanged. National-ID approval with a missing number validates
+format, calendar birth date and checksum, then stores encrypted number/hash with
+`identity_number_source=ADMIN` in the same transaction as the review and audit.
+Known-number account limits apply equally to administrator input. Invalid or duplicate
+numbers leave the pending application unchanged. OCR status/evidence stay intact.
+New recognized numbers record `OCR`; legacy source metadata remains readable.
+
+The new `2026_10_08_233000_require_identity_for_manual_kyc_approval.php` migration
+allows one initial administrator fill only together with approval, preserving the
+existing immutable number and completed-review guards. It rejects new national-ID
+approval transitions without a number and leaves historical numberless approvals
+unchanged. Deploy it before matching PHP and rebuilt admin assets. Consumer forms
+need no identity-number entry for these approvals; card birth dates derive from the
+saved national ID. Existing historical numberless card flows remain compatible.

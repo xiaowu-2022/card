@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick } from 'vue';
+import { ref, nextTick, onErrorCaptured } from 'vue';
 import { onLoad, onShow, onHide, onPageScroll } from '@dcloudio/uni-app';
 import { getPage, ensureBootstrap, explainError, type ClientPage } from '../../lib/client';
 import { clearSession } from '../../lib/session';
@@ -38,10 +38,18 @@ import Wallet from '../../screens/Wallet.vue';
 import PartnerChildren from '../../screens/PartnerChildren.vue';
 import PartnerStock from '../../screens/PartnerStock.vue';
 import FormErrors from '../../components/FormErrors.vue';
+import PageSkeleton from '../../components/PageSkeleton.vue';
 const path = ref(''),
     data = ref<ClientPage<any> | null>(null),
     errors = ref<Record<string, string>>({}),
-    loading = ref(false);
+    loading = ref(true);
+// Child setup/render errors must not leave an empty native WebView.
+onErrorCaptured(() => {
+    data.value = null;
+    loading.value = false;
+    errors.value = { form: t('Unable to load. Please try again.') };
+    return false;
+});
 let generation = 0;
 let returningToKycDraft = false;
 const anchor = ref('');
@@ -86,7 +94,7 @@ onHide(() => {
 async function load() {
     const run = ++generation;
     loading.value = true;
-    if (path.value.startsWith('/promotion/stock/partners')) data.value = null;
+    if (path.value.startsWith('/promotion/stock')) data.value = null;
     errors.value = {};
     try {
         await ensureBootstrap();
@@ -116,9 +124,10 @@ async function load() {
 }
 </script>
 <template>
-    <view v-if="!data" class="screen-loading"
-        ><FormErrors :errors="errors" /><text v-if="loading">{{ t('Loading…') }}</text
-        ><button v-else @click="load">{{ t('Try again') }}</button></view
+    <view v-if="!data"
+        ><PageSkeleton v-if="loading" full /><view v-else class="screen-loading"
+            ><FormErrors :errors="errors" /><button @click="load">{{ t('Try again') }}</button
+            ><button @click="go('/account', true)">{{ t('Back') }}</button></view></view
     ><Landing v-else-if="data.component === 'public/Landing'" /><Registration
         v-else-if="['user/Register', 'user/VerifyRegistration'].includes(data.component)"
         :key="data.component"

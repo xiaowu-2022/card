@@ -5,6 +5,10 @@ namespace App\Application\Kyc;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Kyc\Enums\KycOcrStatus;
+use App\Domain\Kyc\Enums\KycDocumentType;
+use App\Domain\Kyc\Services\IdentityNumberProtector;
+use App\Domain\Kyc\Services\NationalIdNumber;
+use Illuminate\Validation\ValidationException;
 use App\Domain\Kyc\Enums\KycReviewStatus;
 use App\Domain\Kyc\Models\IdentityRecord;
 use App\Domain\Kyc\Models\KycApplication;
@@ -22,9 +26,9 @@ final readonly class ApproveKycAction
 {
     public function __construct(private AuditLogger $audit, private IdentityHashGenerator $hashes) {}
 
-    public function execute(string $tenantId, string $applicationId, AdminUser $reviewer, ?string $requestId = null): IdentityRecord
+    public function execute(string $tenantId, string $applicationId, AdminUser $reviewer, ?string $requestId = null, #[\SensitiveParameter] ?string $identityNumber = null): IdentityRecord
     {
-        return $this->approve($tenantId, $applicationId, $reviewer, $requestId);
+        return $this->approve($tenantId, $applicationId, $reviewer, $requestId, $identityNumber);
     }
 
     /** Called by the explicit submission processor after successful OCR, never by a public approval endpoint. */
@@ -33,15 +37,34 @@ final readonly class ApproveKycAction
         return $this->approve($tenantId, $applicationId, null, $requestId);
     }
 
-    private function approve(string $tenantId, string $applicationId, ?AdminUser $reviewer, ?string $requestId): IdentityRecord
+    private function approve(string $tenantId, string $applicationId, ?AdminUser $reviewer, ?string $requestId, #[\SensitiveParameter] ?string $identityNumber = null): IdentityRecord
     {
         try {
-            return DB::transaction(function () use ($tenantId, $applicationId, $reviewer, $requestId): IdentityRecord {
+            return DB::transaction(function () use ($tenantId, $applicationId, $reviewer, $requestId, $identityNumber): IdentityRecord {
                 Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
                 $application = KycApplication::query()->where('tenant_id', $tenantId)->whereKey($applicationId)->lockForUpdate()->firstOrFail();
                 if ($application->review_status !== KycReviewStatus::Pending || ($reviewer === null && $application->processing_status === 'FAILED')
                     || KycApplication::where('tenant_id', $tenantId)->where('resubmission_of_id', $application->id)->exists()) {
                     throw new DomainException('KYC_ALREADY_REVIEWED', 'This application has already been reviewed.', 409);
+                }
+                $manualNumber = false;
+                if ($reviewer !== null && $application->document_type === KycDocumentType::NationalId) {
+                    if ($application->identity_hash === null || ($identityNumber !== null && trim($identityNumber) !== '')) {
+                        $number = app(NationalIdNumber::class)->normalize($identityNumber ?? '');
+                        if ($number === null) {
+                            throw ValidationException::withMessages(['identity_number' => 'Enter a valid identity number.']);
+                        }
+                        $protected = app(IdentityNumberProtector::class)->protect($tenantId, $application->document_type->value, $application->document_country, $number);
+                        if ($application->identity_hash !== null) {
+                            if (! hash_equals($application->identity_hash, $protected['hash'])) {
+                                throw ValidationException::withMessages(['identity_number' => 'The existing identity number cannot be changed.']);
+                            }
+                        } else {
+                            $application->forceFill(['identity_number_encrypted' => $protected['encrypted'],
+                                'identity_hash' => $protected['hash'], 'identity_number_source' => 'ADMIN']);
+                            $manualNumber = true;
+                        }
+                    }
                 }
                 // Automatic approval still requires successful encrypted OCR evidence.
                 // Manual review records its own decision without inventing OCR or a number.
@@ -98,7 +121,7 @@ final readonly class ApproveKycAction
                     'reviewed_at' => now(), 'review_reason_code' => null, 'review_message' => null,
                     'processing_status' => $application->processing_status ? 'COMPLETE' : null, 'next_processing_at' => null,
                 ])->save();
-                $this->audit->record($tenantId, $reviewer ? 'ADMIN' : 'SYSTEM', $reviewer?->id, 'KYC_APPLICATION_APPROVED', 'kyc_application', $application->id, ['review_status' => KycReviewStatus::Pending->value], ['review_status' => KycReviewStatus::Approved->value, 'review_mode' => $reviewer ? 'MANUAL' : 'AUTOMATIC', 'ocr_status' => $application->ocr_status->value, 'identity_number_available' => $application->identity_hash !== null], $requestId);
+                $this->audit->record($tenantId, $reviewer ? 'ADMIN' : 'SYSTEM', $reviewer?->id, 'KYC_APPLICATION_APPROVED', 'kyc_application', $application->id, ['review_status' => KycReviewStatus::Pending->value], ['review_status' => KycReviewStatus::Approved->value, 'review_mode' => $reviewer ? 'MANUAL' : 'AUTOMATIC', 'ocr_status' => $application->ocr_status->value, 'identity_number_available' => $application->identity_hash !== null, 'identity_number_supplied_by_admin' => $manualNumber], $requestId);
 
                 return $identity;
             });

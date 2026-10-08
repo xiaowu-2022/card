@@ -56,6 +56,7 @@ export type CardsPage = {
     products: Product[];
     providerAvailable: boolean;
     kycApproved: boolean;
+    kycStatus?: 'NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESUBMISSION_REQUIRED';
     cardholderBirthDateRequired?: boolean;
     availableBalance: string | null;
     walletAsset: string | null;

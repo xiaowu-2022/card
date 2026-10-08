@@ -10,6 +10,7 @@ import {
     transactionTitles,
     type CardTransaction,
 } from '../generated/card-transactions';
+import PageSkeleton from './PageSkeleton.vue';
 import UiIcon from './UiIcon.vue';
 import Modal from './Modal.vue';
 import { useSensitiveScreen } from '../lib/sensitive';
@@ -169,7 +170,7 @@ function title(item: CardTransaction) {
             ><text v-if="!singleCard" class="small muted">{{
                 t('Transactions from all your cards will appear here.')
             }}</text></view
-        ><text v-if="loading" class="loading muted">{{ t('Loading card transactions...') }}</text
+        ><PageSkeleton v-if="loading && !items.length" compact /><text v-else-if="loading" class="loading muted">{{ t('Loading card transactions...') }}</text
         ><button v-if="!loading && hasMore" class="secondary more" @click="run(false)">
             {{ t('Load more transactions') }}
         </button></view

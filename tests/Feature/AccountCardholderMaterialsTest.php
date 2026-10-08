@@ -147,11 +147,17 @@ function manualCardAccount($test, ?string $birth = null): KycApplication
     $application = (new KycApplication)->forceFill([
         'tenant_id' => $test->tenant->id, 'user_id' => $test->user->id, 'document_type' => 'NATIONAL_ID', 'document_country' => 'CN',
         'identity_number_encrypted' => null, 'identity_hash' => null, 'front_object_key' => $base.'/front', 'back_object_key' => $base.'/back',
-        'review_status' => 'PENDING', 'ocr_status' => 'FAILED', 'processing_status' => 'FAILED', 'processing_error' => 'KYC_OCR_UNAVAILABLE', 'submitted_at' => now(),
+        // Retained pre-change history: new approvals now require the number.
+        'review_status' => 'APPROVED', 'reviewed_at' => now(), 'automatically_approved' => false,
+        'reviewed_by_admin_user_id' => \App\Domain\Admin\Models\AdminUser::where('email', 'owner@platform.local')->value('id'),
+        'ocr_status' => 'FAILED', 'processing_status' => 'COMPLETE', 'processing_error' => 'KYC_OCR_UNAVAILABLE', 'submitted_at' => now(),
     ]);
     $application->save();
-    app(\App\Application\Kyc\ApproveKycAction::class)->execute($test->tenant->id, $application->id,
-        \App\Domain\Admin\Models\AdminUser::where('email', 'owner@platform.local')->firstOrFail());
+    (new IdentityRecord)->forceFill([
+        'tenant_id' => $test->tenant->id, 'user_id' => $test->user->id, 'source_kyc_application_id' => $application->id,
+        'document_type' => 'NATIONAL_ID', 'document_country' => 'CN', 'verification_basis' => 'MANUAL',
+        'identity_number_encrypted' => null, 'identity_hash' => null, 'verified_at' => now(),
+    ])->save();
     return $application->fresh();
 }
 

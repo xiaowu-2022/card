@@ -2,7 +2,7 @@
 import UiIcon from './UiIcon.vue';
 import { t } from '../lib/i18n';
 import { go } from '../lib/navigation';
-defineProps<{ open: boolean }>();
+defineProps<{ open: boolean; pending?: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 </script>
 <template>
@@ -11,17 +11,17 @@ const emit = defineEmits<{ close: [] }>();
             class="identity-dialog"
             role="dialog"
             aria-modal="true"
-            :aria-label="t('Complete identity verification')"
+            :aria-label="t(pending ? 'Under review' : 'Complete identity verification')"
             ><button class="close" :aria-label="t('Close')" @click="emit('close')">
                 <UiIcon name="x" :size="16" /></button
             ><view class="symbol"><UiIcon name="shield-alert" color="#92400e" :size="24" /></view
             ><view class="copy"
-                ><text class="heading">{{ t('Complete identity verification') }}</text
+                ><text class="heading">{{ t(pending ? 'Under review' : 'Complete identity verification') }}</text
                 ><text class="description">{{
-                    t('Verify your identity before using financial services.')
+                    t(pending ? 'Your identity verification is under review.' : 'Verify your identity before using financial services.')
                 }}</text></view
             ><view class="actions"
-                ><button class="verify" @click="go('/kyc')">{{ t('Verify now') }}</button
+                ><button class="verify" @click="go('/kyc')">{{ t(pending ? 'Under review' : 'Verify now') }}</button
                 ><button class="cancel" @click="emit('close')">{{ t('Cancel') }}</button></view
             ></view
         ></view

@@ -23,8 +23,8 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
         appId: release.current?.appId ?? '',
         androidDownloadUrl: release.androidDownloadUrl ?? release.downloadUrl,
         iosDistributionUrl: release.iosDistributionUrl ?? '',
-        versionName: '',
-        versionCode: '',
+        versionName: release.current?.versionName ?? '',
+        versionCode: release.current ? String(release.current.versionCode) : '',
         revision: release.revision,
         confirmed: false,
     });
@@ -44,7 +44,7 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
                 </p>
                 <p className="text-sm text-muted-foreground">
                     {t(
-                        'Android and iOS share the version details below. Publishing a newer version requires older apps to update.',
+                        'Version details and download URLs can be edited directly. Updating a URL does not require a new version or repackaging.',
                     )}
                 </p>
                 <ConfigurationForm

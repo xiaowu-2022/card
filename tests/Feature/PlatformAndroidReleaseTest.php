@@ -59,14 +59,12 @@ it('publishes from a scoped platform editor with atomic audit and read-only disc
         ->and(AuditLog::where('action', 'ANDROID_RELEASE_PUBLISHED')->count())->toBe(1);
 });
 
-it('rejects stale edits, regressions and AppID changes while retaining the published version', function (): void {
+it('rejects stale edits and AppID changes while retaining the published version', function (): void {
     $this->actingAs($this->owner, 'platform_admin')->post($this->releaseUrl, $this->releaseFields)->assertSessionHasNoErrors();
     $next = array_replace($this->releaseFields, ['versionCode' => 2360, 'versionName' => '2.3.60']);
     $this->post($this->releaseUrl, $next)->assertSessionHasErrors('revision');
     $next['revision'] = app(AndroidAppRelease::class)->settings($this->releaseTenant)['revision'];
-    foreach ([['versionCode' => 2358], ['versionCode' => 2359], ['appId' => '__UNI__OTHER']] as $invalid) {
-        $this->post($this->releaseUrl, array_replace($next, $invalid))->assertSessionHasErrors('versionCode');
-    }
+    $this->post($this->releaseUrl, array_replace($next, ['appId' => '__UNI__OTHER']))->assertSessionHasErrors('appId');
     $this->getJson('http://a.localhost/api/mobile/v1/app-release')->assertJsonPath('versionCode', 2359);
     $this->post($this->releaseUrl, $next)->assertSessionHasNoErrors();
     $this->getJson('http://a.localhost/api/mobile/v1/app-release')->assertJsonPath('versionCode', 2360);
@@ -140,4 +138,31 @@ it('publishes platform destinations with shared version checks and rejects unsaf
     $this->getJson('http://a.localhost/api/mobile/v1/app-release')->assertOk()
         ->assertJsonPath('androidDownloadUrl', $fields['androidDownloadUrl'])
         ->assertJsonPath('iosDistributionUrl', $fields['iosDistributionUrl']);
+});
+
+
+it('edits destinations at the same version and corrects version metadata without repackaging', function (): void {
+    $this->actingAs($this->owner, 'platform_admin')->post($this->releaseUrl, $this->releaseFields)->assertSessionHasNoErrors();
+    $service = app(AndroidAppRelease::class);
+    $edit = array_replace($this->releaseFields, [
+        'revision' => $service->settings($this->releaseTenant)['revision'],
+        'androidDownloadUrl' => 'https://downloads.example/new.apk',
+        'iosDistributionUrl' => 'https://install.example/new-ios',
+    ]);
+    $this->post($this->releaseUrl, $edit)->assertSessionHasNoErrors();
+    $this->getJson('http://a.localhost/api/mobile/v1/app-release')->assertOk()
+        ->assertJsonPath('versionCode', 2359)->assertJsonPath('versionName', '2.3.59')
+        ->assertJsonPath('androidDownloadUrl', $edit['androidDownloadUrl'])
+        ->assertJsonPath('iosDistributionUrl', $edit['iosDistributionUrl']);
+    $this->post($this->releaseUrl, $edit)->assertSessionHasNoErrors();
+    expect(AuditLog::where('action', 'ANDROID_RELEASE_PUBLISHED')->count())->toBe(2);
+    $stale = array_replace($edit, ['androidDownloadUrl' => 'https://downloads.example/stale.apk']);
+    $this->post($this->releaseUrl, $stale)->assertSessionHasErrors('revision');
+    $edit['revision'] = $service->settings($this->releaseTenant)['revision'];
+    $edit['versionCode'] = 2358;
+    $edit['versionName'] = '2.3.58';
+    $this->post($this->releaseUrl, $edit)->assertSessionHasNoErrors();
+    $this->getJson('http://a.localhost/api/mobile/v1/app-release')->assertOk()
+        ->assertJsonPath('versionCode', 2358)->assertJsonPath('versionName', '2.3.58');
+    expect(AuditLog::where('action', 'ANDROID_RELEASE_PUBLISHED')->count())->toBe(3);
 });

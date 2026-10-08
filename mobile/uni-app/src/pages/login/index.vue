@@ -4,7 +4,7 @@ import { useSensitiveScreen } from '../../lib/sensitive';
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { bootstrap, login, session } from '../../lib/session';
-import { t } from '../../lib/i18n';
+import { t, changeLocale } from '../../lib/i18n';
 import { go, home } from '../../lib/navigation';
 import { explainError } from '../../lib/client';
 import AuthLayout from '../../components/AuthLayout.vue';
@@ -15,11 +15,15 @@ const email = ref(''),
     show = ref(false),
     pending = ref(false),
     errors = ref<Record<string, string>>({});
+// Set before first render and again after guest bootstrap, which may use a saved locale.
+changeLocale('zh-CN');
 onShow(async () => {
+    changeLocale('zh-CN');
     try {
         await bootstrap();
         if (session.value?.user)
             home(session.value.restricted ? '/account/restricted' : '/dashboard');
+        else changeLocale('zh-CN');
     } catch (e) {
         errors.value = explainError(e);
     }
