@@ -62,6 +62,7 @@ final readonly class UserCardCenterQuery
         return $this->catalog->user($tenantId, $userId) + [
             'refundPending' => RefundCardPolicy::blocked($tenantId, $userId),
             'providerAvailable' => $providerAvailable,
+            'cardholderBirthDateRequired' => app(AccountCardholderMaterials::class)->requiresBirthDate($tenantId, $userId),
             'kycApproved' => $this->kycStatus->forUser($tenantId, $userId) === KycUserStatus::Approved,
             'availableBalance' => $available?->balance,
             'walletAsset' => $wallet?->asset_code,

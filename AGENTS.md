@@ -1,3 +1,12 @@
+On 2026-10-08 the user reported manually approved KYC users could not open cards.
+Card setup must accept their approved originals without requiring an OCR number.
+Use the existing valid profile birth date when available; otherwise a numberless
+MANUAL identity may supply a validated real birth date for that card application.
+Keep it only in encrypted card materials, never fabricate or rewrite KYC/profile
+identity data. Known identity/profile dates remain authoritative. Preserve scoped
+originals, provider addition, idempotency, UNKNOWN and financial confirmation gates.
+See docs/architecture/PER_CARD_MATERIALS.md.
+
 On 2026-10-08 the user allowed manual administrator KYC approval or rejection
 regardless of OCR progress or failure. Preserve scoped kyc.review authorization,
 confirmation, actor/request audit, terminal review immutability and known-number

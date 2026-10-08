@@ -59,7 +59,7 @@ final readonly class SubmitProviderCardholderAction
         if (! in_array($formFactor, $product->supported_form_factors, true)) {
             throw new DomainException('CARD_FORM_UNAVAILABLE', 'This card type is not available.', 409);
         }
-        $account = app(AccountCardholderMaterials::class)->resolve($tenantId, $userId);
+        $account = app(AccountCardholderMaterials::class)->resolve($tenantId, $userId, is_string($data['date_of_birth'] ?? null) ? $data['date_of_birth'] : null);
         // Fixed/identity-derived fields have one authoritative source. They are not
         // merged with form values, including empty or outdated client fields.
         $fields = $account['fields'];

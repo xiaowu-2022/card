@@ -8,27 +8,48 @@ use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Kyc\Services\KycDataCipher;
 use App\Domain\User\Models\User;
 use App\Support\Errors\DomainException;
+use Illuminate\Validation\ValidationException;
 
 final class AccountCardholderMaterials
 {
-    public function resolve(string $tenantId, string $userId): array
+    public function requiresBirthDate(string $tenantId, string $userId): bool
+    {
+        $user = User::where('tenant_id', $tenantId)->findOrFail($userId);
+        $identity = IdentityRecord::where('tenant_id', $tenantId)->where('user_id', $userId)->first();
+        return $identity?->verification_basis === 'MANUAL' && ! $identity->identity_number_encrypted
+            && ! $this->validBirthDate($user->profile?->date_of_birth?->format('Y-m-d'));
+    }
+
+    private function validBirthDate(?string $birth): bool
+    {
+        return is_string($birth) && preg_match('/^(\d{4})-(\d{2})-(\d{2})$/D', $birth, $parts)
+            && checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]) && $birth < now()->format('Y-m-d');
+    }
+
+    public function resolve(string $tenantId, string $userId, ?string $submittedBirthDate = null): array
     {
         $user = User::where('tenant_id', $tenantId)->findOrFail($userId);
         $identity = IdentityRecord::where('tenant_id', $tenantId)->where('user_id', $userId)->first();
         $application = $identity ? KycApplication::where('tenant_id', $tenantId)->where('user_id', $userId)
             ->where('review_status', 'APPROVED')->find($identity->source_kyc_application_id) : null;
-        if (! $identity || ! $application || ! $identity->identity_number_encrypted || $application->document_country !== 'CN') {
+        if (! $identity || ! $application || $application->document_country !== 'CN') {
             throw new DomainException('CARD_SETUP_INVALID', 'Approved identity verification is required before Card setup.', 422);
         }
         $birth = $user->profile?->date_of_birth?->format('Y-m-d');
-        if ($identity->document_type->value === 'NATIONAL_ID') {
+        if ($identity->document_type->value === 'NATIONAL_ID' && $identity->identity_number_encrypted) {
             $number = app(KycDataCipher::class)->decrypt($identity->identity_number_encrypted);
             if (preg_match('/^[0-9]{17}[0-9Xx]$/D', $number)) {
                 $birth = substr($number, 6, 4).'-'.substr($number, 10, 2).'-'.substr($number, 12, 2);
             }
         }
-        if (! is_string($birth) || ! preg_match('/^(\d{4})-(\d{2})-(\d{2})$/D', $birth, $parts)
-            || ! checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]) || $birth >= now()->format('Y-m-d')) {
+        if (! $this->validBirthDate($birth) && $identity->verification_basis === 'MANUAL' && ! $identity->identity_number_encrypted) {
+            if (! $this->validBirthDate($submittedBirthDate)) {
+                throw ValidationException::withMessages(['date_of_birth' => 'Enter a valid birth date before today.']);
+            }
+            // This date belongs to this card application, not to OCR or the account identity.
+            $birth = $submittedBirthDate;
+        }
+        if (! $this->validBirthDate($birth)) {
             throw new DomainException('CARD_SETUP_INVALID', 'The birth date could not be obtained from your verified identity. Please contact support.', 422);
         }
         $keys = ['front' => $application->front_object_key];

@@ -88,7 +88,9 @@ recognizes one. Automatic approval retains its successful encrypted OCR prerequi
 Both manual outcomes stop scheduled processing. In-flight recognition must recheck
 the locked review state before storing evidence or completing review. Consumer
 verification reads accept manual identities with no number; card material extraction
-still requires a real identity number and does not invent missing card information.
+uses the approved originals without requiring an OCR number. It uses the existing
+profile birth date or requests a real date for this card application when missing;
+see PER_CARD_MATERIALS.md.
 
 Deploy `2026_10_08_230000_allow_manual_kyc_without_ocr.php` before the matching PHP
 and rebuilt administration assets. The migration changes constraints and adds

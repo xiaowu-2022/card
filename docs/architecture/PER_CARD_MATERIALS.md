@@ -200,3 +200,23 @@ was attempted. The created holder is retained; do not repeat the test. Encrypted
 receipts are retained locally under private/diagnostics/create-test-holder-20260930*
 with distinct original and address-fixed attempts. This confirms the sandbox failure
 reason; production still requires deployment and its own provider acceptance.
+
+## Manual KYC approval without a recognized number (2026-10-08)
+
+Card setup accepts the current company/user approved originals for MANUAL identities
+with a null OCR number. Birth date comes from an available national ID number or
+valid existing profile date. Only a numberless MANUAL identity lacking a valid
+profile date may supply `date_of_birth` for its card application. The server validates
+an actual calendar date before today; a missing date produces a field-specific 422
+before provider submission. Client dates cannot override existing identity/profile
+birth dates. Other fixed fields and original documents remain server-owned.
+
+The card-center read exposes `cardholderBirthDateRequired` without OCR or image reads.
+App/H5 shows a date picker only when needed, retains submitted dates on errors and
+returns the encrypted saved date for unissued application edits. The supplied date
+stays in the encrypted card materials and does not fill identity numbers, fabricate
+OCR evidence or update the account profile. Provider addition, retries, UNKNOWN,
+explicit issue/payment confirmation and Ledger behavior remain unchanged.
+
+Deploy matching PHP and rebuilt H5 assets; native users missing a stored birthday
+need the updated app form. No new migration or historical recognition is required.

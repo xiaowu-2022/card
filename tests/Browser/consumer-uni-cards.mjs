@@ -225,6 +225,44 @@ async function chooseImage(page, label, mimeType = 'image/png') {
     });
 }
 try {
+    await scenario(
+        'manual-kyc-birthday-card-setup',
+        '/cards?fixture=verified',
+        async ({ page, posts }) => {
+            await openApplication(page);
+            for (const [label, key] of [
+                ['Last name', 'legal_last_name'], ['First name', 'legal_first_name'],
+                ['Email', 'email'], ['Phone number', 'mobile'],
+            ]) await field(page, label).fill(holderFields[key]);
+            await page.locator('.birth uni-picker').click();
+            await page.locator('.uni-picker-action-confirm:visible').click();
+            const birthDate = await page.locator('.birth .date').innerText();
+            assert.equal(birthDate, '1990-01-01');
+            await button(page, 'Submit cardholder materials').click();
+            await page.getByText('Enter a valid birth date before today.', { exact: true }).first().waitFor();
+            assert.equal(await page.locator('.birth .date').innerText(), birthDate);
+            await button(page, 'Submit cardholder materials').click();
+            await button(page, 'Open card').waitFor();
+            const submissions = posts.filter((p) => p.key === '/client/cards/cardholder');
+            assert.equal(submissions.length, 2);
+            assert.equal(submissions[0].payload.date_of_birth, birthDate);
+            assert.equal(submissions[1].payload.request_id, submissions[0].payload.request_id);
+            assert.equal(submissions[1].payload.date_of_birth, birthDate);
+            assert.equal(posts.some((p) => p.key.includes('/issue')), false);
+        },
+        (key, payload, state) => {
+            if (key === '/wallet/ensure') return { json: { success: true } };
+            assert.equal(key, '/client/cards/cardholder');
+            state.attempts = (state.attempts ?? 0) + 1;
+            if (state.attempts === 1) return { status: 422, json: { errors: { date_of_birth: ['Enter a valid birth date before today.'] } } };
+            readyApplication(state);
+            return { json: { success: true } };
+        },
+        (state) => {
+            state.dto.props.cardholderBirthDateRequired = true;
+            state.dto.props.products[0].readyForSetup = true;
+        },
+    );
     for (const width of [320, 375, 430]) {
         for (const withoutContainerUnits of [false, true]) {
             await scenario(

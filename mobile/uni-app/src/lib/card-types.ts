@@ -56,6 +56,7 @@ export type CardsPage = {
     products: Product[];
     providerAvailable: boolean;
     kycApproved: boolean;
+    cardholderBirthDateRequired?: boolean;
     availableBalance: string | null;
     walletAsset: string | null;
     cardholder: Cardholder;

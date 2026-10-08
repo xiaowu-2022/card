@@ -8,10 +8,14 @@ const props = defineProps<{
         modelValue: Record<string, string>;
         disabled?: boolean;
         editing?: boolean;
+        birthDateRequired?: boolean;
         errors?: Record<string, string>;
     }>(),
     emit = defineEmits<{ 'update:modelValue': [value: Record<string, string>] }>();
 const phones = computed(() => countryOptions(locale.value, true));
+function changeBirthDate(event: { detail: { value: string } }) {
+    set('date_of_birth', event.detail.value);
+}
 function set(key: string, value: string) {
     emit('update:modelValue', { ...props.modelValue, [key]: value });
 }
@@ -34,7 +38,14 @@ function set(key: string, value: string) {
                 :disabled="disabled"
                 :error="errors?.legal_first_name"
                 @update:model-value="(v) => set('legal_first_name', v)"
-            /><view
+            /><view v-if="birthDateRequired || errors?.date_of_birth || modelValue.date_of_birth" class="birth">
+                <text class="label">{{ t('Date of birth') }}</text>
+                <picker mode="date" :value="modelValue.date_of_birth || '1990-01-01'" :disabled="disabled"
+                    @change="changeBirthDate">
+                    <view class="date">{{ modelValue.date_of_birth || t('Date of birth') }}</view>
+                </picker>
+                <text v-if="errors?.date_of_birth" class="error">{{ errors.date_of_birth }}</text>
+            </view><view
                 ><FormField
                     :model-value="modelValue.email ?? ''"
                     :label="t('Email')"

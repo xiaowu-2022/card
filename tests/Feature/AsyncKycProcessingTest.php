@@ -281,7 +281,7 @@ it('allows platform manual decisions before or after OCR failure without fabrica
         $view = app(\App\Application\Kyc\UserKycQuery::class)->get($this->tenant->id, $this->user->id);
         expect($view['status'])->toBe('APPROVED')->and($view['maskedIdentityNumber'])->toBeNull()->and($view['verifiedAt'])->not->toBeNull();
         expect(fn () => app(\App\Application\Card\AccountCardholderMaterials::class)->resolve($this->tenant->id, $this->user->id))
-            ->toThrow(\App\Support\Errors\DomainException::class);
+            ->toThrow(\Illuminate\Validation\ValidationException::class);
     } else {
         expect(IdentityRecord::count())->toBe(0);
     }

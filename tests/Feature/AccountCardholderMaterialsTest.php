@@ -80,7 +80,7 @@ it('uses scoped approved originals and the fixed address without changing identi
     Http::assertNothingSent();
 });
 
-it('accepts only the four visible fields and rejects hidden input overrides', function () {
+it('validates core fields and rejects invalid birth dates and fixed-field overrides', function () {
     $rules = (new SubmitCardSetupRequest)->rules();
     expect(Validator::make($this->input, $rules)->passes())->toBeTrue();
     foreach (['date_of_birth', 'nationality_country_code', 'residential_address', 'front_url', 'front_upload_id', 'identity_number'] as $field) {
@@ -130,4 +130,75 @@ it('identifies a missing visible name instead of reporting generic invalid mater
     expect(fn () => app(SubmitProviderCardholderAction::class)->execute($this->tenant->id, $this->user->id, $input))
         ->toThrow(DomainException::class, 'Enter the cardholder first name.');
     expect(ProviderCardholder::count())->toBe(0);
+});
+
+function manualCardAccount($test, ?string $birth = null): KycApplication
+{
+    $test->user = User::create(['tenant_id' => $test->tenant->id, 'email' => 'manual-card@example.test',
+        'password_hash' => \Illuminate\Support\Facades\Hash::make('synthetic-password'), 'status' => 'ACTIVE']);
+    \App\Domain\User\Models\UserProfile::create(['tenant_id' => $test->tenant->id, 'user_id' => $test->user->id,
+        'display_name' => 'Manual card test', 'date_of_birth' => $birth] + ($birth ? [
+            'legal_first_name' => 'Synthetic', 'legal_last_name' => 'Holder', 'nationality_country_code' => 'CN',
+            'residential_address' => 'Test address', 'residential_city' => 'Fuzhou', 'residential_state' => 'Fujian',
+            'residential_country_code' => 'CN', 'residential_postal_code' => '351000',
+        ] : []));
+    $base = 'kyc/'.$test->tenant->id.'/'.$test->user->id.'/'.Str::uuid();
+    foreach (['front', 'back'] as $side) Storage::disk('private')->put($base.'/'.$side, kycTestImage()->getContent());
+    $application = (new KycApplication)->forceFill([
+        'tenant_id' => $test->tenant->id, 'user_id' => $test->user->id, 'document_type' => 'NATIONAL_ID', 'document_country' => 'CN',
+        'identity_number_encrypted' => null, 'identity_hash' => null, 'front_object_key' => $base.'/front', 'back_object_key' => $base.'/back',
+        'review_status' => 'PENDING', 'ocr_status' => 'FAILED', 'processing_status' => 'FAILED', 'processing_error' => 'KYC_OCR_UNAVAILABLE', 'submitted_at' => now(),
+    ]);
+    $application->save();
+    app(\App\Application\Kyc\ApproveKycAction::class)->execute($test->tenant->id, $application->id,
+        \App\Domain\Admin\Models\AdminUser::where('email', 'owner@platform.local')->firstOrFail());
+    return $application->fresh();
+}
+
+it('opens provider setup for manual approval with a real profile birthday and no OCR number', function () {
+    $application = manualCardAccount($this, '1992-05-06');
+    $before = $application->getAttributes();
+    $holder = app(SubmitProviderCardholderAction::class)->execute($this->tenant->id, $this->user->id,
+        $this->input + ['date_of_birth' => '1980-01-01']);
+    $saved = json_decode(app(CardholderMaterials::class)->decrypt($holder->materials_encrypted), true);
+    expect($holder->status->value)->toBe('READY')->and($saved['fields']['date_of_birth'])->toBe('1992-05-06')
+        ->and($saved['fields']['identity_number'])->toBeNull()->and($saved['documents']['front'])->toBe($application->front_object_key)
+        ->and($application->fresh()->getAttributes())->toBe($before)
+        ->and(app(AccountCardholderMaterials::class)->requiresBirthDate($this->tenant->id, $this->user->id))->toBeFalse();
+    expect(CardIssueOrder::count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('requests a missing birthday and accepts it for manual card setup without changing account identity', function () {
+    $application = manualCardAccount($this);
+    $before = $application->getAttributes();
+    expect(app(AccountCardholderMaterials::class)->requiresBirthDate($this->tenant->id, $this->user->id))->toBeTrue();
+    $url = 'https://a.localhost/api/v1/client/cards/cardholder';
+    $this->actingAs($this->user, 'tenant_user')->postJson($url, $this->input)->assertUnprocessable()->assertJsonValidationErrors('date_of_birth');
+    expect(ProviderCardholder::count())->toBe(0);
+    foreach (['2030-01-01', '1992-02-30', 'not-a-date'] as $invalid) {
+        $this->postJson($url, $this->input + ['date_of_birth' => $invalid])->assertUnprocessable()->assertJsonValidationErrors('date_of_birth');
+    }
+    $input = $this->input + ['date_of_birth' => '1992-05-06'];
+    $this->postJson($url, $input)->assertSuccessful();
+    $holder = ProviderCardholder::where('user_id', $this->user->id)->sole();
+    $saved = json_decode(app(CardholderMaterials::class)->decrypt($holder->materials_encrypted), true);
+    expect($holder->status->value)->toBe('READY')->and($saved['fields']['date_of_birth'])->toBe('1992-05-06')
+        ->and($saved['fields']['identity_number'])->toBeNull()->and($application->fresh()->getAttributes())->toBe($before)
+        ->and($this->user->fresh()->profile->date_of_birth)->toBeNull();
+    $this->postJson($url, $input)->assertSuccessful();
+    expect(ProviderCardholder::where('user_id', $this->user->id)->count())->toBe(1);
+    $edit = app(ReadUnissuedCardholderMaterialsQuery::class)->execute($this->tenant->id, $this->user->id, $holder->id);
+    expect($edit['date_of_birth'])->toBe('1992-05-06');
+    $input['legal_first_name'] = 'Amy';
+    $this->postJson($url, $input)->assertSuccessful();
+    expect($holder->fresh()->submission_version)->toBe(2)->and(CardIssueOrder::count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('never replaces an identity-derived birthday with a client date', function () {
+    $holder = app(SubmitProviderCardholderAction::class)->execute($this->tenant->id, $this->user->id,
+        $this->input + ['date_of_birth' => '1980-01-01']);
+    $saved = json_decode(app(CardholderMaterials::class)->decrypt($holder->materials_encrypted), true);
+    expect($saved['fields']['date_of_birth'])->toBe('1990-03-07');
 });

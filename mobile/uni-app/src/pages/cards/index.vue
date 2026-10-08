@@ -269,6 +269,7 @@ function requirements() {
                     ></Modal
                 ><template v-for="product in page.products" :key="product.id"
                     ><CardApplication
+                        :birth-date-required="page.cardholderBirthDateRequired"
                         v-if="applicationProduct === product.id"
                         :product="product"
                         :selected-form-factor="formFactor(product)"

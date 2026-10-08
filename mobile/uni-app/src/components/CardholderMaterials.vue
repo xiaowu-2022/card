@@ -12,6 +12,7 @@ const props = defineProps<{
         formFactor: string;
         updateRequestId?: string;
         initial?: Record<string, string>;
+        birthDateRequired?: boolean;
     }>(),
     emit = defineEmits<{ added: []; busy: [value: boolean] }>();
 const fields = ref<Record<string, string>>({
@@ -62,7 +63,7 @@ async function submit() {
 </script>
 <template>
     <form class="cardholder-materials" @submit="submit">
-        <CardholderFields v-model="fields" :disabled="busy || uncertain" :errors="errors"
+        <CardholderFields :birth-date-required="birthDateRequired" v-model="fields" :disabled="busy || uncertain" :errors="errors"
         /><FormErrors :errors="errors" /><button
             class="primary submit"
             form-type="submit"

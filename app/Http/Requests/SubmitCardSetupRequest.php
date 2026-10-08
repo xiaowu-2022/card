@@ -16,11 +16,12 @@ final class SubmitCardSetupRequest extends FormRequest
             'form_factor' => ['sometimes', Rule::in(['virtual_card', 'physical_card'])],
             'legal_first_name' => ['required', 'string', 'max:40', 'regex:/^[\pL\pM ]+$/u'],
             'legal_last_name' => ['required', 'string', 'max:40', 'regex:/^[\pL\pM ]+$/u'],
+            'date_of_birth' => ['nullable', 'string', 'date_format:Y-m-d', 'before:today'],
             'email' => ['required', 'email:rfc', 'max:40'],
             'mobile' => ['required', 'string', 'max:24', 'regex:/^[0-9 ()-]{4,24}$/'],
             'mobile_country_code' => ['required', Rule::in(app(CardholderGeography::class)->countryCodes())],
         ];
-        foreach (['tenant_id', 'user_id', 'provider', 'provider_cardholder_id', 'date_of_birth', 'nationality_country_code',
+        foreach (['tenant_id', 'user_id', 'provider', 'provider_cardholder_id', 'nationality_country_code',
             'residential_address', 'residential_city', 'residential_state', 'residential_country_code', 'residential_postal_code',
             'document_type', 'document_country', 'identity_number', 'front', 'back', 'front_upload_id', 'back_upload_id',
             'front_url', 'back_url', 'portrait', 'reverse_side', 'mobile_prefix', 'cardholder_name_abbreviation'] as $key) {

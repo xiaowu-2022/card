@@ -21,6 +21,7 @@ const props = defineProps<{
         availableBalance: string | null;
         application?: Cardholder;
         open: boolean;
+        birthDateRequired?: boolean;
     }>(),
     emit = defineEmits<{ close: []; reload: [] }>();
 const action = useAction(),
@@ -126,6 +127,7 @@ async function edit() {
         );
         if (run !== generation) return;
         const keys = ['legal_first_name', 'legal_last_name', 'email', 'mobile', 'mobile_country_code'];
+        if (typeof result.fields.date_of_birth === 'string') keys.push('date_of_birth');
         fields.value = Object.fromEntries(
             keys.map((key) => {
                 if (typeof result.fields[key] !== 'string') throw new Error('Invalid fields');
@@ -206,6 +208,7 @@ function changeAmount() {
                         )
                     }}</text
                     ><CardholderMaterials
+                        :birth-date-required="birthDateRequired"
                         :key="editing ? 'edit' : 'new'"
                         :product-id="product.id"
                         :form-factor="factor"
