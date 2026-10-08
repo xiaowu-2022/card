@@ -46,6 +46,8 @@ type Product = {
     minimumInitialLoad: string;
     minimumReload: string;
     openingFee: string | null;
+    monthlyFeeText: string | null;
+    notes: string | null;
     status: 'DRAFT' | 'ACTIVE' | 'INACTIVE';
     config: null | {
         displayName: string | null;
@@ -243,6 +245,22 @@ function TenantProductEditor({ product, onClose }: { product: Product; onClose: 
                                 {displayMoney(product.minimumReload)} USD
                             </dd>
                         </div>
+                        {product.monthlyFeeText && (
+                            <div className="sm:col-span-3">
+                                <dt className="text-muted-foreground">{t('Monthly fee')}</dt>
+                                <dd className="mt-1 whitespace-pre-wrap break-words">
+                                    {product.monthlyFeeText}
+                                </dd>
+                            </div>
+                        )}
+                        {product.notes && (
+                            <div className="sm:col-span-3">
+                                <dt className="text-muted-foreground">{t('Card notes')}</dt>
+                                <dd className="mt-1 whitespace-pre-wrap break-words">
+                                    {product.notes}
+                                </dd>
+                            </div>
+                        )}
                     </dl>
                     <ConfigurationForm
                         className="grid gap-4 sm:grid-cols-2"

@@ -15,6 +15,8 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    'Monthly fee': ['月费', 'Yuran bulanan', 'Cuota mensual'],
+    'Card notes': ['卡片备注', 'Nota kad', 'Notas de la tarjeta'],
     'Installed app version': ['当前安装版本', 'Versi aplikasi dipasang', 'Versión instalada'],
     'Version code': ['版本代码', 'Kod versi', 'Código de versión'],
     ...supportBotCatalog,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CardProductInfo from './CardProductInfo.vue';
 import { computed, ref } from 'vue';
 import ProcessingOverlay from './ProcessingOverlay.vue';
 import Modal from './Modal.vue';
@@ -106,14 +107,17 @@ function close() {
     editing.value = false;
     emit('close');
 }
-useSensitiveScreen(() => {
-    generation++;
-    fields.value = {};
-    editing.value = false;
-    reviewing.value = false;
-    recipientSummary.value = '';
-    emit('close');
-}, { retainUntilUnmount: true });
+useSensitiveScreen(
+    () => {
+        generation++;
+        fields.value = {};
+        editing.value = false;
+        reviewing.value = false;
+        recipientSummary.value = '';
+        emit('close');
+    },
+    { retainUntilUnmount: true },
+);
 async function edit() {
     if (!props.application?.id || busy.value) return;
     const run = ++generation;
@@ -126,7 +130,13 @@ async function edit() {
             'POST',
         );
         if (run !== generation) return;
-        const keys = ['legal_first_name', 'legal_last_name', 'email', 'mobile', 'mobile_country_code'];
+        const keys = [
+            'legal_first_name',
+            'legal_last_name',
+            'email',
+            'mobile',
+            'mobile_country_code',
+        ];
         if (typeof result.fields.date_of_birth === 'string') keys.push('date_of_birth');
         fields.value = Object.fromEntries(
             keys.map((key) => {
@@ -188,7 +198,22 @@ function changeAmount() {
 }
 </script>
 <template>
-    <ProcessingOverlay :open="open && busy" :message="t(materialsBusy ? 'Submitting cardholder details…' : recipientBusy ? 'Submitting recipient details…' : loading ? 'Loading cardholder information…' : reviewing ? 'Processing card opening…' : 'Checking processing result…')" />
+    <ProcessingOverlay
+        :open="open && busy"
+        :message="
+            t(
+                materialsBusy
+                    ? 'Submitting cardholder details…'
+                    : recipientBusy
+                      ? 'Submitting recipient details…'
+                      : loading
+                        ? 'Loading cardholder information…'
+                        : reviewing
+                          ? 'Processing card opening…'
+                          : 'Checking processing result…',
+            )
+        "
+    />
     <Modal
         wide
         :open="open"
@@ -247,6 +272,9 @@ function changeAmount() {
                     :currency="product.cardCurrency"
                     :bin="product.bin"
                     preview
+                /><CardProductInfo
+                    :monthly-fee-text="product.monthlyFeeText"
+                    :notes="product.notes"
                 /><view class="fee-details"
                     ><view
                         ><text class="muted">{{ t('Opening fee') }}</text

@@ -2,6 +2,10 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Monthly fee': '月费',
+    'Card notes': '卡片备注',
+    'Display text only. Not included in the opening fee or wallet total.': '仅作文字展示，不计入开卡费用或钱包扣款总额。',
+    'Shown to customers. Enter card restrictions and usage notes.': '向用户展示，可填写卡片限制及使用说明。',
     'Version details and download URLs can be edited directly. Updating a URL does not require a new version or repackaging.': '版本信息和下载地址可直接修改。仅更新下载地址无需提高版本号或重新打包。',
     'Keep the DCloud AppID unchanged.': 'DCloud AppID 不能更改。',
     'App release': 'App 版本发布',

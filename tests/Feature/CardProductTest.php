@@ -90,7 +90,7 @@ it('lets platform create and edit account-bound products with fixed USD regular 
     $account->forceFill(['bin_catalog' => [['bin' => 'DEMO-MILLE-PLUS-0001'], ['bin' => 'DEMO-MILLE-PLUS-0002']]])->save();
     $beforeEntries = DB::table('ledger_entries')->count();
     $this->actingAs($this->platformOwner, 'platform_admin')->post('http://admin.localhost/platform/card-products', [
-        'name' => 'Mille Card Plus', 'card_provider_reference_id' => $account->id,
+        'name' => 'Mille Card Plus', 'monthly_fee_text' => 'USD 2 per month', 'notes' => "Online only.\nNo ATM withdrawals.", 'card_provider_reference_id' => $account->id,
         'provider_product_ref' => 'DEMO-MILLE-PLUS-0001',
         'minimum_initial_load' => '20.00000000',
         'opening_fee' => '5.00000000', 'minimum_reload' => '25.50000000',
@@ -101,7 +101,9 @@ it('lets platform create and edit account-bound products with fixed USD regular 
     ])->assertRedirect();
 
     $created = CardProduct::query()->where('provider_product_ref', 'DEMO-MILLE-PLUS-0001')->firstOrFail();
-    expect($created->provider)->toBe('UNCONFIGURED')
+    expect($created->monthly_fee_text)->toBe('USD 2 per month')
+        ->and($created->notes)->toBe("Online only.\nNo ATM withdrawals.")
+        ->and($created->provider)->toBe('UNCONFIGURED')
         ->and($created->card_currency)->toBe('USD')
         ->and($created->card_type)->toBe('REGULAR')
         ->and($created->minimum_initial_load)->toBe('20.00000000')
@@ -253,4 +255,47 @@ it('saves and clears the product default balance limit without moving funds', fu
     expect($this->product->fresh()->balance_limit)->toBe('500.00000000');
     $this->put($url, [...$data, 'balance_limit' => null])->assertRedirect()->assertSessionHasNoErrors();
     expect($this->product->fresh()->balance_limit)->toBeNull()->and(DB::table('ledger_entries')->count())->toBe($entries);
+});
+
+it('stores public monthly fee text and multiline notes without changing financial calculations', function (): void {
+    Http::preventStrayRequests();
+    $this->product->forceFill(['opening_fee' => '5', 'minimum_initial_load' => '20', 'status' => 'ACTIVE'])->save();
+    TenantCardProductConfig::query()->where('tenant_id', $this->tenantA->id)->where('card_product_id', $this->product->id)->update(['status' => 'ACTIVE']);
+    $catalog = app(CardProductCatalogQuery::class);
+    $before = collect($catalog->user($this->tenantA->id, null)['products'])->firstWhere('id', $this->product->id);
+    $ledger = DB::table('ledger_entries')->count();
+    $base = ['name' => $this->product->name, 'provider_product_ref' => $this->product->provider_product_ref,
+        'opening_fee' => '5', 'minimum_initial_load' => '20', 'minimum_reload' => '20', 'status' => 'ACTIVE'];
+    $notes = "Online purchases only.\nATM withdrawals unavailable.\n<script>alert(1)</script>";
+    $this->actingAs($this->platformOwner, 'platform_admin')->put('http://admin.localhost/platform/card-products/'.$this->product->id,
+        $base + ['monthly_fee_text' => 'Free for 3 months, then USD 2/month', 'notes' => $notes])->assertRedirect();
+    $after = collect($catalog->user($this->tenantA->id, null)['products'])->firstWhere('id', $this->product->id);
+    expect($after['monthlyFeeText'])->toBe('Free for 3 months, then USD 2/month')
+        ->and($after['notes'])->toBe($notes)
+        ->and($after['openingFee'])->toBe($before['openingFee'])
+        ->and($after['minimumRequiredBalance'])->toBe('25.00000000')
+        ->and(DB::table('ledger_entries')->count())->toBe($ledger);
+    $audit = \App\Domain\Audit\Models\AuditLog::query()->where('action', 'CARD_PRODUCT_UPDATED')->where('resource_id', $this->product->id)->latest('created_at')->firstOrFail();
+    expect($audit->after_data['monthly_fee_text'])->toBe($after['monthlyFeeText'])->and($audit->after_data['notes'])->toBe($notes);
+    // Older callers may omit the fields; explicit empty values clear them.
+    $this->put('http://admin.localhost/platform/card-products/'.$this->product->id, $base)->assertRedirect();
+    expect($this->product->fresh()->notes)->toBe($notes);
+    $this->put('http://admin.localhost/platform/card-products/'.$this->product->id,
+        $base + ['monthly_fee_text' => '0', 'notes' => ''])->assertRedirect();
+    expect($this->product->fresh()->monthly_fee_text)->toBe('0')->and($this->product->fresh()->notes)->toBeNull();
+    $this->put('http://admin.localhost/platform/card-products/'.$this->product->id,
+        $base + ['monthly_fee_text' => '', 'notes' => null])->assertRedirect();
+    expect($this->product->fresh()->monthly_fee_text)->toBeNull();
+    Http::assertNothingSent();
+});
+
+it('validates display text size and types before changing a card product', function (): void {
+    $base = ['name' => $this->product->name, 'provider_product_ref' => $this->product->provider_product_ref,
+        'opening_fee' => '5', 'minimum_initial_load' => '20', 'minimum_reload' => '20', 'status' => 'ACTIVE'];
+    $this->actingAs($this->platformOwner, 'platform_admin');
+    foreach (['monthly_fee_text' => str_repeat('a', 256), 'notes' => str_repeat('a', 5001)] as $field => $value) {
+        $this->put('http://admin.localhost/platform/card-products/'.$this->product->id, $base + [$field => $value])->assertSessionHasErrors($field);
+        $this->put('http://admin.localhost/platform/card-products/'.$this->product->id, $base + [$field => ['invalid']])->assertSessionHasErrors($field);
+    }
+    expect($this->product->fresh()->notes)->toBeNull()->and($this->product->fresh()->monthly_fee_text)->toBeNull();
 });

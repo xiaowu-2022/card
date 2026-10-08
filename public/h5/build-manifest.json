@@ -1,5 +1,5 @@
 {
-  "builtAt": "2026-10-08T13:48:47.554574+00:00",
-  "purpose": "H5 English login default and restored language switch",
+  "builtAt": "2026-10-08T14:16:03.346707+00:00",
+  "purpose": "Card product monthly fee text and multiline notes",
   "source": "dist/clients/specpay/release/h5"
 }

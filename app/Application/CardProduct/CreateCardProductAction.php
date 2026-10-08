@@ -20,6 +20,7 @@ final readonly class CreateCardProductAction
     {
         $fee = Validator::make($data, ['opening_fee' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,8})?$/']])->validate()['opening_fee'];
         Validator::make($data, ['balance_limit' => ['nullable', 'string', 'regex:/^(?:0|[1-9][0-9]{0,9})(?:\.[0-9]{1,2})?$/']])->validate();
+        Validator::make($data, ['monthly_fee_text' => ['nullable', 'string', 'max:255'], 'notes' => ['nullable', 'string', 'max:5000']])->validate();
         $openingFee = Money::of($fee, 'USDT')->amount();
         $initial = $this->minimum($data['minimum_initial_load'], 'minimum initial load');
         $reload = $this->minimum($data['minimum_reload'], 'minimum reload');
@@ -34,6 +35,8 @@ final readonly class CreateCardProductAction
                 'card_provider_reference_id' => $data['card_provider_reference_id'] ?? null,
                 'provider_product_ref' => trim($data['provider_product_ref'] ?? ''),
                 'name' => trim($data['name']),
+                'monthly_fee_text' => (trim($data['monthly_fee_text'] ?? '') === '' ? null : trim($data['monthly_fee_text'])),
+                'notes' => (trim($data['notes'] ?? '') === '' ? null : trim($data['notes'])),
                 'opening_fee' => $openingFee,
                 'balance_limit' => isset($data['balance_limit']) ? Money::of($data['balance_limit'], 'USD')->amount() : null,
                 'card_currency' => 'USD',
@@ -48,6 +51,8 @@ final readonly class CreateCardProductAction
                 'card_provider_reference_id' => $product->card_provider_reference_id,
                 'provider_product_ref' => $product->provider_product_ref,
                 'name' => $product->name,
+                'monthly_fee_text' => $product->monthly_fee_text,
+                'notes' => $product->notes,
                 'opening_fee' => $product->opening_fee,
                 'balance_limit' => $product->balance_limit,
                 'card_currency' => $product->card_currency,

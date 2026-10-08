@@ -225,6 +225,26 @@ async function chooseImage(page, label, mimeType = 'image/png') {
     });
 }
 try {
+    await scenario('product-display-text', '/cards?fixture=verified', async ({ page, posts }) => {
+        await button(page, 'Apply for a card').click();
+        const info = page.locator('.product-info:visible');
+        await info.getByText('First month free, then USD 2/month', { exact: true }).waitFor();
+        assert.match(await info.innerText(), /Online purchases only\.\nNo ATM withdrawals/);
+        assert.equal(await info.locator('script').count(), 0);
+        await button(page, 'Open this card').click();
+        await page.locator('.product-info:visible').getByText('First month free, then USD 2/month', { exact: true }).waitFor();
+        assert.match(await page.locator('.total:visible').innerText(), /25(?:\.00)? USDT/);
+        assert.equal(await page.locator('.product-info:visible').evaluate(el => getComputedStyle(el.querySelector('.info-text')).whiteSpace), 'pre-wrap');
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+        assert.ok(posts.every(post => post.key === '/wallet/ensure'));
+    }, key => key === '/wallet/ensure' ? { json: { success: true } } : undefined, state => {
+        readyApplication(state);
+        Object.assign(state.dto.props.products[0], {
+            openingFee: '5.00000000', minimumInitialLoad: '20.00000000',
+            monthlyFeeText: 'First month free, then USD 2/month',
+            notes: 'Online purchases only.\nNo ATM withdrawals.\n<script>alert(1)</script>',
+        });
+    });
     await scenario(
         'manual-kyc-birthday-card-setup',
         '/cards?fixture=verified',

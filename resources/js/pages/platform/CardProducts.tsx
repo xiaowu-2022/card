@@ -16,6 +16,7 @@ import {
 import { MoneyDisplay } from '@/components/admin/MoneyDisplay';
 import type { SharedProps } from '@/types/global';
 import { FormField } from '@/components/ui/form-field';
+import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import {
     Select,
@@ -36,6 +37,8 @@ type ProductFormData = {
     minimum_initial_load: string;
     minimum_reload: string;
     opening_fee: string;
+    monthly_fee_text: string;
+    notes: string;
     balance_limit: string;
     status: ProductStatus;
 };
@@ -56,6 +59,8 @@ type Product = {
     minimumReload: string;
     balanceLimit: string | null;
     openingFee: string | null;
+    monthlyFeeText: string | null;
+    notes: string | null;
     status: ProductStatus;
     tenantConfigCount: number;
 };
@@ -66,6 +71,8 @@ const blank: ProductFormData = {
     minimum_initial_load: '20.00000000',
     minimum_reload: '20.00000000',
     opening_fee: '',
+    monthly_fee_text: '',
+    notes: '',
     balance_limit: '',
     status: 'DRAFT',
 };
@@ -308,6 +315,8 @@ function ProductEditor({
                   minimum_initial_load: product.minimumInitialLoad,
                   minimum_reload: product.minimumReload,
                   opening_fee: product.openingFee ?? '',
+                  monthly_fee_text: product.monthlyFeeText ?? '',
+                  notes: product.notes ?? '',
                   balance_limit:
                       product.balanceLimit === null
                           ? ''
@@ -539,6 +548,39 @@ function ProductFields({
                     {t('Set by SaaS. Applies to new card orders for all companies.')}
                 </p>
             </FormField>
+            <FormField
+                id={`${prefix}-monthly-fee`}
+                label={t('Monthly fee')}
+                error={errorMessage(form.errors.monthly_fee_text)}
+            >
+                <Input
+                    id={`${prefix}-monthly-fee`}
+                    maxLength={255}
+                    value={form.data.monthly_fee_text}
+                    onChange={(event) => form.setData('monthly_fee_text', event.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                    {t('Display text only. Not included in the opening fee or wallet total.')}
+                </p>
+            </FormField>
+            <div className="sm:col-span-2">
+                <FormField
+                    id={`${prefix}-notes`}
+                    label={t('Card notes')}
+                    error={errorMessage(form.errors.notes)}
+                >
+                    <Textarea
+                        id={`${prefix}-notes`}
+                        rows={5}
+                        maxLength={5000}
+                        value={form.data.notes}
+                        onChange={(event) => form.setData('notes', event.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                        {t('Shown to customers. Enter card restrictions and usage notes.')}
+                    </p>
+                </FormField>
+            </div>
             <FormField
                 id={`${prefix}-initial`}
                 label={t('Minimum initial load (USD)')}

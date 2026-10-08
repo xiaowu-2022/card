@@ -20,6 +20,7 @@ final readonly class UpdateCardProductAction
     {
         $fee = Validator::make($data, ['opening_fee' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,8})?$/']])->validate()['opening_fee'];
         Validator::make($data, ['balance_limit' => ['nullable', 'string', 'regex:/^(?:0|[1-9][0-9]{0,9})(?:\.[0-9]{1,2})?$/']])->validate();
+        Validator::make($data, ['monthly_fee_text' => ['nullable', 'string', 'max:255'], 'notes' => ['nullable', 'string', 'max:5000']])->validate();
         $openingFee = Money::of($fee, 'USDT')->amount();
         $initial = $this->minimum($data['minimum_initial_load'], 'minimum initial load');
         $reload = $this->minimum($data['minimum_reload'], 'minimum reload');
@@ -59,7 +60,7 @@ final readonly class UpdateCardProductAction
             if ($changed) {
                 $this->bins->lockAndValidate($binding, $reference, $connection, $productId);
             }
-            $before = $product->only(['provider', 'card_provider_reference_id', 'provider_product_ref', 'name', 'opening_fee', 'balance_limit', 'minimum_initial_load', 'minimum_reload', 'status']);
+            $before = $product->only(['provider', 'card_provider_reference_id', 'provider_product_ref', 'name', 'monthly_fee_text', 'notes', 'opening_fee', 'balance_limit', 'minimum_initial_load', 'minimum_reload', 'status']);
             $product->forceFill([
                 'provider' => $binding !== $product->card_provider_reference_id ? 'UNCONFIGURED' : $product->provider,
                 'card_provider_reference_id' => $binding,
@@ -67,6 +68,8 @@ final readonly class UpdateCardProductAction
                 'supported_form_factors' => $changed ? (collect(CardProviderReference::find($binding)?->bin_catalog ?? [])->firstWhere('bin', $reference)['formFactors'] ?? ['virtual_card']) : $product->supported_form_factors,
                 'form_factors_synced_at' => $changed ? null : $product->form_factors_synced_at,
                 'name' => trim($data['name']),
+                'monthly_fee_text' => array_key_exists('monthly_fee_text', $data) ? (trim($data['monthly_fee_text'] ?? '') === '' ? null : trim($data['monthly_fee_text'])) : $product->monthly_fee_text,
+                'notes' => array_key_exists('notes', $data) ? (trim($data['notes'] ?? '') === '' ? null : trim($data['notes'])) : $product->notes,
                 'opening_fee' => $openingFee,
                 'balance_limit' => array_key_exists('balance_limit', $data) ? (isset($data['balance_limit']) ? Money::of($data['balance_limit'], 'USD')->amount() : null) : $product->balance_limit,
                 'minimum_initial_load' => $initial->amount(),

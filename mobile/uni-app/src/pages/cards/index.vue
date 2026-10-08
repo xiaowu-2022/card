@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CardProductInfo from '../../components/CardProductInfo.vue';
 import { staticAsset } from '../../lib/origin';
 import { computed, ref, nextTick } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
@@ -35,26 +36,32 @@ onLoad((options) => {
 });
 let generation = 0,
     first = true;
-const { loading, failed, refresh } = useScreen(async () => {
-    const run = ++generation;
-    setCurrentPage('/cards');
-    const data = await getPage<CardsPage>('/cards');
-    if (run !== generation) return;
-    if ('redirect' in data) {
-        go(String(data.redirect), true);
-        return;
-    }
-    page.value = data.props;
-    if (first) {
-        verification.value = !data.props.kycApproved;
-        first = false;
-    }
-    if (entryAnchor) {
-        await nextTick();
-        uni.pageScrollTo({ selector: '#' + entryAnchor, duration: 0 });
-        entryAnchor = '';
-    }
-}, { refreshOnShow: () => !page.value || (!applicationProduct.value && !choosing.value && !verification.value) });
+const { loading, failed, refresh } = useScreen(
+    async () => {
+        const run = ++generation;
+        setCurrentPage('/cards');
+        const data = await getPage<CardsPage>('/cards');
+        if (run !== generation) return;
+        if ('redirect' in data) {
+            go(String(data.redirect), true);
+            return;
+        }
+        page.value = data.props;
+        if (first) {
+            verification.value = !data.props.kycApproved;
+            first = false;
+        }
+        if (entryAnchor) {
+            await nextTick();
+            uni.pageScrollTo({ selector: '#' + entryAnchor, duration: 0 });
+            entryAnchor = '';
+        }
+    },
+    {
+        refreshOnShow: () =>
+            !page.value || (!applicationProduct.value && !choosing.value && !verification.value),
+    },
+);
 const unresolved = computed(() =>
         page.value?.issueOrders.find((o) => ['creating', 'unknown'].includes(o.state)),
     ),
@@ -77,10 +84,13 @@ const cardKey = computed(
             .sort()
             .join(',') ?? '',
 );
-useSensitiveScreen(() => {
-    choosing.value = false;
-    applicationProduct.value = null;
-}, { retainUntilUnmount: true });
+useSensitiveScreen(
+    () => {
+        choosing.value = false;
+        applicationProduct.value = null;
+    },
+    { retainUntilUnmount: true },
+);
 async function syncIssue() {
     if (!unresolved.value) return;
     await action.submit(
@@ -250,7 +260,10 @@ function requirements() {
                                 >{{ displayMoney(product.minimumInitialLoad) }}
                                 {{ product.cardCurrency }}</text
                             ></view
-                        ><button
+                        ><CardProductInfo
+                            :monthly-fee-text="product.monthlyFeeText"
+                            :notes="product.notes"
+                        /><button
                             class="primary wide"
                             :disabled="
                                 !product.readyForSetup ||

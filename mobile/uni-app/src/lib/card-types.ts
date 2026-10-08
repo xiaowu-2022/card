@@ -6,6 +6,8 @@ export type Product = {
     cardType: string;
     cardCurrency: string;
     openingFee: string;
+    monthlyFeeText?: string | null;
+    notes?: string | null;
     minimumInitialLoad: string;
     minimumRequiredBalance: string;
     maxCardsPerUser: number;

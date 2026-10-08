@@ -24,6 +24,8 @@ final class UpdateCardProductRequest extends FormRequest
             'balance_limit' => ['nullable', 'string', 'regex:/^(?:0|[1-9][0-9]{0,9})(?:\.[0-9]{1,2})?$/'],
             'opening_fee' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,8})?$/'],
             'name' => ['required', 'string', 'max:120'],
+            'monthly_fee_text' => ['nullable', 'string', 'max:255'],
+            'notes' => ['nullable', 'string', 'max:5000'],
             'card_provider_reference_id' => ['nullable', 'uuid', 'exists:platform_card_provider_references,id'],
             'provider_product_ref' => ['required', 'string', 'max:64'],
             'minimum_initial_load' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,8})?$/', 'numeric', 'min:20'],
