@@ -4,7 +4,8 @@ import { staticAsset } from './origin';
 // may trigger it; stale offline data never schedules speech by itself.
 let count = 0,
     lastSpoken = 0,
-    active = true;
+    active = true,
+    authorized = false;
 let nativeAudio: ReturnType<typeof uni.createInnerAudioContext> | undefined;
 // #ifdef H5
 let audio: HTMLAudioElement | undefined;
@@ -17,12 +18,12 @@ function webAudio() {
     return audio;
 }
 function unlock() {
-    if (unlocked) return;
+    if (!authorized || unlocked) return;
     unlocked = true;
     const player = webAudio();
     if (active && count > 0) {
         lastSpoken = 0;
-        remindSupportUnread(count);
+        remindSupportUnread(count, authorized);
     } else {
         player.muted = true;
         void player
@@ -41,8 +42,9 @@ function unlock() {
 document.addEventListener('pointerdown', unlock);
 document.addEventListener('keydown', unlock);
 // #endif
-export function remindSupportUnread(value: number) {
-    count = value;
+export function remindSupportUnread(value: number, isAgent: boolean) {
+    authorized = isAgent === true;
+    count = authorized ? value : 0;
     if (!count) {
         resetSupportReminder();
         return;
@@ -82,6 +84,7 @@ export function resumeSupportReminder() {
     active = true;
 }
 export function resetSupportReminder() {
+    authorized = false;
     count = 0;
     lastSpoken = 0;
     // #ifdef H5

@@ -160,3 +160,13 @@ original-message rewrite, scheduler, live customer message or financial replay i
 Rebuild administration to display deleted/edited reply markers in its shared transcript.
 Publish H5 and rebuild native packages for long-press actions and foreground heartbeats.
 Keep all additive tables on rollback; older clients cannot acknowledge edited versions.
+
+
+### Consumer workspace visibility and sound (2026-10-08)
+
+Bootstrap and unread responses expose an explicit supportAgent boolean using the current
+active company/user assignment. The App/H5 account entry follows this current session
+capability, not a cached account-page flag. Voice reminders require the same explicit
+capability and agent unread count; ordinary customer messages never trigger speech.
+Logout, login replacement and denied workspace access stop playback; unread failures
+clear queued reminders. Deploy matching PHP and public/h5; native clients need rebuilding.

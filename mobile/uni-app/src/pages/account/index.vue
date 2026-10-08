@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { session, unread, requireUser, refreshUnread } from '../../lib/session';
+import { session, unread, isSupportAgent, requireUser, refreshUnread } from '../../lib/session';
 import { request, setCurrentPage } from '../../lib/api';
 import { t } from '../../lib/i18n';
 import { go } from '../../lib/navigation';
@@ -58,7 +58,7 @@ const status = computed(() =>
 );
 const items = computed(() => {
     const entries = [
-        ...(account.value?.supportAgent
+        ...(isSupportAgent.value
             ? [{ title: 'Support workspace', icon: 'support', path: '/support-workspace' }]
             : []),
         { title: 'Account and security', icon: 'shield-check', path: '/account/security' },
@@ -88,7 +88,7 @@ function count(path: string) {
         ? unread.messages
         : path === '/support'
           ? unread.support
-          : path === '/support-workspace' && account.value?.supportAgent
+          : path === '/support-workspace' && isSupportAgent.value
             ? unread.agentSupport
             : 0;
 }

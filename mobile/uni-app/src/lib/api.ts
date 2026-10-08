@@ -1,4 +1,3 @@
-import { ensureLatestApp } from './app-update';
 import company from '../generated/company.json';
 import { companyOrigin, ensureCompanyOrigin } from './origin';
 import { androidCredentialVault, type AndroidBridge } from './device-credentials';
@@ -89,7 +88,6 @@ export async function request<T>(
         const fresh = await request<{ csrfToken: string }>('/bootstrap');
         setCsrf(fresh.csrfToken);
     }
-    await ensureLatestApp().catch(() => { throw new ApiError(426); });
     await ensureCompanyOrigin().catch(() => {
         throw new ApiError(0);
     });
@@ -126,7 +124,6 @@ export async function upload<T>(
     files: Upload[],
     onProgress?: (progress: UploadProgress) => void,
 ): Promise<T> {
-    await ensureLatestApp().catch(() => { throw new ApiError(426); });
     await ensureCompanyOrigin().catch(() => {
         throw new ApiError(0);
     });
@@ -256,7 +253,6 @@ export async function privateImage(path: string): Promise<string> {
         path !== '/client/promotion/poster-background'
     )
         return Promise.reject(new ApiError(404));
-    await ensureLatestApp().catch(() => { throw new ApiError(426); });
     await ensureCompanyOrigin().catch(() => {
         throw new ApiError(0);
     });

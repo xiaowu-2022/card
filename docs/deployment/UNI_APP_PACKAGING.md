@@ -1,3 +1,18 @@
+## 2026-10-08 Advisory updates for common app versions
+
+Native release checks now compare only valid installed/published version codes;
+release AppID and tenantSlug do not gate update eligibility. Company API domain
+verification remains separate. Android and iOS keep their own safe download URLs.
+Checks run in the background on startup/foreground. Business requests never await
+release checks or return 426 due to them. Checking/failure does not cover the app;
+a newer downloadable release shows a dismissible notice. Dismissal or opening the
+download suppresses that version for the process lifetime, including foreground
+return; a higher release may be offered. Download opening failures leave the app usable.
+This supersedes the mandatory-update behavior documented below. Recompile and
+cloud-package/install APK and IPA to update existing native clients; an H5 deployment
+cannot change their bundled code. Publication metadata remains company-scoped;
+companies using the common app should publish the same version code.
+
 # uni-app / HBuilderX 打包
 
 ## 当前状态

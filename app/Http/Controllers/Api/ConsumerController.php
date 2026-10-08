@@ -98,6 +98,7 @@ final class ConsumerController extends Controller
             'locales' => $request->attributes->get('client_locales', ['en']),
             'timezone' => $request->attributes->get('client_timezone', 'UTC'),
             'user' => $authenticated ? ['id' => $user->id, 'accountId' => $user->account_id, 'displayName' => $user->profile?->display_name, 'email' => $user->email] : null,
+            'supportAgent' => $authenticated && app(SupportUserAgents::class)->enabled($tenant->id, $user->id),
             'restricted' => $tenant->status !== TenantStatus::Active || ($authenticated && $user->status !== UserStatus::Active),
             'unread' => ['messages' => $authenticated ? $inbox->unread($tenant->id, $user->id) : 0,
                 'support' => $authenticated ? $support->count($tenant->id, $user->id) : 0,
@@ -172,7 +173,7 @@ final class ConsumerController extends Controller
     {
         $user = $request->attributes->get('consumer_user')->id;
 
-        return response()->json(['messages' => $inbox->unread($context->id(), $user), 'support' => $support->count($context->id(), $user), 'agentSupport' => $support->agentCount($context->id(), $user)]);
+        return response()->json(['supportAgent' => app(SupportUserAgents::class)->enabled($context->id(), $user), 'messages' => $inbox->unread($context->id(), $user), 'support' => $support->count($context->id(), $user), 'agentSupport' => $support->agentCount($context->id(), $user)]);
     }
 
     public function messages(Request $request, TenantContext $context, InboxQuery $query)

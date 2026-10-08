@@ -1,4 +1,4 @@
-import { reactive, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { remindSupportUnread, resetSupportReminder } from './support-reminder';
 import {
     ApiError,
@@ -13,6 +13,7 @@ import {
 import { setPublicAssets } from './origin';
 import { configureLocale } from './i18n';
 export type Bootstrap = {
+    supportAgent?: boolean;
     publicAssets?: Record<string, string>;
     appDownloads?: import('./app-download').AppDownloads;
     tenant: {
@@ -37,6 +38,7 @@ export type Bootstrap = {
     unread: { messages: number; support: number; agentSupport?: number };
 };
 export const session = ref<Bootstrap | null>(null);
+export const isSupportAgent = computed(() => !!session.value?.user && !session.value.restricted && session.value.supportAgent === true);
 export const unread = reactive({ messages: 0, support: 0, agentSupport: 0 });
 let pending: Promise<void> | null = null;
 export async function bootstrap() {
@@ -65,7 +67,7 @@ export async function bootstrap() {
         setPublicAssets(data.publicAssets);
         session.value = data;
         Object.assign(unread, data.unread, { agentSupport: data.unread.agentSupport ?? 0 });
-        remindSupportUnread(data.unread.agentSupport ?? 0);
+        remindSupportUnread(data.unread.agentSupport ?? 0, isSupportAgent.value);
         setCsrf(data.csrfToken);
         configureLocale(data.locale, data.timezone);
     })().finally(() => {
@@ -92,6 +94,7 @@ export async function login(identifier: string, password: string) {
         setToken(result.token);
     }
     if (result.csrfToken) setCsrf(result.csrfToken);
+    resetSupportReminder();
     session.value = null;
     await bootstrap();
 }
@@ -114,14 +117,16 @@ export async function refreshUnread() {
         void request('/presence', 'POST', {}).catch(() => {});
     }
     try {
-        const counts = await request<{ messages: number; support: number; agentSupport?: number }>(
+        const counts = await request<{ messages: number; support: number; agentSupport?: number; supportAgent?: boolean }>(
             '/unread',
         );
         if (generation === sessionGeneration && session.value?.user) {
+            session.value.supportAgent = counts.supportAgent === true;
             Object.assign(unread, counts, { agentSupport: counts.agentSupport ?? 0 });
-            remindSupportUnread(counts.agentSupport ?? 0);
+            remindSupportUnread(counts.agentSupport ?? 0, isSupportAgent.value);
         }
     } catch (error) {
+        resetSupportReminder();
         if (error instanceof ApiError && error.status === 401 && generation === sessionGeneration) {
             clearSession();
             uni.reLaunch({ url: '/pages/login/index' });

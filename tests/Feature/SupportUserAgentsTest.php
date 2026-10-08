@@ -337,13 +337,16 @@ it('tracks unread customer messages per agent without changing last message time
 it('exposes only the active agents own unread count for global reminders', function () {
     $this->agents->grant($this->company->id, $this->agent->id, $this->owner->id, ['enabled' => true, 'revision' => 0]);
     $id = $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'hello');
-    $this->actingAs($this->customer, 'tenant_user')->getJson('http://a.localhost/api/v1/unread')->assertJsonPath('agentSupport', 0);
-    $this->actingAs($this->agent, 'tenant_user')->getJson('http://a.localhost/api/v1/unread')->assertJsonPath('agentSupport', 1);
+    $this->actingAs($this->customer, 'tenant_user')->getJson('http://a.localhost/api/v1/unread')->assertJsonPath('agentSupport', 0)->assertJsonPath('supportAgent', false);
+    $this->getJson('http://a.localhost/api/v1/bootstrap')->assertJsonPath('supportAgent', false);
+    $this->actingAs($this->agent, 'tenant_user')->getJson('http://a.localhost/api/v1/unread')->assertJsonPath('agentSupport', 1)->assertJsonPath('supportAgent', true);
+    $this->getJson('http://a.localhost/api/v1/bootstrap')->assertJsonPath('supportAgent', true);
     $this->postJson($this->url.'/conversations/'.$id.'/read', ['through' => 1])->assertNoContent();
     $this->getJson('http://a.localhost/api/v1/unread')->assertJsonPath('agentSupport', 0);
     $this->sender->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'again');
     $this->agents->grant($this->company->id, $this->agent->id, $this->owner->id, ['enabled' => false, 'revision' => 1]);
-    $this->getJson('http://a.localhost/api/v1/unread')->assertJsonPath('agentSupport', 0);
+    $this->getJson('http://a.localhost/api/v1/unread')->assertJsonPath('agentSupport', 0)->assertJsonPath('supportAgent', false);
+    $this->getJson('http://a.localhost/api/v1/bootstrap')->assertJsonPath('supportAgent', false);
 });
 
 it('exposes a read-only scoped customer profile and denies foreign own and revoked access', function () {

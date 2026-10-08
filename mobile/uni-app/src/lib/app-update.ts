@@ -1,15 +1,16 @@
 import { ref } from 'vue';
-import company from '../generated/company.json';
 import { companyOrigin, refreshCompanyOrigins } from './origin';
 
 declare const plus: { runtime: { openURL: (url: string, fail: () => void) => void } };
 
 const native = import.meta.env.UNI_PLATFORM === 'app';
-export const appUpdate = ref<{ status: 'ready' | 'checking' | 'required' | 'error'; version: string; url: string }>({
+export const appUpdate = ref<{ status: 'ready' | 'checking' | 'available' | 'error'; version: string; url: string }>({
     status: native ? 'checking' : 'ready', version: '', url: '',
 });
 let pending: Promise<void> | undefined;
 let checkedAt = 0;
+let dismissedVersion = 0;
+let availableVersion = 0;
 
 export function checkAppUpdate(force = false): Promise<void> {
     if (!native) return Promise.resolve();
@@ -31,8 +32,7 @@ export function checkAppUpdate(force = false): Promise<void> {
             const platform = uni.getSystemInfoSync().platform;
             const url = platform === 'android' ? (data.androidDownloadUrl ?? data.downloadUrl)
                 : platform === 'ios' ? data.iosDistributionUrl : undefined;
-            if (data?.tenantSlug !== company.tenantSlug || data?.appId !== installed.appId
-                || !Number.isSafeInteger(data.versionCode) || data.versionCode < 1
+            if (!Number.isSafeInteger(data?.versionCode) || data.versionCode < 1
                 || !Number.isSafeInteger(code) || code < 1
                 || typeof data.versionName !== 'string'
                 || (code < data.versionCode && (typeof url !== 'string'
@@ -40,27 +40,30 @@ export function checkAppUpdate(force = false): Promise<void> {
                 || !['android', 'ios'].includes(platform)) {
                 throw new Error('Invalid release');
             }
-            checkedAt = Date.now();
-            appUpdate.value = { status: code < data.versionCode ? 'required' : 'ready', version: data.versionName, url: code < data.versionCode ? url : '' };
+            availableVersion = data.versionCode;
+            appUpdate.value = { status: code < data.versionCode && dismissedVersion !== data.versionCode ? 'available' : 'ready', version: data.versionName, url: code < data.versionCode ? url : '' };
         } catch {
             appUpdate.value = { ...appUpdate.value, status: 'error' };
         } finally {
+            checkedAt = Date.now();
             pending = undefined;
         }
     })();
     return pending;
 }
 
-export async function ensureLatestApp() {
-    await checkAppUpdate();
-    if (appUpdate.value.status !== 'ready') throw new Error('App update required');
+export function dismissAppUpdate() {
+    dismissedVersion = availableVersion;
+    appUpdate.value = { status: 'ready', version: '', url: '' };
 }
 
 export function downloadAppUpdate() {
     // #ifdef APP-PLUS
-    if (appUpdate.value.status !== 'required') return;
+    if (appUpdate.value.status !== 'available') return;
     const runtime = typeof plus === 'undefined' ? undefined : plus.runtime;
-    if (!runtime) { appUpdate.value.status = 'error'; return; }
-    runtime.openURL(appUpdate.value.url, () => { appUpdate.value.status = 'error'; });
+    const url = appUpdate.value.url;
+    dismissAppUpdate();
+    if (!runtime) return;
+    try { runtime.openURL(url, () => {}); } catch { /* Download failure never blocks the app. */ }
     // #endif
 }

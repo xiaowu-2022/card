@@ -15,11 +15,10 @@ function resume() {
     if (document.hidden) return;
     // #endif
     resumeSupportReminder();
-    void checkAppUpdate(true)
-        .then(() => refreshUnread())
-        .catch(() => {
-            /* Existing request error UI handles offline state. */
-        });
+    void checkAppUpdate(true);
+    void refreshUnread().catch(() => {
+        /* Existing request error UI handles offline state. */
+    });
     timer = setInterval(() => void refreshUnread(), 30000);
 }
 onShow(resume);

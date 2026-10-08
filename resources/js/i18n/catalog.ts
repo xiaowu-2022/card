@@ -41,6 +41,8 @@ export const catalog = {
     'The recognized document number did not pass validation. Please retake the number area without glare.': ['识别出的证件号码未通过校验，请重新拍摄号码区域，避免反光。', 'Nombor dokumen yang dikenal pasti tidak lulus pengesahan. Ambil semula foto kawasan nombor tanpa silau.', 'El número reconocido no pasó la validación. Fotografía de nuevo la zona del número sin reflejos.'],
     'App update': ['应用更新', 'Kemas kini aplikasi', 'Actualizar aplicación'],
     'Install the latest version to continue using the app.': ['请安装最新版本后继续使用。', 'Pasang versi terkini untuk terus menggunakan aplikasi.', 'Instala la última versión para continuar.'],
+    'A new app version is available.': ['发现新版本，可下载更新。', 'Versi aplikasi baharu tersedia.', 'Hay una nueva versión de la aplicación disponible.'],
+    'Not now': ['暂不更新', 'Bukan sekarang', 'Ahora no'],
     'Download update': ['下载更新', 'Muat turun kemas kini', 'Descargar actualización'],
     'Checking app version…': ['正在检查应用版本…', 'Menyemak versi aplikasi…', 'Comprobando la versión…'],
     'Unable to check the app version. Check your connection and retry.': ['无法检查应用版本，请检查网络后重试。', 'Tidak dapat menyemak versi aplikasi. Semak sambungan dan cuba lagi.', 'No se pudo comprobar la versión. Comprueba la conexión e inténtalo de nuevo.'],

@@ -1,3 +1,10 @@
+On 2026-10-08 the user made native version checks advisory for all companies'
+common app versions. Compare version codes without release AppID/tenantSlug matching;
+retain company domain routing and safe platform-specific download URLs. Never gate
+startup or business requests on release checks. Checking/failure stays unobtrusive,
+new versions offer dismissible downloads, and download failure leaves the app usable.
+This supersedes mandatory update and client release-identity checks below.
+
 On 2026-10-08 the user changed the fixed OCR service origin to
 http://202.95.12.20:9601, superseding the previous .185 address. Preserve
 GET /ocr with the server-generated image query and existing recognition rules.
