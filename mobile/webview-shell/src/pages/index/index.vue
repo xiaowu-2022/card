@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { nextTick, ref } from 'vue';
 import { onReady, onShow, onHide, onUnload, onBackPress } from '@dcloudio/uni-app';
 import config from '../../config.json';
 import { discover, type DirectoryCache } from '../../lib/directory';
@@ -93,7 +93,7 @@ function failure(message: string) {
     const previous = child; child = null; previous?.close();
     error.value = message; state.value = 'error';
 }
-function contentBounds() { return { top: `${statusHeight}px`, bottom: debugEnabled.value ? `${debugHeight}px` : '0px', left: '0px', width: '100%' }; }
+function contentBounds() { return { position: 'absolute', top: `${statusHeight}px`, bottom: debugEnabled.value ? `${debugHeight}px` : '0px', left: '0px', width: '100%' }; }
 function loading() {
     stopTimer(); state.value = 'loading'; error.value = '';
     debugInstalled = false; debugPrefix = ''; debugLog('网页开始加载');
@@ -138,8 +138,14 @@ function open(url: string) {
         if (disposed || child !== view || state.value !== 'loading'
             || !readinessToken || event.title !== readinessToken
             || !/^https:\/\//i.test(view.getURL())) return;
-        view.setStyle({ ...contentBounds(), opacity: 1 });
-        stopTimer(); state.value = 'ready'; debugLog('内容已渲染，显示网页');
+        stopTimer(); state.value = 'ready';
+        // Remove the welcome layout before sizing/revealing the attached window.
+        // A stale callback must never reveal a replaced, failed or unloaded view.
+        void nextTick(() => {
+            if (disposed || child !== view || state.value !== 'ready') return;
+            view.setStyle({ ...contentBounds(), opacity: 1 });
+            debugLog('内容已渲染，显示网页');
+        });
     });
     view.addEventListener('error', () => { if (child === view) failure('网页无法打开，请检查网络后重试。'); });
     page.$getAppWebview().append(view);
@@ -183,6 +189,7 @@ function back() {
 onReady(() => { uni.onWindowResize(resizeContent); void connect(); });
 onShow(() => {
     background = false; refreshDebug();
+    void nextTick(() => { if (!disposed) resizeContent(); });
     // Refresh the directory cache without moving an active login or replaying an operation.
     if (!child || detecting || Date.now() - lastRefresh < 60000) return;
     lastRefresh = Date.now();
@@ -201,7 +208,7 @@ onUnload(() => { disposed = true; stopDebug(); uni.offWindowResize(resizeContent
             <text class="debug-address">{{ debugUrl }}</text>
             <scroll-view scroll-y class="debug-log"><text v-for="(row, index) in debugRows" :key="index" class="debug-row">{{ row }}</text></scroll-view>
         </view>
-        <view v-if="state !== 'ready'" class="welcome" :style="{ minHeight: `calc(100vh - ${statusHeight}px)` }">
+        <view v-if="state !== 'ready'" class="welcome">
             <view class="masthead">
                 <view class="brand-mark"><view class="circle red"/><view class="circle gold"/></view>
                 <view class="wordmark"><text class="brand-name">Spec Pay</text><text class="brand-caption">万事达 U卡</text></view>
@@ -233,8 +240,8 @@ onUnload(() => { disposed = true; stopDebug(); uni.offWindowResize(resizeContent
 <style scoped>
 .debug-panel { position: fixed; z-index: 100; bottom: 0; left: 0; right: 0; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: #171717; border-top: 1px solid #d6bb74; color: #eee; display: flex; flex-direction: column; }
 .debug-title { font-size: 13px; color: #e2c984; }.debug-address { font-size: 11px; overflow-wrap: anywhere; margin: 6px 0; }.debug-log { flex: 1; min-height: 0; }.debug-row { display: block; font: 11px/1.6 monospace; overflow-wrap: anywhere; }
-.shell { min-height: 100vh; box-sizing: border-box; background: #11100c; color: #f6edce; }
-.welcome { min-height: calc(100vh - 24px); box-sizing: border-box; display: flex; flex-direction: column; background: radial-gradient(ellipse at 95% 35%, #342915 0%, #17150f 43%, #11100c 75%); padding: 30px 24px 24px; }
+.shell { position: fixed; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; box-sizing: border-box; background: #11100c; color: #f6edce; }
+.welcome { height: 100%; overflow-y: auto; box-sizing: border-box; display: flex; flex-direction: column; background: radial-gradient(ellipse at 95% 35%, #342915 0%, #17150f 43%, #11100c 75%); padding: 30px 24px 24px; }
 .masthead { display: flex; align-items: center; gap: 10px; }
 .brand-mark { position: relative; width: 48px; height: 30px; }
 .circle { position: absolute; width: 30px; height: 30px; border-radius: 50%; top: 0; }.red { left: 0; background: #eb1726; }.gold { right: 0; background: #f5ae20; opacity: .9; }

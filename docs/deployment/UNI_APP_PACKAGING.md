@@ -481,6 +481,11 @@ remain readable; configure the iOS destination in Platform before offering downl
 H5 My account also inserts Download app immediately before Customer support, including for support agents. It shares the homepage platform-selection
 action and published URLs. Native account menus retain their previous entries.
 
+H5 download actions refresh company bootstrap before opening the chosen platform URL,
+so a page left open across a Platform destination edit does not reuse its previous
+address. Failed refreshes show a retry message without opening the cached destination.
+Deploy rebuilt H5 assets and reload already-open pages to adopt this behavior.
+
 
 ### H5 登录语言（2026-10-08）
 

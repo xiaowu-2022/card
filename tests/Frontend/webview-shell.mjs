@@ -72,9 +72,10 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  const {readinessScript} = await import('data:text/javascript;base64,'+Buffer.from(readinessJs).toString('base64'));
  let script = readFileSync('mobile/webview-shell/src/pages/index/index.vue', 'utf8').split('<script setup lang="ts">')[1].split('</script>')[0];
  script = script.replace(/^import .*;\n/gm, '').replace(/\/\/ #ifndef APP-PLUS[\s\S]*?\/\/ #endif/g, '');
- const requests = [], windows = [], timers = new Map(); let sequence = 0;
+ const requests = [], windows = [], ticks = [], timers = new Map(); let sequence = 0;
  let finishDiscovery;
  const context = {
+  nextTick: callback => { ticks.push(callback); },
   discover: () => new Promise(resolve => { finishDiscovery = resolve; }),
   safeAddress, debugScript, debugMessages, readinessScript, ref: value => ({value}), config: JSON.parse(readFileSync('mobile/webview-shell/src/config.json', 'utf8')),
   uni: {getStorageSync: () => ({tenantId:'tenant'}), request: request => requests.push(request),getSystemInfoSync: () => ({statusBarHeight: 24, windowHeight: 0}),onWindowResize: () => {},offWindowResize: () => {}},
@@ -96,6 +97,7 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  const view=windows[0];
  assert.equal(view.requestedURL,a+'/#/pages/login/index');
  assert.equal(view.styles[0].bottom,'0px');assert.equal(view.styles[0].height,undefined);
+ assert.equal(view.styles[0].position,'absolute');
  assert.equal(view.styles[0].opacity,0);assert.equal(view.styles[0].render,'always');
  view.events.loaded();assert.equal(view.scripts.length,0);
  view.url=a+'/';view.events.loaded();assert.equal(page.state.value,'loading');assert.equal(view.scripts.length,1);
@@ -111,6 +113,8 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  retry.url=b+'/';retry.events.loaded();
  retry.events.titleUpdate({title:oldToken});assert.equal(page.state.value,'loading');
  retry.events.titleUpdate({title:page.token()});assert.equal(page.state.value,'ready');
+ assert.equal(retry.styles.at(-1).opacity,0, 'remain transparent until welcome layout is removed');
+ ticks.shift()();
  assert.equal(retry.styles.at(-1).opacity,1);
  assert.equal([...timers.values()].some(t=>t.delay===30000 || t.delay===350),false);
  page.refreshDebug();
@@ -125,5 +129,13 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  oldRequest.success({statusCode:200,data:{tenantId:'tenant',tenantSlug:'tenant-a',enabled:false}});
  assert.equal(page.debugEnabled.value,true);
  requests.at(-1).fail();assert.equal(page.debugEnabled.value,false);assert.equal(page.debugRows.value.length,0);
+
+ page.open(a);
+ const stale=windows.at(-1);stale.url=a+'/';
+ stale.events.titleUpdate({title:page.token()});
+ page.open(b);
+ ticks.shift()();
+ assert.ok(stale.closed);
+ assert.equal(stale.styles.some(style=>style.opacity===1),false, 'replaced window cannot be revealed by a pending layout callback');
 
 });
