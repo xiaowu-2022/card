@@ -5,8 +5,10 @@
   "scripts": {
     "dev:h5": "uni",
     "build:h5": "uni build",
-    "build:app": "uni build -p app",
-    "typecheck": "vue-tsc --noEmit"
+    "build:app": "node scripts/build-app.mjs",
+    "typecheck": "vue-tsc --noEmit",
+    "build:app-plus": "npm run build:app",
+    "check:ipa": "python3 scripts/check-ipa.py"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-5020620260917001",

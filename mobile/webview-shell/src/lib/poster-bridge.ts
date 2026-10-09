@@ -10,14 +10,19 @@ export function posterBridgeScript(prefix: string): string {
         var prefix=${JSON.stringify(prefix)}, pending=null, sequence=0;
         function finish(code){
             if(!pending)return;
-            var p=pending;pending=null;clearTimeout(p.timer);
+            var p=pending;pending=null;clearTimeout(p.timer);clearTimeout(p.retry);
             if(document.title.indexOf(prefix)===0)document.title=p.title;
             if(code==='saved')p.resolve();else p.reject(new Error(code));
         }
         function send(){
             if(!pending)return;
             var p=pending;
-            document.title=prefix+JSON.stringify({id:p.id,index:p.index,total:p.total,chunk:p.data.slice(p.index*${CHUNK},(p.index+1)*${CHUNK})});
+            if(Date.now()-p.ackAt>10000){finish('timeout');return;}
+            clearTimeout(p.retry);
+            // Change the title even on retries: WKWebView may coalesce title events.
+            // Schedule first, since a test/runtime can acknowledge synchronously.
+            p.retry=setTimeout(send,500);
+            document.title=prefix+JSON.stringify({id:p.id,index:p.index,total:p.total,attempt:++p.attempt,chunk:p.data.slice(p.index*${CHUNK},(p.index+1)*${CHUNK})});
         }
         window.__specpayPoster={
             version:1,
@@ -26,13 +31,14 @@ export function posterBridgeScript(prefix: string): string {
                 if(pending){reject(new Error('busy'));return;}
                 if(typeof data!=='string'||data.length>${MAX}||!/^data:image\\/png;base64,[A-Za-z0-9+/=]+$/.test(data)){reject(new Error('invalid'));return;}
                 var title=/^specpay-(ready|debug|session|poster)-/.test(document.title)?'Spec Pay':document.title;
-                pending={id:++sequence,index:0,total:Math.ceil(data.length/${CHUNK}),data:data,title:title,resolve:resolve,reject:reject};
+                pending={id:++sequence,index:0,total:Math.ceil(data.length/${CHUNK}),data:data,title:title,resolve:resolve,reject:reject,attempt:0,ackAt:Date.now()};
                 pending.timer=setTimeout(function(){finish('timeout');},120000);
                 send();
             });},
             reply:function(id,index,result){
                 if(!pending||pending.id!==id||pending.index!==index)return;
-                if(result==='next'){pending.index++;setTimeout(send,0);}
+                if(result==='next'){clearTimeout(pending.retry);pending.index++;pending.ackAt=Date.now();pending.retry=setTimeout(send,0);}
+                else if(result==='saving'){pending.ackAt=Date.now();}
                 else finish(result);
             }
         };
@@ -47,6 +53,9 @@ export function posterReceiver(options: {
 }) {
     let current: { id: number; next: number; total: number; chunks: string[]; size: number } | null = null;
     let lastId = 0, saving = false, disposed = false;
+    // Retain only the latest terminal receipt, never the image, for lost final ACKs.
+    let receipt: { id: number; index: number; result: string } | null = null;
+    let activeSave: { id: number; index: number } | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
     function reply(id: number, index: number, result: string) {
         if (!disposed && options.trusted()) options.evaluate(`window.__specpayPoster&&window.__specpayPoster.reply(${id},${index},${JSON.stringify(result)});`);
@@ -63,8 +72,15 @@ export function posterReceiver(options: {
             if (!Number.isSafeInteger(id) || id < 1 || !Number.isInteger(index) || index < 0
                 || !Number.isInteger(total) || total < 1 || total > Math.ceil(MAX / CHUNK)
                 || index >= total || typeof chunk !== 'string' || chunk.length > CHUNK) return;
+            if (receipt && receipt.id === id && receipt.index === index) { reply(id, index, receipt.result); return; }
+            if (activeSave && activeSave.id === id && activeSave.index === index) { reply(id, index, 'saving'); return; }
+            if (current && current.id === id && total === current.total && index === current.next - 1
+                && chunk === current.chunks[index]) { reply(id, index, 'next'); return; }
             if (index === 0 && id > lastId) {
-                if (saving || current) { reply(id, index, 'busy'); return; }
+                if (saving) { reply(id, index, 'busy'); return; }
+                // A newer explicit attempt supersedes only an incomplete transfer.
+                // Never supersede a native save whose gallery result is pending.
+                clear();
                 lastId = id; current = { id, next: 0, total, chunks: [], size: 0 };
                 timer = setTimeout(() => { if (current) reply(current.id, current.next, 'timeout'); clear(); }, 60000);
             }
@@ -74,10 +90,14 @@ export function posterReceiver(options: {
             if (index + 1 < total) { current.next++; reply(id, index, 'next'); return; }
             const data = current.chunks.join(''); clear();
             if (!validPoster(data)) { reply(id, index, 'invalid'); return; }
-            saving = true;
-            try { await options.save(data); reply(id, index, 'saved'); }
-            catch (error) { reply(id, index, error instanceof Error && error.message === 'timeout' ? 'timeout' : 'failed'); }
-            finally { saving = false; }
+            saving = true; activeSave = { id, index };
+            reply(id, index, 'saving');
+            let result = 'saved';
+            try { await options.save(data); }
+            catch (error) { result = error instanceof Error && error.message === 'timeout' ? 'timeout' : 'failed'; }
+            finally { saving = false; activeSave = null; }
+            receipt = { id, index, result };
+            reply(id, index, result);
         },
     };
 }

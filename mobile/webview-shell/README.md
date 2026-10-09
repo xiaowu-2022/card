@@ -2,16 +2,38 @@
 
 这是独立的 uni-app CLI 工程，只负责打开线上 H5，不导入原 App 的业务页面。
 
-## 打包
+## 打包：一个版本来源、一个资源目录
 
-1. 用 HBuilderX 导入本目录 `mobile/webview-shell`，不要导入 `src` 或旧 `mobile/uni-app`。
-2. 使用 Node.js 22。首次在另一台电脑打开时执行 `npm ci`。
-3. `npm run typecheck` 检查，`npm run build:app` 编译 App 资源。
-4. HBuilderX 中选择「发行 → App 云打包」，使用原签名材料。Android 覆盖安装需要原签名一致。
+版本只修改 `src/manifest.json` 的 `versionName` / `versionCode`。
+不要修改生成目录的 manifest，也不要按 IPA 文件名或 HBuilder 显示的资源版本判定 iOS 安装包版本。
 
-当前版本 2.5.07 / 2507。DCloud AppID `__UNI__30F90A0`，Android 包名
-`cc.specpay.cards`，iOS Bundle ID `com.tng.pingqiu`。保留原图标。
-签名证书不包含在工程中。编译资源不等于已经生成 APK / IPA。
+1. 用 HBuilderX 导入本目录 `mobile/webview-shell`；不要另行导入 `src`、`dist/build/app` 或旧 `mobile/uni-app`。
+2. 使用 Node.js 22，首次安装依赖执行 `npm ci`。运行 `npm run typecheck`，然后运行 `npm run build:app`。
+3. 此命令将旧 App 资源及 APK/IPA/WGT 打包缓存移到 `dist/archive/<时间>/`，保留历史签名包和签名配置；
+   重新编译到唯一发布资源目录 **`dist/build/app-plus`**，核对其版本/AppID 与源码一致。不要同时执行此命令和 HBuilder 云打包。
+4. 回到 HBuilderX，选中 `mobile/webview-shell`，执行「发行 → App 云打包」，使用原签名材料生成完整原生包。
+   不使用自定义调试基座或仅资源更新作为发布包。Android 覆盖安装需要原签名一致。
+5. 下载 IPA 后执行（路径含空格时加引号）：
+
+   ```bash
+   npm run check:ipa -- "dist/release/ipa/实际文件名.ipa"
+   ```
+
+   校验器同时检查 iOS `Info.plist` 的版本/构建号、包内资源的版本/构建号，以及 Bundle ID、DCloud AppID。
+   任一不一致均返回失败，不应发布。校验只读，不重签或篡改 IPA，也不读取/输出签名密钥。
+   若干净整包仍出现不一致，应保留本次云打包任务信息查原生打包环节，不能靠改资源版本掩盖。
+
+DCloud AppID `__UNI__30F90A0`，Android 包名 `cc.specpay.cards`，iOS Bundle ID `com.tng.pingqiu`。
+保留原图标和签名身份。编译资源不等于已经生成 APK / IPA。
+历史 `dist/release` 安装包不会被构建命令修改；它们的版本不会随源码变化。
+归档可能含 HBuilder 缓存签名材料，位于 Git 忽略的 `dist` 内，不要上传归档。
+
+2026-10-09 检查发现旧 `dist/build/app` 为 2.6.01/2601，而 `app-plus` 和最新 IPA 的资源为 2.6.02/2602，
+同一 IPA 的原生 Info.plist 仍为 2.6.01/2601。以上流程消除本地双目录和缓存混用；是否解决云端原生版本问题，
+以新完整 IPA 校验通过为准，不将目录整理当作已修复安装包的证明。
+
+参考：[DCloud CLI 构建目录](https://uniapp.dcloud.net.cn/quickstart-cli.html)、
+[Apple 安装包版本字段](https://developer.apple.com/cn/help/glossary/version-number/)。
 
 ## 网站与线路
 
@@ -195,3 +217,28 @@ parent/top/height/bottom 数值，日志仅在本机内存中保留。
 旧壳会提示需要更新，不再静默执行无效下载。普通浏览器仍使用浏览器下载。
 离线通道、原生 API 模拟和浏览器交互测试不等于真机相册验收；需验证 Android/iOS
 授权、拒绝权限、相册落盘，以及长按与连续点击。App 资源已编译不代表生成签名包。
+
+### 2026-10-09 iPhone 保存等待修复
+
+本地现有 IPA 的 Info.plist 已含相册读/写用途说明，不能把未弹授权直接归因于缺少配置。
+保存前的 PNG 标题分片通道原来只发送一次，丢失任一片或确认便会等到总超时。
+现在每 500ms 重发未确认分片，10 秒无响应退出；接收端重发确认/最终结果，
+相册等待期间回复处理中，同一请求只执行一次原生保存。诊断日志避让海报标题。
+App 海报最长边限制为 1600px，降低无损 PNG 传输和解码开销，二维码仍按整数像素绘制。
+H5 另加 125 秒兜底，兼容不返回结果的旧壳；完整 uni-app 原生保存也有 60 秒兜底。
+超时提示先检查相册，不能将超时视为确定没有保存。原生系统授权仍由 Gallery.save 触发，
+不在页面打开时申请权限。
+
+已增加分片/中间确认/最终回执丢失及授权等待不重复保存的回归覆盖。
+需要更新 H5，并重新云打包、安装当前壳；仅编译资源不会更新已安装 IPA。
+这些修复覆盖已确认的通道故障模式；具体手机是否存在其他原生问题仍需真机验收。
+
+### 后续修正：保留已可用的 iOS WebView 保存路径
+
+用户确认：之前能保存的也是 WebView 版，回归发生在新增 WebView 判断之后。
+`8adcaaa` 将原来的 H5 图片下载替换为等待壳回执，并对无桥接的 WebView 直接报更新错误。
+现 iPhone/iPad WebView（包括 iPad 桌面 UA）优先恢复原来的图片下载路径，
+不因缺少桥接而拦截，也不等待已注入的桥接；长按交给系统图片菜单，不额外触发保存。
+Android 保留原生相册通道及上述重试保护。页面仅报告下载已请求，不冒充相册写入成功。
+本次 iOS 回退只需部署 H5 并重新加载页面，不依赖重新云打包 IPA。
+浏览器回归覆盖 iPhone/iPad 的缺失/无响应桥接及长按行为；系统菜单和实际相册落盘仍需真机确认。

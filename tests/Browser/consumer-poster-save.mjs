@@ -4,10 +4,11 @@ import { chromium, webkit } from 'playwright';
 const fixture = JSON.parse(readFileSync('storage/framework/testing/uni-parity/fixtures.json'));
 const origin = process.env.UNI_PARITY_ORIGIN ?? 'http://127.0.0.1:5232';
 mkdirSync('artifacts/uni-parity/poster-save', {recursive:true});
-for (const [name,engine,options] of [['chromium',chromium,{channel:'chrome'}],['webkit',webkit,{}]]) {
+for (const [name,engine,options,ios] of [['chromium',chromium,{channel:'chrome'},false],['webkit',webkit,{},false],['iphone',webkit,{},true],['ipad',webkit,{},true]]) {
  const browser = await engine.launch({headless:true,...options});
  try {
-  const context = await browser.newContext({viewport:{width:390,height:780},isMobile:true,hasTouch:true});
+  const context = await browser.newContext({viewport:{width:390,height:780},isMobile:true,hasTouch:true,userAgent:ios ? (name==='ipad' ? 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15' : 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148') : 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'});
+  if (name==='ipad') await context.addInitScript(()=>Object.defineProperty(navigator,'maxTouchPoints',{get:()=>5}));
   const page = await context.newPage();const errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   const dto = structuredClone(fixture.pages['/promotion']);dto.props.home.posterBackground=null;
@@ -24,6 +25,35 @@ for (const [name,engine,options] of [['chromium',chromium,{channel:'chrome'}],['
   await page.locator('.share-buttons uni-button').first().click();
   const dialog=page.getByRole('dialog');await dialog.locator('uni-image.preview').waitFor();
   const save=dialog.getByText('保存图片',{exact:true});
+  if (ios) {
+   await page.evaluate(()=>{
+    window.posterSaves=[];window.posterDownloads=[];
+    window.__specpayPoster={version:1,save:data=>{window.posterSaves.push(data);return new Promise(()=>{});}};
+    document.addEventListener('click',event=>{
+     if(event.target instanceof HTMLAnchorElement && event.target.download) {
+      window.posterDownloads.push(event.target.href);event.preventDefault();
+     }
+    },true);
+   });
+   await save.click();
+   await page.waitForFunction(()=>window.posterDownloads.length===1);
+   assert.equal(await save.isEnabled(),true);
+   assert.equal(await dialog.getByText('正在保存海报…',{exact:true}).count(),0);
+   await dialog.locator('uni-image.preview').scrollIntoViewIfNeeded();
+   const box=await dialog.locator('uni-image.preview').boundingBox();
+   const touch={identifier:1,clientX:box.x+20,clientY:box.y+20,pageX:box.x+20,pageY:box.y+20};
+   await page.dispatchEvent('uni-image.preview','touchstart',{touches:[touch],changedTouches:[touch]});
+   await page.waitForTimeout(600);
+   await page.dispatchEvent('uni-image.preview','touchend',{touches:[],changedTouches:[touch]});
+   assert.equal(await page.evaluate(()=>window.posterDownloads.length),1,'long press leaves the native image menu alone');
+   assert.equal(await page.evaluate(()=>window.posterSaves.length),0,'iOS never waits on the native bridge');
+   await page.evaluate(()=>delete window.__specpayPoster);
+   await save.click();await page.waitForFunction(()=>window.posterDownloads.length===2);
+   assert.equal(await save.isEnabled(),true);
+   assert.deepEqual(errors,[]);
+   console.log(`PASS ${name}: original download path, hanging/missing bridge bypass, native long press retained`);
+   continue;
+  }
   await save.click();await dialog.getByText(/当前 App 版本不支持保存海报/).waitFor();
   await page.evaluate(()=>{
    window.posterSaves=[];

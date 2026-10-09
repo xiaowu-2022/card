@@ -4,7 +4,7 @@ import qrcode from 'qrcode-generator';
 import Modal from './Modal.vue';
 import { privateImage, native, photoUrl } from '../lib/api';
 import { t } from '../lib/i18n';
-import { inWebview, saveBrowserPoster } from '../lib/poster-save';
+import { boundedPosterSave, inWebview, isIOSWebview, saveBrowserPoster } from '../lib/poster-save';
 const props = defineProps<{ link: string; code: string; background: string | null }>();
 const open = ref(false),
     preview = ref(''),
@@ -37,7 +37,9 @@ async function generate() {
             );
         }
         if (run !== generation || !open.value) return;
-        const scale = Math.min(1, 2400 / Math.max(picture?.width ?? 900, picture?.height ?? 1000));
+        // Bound native PNG transfer cost before the photo-library call. Keep QR cells integral.
+        const maxEdge = native || inWebview() ? 1600 : 2400;
+        const scale = Math.min(1, maxEdge / Math.max(picture?.width ?? 900, picture?.height ?? 1000));
         width.value = Math.round((picture?.width ?? 900) * scale);
         height.value = Math.round((picture?.height ?? 1000) * scale);
         const qr = qrcode(0, 'M');
@@ -141,13 +143,13 @@ async function save() {
         saveMessage.value = result === 'saved' ? 'Poster saved to your photo library.' : 'Download requested. Check your browser downloads.';
         // #endif
         // #ifdef APP-PLUS
-        await new Promise<void>((resolve, reject) =>
+        await boundedPosterSave(() => new Promise<void>((resolve, reject) =>
             uni.saveImageToPhotosAlbum({
                 filePath: preview.value,
                 success: () => resolve(),
                 fail: reject,
             }),
-        );
+        ), undefined, 60000);
         saveMessage.value = 'Poster saved to your photo library.';
         // #endif
     } catch (error) {
@@ -163,7 +165,8 @@ async function save() {
     }
 }
 function longSave() {
-    if (native || inWebview()) void save();
+    // Preserve the iOS WebView image context menu; do not start a second save on long press.
+    if (native || (inWebview() && !isIOSWebview())) void save();
 }
 defineExpose({ generate });
 </script>

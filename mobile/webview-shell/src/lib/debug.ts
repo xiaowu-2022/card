@@ -34,7 +34,7 @@ export function debugScript(prefix: string, enabled: boolean): string {
         window.addEventListener('unhandledrejection', rejection);
         function restore() { if (originalTitle !== null && document.title.indexOf(${JSON.stringify(prefix)}) === 0) document.title = originalTitle; originalTitle = null; }
         var timer = window.setInterval(function () {
-            if (!queue.length || /^specpay-ready-/.test(document.title)) return;
+            if (!queue.length || /^specpay-(ready|poster)-/.test(document.title)) return;
             restore(); originalTitle = document.title;
             document.title = ${JSON.stringify(prefix)} + JSON.stringify(queue.splice(0, 20));
             restoreTimer = window.setTimeout(restore, 100);
