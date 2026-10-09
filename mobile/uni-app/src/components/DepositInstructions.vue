@@ -132,6 +132,8 @@ function copy(value: string, label: string) {
     display: flex;
     flex-direction: column;
     gap: 16px;
+    box-sizing: border-box;
+    padding-right: 12px;
 }
 .deposit-status {
     display: flex;

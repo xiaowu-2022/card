@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#11100c">
+  <title>Spec Pay 万事达U卡</title>
+  <script>
+    // ===== 配置区：只需编辑这里，无需打包，无图片、字体或外部脚本 =====
+    const START_CONFIG = {
+      name: 'Spec Pay 万事达U卡',
+      domains: [
+        'https://113b.my/',
+        'https://113c.my/',
+        'https://113d.my/',
+        'https://113e.my/',
+        'https://113f.my/',
+        'https://113g.my/',
+        'https://113h.my/',
+        'https://113k.my/',
+        'https://113m.my/',
+        'https://113n.my/',
+        'https://113p.my/',
+        'https://113q.my/',
+        'https://113r.my/',
+        'https://113s.my/',
+        'https://113t.my/',
+        'https://113u.my/',
+        'https://113v.my/',
+        'https://113w.my/',
+        'https://113x.my/',
+        'https://113y.my/',
+        'https://113z.my/',
+        'https://18k.my/',
+        'https://27m.my/',
+      ],
+      timeoutMs: 5000,
+      probePath: '/', // 无副作用的公开 GET 路径，不会携带入口参数
+      // no-cors 无需服务器配置，只能判断网络响应，无法区分 HTTP 404/500。
+      // 如需验证 HTTP 成功状态，改为 cors，并在探测接口允许跨域 GET。
+      probeMode: 'no-cors',
+    };
+  </script>
+  <style>
+    :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: #11100c; color: #f6edce; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; min-height: 100svh; background: radial-gradient(ellipse at 95% 35%, #342915 0%, #17150f 43%, #11100c 75%); }
+    .welcome { width: 100%; max-width: 640px; min-height: 100vh; min-height: 100svh; margin: auto; padding: max(30px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; }
+    .masthead { display: flex; align-items: center; gap: 10px; }
+    .brand-mark { position: relative; width: 48px; height: 30px; flex-shrink: 0; }
+    .circle { position: absolute; width: 30px; height: 30px; border-radius: 50%; top: 0; }
+    .red { left: 0; background: #eb1726; }
+    .gold { right: 0; background: #f5ae20; opacity: .9; }
+    .wordmark { display: flex; flex-direction: column; }
+    .brand-name { font-size: 19px; font-weight: 700; letter-spacing: -.5px; }
+    .brand-caption { font-size: 10px; letter-spacing: 2px; color: #d7bf80; margin-top: 2px; }
+    .hero { text-align: center; padding-top: 64px; }
+    .eyebrow { display: block; font-size: 9px; letter-spacing: 3px; color: #b49b60; margin: 0; }
+    .headline { font-size: clamp(23px, 6.5vw, 36px); font-weight: 700; letter-spacing: -.8px; margin: 20px 0 0; white-space: nowrap; }
+    .tagline { font-size: 17px; color: #cec5ad; margin: 18px 0 0; letter-spacing: 1px; }
+    .connection { width: 100%; max-width: 360px; margin: auto; padding: 48px 0 36px; text-align: center; }
+    .loading-track { width: 100px; height: 2px; margin: 0 auto; background: #423820; overflow: hidden; border-radius: 2px; }
+    .loading-glow { width: 45px; height: 100%; background: linear-gradient(90deg, #80692c, #f6e2a3); animation: glide 1.8s ease-in-out infinite alternate; }
+    #status { font-size: 12px; font-weight: 400; color: #c1ad7c; letter-spacing: 2px; margin: 20px 0 0; line-height: 1.8; }
+    #hint { color: #c4b89b; font-size: 13px; line-height: 1.7; margin: 12px 0 20px; overflow-wrap: anywhere; }
+    #hint:empty { display: none; }
+    body[data-state="error"] #status, body[data-state="idle"] #status { color: #f6edce; font-size: 19px; letter-spacing: 0; }
+    body[data-state="error"] .loading-track, body[data-state="idle"] .loading-track { display: none; }
+    body[data-state="checking"] #alternatives, body[data-state="ready"] #alternatives { display: none; }
+    button { width: 100%; border: 0; border-radius: 28px; background: linear-gradient(110deg, #f1dda5, #c2a35a); color: #201a0b; font: inherit; font-size: 15px; line-height: 46px; cursor: pointer; margin-top: 8px; }
+    :focus-visible { outline: 2px solid #f1dda5; outline-offset: 4px; }
+    details { text-align: left; margin-top: 8px; font-size: 13px; color: #d8c28c; }
+    summary { cursor: pointer; text-align: center; padding: 14px; }
+    ul { list-style: none; padding: 0; margin: 8px 0 0; }
+    li { border-bottom: 1px solid #423820; }
+    a { color: #d8c28c; display: flex; gap: 12px; justify-content: space-between; align-items: center; padding: 15px 0; text-decoration: none; overflow-wrap: anywhere; }
+    a span { min-width: 0; }
+    a small { color: #a29477; flex-shrink: 0; }
+    .security-note { text-align: center; font-size: 10px; line-height: 1.8; color: #827963; margin: 0; }
+    [hidden] { display: none !important; }
+    @keyframes glide { from { transform: translateX(-25px); } to { transform: translateX(85px); } }
+    @media (max-height: 680px) { .hero { padding-top: 34px; } .connection { padding-top: 30px; padding-bottom: 24px; } }
+    @media (prefers-reduced-motion: reduce) { .loading-glow { animation: none; width: 100%; } }
+  </style>
+</head>
+<body data-state="idle">
+  <main class="welcome">
+    <header class="masthead">
+      <div class="brand-mark" aria-hidden="true"><span class="circle red"></span><span class="circle gold"></span></div>
+      <div class="wordmark"><span class="brand-name">Spec Pay</span><span class="brand-caption">万事达 U卡</span></div>
+    </header>
+    <section class="hero" aria-labelledby="name">
+      <p class="eyebrow">SPEC PAY · GLOBAL PAYMENT</p>
+      <h1 class="headline" id="name">Spec Pay 万事达U卡</h1>
+      <p class="tagline">全球支付，尽在掌握。</p>
+    </section>
+    <section class="connection">
+      <div role="status" aria-live="polite" aria-atomic="true">
+        <div class="loading-track" aria-hidden="true"><div class="loading-glow"></div></div>
+        <p id="status">正在检测线路速度，选择最快线路</p>
+        <p id="hint"></p>
+      </div>
+      <button id="retry" type="button" hidden>重试</button>
+      <details id="alternatives" hidden>
+        <summary>手动选择线路</summary>
+        <ul id="routes"></ul>
+      </details>
+      <noscript><p>请启用 JavaScript，以自动选择线路并保留跳转参数。</p></noscript>
+    </section>
+    <footer class="security-note">保护账户安全，请勿向任何人透露密码或验证码。</footer>
+  </main>
+  <script>
+    (() => {
+      'use strict';
+      const $ = (id) => document.getElementById(id);
+      $('name').textContent = START_CONFIG.name;
+      document.title = START_CONFIG.name;
+      let controllers = [];
+      let generation = 0;
+      let entries = [];
+      const timeoutMs = Math.max(500, Math.min(30000, Number(START_CONFIG.timeoutMs) || 5000));
+
+      function destination(base) {
+        const target = new URL(base);
+        // 按原始字符串追加，保留重复参数、编码和顺序；入口 hash 优先。
+        const incoming = location.search.slice(1);
+        if (incoming) target.search = target.search ? target.search + '&' + incoming : '?' + incoming;
+        if (location.hash) target.hash = location.hash;
+        return target;
+      }
+
+      function setStatus(state, title, hint) {
+        document.body.dataset.state = state;
+        $('status').textContent = title;
+        $('hint').textContent = hint;
+      }
+
+      function cancel() {
+        generation += 1;
+        controllers.forEach((controller) => controller.abort());
+        controllers = [];
+      }
+
+      try {
+        const seen = new Set();
+        if (!Array.isArray(START_CONFIG.domains)) throw new Error('域名列表需要使用数组格式');
+        if (!['cors', 'no-cors'].includes(START_CONFIG.probeMode)) throw new Error('检测模式配置不正确');
+        entries = START_CONFIG.domains.map((value) => {
+          const url = new URL(value);
+          if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) {
+            throw new Error('线路需要使用不含账号密码的 HTTP 或 HTTPS 地址');
+          }
+          if (location.protocol === 'https:' && url.protocol !== 'https:') throw new Error('HTTPS 启动页请配置 HTTPS 线路');
+          if (url.origin === location.origin && url.pathname === location.pathname) throw new Error('线路不能指向启动页自身');
+          const probe = new URL(START_CONFIG.probePath, url.origin);
+          if (probe.origin !== url.origin || probe.username || probe.password) throw new Error('检测路径必须属于对应线路');
+          probe.hash = '';
+          return { url, probe };
+        }).filter(({ url }) => {
+          if (seen.has(url.href)) return false;
+          seen.add(url.href);
+          return true;
+        });
+      } catch (error) {
+        setStatus('error', '请检查线路配置', error instanceof TypeError ? '请填写完整域名，例如 https://你的域名/' : error.message);
+        return;
+      }
+
+      for (const entry of entries) {
+        const li = document.createElement('li');
+        const link = document.createElement('a');
+        const label = document.createElement('span');
+        entry.status = document.createElement('small');
+        label.textContent = entry.url.host + (entry.url.pathname === '/' ? '' : entry.url.pathname);
+        link.href = destination(entry.url).href;
+        link.addEventListener('click', cancel);
+        link.append(label, entry.status);
+        li.append(link);
+        $('routes').append(li);
+      }
+      $('alternatives').hidden = entries.length === 0;
+
+      async function start() {
+        cancel();
+        const run = generation;
+        if (!entries.length) {
+          setStatus('idle', '等待配置线路', '请在 HTML 顶部的 domains 列表中填写域名');
+          return;
+        }
+        $('retry').hidden = true;
+        setStatus('checking', '正在检测线路速度，选择最快线路', '');
+        let remaining = entries.length;
+        let selected = false;
+        for (const entry of entries) {
+          entry.status.textContent = '检测中';
+          const controller = new AbortController();
+          controllers.push(controller);
+          const timer = setTimeout(() => controller.abort(), timeoutMs);
+          const probe = new URL(entry.probe);
+          probe.searchParams.set('_route_probe', Date.now() + '-' + Math.random().toString(36).slice(2));
+          const began = performance.now();
+          fetch(probe.href, {
+            method: 'GET', mode: START_CONFIG.probeMode, credentials: 'omit',
+            cache: 'no-store', referrerPolicy: 'no-referrer', redirect: START_CONFIG.probeMode === 'no-cors' ? 'follow' : 'error', signal: controller.signal,
+          }).then((response) => {
+            if (run !== generation || selected) return;
+            if (response.type !== 'opaque' && !response.ok) throw new Error('HTTP unavailable');
+            selected = true;
+            const elapsed = Math.max(1, Math.round(performance.now() - began));
+            entry.status.textContent = elapsed + ' ms';
+            setStatus('ready', '正在为您开启全球支付', '');
+            cancel();
+            location.replace(destination(entry.url).href);
+          }).catch(() => {
+            if (run !== generation || selected) return;
+            entry.status.textContent = '暂不可用';
+            remaining -= 1;
+            if (remaining === 0) {
+              setStatus('error', '暂时无法连接', '请检查网络后重试，或手动选择下方线路');
+              $('retry').hidden = false;
+              $('alternatives').open = true;
+            }
+          }).finally(() => clearTimeout(timer));
+        }
+      }
+      $('retry').addEventListener('click', start);
+      window.addEventListener('pagehide', cancel);
+      window.addEventListener('pageshow', (event) => { if (event.persisted) start(); });
+      start();
+    })();
+  </script>
+</body>
+</html>

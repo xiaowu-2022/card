@@ -1,8 +1,8 @@
 {
     "name" : "U 卡",
     "appid" : "__UNI__30F90A0",
-    "versionName" : "2.5.09",
-    "versionCode" : 2509,
+    "versionName" : "2.6.01",
+    "versionCode" : 2601,
     "vueVersion" : "3",
     "transformPx" : false,
     "uniStatistics" : {
@@ -25,8 +25,7 @@
             "delay" : 0
         },
         "modules" : {
-            "Camera" : {},
-            "Share" : {}
+            "Camera" : {}
         },
         "distribute" : {
             "android" : {
@@ -40,7 +39,7 @@
             "ios" : {
                 "appid" : "com.tng.pingqiu",
                 "privacyDescription" : {
-                    "NSCameraUsageDescription" : "Take a photo when you choose to submit identity documents or attach an image to customer support.",
+                    "NSCameraUsageDescription" : "",
                     "NSPhotoLibraryUsageDescription" : "Select photos when you choose to submit identity documents or attach an image to customer support.",
                     "NSPhotoLibraryAddUsageDescription" : "Save your invitation poster to your photo library when you choose Save image."
                 },
