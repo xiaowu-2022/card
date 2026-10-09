@@ -86,6 +86,30 @@ const terminal = computed(
             order.value?.state !== 'confirming',
     ),
     needsConfirmation = computed(() => needsPassword.value && active.value !== 'reveal');
+const insufficientReloadBalance = computed(() => {
+    if (active.value !== 'load' || order.value || props.availableBalance === null) return false;
+    const available = minorUnits(props.availableBalance);
+    const required =
+        amount.value === ''
+            ? minorUnits(props.card.minimumReload ?? '0')
+            : /^\d+(?:\.\d{1,2})?$/.test(amount.value)
+              ? minorUnits(amount.value)
+              : null;
+    return available !== null && required !== null && required > available;
+});
+const amountError = computed(() => {
+    if (order.value || !['load', 'return'].includes(active.value ?? '')) return '';
+    if (insufficientReloadBalance.value) return t('Your available balance is not enough.');
+    if (!amount.value) return '';
+    const parsed = minorUnits(amount.value);
+    if (!/^\d+(?:\.\d{1,2})?$/.test(amount.value) || parsed === null || parsed <= 0n)
+        return t('Enter a positive amount with at most 2 decimal places.');
+    if (active.value === 'load' && parsed < (minorUnits(props.card.minimumReload ?? '0') ?? 0n))
+        return t('The amount is below this card’s minimum reload.');
+    if (active.value === 'return' && props.card.balance !== null && parsed > (minorUnits(props.card.balance) ?? 0n))
+        return t('The return amount exceeds the available card balance.');
+    return '';
+});
 const projected = computed(() => cardReloadBalance(amount.value, props.card.balance)),
     amountValid = computed(() => {
         if (!/^\d+(?:\.\d{1,2})?$/.test(amount.value)) return false;
@@ -409,6 +433,7 @@ async function copy(part: 'pan' | 'cvv' | 'all') {
                         :label="t('Card operation amount')"
                         type="digit"
                         :description="active === 'load' ? minimumCopy : undefined"
+                        :error="amountError"
                         :disabled="busy || uncertain"
                     /><view v-if="active === 'load' && !order" class="amount-row"
                         ><text class="muted">{{ t('Estimated card balance after reload') }}</text

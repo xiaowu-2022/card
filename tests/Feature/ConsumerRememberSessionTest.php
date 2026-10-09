@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\User\Models\User;
+use App\Domain\Tenant\Models\TenantDomain;
 use App\Http\Middleware\RememberConsumerSession;
 use App\Infrastructure\Auth\ConsumerDeviceToken;
 use Illuminate\Support\Facades\Auth;
@@ -100,4 +101,54 @@ it('preserves remembered login on the password-changing browser only', function 
     expect(ConsumerDeviceToken::firstOrFail()->session_version)->toBe(1);
     forgetBrowserSession($this);
     $this->getJson('http://a.localhost/api/v1/bootstrap')->assertOk()->assertJsonPath('user.email', 'user@a.localhost');
+});
+
+it('restores the same encrypted WebView credential on another company domain and revokes both on logout', function () {
+    $user = User::where('email', 'user@a.localhost')->firstOrFail();
+    TenantDomain::create(['tenant_id' => $user->tenant_id, 'hostname' => 'second-a.localhost', 'domain_type' => 'CUSTOM_DOMAIN', 'status' => 'ACTIVE', 'is_primary' => false]);
+    $encrypted = $this->postJson('https://a.localhost/api/v1/login', [
+        'identifier' => $user->email, 'password' => 'local-password',
+    ])->assertOk()->getCookie(RememberConsumerSession::COOKIE, false)->getValue();
+    $before = [DB::table('wallets')->count(), DB::table('ledger_entries')->count()];
+    forgetBrowserSession($this);
+    $this->withHeader('X-Consumer-Webview', '1')->withUnencryptedCookie(RememberConsumerSession::COOKIE, $encrypted)
+        ->getJson('https://second-a.localhost/api/v1/bootstrap')->assertOk()->assertJsonPath('user.id', $user->id);
+    expect(ConsumerDeviceToken::count())->toBe(1);
+    expect([DB::table('wallets')->count(), DB::table('ledger_entries')->count()])->toBe($before);
+    $this->postJson('https://second-a.localhost/api/v1/logout')->assertNoContent();
+    expect(ConsumerDeviceToken::count())->toBe(0);
+    forgetBrowserSession($this);
+    $this->getJson('https://a.localhost/api/v1/bootstrap')->assertOk()->assertJsonPath('user', null);
+});
+
+it('does not let the WebView marker authenticate a stale destination session without its remember credential', function () {
+    rememberedBrowser($this);
+    $this->withHeader('X-Consumer-Webview', '1')->getJson('http://a.localhost/api/v1/bootstrap')
+        ->assertOk()->assertJsonPath('user', null);
+});
+
+it('replaces a destination consumer session owned by another account with the validated WebView credential owner', function () {
+    $cookie = rememberedBrowser($this);
+    $owner = User::where('email', 'user@a.localhost')->firstOrFail();
+    // Simulate an old guard retained by the destination host. It is never the
+    // source of authority for an app-restored remember credential.
+    $other = User::where('email', 'user@b.localhost')->firstOrFail();
+    Auth::guard('tenant_user')->login($other);
+    app('session')->driver()->put('contact_change_request', 'old-account-request');
+    $this->withHeader('X-Consumer-Webview', '1')->withCookie(RememberConsumerSession::COOKIE, $cookie)
+        ->getJson('http://a.localhost/api/v1/bootstrap')->assertOk()->assertJsonPath('user.id', $owner->id)
+        ->assertSessionMissing('contact_change_request');
+    expect(ConsumerDeviceToken::count())->toBe(1);
+    $this->assertGuest('platform_admin');
+});
+
+it('restores a valid updated shared credential over an older same-user destination session', function () {
+    $cookie = rememberedBrowser($this);
+    // A password change preserves this device's token while an unused host
+    // still has the old short-lived session version.
+    User::where('email', 'user@a.localhost')->update(['session_version' => 1]);
+    ConsumerDeviceToken::query()->update(['session_version' => 1]);
+    $this->withHeader('X-Consumer-Webview', '1')->withCookie(RememberConsumerSession::COOKIE, $cookie)
+        ->getJson('http://a.localhost/api/v1/bootstrap')->assertOk()->assertJsonPath('user.email', 'user@a.localhost')
+        ->assertSessionHas('tenant_user_session_version', 1);
 });

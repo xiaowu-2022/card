@@ -5,6 +5,10 @@ import config from '../../config.json';
 import { discover, type DirectoryCache } from '../../lib/directory';
 import { readinessScript } from '../../lib/readiness';
 import { safeAddress, debugScript, debugMessages } from '../../lib/debug';
+import { sharedSession, pageOrigin, validRememberCookie } from '../../lib/shared-session';
+import { sessionSignalScript } from '../../lib/session-signal';
+import { posterBridgeScript, posterReceiver, savePoster, type PosterRuntime } from '../../lib/poster-bridge';
+import { androidCredentialVault, type AndroidBridge } from '../../../../uni-app/src/lib/device-credentials';
 type Webview = {
     append: (child: Webview) => void; close: () => void;
     getURL: () => string; evalJS: (script: string) => void; setStyle: (styles: Record<string, unknown>) => void;
@@ -12,7 +16,7 @@ type Webview = {
     canBack: (callback: (result: { canBack: boolean }) => void) => void;
     addEventListener: (event: string, callback: (event: { title?: string }) => void) => void;
 };
-declare const plus: { webview: { create: (url: string, id: string, styles: Record<string, unknown>) => Webview }; runtime: { quit: () => void } };
+declare const plus: PosterRuntime & { webview: { create: (url: string, id: string, styles: Record<string, unknown>) => Webview }; runtime: { appid: string; quit: () => void }; os: { name: string }; android: AndroidBridge; navigator: { getCookie(url: string): string; setCookie(url: string, value: string): void } };
 const state = ref<'discovering' | 'loading' | 'ready' | 'error'>('discovering');
 const error = ref(''), active = ref('');
 const debugEnabled = ref(false), debugRows = ref<string[]>([]), debugUrl = ref('');
@@ -26,6 +30,42 @@ let readinessTimer: ReturnType<typeof setTimeout> | undefined, readinessToken = 
 let measuredParentHeight = 0, layoutRevision = 0;
 let revealPending = false, startupPulseDone = false, startupPulseActive = false;
 let startupPulseTimer: ReturnType<typeof setTimeout> | undefined;
+let loginStore: ReturnType<typeof sharedSession> | null = null, loginTenant = '', sessionPrefix = '', signedIn = false;
+let loginDirectory: DirectoryCache | null = null;
+let sessionSequence = 0;
+let posterChannel: ReturnType<typeof posterReceiver> | null = null;
+function configureLogin(directory: DirectoryCache, previous: DirectoryCache | null) {
+    if (loginTenant && loginTenant !== directory.tenantId) throw new Error('公司信息已变更，请重新打开应用。');
+    if (!loginStore) {
+        loginTenant = directory.tenantId;
+        const scope = `webview:${plus.runtime.appid}:${config.tenantSlug}:${loginTenant}`;
+        const key = 'encrypted-session:' + scope, metaKey = 'session-state:' + scope;
+        const vault = plus.os.name === 'Android' ? androidCredentialVault(plus.android, scope, {
+            get: () => uni.getStorageSync(key), set: value => uni.setStorageSync(key, value), remove: () => uni.removeStorageSync(key),
+        }, validRememberCookie) : null;
+        loginStore = sharedSession({
+            cookies: { get: url => plus.navigator.getCookie(url) || '', set: (url, value) => plus.navigator.setCookie(url, value) },
+            vault,
+            metadata: {
+                get: () => { const value = uni.getStorageSync(metaKey); return value && typeof value === 'object' ? value : null; },
+                set: value => uni.setStorageSync(metaKey, value),
+            },
+        });
+    }
+    loginDirectory = directory;
+    loginStore.configure(directory, previous?.tenantId === directory.tenantId ? previous.selected : undefined);
+}
+function trustedLoginPage(view: Webview) {
+    return !!loginDirectory && pageOrigin(view.getURL()) === active.value && loginDirectory.origins.includes(active.value);
+}
+function captureLogin() {
+    if (signedIn && child && trustedLoginPage(child) && loginStore && !loginStore.capture(active.value))
+        throw new Error('登录凭证尚未保存');
+}
+function loginStorageFailure() {
+    debugLog('登录状态未能安全保存');
+    uni.showToast({ title: '登录状态未能安全保存，切换线路后可能需要重新登录。', icon: 'none', duration: 3500 });
+}
 function debugLog(message: string) {
     if (debugEnabled.value) debugRows.value = [...debugRows.value.slice(-59), `${new Date().toLocaleTimeString()} ${message}`];
 }
@@ -105,7 +145,11 @@ function contentBounds() {
         ...(height > 0 ? { height: `${height}px` } : {}) };
 }
 function loading() {
+    posterChannel?.dispose(); posterChannel = null;
     stopTimer(); state.value = 'loading'; error.value = '';
+    signedIn = false;
+    sessionPrefix = `specpay-session-${Date.now()}-${loadSequence + 1}:`;
+    sessionSequence = 0;
     debugInstalled = false; debugPrefix = ''; debugLog('网页开始加载');
     readinessToken = `specpay-ready-${Date.now()}-${++loadSequence}`;
     child?.setStyle({ opacity: 0 });
@@ -183,9 +227,34 @@ function open(url: string) {
         if (!/^https:\/\//i.test(view.getURL())) return;
         if (debugEnabled.value) debugUrl.value = safeAddress(view.getURL());
         debugLog('文档 loaded，等待页面内容'); installDebug();
+        if (trustedLoginPage(view)) {
+            view.evalJS(sessionSignalScript(sessionPrefix));
+            posterChannel?.dispose();
+            const prefix = `specpay-poster-${Date.now()}-${loadSequence}:`;
+            const documentSequence = loadSequence;
+            const trusted = () => !disposed && child === view && loadSequence === documentSequence && trustedLoginPage(view);
+            posterChannel = posterReceiver({ prefix, trusted, evaluate: script => view.evalJS(script),
+                save: data => savePoster(plus, data, trusted) });
+            view.evalJS(posterBridgeScript(prefix));
+        }
         checkContent(view);
     });
     view.addEventListener('titleUpdate', event => {
+        if (!disposed && child === view && event.title?.startsWith('specpay-poster-')) {
+            void posterChannel?.receive(event.title); return;
+        }
+        if (!disposed && child === view && sessionPrefix && event.title?.startsWith(sessionPrefix) && trustedLoginPage(view)) {
+            try {
+                const value = JSON.parse(event.title.slice(sessionPrefix.length));
+                if (value.tenantId !== loginDirectory?.tenantId || typeof value.signedIn !== 'boolean'
+                    || !Number.isSafeInteger(value.sequence) || value.sequence <= sessionSequence) return;
+                sessionSequence = value.sequence;
+                signedIn = value.signedIn;
+                if (signedIn) captureLogin();
+                else loginStore?.clear();
+            } catch { loginStorageFailure(); }
+            return;
+        }
         if (!disposed && child === view && debugEnabled.value && debugPrefix && event.title?.startsWith(debugPrefix)) {
             debugMessages(event.title.slice(debugPrefix.length)).forEach(debugLog); return;
         }
@@ -199,7 +268,7 @@ function open(url: string) {
     });
     view.addEventListener('error', () => { if (child === view) failure('网页无法打开，请检查网络后重试。'); });
     page.$getAppWebview().append(view);
-    loading(); view.loadURL(url + config.entryPath);
+    loading(); view.loadURL(url + '/?app_webview=1' + config.entryPath.slice(1));
     // #endif
     // #ifndef APP-PLUS
     failure('请使用 HBuilderX 运行到手机或云打包，此工程是 App 网页容器。');
@@ -208,9 +277,14 @@ function open(url: string) {
 async function connect() {
     if (detecting || disposed) return;
     detecting = true; state.value = 'discovering'; error.value = ''; stopTimer();
+    try { captureLogin(); } catch { loginStorageFailure(); }
+    const previous = cache();
     const previousChild = child; child = null; previousChild?.close();
     try {
-        const result = await discover(config.seeds, config.tenantSlug, cache(), probe);
+        const result = await discover(config.seeds, config.tenantSlug, previous, probe);
+        if (disposed) return;
+        configureLogin(result, previous);
+        await loginStore!.restore(result.selected);
         if (disposed) return;
         save(result); lastRefresh = Date.now(); active.value = result.selected;
         stopDebug(); refreshDebug(); open(result.selected);
@@ -222,7 +296,7 @@ function retry() {
 }
 function changeLine() {
     if (detecting) return;
-    uni.showModal({ title: '重新连接', content: '将重新连接服务并打开登录页，可能需要重新登录。请确认没有正在提交的操作。',
+    uni.showModal({ title: '重新连接', content: '将重新选择线路并恢复当前登录。请确认没有正在提交的操作。',
         confirmText: '继续', cancelText: '取消', success: result => { if (result.confirm) void connect(); } });
 }
 function back() {
@@ -247,9 +321,9 @@ onShow(() => {
         if (!disposed) save({ ...value, selected: active.value });
     }).catch(() => { /* Retain the last verified directory during a temporary outage. */ });
 });
-onHide(() => { background = true; stopDebug(); });
+onHide(() => { try { captureLogin(); } catch { loginStorageFailure(); } background = true; stopDebug(); });
 onBackPress(() => { back(); return true; });
-onUnload(() => { disposed = true; stopDebug(); uni.offWindowResize(resizeContent); stopTimer(); child?.close(); child = null; });
+onUnload(() => { disposed = true; posterChannel?.dispose(); stopDebug(); uni.offWindowResize(resizeContent); stopTimer(); child?.close(); child = null; });
 </script>
 <template>
     <view class="shell" :style="{ paddingTop: statusHeight + 'px', paddingBottom: debugEnabled ? debugHeight + 'px' : '0px' }">

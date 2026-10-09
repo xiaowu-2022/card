@@ -30,11 +30,11 @@ function client(platform, base = '/', initialAssets = {}) {
         const compiled = ts.transpileModule(source, {
             compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
         }).outputText;
-        runInNewContext(compiled, { exports, window, URL, uni, plus: { os: { name: 'Android' }, android: {} }, require: (id) => id === 'vue' ? load('vue') : load(resolve(dirname(path), id + (id.endsWith('.json') ? '' : '.ts'))) });
+        runInNewContext(compiled, { exports, window, location: window.location, URL, URLSearchParams, uni, plus: { os: { name: 'Android' }, android: {} }, require: (id) => id === 'vue' ? load('vue') : load(resolve(dirname(path), id + (id.endsWith('.json') ? '' : '.ts'))) });
         return exports;
     }
     const sourceDir = resolve('mobile/uni-app/src/lib');
-    return { window, calls, uni, origin: load(resolve(sourceDir, 'origin.ts')), api: load(resolve(sourceDir, 'api.ts')), navigation: load(resolve(sourceDir, 'navigation.ts')) };
+    return { window, calls, uni, origin: load(resolve(sourceDir, 'origin.ts')), api: load(resolve(sourceDir, 'api.ts')), navigation: load(resolve(sourceDir, 'navigation.ts')), entry: load(resolve(sourceDir, 'entry.ts')) };
 }
 
 test('H5 follows the current domain for links, image paths and internal navigation', () => {
@@ -51,17 +51,18 @@ test('H5 follows the current domain for links, image paths and internal navigati
     }
 });
 
-test('subdirectory H5 assets and invitation links remain inside the deployed H5', async () => {
+test('assets follow deployment while invitations always use the fixed launcher', async () => {
     const c = client('h5', '/h5/');
     assert.equal(c.origin.staticAsset('icons/Bell.svg'), c.origin.webBase() + 'static/icons/Bell.svg');
     const invite = new URL(c.origin.invitationUrl('test+code'));
-    assert.equal(invite.origin, c.window.location.origin);
-    assert.equal(invite.pathname, '/h5/');
-    assert.equal(new URLSearchParams(invite.hash.split('?')[1]).get('path'), '/register?invite=test%2Bcode');
+    assert.equal(invite.origin, 'https://zb33333.com');
+    assert.equal(invite.pathname, '/start.html');
+    assert.equal(invite.searchParams.get('invite'), 'test+code');
+    assert.equal(invite.hash, '');
     const native = client('app', '/h5/');
     await native.origin.ensureCompanyOrigin();
     assert.equal(native.origin.staticAsset('icons/Bell.svg'), '/static/icons/Bell.svg');
-    assert.equal(native.origin.invitationUrl('test'), 'https://primary.example.org/register?invite=test');
+    assert.equal(native.origin.invitationUrl('test'), 'https://zb33333.com/start.html?invite=test');
 });
 
 test('native App verifies its company domain before using it even when a browser-like global exists', async () => {
@@ -80,7 +81,7 @@ test('one relative build follows root, renamed directories and explicit index en
         c.window.location.href = c.window.location.origin + entry + '#/pages/login/index';
         assert.equal(c.origin.webBase(), base);
         assert.equal(c.origin.staticAsset('icons/Bell.svg'), c.origin.webBase() + 'static/icons/Bell.svg');
-        assert.equal(new URL(c.origin.invitationUrl('test')).pathname, base);
+        assert.equal(c.origin.invitationUrl('test'), 'https://zb33333.com/start.html?invite=test');
     }
 });
 
@@ -93,11 +94,19 @@ test('native requests wait for credential-free discovery and failed mutations ar
     assert.equal(c.calls.filter((call) => call.url.endsWith('/domains')).length, 1);
     assert.equal(c.calls[0].header.Authorization, undefined);
     assert.equal(c.calls[0].header['X-Consumer-Flow'], undefined);
-    assert.equal(c.calls.length, 5);
-    assert.ok(c.calls[1].url.endsWith('/app-release'));
-    assert.equal(c.calls[1].header.Authorization, undefined);
-    assert.equal(c.calls[1].header['X-Consumer-Flow'], undefined);
-    assert.ok(c.calls.slice(2).every((call) => call.header.Authorization === 'Bearer secret'));
+    assert.equal(c.calls.length, 4);
+    assert.ok(c.calls.every(call => !call.url.endsWith('/app-release')), 'advisory updates do not gate business requests');
+    assert.ok(c.calls.slice(1).every((call) => call.header.Authorization === 'Bearer secret'));
+});
+
+test('only the marked WebView H5 asks the server to require its remember credential', async () => {
+    for (const [platform, search, expected] of [['h5','?app_webview=1','1'],['h5','',undefined],['app','?app_webview=1',undefined]]) {
+        const c=client(platform); c.window.location.search=search;
+        await assert.rejects(c.api.request('/bootstrap'));
+        const request=c.calls.find(call=>call.url.endsWith('/bootstrap'));
+        assert.equal(request.header['X-Consumer-Webview'],expected);
+        assert.equal(request.header.Authorization,undefined);
+    }
 });
 
 
@@ -140,4 +149,24 @@ test('native discovery never probes the static APK host even from old packaged s
     await c.origin.refreshCompanyOrigins();
     assert.equal(c.origin.companyOrigin(), 'https://primary.example.org');
     assert.equal(c.calls.some(call => call.url.startsWith('https://zb33333.com/')), false);
+});
+
+
+test('launcher invite reaches the registration route from root and nested H5 entries', () => {
+    for (const pathname of ['/', '/h5/', '/another/index.html']) {
+        const c = client('h5', './');
+        Object.assign(c.window.location, { pathname, href: 'https://alternate.example.org' + pathname + '?invite=523612', search: '?invite=523612', hash: '' });
+        let destination;
+        c.window.history = { replaceState: (_state, _title, url) => { destination = url; } };
+        c.entry.normalizeWebEntry();
+        assert.equal(new URLSearchParams(destination.split('?')[1]).get('path'), '/register?invite=523612');
+        assert.ok(destination.startsWith(c.origin.webBase() + '#/pages/screen/index?'));
+        destination = null;
+        c.window.location.hash = '#/pages/login/index';
+        c.entry.normalizeWebEntry();
+        assert.equal(destination, null, 'an explicit existing page is preserved');
+        c.window.location.hash = ''; c.window.location.search = '';
+        c.entry.normalizeWebEntry();
+        assert.equal(destination, null, 'ordinary root navigation does not become registration');
+    }
 });

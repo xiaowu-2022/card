@@ -53,6 +53,27 @@ export class ApiError extends Error {
         super('Request failed');
     }
 }
+export type UploadStage = 'read' | 'prepare' | 'upload' | 'verify' | 'submit';
+export class UploadError extends ApiError {
+    constructor(public stage: UploadStage, public field: string | null, error: unknown) {
+        super(error instanceof ApiError ? error.status : 0, error instanceof ApiError ? error.payload : undefined);
+    }
+}
+async function uploadStep<T>(stage: UploadStage, field: string | null, run: () => Promise<T>): Promise<T> {
+    try { return await run(); }
+    catch (error) { throw error instanceof UploadError ? error : new UploadError(stage, field, error); }
+}
+function transportError(error?: { errMsg?: string }) {
+    return new ApiError(0, /timeout/i.test(error?.errMsg ?? '')
+        ? { error: { code: 'CLIENT_REQUEST_TIMEOUT' } } : undefined);
+}
+// Only same-origin API upload responses are parsed. Raw storage/provider bodies
+// remain private; presentation still uses the consumer translation allowlist.
+function uploadResponseError(response: { statusCode: number; data: string }) {
+    let payload: ApiError['payload'];
+    try { payload = JSON.parse(response.data); } catch { /* A proxy may return HTML. */ }
+    return new ApiError(response.statusCode, payload);
+}
 function url(path: string) {
     if (!/^\/[a-z0-9/?=&_%+.,:-]+$/i.test(path) || path.startsWith('//') || path.includes('..'))
         throw new Error('Invalid API path');
@@ -68,6 +89,12 @@ function headers() {
     if (native && token) header.Authorization = `Bearer ${token}`;
     if (native && flow) header['X-Consumer-Flow'] = flow;
     if (!native && csrf) header['X-CSRF-TOKEN'] = csrf;
+    // A shell-restored remember credential owns the consumer session on this
+    // host. The marker grants no access; the server still verifies the cookie.
+    // #ifdef H5
+    if (!native && typeof location !== 'undefined' && new URLSearchParams(location.search).get('app_webview') === '1')
+        header['X-Consumer-Webview'] = '1';
+    // #endif
     return header;
 }
 function capture(header: Record<string, unknown> | undefined) {
@@ -110,8 +137,8 @@ export async function request<T>(
                 else
                     reject(new ApiError(response.statusCode, response.data as ApiError['payload']));
             },
-            fail() {
-                reject(new ApiError(0));
+            fail(error) {
+                reject(transportError(error));
             },
         }),
     );
@@ -135,9 +162,9 @@ export async function upload<T>(
     files: Upload[],
     onProgress?: (progress: UploadProgress) => void,
 ): Promise<T> {
-    await ensureCompanyOrigin().catch(() => {
+    await uploadStep('prepare', null, () => ensureCompanyOrigin().catch(() => {
         throw new ApiError(0);
-    });
+    }));
     const purpose = ({
         '/client/kyc/applications': 'kyc',
         '/client/kyc/recognize-front': 'kyc',
@@ -150,29 +177,36 @@ export async function upload<T>(
         onProgress?.({ stage: 'uploading', completed, total: files.length });
         const prepared: { file: Upload; ticket: UploadTicket }[] = [];
         for (const file of files) {
-            const info = await new Promise<UniApp.GetImageInfoSuccessData>((resolve, reject) =>
-                uni.getImageInfo({ src: file.path, success: resolve, fail: () => reject(new ApiError(422)) }),
-            );
-            const kind = info.type?.toLowerCase();
-            let mime = kind === 'jpg' || kind === 'jpeg' ? 'image/jpeg'
-                : kind === 'png' ? 'image/png' : kind === 'webp' ? 'image/webp' : '';
-            // H5 getImageInfo supplies dimensions but no type; selected images are local blobs.
-            if (!mime && !native && /^(blob:|data:image\/)/i.test(file.path)) {
-                const blob = await fetch(file.path).then((response) => response.blob()).catch(() => {
-                    throw new ApiError(422);
-                });
-                mime = blob.type.toLowerCase();
-            }
-            if (!['image/jpeg', 'image/png', 'image/webp'].includes(mime)) throw new ApiError(422);
-            const ticket = await request<UploadTicket>(
-                '/images/direct', 'POST', { purpose, field: file.name, mime,
-                    ...(path.split('?')[0] === '/client/kyc/recognize-front' ? { recognize_front: true } : {}),
-                },
-            );
-            if (ticket.mode !== 'server' && !/^https:\/\/[a-z0-9.-]+\/?$/i.test(ticket.url)) throw new ApiError(502);
+            const mime = await uploadStep('read', file.name, async () => {
+                const info = await new Promise<UniApp.GetImageInfoSuccessData>((resolve, reject) =>
+                    uni.getImageInfo({ src: file.path, success: resolve, fail: () => reject(new ApiError(422)) }),
+                );
+                const kind = info.type?.toLowerCase();
+                let mime = kind === 'jpg' || kind === 'jpeg' ? 'image/jpeg'
+                    : kind === 'png' ? 'image/png' : kind === 'webp' ? 'image/webp' : '';
+                // H5 getImageInfo supplies dimensions but no type; selected images are local blobs.
+                if (!mime && !native && /^(blob:|data:image\/)/i.test(file.path)) {
+                    const blob = await fetch(file.path).then((response) => response.blob()).catch(() => {
+                        throw new ApiError(422);
+                    });
+                    mime = blob.type.toLowerCase();
+                }
+                if (!['image/jpeg', 'image/png', 'image/webp'].includes(mime))
+                    throw new ApiError(422, { error: { code: 'CLIENT_IMAGE_FORMAT' } });
+                return mime;
+            });
+            const ticket = await uploadStep('prepare', file.name, async () => {
+                const ticket = await request<UploadTicket>(
+                    '/images/direct', 'POST', { purpose, field: file.name, mime,
+                        ...(path.split('?')[0] === '/client/kyc/recognize-front' ? { recognize_front: true } : {}),
+                    },
+                );
+                if (ticket.mode !== 'server' && !/^https:\/\/[a-z0-9.-]+\/?$/i.test(ticket.url)) throw new ApiError(502);
+                return ticket;
+            });
             prepared.push({ file, ticket });
         }
-        const send = async ({ file, ticket }: typeof prepared[number]) => {
+        const send = ({ file, ticket }: typeof prepared[number]) => uploadStep('upload', file.name, async () => {
             if (ticket.mode === 'kyc_url') {
                 if (purpose !== 'kyc' || !ticket.imageUrl || !/^https:\/\//i.test(ticket.imageUrl)) throw new ApiError(502);
                 await new Promise<void>((resolve, reject) => uni.uploadFile({
@@ -180,7 +214,7 @@ export async function upload<T>(
                     header: {}, timeout: 120000,
                     success: response => response.statusCode >= 200 && response.statusCode < 300
                         ? resolve() : reject(new ApiError(502)),
-                    fail: () => reject(new ApiError(0)),
+                    fail: error => reject(transportError(error)),
                 }));
                 payload[file.name + '_upload_id'] = ticket.id;
                 payload[file.name + '_url'] = ticket.imageUrl;
@@ -193,8 +227,8 @@ export async function upload<T>(
                 url: url('/images/direct/' + ticket.id + '/backup'),
                 filePath: file.path, name: 'file', header: headers(), timeout: 120000,
                 success: response => response.statusCode >= 200 && response.statusCode < 300
-                    ? resolve() : reject(new ApiError(response.statusCode)),
-                fail: () => reject(new ApiError(0)),
+                    ? resolve() : reject(uploadResponseError(response)),
+                fail: error => reject(transportError(error)),
             }));
             if (ticket.mode !== 'server') await new Promise<void>((resolve, reject) => uni.uploadFile({
                 url: ticket.url,
@@ -206,13 +240,13 @@ export async function upload<T>(
                 timeout: 120000,
                 success: (response) => response.statusCode >= 200 && response.statusCode < 300
                     ? resolve() : reject(new ApiError(502)),
-                fail: () => reject(new ApiError(0)),
+                fail: error => reject(transportError(error)),
             })).catch(() => { /* Server copy remains available; completion records OSS retry. */ });
-            await request('/images/direct/' + ticket.id + '/complete', 'POST');
+            await uploadStep('verify', file.name, () => request('/images/direct/' + ticket.id + '/complete', 'POST'));
             payload[file.name + '_upload_id'] = ticket.id;
             completed++;
             onProgress?.({ stage: 'uploading', completed, total: files.length });
-        };
+        });
         const concurrency = purpose === 'kyc' && prepared.every(({ ticket }) => ticket.mode === 'kyc_url') ? 2 : 1;
         for (let index = 0; index < prepared.length; index += concurrency) {
             const results = await Promise.allSettled(prepared.slice(index, index + concurrency).map(send));
@@ -221,7 +255,7 @@ export async function upload<T>(
         }
         onProgress?.({ stage: 'submitting', completed, total: files.length });
         // Business submission is still authenticated and never replayed automatically.
-        return request<T>(path, 'POST', payload);
+        return uploadStep('submit', null, () => request<T>(path, 'POST', payload));
     }
     return new Promise((resolve, reject) =>
         uni.uploadFile({
@@ -241,8 +275,8 @@ export async function upload<T>(
                 if (response.statusCode >= 200 && response.statusCode < 300) resolve(result as T);
                 else reject(new ApiError(response.statusCode, result));
             },
-            fail() {
-                reject(new ApiError(0));
+            fail(error) {
+                reject(transportError(error));
             },
         }),
     );
@@ -277,8 +311,8 @@ export async function privateImage(path: string): Promise<string> {
                 if (result.statusCode === 200) resolve(result.tempFilePath);
                 else reject(new ApiError(result.statusCode));
             },
-            fail() {
-                reject(new ApiError(0));
+            fail(error) {
+                reject(transportError(error));
             },
         }),
     );

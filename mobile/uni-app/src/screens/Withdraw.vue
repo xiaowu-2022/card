@@ -112,7 +112,7 @@ async function submit() {
                         ><text class="muted">{{ t('Network') }}</text
                         ><text>USDT ({{ page.network }})</text></view
                     ><text v-if="page.feePercent === null" class="error">{{
-                        t('Not configured')
+                        t('Withdrawal fees are unavailable. Please try again later.')
                     }}</text
                     ><WithdrawalAmounts :fee="fee" :receive="receive" /><button
                         class="primary submit"

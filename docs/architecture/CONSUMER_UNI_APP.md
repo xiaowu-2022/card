@@ -1,3 +1,14 @@
+## 2026-10-09 Card page preview
+
+Returning to Cards immediately displays the last successful masked page DTO from
+memory, scoped to the current sign-in, company and user, while the ordinary local
+page GET refreshes in the background. The first visit retains its loading skeleton.
+Transient refresh failures retain the preview with an explicit stale-data message
+and Retry; authorization failures and redirects discard it. Login/logout clear the
+preview, and responses from unmounted pages or old sessions cannot repopulate it.
+No persistent storage, PAN/CVV or form drafts enter this cache. Action validation
+and financial confirmation remain server-owned; no provider polling is added.
+
 ## 2026-10-08 Native read recovery
 
 Native GET requests retry at most once after company-directory rediscovery on

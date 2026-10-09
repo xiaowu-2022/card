@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import CardProductInfo from '../../components/CardProductInfo.vue';
 import { staticAsset } from '../../lib/origin';
-import { computed, ref, nextTick } from 'vue';
+import { computed, ref, nextTick, watch, onBeforeUnmount } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import PageShell from '../../components/PageShell.vue';
 import LoadState from '../../components/LoadState.vue';
@@ -17,14 +17,16 @@ import CardManagement from '../../components/CardManagement.vue';
 import CardTransactions from '../../components/CardTransactions.vue';
 import PhysicalCardActivation from '../../components/PhysicalCardActivation.vue';
 import { getPage, useAction } from '../../lib/client';
-import { setCurrentPage } from '../../lib/api';
+import { ApiError, setCurrentPage } from '../../lib/api';
+import { consumerSessionScope } from '../../lib/session';
+import { clearCardsPreview, readCardsPreview, saveCardsPreview } from '../../lib/cards-preview';
 import { useScreen } from '../../lib/screen';
 import { useSensitiveScreen } from '../../lib/sensitive';
 import { go } from '../../lib/navigation';
 import { t } from '../../lib/i18n';
 import { displayMoney } from '../../generated/exact-amount';
 import type { CardsPage, Product } from '../../lib/card-types';
-const page = ref<CardsPage | null>(null),
+const page = ref<CardsPage | null>(readCardsPreview(consumerSessionScope())),
     choosing = ref(false),
     selectedForms = ref<Record<string, string>>({}),
     verification = ref(false),
@@ -36,16 +38,43 @@ onLoad((options) => {
 });
 let generation = 0,
     first = true;
+watch(consumerSessionScope, () => {
+    generation++;
+    clearCardsPreview();
+    page.value = null;
+    choosing.value = verification.value = false;
+    applicationProduct.value = null;
+    selectedForms.value = {};
+    first = true;
+}, { flush: 'sync' });
+onBeforeUnmount(() => { generation++; });
 const { loading, failed, refresh } = useScreen(
     async () => {
         const run = ++generation;
+        const scope = consumerSessionScope();
+        if (!scope) return;
         setCurrentPage('/cards');
-        const data = await getPage<CardsPage>('/cards');
-        if (run !== generation) return;
+        let data;
+        try {
+            data = await getPage<CardsPage>('/cards');
+        } catch (error) {
+            if (run !== generation || scope !== consumerSessionScope()) return;
+            if (error instanceof ApiError && [401, 403].includes(error.status)) {
+                clearCardsPreview();
+                page.value = null;
+                choosing.value = verification.value = false;
+                applicationProduct.value = null;
+            }
+            throw error;
+        }
+        if (run !== generation || scope !== consumerSessionScope()) return;
         if ('redirect' in data) {
+            clearCardsPreview();
+            page.value = null;
             go(String(data.redirect), true);
             return;
         }
+        saveCardsPreview(scope, data.props);
         page.value = data.props;
         if (first) {
             verification.value = !data.props.kycApproved;
@@ -119,8 +148,11 @@ function requirements() {
 </script>
 <template>
     <PageShell :title="t('Cards')" active="cards"
-        ><LoadState :loading="loading && !page" :failed="failed" @retry="refresh"
+        ><LoadState :loading="loading && !page" :failed="failed && !page" @retry="refresh"
             ><view v-if="page" class="cards-page"
+                ><view v-if="loading || failed" class="refresh-status" role="status"
+                    ><text>{{ t(loading ? 'Refreshing card data…' : 'Refresh failed. Showing previously loaded data.') }}</text
+                    ><button v-if="failed && !loading" class="secondary" @click="refresh">{{ t('Retry') }}</button></view
                 ><template v-if="!page.cards.length && page.products.length && !canOpen"
                     ><text class="intro-title">{{ t('Apply for a Mastercard U Card') }}</text
                     ><view class="intro-stage"
@@ -299,6 +331,16 @@ function requirements() {
     ></PageShell>
 </template>
 <style scoped>
+.refresh-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: #68736e;
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+.refresh-status button { flex-shrink: 0; margin: 0; }
 .cards-page {
     display: block;
 }

@@ -32,6 +32,7 @@ use App\Http\Middleware\RequireConsumerApiGuest;
 use App\Http\Middleware\RequireConsumerApiUser;
 use App\Http\Middleware\ThrottleCardTransactionReads;
 use App\Http\Middleware\ThrottleConsumerMedia;
+use App\Http\Middleware\ThrottlePromotionPurchase;
 use Illuminate\Support\Facades\Route;
 
 // Explicit consumer routes only. Reuse current controllers, validation, throttles and actions.
@@ -121,8 +122,8 @@ Route::middleware(['tenant.surface:end-user', RequireConsumerApiUser::class, Req
     Route::get('/account', [AccountController::class, 'show']);
     Route::get('/promotion/membership', [PaidPromotionController::class, 'show']);
     Route::get('/promotion/rewards', [PaidPromotionController::class, 'details']);
-    Route::post('/promotion/quotes', [PaidPromotionController::class, 'quote'])->middleware('throttle:20,1');
-    Route::post('/promotion/quotes/{order}/confirm', [PaidPromotionController::class, 'confirm'])->whereUuid('order')->middleware('throttle:10,1');
+    Route::post('/promotion/quotes', [PaidPromotionController::class, 'quote'])->middleware(ThrottlePromotionPurchase::class.':quote');
+    Route::post('/promotion/quotes/{order}/confirm', [PaidPromotionController::class, 'confirm'])->whereUuid('order')->middleware(ThrottlePromotionPurchase::class.':confirm');
     Route::get('/promotion/poster-background', [InvitationPosterController::class, 'userImage']);
     Route::get('/promotion', [PromotionController::class, 'show']);
     Route::get('/promotion/stock', PartnerReportController::class)->middleware('throttle:120,1');

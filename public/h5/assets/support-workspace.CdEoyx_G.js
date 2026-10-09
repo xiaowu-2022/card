@@ -1,0 +1,1 @@
+import{W as s,s as a,S as n,f as e,m as t,aO as o}from"./index-BCAOz1Jq.js";function i(i){return!!(i instanceof s&&[401,403,404].includes(i.status))&&(a.value&&(a.value.supportAgent=!1),o(),n({title:e("Support access is no longer available."),icon:"none"}),t("/account",!0),!0)}export{i as s};

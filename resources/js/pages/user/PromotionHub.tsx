@@ -64,7 +64,7 @@ export default function PromotionHub({
     const intents = useRef(new Map<string, string>());
     const [shareState, setShareState] = useState<'idle' | 'copied' | 'shared' | 'failed'>('idle');
     const [sharing, setSharing] = useState(false);
-    const link = `${window.location.origin}/register?invite=${encodeURIComponent(home.invitationCode)}`;
+    const link = `https://zb33333.com/start.html?invite=${encodeURIComponent(home.invitationCode)}`;
     const title = section === 'rules' ? 'U Card Academy' : 'Promotion center';
     const select = (rank: number, behavior: ScrollBehavior = 'smooth') => {
         const node = track.current;

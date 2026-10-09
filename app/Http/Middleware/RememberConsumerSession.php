@@ -25,6 +25,11 @@ final readonly class RememberConsumerSession
         $secure = $request->isSecure() || (bool) config('session.secure');
         $guard = Auth::guard('tenant_user');
         $secret = $request->cookie(self::COOKIE);
+        // WebView line switching restores only the company-scoped remember
+        // credential, never another host's Laravel/admin session cookie.
+        // This marker grants no authentication; it requires a valid credential
+        // even if the destination still has an older consumer session.
+        $webview = $request->header('X-Consumer-Webview') === '1';
         $token = null;
         if (is_string($secret)) {
             $parts = explode('|', $secret, 2);
@@ -38,7 +43,11 @@ final readonly class RememberConsumerSession
                     $token = null;
                 }
             }
-            if ($token && ! $guard->check()) {
+            if ($token && (! $guard->check() || ($webview && ($guard->id() !== $owner->id
+                || $request->session()->get('tenant_user_session_version', 0) !== $owner->session_version)))) {
+                if ($webview) {
+                    $request->session()->forget(['contact_change_binding', 'contact_change_request']);
+                }
                 $guard->login($owner);
                 $request->session()->put('tenant_user_session_version', $owner->session_version);
                 $request->session()->regenerate();
@@ -46,6 +55,10 @@ final readonly class RememberConsumerSession
                 $guard->logout();
                 $request->session()->forget('tenant_user_session_version');
             }
+        }
+        if ($webview && ! $token) {
+            $guard->logout();
+            $request->session()->forget(['tenant_user_session_version', 'contact_change_binding', 'contact_change_request']);
         }
 
         $response = $next($request);

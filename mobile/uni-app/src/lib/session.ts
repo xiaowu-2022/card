@@ -12,6 +12,8 @@ import {
 } from './api';
 import { setPublicAssets } from './origin';
 import { configureLocale } from './i18n';
+import { clearCardsPreview } from './cards-preview';
+import { notifyWebviewSession } from './webview-session';
 export type Bootstrap = {
     supportAgent?: boolean;
     publicAssets?: Record<string, string>;
@@ -41,6 +43,18 @@ export const session = ref<Bootstrap | null>(null);
 export const isSupportAgent = computed(() => !!session.value?.user && !session.value.restricted && session.value.supportAgent === true);
 export const unread = reactive({ messages: 0, support: 0, agentSupport: 0 });
 let pending: Promise<void> | null = null;
+let walletEpoch = 0, walletReadyFor: string | null = null;
+let walletPending: { key: string; promise: Promise<void> } | null = null;
+function resetWalletReadiness() {
+    clearCardsPreview();
+    walletEpoch++;
+    walletReadyFor = null;
+    walletPending = null;
+}
+export function consumerSessionScope(): string | null {
+    const value = session.value;
+    return value?.user ? JSON.stringify([walletEpoch, sessionGeneration, value.tenant.id, value.user.id]) : null;
+}
 export async function bootstrap() {
     if (pending) return pending;
     let generation = sessionGeneration;
@@ -70,12 +84,15 @@ export async function bootstrap() {
         remindSupportUnread(data.unread.agentSupport ?? 0, isSupportAgent.value);
         setCsrf(data.csrfToken);
         configureLocale(data.locale, data.timezone);
+        notifyWebviewSession(!!data.user, data.tenant.id);
     })().finally(() => {
         pending = null;
     });
     return pending;
 }
 export function clearSession() {
+    notifyWebviewSession(false, session.value?.tenant.id);
+    resetWalletReadiness();
     resetSupportReminder();
     setToken(null);
     clearFlow();
@@ -94,6 +111,7 @@ export async function login(identifier: string, password: string) {
         setToken(result.token);
     }
     if (result.csrfToken) setCsrf(result.csrfToken);
+    resetWalletReadiness();
     resetSupportReminder();
     session.value = null;
     await bootstrap();
@@ -140,6 +158,20 @@ export async function requireUser() {
         uni.reLaunch({ url: '/pages/login/index' });
         return false;
     }
-    await request('/wallet/ensure', 'POST', {});
-    return true;
+    // Provisioning already succeeded for this signed-in user. Page reads still
+    // revalidate authorization on the server; this never caches wallet balances.
+    const key = consumerSessionScope()!;
+    if (walletReadyFor !== key) {
+        if (walletPending?.key !== key) {
+            const flight = { key, promise: Promise.resolve() };
+            walletPending = flight;
+            flight.promise = request('/wallet/ensure', 'POST', {}).then(() => {
+                if (walletPending === flight && consumerSessionScope() === key) walletReadyFor = key;
+            }).finally(() => {
+                if (walletPending === flight) walletPending = null;
+            });
+        }
+        await walletPending.promise;
+    }
+    return consumerSessionScope() === key;
 }

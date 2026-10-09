@@ -27,6 +27,12 @@ const action = useAction(),
     amount = ref(''),
     intent = ref(requestId());
 const valid = computed(() => meetsTopupMinimum(amount.value, props.page.minimum));
+const amountError = computed(() => {
+    if (!amount.value || valid.value) return '';
+    return t(meetsTopupMinimum(amount.value, '0')
+        ? 'The amount is below the minimum deposit.'
+        : 'Enter a positive amount with at most 2 decimal places.');
+});
 async function submit() {
     await action.submit('/wallet/top-ups', {
         request_id: intent.value,
@@ -53,6 +59,7 @@ async function submit() {
                 :label="t('Amount') + ' · USDT'"
                 placeholder="100.00"
                 type="digit"
+                :error="amountError"
                 :disabled="action.pending.value"
                 @update:model-value="intent = requestId()"
             /><text class="hint"

@@ -36,7 +36,7 @@ function harness() {
         },
     };
     const storage = { get: () => stored, set: v => { stored = v; }, remove: () => { stored = null; } };
-    return { android, storage, keys, vault: scope => exports.androidCredentialVault(android, scope, storage) };
+    return { android, storage, keys, vault: (scope, valid) => exports.androidCredentialVault(android, scope, storage, valid) };
 }
 const secret = '42|' + 'A'.repeat(64);
 test('cold restart restores encrypted credential and explicit logout removes it', () => {
@@ -58,5 +58,15 @@ test('modified ciphertext, wrong company or lost Keystore key cannot restore log
 test('unavailable native API cannot silently fall back to plaintext persistence', () => {
     const h = harness(); h.android.invoke = () => undefined;
     assert.throws(() => h.vault('company-a').write(secret), /unavailable/);
+    assert.equal(h.storage.get(), null);
+});
+test('WebView cookie encryption uses an explicit validator and remains bound to its company', () => {
+    const h = harness(), value = 'eyJ' + 'A'.repeat(128) + '%3D';
+    const valid = text => /^[A-Za-z0-9%+/=_-]{32,8192}$/.test(text);
+    h.vault('webview:company-a', valid).write(value);
+    assert.ok(!h.storage.get().includes(value));
+    assert.equal(h.vault('webview:company-a', valid).read(), value);
+    assert.equal(h.vault('webview:company-b', valid).read(), null);
+    assert.throws(() => h.vault('webview:company-a', valid).write(value + '; Domain=foreign.test'), /Invalid/);
     assert.equal(h.storage.get(), null);
 });

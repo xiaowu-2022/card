@@ -72,7 +72,7 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  const {readinessScript} = await import('data:text/javascript;base64,'+Buffer.from(readinessJs).toString('base64'));
  let script = readFileSync('mobile/webview-shell/src/pages/index/index.vue', 'utf8').split('<script setup lang="ts">')[1].split('</script>')[0];
  script = script.replace(/^import .*;\n/gm, '').replace(/\/\/ #ifndef APP-PLUS[\s\S]*?\/\/ #endif/g, '');
- const requests = [], windows = [], ticks = [], timers = new Map(); let sequence = 0;
+ const requests = [], windows = [], ticks = [], timers = new Map(), loginEvents = []; let sequence = 0;
  let finishDiscovery;
  let parentHeight = 828;
  const flushLayout = () => { while (ticks.length) ticks.shift()(); };
@@ -80,8 +80,12 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
   nextTick: callback => { ticks.push(callback); },
   discover: () => new Promise(resolve => { finishDiscovery = resolve; }),
   safeAddress, debugScript, debugMessages, readinessScript, ref: value => ({value}), config: JSON.parse(readFileSync('mobile/webview-shell/src/config.json', 'utf8')),
+  pageOrigin: url => { try { return new URL(url).origin; } catch { return null; } },
+  sessionSignalScript: () => 'session-status-listener',
+  posterBridgeScript: () => 'poster-save-listener', posterReceiver: () => ({receive() {}, dispose() {}}), savePoster() {},
+  sharedSession: () => ({ configure() {}, async restore(url) {loginEvents.push(['restore',url]);}, capture(url) {loginEvents.push(['capture',url]);return true;}, clear() {loginEvents.push(['clear']);} }),
   uni: {createSelectorQuery: () => { let callback; const query = {select:()=>query,boundingClientRect:fn=>{callback=fn;return query;},exec:()=>callback({height:parentHeight})};return query;},getStorageSync: () => ({tenantId:'tenant'}), request: request => requests.push(request),getSystemInfoSync: () => ({statusBarHeight: 24, windowHeight: 0}),onWindowResize: () => {},offWindowResize: () => {}},
-  plus: {webview: {create: (url,id,styles) => {
+  plus: {runtime:{appid:'test'},os:{name:'iOS'},webview: {create: (url,id,styles) => {
    const view = {events:{}, styles:[styles], url:'', scripts:[], closed:false,
     addEventListener(name,fn){this.events[name]=fn;},getURL(){return this.url;},setStyle(s){this.styles.push(s);},
     evalJS(s){this.scripts.push(s);},loadURL(url){this.requestedURL=url;},close(){this.closed=true;},
@@ -93,11 +97,11 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
   setTimeout: (fn,delay) => {const id=++sequence;timers.set(id,{fn,delay});return id;},
   clearTimeout: id => timers.delete(id),
  };
- const js = ts.transpileModule(script + '\nglobalThis.pageTest = {open, retry, state, active, token:()=>readinessToken,resizeContent,refreshDebug,debugEnabled,debugRows};', {compilerOptions: {target: ts.ScriptTarget.ES2022}}).outputText;
+ const js = ts.transpileModule(script + '\nglobalThis.pageTest = {open, retry, state, active, token:()=>readinessToken,sessionToken:()=>sessionPrefix,resizeContent,refreshDebug,debugEnabled,debugRows};', {compilerOptions: {target: ts.ScriptTarget.ES2022}}).outputText;
  runInNewContext(js, context);
  const page = context.pageTest;page.open(a);page.active.value=a;
  const view=windows[0];
- assert.equal(view.requestedURL,a+'/#/pages/login/index');
+ assert.equal(view.requestedURL,a+'/?app_webview=1#/pages/login/index');
  assert.equal(view.styles[0].bottom,'0px');assert.equal(view.styles[0].height,undefined);
  assert.equal(view.styles[0].position,'absolute');
  assert.equal(view.styles[0].opacity,0);assert.equal(view.styles[0].render,'always');
@@ -111,8 +115,22 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  assert.equal(page.state.value,'discovering');assert.equal(windows.length,1);
  finishDiscovery({tenantId:'tenant',origins:[a,b],selected:b,fetchedAt:Date.now()});
  await reconnect;
- const retry=windows[1];assert.equal(retry.requestedURL,b+'/#/pages/login/index');
+ const retry=windows[1];assert.equal(retry.requestedURL,b+'/?app_webview=1#/pages/login/index');
+ assert.deepEqual(loginEvents,[['restore',b]], 'credential is restored before loading H5');
  retry.url=b+'/';retry.events.loaded();
+ const signal=page.sessionToken();
+ retry.events.titleUpdate({title:signal+JSON.stringify({signedIn:true,tenantId:'other',sequence:1})});
+ assert.equal(loginEvents.length,1,'other company cannot capture a credential');
+ retry.url=c+'/';retry.events.titleUpdate({title:signal+JSON.stringify({signedIn:true,tenantId:'tenant',sequence:1})});
+ assert.equal(loginEvents.length,1,'unverified navigation cannot access credentials');
+ retry.url=b+'/';retry.events.titleUpdate({title:signal+JSON.stringify({signedIn:true,tenantId:'tenant',sequence:1})});
+ assert.deepEqual(loginEvents.at(-1),['capture',b]);
+ view.events.titleUpdate({title:signal+JSON.stringify({signedIn:false,tenantId:'tenant',sequence:2})});
+ assert.deepEqual(loginEvents.at(-1),['capture',b],'old child cannot clear current login');
+ retry.events.titleUpdate({title:signal+JSON.stringify({signedIn:false,tenantId:'tenant',sequence:2})});
+ assert.deepEqual(loginEvents.at(-1),['clear']);
+ retry.events.titleUpdate({title:signal+JSON.stringify({signedIn:true,tenantId:'tenant',sequence:1})});
+ assert.deepEqual(loginEvents.at(-1),['clear'], 'restored titles cannot replay an older sign-in after logout');
  retry.events.titleUpdate({title:oldToken});assert.equal(page.state.value,'loading');
  retry.events.titleUpdate({title:page.token()});assert.equal(page.state.value,'loading');
  assert.equal(retry.styles.at(-1).opacity,0, 'welcome remains during startup pulse');

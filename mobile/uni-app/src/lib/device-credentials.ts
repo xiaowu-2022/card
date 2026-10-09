@@ -7,7 +7,7 @@ export type AndroidBridge = {
 };
 export function androidCredentialVault(android: AndroidBridge, scope: string, storage: {
     get(): unknown; set(value: string): void; remove(): void;
-}) {
+}, valid: (value: string) => boolean = value => /^[1-9][0-9]*\|[A-Za-z0-9]{64}$/.test(value)) {
     const call = (object: unknown, method: string, ...args: unknown[]) => android.invoke(object, method, ...args);
     const required = (value: unknown) => {
         if (value === undefined || value === null) throw new Error('Secure credential storage unavailable');
@@ -48,7 +48,7 @@ export function androidCredentialVault(android: AndroidBridge, scope: string, st
             if (!value) return null;
             try {
                 const result = decrypt(String(value));
-                if (!/^[1-9][0-9]*\|[A-Za-z0-9]{64}$/.test(result)) throw new Error('Invalid credential');
+                if (!valid(result)) throw new Error('Invalid credential');
                 return result;
             } catch {
                 storage.remove();
@@ -58,6 +58,7 @@ export function androidCredentialVault(android: AndroidBridge, scope: string, st
         write(value: string | null) {
             storage.remove();
             if (value === null) return;
+            if (!valid(value)) throw new Error('Invalid credential');
             const cipher = required(call('javax.crypto.Cipher', 'getInstance', 'AES/GCM/NoPadding'));
             call(cipher, 'init', 1, key(true));
             call(cipher, 'updateAAD', bytes(scope));

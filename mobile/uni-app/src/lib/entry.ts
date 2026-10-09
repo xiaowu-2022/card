@@ -8,7 +8,13 @@ export function normalizeWebEntry() {
     const base = webBase();
     const pathname = window.location.pathname;
     const path = base !== '/' && pathname.startsWith(base) ? '/' + pathname.slice(base.length) : pathname;
-    if (path === '/' || path.endsWith('/index.html')) return;
+    if (path === '/' || path.endsWith('/index.html')) {
+        // The static invitation launcher forwards its query to the chosen H5 root.
+        const invite = new URLSearchParams(window.location.search).get('invite');
+        if (invite) window.history.replaceState(null, '',
+            base + '#' + internalUrl('/register?invite=' + encodeURIComponent(invite)));
+        return;
+    }
     if (
         !/^\/(?:login|register|forgot-password|dashboard|account|cards|wallet|funds|assets|security-deposit|wealth|promotion|messages|support|about)(?:\/|$)/.test(
             path,

@@ -35,6 +35,7 @@ export function useAction() {
             files?: Upload[];
             onProgress?: (progress: UploadProgress) => void;
             navigate?: boolean;
+            explainFailure?: (error: unknown) => Record<string, string>;
             success?: () => void | Promise<void>;
         } = {},
     ) {
@@ -72,7 +73,7 @@ export function useAction() {
             if (disposed) return;
             failureCode.value = error instanceof ApiError ? error.payload?.error?.code ?? null : null;
             failureStatus.value = error instanceof ApiError ? error.status : 0;
-            errors.value = explainError(error);
+            errors.value = options.explainFailure ? options.explainFailure(error) : explainError(error);
         } finally {
             pending.value = false;
         }

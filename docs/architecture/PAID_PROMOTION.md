@@ -5,6 +5,19 @@
 
 # Paid promotion (approved 2026-09-16)
 
+## Purchase rate isolation — 2026-10-09
+
+Quote creation and payment confirmation use separate company/user operation
+counters (20 and 10 attempts per 60 seconds, unchanged). The custom route middleware
+runs after company and consumer authentication, including native Bearer restoration.
+Unread polling and other accounts sharing an IP cannot spend these budgets. Domain
+aliases, order IDs and web/H5/native entry points share the same account budget;
+invalid password attempts still count and 429 responses retain Retry-After.
+This fixes the unnamed Laravel throttle bucket collision, reproduced by 12 unread
+GETs blocking a first confirmation. Password validation, explicit confirmation,
+idempotency and financial writes are unchanged. Deploy the middleware and both
+consumer route files (refresh route cache); rebuilt H5 adds the localized 429 text.
+
 Current activation, mixed annual payment and annual allocation rules are defined in
 [UNIFIED_ACCOUNT_ACTIVATION.md](UNIFIED_ACCOUNT_ACTIVATION.md), approved 2026-09-17.
 It supersedes conflicting deposit-only counting, automatic funding and reward rules below.

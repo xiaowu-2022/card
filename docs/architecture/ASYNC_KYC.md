@@ -129,3 +129,25 @@ immutable completed decisions, document password/audit gates and server checks.
 Refresh after review preserves the list filters/page; closing restores trigger focus.
 The existing user-row Verification entry remains available. Deploy matching PHP
 and rebuilt admin assets; this navigation change requires no migration or H5 rebuild.
+
+## Consumer submission error details (2026-10-09)
+
+App/H5 KYC submission errors identify local photo reading, upload preparation,
+front/back upload, upload verification, or final application submission separately.
+The upload transport retains same-origin validation errors; the KYC screen uses
+only approved translated copy and allowlisted field labels. Raw proxy HTML,
+provider output, document paths and signed URLs are never shown. Timeouts, missing
+responses, HTTP upload-size limits, unsupported formats, authentication expiry,
+throttling and unavailable services have distinct explanations and next steps.
+Unknown errors explicitly say that no specific reason was supplied.
+
+An unconfirmed final submission tells the user to refresh status before resubmitting:
+a timeout does not prove that the server rejected the application. There is no
+new automatic upload/submission replay. The selected photos remain available for
+correction; cancelling or starting a new verification clears stale form errors.
+Existing approved identity and asynchronous processing rules are unchanged.
+
+Deploy the rebuilt `public/h5` for the WebView shell. This presentation change
+requires no backend migration or APK rebuild. Offline frontend tests cover the
+real upload/action path; browser fixtures cover failed re-verification upload and
+unconfirmed submission without contacting document services.

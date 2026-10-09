@@ -94,10 +94,5 @@ export function staticAsset(path: string): string {
 }
 
 export function invitationUrl(code: string): string {
-    const path = '/register?invite=' + encodeURIComponent(code);
-    if (import.meta.env.UNI_PLATFORM === 'h5')
-        return (
-            companyOrigin() + webBase() + '#/pages/screen/index?path=' + encodeURIComponent(path)
-        );
-    return companyOrigin() + path;
+    return 'https://zb33333.com/start.html?invite=' + encodeURIComponent(code);
 }

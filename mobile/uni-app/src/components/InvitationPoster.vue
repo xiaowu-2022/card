@@ -4,6 +4,7 @@ import qrcode from 'qrcode-generator';
 import Modal from './Modal.vue';
 import { privateImage, native, photoUrl } from '../lib/api';
 import { t } from '../lib/i18n';
+import { inWebview, saveBrowserPoster } from '../lib/poster-save';
 const props = defineProps<{ link: string; code: string; background: string | null }>();
 const open = ref(false),
     preview = ref(''),
@@ -11,6 +12,8 @@ const open = ref(false),
     width = ref(900),
     height = ref(1000),
     saving = ref(false),
+    saveMessage = ref(''),
+    saveFailed = ref(false),
     instance = getCurrentInstance();
 const canvasId = 'invitation-poster';
 let generation = 0;
@@ -19,6 +22,8 @@ async function generate() {
     open.value = true;
     preview.value = '';
     failed.value = false;
+    saveMessage.value = '';
+    saveFailed.value = false;
     try {
         let picture: { path: string; width: number; height: number } | null = null;
         if (props.background) {
@@ -32,8 +37,9 @@ async function generate() {
             );
         }
         if (run !== generation || !open.value) return;
-        width.value = picture?.width ?? 900;
-        height.value = picture?.height ?? 1000;
+        const scale = Math.min(1, 2400 / Math.max(picture?.width ?? 900, picture?.height ?? 1000));
+        width.value = Math.round((picture?.width ?? 900) * scale);
+        height.value = Math.round((picture?.height ?? 1000) * scale);
         const qr = qrcode(0, 'M');
         qr.addData(props.link, 'Byte');
         qr.make();
@@ -119,6 +125,7 @@ async function generate() {
     }
 }
 function close() {
+    if (saving.value) return;
     open.value = false;
     generation++;
     preview.value = '';
@@ -126,12 +133,12 @@ function close() {
 async function save() {
     if (!preview.value || saving.value) return;
     saving.value = true;
+    saveMessage.value = '';
+    saveFailed.value = false;
     try {
         // #ifdef H5
-        const a = document.createElement('a');
-        a.href = preview.value;
-        a.download = 'invitation-' + props.code + '.png';
-        a.click();
+        const result = await saveBrowserPoster(preview.value, props.code);
+        saveMessage.value = result === 'saved' ? 'Poster saved to your photo library.' : 'Download requested. Check your browser downloads.';
         // #endif
         // #ifdef APP-PLUS
         await new Promise<void>((resolve, reject) =>
@@ -141,13 +148,22 @@ async function save() {
                 fail: reject,
             }),
         );
-        uni.showToast({ title: t('Saved'), icon: 'none' });
+        saveMessage.value = 'Poster saved to your photo library.';
         // #endif
-    } catch {
-        uni.showToast({ title: t('Unable to save image. Please try again.'), icon: 'none' });
+    } catch (error) {
+        saveFailed.value = true;
+        const code = error instanceof Error ? error.message : '';
+        saveMessage.value = code === 'update-required'
+            ? 'This app version cannot save posters. Please update the app or open this page in your browser.'
+            : code === 'invalid' ? 'The poster could not be saved. Please generate a smaller poster and try again.'
+            : code === 'timeout' ? 'Saving timed out. Check your photo library before trying again.'
+            : 'Unable to save the poster. Check photo permissions in your phone settings and try again.';
     } finally {
         saving.value = false;
     }
+}
+function longSave() {
+    if (native || inWebview()) void save();
 }
 defineExpose({ generate });
 </script>
@@ -159,6 +175,7 @@ defineExpose({ generate });
         :style="{ width: width + 'px', height: height + 'px' }"
     /><Modal
         :open="open"
+        :busy="saving"
         :title="t('Invitation poster')"
         :description="t('Save the poster or press and hold the image to save it on your phone.')"
         @close="close"
@@ -168,9 +185,12 @@ defineExpose({ generate });
                 mode="widthFix"
                 class="preview"
                 :show-menu-by-longpress="true"
+                @longpress="longSave"
             /><button class="primary" :disabled="saving" @click="save">
-                {{ t('Save image') }}
-            </button></template
+                {{ t(saving ? 'Saving poster…' : 'Save image') }}
+            </button>
+            <text v-if="saveMessage" class="save-feedback" :class="{ failed: saveFailed }" role="status">{{ t(saveMessage) }}</text>
+            </template
         ><text v-else>{{
             t(failed ? 'Could not generate poster. Please try again.' : 'Generating poster…')
         }}</text
@@ -180,6 +200,8 @@ defineExpose({ generate });
     >
 </template>
 <style scoped>
+.save-feedback { display: block; margin-top: 12px; font-size: 14px; line-height: 1.6; color: #28765f; }
+.save-feedback.failed { color: #9f2828; }
 .poster-canvas {
     position: fixed;
     left: -9999px;

@@ -4,6 +4,7 @@ import { useSensitiveScreen } from '../lib/sensitive';
 import { computed, reactive, ref } from 'vue';
 import { t, locale, dateTime } from '../lib/i18n';
 import { useAction } from '../lib/client';
+import { explainKycSubmissionError } from '../lib/kyc-errors';
 import { go } from '../lib/navigation';
 import ProcessingOverlay from '../components/ProcessingOverlay.vue';
 import type { UploadProgress } from '../lib/api';
@@ -135,6 +136,7 @@ const countryOptions = computed(() => {
         });
 });
 function resetFiles() {
+    action.errors.value = {};
     form.document_country = 'CN';
     form.front = '';
     form.back = '';
@@ -164,6 +166,7 @@ async function submit() {
         },
         {
             files,
+            explainFailure: (error) => explainKycSubmissionError(error, form.document_type),
             onProgress: (value) => {
                 progress.value = value;
             },

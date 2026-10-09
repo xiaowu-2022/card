@@ -34,6 +34,7 @@ use App\Http\Controllers\User\WealthController;
 use App\Http\Controllers\User\WithdrawalController;
 use App\Http\Middleware\ThrottleCardTransactionReads;
 use Illuminate\Support\Facades\Route;
+use App\Http\Middleware\ThrottlePromotionPurchase;
 
 Route::middleware('tenant.surface:end-user')->group(function (): void {
     Route::get('/', LandingController::class)->name('public.landing');
@@ -127,8 +128,8 @@ Route::middleware(['tenant.surface:end-user', 'user.authenticated', 'user.operat
     Route::get('/account', [AccountController::class, 'show'])->name('user.account');
     Route::get('/promotion/membership', [PaidPromotionController::class, 'show'])->name('user.promotion.membership');
     Route::get('/promotion/rewards', [PaidPromotionController::class, 'details'])->name('user.promotion.rewards');
-    Route::post('/promotion/quotes', [PaidPromotionController::class, 'quote'])->middleware('throttle:20,1');
-    Route::post('/promotion/quotes/{order}/confirm', [PaidPromotionController::class, 'confirm'])->whereUuid('order')->middleware('throttle:10,1');
+    Route::post('/promotion/quotes', [PaidPromotionController::class, 'quote'])->middleware(ThrottlePromotionPurchase::class.':quote');
+    Route::post('/promotion/quotes/{order}/confirm', [PaidPromotionController::class, 'confirm'])->whereUuid('order')->middleware(ThrottlePromotionPurchase::class.':confirm');
     Route::get('/promotion/poster-background', [InvitationPosterController::class, 'userImage']);
     Route::get('/promotion', [PromotionController::class, 'show'])->name('user.promotion');
     Route::get('/promotion/stock', PartnerReportController::class)->middleware('throttle:120,1')->name('promotion.stock');

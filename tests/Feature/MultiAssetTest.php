@@ -76,7 +76,7 @@ beforeEach(function () {
     $ocr->shouldReceive('extractIdentityDocument')->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, 'ASSET-'.$this->user->id));
     app()->instance(KycOcrProviderInterface::class, $ocr);
     $app = app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', 'ASSET-'.$this->user->id, kycTestImage(), kycTestImage());
-    app(ApproveKycAction::class)->execute($this->tenant->id, $app->id, AdminUser::where('email', 'owner@a.localhost')->firstOrFail());
+    app(ApproveKycAction::class)->execute($this->tenant->id, $app->id, AdminUser::where('email', 'owner@a.localhost')->firstOrFail(), identityNumber: '11010519491231002X');
     app(ActivateUserWalletAction::class)->execute($this->tenant->id, $this->user->id);
     ChainConnection::where('network', 'ETHEREUM')->update(['enabled' => true, 'start_height' => 100, 'next_height' => 100]);
     foreach (['ETH_ETHEREUM', 'USDC_ETHEREUM', 'USDT_ETHEREUM'] as $code) {
@@ -97,6 +97,56 @@ beforeEach(function () {
         });
     };
 });
+it('handles the exchange screen payload with accurate balance errors and read-only quotes', function (string $mode) {
+    $base = 'http://a.localhost/api/'.($mode === 'native' ? 'mobile/v1' : 'v1');
+    if ($mode === 'native') {
+        $token = $this->postJson($base.'/login', ['identifier' => $this->user->email, 'password' => 'local-password'])->assertCreated()->json('token');
+        $flow = $this->getJson($base.'/bootstrap')->assertOk()->headers->get('X-Consumer-Flow');
+        $this->withToken($token)->withHeader('X-Consumer-Flow', $flow);
+    } else {
+        $this->actingAs($this->user, 'tenant_user');
+    }
+    $before = LedgerAccount::orderBy('id')->get(['id', 'balance'])->toArray();
+    $entries = LedgerEntry::count();
+    $orders = ExchangeOrder::count();
+    $response = $this->postJson($base.'/client/assets/orders', [
+        'mode' => 'exchange', 'asset' => 'ETH', 'amount' => '1', 'request_id' => (string) Str::uuid(),
+    ]);
+    $response->assertUnprocessable()
+        ->assertJsonPath('error.code', 'INSUFFICIENT_AVAILABLE_BALANCE')
+        ->assertJsonPath('error.message', 'Your available balance is not enough.');
+    expect(LedgerAccount::orderBy('id')->get(['id', 'balance'])->toArray())->toBe($before)
+        ->and(LedgerEntry::count())->toBe($entries)
+        ->and(ExchangeOrder::count())->toBe($orders);
+
+    // Reproduce AssetFlow.vue's full payload, including its empty exchange rail.
+    $this->postJson($base.'/client/assets/orders', [
+        'mode' => 'exchange', 'asset' => 'ETH', 'rail' => '', 'amount' => '1',
+        'address' => '', 'expected_fee' => '', 'confirmed' => false, 'request_id' => (string) Str::uuid(),
+    ])->assertUnprocessable()
+        ->assertJsonPath('error.code', 'INSUFFICIENT_AVAILABLE_BALANCE')
+        ->assertJsonPath('error.message', 'Your available balance is not enough.');
+    expect(LedgerEntry::count())->toBe($entries)->and(ExchangeOrder::count())->toBe($orders);
+
+    ($this->fund)('ETH', '1');
+    $funded = LedgerAccount::orderBy('id')->get(['id', 'balance'])->toArray();
+    $entries = LedgerEntry::count();
+    $payload = [
+        'mode' => 'exchange', 'asset' => 'ETH', 'rail' => '', 'amount' => '1',
+        'address' => '', 'expected_fee' => '', 'confirmed' => false, 'request_id' => (string) Str::uuid(),
+    ];
+    $redirect = $this->postJson($base.'/client/assets/orders', $payload)->assertOk()->json('redirect');
+    $this->postJson($base.'/client/assets/orders', $payload)->assertOk()->assertJsonPath('redirect', $redirect);
+    expect(ExchangeOrder::count())->toBe($orders + 1)
+        ->and(LedgerEntry::count())->toBe($entries)
+        ->and(LedgerAccount::orderBy('id')->get(['id', 'balance'])->toArray())->toBe($funded);
+
+    foreach (['deposit', 'withdrawal'] as $operation) {
+        $this->postJson($base.'/client/assets/orders', array_replace($payload, ['mode' => $operation]))
+            ->assertUnprocessable()->assertJsonValidationErrors('rail');
+    }
+})->with(['h5', 'native']);
+
 it('retains one wei without floating point or rounded postings', function () {
     ($this->fund)('ETH', '0.000000000000000001');
     expect(LedgerAccount::where('user_id', $this->user->id)->where('asset_code', 'ETH')->where('account_type', 'USER_AVAILABLE')->first()->balance)->toBe('0.000000000000000001');

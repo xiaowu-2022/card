@@ -56,7 +56,7 @@ final class AssetsController extends Controller
 
     public function store(Request $request, TenantContext $context, DepositAssetsAction $deposits, WithdrawAssetsAction $withdrawals, ExchangeAssetsAction $exchange)
     {
-        $data = $request->validate(['mode' => 'required|in:deposit,withdrawal,exchange', 'asset' => 'required|in:USDT,USDC,ETH,BTC', 'rail' => 'required_unless:mode,exchange|string|max:32', 'amount' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,18})?$/'], 'request_id' => 'required|uuid', 'address' => 'exclude_unless:mode,withdrawal|required|string|max:128', 'expected_fee' => ['exclude_unless:mode,withdrawal', 'required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,18})?$/'], 'confirmed' => 'exclude_unless:mode,withdrawal|required|accepted', 'tenant_id' => 'prohibited', 'user_id' => 'prohibited', 'wallet_id' => 'prohibited']);
+        $data = $request->validate(['mode' => 'required|in:deposit,withdrawal,exchange', 'asset' => 'required|in:USDT,USDC,ETH,BTC', 'rail' => 'exclude_if:mode,exchange|required|string|max:32', 'amount' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,18})?$/'], 'request_id' => 'required|uuid', 'address' => 'exclude_unless:mode,withdrawal|required|string|max:128', 'expected_fee' => ['exclude_unless:mode,withdrawal', 'required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,18})?$/'], 'confirmed' => 'exclude_unless:mode,withdrawal|required|accepted', 'tenant_id' => 'prohibited', 'user_id' => 'prohibited', 'wallet_id' => 'prohibited']);
         $tenant = $context->id();
         $user = $request->user('tenant_user')->id;
         if ($data['mode'] !== 'exchange') {

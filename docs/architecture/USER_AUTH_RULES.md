@@ -1,5 +1,25 @@
 # User Authentication Rules
 
+## WebView cross-domain sign-in — 2026-10-09
+
+The user approved retaining sign-in across verified domains of the same company.
+The WebView shell transfers only the existing encrypted `consumer_remember`
+HttpOnly cookie through native cookie APIs, never the Laravel/admin session or a
+token in a URL/title/JS bridge. Android persists a further AES-GCM/Keystore-encrypted
+copy scoped to app/company identity, independent of the selected domain. iOS reuses
+its native HttpOnly cookie store plus non-secret last-source/logout metadata; no
+new plaintext credential storage or Keychain implementation is claimed.
+
+H5 opened with the shell marker sends `X-Consumer-Webview: 1`. This only tightens
+web authentication: a valid company/user/version-bound browser token is required
+even when a destination has an old consumer session; a valid different owner
+rebinds the consumer guard and clears contact-change state. Ordinary browser and
+native Bearer modes remain unchanged. Logout revokes the shared token and clears
+native copies; token expiry, disablement and password/session-version rules still
+apply. Fresh verified directory membership is required before restoring to a host.
+No business request replay, financial writes or schema changes. Deploy the PHP
+middleware, rebuilt H5 and rebuilt shell together. See the WebView shell README.
+
 ## Automatic wallet opening — 2026-10-05
 
 New registration opens the company default wallet with zero balances in the same
@@ -110,6 +130,7 @@ See [TENANT_SMS.md](TENANT_SMS.md). All existing OTP ownership and verification 
 - User sessions use host-only cookies and an independent guard. The Tenant-aware provider scopes session restoration itself by resolved Tenant plus user id, and request middleware clears mismatched/disabled identities. User and Tenant status are read again for every request, so suspension/closure affects existing sessions immediately.
 - Registration/login rate limits hash normalized contact identifiers before building Redis/cache keys. Raw contacts, OTPs, tokens, and passwords never appear in rate-limit keys. If `APP_KEY` supplies the OTP HMAC secret, rotating it invalidates outstanding short-lived registration challenges.
 - Registration atomically opens an ACTIVE zero-balance default wallet through the idempotent wallet activation action, with scoped accounts and audit. KYC is not required just to open a wallet. The existing authenticated wallet ensure POST can fill a missing wallet for an ACTIVE user; GET and authentication reads remain read-only. Existing suspended/closed wallets are never reactivated. KYC, deposit, card qualification, rewards and financial Ledger entries remain untouched; operational KYC/status/balance gates still apply.
+- Consumer page entry retains a successful wallet ensure in memory for the current login, session generation, company and user. Concurrent entries share the request; failures remain retryable. Login/logout resets it, and an old response cannot authorize loading a new session's page. This avoids a company/user-locking POST before every tab read; it does not cache balances or replace server authorization on reads and actions.
 - A SUSPENDED User may read an existing Wallet but cannot activate one or perform any financial mutation. DISABLED Users have no authenticated Wallet access.
 - Authentication is required for KYC submission. Suspended Users may read `/kyc` but cannot submit; KYC status remains a derived KYC concern and is never an authentication flag on `users`.
 

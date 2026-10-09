@@ -55,8 +55,14 @@ npm run client -- dev --company local
 公司域名；H5 使用 Cookie/CSRF，App 使用独立 Bearer API。不要将开发服务器
 公开到互联网。H5 部署必须与对应公司 API 同域；不要用跨域 Cookie 绕过。
 
-H5 的 API、邀请链接及海报二维码使用当前访问域名，同一公司的多个域名可共用
-一份 H5；每个域名都必须由后端绑定同一公司并路由 `/api/v1` 到 Laravel。
+H5 的 API 使用当前访问域名，同一公司的多个域名可共用一份 H5。
+2026-10-09 起，复制／分享的邀请链接和海报二维码统一使用
+`https://zb33333.com/start.html?invite=<推广码>`，不再使用当前公司域名。
+静态启动页选线后保留 invite 参数，H5 根入口转入带该参数的注册页；
+后台仍按所选域名所属公司校验邀请码，不改变推荐关系或接受跨公司邀请码。
+需部署重新编译的 public/h5（旧 React 消费者入口同步更新 public/build）；
+本次链接修改不需要重新打包 WebView 壳。
+每个域名都必须由后端绑定同一公司并路由 `/api/v1` 到 Laravel。
 `tenantSlug` 仍与 bootstrap 的公司标识严格比对，不因切换域名放宽。
 App 使用内置 `apiOrigins` 和上次缓存发现当前公司域名，并在每次启动／回到前台时同步测速选优。`specpay.json` 已按用户确认保留 `tenant-a`，仅用于
 该公司；其中原生包名尚未完成 App 发布验证。
