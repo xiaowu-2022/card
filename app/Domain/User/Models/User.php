@@ -15,12 +15,17 @@ final class User extends Authenticatable
 
     protected $guarded = [];
 
-    protected $hidden = ['password_hash', 'session_version', 'support_remark', 'support_remark_revision'];
+    protected $hidden = ['password_hash', 'session_version', 'support_remark', 'support_remark_revision', 'withdrawal_blocked', 'deposit_refund_blocked', 'card_transfer_blocked', 'wallet_transfer_blocked', 'operation_restrictions_revision'];
 
     protected function casts(): array
     {
         return [
             'session_version' => 'integer',
+            'withdrawal_blocked' => 'boolean',
+            'deposit_refund_blocked' => 'boolean',
+            'card_transfer_blocked' => 'boolean',
+            'wallet_transfer_blocked' => 'boolean',
+            'operation_restrictions_revision' => 'integer',
             'password_hash' => 'hashed',
             'status' => UserStatus::class,
             'email_verified_at' => 'immutable_datetime',

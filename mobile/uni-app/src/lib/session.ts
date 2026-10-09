@@ -152,12 +152,14 @@ export async function refreshUnread() {
         // Keep the last successful count when offline; never display a false zero.
     }
 }
-export async function requireUser() {
+export async function requireUser(options: { ensureWallet?: boolean } = {}) {
     if (!session.value) await bootstrap();
     if (!session.value?.user) {
         uni.reLaunch({ url: '/pages/login/index' });
         return false;
     }
+    // Profile/menu reads do not depend on wallet provisioning. Financial pages keep the default gate.
+    if (options.ensureWallet === false) return true;
     // Provisioning already succeeded for this signed-in user. Page reads still
     // revalidate authorization on the server; this never caches wallet balances.
     const key = consumerSessionScope()!;

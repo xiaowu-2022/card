@@ -59,6 +59,7 @@ final readonly class CreateWithdrawalAction
                     throw new DomainException('IDEMPOTENCY_CONFLICT', 'This request identifier was already used with different withdrawal details.', 409);
                 }
             } else {
+                \App\Application\User\UserOperationRestrictions::assertAllowed($tenantId, $userId, 'withdrawal_blocked');
                 $destination = $this->destinations->execute($tenantId, $userId, $normalized, null, $auditRequestId);
             }
 
@@ -99,6 +100,7 @@ final readonly class CreateWithdrawalAction
 
             $tenant = Tenant::query()->whereKey($tenantId)->with('businessSettings')->lockForUpdate()->firstOrFail();
             $user = User::query()->where('tenant_id', $tenantId)->whereKey($userId)->lockForUpdate()->firstOrFail();
+            \App\Application\User\UserOperationRestrictions::assertAllowed($tenantId, $userId, 'withdrawal_blocked');
             $wallet = Wallet::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', $tenant->default_asset)->lockForUpdate()->first();
             $destination = WithdrawalDestination::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->whereKey($destinationId)->first();
             if ($tenant->status !== TenantStatus::Active) {

@@ -7,7 +7,7 @@ import { setCurrentPage } from '../../lib/api';
 import { go } from '../../lib/navigation';
 import { t } from '../../lib/i18n';
 import type { AssetOverview } from '../../lib/assets';
-import PageSkeleton from '../../components/PageSkeleton.vue';
+import AssetSkeleton from '../../components/AssetSkeleton.vue';
 import PageShell from '../../components/PageShell.vue';
 import AssetCenter from '../../components/AssetCenter.vue';
 import FormErrors from '../../components/FormErrors.vue';
@@ -89,7 +89,7 @@ const next = computed(
                 :description="t(next.description)"
                 :tone="next.tone"
                 :action="next.action" /></view
-        ><PageSkeleton v-if="!data && !Object.keys(errors).length" /></PageShell
+        ><AssetSkeleton v-if="!data && !Object.keys(errors).length" /></PageShell
     >
 </template>
 <style scoped>

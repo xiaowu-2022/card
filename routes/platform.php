@@ -165,6 +165,10 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::post('/tenants/{tenant}/users/{user}/support-remark', [SupportWorkspaceController::class, 'remark'])->whereUuid(['tenant', 'user'])->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,support.read', 'admin.scope:platform,support.send', 'throttle:60,1']);
     Route::post('/tenants/{tenant}/users/{user}/support-agent', [SupportWorkspaceController::class, 'grantUser'])->whereUuid(['tenant', 'user'])->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,support.read', 'admin.scope:platform,support.agents.manage', 'throttle:60,1']);
     Route::post('/tenants/{tenant}/users', UserCreationController::class)->whereUuid('tenant')->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.create', 'throttle:40,1']);
+    Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.restrictions.manage'])->group(function () {
+        Route::get('/tenants/{tenant}/users/{user}/restrictions', [\App\Http\Controllers\Platform\UserRestrictionsController::class, 'show'])->whereUuid(['tenant', 'user']);
+        Route::post('/tenants/{tenant}/users/{user}/restrictions', [\App\Http\Controllers\Platform\UserRestrictionsController::class, 'update'])->whereUuid(['tenant', 'user'])->middleware('throttle:40,1');
+    });
     Route::middleware('admin.scope:platform,users.read')->get('/users', UserOperationsController::class)->name('users.index');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,ledger.read'])->get('/tenants/{tenant}/users/{user}/funds', UserFundsController::class)->whereUuid(['tenant', 'user'])->name('users.funds');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,kyc.read'])->get('/tenants/{tenant}/users/{user}/kyc', [KycDetailController::class, 'user'])->whereUuid(['tenant', 'user'])->name('users.kyc');

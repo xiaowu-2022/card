@@ -37,6 +37,7 @@ final readonly class RefundSecurityDepositAction
             if ($existing) {
                 return $existing;
             }
+            \App\Application\User\UserOperationRestrictions::assertAllowed($tenantId, $userId, 'deposit_refund_blocked');
             self::assertNoPending($tenantId, $userId);
             $days = Tenant::query()->whereKey($tenantId)->firstOrFail()->businessSettings->security_deposit_refund_wait_days;
             if ($days === null) {

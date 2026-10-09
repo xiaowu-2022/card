@@ -97,3 +97,15 @@ test('card previews are isolated copies and discarded on logout, login and ident
     save(); s.session.value = s.signedIn('tenant-b', 'user-b'); assert.equal(read(), null);
     save(); s.session.value = null; assert.equal(read(), null);
 });
+
+
+test('account-only reads do not wait for or mark wallet provisioning ready', async () => {
+    const s = setup();
+    assert.equal(await s.requireUser({ ensureWallet: false }), true);
+    assert.equal(s.requests.length, 0);
+    const financialPage = s.requireUser();
+    assert.equal(s.requests[0].path, '/wallet/ensure');
+    assert.equal(await s.requireUser({ ensureWallet: false }), true);
+    s.requests[0].resolve();
+    assert.equal(await financialPage, true);
+});

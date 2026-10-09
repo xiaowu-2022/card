@@ -276,6 +276,10 @@ async function run(action: string, target?: CardOperation) {
         if (runId === generation) {
             errors.value = explainError(e);
             if (e instanceof ApiError && e.status === 422) uncertain.value = false;
+            if (e instanceof ApiError && e.payload?.error?.code === 'USER_OPERATION_RESTRICTED') {
+                uncertain.value = false;
+                if (order.value?.state === 'confirming') order.value = { ...order.value, state: 'quoted' };
+            }
         }
     } finally {
         password.value = '';

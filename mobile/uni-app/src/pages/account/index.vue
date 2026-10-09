@@ -1,12 +1,21 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
-import { session, unread, isSupportAgent, requireUser, refreshUnread } from '../../lib/session';
-import { request, setCurrentPage } from '../../lib/api';
+import { computed, ref, watch } from 'vue';
+import { onShow, onHide } from '@dcloudio/uni-app';
+import {
+    session,
+    unread,
+    isSupportAgent,
+    requireUser,
+    refreshUnread,
+    consumerSessionScope,
+    clearSession,
+} from '../../lib/session';
+import { request, setCurrentPage, ApiError } from '../../lib/api';
 import { t } from '../../lib/i18n';
 import { go } from '../../lib/navigation';
 import { openAppDownload } from '../../lib/open-app-download';
 import { explainError } from '../../lib/client';
+import PageSkeleton from '../../components/PageSkeleton.vue';
 import PageShell from '../../components/PageShell.vue';
 import UiIcon from '../../components/UiIcon.vue';
 import FormErrors from '../../components/FormErrors.vue';
@@ -17,20 +26,47 @@ const account = ref<{
         accountQualified: boolean;
     } | null>(null),
     errors = ref<Record<string, string>>({});
-onShow(async () => {
+let generation = 0;
+watch(
+    consumerSessionScope,
+    () => {
+        generation++;
+        account.value = null;
+        errors.value = {};
+    },
+    { flush: 'sync' },
+);
+onHide(() => {
+    generation++;
+});
+async function load() {
     setCurrentPage('/account');
+    errors.value = {};
+    // Bootstrap can establish a new scope, so capture the request generation afterwards.
+    let run: number | undefined;
     try {
-        if (!(await requireUser())) return;
+        if (!(await requireUser({ ensureWallet: false }))) return;
         if (session.value?.restricted) {
             go('/account/restricted', true);
             return;
         }
-        account.value = await request('/account');
-        await refreshUnread();
+        run = ++generation;
+        const scope = consumerSessionScope();
+        void refreshUnread();
+        const response = await request<NonNullable<typeof account.value>>('/account');
+        if (run !== generation || scope !== consumerSessionScope()) return;
+        account.value = response;
     } catch (e) {
+        if (run !== undefined && run !== generation) return;
+        account.value = null;
         errors.value = explainError(e);
+        if (e instanceof ApiError && e.status === 401) {
+            clearSession();
+            go('/login', true);
+        }
     }
-});
+}
+onShow(load);
 const contact = computed(() => {
     const email = session.value?.user?.email;
     if (!email) return '';
@@ -73,9 +109,15 @@ const items = computed(() => {
         { title: 'Messages', icon: 'bell', path: '/messages' },
     ];
     // #ifdef H5
-    entries.splice(entries.findIndex((item) => item.path === '/support'), 0, {
-        title: 'Download app', icon: 'download', path: '#app-download',
-    });
+    entries.splice(
+        entries.findIndex((item) => item.path === '/support'),
+        0,
+        {
+            title: 'Download app',
+            icon: 'download',
+            path: '#app-download',
+        },
+    );
     // #endif
     return entries;
 });
@@ -108,7 +150,15 @@ function copy() {
 </script>
 <template>
     <PageShell active="account"
-        ><FormErrors :errors="errors" /><view v-if="session?.user" class="account-page"
+        ><FormErrors :errors="errors" /><button
+            v-if="Object.keys(errors).length"
+            class="secondary"
+            @click="load"
+        >
+            {{ t('Try again') }}</button
+        ><PageSkeleton v-if="!session?.user && !Object.keys(errors).length" /><view
+            v-if="session?.user"
+            class="account-page"
             ><view class="identity"
                 ><view class="identity-main"
                     ><text class="profile-name">{{
@@ -116,7 +166,9 @@ function copy() {
                     }}</text
                     ><text class="profile-contact">{{ contact }}</text></view
                 ><view class="level"
-                    ><text>{{ level }}</text
+                    ><text>{{
+                        account ? level : t(Object.keys(errors).length ? 'Unavailable' : 'Loading…')
+                    }}</text
                     ><button class="upgrade" @click="go('/promotion/membership')">
                         <UiIcon
                             name="arrow-up-right"
@@ -134,7 +186,11 @@ function copy() {
                 ><UiIcon name="scan-face" :size="20" :color="session?.tenant.primaryColor" /><view
                     class="verification-text"
                     ><text>{{ t('Identity verification') }}</text
-                    ><text class="verification-status">{{ status }}</text></view
+                    ><text class="verification-status">{{
+                        account
+                            ? status
+                            : t(Object.keys(errors).length ? 'Unavailable' : 'Loading…')
+                    }}</text></view
                 ><text class="verification-link">{{
                     t(
                         ['NOT_SUBMITTED', 'RESUBMISSION_REQUIRED'].includes(

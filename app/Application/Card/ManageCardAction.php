@@ -82,6 +82,9 @@ final readonly class ManageCardAction
     public function confirmLoad(string $tenantId, string $userId, string $cardId, string $orderId): CardManagementOrder
     {
         $snapshot = CardManagementOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('card_id', $cardId)->whereKey($orderId)->firstOrFail();
+        if ($snapshot->status === 'QUOTED') {
+            \App\Application\User\UserOperationRestrictions::assertAllowed($tenantId, $userId, 'card_transfer_blocked');
+        }
         if ($snapshot->status === 'QUOTED' && $snapshot->balance_limit_snapshot !== null && Money::of($snapshot->amount, 'USD')->isPositive()) {
             $this->refresh->execute($tenantId, $userId, $cardId);
         }
@@ -95,6 +98,7 @@ final readonly class ManageCardAction
             if ($order->status !== 'QUOTED') {
                 return [$order, false];
             }
+            \App\Application\User\UserOperationRestrictions::assertAllowed($order->tenant_id, $order->user_id, 'card_transfer_blocked');
             if ($order->quote_expires_at === null || $order->quote_expires_at->isPast()) {
                 $order->forceFill(['status' => 'EXPIRED'])->save();
 

@@ -1,3 +1,4 @@
+import { UserRestrictionsDialog } from '@/components/admin/UserRestrictionsDialog';
 import { CustomerRemarkDialog } from '@/components/admin/CustomerRemarkDialog';
 import { openAdminEditor } from '@/components/admin/editor-navigation';
 import { CreateUserDialog } from '@/components/admin/CreateUserDialog';
@@ -67,7 +68,9 @@ export default function Users({
     canManageSupport,
     canCreateUser,
     canRemark,
+    canManageRestrictions,
 }: {
+    canManageRestrictions: boolean;
     canRemark: boolean;
     canCreateUser: boolean;
     canManageSupport: boolean;
@@ -84,6 +87,7 @@ export default function Users({
     financialAccess: { balances: boolean; commission: boolean; withdrawals: boolean };
 }) {
     useAdminTranslation();
+    const [restrictionsUser, setRestrictionsUser] = useState<User | null>(null);
     const [remarkUser, setRemarkUser] = useState<User | null>(null);
     const [createOpen, setCreateOpen] = useState(false);
     const [supportBusy, setSupportBusy] = useState(false);
@@ -127,6 +131,13 @@ export default function Users({
             }
         >
             <Head title={t('Users')} />
+            {restrictionsUser && (
+                <UserRestrictionsDialog
+                    key={restrictionsUser.id}
+                    user={restrictionsUser}
+                    onClose={() => setRestrictionsUser(null)}
+                />
+            )}
             {canCreateUser && createOpen && (
                 <CreateUserDialog
                     companies={companies}
@@ -289,7 +300,8 @@ export default function Users({
                             label: 'Last login',
                             render: (row) => (row.lastLoginAt ? dateTime(row.lastLoginAt) : '—'),
                         },
-                        ...(canRemark ||
+                        ...(canManageRestrictions ||
+                        canRemark ||
                         canManageSupport ||
                         canViewTopups ||
                         canViewFunds ||
@@ -304,7 +316,8 @@ export default function Users({
                                       label: 'Actions',
                                       render: (row: User) => (
                                           <div className="flex items-center gap-2">
-                                              {(canManageSupport ||
+                                              {(canManageRestrictions ||
+                                                  canManageSupport ||
                                                   canViewKyc ||
                                                   canViewFunds ||
                                                   canViewTopups ||
@@ -336,6 +349,15 @@ export default function Users({
                                                               }
                                                           }}
                                                       >
+                                                          {canManageRestrictions && (
+                                                              <DropdownMenuItem
+                                                                  onSelect={() =>
+                                                                      setRestrictionsUser(row)
+                                                                  }
+                                                              >
+                                                                  {t('Operation restrictions')}
+                                                              </DropdownMenuItem>
+                                                          )}
                                                           {canRemark && (
                                                               <DropdownMenuItem
                                                                   onSelect={() =>

@@ -49,6 +49,7 @@ final readonly class TransferWalletBalanceAction
 
                 return $existing;
             }
+            \App\Application\User\UserOperationRestrictions::assertAllowed($tenantId, $senderId, 'wallet_transfer_blocked');
             $recipient = User::query()->where('tenant_id', $tenantId)->where('account_id', $recipientAccountId)->first();
             if (! $recipient || $recipient->id === $senderId) {
                 throw new DomainException('WALLET_TRANSFER_RECIPIENT_UNAVAILABLE', 'The recipient is unavailable. Check the account ID and company.');

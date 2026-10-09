@@ -1,3 +1,13 @@
+On 2026-10-09 the user added per-user Platform operation restrictions: prohibit
+withdrawals, new security-deposit refund applications, card funding and outgoing
+account transfers. Default all flags off; confirmation returns “请联系客服”.
+Card transfer is implemented as wallet-to-card recharge, labelled explicitly.
+Preserve company scope, users.read + users.restrictions.manage, confirmation,
+revision checks, Tenant/User locking and atomic immutable audit. Existing accepted
+orders/replay/recovery/cancellation stay unchanged; no balance mutation on settings
+saves. Deploy the migration, PHP/admin assets and H5. See
+docs/architecture/USER_OPERATION_RESTRICTIONS.md.
+
 On 2026-10-08 the user added signed theoretical-balance adjustments through
 Platform partner Record entry. ADJUSTMENT_INCREASE/ADJUSTMENT_DECREASE use positive
 USDT amounts, explicit confirmation and the existing scoped partners.manage,

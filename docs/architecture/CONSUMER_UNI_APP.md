@@ -331,3 +331,27 @@ H5 的认证页品牌图片区连续点击五次可手动打开 `login-layout-1`
 尺寸。此对比用于检验当前 `viewport-fit=cover` 与系统区域布局的交互，不保证
 动态修改可复现冷启动行为。参考 Chromium 官方 display cutout 说明：
 https://chromium.googlesource.com/chromium/src/+/HEAD/docs/ui/android/display_cutout.md
+
+## Progressive page entry (2026-10-09)
+
+H5's generic screen route loads only its shell and the selected screen module.
+API reads and module downloads both retain a skeleton with back navigation; module
+errors use the existing page error boundary; explicit retry reloads the H5 document
+with a numeric recovery token on screen-module URLs to bypass WebKit's cached failures.
+The build hook preserves Vite's CSS/preload dependencies and ordinary hashed-module caching. Native builds retain
+static screen imports for packaged-runtime compatibility.
+
+Assets display the balance heading, currency and disabled operation placeholders
+before their authorized DTO arrives; unknown balances are never rendered as zero.
+Account entry displays bootstrap profile/menu content first, loads account status
+and unread counters independently, and skips wallet initialization on this nonfinancial
+page only. Financial pages still await the existing scoped wallet-readiness gate.
+Account status uses loading/unavailable placeholders rather than guessing an inactive
+or unverified state. Scope changes clear account data; obsolete responses are ignored.
+No page DTOs or financial permissions are persisted in a new cache.
+
+Validation: client typecheck, H5/native builds, wallet-readiness unit tests and the
+offline Chrome/WebKit `tests/Browser/consumer-progressive-entry.mjs` fixture cover
+held account/data/module requests, immediate content, failed-data retry and exclusion
+of unrelated screen downloads. Rebuild/deploy H5 to deliver web changes; packaged
+native resources require their normal release process. No migration is needed.

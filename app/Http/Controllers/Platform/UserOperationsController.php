@@ -23,6 +23,7 @@ final class UserOperationsController extends Controller
             'users' => $query->paginate($filters['company'] ?? null, $filters['search'] ?? null, $filters['status'] ?? null, $financialAccess, $filters['support'] ?? null),
             'financialAccess' => $financialAccess, 'canManageSupport' => $allowed('support.read') && $allowed('support.agents.manage'),
             'canRemark' => $allowed('support.read') && $allowed('support.send'),
+            'canManageRestrictions' => $allowed('users.restrictions.manage'),
             'canCreateUser' => $allowed('users.create'),
             'canChangeInvitation' => $allowed('users.invitation.manage'),
             'canChangeReferrer' => $allowed('users.referrer.manage'),

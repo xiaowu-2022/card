@@ -38,6 +38,7 @@ final readonly class WithdrawAssetsAction
 
             return $existing;
         }
+        \App\Application\User\UserOperationRestrictions::assertAllowed($tenantId, $userId, 'withdrawal_blocked');
         [$rail,,$connection] = $this->rails->enabled($tenantId, $railCode, 'withdrawal');
         $address = trim($address);
         if ($rail->network === 'ETHEREUM') {
@@ -62,6 +63,7 @@ final readonly class WithdrawAssetsAction
                 return $existing;
             }
             [$tenant,$user] = $this->access->operational($tenantId, $userId);
+            \App\Application\User\UserOperationRestrictions::assertAllowed($tenantId, $userId, 'withdrawal_blocked');
             [$rail,$company] = $this->rails->enabled($tenantId, $railCode, 'withdrawal');
             $money = $this->rails->amount($amount, $rail->asset_code);
             $fee = WithdrawalFee::calculate($money->amount(), $company->withdrawal_fee_percent, $rail->asset_code);

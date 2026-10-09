@@ -2,6 +2,16 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'users.restrictions.manage': '管理用户操作限制',
+    'Operation restrictions': '操作限制',
+    'Block withdrawals': '禁止提现',
+    'Block deposit refund requests': '禁止申请退保',
+    'Block card transfers': '禁止转卡（卡片充值）',
+    'Block account transfers': '禁止账户互转',
+    'These settings have changed. Close and reopen to load the latest settings.': '设置已被修改，请关闭后重新打开以获取最新设置。',
+    'Restricted users will see “Please contact support” when confirming a new operation. Existing orders remain unchanged.': '被限制的用户确认新操作时会提示“请联系客服”。已有订单不受影响。',
+    'I confirm these changes.': '我确认以上设置。',
+
     'Monthly fee': '月费',
     'Card notes': '卡片备注',
     'Display text only. Not included in the opening fee or wallet total.':

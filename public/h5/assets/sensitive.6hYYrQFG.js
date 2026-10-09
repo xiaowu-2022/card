@@ -1,0 +1,1 @@
+import{f as n,a1 as e}from"./index-CBvuan4R.js";function i(i,t={}){function o(){!document.hidden||t.retainOnBackground||t.retainUntilUnmount||i()}n(()=>{t.retainUntilUnmount||t.retainOnBackground&&document.hidden||i()}),e(()=>{i(),document.removeEventListener("visibilitychange",o)}),document.addEventListener("visibilitychange",o)}export{i as u};

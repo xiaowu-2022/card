@@ -15,6 +15,7 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    'Please contact support.': ['请联系客服', 'Sila hubungi sokongan.', 'Contacta con soporte.'],
     "Poster saved to your photo library.": ["海报已保存到系统相册。", "Poster telah disimpan ke pustaka foto anda.", "El cartel se ha guardado en tu galería."],
     "Download requested. Check your browser downloads.": ["已发起下载，请查看浏览器下载记录。", "Muat turun diminta. Semak muat turun pelayar anda.", "Se ha solicitado la descarga. Revisa las descargas del navegador."],
     "This app version cannot save posters. Please update the app or open this page in your browser.": ["当前 App 版本不支持保存海报，请更新 App，或在系统浏览器打开此页面保存。", "Versi aplikasi ini tidak boleh menyimpan poster. Kemas kini aplikasi atau buka halaman ini dalam pelayar.", "Esta versión de la app no permite guardar carteles. Actualiza la app o abre esta página en el navegador."],

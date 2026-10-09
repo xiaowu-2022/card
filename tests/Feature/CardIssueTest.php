@@ -157,6 +157,22 @@ function managedCardFixture($test, ?Closure $cardRead = null, string $available 
     return [$card, $provider, app(ManageCardAction::class)];
 }
 
+it('blocks restricted card funding at confirmation and preserves completed replay', function (): void {
+    [$card, $provider, $action] = managedCardFixture($this);
+    $provider->shouldReceive('quoteCardLoad')->once()->andReturnUsing(fn ($id, $amount, $request) => new ProviderCardQuoteDTO($request, '20.00000000', '20.00000000', '0.00000000'));
+    $provider->shouldReceive('confirmCardLoad')->once()->andReturnUsing(fn ($id, $request) => new ProviderCardFundsDTO(ProviderOperationStatus::Succeeded, $id, $request, 'RESTRICTION-TEST', '20.00000000', '20.00000000', '0.00000000'));
+    $order = $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '20');
+    $before = LedgerEntry::count();
+    $this->user->update(['card_transfer_blocked' => true]);
+    expect(fn () => $action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $order->id))->toThrow(DomainException::class, 'Please contact support.');
+    expect($order->fresh()->status)->toBe('QUOTED')->and(LedgerEntry::count())->toBe($before);
+    $this->user->update(['card_transfer_blocked' => false]);
+    expect($action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $order->id)->status)->toBe('SUCCEEDED');
+    $this->user->update(['card_transfer_blocked' => true]);
+    expect($action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $order->id)->status)->toBe('SUCCEEDED');
+    expect(LedgerEntry::count())->toBe($before + 2);
+});
+
 it('manages card reload with quoted fee exact hold and one settlement', function (): void {
     [$card,$provider,$action] = managedCardFixture($this);
     $before = phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance;
@@ -916,7 +932,7 @@ function phaseTenReadyUser($test, string $available = '100.00000000', ProviderCa
         kycTestImage('phase-ten-front.png'),
         kycTestImage('phase-ten-back.png'),
     );
-    app(ApproveKycAction::class)->execute($test->tenant->id, $application->id, $test->owner);
+    app(ApproveKycAction::class)->execute($test->tenant->id, $application->id, $test->owner, identityNumber: '11010519491231002X');
     $wallet = app(ActivateUserWalletAction::class)->execute($test->tenant->id, $test->user->id)->wallet;
     $accounts = LedgerAccount::query()->where('tenant_id', $test->tenant->id)->where('wallet_id', $wallet->id)->get()
         ->keyBy(fn (LedgerAccount $account): string => $account->account_type->value);

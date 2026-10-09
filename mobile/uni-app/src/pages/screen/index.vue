@@ -1,50 +1,154 @@
 <script setup lang="ts">
-import { ref, nextTick, onErrorCaptured } from 'vue';
+import { ref, nextTick, onErrorCaptured, type Component } from 'vue';
+// #ifdef H5
+import { lazyScreen } from '../../lib/lazy-screen';
+// #endif
 import { onLoad, onShow, onHide, onPageScroll } from '@dcloudio/uni-app';
 import { getPage, ensureBootstrap, explainError, type ClientPage } from '../../lib/client';
 import { clearSession } from '../../lib/session';
 import { ApiError, setCurrentPage } from '../../lib/api';
 import { t } from '../../lib/i18n';
 import { go } from '../../lib/navigation';
-import Landing from '../../screens/Landing.vue';
-import Registration from '../../screens/Registration.vue';
-import PasswordRecovery from '../../screens/PasswordRecovery.vue';
-import Settings from '../../screens/Settings.vue';
-import About from '../../screens/About.vue';
-import Restricted from '../../screens/Restricted.vue';
-import Transfer from '../../screens/Transfer.vue';
-import SecurityDeposit from '../../screens/SecurityDeposit.vue';
-import SecurityDepositHistory from '../../screens/SecurityDepositHistory.vue';
-import SecurityDepositSuccess from '../../screens/SecurityDepositSuccess.vue';
-import AssetFlow from '../../screens/AssetFlow.vue';
-import AssetHistory from '../../screens/AssetHistory.vue';
-import Topup from '../../screens/Topup.vue';
-import TopupStatus from '../../screens/TopupStatus.vue';
-import Kyc from '../../screens/Kyc.vue';
-import Security from '../../screens/Security.vue';
-import Academy from '../../screens/Academy.vue';
-import Wealth from '../../screens/Wealth.vue';
-import WealthOverview from '../../screens/WealthOverview.vue';
-import WealthOrder from '../../screens/WealthOrder.vue';
-import Withdraw from '../../screens/Withdraw.vue';
-import WithdrawalStatus from '../../screens/WithdrawalStatus.vue';
-import WithdrawalHistory from '../../screens/WithdrawalHistory.vue';
-import PaidPromotion from '../../screens/PaidPromotion.vue';
-import PromotionHub from '../../screens/PromotionHub.vue';
-import PromotionReport from '../../screens/PromotionReport.vue';
-import Promotion from '../../screens/Promotion.vue';
-import PromotionRewardDetails from '../../screens/PromotionRewardDetails.vue';
-import Wallet from '../../screens/Wallet.vue';
-import PartnerChildren from '../../screens/PartnerChildren.vue';
-import PartnerStock from '../../screens/PartnerStock.vue';
+// #ifndef H5
+import NativeLanding from '../../screens/Landing.vue';
+import NativeRegistration from '../../screens/Registration.vue';
+import NativePasswordRecovery from '../../screens/PasswordRecovery.vue';
+import NativeSettings from '../../screens/Settings.vue';
+import NativeAbout from '../../screens/About.vue';
+import NativeRestricted from '../../screens/Restricted.vue';
+import NativeTransfer from '../../screens/Transfer.vue';
+import NativeSecurityDeposit from '../../screens/SecurityDeposit.vue';
+import NativeSecurityDepositHistory from '../../screens/SecurityDepositHistory.vue';
+import NativeSecurityDepositSuccess from '../../screens/SecurityDepositSuccess.vue';
+import NativeAssetFlow from '../../screens/AssetFlow.vue';
+import NativeAssetHistory from '../../screens/AssetHistory.vue';
+import NativeTopup from '../../screens/Topup.vue';
+import NativeTopupStatus from '../../screens/TopupStatus.vue';
+import NativeKyc from '../../screens/Kyc.vue';
+import NativeSecurity from '../../screens/Security.vue';
+import NativeAcademy from '../../screens/Academy.vue';
+import NativeWealth from '../../screens/Wealth.vue';
+import NativeWealthOverview from '../../screens/WealthOverview.vue';
+import NativeWealthOrder from '../../screens/WealthOrder.vue';
+import NativeWithdraw from '../../screens/Withdraw.vue';
+import NativeWithdrawalStatus from '../../screens/WithdrawalStatus.vue';
+import NativeWithdrawalHistory from '../../screens/WithdrawalHistory.vue';
+import NativePaidPromotion from '../../screens/PaidPromotion.vue';
+import NativePromotionHub from '../../screens/PromotionHub.vue';
+import NativePromotionReport from '../../screens/PromotionReport.vue';
+import NativePromotion from '../../screens/Promotion.vue';
+import NativePromotionRewardDetails from '../../screens/PromotionRewardDetails.vue';
+import NativeWallet from '../../screens/Wallet.vue';
+import NativePartnerChildren from '../../screens/PartnerChildren.vue';
+import NativePartnerStock from '../../screens/PartnerStock.vue';
+// #endif
+let Landing: Component,
+    Registration: Component,
+    PasswordRecovery: Component,
+    Settings: Component,
+    About: Component,
+    Restricted: Component,
+    Transfer: Component,
+    SecurityDeposit: Component,
+    SecurityDepositHistory: Component,
+    SecurityDepositSuccess: Component,
+    AssetFlow: Component,
+    AssetHistory: Component,
+    Topup: Component,
+    TopupStatus: Component,
+    Kyc: Component,
+    Security: Component,
+    Academy: Component,
+    Wealth: Component,
+    WealthOverview: Component,
+    WealthOrder: Component,
+    Withdraw: Component,
+    WithdrawalStatus: Component,
+    WithdrawalHistory: Component,
+    PaidPromotion: Component,
+    PromotionHub: Component,
+    PromotionReport: Component,
+    Promotion: Component,
+    PromotionRewardDetails: Component,
+    Wallet: Component,
+    PartnerChildren: Component,
+    PartnerStock: Component;
+// #ifdef H5
+Landing = lazyScreen(() => import('../../screens/Landing.vue'));
+Registration = lazyScreen(() => import('../../screens/Registration.vue'));
+PasswordRecovery = lazyScreen(() => import('../../screens/PasswordRecovery.vue'));
+Settings = lazyScreen(() => import('../../screens/Settings.vue'));
+About = lazyScreen(() => import('../../screens/About.vue'));
+Restricted = lazyScreen(() => import('../../screens/Restricted.vue'));
+Transfer = lazyScreen(() => import('../../screens/Transfer.vue'));
+SecurityDeposit = lazyScreen(() => import('../../screens/SecurityDeposit.vue'));
+SecurityDepositHistory = lazyScreen(() => import('../../screens/SecurityDepositHistory.vue'));
+SecurityDepositSuccess = lazyScreen(() => import('../../screens/SecurityDepositSuccess.vue'));
+AssetFlow = lazyScreen(() => import('../../screens/AssetFlow.vue'));
+AssetHistory = lazyScreen(() => import('../../screens/AssetHistory.vue'));
+Topup = lazyScreen(() => import('../../screens/Topup.vue'));
+TopupStatus = lazyScreen(() => import('../../screens/TopupStatus.vue'));
+Kyc = lazyScreen(() => import('../../screens/Kyc.vue'));
+Security = lazyScreen(() => import('../../screens/Security.vue'));
+Academy = lazyScreen(() => import('../../screens/Academy.vue'));
+Wealth = lazyScreen(() => import('../../screens/Wealth.vue'));
+WealthOverview = lazyScreen(() => import('../../screens/WealthOverview.vue'));
+WealthOrder = lazyScreen(() => import('../../screens/WealthOrder.vue'));
+Withdraw = lazyScreen(() => import('../../screens/Withdraw.vue'));
+WithdrawalStatus = lazyScreen(() => import('../../screens/WithdrawalStatus.vue'));
+WithdrawalHistory = lazyScreen(() => import('../../screens/WithdrawalHistory.vue'));
+PaidPromotion = lazyScreen(() => import('../../screens/PaidPromotion.vue'));
+PromotionHub = lazyScreen(() => import('../../screens/PromotionHub.vue'));
+PromotionReport = lazyScreen(() => import('../../screens/PromotionReport.vue'));
+Promotion = lazyScreen(() => import('../../screens/Promotion.vue'));
+PromotionRewardDetails = lazyScreen(() => import('../../screens/PromotionRewardDetails.vue'));
+Wallet = lazyScreen(() => import('../../screens/Wallet.vue'));
+PartnerChildren = lazyScreen(() => import('../../screens/PartnerChildren.vue'));
+PartnerStock = lazyScreen(() => import('../../screens/PartnerStock.vue'));
+// #endif
+// #ifndef H5
+Landing = NativeLanding;
+Registration = NativeRegistration;
+PasswordRecovery = NativePasswordRecovery;
+Settings = NativeSettings;
+About = NativeAbout;
+Restricted = NativeRestricted;
+Transfer = NativeTransfer;
+SecurityDeposit = NativeSecurityDeposit;
+SecurityDepositHistory = NativeSecurityDepositHistory;
+SecurityDepositSuccess = NativeSecurityDepositSuccess;
+AssetFlow = NativeAssetFlow;
+AssetHistory = NativeAssetHistory;
+Topup = NativeTopup;
+TopupStatus = NativeTopupStatus;
+Kyc = NativeKyc;
+Security = NativeSecurity;
+Academy = NativeAcademy;
+Wealth = NativeWealth;
+WealthOverview = NativeWealthOverview;
+WealthOrder = NativeWealthOrder;
+Withdraw = NativeWithdraw;
+WithdrawalStatus = NativeWithdrawalStatus;
+WithdrawalHistory = NativeWithdrawalHistory;
+PaidPromotion = NativePaidPromotion;
+PromotionHub = NativePromotionHub;
+PromotionReport = NativePromotionReport;
+Promotion = NativePromotion;
+PromotionRewardDetails = NativePromotionRewardDetails;
+Wallet = NativeWallet;
+PartnerChildren = NativePartnerChildren;
+PartnerStock = NativePartnerStock;
+// #endif
 import FormErrors from '../../components/FormErrors.vue';
 import PageSkeleton from '../../components/PageSkeleton.vue';
 const path = ref(''),
     data = ref<ClientPage<any> | null>(null),
     errors = ref<Record<string, string>>({}),
     loading = ref(true);
+let renderFailed = false;
 // Child setup/render errors must not leave an empty native WebView.
 onErrorCaptured(() => {
+    renderFailed = true;
     data.value = null;
     loading.value = false;
     errors.value = { form: t('Unable to load. Please try again.') };
@@ -91,6 +195,20 @@ onHide(() => {
     returningToKycDraft = false;
     generation++;
 });
+function retryLoad() {
+    // Browsers retain failed module imports for this document. An explicit retry
+    // needs a fresh document after a chunk failure (including a release swap).
+    // #ifdef H5
+    if (renderFailed) {
+        const recovery = new URL(window.location.href);
+        recovery.searchParams.set('_screen_retry', String(Date.now()));
+        window.location.replace(recovery.href);
+        return;
+    }
+    // #endif
+    renderFailed = false;
+    void load();
+}
 async function load() {
     const run = ++generation;
     loading.value = true;
@@ -126,7 +244,7 @@ async function load() {
 <template>
     <view v-if="!data"
         ><PageSkeleton v-if="loading" full /><view v-else class="screen-loading"
-            ><FormErrors :errors="errors" /><button @click="load">{{ t('Try again') }}</button
+            ><FormErrors :errors="errors" /><button @click="retryLoad">{{ t('Try again') }}</button
             ><button @click="go('/account', true)">{{ t('Back') }}</button></view></view
     ><Landing v-else-if="data.component === 'public/Landing'" /><Registration
         v-else-if="['user/Register', 'user/VerifyRegistration'].includes(data.component)"

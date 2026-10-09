@@ -77,3 +77,12 @@ test('known consumer failures retain specific localized explanations rather than
     assert.match(i18n.errorMessage('The withdrawal fee changed. Review the updated amount.'), /手续费已变化/);
     assert.match(i18n.errorMessage('The card balance return is awaiting confirmation.'), /待确认.*勿重复提交/);
 });
+
+// Restrictions use the same confirmation-error path for withdrawal, refund, card load and transfer.
+test('operation restrictions display contact support in every consumer language', () => {
+    const { ApiError, explainError, i18n } = harness();
+    for (const [locale, text] of [['zh-CN', '请联系客服'], ['en', 'Please contact support.'], ['ms', 'Sila hubungi sokongan.'], ['es', 'Contacta con soporte.']]) {
+        i18n.locale.value = locale;
+        assert.equal(explainError(new ApiError(403, { error: { code: 'USER_OPERATION_RESTRICTED', message: 'Please contact support.' } })).form, text);
+    }
+});
