@@ -392,6 +392,18 @@ valuation may use a still-fresh saved snapshot; absent/stale prices yield unavai
 foreign-asset estimates, without preventing users from requesting a new exchange quote.
 Verification uses isolated mocked HTTP and Ledger tests, not live financial exchanges.
 
+### 2026-10-09: Preserve market timestamp offsets
+
+MarketSnapshot serializes dates with an explicit timezone offset. OKX timestamps
+are UTC instants; dropping the offset caused Eloquent and PostgreSQL to reinterpret
+fresh rates in the server timezone (for example, eight hours old in Asia/Shanghai),
+failing the exchange transaction's freshness check. The offset is retained both
+before persistence and after reload. The 120-second freshness limit, upstream
+validation, immutable history and quote/confirmation behavior remain unchanged.
+Deploy the PHP model and reload PHP-FPM/long-running application processes; no
+migration, historical snapshot rewrite or frontend rebuild is needed. Regression
+coverage uses UTC, Asia/Shanghai and America/New_York with mocked public prices.
+
 ## Public withdrawal connections (2026-09-25)
 
 User-approved zero-configuration public withdrawal reads supersede the connection

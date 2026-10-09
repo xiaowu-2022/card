@@ -1,3 +1,16 @@
+### 2026-10-09：iPhone/iPad 邀请海报保存
+
+H5 与 WebView 的 iOS 保存不再依赖模拟点击 download 链接，也不再显示
+“已发起下载，请查看浏览器下载记录”。支持文件分享时，在按钮点击的用户手势内
+打开 PNG 系统分享菜单；分享完成只提示按所选操作查看相册，取消不显示成功。
+不支持或分享失败时保留原生 img 预览，提示长按“存储图像”，无菜单时在 Safari
+打开页面。iOS 不等待旧壳可能不回调的标题桥。Android 原生桥与 APP-PLUS
+仍以相册保存回调为成功依据。
+
+部署更新后的 public/h5 入口及新增哈希资源，保留旧资源；此修复不要求重新打包
+WebView 壳。离线 Chromium/WebKit（含 iPhone/iPad 模式）覆盖无分享能力、
+分享完成、取消与 Android 相册回调；系统分享菜单和真实相册写入仍需真机验收。
+
 On 2026-10-08 the user enabled direct Platform app-release metadata edits.
 Prefill existing version values; permit valid same/lower version corrections and
 destination updates without repackaging. Preserve fixed AppID, tenant.manage,

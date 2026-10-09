@@ -627,6 +627,41 @@ it('fetches new OKX prices for each new quote but never on replay or confirmatio
         && $r['instType'] === 'SPOT' && ! $r->hasHeader('Authorization') && ! $r->hasHeader('OK-ACCESS-KEY'));
 });
 
+it('preserves OKX instants through quote creation and snapshot reload in every server timezone', function (string $timezone) {
+    ($this->fund)('ETH', '1');
+    $originalTimezone = date_default_timezone_get();
+    config(['app.timezone' => $timezone]);
+    date_default_timezone_set($timezone);
+    DB::select("select set_config('TimeZone', ?, true)", [$timezone]);
+
+    try {
+        $this->travel(2)->seconds();
+        $this->freezeTime();
+        Http::swap(new Factory);
+        Http::preventStrayRequests();
+        Http::fake(['www.okx.com/*' => Http::response(okxTestRates())]);
+        $entries = LedgerEntry::count();
+        $prices = app(MarketPrices::class);
+        $instant = now()->getTimestamp();
+        $snapshot = $prices->quote();
+        expect($snapshot->observed_at->getTimestamp())->toBe($instant);
+
+        $request = (string) Str::uuid();
+        $action = app(ExchangeAssetsAction::class);
+        $order = $action->quote($this->tenant->id, $this->user->id, 'ETH', '0.1', $request);
+        $saved = MarketSnapshot::findOrFail($order->snapshot_id);
+        expect($saved->observed_at->getTimestamp())->toBe($instant)
+            ->and($prices->latest()?->id)->toBe($saved->id)
+            ->and($prices->configuration()['snapshot']['fresh'])->toBeTrue()
+            ->and($order->receive_amount)->toBe('200.20020020')
+            ->and(LedgerEntry::count())->toBe($entries);
+        expect($action->quote($this->tenant->id, $this->user->id, 'ETH', '0.1', $request)->id)->toBe($order->id);
+        Http::assertSentCount(2);
+    } finally {
+        date_default_timezone_set($originalTimezone);
+    }
+})->with(['UTC', 'Asia/Shanghai', 'America/New_York']);
+
 it('disables scheduled and manual price refresh without upstream calls', function () {
     $this->artisan('assets:refresh-prices')->assertFailed();
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();

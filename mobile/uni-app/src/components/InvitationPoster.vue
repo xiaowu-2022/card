@@ -4,7 +4,7 @@ import qrcode from 'qrcode-generator';
 import Modal from './Modal.vue';
 import { privateImage, native, photoUrl } from '../lib/api';
 import { t } from '../lib/i18n';
-import { boundedPosterSave, inWebview, isIOSWebview, saveBrowserPoster } from '../lib/poster-save';
+import { boundedPosterSave, inWebview, isIOSDevice, isIOSWebview, saveBrowserPoster } from '../lib/poster-save';
 const props = defineProps<{ link: string; code: string; background: string | null }>();
 const open = ref(false),
     preview = ref(''),
@@ -16,6 +16,7 @@ const open = ref(false),
     saveFailed = ref(false),
     instance = getCurrentInstance();
 const canvasId = 'invitation-poster';
+const iosBrowser = !native && isIOSDevice();
 let generation = 0;
 async function generate() {
     const run = ++generation;
@@ -140,7 +141,11 @@ async function save() {
     try {
         // #ifdef H5
         const result = await saveBrowserPoster(preview.value, props.code);
-        saveMessage.value = result === 'saved' ? 'Poster saved to your photo library.' : 'Download requested. Check your browser downloads.';
+        saveMessage.value = result === 'saved' ? 'Poster saved to your photo library.'
+            : result === 'download' ? 'If the download does not appear, press and hold the poster to save it.'
+            : result === 'shared' ? 'If you selected Save Image, check Photos. Otherwise, press and hold the poster to save it.'
+            : result === 'manual' ? 'Press and hold the poster and choose Save Image. If no menu appears, open this page in Safari and try again.'
+            : '';
         // #endif
         // #ifdef APP-PLUS
         await boundedPosterSave(() => new Promise<void>((resolve, reject) =>
@@ -180,10 +185,15 @@ defineExpose({ generate });
         :open="open"
         :busy="saving"
         :title="t('Invitation poster')"
-        :description="t('Save the poster or press and hold the image to save it on your phone.')"
+        :description="t(iosBrowser ? 'Tap Save image, then choose Save Image in the system menu, or press and hold the poster.' : 'Save the poster or press and hold the image to save it on your phone.')"
         @close="close"
         ><template v-if="preview"
-            ><image
+            >
+            <!-- #ifdef H5 -->
+            <img v-if="iosBrowser" :src="preview" :alt="t('Invitation poster')" class="preview ios-preview" />
+            <!-- #endif -->
+            <image
+                v-if="!iosBrowser"
                 :src="preview"
                 mode="widthFix"
                 class="preview"
@@ -203,8 +213,9 @@ defineExpose({ generate });
     >
 </template>
 <style scoped>
-.save-feedback { display: block; margin-top: 12px; font-size: 14px; line-height: 1.6; color: #28765f; }
+.save-feedback { display: block; margin-top: 12px; font-size: 14px; line-height: 1.6; color: #59645f; }
 .save-feedback.failed { color: #9f2828; }
+.ios-preview { height: auto; -webkit-touch-callout: default; -webkit-user-select: auto; user-select: auto; }
 .poster-canvas {
     position: fixed;
     left: -9999px;

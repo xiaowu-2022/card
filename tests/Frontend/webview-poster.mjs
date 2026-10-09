@@ -164,7 +164,7 @@ test('a completely silent native channel times out and releases its timers and t
 });
 
 
-test('iPhone and iPad WebViews keep the working download path even with a hanging bridge or no bridge', async () => {
+test('iPhone and iPad use manual save without file sharing and never claim a download', async () => {
     const exports = {}, downloads = [], window = {};
     const location = {search:'?app_webview=1'};
     const navigator = {userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)',maxTouchPoints:5};
@@ -173,17 +173,38 @@ test('iPhone and iPad WebViews keep the working download path even with a hangin
         {exports,window,location,document,navigator,URLSearchParams,setTimeout,clearTimeout});
     window.__specpayPoster = {version:1,save:()=>assert.fail('iOS must not wait on the shell bridge')};
     assert.equal(exports.isIOSWebview(),true);
-    assert.equal(await exports.saveBrowserPoster(png,'123456'),'download');
+    assert.equal(await exports.saveBrowserPoster(png,'123456'),'manual');
     delete window.__specpayPoster;
-    assert.equal(await exports.saveBrowserPoster(png,'123456'),'download');
+    assert.equal(await exports.saveBrowserPoster(png,'123456'),'manual');
     navigator.userAgent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)';
     assert.equal(exports.isIOSWebview(),true);
-    assert.equal(await exports.saveBrowserPoster(png,'123456'),'download');
+    assert.equal(await exports.saveBrowserPoster(png,'123456'),'manual');
     navigator.userAgent='Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) Html5Plus';location.search='';
     assert.equal(exports.isIOSWebview(),true);
-    assert.equal(await exports.saveBrowserPoster(png,'123456'),'download');
-    assert.equal(downloads.length,4);
+    assert.equal(await exports.saveBrowserPoster(png,'123456'),'manual');
+    assert.equal(downloads.length,0);
     navigator.userAgent='Android Html5Plus';
     assert.equal(exports.isIOSWebview(),false);
     await assert.rejects(exports.saveBrowserPoster(png,'123456'),/update-required/);
+});
+
+
+test('iOS shares a PNG file in the user gesture and distinguishes cancellation and unavailable sharing', async () => {
+    const exports = {}, calls = [];
+    const navigator = {userAgent:'iPhone', canShare: ({files}) => files[0].type === 'image/png',
+        share: ({files}) => { calls.push(files[0]); return Promise.resolve(); }};
+    runInNewContext(compile(readFileSync('mobile/uni-app/src/lib/poster-save.ts','utf8')),
+        {exports, navigator, File, atob, Uint8Array, setTimeout, clearTimeout});
+    const pending = exports.saveBrowserPoster(png,'123456');
+    assert.equal(calls.length,1,'share invoked before yielding the user gesture');
+    assert.equal(await pending,'shared');
+    assert.equal(calls[0].name,'invitation-123456.png');
+    assert.equal(Buffer.from(await calls[0].arrayBuffer()).toString('base64'),png.split(',')[1]);
+    navigator.share = () => Promise.reject({name:'AbortError'});
+    assert.equal(await exports.saveBrowserPoster(png,'123456'),'cancelled');
+    navigator.share = () => Promise.reject({name:'NotAllowedError'});
+    assert.equal(await exports.saveBrowserPoster(png,'123456'),'manual');
+    navigator.canShare = () => false;
+    navigator.share = () => assert.fail('unsupported file sharing must not be called');
+    assert.equal(await exports.saveBrowserPoster(png,'123456'),'manual');
 });

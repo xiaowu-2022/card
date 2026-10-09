@@ -21,9 +21,9 @@ for (const [name,engine,options,ios] of [['chromium',chromium,{channel:'chrome'}
    if(u.origin!==origin||route.request().method()!=='GET')return route.abort();
    return route.continue();
   });
-  await page.goto(origin+'/?app_webview=1#/pages/screen/index?path=%2Fpromotion');
+  await page.goto(origin+(process.env.UNI_PARITY_BASE ?? '/')+'?app_webview=1#/pages/screen/index?path=%2Fpromotion');
   await page.locator('.share-buttons uni-button').first().click();
-  const dialog=page.getByRole('dialog');await dialog.locator('uni-image.preview').waitFor();
+  const dialog=page.getByRole('dialog');await dialog.locator('.preview').waitFor();
   const save=dialog.getByText('保存图片',{exact:true});
   if (ios) {
    await page.evaluate(()=>{
@@ -35,23 +35,32 @@ for (const [name,engine,options,ios] of [['chromium',chromium,{channel:'chrome'}
      }
     },true);
    });
+   await page.evaluate(()=>{
+    Object.defineProperty(navigator,'canShare',{configurable:true,value:undefined});
+    Object.defineProperty(navigator,'share',{configurable:true,value:undefined});
+   });
    await save.click();
-   await page.waitForFunction(()=>window.posterDownloads.length===1);
+   await dialog.getByText(/请长按海报，选择/).waitFor();
+   assert.equal(await page.evaluate(()=>window.posterDownloads.length),0);
+   assert.equal(await page.evaluate(()=>window.posterSaves.length),0);
+   assert.equal(await dialog.locator('img.ios-preview').evaluate(img=>img.naturalWidth>0),true);
+   assert.equal(await dialog.getByText(/已发起下载|海报已保存到系统相册/).count(),0);
+   await page.evaluate(()=>{
+    Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>true});
+    Object.defineProperty(navigator,'share',{configurable:true,value:({files})=>{
+     window.sharedPoster=files[0];return Promise.resolve();
+    }});
+   });
+   await save.click();
+   await dialog.getByText(/若已选择“存储图像”/).waitFor();
+   assert.equal(await page.evaluate(()=>window.sharedPoster.type),'image/png');
+   await page.evaluate(()=>Object.defineProperty(navigator,'share',{configurable:true,value:()=>Promise.reject(new DOMException('cancelled','AbortError'))}));
+   await save.click();
+   await page.waitForFunction(()=>!document.querySelector('.save-feedback'));
    assert.equal(await save.isEnabled(),true);
-   assert.equal(await dialog.getByText('正在保存海报…',{exact:true}).count(),0);
-   await dialog.locator('uni-image.preview').scrollIntoViewIfNeeded();
-   const box=await dialog.locator('uni-image.preview').boundingBox();
-   const touch={identifier:1,clientX:box.x+20,clientY:box.y+20,pageX:box.x+20,pageY:box.y+20};
-   await page.dispatchEvent('uni-image.preview','touchstart',{touches:[touch],changedTouches:[touch]});
-   await page.waitForTimeout(600);
-   await page.dispatchEvent('uni-image.preview','touchend',{touches:[],changedTouches:[touch]});
-   assert.equal(await page.evaluate(()=>window.posterDownloads.length),1,'long press leaves the native image menu alone');
-   assert.equal(await page.evaluate(()=>window.posterSaves.length),0,'iOS never waits on the native bridge');
-   await page.evaluate(()=>delete window.__specpayPoster);
-   await save.click();await page.waitForFunction(()=>window.posterDownloads.length===2);
-   assert.equal(await save.isEnabled(),true);
+   await page.screenshot({path:`artifacts/uni-parity/poster-save/${name}-save.png`});
    assert.deepEqual(errors,[]);
-   console.log(`PASS ${name}: original download path, hanging/missing bridge bypass, native long press retained`);
+   console.log(`PASS ${name}: real image fallback, file sharing, cancellation, no false download or saved message`);
    continue;
   }
   await save.click();await dialog.getByText(/当前 App 版本不支持保存海报/).waitFor();
