@@ -37,7 +37,7 @@ export const assetsCatalog = {
     "Enter a valid positive USDT amount with at most 8 decimal places.": ["请输入大于 0 且最多 8 位小数的 USDT 金额。", "Masukkan amaun USDT positif dengan maksimum 8 tempat perpuluhan.", "Introduce un importe USDT positivo con un máximo de 8 decimales."],
     "Withdrawals require an active tenant.": ["当前公司服务未启用，暂不能提现，请联系客服。", "Perkhidmatan syarikat tidak aktif. Hubungi sokongan untuk pengeluaran.", "El servicio de la empresa no está activo. Contacta con soporte para retirar."],
     "Withdrawals require an active account.": ["账户当前未启用，暂不能提现，请联系客服核实账户状态。", "Akaun tidak aktif. Hubungi sokongan untuk menyemak status pengeluaran.", "La cuenta no está activa. Contacta con soporte para revisar su estado antes de retirar."],
-    'Actual receipt': ['实际到账', 'Dana diterima', 'Fondos recibidos'],
+    'Actual receipt': ['充值到账', 'Dana diterima', 'Fondos recibidos'],
     'Available for redemption': ['到期可赎回', 'Boleh ditebus', 'Disponible para rescate'],
     'Renewal pending': ['续购处理中', 'Pembaharuan menunggu', 'Renovación pendiente'],
     'Redeemed to wallet': ['已赎回至钱包', 'Ditebus ke dompet', 'Rescatado a la billetera'],

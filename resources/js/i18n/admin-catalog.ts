@@ -217,7 +217,7 @@ export const adminCatalog: Record<string, string> = {
     'Unable to save. Check the fields and try again.': '保存失败，请检查字段长度和内容后重试。',
     Archived: '已归档',
     'Receipt type': '入金类型',
-    'Actual receipt': '实际到账',
+    'Actual receipt': '充值到账',
     'Advance amount': '预支金额',
     'Credit the wallet and record the same amount as a partner advance.':
         '确认后增加钱包余额，同时记入该合伙人的预支金额。',

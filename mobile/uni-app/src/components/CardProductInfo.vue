@@ -5,37 +5,33 @@ defineProps<{ monthlyFeeText?: string | null; notes?: string | null }>();
 <template>
     <view v-if="monthlyFeeText || notes" class="product-info">
         <view v-if="monthlyFeeText" class="info-block">
-            <text class="info-label">{{ t('Monthly fee') }}</text>
+            <text class="info-label muted">{{ t('Monthly fee') }}</text>
             <text class="info-text">{{ monthlyFeeText }}</text>
         </view>
         <view v-if="notes" class="info-block">
-            <text class="info-label">{{ t('Card notes') }}</text>
+            <text class="info-label muted">{{ t('Card notes') }}</text>
             <text class="info-text">{{ notes }}</text>
         </view>
     </view>
 </template>
 <style scoped>
-.product-info {
-    margin: 16px 0;
-    padding: 16px;
-    border: 1px solid #e5dece;
-    border-radius: 12px;
-    background: #f9f6ed;
-}
-.info-block + .info-block {
-    margin-top: 14px;
+.info-block {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px 0;
+    border-bottom: 1px solid #e2e7e4;
+    font-size: 14px;
+    line-height: 22px;
 }
 .info-label {
-    display: block;
-    color: #766b56;
-    font-size: 13px;
-    margin-bottom: 6px;
+    flex-shrink: 0;
 }
 .info-text {
-    display: block;
-    color: #25241f;
-    font-size: 14px;
-    line-height: 1.7;
+    min-width: 0;
+    max-width: 100%;
+    font-weight: 600;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     word-break: break-word;
