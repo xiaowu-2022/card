@@ -365,6 +365,7 @@ export default function Domains({
                     }}
                 >
                     <DialogContent
+                        presentation="drawer"
                         className="flex flex-col overflow-hidden p-0"
                         closeLabel={t('Close')}
                         closeDisabled={form.processing}

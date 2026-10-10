@@ -96,13 +96,14 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         await confirmation.getByRole('button',{name:'Cancel',exact:true}).click();
         assert.equal(lifecycleWrites,0);assert.equal(await toggle.isChecked(),true);
         await toggle.click();await confirmation.getByRole('button',{name:'Confirm',exact:true}).click();
+        await page.locator('[data-operation-result]').getByRole('button').click();
         await confirmation.waitFor({state:'hidden'});
         assert.equal(lifecycleWrites,1);assert.equal(await toggle.isChecked(),false);
         assert.equal(new URL(page.url()).searchParams.get('page'),'2');
         company.status='ACTIVE';await page.reload();
 
         assert.equal(await page.getByRole('link',{name:'Company configuration',exact:true}).count(),0);
-        for(const width of [375,768,1440,1920]) {
+        for(const width of [375,768,1244,1440,1920]) {
             await page.setViewportSize({width,height:850});
             await page.getByRole('link',{name:'Configure',exact:true}).first().click();
             await dialog.getByText('Configured domains',{exact:true}).waitFor();
@@ -163,9 +164,10 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         await dialog.locator('#android-version-name').fill('2.0.0');
         const save=dialog.getByRole('button',{name:'Save branding',exact:true});
         await save.click();assert.equal(await dialog.getByRole('tab',{name:'Wealth settings',exact:true}).isDisabled(),true);
-        await dialog.getByText('This field is required.').waitFor();
+        await page.locator('[data-operation-result]').waitFor();
+        await page.locator('[data-operation-result]').getByRole('button').click();
         assert.equal(await dialog.locator('#brand-name').inputValue(),'Save fixture');
-        saveFails=false;await save.click();await dialog.getByText('Saved successfully.',{exact:true}).waitFor();
+        saveFails=false;await save.click();await page.locator('[data-operation-result]').waitFor();await page.locator('[data-operation-result]').getByRole('button').click();
         assert.equal(await dialog.count(),1,'Save keeps drawer open');assert.equal(writes.length,2);
         assert.equal(await dialog.locator('#android-version-name').inputValue(),'2.0.0','Saving branding preserves unsaved release fields');
         page.once('dialog',d=>d.accept());
@@ -173,7 +175,7 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         await page.goBack();await dialog.locator('#brand-name').waitFor();
         await page.goForward();await dialog.locator('#default-locale').waitFor();
         await page.reload();await dialog.locator('#default-locale').waitFor();
-        failure='wealth';await dialog.getByRole('tab',{name:'Wealth settings',exact:true}).click();await dialog.getByRole('alert').waitFor();
+        failure='wealth';await dialog.getByRole('tab',{name:'Wealth settings',exact:true}).click();await page.locator('[data-operation-result]').waitFor();await page.locator('[data-operation-result]').getByRole('button').click();
         await dialog.getByRole('button',{name:'Retry',exact:true}).click();await dialog.locator('#minimum-USDT').waitFor();
         slow='settings/locales';
         await dialog.getByRole('tab',{name:'Locales',exact:true}).click();
@@ -181,7 +183,7 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         await dialog.locator('#minimum-USDT').waitFor();
         await page.waitForTimeout(450);
         assert.equal(await dialog.locator('#default-locale').count(),0,'Late DTO cannot replace selected category');
-        mismatch=true;await dialog.getByRole('tab',{name:'Locales',exact:true}).click();await dialog.getByRole('alert').waitFor();
+        mismatch=true;await dialog.getByRole('tab',{name:'Locales',exact:true}).click();await page.locator('[data-operation-result]').waitFor();await page.locator('[data-operation-result]').getByRole('button').click();
         assert.equal(await dialog.locator('form').count(),0);
         await dialog.getByRole('button',{name:'Close',exact:true}).last().click();await dialog.waitFor({state:'hidden'});
         await page.goto(list+'&editor='+encodeURIComponent(`/platform/tenants/${company.id}/configuration/wealth`));
@@ -193,7 +195,7 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         assert.equal(await assetSave.evaluate(el=>Boolean(el.closest('[data-admin-editor-body]'))),false);
         await dialog.getByLabel('Minimum deposit',{exact:true}).fill('12');
         await assetSave.click();
-        await dialog.getByText('Saved successfully.',{exact:true}).waitFor();
+        await page.locator('[data-operation-result]').waitFor();await page.locator('[data-operation-result]').getByRole('button').click();
         assert.equal(await dialog.count(),1);assert.equal(writes.at(-1).section,'assets');
         await page.goto(origin+'/admin/settings/branding');await page.locator('#brand-name').waitFor();
         assert.equal(await page.locator('[data-platform-header]').count(),0);
@@ -205,6 +207,6 @@ for (const [name, engine, launch] of [['chrome',chromium,{channel:'chrome'}],['w
         assert.equal(await dialog.getByRole('tab').count(),1);
         assert.equal(await dialog.getByRole('tab',{name:'Brand and App',exact:true}).count(),0);
         assert.deepEqual(errors,[]);assert.deepEqual(unexpected,[]);
-        await context.close();console.log(`${name}: 15 sections, 4 widths, inline edits, save/dirty/busy guards, history, retries, company isolation passed`);
+        await context.close();console.log(`${name}: 15 sections, 5 widths, inline edits, save/dirty/busy guards, history, retries, company isolation passed`);
     } finally { await browser.close(); }
 }

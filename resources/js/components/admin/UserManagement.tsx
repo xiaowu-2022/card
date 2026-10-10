@@ -144,7 +144,7 @@ export default function UserManagement({
                         <Button onClick={() => setCreateOpen(true)}>{t('Add account')}</Button>
                     )}
                     {canViewTopups && (
-                        <Button asChild>
+                        <Button asChild variant="secondary">
                             <Link
                                 href={
                                     filters.company
@@ -307,6 +307,7 @@ export default function UserManagement({
                         },
                         {
                             key: 'support',
+                            advanced: true,
                             label: 'Support agent',
                             allLabel: 'All users',
                             values: ['Enabled', 'Disabled'],
@@ -319,6 +320,7 @@ export default function UserManagement({
                     columns={[
                         {
                             label: detail ? 'Email' : 'Company / User',
+                            pin: 'left',
                             className:
                                 'sticky left-0 z-10 w-52 min-w-52 max-w-52 bg-surface shadow-[1px_0_0_var(--color-border)]',
                             render: (row) =>
@@ -777,7 +779,7 @@ function UserRecordsView({
                                 aria-label={t(group.title)}
                             >
                                 <h3 className="text-lg font-semibold">{t(group.title)}</h3>
-                                <dl className="grid grid-cols-1 gap-x-6 gap-y-3 min-[480px]:grid-cols-2 sm:grid-cols-3 xl:grid-cols-4">
+                                <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] gap-x-6 gap-y-3">
                                     {props.columns
                                         .filter((column) => group.labels.includes(column.label))
                                         .map((column) => (

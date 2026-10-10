@@ -25,12 +25,26 @@ final readonly class UserCardTransactionsQuery
             ->where('o.tenant_id', $tenantId)->where('o.user_id', $userId)->where('o.card_id', $cardId)
             ->where('e.tenant_id', $tenantId)->whereNotNull('e.sealed_at')->where('o.status', 'SUCCEEDED')->where('o.kind', 'LOAD')->where('o.manual_funding_amount', '>', 0)
             ->selectRaw("o.id,o.card_id,'local-load:'||o.id AS provider_transaction_id,(o.arrival_amount+o.manual_funding_amount) AS amount,'USD' AS currency,'transfer_in' AS type,'completed' AS state,NULL::text AS merchant,t.fee_amount,t.fee_currency,t.fee_return_amount,t.fee_return_currency,e.posted_at AS display_at,e.id AS completed_entry_id");
+        // Settled returns are visible immediately, even when a provider callback is delayed.
+        // Use the provider identity so a later verified transaction replaces, rather than duplicates, this row.
+        $returns = DB::table('card_management_orders as o')->join('ledger_entries as e', function ($join): void {
+            $join->on('e.id', '=', 'o.settlement_entry_id')->on('e.tenant_id', '=', 'o.tenant_id')
+                ->on('e.reference_id', '=', 'o.id')->where('e.reference_type', 'CARD_MANAGEMENT_ORDER')->whereNotNull('e.sealed_at');
+        })->where('o.tenant_id', $tenantId)->where('o.user_id', $userId)->where('o.card_id', $cardId)
+            ->where('o.status', 'SUCCEEDED')->whereIn('o.kind', ['RETURN', 'CANCEL_RETURN'])
+            ->whereNotNull('o.provider_transaction_id')->where('o.debit_amount', '>', 0)
+            ->whereNotExists(function ($query): void {
+                $query->selectRaw('1')->from('card_transactions as t')
+                    ->whereColumn('t.tenant_id', 'o.tenant_id')->whereColumn('t.user_id', 'o.user_id')
+                    ->whereColumn('t.card_id', 'o.card_id')->whereColumn('t.provider_transaction_id', 'o.provider_transaction_id');
+            })
+            ->selectRaw("o.id,o.card_id,o.provider_transaction_id,-o.debit_amount AS amount,'USD' AS currency,'transfer_out' AS type,'completed' AS state,NULL::text AS merchant,-o.fee_amount AS fee_amount,'USD' AS fee_currency,NULL::numeric AS fee_return_amount,NULL::text AS fee_return_currency,e.posted_at AS display_at,e.id AS completed_entry_id");
         $spends = DB::table('card_overflow_movements as m')->join('ledger_entries as e', 'e.id', '=', 'm.ledger_entry_id')
             ->where('m.tenant_id', $tenantId)->where('m.user_id', $userId)->where('m.card_id', $cardId)->where('m.kind', 'SPEND')
             ->where('e.tenant_id', $tenantId)->whereNotNull('e.sealed_at')
             ->selectRaw("m.id,m.card_id,'local-spend:'||m.id AS provider_transaction_id,m.amount,'USD' AS currency,'purchase' AS type,'completed' AS state,NULL::text AS merchant,NULL::numeric AS fee_amount,NULL::text AS fee_currency,NULL::numeric AS fee_return_amount,NULL::text AS fee_return_currency,e.posted_at AS display_at,e.id AS completed_entry_id");
         $last4 = UserCard::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->whereKey($cardId)->value('last4');
-        $rows = DB::query()->fromSub($provider->toBase()->unionAll($loads)->unionAll($spends), 'activity')
+        $rows = DB::query()->fromSub($provider->toBase()->unionAll($loads)->unionAll($returns)->unionAll($spends), 'activity')
             ->select('activity.*')->selectRaw('? AS last4', [$last4])->orderByDesc('display_at')->orderBy('id')
             ->offset(($page - 1) * 20)->limit(21)->get();
 

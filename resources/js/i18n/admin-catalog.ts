@@ -2,6 +2,11 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Customer operations': '客户运营',
+    'Funds and cards': '资金与卡片',
+    'Platform management': '平台管理',
+    'More filters': '更多筛选',
+    'Applied filters': '已应用筛选',
     'users.restrictions.manage': '管理用户操作限制',
     'Legacy sync retired': '旧同步任务已停用',
     'Legacy background sync is retired. Create a new browser sync.':

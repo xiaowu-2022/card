@@ -1,0 +1,218 @@
+/* Platform-only presentation. Portals carry the same context attribute. */
+[data-platform-ui] {
+    --color-background: #f5f7fb;
+    --color-surface: #fff;
+    --color-border: #e4e9f1;
+    --color-muted: #f1f4f9;
+    --color-muted-foreground: #64748b;
+    --color-foreground: #17243b;
+    --color-primary: #155eef;
+    --color-primary-foreground: #fff;
+    color: var(--color-foreground);
+    font-size: 14px;
+    line-height: 1.5;
+}
+[data-platform-ui].min-h-screen {
+    background: var(--color-background);
+}
+[data-platform-content] {
+    overflow-wrap: anywhere;
+}
+[data-platform-ui] :is(button, a)[class*='inline-flex'] {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+[data-platform-ui] :is(input, select, textarea) {
+    min-width: 0;
+    max-width: 100%;
+}
+[data-platform-ui] :is(button, a, input, select, textarea):focus-visible {
+    outline: 2px solid #155eef;
+    outline-offset: 3px;
+}
+[data-platform-ui] table {
+    font-variant-numeric: tabular-nums;
+}
+[data-platform-ui] th {
+    letter-spacing: 0;
+    text-transform: none;
+    font-weight: 500;
+}
+[data-platform-ui] td {
+    vertical-align: middle;
+}
+[data-platform-ui] [data-column-align='right'] {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+[data-platform-ui] [data-column-align='right'] > span {
+    margin-left: auto;
+}
+[data-platform-ui] [data-column-align='right'] .flex {
+    justify-content: flex-end;
+}
+[data-platform-ui] [data-column-pin='left'] {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background: var(--color-surface);
+}
+[data-platform-ui] [data-column-pin='right'] {
+    position: sticky;
+    right: 0;
+    z-index: 10;
+    background: var(--color-surface);
+}
+[data-platform-ui] .shadow-sm {
+    box-shadow: none;
+}
+[data-platform-ui][data-admin-detail-drawer] > div {
+    min-width: 0;
+}
+[data-platform-ui] .platform-filter-field {
+    max-width: 100%;
+}
+[data-platform-ui] .platform-filter-summary {
+    border-top: 1px solid var(--color-border);
+    padding: 8px 16px;
+}
+[data-platform-ui] .partner-stock {
+    color: var(--color-foreground);
+}
+[data-platform-ui] .stock-hero {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 0 0 16px;
+}
+[data-platform-ui] .stock-hero-values > strong {
+    font-size: 28px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+[data-platform-ui] .stock-panel {
+    border-color: var(--color-border);
+    border-radius: 12px;
+    padding: 16px;
+}
+[data-platform-ui] .stock-panel .stock-panel {
+    border: 0;
+    border-top: 1px solid var(--color-border);
+    border-radius: 0;
+    padding: 16px 0 0;
+}
+[data-platform-ui] .stock-panel h2 {
+    font-size: 18px;
+}
+[data-platform-ui] .stock-muted {
+    color: var(--color-muted-foreground);
+}
+[data-platform-ui] .stock-link {
+    color: var(--color-primary);
+}
+@media (max-width: 767px) {
+    [data-platform-header] {
+        gap: 8px;
+    }
+    [data-platform-header] h1 {
+        font-size: 20px;
+    }
+    [data-platform-ui][data-admin-detail-drawer] {
+        width: 100vw;
+        max-width: 100vw;
+    }
+    [data-platform-ui] [data-column-pin],
+    [data-platform-ui] table .sticky {
+        position: static;
+    }
+    [data-platform-ui] .platform-filter-field {
+        width: 100%;
+        flex: 1 1 140px;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    [data-platform-ui] * {
+        scroll-behavior: auto;
+        transition-duration: 0ms;
+    }
+}
+[data-platform-ui] .partner-form {
+    margin: 16px 0;
+    padding: 16px;
+    border-radius: 12px;
+}
+[data-platform-ui] .partner-form :is(input, select) {
+    height: 36px;
+    padding: 6px 10px;
+}
+[data-platform-ui] .partner-form button,
+[data-platform-ui] .partner-admin-action {
+    min-height: 36px;
+    padding: 6px 12px;
+    background: var(--color-primary);
+}
+[data-platform-ui] .partner-form button[role='combobox'] {
+    background: var(--color-surface);
+    color: var(--color-foreground);
+}
+[data-platform-ui] .partner-selected-member {
+    background: var(--color-muted);
+}
+[data-platform-ui] .partner-row-actions,
+[data-platform-ui] .partner-select-more {
+    color: var(--color-primary);
+}
+[data-platform-ui] .partner-list-panel {
+    border-radius: 12px;
+}
+[data-platform-ui] .partner-table :is(th, td) {
+    padding: 10px 16px;
+}
+[data-platform-ui] .partner-list-count {
+    padding: 16px;
+    font-size: 18px;
+}
+[data-platform-ui][data-platform-record-drawer] > [data-dialog-header] {
+    position: sticky;
+    top: -16px;
+    z-index: 1;
+    background: var(--color-surface);
+    padding: 4px 44px 16px 0;
+    border-bottom: 1px solid var(--color-border);
+}
+[data-platform-ui][data-platform-record-drawer] {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+[data-platform-ui] [data-admin-editor-body] > fieldset > .space-y-4 > .rounded-xl {
+    box-shadow: none;
+}
+[data-platform-ui] select:not([multiple]) {
+    height: 36px;
+    min-height: 36px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+}
+[data-platform-ui] [data-ui-card] [data-ui-card] {
+    border: 0;
+    border-top: 1px solid var(--color-border);
+    border-radius: 0;
+}
+[data-platform-ui][data-platform-record-drawer] > h2 {
+    position: sticky;
+    top: -16px;
+    z-index: 1;
+    background: var(--color-surface);
+    padding: 4px 44px 16px 0;
+    border-bottom: 1px solid var(--color-border);
+}
+[data-platform-ui][data-platform-record-drawer] > button:last-child {
+    position: fixed;
+}
+[data-platform-ui][data-platform-record-drawer] form > div:last-child:has(> button[type='submit']) {
+    position: sticky;
+    bottom: -16px;
+    background: var(--color-surface);
+    padding: 12px 0;
+    border-top: 1px solid var(--color-border);
+}

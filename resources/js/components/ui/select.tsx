@@ -37,6 +37,7 @@ export function SelectContent({
     return (
         <SelectPrimitive.Portal>
             <SelectPrimitive.Content
+                data-platform-ui={usePlatformUi() ? '' : undefined}
                 className={cn(
                     'z-50 overflow-hidden rounded-lg border bg-surface p-1 shadow-lg',
                     className,

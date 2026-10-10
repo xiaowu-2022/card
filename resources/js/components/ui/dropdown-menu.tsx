@@ -1,3 +1,4 @@
+import { usePlatformUi } from '@/components/admin/platform-ui-context';
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
 import type { ComponentProps } from 'react';
 import { cn } from '@/lib/utils';
@@ -11,6 +12,7 @@ export function DropdownMenuContent({
     return (
         <DropdownMenuPrimitive.Portal>
             <DropdownMenuPrimitive.Content
+                data-platform-ui={usePlatformUi() ? '' : undefined}
                 className={cn(
                     'z-50 min-w-44 rounded-lg border bg-surface p-1 shadow-lg',
                     className,

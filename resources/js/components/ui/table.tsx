@@ -8,8 +8,12 @@ import type {
 import { cn } from '@/lib/utils';
 
 export function Table({ className, ...props }: TableHTMLAttributes<HTMLTableElement>) {
+    const platform = usePlatformUi();
     return (
-        <div className="relative block min-w-0 max-w-full overflow-x-auto">
+        <div
+            tabIndex={platform ? 0 : undefined}
+            className="relative block min-w-0 max-w-full overflow-x-auto"
+        >
             <table className={cn('w-full border-collapse text-sm', className)} {...props} />
         </div>
     );

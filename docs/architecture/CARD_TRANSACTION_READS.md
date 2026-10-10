@@ -1,3 +1,20 @@
+## 2026-10-10 Settled card returns without manual sync
+
+Card history now includes locally SUCCEEDED RETURN/CANCEL_RETURN orders with an
+exact company-scoped sealed CARD_MANAGEMENT_ORDER settlement entry when no stored
+provider transaction exists for the same company/user/card/transaction ID. Display
+negative native USD debit and fee amounts, completed state and settlement time.
+The provider transaction ID supplies the same public hashed identity before and
+after provider synchronization; a later stored provider record replaces the fallback.
+Unknown/failed/unsettled orders are not synthesized. This is a read-only projection:
+no provider calls, wallet writes, settlement replay or historical backfill on GET.
+Both consumer and Platform history use this query. Existing settled returns benefit
+on their next history read, without manually syncing transactions.
+
+Deploy `app/Application/Card/UserCardTransactionsQuery.php` with the normal PHP
+release procedure and refresh long-running PHP workers/opcache as required by that
+procedure. No migration, scheduler change, frontend/H5/APK rebuild is required.
+
 ## 2026-10-02 Empty-currency zero fee placeholders
 
 Observed PhotonPay responses use a zero feeDeductionAmount/feeReturnAmount with

@@ -366,6 +366,7 @@ export default function Partners({
                             }}
                         >
                             <DialogContent
+                                presentation="drawer"
                                 className="partner-dialog"
                                 closeLabel={t('Close')}
                                 closeDisabled={configuration.processing}
@@ -483,6 +484,7 @@ export default function Partners({
                             }}
                         >
                             <DialogContent
+                                presentation="drawer"
                                 className="partner-dialog"
                                 closeLabel={t('Close')}
                                 closeDisabled={journal.processing}
@@ -635,6 +637,7 @@ export default function Partners({
                                 }}
                             >
                                 <DialogContent
+                                    presentation="drawer"
                                     className="max-w-2xl"
                                     closeDisabled={fx.processing}
                                     aria-describedby={undefined}

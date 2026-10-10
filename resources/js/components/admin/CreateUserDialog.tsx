@@ -49,7 +49,11 @@ export function CreateUserDialog({
                 if (!open) close();
             }}
         >
-            <DialogContent closeLabel={t('Close')} closeDisabled={form.processing}>
+            <DialogContent
+                presentation="drawer"
+                closeLabel={t('Close')}
+                closeDisabled={form.processing}
+            >
                 <DialogHeader>
                     <DialogTitle>{t('Add account')}</DialogTitle>
                     <DialogDescription>
@@ -85,6 +89,9 @@ export function CreateUserDialog({
                                 </option>
                             ))}
                         </select>
+                        {form.errors.company && (
+                            <p className="text-xs text-danger">{t(form.errors.company)}</p>
+                        )}
                     </label>
                     {(
                         [
@@ -113,6 +120,9 @@ export function CreateUserDialog({
                                 disabled={form.processing}
                                 onChange={(e) => form.setData(key, e.target.value)}
                             />
+                            {form.errors[key] && (
+                                <p className="text-xs text-danger">{t(form.errors[key])}</p>
+                            )}
                         </label>
                     ))}
                     <p className="text-sm text-muted-foreground">

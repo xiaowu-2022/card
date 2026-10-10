@@ -217,7 +217,11 @@ export default function Cards({
                                         if (!open) setSyncScope(null);
                                     }}
                                 >
-                                    <DialogContent className="max-w-5xl" closeLabel={t('Close')}>
+                                    <DialogContent
+                                        presentation="drawer"
+                                        className="max-w-5xl"
+                                        closeLabel={t('Close')}
+                                    >
                                         <DialogHeader>
                                             <DialogTitle>{t('Sync card transactions')}</DialogTitle>
                                             <DialogDescription>

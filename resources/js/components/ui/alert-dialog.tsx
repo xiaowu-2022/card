@@ -15,6 +15,7 @@ export function AlertDialogContent({
         <AlertDialogPrimitive.Portal>
             <AlertDialogPrimitive.Overlay className="fixed inset-0 z-50 bg-slate-950/50" />
             <AlertDialogPrimitive.Content
+                data-platform-ui={usePlatformUi() || undefined}
                 className={cn(
                     'fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-surface p-6 shadow-xl',
                     usePlatformUi() && 'max-h-[calc(100dvh-2rem)] overflow-y-auto p-4',

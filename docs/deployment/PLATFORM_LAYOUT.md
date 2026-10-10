@@ -198,3 +198,9 @@ only when the administrator has partners.manage. Resolve the enabled partner ID 
 both company and user on the detail GET, then reuse the existing scoped hierarchy
 stock reader, pagination and descendant drilldowns. Ordinary/disabled partners do
 not expose this tab; report reads recheck enabled status and company scope.
+
+## 2026-10-10 生产 UI 更新
+
+Platform 桌面侧栏现为 224px，顶栏仍为 56px。新增独立的 Platform 样式上下文、
+导航分组、可折叠筛选、金额/日期列规范和可选右抽屉编辑布局。
+详见 [UI 改版交付与验证](PLATFORM_UI_REDESIGN.md)。

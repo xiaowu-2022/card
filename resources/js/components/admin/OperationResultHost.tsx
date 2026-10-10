@@ -84,7 +84,11 @@ export function OperationResultHost() {
                     </AlertDialog.Description>
                     <div className="flex shrink-0 justify-end">
                         <AlertDialog.Action asChild>
-                            <Button ref={confirmButton} onClick={acknowledgeOperationResult}>
+                            <Button
+                                className="h-9 min-h-9 shrink-0 whitespace-nowrap"
+                                ref={confirmButton}
+                                onClick={acknowledgeOperationResult}
+                            >
                                 {t('OK')}
                             </Button>
                         </AlertDialog.Action>

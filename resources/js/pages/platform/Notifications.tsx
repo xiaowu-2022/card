@@ -376,6 +376,7 @@ export default function Notifications({ companies, company, batches }: Props) {
                 }}
             >
                 <DialogContent
+                    presentation="drawer"
                     className="flex max-w-3xl flex-col overflow-hidden"
                     closeDisabled={state.busy}
                     closeLabel={t('Close')}

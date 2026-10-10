@@ -8,7 +8,6 @@ import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FormField } from '@/components/ui/form-field';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Select,
     SelectContent,
@@ -79,16 +78,14 @@ export default function Administrators({ team }: { team: Team }) {
                         }}
                     >
                         <DialogContent
+                            presentation="drawer"
                             className="max-w-3xl"
                             closeDisabled={form.processing}
                             aria-describedby={undefined}
                         >
                             <DialogTitle>{t('Add administrator')}</DialogTitle>
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>{t('Add administrator')}</CardTitle>
-                                </CardHeader>
-                                <CardContent>
+                            <div className="mt-4">
+                                <div>
                                     <form
                                         className="grid max-w-3xl gap-5 sm:grid-cols-2"
                                         onSubmit={(event) => {
@@ -181,8 +178,8 @@ export default function Administrators({ team }: { team: Team }) {
                                             {t('Confirm and create administrator')}
                                         </Button>
                                     </form>
-                                </CardContent>
-                            </Card>
+                                </div>
+                            </div>
                         </DialogContent>
                     </Dialog>
                 )}

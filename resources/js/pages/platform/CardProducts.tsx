@@ -353,6 +353,7 @@ function ProductEditor({
             }}
         >
             <DialogContent
+                presentation="drawer"
                 className="flex max-h-[90dvh] max-w-2xl flex-col overflow-hidden"
                 closeLabel={t('Close')}
                 closeDisabled={form.processing}

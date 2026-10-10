@@ -87,7 +87,11 @@ export default function SupportAgents({
                             setEditing(null);
                     }}
                 >
-                    <DialogContent aria-describedby={undefined} closeDisabled={formState.busy}>
+                    <DialogContent
+                        presentation="drawer"
+                        aria-describedby={undefined}
+                        closeDisabled={formState.busy}
+                    >
                         <DialogTitle>
                             {t('Support nickname')} · {editing?.name}
                         </DialogTitle>

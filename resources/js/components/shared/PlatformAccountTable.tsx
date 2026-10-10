@@ -1,3 +1,5 @@
+import { usePlatformUi } from '@/components/admin/platform-ui-context';
+import { useId } from 'react';
 import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { useEditorRouter } from '@/components/admin/useEditorRouter';
 import { Link } from '@inertiajs/react';
@@ -50,6 +52,8 @@ export function PlatformAccountTable<T extends { id: string }>({
         label: string;
         header?: ReactNode;
         className?: string;
+        align?: 'left' | 'right';
+        pin?: 'left' | 'right';
         render: (row: T) => ReactNode;
     }[];
     url: string;
@@ -62,6 +66,7 @@ export function PlatformAccountTable<T extends { id: string }>({
     companies?: { id: string; name: string }[];
     selectFilters?: {
         key: string;
+        advanced?: boolean;
         label: string;
         allLabel: string;
         values: string[];
@@ -73,6 +78,42 @@ export function PlatformAccountTable<T extends { id: string }>({
     searchLabel: string;
 }) {
     const router = useEditorRouter();
+    const platform = usePlatformUi();
+    const filterId = useId();
+    const [moreFilters, setMoreFilters] = useState(false);
+    const hasAdvanced = platform && selectFilters.some((item) => item.advanced);
+    const amountLabels = new Set([
+        'Exact amount',
+        'Fee',
+        'Amounts',
+        'Balance limit',
+        'Current balance',
+        'Overflow balance',
+        'Provider balance',
+        'Available balance',
+        'Actual deposits',
+        'Cumulative advances',
+        'Cumulative commission',
+        'Withdrawal amount',
+        'Held amount',
+        'Security deposit',
+        'Amount',
+        'Total inflow',
+        'Total outflow',
+        'Actual inflow',
+        'Advance amount',
+    ]);
+    const applied = [
+        filters.company && companies?.find((item) => item.id === filters.company)?.name,
+        filters.search,
+        filters.status && t(filters.status),
+        ...selectFilters.map((item) =>
+            filters[item.key] && filters[item.key] !== 'ALL'
+                ? `${t(item.label)}: ${t(item.valueLabels?.[filters[item.key]!] ?? adminAssetLabel(filters[item.key]!))}`
+                : undefined,
+        ),
+    ].filter(Boolean);
+
     const [additional, setAdditional] = useState<Record<string, string>>(() =>
         Object.fromEntries(selectFilters.map((item) => [item.key, filters[item.key] ?? 'ALL'])),
     );
@@ -88,6 +129,7 @@ export function PlatformAccountTable<T extends { id: string }>({
         <div className="min-w-0 max-w-full overflow-hidden rounded-xl border bg-surface">
             {showFilters && (
                 <form
+                    id={filterId}
                     className="flex flex-wrap gap-3 border-b p-4"
                     onSubmit={(event) => {
                         event.preventDefault();
@@ -111,7 +153,10 @@ export function PlatformAccountTable<T extends { id: string }>({
                 >
                     {companies && (
                         <Select value={company} onValueChange={setCompany}>
-                            <SelectTrigger className="w-48" aria-label={t('Filter by company')}>
+                            <SelectTrigger
+                                className="platform-filter-field w-48"
+                                aria-label={t('Filter by company')}
+                            >
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -133,7 +178,10 @@ export function PlatformAccountTable<T extends { id: string }>({
                     />
                     {statuses && (
                         <Select value={status} onValueChange={setStatus}>
-                            <SelectTrigger className="w-48" aria-label={t('Status')}>
+                            <SelectTrigger
+                                className="platform-filter-field w-48"
+                                aria-label={t('Status')}
+                            >
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -146,39 +194,93 @@ export function PlatformAccountTable<T extends { id: string }>({
                             </SelectContent>
                         </Select>
                     )}
-                    {selectFilters.map((item) => (
-                        <Select
-                            key={item.key}
-                            value={additional[item.key]}
-                            onValueChange={(value) =>
-                                setAdditional((current) => ({ ...current, [item.key]: value }))
-                            }
+                    {selectFilters
+                        .filter((item) => !platform || !item.advanced || moreFilters)
+                        .map((item) => (
+                            <Select
+                                key={item.key}
+                                value={additional[item.key]}
+                                onValueChange={(value) =>
+                                    setAdditional((current) => ({ ...current, [item.key]: value }))
+                                }
+                            >
+                                <SelectTrigger
+                                    className="platform-filter-field w-40"
+                                    aria-label={t(item.label)}
+                                >
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="ALL">{t(item.allLabel)}</SelectItem>
+                                    {item.values.map((value) => (
+                                        <SelectItem key={value} value={value}>
+                                            {item.valueLabels
+                                                ? t(item.valueLabels[value] ?? value)
+                                                : adminAssetLabel(value)}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        ))}
+                    {hasAdvanced && (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            aria-expanded={moreFilters}
+                            aria-controls={filterId}
+                            onClick={() => setMoreFilters(!moreFilters)}
                         >
-                            <SelectTrigger className="w-40" aria-label={t(item.label)}>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="ALL">{t(item.allLabel)}</SelectItem>
-                                {item.values.map((value) => (
-                                    <SelectItem key={value} value={value}>
-                                        {item.valueLabels
-                                            ? t(item.valueLabels[value] ?? value)
-                                            : adminAssetLabel(value)}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    ))}
+                            {t('More filters')}
+                        </Button>
+                    )}
                     <Button type="submit" variant="secondary">
                         {t('Apply')}
                     </Button>
                 </form>
+            )}
+            {platform && showFilters && applied.length > 0 && (
+                <div
+                    aria-label={t('Applied filters')}
+                    className="platform-filter-summary flex flex-wrap gap-2 text-xs text-muted-foreground"
+                >
+                    <span className="sr-only">{t('Applied filters')}</span>
+                    {applied.map((value, index) => (
+                        <span
+                            key={index}
+                            className="max-w-full break-words rounded-md bg-muted px-2 py-1"
+                        >
+                            {value}
+                        </span>
+                    ))}
+                    <button
+                        type="button"
+                        className="shrink-0 px-2 py-1 text-primary hover:underline"
+                        onClick={() => {
+                            setSearch('');
+                            setStatus('ALL');
+                            setCompany('ALL');
+                            setAdditional(
+                                Object.fromEntries(selectFilters.map((item) => [item.key, 'ALL'])),
+                            );
+                            router.get(url, extraQuery, { preserveState: true, replace: true });
+                        }}
+                    >
+                        {t('Reset filters')}
+                    </button>
+                </div>
             )}
             <Table>
                 <TableHeader>
                     <TableRow>
                         {columns.map((column, index) => (
                             <TableHead
+                                data-column-align={
+                                    platform
+                                        ? (column.align ??
+                                          (amountLabels.has(column.label) ? 'right' : undefined))
+                                        : undefined
+                                }
+                                data-column-pin={platform ? column.pin : undefined}
                                 className={cn(
                                     'whitespace-nowrap',
                                     column.label === 'Actions' &&
@@ -198,6 +300,15 @@ export function PlatformAccountTable<T extends { id: string }>({
                               <TableRow key={rowKey(row)}>
                                   {columns.map((column, index) => (
                                       <TableCell
+                                          data-column-align={
+                                              platform
+                                                  ? (column.align ??
+                                                    (amountLabels.has(column.label)
+                                                        ? 'right'
+                                                        : undefined))
+                                                  : undefined
+                                          }
+                                          data-column-pin={platform ? column.pin : undefined}
                                           className={cn(
                                               'whitespace-nowrap',
                                               column.label === 'Actions' &&
@@ -206,7 +317,16 @@ export function PlatformAccountTable<T extends { id: string }>({
                                           )}
                                           key={`${column.label}:${index}`}
                                       >
-                                          {renderCell(column.render(row))}
+                                          {renderCell(
+                                              column.render(row),
+                                              platform &&
+                                                  [
+                                                      'Created',
+                                                      'Last login',
+                                                      'Operation time',
+                                                      'Arrival time',
+                                                  ].includes(column.label),
+                                          )}
                                       </TableCell>
                                   ))}
                               </TableRow>
@@ -256,8 +376,16 @@ export function PlatformAccountTable<T extends { id: string }>({
     );
 }
 
-function renderCell(value: ReactNode) {
+function renderCell(value: ReactNode, date = false) {
     if (typeof value !== 'string') return value;
+    const parts = date ? value.match(/^(.*?)[ ,]+(\d{1,2}:\d{2}.*)$/) : null;
+    if (parts)
+        return (
+            <span className="block whitespace-nowrap text-xs tabular-nums" title={value}>
+                {parts[1]}
+                <span className="block text-muted-foreground">{parts[2]}</span>
+            </span>
+        );
     return (
         <span className="block max-w-52 truncate" title={value}>
             {value}

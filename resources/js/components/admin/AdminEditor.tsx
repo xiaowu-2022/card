@@ -1,3 +1,4 @@
+import { usePlatformUi } from './platform-ui-context';
 import { showOperationResult } from './operation-result';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import {
@@ -362,7 +363,8 @@ function EditorHost({ children }: { children: ReactNode }) {
         readCompanyName(page?.props.company) ??
         backgroundCompanies?.find((c) => c.id === config?.company)?.name;
 
-    const Content = config ? DetailDrawerContent : DialogContent;
+    const platform = usePlatformUi();
+    const Content = platform || config ? DetailDrawerContent : DialogContent;
     const identity = page?.props.configurationCompany as
         { slug?: string; status?: string } | undefined;
     return (
@@ -378,7 +380,9 @@ function EditorHost({ children }: { children: ReactNode }) {
                     className={
                         config
                             ? 'w-full sm:w-[min(94vw,1200px)] p-0'
-                            : 'flex max-w-6xl flex-col overflow-hidden p-0'
+                            : platform
+                              ? 'w-full sm:w-[min(92vw,960px)] p-0'
+                              : 'flex max-w-6xl flex-col overflow-hidden p-0'
                     }
                     closeLabel={t('Close')}
                     closeDisabled={busy}

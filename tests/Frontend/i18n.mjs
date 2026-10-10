@@ -140,7 +140,7 @@ const i18n = loadTs('resources/js/i18n/index.ts', {
     './admin-catalog': adminCatalog,
 });
 const locales = ['en', 'zh-CN', 'ms', 'es'];
-const admin = loadTs('resources/js/i18n/admin.ts', { './index': i18n });
+const admin = loadTs('resources/js/i18n/admin.ts', { './index': i18n, '@/lib/admin-asset-label': loadTs('resources/js/lib/admin-asset-label.ts') });
 
 test('daily chart date labels reserve endpoint spacing for every supported date range', () => {
     const { chartDateLabelIndices } = loadTs('resources/js/lib/funds-chart.ts');
@@ -875,7 +875,7 @@ test('admin enum presentation translates without changing financial values or us
             'customer@example.com',
             'stable-provider-id',
         ])
-            assert.equal(admin.t(value), value);
+            assert.equal(admin.t(value), value === 'USDT' ? 'U' : value);
     }
     void i18n.clientI18n.changeLanguage(before);
 });

@@ -33,6 +33,7 @@ export function Button({ className, variant, size, asChild = false, ...props }: 
         <Component
             className={cn(
                 buttonVariants({ variant, size }),
+                platform && 'shrink-0 whitespace-nowrap font-medium',
                 platform && size !== 'lg' && 'h-9 min-h-9',
                 platform && size === 'icon' && 'w-9',
                 className,

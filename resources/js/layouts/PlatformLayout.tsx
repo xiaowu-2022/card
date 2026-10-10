@@ -17,7 +17,15 @@ import {
     ShieldCheck,
     Users,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useSyncExternalStore, type ReactNode } from 'react';
+
+const subscribeCompactHeader = (callback: () => void) => {
+    const query = window.matchMedia('(max-width: 767px)');
+    query.addEventListener('change', callback);
+    return () => query.removeEventListener('change', callback);
+};
+const compactHeaderSnapshot = () => window.matchMedia('(max-width: 767px)').matches;
+const serverHeaderSnapshot = () => false;
 import type { LucideIcon } from 'lucide-react';
 import { AppMark } from '@/components/shared/AppMark';
 import { Button } from '@/components/ui/button';
@@ -39,21 +47,23 @@ type PlatformNavItem = {
     anyPermissions?: string[];
 };
 const groups: { label: string; items: PlatformNavItem[] }[] = [
+    { label: 'Workspace', items: [{ label: 'Dashboard', href: '/platform/demo', icon: Activity }] },
     {
-        label: 'Workspace',
+        label: 'Customer operations',
         items: [
-            { label: 'Dashboard', href: '/platform/demo', icon: Activity },
-            { label: 'Tenants', href: '/platform/tenants', icon: Building2 },
-        ],
-    },
-    {
-        label: 'Operations',
-        items: [
+            { label: 'Users', href: '/platform/users', icon: Users, permission: 'users.read' },
             {
                 label: 'Partners',
                 href: '/platform/partners',
                 icon: Users,
                 permission: 'partners.manage',
+            },
+            { label: 'KYC', href: '/platform/kyc', icon: ShieldCheck, permission: 'kyc.read' },
+            {
+                label: 'Customer support',
+                href: '/platform/support',
+                icon: MessageSquare,
+                permission: 'support.read',
             },
             {
                 label: 'Notifications',
@@ -61,15 +71,11 @@ const groups: { label: string; items: PlatformNavItem[] }[] = [
                 icon: ReceiptText,
                 permission: 'notifications.read',
             },
-            {
-                label: 'Customer support',
-                href: '/platform/support',
-                icon: MessageSquare,
-                permission: 'support.read',
-            },
-            { label: 'Users', href: '/platform/users', icon: Users, permission: 'users.read' },
-            { label: 'KYC', href: '/platform/kyc', icon: ShieldCheck, permission: 'kyc.read' },
-            { label: 'Cards', href: '/platform/cards', icon: CreditCard },
+        ],
+    },
+    {
+        label: 'Funds and cards',
+        items: [
             {
                 label: 'Deposit orders',
                 href: '/platform/topups',
@@ -82,6 +88,7 @@ const groups: { label: string; items: PlatformNavItem[] }[] = [
                 icon: ReceiptText,
                 permission: 'withdrawals.read',
             },
+            { label: 'Cards', href: '/platform/cards', icon: CreditCard },
             { label: 'Products', href: '/platform/card-products', icon: Boxes },
             {
                 label: 'Card providers',
@@ -89,11 +96,18 @@ const groups: { label: string; items: PlatformNavItem[] }[] = [
                 icon: ServerCog,
                 permission: 'provider_operation.read',
             },
+            {
+                label: 'Financial operation records',
+                href: '/platform/financial-operations',
+                icon: ShieldCheck,
+                permission: 'audit.read',
+            },
         ],
     },
     {
-        label: 'Control',
+        label: 'Platform management',
         items: [
+            { label: 'Tenants', href: '/platform/tenants', icon: Building2 },
             {
                 label: 'System settings',
                 href: '/platform/settings',
@@ -105,12 +119,6 @@ const groups: { label: string; items: PlatformNavItem[] }[] = [
                 href: '/platform/administrators',
                 icon: Users,
                 permission: 'admin_team.read',
-            },
-            {
-                label: 'Financial operation records',
-                href: '/platform/financial-operations',
-                icon: ShieldCheck,
-                permission: 'audit.read',
             },
         ],
     },
@@ -126,42 +134,40 @@ const PlatformNav = () => {
           : path === '/platform/asset-tron-withdrawals'
             ? '/platform/asset-withdrawals'
             : path;
+    const visibleGroups = groups
+        .map((group) => ({
+            ...group,
+            items: group.items.filter((item) =>
+                item.anyPermissions
+                    ? item.anyPermissions.some((permission) => permissions.includes(permission))
+                    : !item.permission || permissions.includes(item.permission),
+            ),
+        }))
+        .filter((group) => group.items.length > 0);
     const active = (href: string) => navPath === href || navPath.startsWith(href + '/');
     return (
-        <nav className="mt-7 space-y-6">
-            {groups.map((group) => (
+        <nav className="mt-6 space-y-5">
+            {visibleGroups.map((group) => (
                 <div key={group.label}>
                     <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                         {t(group.label)}
                     </p>
-                    {group.items
-                        .filter((item) => {
-                            if (item.anyPermissions)
-                                return item.anyPermissions.some((permission) =>
-                                    permissions.includes(permission),
-                                );
-                            return (
-                                !('permission' in item) ||
-                                !item.permission ||
-                                permissions.includes(item.permission)
-                            );
-                        })
-                        .map((item) => (
-                            <Link
-                                key={item.label}
-                                href={item.href}
-                                aria-current={active(item.href) ? 'page' : undefined}
-                                className={cn(
-                                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
-                                    active(item.href)
-                                        ? 'bg-muted text-foreground'
-                                        : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                                )}
-                            >
-                                <item.icon className="size-4" />
-                                {t(item.label)}
-                            </Link>
-                        ))}
+                    {group.items.map((item) => (
+                        <Link
+                            key={item.label}
+                            href={item.href}
+                            aria-current={active(item.href) ? 'page' : undefined}
+                            className={cn(
+                                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
+                                active(item.href)
+                                    ? 'bg-primary/8 text-primary'
+                                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                            )}
+                        >
+                            <item.icon className="size-4" />
+                            {t(item.label)}
+                        </Link>
+                    ))}
                 </div>
             ))}
         </nav>
@@ -179,6 +185,11 @@ export function PlatformLayout({ children, title, description, actions }: Platfo
     useAdminTranslation();
     const { auth } = usePage<SharedProps>().props;
     const editor = useEditor();
+    const compactHeader = useSyncExternalStore(
+        subscribeCompactHeader,
+        compactHeaderSnapshot,
+        serverHeaderSnapshot,
+    );
     if (editor)
         return (
             <>
@@ -197,13 +208,13 @@ export function PlatformLayout({ children, title, description, actions }: Platfo
         <PlatformUiContext.Provider value={true}>
             <AdminEditorHost>
                 <div data-platform-ui className="min-h-screen">
-                    <aside className="fixed inset-y-0 left-0 hidden w-64 overflow-y-auto overscroll-y-contain border-r bg-surface p-5 lg:block">
+                    <aside className="fixed inset-y-0 left-0 hidden w-56 overflow-y-auto overscroll-y-contain border-r bg-surface p-5 lg:block">
                         <AppMark name="Aperture Platform" />
                         <PlatformNav />
                     </aside>
                     <header
                         data-platform-header
-                        className="sticky top-0 z-30 flex h-14 min-w-0 items-center gap-4 border-b bg-surface px-5 lg:ml-64"
+                        className="sticky top-0 z-30 flex h-14 min-w-0 items-center gap-4 border-b bg-surface px-5 lg:ml-56"
                     >
                         <div className="lg:hidden">
                             <Sheet>
@@ -216,25 +227,35 @@ export function PlatformLayout({ children, title, description, actions }: Platfo
                                         <Menu className="size-5" />
                                     </Button>
                                 </SheetTrigger>
-                                <SheetContent>
+                                <SheetContent data-platform-ui closeLabel={t('Close')}>
                                     <SheetTitle>
                                         <AppMark name="Aperture Platform" />
                                     </SheetTitle>
                                     <SheetDescription className="sr-only">
                                         {t('Platform administration navigation')}
                                     </SheetDescription>
+                                    <div className="mt-4">
+                                        <AdminLanguageSwitcher />
+                                    </div>
                                     <PlatformNav />
                                 </SheetContent>
                             </Sheet>
                         </div>
-                        <h1 className="min-w-0 flex-1 truncate text-lg font-semibold" title={title}>
+                        <h1 className="min-w-0 flex-1 truncate text-xl font-semibold" title={title}>
                             {title}
                         </h1>
-                        {actions && (
-                            <div className="flex shrink-0 items-center gap-2">{actions}</div>
+                        {actions && !compactHeader && (
+                            <div
+                                data-platform-actions
+                                className="flex shrink-0 flex-wrap items-center gap-2"
+                            >
+                                {actions}
+                            </div>
                         )}
                         <div className="flex shrink-0 items-center gap-2 whitespace-nowrap sm:gap-3">
-                            <AdminLanguageSwitcher />
+                            <div className="hidden sm:block">
+                                <AdminLanguageSwitcher />
+                            </div>
                             <span className="grid size-8 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white">
                                 {initials ?? 'PA'}
                             </span>
@@ -247,7 +268,12 @@ export function PlatformLayout({ children, title, description, actions }: Platfo
                             </Button>
                         </div>
                     </header>
-                    <main data-platform-content className="min-w-0 space-y-4 p-5 lg:ml-64">
+                    <main data-platform-content className="min-w-0 space-y-4 p-5 lg:ml-56">
+                        {actions && compactHeader && (
+                            <div data-platform-actions className="flex flex-wrap gap-2">
+                                {actions}
+                            </div>
+                        )}
                         {description && (
                             <p className="text-sm text-muted-foreground">{description}</p>
                         )}

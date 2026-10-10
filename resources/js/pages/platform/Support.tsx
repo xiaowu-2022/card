@@ -53,7 +53,7 @@ export default function Support({ inbox, chat, companies, filters, supportName }
             title={t('Customer support')}
             actions={
                 canSend && (
-                    <div className="flex gap-3">
+                    <div className="flex flex-wrap gap-3">
                         <SupportProfile
                             key={supportName}
                             name={supportName}
@@ -116,9 +116,9 @@ export default function Support({ inbox, chat, companies, filters, supportName }
                         )}
                     </p>
                 )}
-                <div className="grid min-w-[900px] grid-cols-[320px_minmax(0,1fr)] overflow-hidden rounded-xl border bg-surface">
-                    <aside className="border-r">
-                        <div className="max-h-[65vh] overflow-y-auto">
+                <div className="grid min-w-0 grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)] overflow-hidden rounded-xl border bg-surface">
+                    <aside className="min-w-0 border-b xl:border-b-0 xl:border-r">
+                        <div className="max-h-64 overflow-y-auto xl:max-h-[65vh]">
                             {inbox.data.map((row) => (
                                 <Link
                                     key={row.id}
@@ -144,7 +144,7 @@ export default function Support({ inbox, chat, companies, filters, supportName }
                                     </div>
                                     <p className="mt-2 text-sm">{row.accountId}</p>
                                     <p
-                                        className="w-64 truncate text-xs text-muted-foreground"
+                                        className="max-w-full truncate text-xs text-muted-foreground"
                                         title={row.email}
                                     >
                                         {row.email}

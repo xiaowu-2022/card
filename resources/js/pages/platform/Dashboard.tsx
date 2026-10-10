@@ -64,6 +64,33 @@ export default function Dashboard({
         <PlatformLayout title={t('Funds overview')}>
             <Head title={t('Platform overview')} />
             <div className="min-w-0 space-y-4">
+                {displayedKeys.length > 0 && (
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                        {displayedKeys.map((key) => (
+                            <Card key={key}>
+                                <CardContent className="space-y-3 pt-6">
+                                    <p className="text-sm text-muted-foreground">
+                                        {t(
+                                            key === 'inflow'
+                                                ? 'Total inflow'
+                                                : key === 'outflow'
+                                                  ? 'Total outflow'
+                                                  : key === 'overflow'
+                                                    ? 'Card reload overflow'
+                                                    : 'Period retained funds',
+                                        )}
+                                    </p>
+                                    <div className="break-words text-2xl font-semibold">
+                                        <MoneyDisplay
+                                            amount={totals[key] ?? '0'}
+                                            asset={key === 'overflow' ? 'USD' : 'USDT'}
+                                        />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                )}
                 <Card>
                     <CardContent className="pt-6">
                         <form
@@ -143,31 +170,6 @@ export default function Dashboard({
                     </p>
                 ) : (
                     <>
-                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                            {displayedKeys.map((key) => (
-                                <Card key={key}>
-                                    <CardContent className="space-y-3 pt-6">
-                                        <p className="text-sm text-muted-foreground">
-                                            {t(
-                                                key === 'inflow'
-                                                    ? 'Total inflow'
-                                                    : key === 'outflow'
-                                                      ? 'Total outflow'
-                                                      : key === 'overflow'
-                                                        ? 'Card reload overflow'
-                                                        : 'Period retained funds',
-                                            )}
-                                        </p>
-                                        <div className="break-words text-2xl font-semibold">
-                                            <MoneyDisplay
-                                                amount={totals[key] ?? '0'}
-                                                asset={key === 'overflow' ? 'USD' : 'USDT'}
-                                            />
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
                         <p className="text-sm text-muted-foreground">
                             {t(
                                 'Completed top-ups and successful withdrawals only. Retained funds = daily inflow minus outflow; not wallet balance.',

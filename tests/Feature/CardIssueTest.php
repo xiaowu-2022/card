@@ -266,6 +266,38 @@ it('returns only confirmed net card funds and never replays a return', function 
     DB::statement('SET CONSTRAINTS card_management_accounting IMMEDIATE');
 });
 
+it('shows settled returns without synchronization and replaces them once provider history arrives', function (): void {
+    [$card, $provider, $action] = managedCardFixture($this);
+    $provider->shouldReceive('returnCardFunds')->once()->andReturnUsing(fn ($id, $amount, $request) => new ProviderCardFundsDTO(ProviderOperationStatus::Succeeded, $id, $request, 'RETURN-HISTORY', '10.00000000', '9.00000000', '1.00000000'));
+    $action->operate($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), 'RETURN', '10');
+    $tables = ['ledger_entries', 'ledger_postings', 'ledger_accounts', 'card_management_orders'];
+    $before = collect($tables)->mapWithKeys(fn ($table) => [$table => DB::table($table)->orderBy('id')->get()->toJson()]);
+    Http::preventStrayRequests();
+    $query = app(UserCardTransactionsQuery::class);
+    $read = fn () => $query->get($this->tenant->id, $this->user->id, $card->id, 1);
+    $initial = $read()['items'];
+    expect($initial)->toHaveCount(1)
+        ->and($initial[0]['amount'])->toBe('-10.00000000')
+        ->and($initial[0]['type'])->toBe('transfer_out')
+        ->and($initial[0]['state'])->toBe('completed')
+        ->and($initial[0]['timeKind'])->toBe('completed')
+        ->and($initial[0]['feeAmount'])->toBe('-1.00000000')
+        ->and(CardTransaction::count())->toBe(0);
+    $platform = app(PlatformCardTransactionsQuery::class)->get($this->tenant->id, $card->id, 1);
+    expect($platform['items'])->toBe($initial);
+    $other = User::where('tenant_id', '!=', $this->tenant->id)->firstOrFail();
+    expect(fn () => $query->get($other->tenant_id, $other->id, $card->id, 1))->toThrow(ModelNotFoundException::class);
+    $this->travel(1)->minutes();
+    app(RecordCardTransactionsAction::class)->execute($card, [
+        new ProviderCardTransactionDTO('RETURN-HISTORY', '-10.00000000', 'USD', 'transfer_out', 'completed', '2026-10-10T13:01:00', null, '-1.00000000', 'USD'),
+    ], CarbonImmutable::now());
+    expect($read()['items'])->toBe($initial)->and($query->get($this->tenant->id, $this->user->id, $card->id, 2)['items'])->toBe([]);
+    foreach ($tables as $table) {
+        expect(DB::table($table)->orderBy('id')->get()->toJson())->toBe($before[$table]);
+    }
+    Http::assertNothingSent();
+});
+
 it('releases a reload hold only on a definitive rejection', function (): void {
     [$card,$provider,$action] = managedCardFixture($this);
     $before = phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance;
@@ -413,6 +445,8 @@ it('settles cancellation automatic return once without changing the security dep
     expect(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe(Money::of($before, 'USDT')->add(Money::of('19', 'USDT'))->amount())
         ->and(phaseTenAccount($this, LedgerAccountType::UserSecurityDeposit)->balance)->toBe($deposit)
         ->and(LedgerEntry::query()->where('reference_id', $result->id)->count())->toBe(1);
+    $history = app(UserCardTransactionsQuery::class)->get($this->tenant->id, $this->user->id, $card->id, 1)['items'];
+    expect($history)->toHaveCount(1)->and($history[0]['amount'])->toBe('-20.00000000')->and($history[0]['type'])->toBe('transfer_out');
     DB::statement('SET CONSTRAINTS card_management_accounting IMMEDIATE');
 });
 
@@ -423,6 +457,7 @@ it('blocks mismatched return evidence without crediting or releasing anything', 
     $result = $action->operate($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), 'RETURN', '10');
     expect($result->status)->toBe('UNKNOWN')->and($result->settlement_entry_id)->toBeNull()
         ->and(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe($before);
+    expect(app(UserCardTransactionsQuery::class)->get($this->tenant->id, $this->user->id, $card->id, 1)['items'])->toBe([]);
 });
 
 it('expires unused quotations without calling recharge or creating holds', function (): void {

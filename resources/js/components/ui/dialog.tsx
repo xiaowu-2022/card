@@ -12,12 +12,14 @@ export function DialogContent({
     children,
     closeLabel = 'Close',
     closeDisabled = false,
+    presentation = 'dialog',
     onOpenAutoFocus,
     onCloseAutoFocus,
     ...props
 }: ComponentProps<typeof DialogPrimitive.Content> & {
     closeLabel?: string;
     closeDisabled?: boolean;
+    presentation?: 'dialog' | 'drawer';
 }) {
     const platform = usePlatformUi();
     const returnFocus = useRef<HTMLElement | null>(null);
@@ -26,10 +28,14 @@ export function DialogContent({
             <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-slate-950/40" />
             <DialogPrimitive.Content
                 data-platform-ui={platform || undefined}
+                data-platform-record-drawer={(platform && presentation === 'drawer') || undefined}
                 className={cn(
                     'fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto overscroll-contain -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-surface p-6 shadow-xl',
                     platform && 'p-4',
                     className,
+                    platform &&
+                        presentation === 'drawer' &&
+                        'inset-y-0 left-auto right-0 top-0 h-dvh max-h-dvh w-full max-w-3xl translate-x-0 translate-y-0 rounded-none border-y-0 border-r-0',
                 )}
                 {...props}
                 onOpenAutoFocus={(event) => {
@@ -60,7 +66,7 @@ export function DialogContent({
     );
 }
 export function DialogHeader({ className, ...props }: ComponentProps<'div'>) {
-    return <div className={cn('mb-4 space-y-1.5', className)} {...props} />;
+    return <div data-dialog-header className={cn('mb-4 space-y-1.5', className)} {...props} />;
 }
 export function DialogTitle({ className, ...props }: ComponentProps<typeof DialogPrimitive.Title>) {
     return <DialogPrimitive.Title className={cn('text-lg font-semibold', className)} {...props} />;

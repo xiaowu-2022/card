@@ -113,6 +113,7 @@ export default function AssetOrders({
                         },
                         {
                             key: 'network',
+                            advanced: true,
                             label: 'Network',
                             allLabel: 'All networks',
                             values: ['TRON', 'ETHEREUM', 'BITCOIN'],

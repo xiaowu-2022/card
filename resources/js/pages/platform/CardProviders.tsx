@@ -245,7 +245,11 @@ export default function CardProviders({ providers }: { providers: AccountPage<Re
                     if (!open) setEditing(null);
                 }}
             >
-                <DialogContent closeLabel={t('Close')} aria-describedby={undefined}>
+                <DialogContent
+                    presentation="drawer"
+                    closeLabel={t('Close')}
+                    aria-describedby={undefined}
+                >
                     <DialogHeader>
                         <DialogTitle>
                             {editing === 'new' ? t('Add card provider') : t('Edit card provider')}

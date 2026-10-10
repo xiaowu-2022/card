@@ -17,7 +17,7 @@ export function DialogContent({
     return inline ? (
         <section className={`rounded-lg border p-4 ${className ?? ''}`}>{children}</section>
     ) : (
-        <Modal.DialogContent {...props} className={className}>
+        <Modal.DialogContent presentation="drawer" {...props} className={className}>
             {children}
         </Modal.DialogContent>
     );

@@ -130,7 +130,10 @@ export default function NotificationProfiles({
                     if (!open && !saving) setEditing(null);
                 }}
             >
-                <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-4xl">
+                <DialogContent
+                    presentation="drawer"
+                    className="max-h-[85dvh] overflow-y-auto sm:max-w-4xl"
+                >
                     <DialogHeader>
                         <DialogTitle>
                             {t(selected ? 'Edit configuration' : 'Add configuration')}
