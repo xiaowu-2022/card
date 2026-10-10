@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class ScanTrc20TopupsAction
 {
-    public const RUNTIME_REVISION = '2026-10-10-grouped-pending-windows';
+    public const RUNTIME_REVISION = '2026-10-10-one-hour-pending-window';
 
     public function __construct(private BlockchainGatewayInterface $gateway, private ProcessIncomingTrc20TransferAction $process, private ExpireTrc20TopupsAction $expire) {}
 
@@ -25,9 +25,10 @@ final readonly class ScanTrc20TopupsAction
         }
         $total = ['CREDITED' => 0, 'PAID' => 0, 'CONFIRMING' => 0, 'UNMATCHED' => 0];
         $failure = null;
+        $cutoff = now()->subHour()->toDateTimeImmutable();
         foreach (app(TronDepositConfiguration::class)->addresses() as $receivingAddress) {
             try {
-                foreach ($this->scanAddress($receivingAddress) as $status => $count) {
+                foreach ($this->scanAddress($receivingAddress, $cutoff) as $status => $count) {
                     $total[$status] = ($total[$status] ?? 0) + $count;
                 }
             } catch (\Throwable $e) {
@@ -86,7 +87,7 @@ final readonly class ScanTrc20TopupsAction
                         if ($transfer->occurredAt < $order->created_at || $transfer->occurredAt > $order->expires_at) {
                             continue;
                         }
-                        $result = $this->process->execute($transfer, $order->tenant_id, $order->id, $start);
+                        $result = $this->process->execute($transfer, $order->tenant_id, $order->id, $start, unfinishedOnly: true);
                         $counts[$result] = ($counts[$result] ?? 0) + 1;
                     }
                 }
@@ -96,24 +97,26 @@ final readonly class ScanTrc20TopupsAction
         return $counts;
     }
 
-    private function scanAddress(string $address): array
+    private function scanAddress(string $address, DateTimeImmutable $cutoff): array
     {
         $counts = ['CREDITED' => 0, 'PAID' => 0, 'CONFIRMING' => 0, 'UNMATCHED' => 0];
-        $start = null;
+        // A rolling creation-time boundary, shared by every address in this run.
+        // Older unresolved orders remain intact for explicit administrator handling.
+        $oldest = WalletTopupOrder::query()->where('payment_rail', 'TRC20_SHARED')
+            ->where('network_code', 'TRON')->where('deposit_address', $address)
+            ->whereIn('status', ['PENDING', 'PROCESSING', 'PAID'])
+            ->where('created_at', '>=', $cutoff->format('Y-m-d H:i:s.uP'))->min('created_at');
+        if ($oldest === null) {
+            return $counts;
+        }
+        $start = $cutoff;
         $cursor = null;
         $to = null;
         if ($this->gateway instanceof Trc20ChainReader) {
             $id = hash('sha256', 'TRON:USDT:'.$address);
             $cursor = DB::table('trc20_scan_cursors')->where('id', $id)->first();
             if (! $cursor) {
-                // Bootstrap only unfinished orders, never completed/expired history.
-                // Persist once: later configuration or orders must never rewind progress.
-                $oldest = WalletTopupOrder::query()->where('payment_rail', 'TRC20_SHARED')
-                    ->where('network_code', 'TRON')->where('deposit_address', $address)
-                    ->whereIn('status', ['PENDING', 'PROCESSING', 'PAID'])->min('created_at');
-                if ($oldest === null) {
-                    return $counts;
-                }
+                // Bootstrap only recent unfinished orders; never replay older history.
                 $initial = new DateTimeImmutable($oldest);
                 DB::table('trc20_scan_cursors')->insertOrIgnore([
                     'id' => $id,
@@ -122,8 +125,8 @@ final readonly class ScanTrc20TopupsAction
                 ]);
                 $cursor = DB::table('trc20_scan_cursors')->where('id', $id)->first();
             }
-            $start = new DateTimeImmutable($cursor->started_at);
-            $from = new DateTimeImmutable($cursor->scanned_through);
+            $start = max($cutoff, new DateTimeImmutable($cursor->started_at));
+            $from = max($start, new DateTimeImmutable($cursor->scanned_through));
             $safe = $this->gateway->confirmedThrough();
             $counts = $this->recheckPending($address, $start, min($from, $safe), $counts);
             if ($safe <= $from) {
@@ -135,7 +138,7 @@ final readonly class ScanTrc20TopupsAction
             $transfers = $this->gateway->listIncomingUsdtTrc20Transfers($address);
         }
         foreach ($transfers as $transfer) {
-            $result = $this->process->execute($transfer, notBefore: $start);
+            $result = $this->process->execute($transfer, notBefore: $start, unfinishedOnly: true);
             $counts[$result] = ($counts[$result] ?? 0) + 1;
         }
         // Full successful window only. Replays after crash/concurrent scans are Ledger-idempotent.

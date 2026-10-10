@@ -13,6 +13,8 @@
 - `app/Http/Controllers/Platform/CardTransactionBatchController.php`
 - `app/Infrastructure/Providers/Blockchain/TronGridBlockchainGateway.php`
 - `app/Application/Payment/ScanTrc20TopupsAction.php`
+- `app/Application/Payment/ProcessIncomingTrc20TransferAction.php`
+- `app/Console/Commands/ScanTrc20Topups.php`
 - `app/Console/Commands/DiagnoseTrc20Topups.php`
 - `config/payment.php`（含私有环境变量 TRONGRID_API_KEY 的读取）
 - 完整 `public/build`（已重新构建，包含操作结果确认弹窗和旧同步停用状态）
@@ -39,3 +41,5 @@
 
 API key 不保证无限流量；上游仍可能限流。已有共享冷却和合并扫描窗口会降低重复请求。
 本次只完成代码与隔离回归验证，未操作生产服务器或核对生产订单。
+
+自动充值扫描已限制为近 1 小时创建的未完成订单；超过范围的订单保留原状态，需显式人工处理。旧扫描进度不会继续追赶一小时前的历史。

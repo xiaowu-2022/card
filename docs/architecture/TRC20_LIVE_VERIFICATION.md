@@ -277,3 +277,25 @@ order identifier or exception details. It does not contact TronGrid, authenticat
 the key, scan/expire orders, dispatch jobs, bootstrap cursors or change funds.
 CLI output does not establish the state of a separately running FPM/scheduler process.
 The command is for deployment diagnosis only, not proof that any online order arrived.
+
+## Automatic scan retention: one hour (2026-10-10)
+
+This supersedes unlimited unfinished-order lookback. Each scan captures one cutoff
+at invocation time minus 60 minutes. Only TRC20_SHARED/TRON orders created at or
+after that boundary with PENDING, PROCESSING or PAID status participate. Exactly
+60 minutes is included; anything older is excluded even if its configured payment
+validity is longer or confirmation/settlement was pending.
+
+Bootstrap starts at the oldest eligible recent order. Existing cursors retain their
+historical started_at, but reads start no earlier than the rolling cutoff. Forward
+reads still cover at most five minutes per invocation, and only successful verified
+windows advance the stored cursor. Lookback, transfer processing and expiration
+share the cutoff. No recent unfinished orders means no upstream head/discovery
+requests for that address. Old unresolved orders are neither expired nor released
+merely because they leave the automatic window; they require explicit administrator
+handling. Manual hash verification/search and manual confirmation keep their existing
+permission, receipt, amount, confirmation and audit requirements.
+
+Deploy ScanTrc20TopupsAction, ProcessIncomingTrc20TransferAction and ScanTrc20Topups
+command together and reload persistent PHP runtimes. No migration or frontend build
+is required. Never reset cursors or clear cooldown caches during deployment.

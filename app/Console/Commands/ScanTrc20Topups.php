@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Application\Assets\TronDepositConfiguration;
 use App\Application\Payment\ExpireTrc20TopupsAction;
 use App\Application\Payment\ScanTrc20TopupsAction;
 use App\Domain\Payment\Contracts\Trc20ChainReader;
@@ -25,7 +26,7 @@ final class ScanTrc20Topups extends Command
             return self::FAILURE;
         }
 
-        $address = app(\App\Application\Assets\TronDepositConfiguration::class)->address();
+        $address = app(TronDepositConfiguration::class)->address();
         if ($address === '') {
             $this->error('The shared TRC20 deposit address is not configured.');
 
@@ -34,7 +35,7 @@ final class ScanTrc20Topups extends Command
 
         $results = $scan->execute();
         // Live checkpoint may intentionally lag. Do not expire/release unseen reservations here.
-        $expired = $gateway instanceof Trc20ChainReader ? 0 : $expire->execute();
+        $expired = $gateway instanceof Trc20ChainReader ? 0 : $expire->execute(notBefore: now()->subHour()->toDateTimeImmutable());
         $this->info("{$results['CREDITED']} credited, {$results['CONFIRMING']} confirming, {$results['UNMATCHED']} unmatched; {$expired} expired.");
 
         return self::SUCCESS;

@@ -16,7 +16,7 @@ final readonly class ProcessIncomingTrc20TransferAction
 {
     public function __construct(private CreditWalletTopupAction $credit) {}
 
-    public function execute(IncomingBlockchainTransfer $transfer, ?string $tenantId = null, ?string $orderId = null, ?\DateTimeImmutable $notBefore = null): string
+    public function execute(IncomingBlockchainTransfer $transfer, ?string $tenantId = null, ?string $orderId = null, ?\DateTimeImmutable $notBefore = null, bool $unfinishedOnly = false): string
     {
         $normalized = $this->normalize($transfer);
         if ($normalized === null) {
@@ -27,13 +27,14 @@ final readonly class ProcessIncomingTrc20TransferAction
         $snapshot = $this->candidateSnapshot($transfer, $txHash, $amount, $destination);
         if (! $snapshot || (($tenantId === null) !== ($orderId === null))
             || ($tenantId !== null && ($snapshot->tenant_id !== $tenantId || $snapshot->id !== $orderId))
-            || ($notBefore !== null && $snapshot->created_at < $notBefore)) {
+            || ($notBefore !== null && $snapshot->created_at < $notBefore)
+            || ($unfinishedOnly && ! in_array($snapshot->status->value, ['PENDING', 'PROCESSING', 'PAID'], true))) {
             return 'UNMATCHED';
         }
 
-        $order = DB::transaction(function () use ($transfer, $txHash, $amount, $destination, $snapshot): ?WalletTopupOrder {
+        $order = DB::transaction(function () use ($transfer, $txHash, $amount, $destination, $snapshot, $unfinishedOnly): ?WalletTopupOrder {
             $candidate = WalletTopupOrder::query()->where('tenant_id', $snapshot->tenant_id)->whereKey($snapshot->id)->lockForUpdate()->first();
-            if (! $candidate) {
+            if (! $candidate || ($unfinishedOnly && ! in_array($candidate->status->value, ['PENDING', 'PROCESSING', 'PAID'], true))) {
                 return null;
             }
             if (! in_array($candidate->status->value, ['PENDING', 'PROCESSING', 'PAID', 'CREDITED', 'EXPIRED'], true)) {

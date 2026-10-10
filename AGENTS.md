@@ -1,3 +1,12 @@
+On 2026-10-10 the user capped automatic TRC20 scanning to unfinished orders
+created within the last hour (inclusive boundary per scan invocation). Apply the
+same cutoff to bootstrap, lookback, forward matching and automatic expiration;
+clamp stale scan positions without rewinding or querying older history. If no
+recent unfinished orders exist, do not query the chain. Older unresolved orders
+remain unchanged for explicit administrator handling. Preserve manual verification,
+exact receipts, confirmation, company scope, idempotency and shared 429 cooldown.
+See docs/architecture/TRC20_LIVE_VERIFICATION.md.
+
 On 2026-10-10 the user approved configuring a server-side TronGrid API key for
 TRC20 deposit scans and Platform hash verification/automatic search. Read the
 optional TRONGRID_API_KEY from private deployment configuration and send it only

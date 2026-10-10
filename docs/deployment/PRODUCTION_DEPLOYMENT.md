@@ -121,7 +121,7 @@ php artisan view:cache
 php artisan up
 ```
 
-初次数据导入不启动任务。核对已有 PENDING/UNKNOWN 订单和退款期限之后，再给同一应用配置队列与每分钟 `php artisan schedule:run`。TRON 使用内置公开接口，无需 API Key、扫描开关或手填起点；首次从对应地址最早的待处理订单建立游标，已有游标不变。不清除游标、不批量重试已结束订单、不运行历史测试脚本。不得通过关闭账本保护或强制成功修复问题。
+初次数据导入不启动任务。核对已有 PENDING/UNKNOWN 订单和退款期限之后，再给同一应用配置队列与每分钟 `php artisan schedule:run`。TRON 使用内置 TronGrid 接口，可在服务器私有配置中填写可选 TRONGRID_API_KEY；无需扫描开关或手填起点。自动扫描只处理近 1 小时创建的未完成订单，首次从范围内最早订单建立游标，旧进度的实际查询下限限制在近 1 小时。不清除游标、不批量重试已结束订单、不运行历史测试脚本。不得通过关闭账本保护或强制成功修复问题。
 
 上线后继续保留原备份与导入前备份。代码回退不等于数据库回滚；已有新写入或外部结算时不得用旧快照覆盖新账本。
 
@@ -212,3 +212,39 @@ overrides take precedence. When deploying, update the explicitly configured
 `WITHDRAWAL_RATE_LIMIT_PER_MINUTE` and `SECURITY_DEPOSIT_FUNDING_RATE_LIMIT_PER_MINUTE`
 values to the intended doubled quotas, then rebuild Laravel config/route caches
 using the normal deployment procedure. No migration or native/H5 rebuild is required.
+
+
+## 新服务器调度与重复启动提示（2026-10-10）
+
+新服务器命令使用 PATH 中的 `php`，不要硬编码旧 PHP 安装路径。宝塔计划任务每分钟
+执行一次，脚本为：
+
+```sh
+cd /www/wwwroot/card && php artisan schedule:run
+```
+
+原生 crontab 的等价条目如下；宝塔和 crontab 二选一，不要重复安装：
+
+```cron
+* * * * * cd /www/wwwroot/card && php artisan schedule:run
+```
+
+`already ran on another server` 表示当前任务在该分钟的 onOneServer 调度锁已被占用，
+不证明另一台物理服务器存在，也不证明任务执行或到账成功。同机另一个 cron、宝塔重复
+计划、Supervisor 的 schedule:work，或仍使用相同缓存与锁命名空间的旧服务器调度，都可能
+产生此提示。每分钟重复出现时，检查并只保留预期的调度入口；不要移除 onOneServer 或
+withoutOverlapping，也不要通过 cache:clear 清掉共享限流与调度状态。
+
+只读排查（在生产对应运行用户下执行；crontab -l 只显示该用户的任务）：
+
+```sh
+command -v php
+php --ini
+crontab -l
+ps -eo pid,user,args | grep -E '[a]rtisan schedule:(run|work)'
+```
+
+同时检查宝塔计划任务、Supervisor/容器常驻进程、系统及其他用户 cron 和旧服务器。
+日志中子命令出现 PHP 绝对路径可能是框架展开当前解释器路径，不能单凭这个判定 cron
+仍硬编码路径。`fileinfo/exif is already loaded` 则是 CLI 扩展重复加载；根据 `php --ini`
+定位主配置和附加 ini，只保留一份加载配置。它与调度抢锁跳过是两个独立问题。
