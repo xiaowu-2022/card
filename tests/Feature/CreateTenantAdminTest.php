@@ -17,14 +17,15 @@ beforeEach(function (): void {
     Mail::fake();
     $this->tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
     $this->owner = AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail();
-    $this->data = ['name' => 'Direct Admin', 'email' => 'direct-admin@example.test', 'password' => 'DirectStrong1234',
-        'password_confirmation' => 'DirectStrong1234', 'role' => 'TENANT_ADMIN'];
+    $this->data = ['name' => 'Direct Admin', 'email' => 'direct-admin@example.test', 'password' => 'abcdef',
+        'password_confirmation' => 'abcdef', 'role' => 'TENANT_ADMIN'];
 });
 
-it('creates a hashed active administrator and exact-company membership with no invitation or email', function (): void {
+it('creates a hashed active administrator and exact-company membership with no invitation or email', function (string $account): void {
+    $this->data['email'] = $account;
     $invitations = AdminInvitation::query()->count();
     $this->actingAs($this->owner, 'platform_admin')->post("http://admin.localhost/platform/tenants/{$this->tenant->id}/configuration/team/administrators", $this->data + ['tenant_id' => 'ignored-client-value'])->assertRedirect()->assertSessionHasNoErrors();
-    $admin = AdminUser::query()->where('email', $this->data['email'])->sole();
+    $admin = AdminUser::query()->where('email', mb_strtolower($this->data['email']))->sole();
     expect(Hash::check($this->data['password'], $admin->password))->toBeTrue()
         ->and($admin->password)->not->toBe($this->data['password'])
         ->and($admin->email_verified_at)->toBeNull()
@@ -39,12 +40,12 @@ it('creates a hashed active administrator and exact-company membership with no i
     Mail::assertNothingSent();
     $this->get("http://admin.localhost/platform/tenants/{$this->tenant->id}/configuration/team")->assertDontSee($this->data['password'])->assertDontSee($admin->password);
     Auth::guard('platform_admin')->logout();
-    $this->post('http://a.localhost/admin/login', ['email' => $admin->email, 'password' => $this->data['password']])->assertRedirect();
+    $this->post('http://a.localhost/admin/login', ['email' => ' '.mb_strtoupper($admin->email).' ', 'password' => $this->data['password']])->assertRedirect();
     $this->assertAuthenticatedAs($admin, 'tenant_admin');
     Auth::guard('tenant_admin')->logout();
-    $this->post('http://b.localhost/admin/login', ['email' => $admin->email, 'password' => $this->data['password']])->assertSessionHasErrors('email');
-    $this->post('http://admin.localhost/platform/login', ['email' => $admin->email, 'password' => $this->data['password']])->assertSessionHasErrors('email');
-});
+    $this->post('http://b.localhost/admin/login', ['email' => ' '.mb_strtoupper($admin->email).' ', 'password' => $this->data['password']])->assertSessionHasErrors('email');
+    $this->post('http://admin.localhost/platform/login', ['email' => ' '.mb_strtoupper($admin->email).' ', 'password' => $this->data['password']])->assertSessionHasErrors('email');
+})->with(['new-admin@example.test', 'xiaoqi_01', '管理员小七', 'Équipe-01']);
 
 it('never overwrites or attaches existing identities in any scope', function (string $email): void {
     $existing = AdminUser::query()->where('email', $email)->sole();
@@ -64,6 +65,8 @@ it('rejects weak passwords mismatched confirmation and owner/platform roles', fu
 })->with([
     [['password' => '123', 'password_confirmation' => '123'], 'password'],
     [['password_confirmation' => 'different'], 'password'],
+    [['password' => '12345', 'password_confirmation' => '12345'], 'password'],
+    [['password' => str_repeat('a', 73), 'password_confirmation' => str_repeat('a', 73)], 'password'],
 
     [['role' => 'TENANT_OWNER'], 'role'],
     [['role' => 'PLATFORM_ADMIN'], 'role'],

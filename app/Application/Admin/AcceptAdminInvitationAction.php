@@ -62,7 +62,7 @@ final readonly class AcceptAdminInvitationAction
             } else {
                 Validator::make(
                     ['password' => $password],
-                    ['password' => [Password::min(12)->letters()->mixedCase()->numbers()]],
+                    ['password' => ['required', 'string', 'max:72', Password::min(6)]],
                 )->validate();
                 $admin = AdminUser::query()->create([
                     'name' => trim($name),

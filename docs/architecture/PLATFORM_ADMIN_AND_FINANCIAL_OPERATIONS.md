@@ -1,5 +1,23 @@
 # Platform administrator creation and manual financial provenance
 
+Update (2026-10-10): New administrator passwords require 6–72 characters, with no
+mandatory uppercase/lowercase/letter/number combination. Apply to direct Platform
+and company creation and new identities accepting invitations. Confirmation, hashing,
+permissions and login throttling remain unchanged. Existing identities retain their
+passwords; invitation identity confirmation still checks the existing password.
+
+Update (2026-10-10): Direct Platform and company administrator creation and both
+admin login surfaces accept custom login accounts, not only email addresses.
+Accounts are required, at most 255 characters, case-insensitive, trimmed at the
+edges, and reject internal whitespace/control characters. Unicode names are
+supported. The existing `admin_users.email` column and transport key retain the
+login identifier; no schema change or historical account rewrite is required.
+The global case-insensitive unique index, password rules, role/tenant boundaries,
+audit and login attempt limits remain enforced. Throttle keys hash the normalized
+account, IP and surface. Existing email accounts still work; actual email invitation
+and company contact fields retain email validation. Deploy matching PHP and rebuilt
+`public/build` assets; no H5/native rebuild or migration is needed.
+
 Update (2026-09-16): Platform mutations no longer require repeated administrator
 password/code confirmation. The current scope and retained authorization checks are
 specified in [Platform update authentication](PLATFORM_UPDATE_AUTHENTICATION.md);

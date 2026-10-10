@@ -3,6 +3,7 @@
 namespace App\Domain\Admin\Models;
 
 use App\Domain\Admin\Enums\AdminUserStatus;
+use App\Domain\Admin\Services\AdminLoginAccount;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -41,6 +42,6 @@ final class AdminUser extends Authenticatable
 
     public function setEmailAttribute(string $value): void
     {
-        $this->attributes['email'] = strtolower(trim($value));
+        $this->attributes['email'] = AdminLoginAccount::normalize($value);
     }
 }

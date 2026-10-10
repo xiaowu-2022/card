@@ -9,6 +9,7 @@ use App\Domain\Admin\Enums\ScopeType;
 use App\Domain\Admin\Models\AdminMembership;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Admin\Models\Role;
+use App\Domain\Admin\Services\AdminLoginAccount;
 use App\Domain\Admin\Services\AuthorizationService;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Tenant\Enums\TenantStatus;
@@ -28,11 +29,11 @@ final readonly class CreateTenantAdminAction
     public function execute(Tenant $tenant, AdminUser $actor, string $name, string $email, string $password, string $roleName, ?string $requestId = null): void
     {
         app(CompanyConfigurationAuthority::class)->assert($actor);
-        $email = strtolower(trim($email));
+        $email = AdminLoginAccount::normalize($email);
         $name = trim($name);
         Validator::make(['name' => $name, 'email' => $email, 'password' => $password, 'role' => $roleName], [
-            'name' => ['required', 'string', 'max:120'], 'email' => ['required', 'email', 'max:255'],
-            'password' => ['required', 'string', 'max:72', Password::min(12)->letters()->mixedCase()->numbers()],
+            'name' => ['required', 'string', 'max:120'], 'email' => AdminLoginAccount::rules(),
+            'password' => ['required', 'string', 'max:72', Password::min(6)],
             'role' => ['required', Rule::in(['TENANT_ADMIN', 'KYC_REVIEWER', 'CARD_OPERATOR', 'FINANCE_VIEWER', 'SUPPORT'])],
         ])->validate();
         // Hash outside locks; never return the password or include it in audit context.

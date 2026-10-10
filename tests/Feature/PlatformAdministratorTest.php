@@ -14,13 +14,14 @@ beforeEach(function (): void {
     $this->withoutVite();
     config(['inertia.ssr.enabled' => false]);
     $this->owner = AdminUser::query()->where('email', 'owner@platform.local')->sole();
-    $this->data = ['name' => 'SaaS operator', 'email' => 'new-saas@example.test', 'password' => 'NewPlatformPassword123',
-        'password_confirmation' => 'NewPlatformPassword123', 'role' => 'PLATFORM_ADMIN'];
+    $this->data = ['name' => 'SaaS operator', 'email' => 'new-saas@example.test', 'password' => '123456',
+        'password_confirmation' => '123456', 'role' => 'PLATFORM_ADMIN'];
 });
 
-it('creates a platform-only login with safe audited provenance and rejects repeated creation', function (): void {
+it('creates a platform-only login with safe audited provenance and rejects repeated creation', function (string $account): void {
+    $this->data['email'] = $account;
     $this->actingAs($this->owner, 'platform_admin')->post('http://admin.localhost/platform/administrators', $this->data)->assertRedirect()->assertSessionHasNoErrors();
-    $created = AdminUser::query()->where('email', $this->data['email'])->sole();
+    $created = AdminUser::query()->where('email', mb_strtolower($this->data['email']))->sole();
     expect(Hash::check($this->data['password'], $created->password))->toBeTrue();
     $membership = $created->memberships()->sole();
     expect($membership->scope_type->value)->toBe('PLATFORM')->and($membership->scope_id)->toBeNull();
@@ -31,10 +32,10 @@ it('creates a platform-only login with safe audited provenance and rejects repea
     $this->get('http://admin.localhost/platform/administrators')->assertOk()->assertInertia(fn (Assert $page) => $page
         ->component('platform/Administrators')->has('team.members', 2)->missing('team.members.0.password'));
     Auth::guard('platform_admin')->logout();
-    $this->post('http://admin.localhost/platform/login', ['email' => $created->email, 'password' => $this->data['password']])->assertRedirect();
+    $this->post('http://admin.localhost/platform/login', ['email' => ' '.mb_strtoupper($created->email).' ', 'password' => $this->data['password']])->assertRedirect();
     $this->assertAuthenticatedAs($created, 'platform_admin');
-    $this->post('http://a.localhost/admin/login', ['email' => $created->email, 'password' => $this->data['password']])->assertSessionHasErrors('email');
-});
+    $this->post('http://a.localhost/admin/login', ['email' => ' '.mb_strtoupper($created->email).' ', 'password' => $this->data['password']])->assertSessionHasErrors('email');
+})->with(['new-admin@example.test', 'xiaoqi_01', '管理员小七', 'Équipe-01']);
 
 it('rejects invalid roles and passwords without retaining password input', function (array $changes, string $field): void {
     $this->actingAs($this->owner, 'platform_admin')->post('http://admin.localhost/platform/administrators', [...$this->data, ...$changes])->assertSessionHasErrors($field);
@@ -46,6 +47,8 @@ it('rejects invalid roles and passwords without retaining password input', funct
     [['role' => 'PLATFORM_OWNER'], 'role'], [['role' => 'TENANT_ADMIN'], 'role'],
     [['password' => 'weak', 'password_confirmation' => 'weak'], 'password'],
     [['password_confirmation' => 'different'], 'password'],
+    [['password' => '12345', 'password_confirmation' => '12345'], 'password'],
+    [['password' => str_repeat('a', 73), 'password_confirmation' => str_repeat('a', 73)], 'password'],
 ]);
 
 it('refuses company actors suspended actors and read-only platform roles at the action boundary', function (): void {
@@ -64,4 +67,15 @@ it('never resets or attaches an existing company identity', function (): void {
     $password = $company->password;
     $this->actingAs($this->owner, 'platform_admin')->postJson('http://admin.localhost/platform/administrators', [...$this->data, 'email' => strtoupper($company->email)])->assertConflict();
     expect($company->fresh()->password)->toBe($password)->and($company->memberships()->count())->toBe(1);
+});
+
+it('rejects empty oversized and whitespace-containing login accounts', function (string $account): void {
+    $this->actingAs($this->owner, 'platform_admin')->post('http://admin.localhost/platform/administrators', [...$this->data, 'email' => $account])->assertSessionHasErrors('email');
+})->with(['   ', 'two words', "line\nbreak", str_repeat('x', 256)]);
+
+it('does not create a second identity for case variants of a custom account', function (): void {
+    $data = [...$this->data, 'email' => '  XiaoQi  '];
+    $this->actingAs($this->owner, 'platform_admin')->post('http://admin.localhost/platform/administrators', $data)->assertSessionHasNoErrors();
+    $this->postJson('http://admin.localhost/platform/administrators', [...$data, 'email' => 'XIAOQI'])->assertConflict();
+    expect(AdminUser::query()->where('email', 'xiaoqi')->count())->toBe(1);
 });

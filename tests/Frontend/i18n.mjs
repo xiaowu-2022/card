@@ -2042,3 +2042,34 @@ test('admin editor handles empty, stale and expired responses without JSON parse
     assert.deepEqual(await readEditorResponse(new Response('{"saved":true}')),{saved:true});
     assert.deepEqual(await readEditorResponse(new Response('{"message":"Conflict"}',{status:409})),{message:'Conflict'});
 });
+
+
+test('administrator validation keeps actionable errors in fields and repeated dialog rendering', () => {
+    const before = i18n.clientI18n.language;
+    const cases = [
+        ['The password field must contain at least one letter.', '密码必须包含至少一个字母。'],
+        ['The password field must contain at least one uppercase and one lowercase letter.', '密码必须同时包含大写字母和小写字母。'],
+        ['The password field must contain at least one number.', '密码必须包含至少一个数字。'],
+        ['The password field confirmation does not match.', '两次输入的密码不一致，请重新确认。'],
+        ['The password field must be at least 6 characters.', '管理员密码至少需要 6 位。'],
+        ['The password field must not be greater than 72 characters.', '管理员密码不能超过 72 位。'],
+        ['The email has already been taken.', '该邮箱已被使用，请更换邮箱。'],
+        ['The password field is required.', '请填写此项。'],
+    ];
+    try {
+        for (const locale of ['zh-CN', 'en']) {
+            void i18n.clientI18n.changeLanguage(locale);
+            for (const [raw, chinese] of cases) {
+                const rendered = admin.errorMessage(raw);
+                if (locale === 'zh-CN') assert.equal(rendered, chinese);
+                assert.equal(admin.errorMessage(rendered), rendered);
+                assert.notEqual(rendered, admin.errorMessage('PRIVATE provider response'));
+            }
+            const duplicate = admin.errorMessage('This login account is unavailable. Choose another account.');
+            assert.equal(admin.errorMessage(duplicate), duplicate);
+            assert.doesNotMatch(admin.errorMessage('PRIVATE provider response'), /PRIVATE/);
+        }
+    } finally {
+        void i18n.clientI18n.changeLanguage(before);
+    }
+});

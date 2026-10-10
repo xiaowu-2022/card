@@ -8,6 +8,7 @@ use App\Domain\Admin\Enums\ScopeType;
 use App\Domain\Admin\Models\AdminMembership;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Admin\Models\Role;
+use App\Domain\Admin\Services\AdminLoginAccount;
 use App\Domain\Admin\Services\AuthorizationService;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Support\Errors\DomainException;
@@ -28,11 +29,11 @@ final readonly class CreatePlatformAdminAction
         if (! $current || $current->status !== AdminUserStatus::Active || ! $this->authorization->allows($current, ScopeType::Platform, null, 'admin_team.manage')) {
             throw new DomainException('ADMIN_CREATION_FORBIDDEN', 'Administrator access could not be confirmed.', 403);
         }
-        $email = strtolower(trim($email));
+        $email = AdminLoginAccount::normalize($email);
         $name = trim($name);
         Validator::make(['name' => $name, 'email' => $email, 'password' => $password, 'role' => $roleName], [
-            'name' => ['required', 'string', 'max:120'], 'email' => ['required', 'email', 'max:255'],
-            'password' => ['required', 'string', 'max:72', Password::min(12)->letters()->mixedCase()->numbers()],
+            'name' => ['required', 'string', 'max:120'], 'email' => AdminLoginAccount::rules(),
+            'password' => ['required', 'string', 'max:72', Password::min(6)],
             'role' => ['required', Rule::in(['PLATFORM_ADMIN', 'PLATFORM_AUDITOR'])],
         ])->validate();
         // Hash outside locks; never return the password or include it in audit context.

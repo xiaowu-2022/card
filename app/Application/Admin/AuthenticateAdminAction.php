@@ -5,6 +5,7 @@ namespace App\Application\Admin;
 use App\Domain\Admin\Enums\AdminUserStatus;
 use App\Domain\Admin\Enums\ScopeType;
 use App\Domain\Admin\Models\AdminUser;
+use App\Domain\Admin\Services\AdminLoginAccount;
 use App\Domain\Admin\Services\AuthorizationService;
 use App\Domain\Audit\Services\AuditLogger;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +27,7 @@ final readonly class AuthenticateAdminAction
         ?string $ipAddress,
         ?string $userAgent,
     ): ?AdminUser {
-        $admin = AdminUser::query()->whereRaw('LOWER(email) = ?', [strtolower(trim($email))])->first();
+        $admin = AdminUser::query()->whereRaw('LOWER(email) = ?', [AdminLoginAccount::normalize($email)])->first();
         $valid = $admin instanceof AdminUser
             && ! DB::table('support_agent_accounts')->where('admin_id', $admin->id)->exists()
             && $admin->status === AdminUserStatus::Active

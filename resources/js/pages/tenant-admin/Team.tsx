@@ -150,12 +150,17 @@ export default function Team({ team }: { team: TeamData }) {
                             </FormField>
                             <FormField
                                 id="invite-email"
-                                label={t('Login account (email)')}
+                                label={t('Login account')}
+                                description={t(
+                                    'Choose a unique login account; an email address is not required. Accounts are case-insensitive and cannot contain spaces.',
+                                )}
                                 error={errorMessage(form.errors.email)}
                             >
                                 <Input
                                     id="invite-email"
-                                    type="email"
+                                    type="text"
+                                    autoCapitalize="none"
+                                    spellCheck={false}
                                     autoComplete="off"
                                     required
                                     value={form.data.email}
@@ -165,9 +170,7 @@ export default function Team({ team }: { team: TeamData }) {
                             <FormField
                                 id="admin-password"
                                 label={t('Administrator password')}
-                                description={t(
-                                    'Use 12–72 characters including uppercase and lowercase letters and numbers.',
-                                )}
+                                description={t('Use 6–72 characters for the password.')}
                                 error={errorMessage(form.errors.password)}
                             >
                                 <Input
@@ -263,7 +266,7 @@ export default function Team({ team }: { team: TeamData }) {
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>{t('Name')}</TableHead>
-                                        <TableHead>{t('Login account (email)')}</TableHead>
+                                        <TableHead>{t('Login account')}</TableHead>
                                         <TableHead>{t('Role')}</TableHead>
                                         <TableHead>{t('Membership status')}</TableHead>
                                         <TableHead>{t('Account status')}</TableHead>

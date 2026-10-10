@@ -31,7 +31,7 @@ it('stores only a hash and builds the invitation on the correct tenant host', fu
 it('accepts a valid invitation once and creates a tenant-scoped membership', function (): void {
     $tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
     $issued = app(IssueAdminInvitationAction::class)->execute($tenant, 'fresh@example.test', Role::query()->where('name', 'TENANT_ADMIN')->firstOrFail(), AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
-    $accepted = app(AcceptAdminInvitationAction::class)->execute($issued->rawToken, $tenant->id, 'Fresh Admin', 'StrongPass1234');
+    $accepted = app(AcceptAdminInvitationAction::class)->execute($issued->rawToken, $tenant->id, 'Fresh Admin', '123456');
 
     expect($accepted->invitation->status)->toBe(InvitationStatus::Accepted)
         ->and($accepted->membership->scope_type)->toBe(ScopeType::Tenant)
@@ -74,3 +74,12 @@ it('resending invalidates the old token and sends only the replacement link', fu
         ->and(AdminInvitation::query()->where('tenant_id', $tenant->id)->where('email', 'resend@example.test')->where('status', InvitationStatus::Pending)->count())->toBe(1);
     Mail::assertSent(AdminInvitationMail::class, 1);
 });
+
+
+it('rejects out-of-range passwords for new invitation identities', function (string $password): void {
+    $tenant = Tenant::query()->where('slug', 'tenant-a')->sole();
+    $issued = app(IssueAdminInvitationAction::class)->execute($tenant, 'length-test@example.test', Role::query()->where('name', 'TENANT_ADMIN')->sole(), AdminUser::query()->where('email', 'owner@platform.local')->sole());
+    expect(fn () => app(AcceptAdminInvitationAction::class)->execute($issued->rawToken, $tenant->id, 'New Admin', $password))->toThrow(\Illuminate\Validation\ValidationException::class);
+    expect(AdminUser::query()->where('email', 'length-test@example.test')->exists())->toBeFalse();
+    expect($issued->invitation->fresh()->status)->toBe(InvitationStatus::Pending);
+})->with(['12345', str_repeat('a', 73)]);

@@ -2,6 +2,22 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Login account': '登录账号',
+    'Choose a unique login account; an email address is not required. Accounts are case-insensitive and cannot contain spaces.':
+        '可自定义唯一登录账号，无需邮箱；账号不区分大小写，不能包含空格。',
+    'Login account must not contain spaces or control characters.':
+        '登录账号不能包含空格或控制字符。',
+
+    'Password must contain at least one letter.': '密码必须包含至少一个字母。',
+    'Password must contain both uppercase and lowercase letters.':
+        '密码必须同时包含大写字母和小写字母。',
+    'Password must contain at least one number.': '密码必须包含至少一个数字。',
+    'Password must contain at least one symbol.': '密码必须包含至少一个特殊符号。',
+    'The two passwords do not match.': '两次输入的密码不一致，请重新确认。',
+    'Administrator password must contain at least 6 characters.': '管理员密码至少需要 6 位。',
+    'Administrator password must not exceed 72 characters.': '管理员密码不能超过 72 位。',
+    'This email address is already in use.': '该邮箱已被使用，请更换邮箱。',
+
     'Customer operations': '客户运营',
     'Funds and cards': '资金与卡片',
     'Platform management': '平台管理',
@@ -158,8 +174,6 @@ export const adminCatalog: Record<string, string> = {
     'Manage support account': '管理客服账号',
     'Assigned companies': '服务公司',
     'New password (blank keeps current password)': '新密码（留空保持原密码）',
-    'Use at least 12 characters with uppercase, lowercase and numbers.':
-        '密码至少 12 位，包含大写、小写字母和数字。',
     'Saving account access changes signs this agent out. Login: /support-agent/login':
         '保存账号配置后需重新登录。客服登录入口：/support-agent/login',
     'Service hours': '服务时间',
@@ -1017,8 +1031,8 @@ export const adminCatalog: Record<string, string> = {
     expired: '已过期',
     'SaaS administrators': 'SaaS 管理员',
     'Platform administrator created.': 'SaaS 管理员已创建。',
-    'This grants access to the SaaS backend. Confirm the account and role before creating. Use 12–72 characters including uppercase and lowercase letters and numbers for the new password.':
-        '创建后将授予 SaaS 后台访问权限，请确认账号和角色。新密码须为 12–72 位，包含大小写字母和数字。',
+    'This grants access to the SaaS backend. Confirm the account and role before creating. Use 6–72 characters for the new password.':
+        '创建后将授予 SaaS 后台访问权限，请确认账号和角色。新密码须为 6–72 位。',
     'Platform administrators can manage companies and confirm top-ups. Platform auditors have read-only access.':
         '平台管理员可以管理公司和确认充值；平台审计员仅有只读权限。',
     'Confirm and create administrator': '确认创建管理员',
@@ -1288,8 +1302,7 @@ export const adminCatalog: Record<string, string> = {
     'Login account (email)': '登录账号（邮箱）',
     'Administrator password': '管理员密码',
     'Your current password': '您的当前密码',
-    'Use 12–72 characters including uppercase and lowercase letters and numbers.':
-        '密码为 12–72 位，须包含大小写字母和数字。',
+    'Use 6–72 characters for the password.': '密码为 6–72 位，无需大小写字母或数字组合。',
     'Create company administrators with a login account, password and role. No email invitation is required.':
         '直接设置管理员的登录账号、密码和角色，无需发送邮件邀请。',
     'Creating this administrator grants immediate access with the selected role. Confirm with your own password. Existing accounts and passwords will not be changed.':
@@ -1697,8 +1710,7 @@ export const adminCatalog: Record<string, string> = {
     Cardholders: '用卡人',
     Cards: '卡片',
     'Check verification': '检查验证',
-    'Choose a strong password with at least 12 characters, mixed case, and numbers.':
-        '请设置至少 12 位、包含大小写字母和数字的强密码。',
+    'Use 6–72 characters for the new password.': '请设置 6–72 位的新密码。',
     'Choose which platform products your tenant offers and configure future pricing.':
         '选择本公司销售的平台产品，并配置后续销售价格。',
     Closed: '已关闭',

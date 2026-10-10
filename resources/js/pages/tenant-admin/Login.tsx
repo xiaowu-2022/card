@@ -55,13 +55,15 @@ export default function Login() {
                                 )}
                                 <FormField
                                     id="admin-email"
-                                    label={t('Work email')}
+                                    label={t('Login account')}
                                     error={errorMessage(form.errors.email)}
                                 >
                                     <Input
                                         id="admin-email"
-                                        type="email"
+                                        type="text"
                                         autoComplete="username"
+                                        autoCapitalize="none"
+                                        spellCheck={false}
                                         value={form.data.email}
                                         onChange={(event) =>
                                             form.setData('email', event.target.value)

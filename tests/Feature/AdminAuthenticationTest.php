@@ -95,3 +95,11 @@ it('refuses client tenant ids when authorizing tenant admin access', function ()
     expect(AdminMembership::query()->where('admin_user_id', $adminA->id)->where('scope_type', ScopeType::Tenant)->value('scope_id'))
         ->not->toBe($tenantB->id);
 });
+
+it('shares the login throttle across case and outer-space variants of a custom account', function (): void {
+    foreach (['xiaoqi', 'XIAOQI', '  XiaoQi  ', 'xiaoqi', 'XiaoQi'] as $account) {
+        $this->post('http://admin.localhost/platform/login', ['email' => $account, 'password' => 'incorrect'])->assertSessionHasErrors('email');
+    }
+    $this->post('http://admin.localhost/platform/login', ['email' => '  XIAOQI ', 'password' => 'incorrect'])
+        ->assertSessionHasErrors('email', fn (string $message) => str_contains($message, 'Too many sign-in attempts'));
+});

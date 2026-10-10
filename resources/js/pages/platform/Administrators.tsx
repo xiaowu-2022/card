@@ -53,7 +53,7 @@ export default function Administrators({ team }: { team: Team }) {
     const [open, setOpen] = useState(false);
     const fields = [
         ['name', 'Name', 'text'],
-        ['email', 'Login account (email)', 'email'],
+        ['email', 'Login account', 'text'],
         ['password', 'Administrator password', 'password'],
         ['password_confirmation', 'Confirm password', 'password'],
     ] as const;
@@ -102,7 +102,7 @@ export default function Administrators({ team }: { team: Team }) {
                                     >
                                         <p className="text-sm text-muted-foreground sm:col-span-2">
                                             {t(
-                                                'This grants access to the SaaS backend. Confirm the account and role before creating. Use 12–72 characters including uppercase and lowercase letters and numbers for the new password.',
+                                                'This grants access to the SaaS backend. Confirm the account and role before creating. Use 6–72 characters for the new password.',
                                             )}
                                         </p>
                                         {(form.errors as Record<string, string>).form && (
@@ -120,16 +120,26 @@ export default function Administrators({ team }: { team: Team }) {
                                                 key={key}
                                                 id={`platform-admin-${key}`}
                                                 label={t(label)}
+                                                description={
+                                                    key === 'email'
+                                                        ? t(
+                                                              'Choose a unique login account; an email address is not required. Accounts are case-insensitive and cannot contain spaces.',
+                                                          )
+                                                        : undefined
+                                                }
                                                 error={errorMessage(form.errors[key])}
                                             >
                                                 <Input
                                                     id={`platform-admin-${key}`}
                                                     type={type}
+                                                    autoCapitalize="none"
+                                                    spellCheck={false}
                                                     value={form.data[key]}
                                                     onChange={(event) =>
                                                         form.setData(key, event.target.value)
                                                     }
                                                     required
+                                                    minLength={type === 'password' ? 6 : undefined}
                                                     maxLength={
                                                         type === 'password'
                                                             ? 72
@@ -189,7 +199,7 @@ export default function Administrators({ team }: { team: Team }) {
                             <TableRow>
                                 {[
                                     'Name',
-                                    'Login account (email)',
+                                    'Login account',
                                     'Role',
                                     'Membership status',
                                     'Account status',

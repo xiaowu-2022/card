@@ -49,9 +49,7 @@ export default function InvitationAccept({ token, invitation, existingAdmin }: P
                                         ? t(
                                               'Confirm your current password. Your identity and permissions from other Tenants are not copied.',
                                           )
-                                        : t(
-                                              'Choose a strong password with at least 12 characters, mixed case, and numbers.',
-                                          )}
+                                        : t('Use 6–72 characters for the new password.')}
                                 </AlertDescription>
                             </Alert>
                             {formError && (

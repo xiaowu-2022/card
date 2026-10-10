@@ -1,3 +1,17 @@
+On 2026-10-10 the user reduced new backend administrator passwords to a minimum
+of 6 characters without composition requirements. Retain the 72-character maximum,
+confirmation, hashing, permissions, scope, audit and login throttling. Apply to direct
+Platform/company admin creation and new admin invitation identities; never rewrite
+existing passwords. See docs/architecture/PLATFORM_ADMIN_AND_FINANCIAL_OPERATIONS.md.
+
+On 2026-10-10 the user allowed custom backend administrator login accounts instead
+of email-only identifiers. Apply to direct Platform/company admin creation and both
+admin login surfaces. Preserve global case-insensitive uniqueness, existing email
+logins, password requirements, role/company scope, audit and login rate limits.
+Use the existing storage/API identifier without historical rewrites; actual email
+invitation/contact workflows still require email addresses. See
+docs/architecture/PLATFORM_ADMIN_AND_FINANCIAL_OPERATIONS.md.
+
 On 2026-10-10 the user reported automatic TRC20 scans missing deposits that
 Platform automatic verification finds. Scan recent unfinished order validity
 windows directly through the confirmed head, merging overlaps; historical cursors
