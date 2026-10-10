@@ -1,3 +1,4 @@
+import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useState } from 'react';
 import { useForm } from '@inertiajs/react';
@@ -39,7 +40,7 @@ export function ManualReceiptForm({
         <div className="space-y-3">
             <label className="block space-y-2 text-sm">
                 <span>
-                    {t('Actual received amount')} ({asset})
+                    {t('Actual received amount')} ({adminAssetLabel(asset)})
                 </span>
                 <Input
                     value={form.data.actual_received_amount}
@@ -79,15 +80,15 @@ export function ManualReceiptForm({
                     <dl className="grid grid-cols-2 gap-3 text-sm">
                         <dt>{t('Order amount')}</dt>
                         <dd>
-                            {exactAmount(amount)} {asset}
+                            {exactAmount(amount)} {adminAssetLabel(asset)}
                         </dd>
                         <dt>{t('Actual received amount')}</dt>
                         <dd>
-                            {exactAmount(form.data.actual_received_amount)} {asset}
+                            {exactAmount(form.data.actual_received_amount)} {adminAssetLabel(asset)}
                         </dd>
                         <dt>{t('Difference (actual minus order)')}</dt>
                         <dd>
-                            {difference} {asset}
+                            {difference} {adminAssetLabel(asset)}
                         </dd>
                         <dt>{t('Receipt type')}</dt>
                         <dd>

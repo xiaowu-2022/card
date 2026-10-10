@@ -96,11 +96,11 @@ export default function WithdrawalDetail({
                                 <Info label={t('Network')} value="TRC20" />
                                 <Info
                                     label={t('Withdrawal fee')}
-                                    value={`${displayMoney(order.feeAmount)} USDT`}
+                                    value={`${displayMoney(order.feeAmount)} U`}
                                 />
                                 <Info
                                     label={t('Amount to send')}
-                                    value={`${exactAmount(order.receiveAmount)} USDT`}
+                                    value={`${exactAmount(order.receiveAmount)} U`}
                                 />
                                 <Info
                                     label={t('Destination')}

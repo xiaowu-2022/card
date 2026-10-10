@@ -31,24 +31,29 @@ type Detail = {
     canReview?: boolean;
 };
 export function UserKycDrawer({
+    embedded = false,
     target,
     trigger,
     onClose,
 }: {
+    embedded?: boolean;
     target: KycTarget;
     trigger: RefObject<HTMLElement | null>;
     onClose: () => void;
 }) {
-    const [selection, setSelection] = useState(initialSelection);
+    const [selection, setSelection] = useState(() =>
+        embedded ? { application: '', page: 1 } : initialSelection(),
+    );
     const [detail, setDetail] = useState<Detail | null>(null);
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState(false);
     const [retry, setRetry] = useState(0);
     useEffect(() => {
+        if (embedded) return;
         const sync = () => setSelection(initialSelection());
         window.addEventListener('popstate', sync);
         return () => window.removeEventListener('popstate', sync);
-    }, []);
+    }, [embedded]);
     useEffect(() => {
         const controller = new AbortController();
         setLoading(true);
@@ -80,9 +85,122 @@ export function UserKycDrawer({
         return () => controller.abort();
     }, [target.company, target.user, selection, retry]);
     const select = (application: string, page: number) => {
-        kycLocation(target, application, page);
+        if (!embedded) kycLocation(target, application, page);
         setSelection({ application, page });
     };
+    const content = (
+        <>
+            {!embedded && (
+                <DialogHeader className="mb-0 shrink-0 border-b px-4 py-4 pr-14">
+                    <DialogTitle>
+                        {t('Identity verification details')}
+                        {detail ? ` · ${detail.user.displayName || '—'}` : ''}
+                    </DialogTitle>
+                    <DialogDescription>
+                        {detail
+                            ? `${detail.company.name} · ${detail.user.email || '—'}`
+                            : t('View identity information and document photos.')}
+                    </DialogDescription>
+                </DialogHeader>
+            )}
+            <div
+                className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4"
+                data-detail-body
+                scroll-region="true"
+                aria-busy={loading}
+            >
+                {loading ? (
+                    <p role="status">{t('Loading…')}</p>
+                ) : failed ? (
+                    <div role="alert" className="space-y-3">
+                        <OperationFeedback>{t('Unable to load. Please retry.')}</OperationFeedback>
+                        <Button onClick={() => setRetry((n) => n + 1)}>{t('Retry')}</Button>
+                    </div>
+                ) : (
+                    detail && (
+                        <>
+                            {detail.platformVerified && (
+                                <p className="rounded-md bg-muted p-3 text-sm">
+                                    {t(
+                                        'Verified on platform account creation. No identity documents were submitted.',
+                                    )}
+                                </p>
+                            )}
+                            {detail.applications.total > 1 && (
+                                <div className="flex flex-wrap items-end gap-3">
+                                    <label className="min-w-0 flex-1 space-y-2">
+                                        <span>{t('Verification history')}</span>
+                                        <select
+                                            className="h-9 w-full rounded-md border bg-surface px-3"
+                                            value={detail.application?.id ?? ''}
+                                            onChange={(event) =>
+                                                select(event.target.value, selection.page)
+                                            }
+                                        >
+                                            {detail.application &&
+                                                !detail.applications.items.some(
+                                                    (item) => item.id === detail.application?.id,
+                                                ) && (
+                                                    <option value={detail.application.id}>
+                                                        {dateTime(detail.application.submittedAt)} ·{' '}
+                                                        {t(detail.application.reviewStatus)}
+                                                    </option>
+                                                )}
+                                            {detail.applications.items.map((item) => (
+                                                <option key={item.id} value={item.id}>
+                                                    {dateTime(item.submittedAt)} ·{' '}
+                                                    {t(item.reviewStatus)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                    {detail.applications.lastPage > 1 && (
+                                        <>
+                                            <Button
+                                                variant="secondary"
+                                                disabled={selection.page <= 1}
+                                                onClick={() => select('', selection.page - 1)}
+                                            >
+                                                {t('Previous')}
+                                            </Button>
+                                            <span>
+                                                {selection.page} / {detail.applications.lastPage}
+                                            </span>
+                                            <Button
+                                                variant="secondary"
+                                                disabled={
+                                                    selection.page >= detail.applications.lastPage
+                                                }
+                                                onClick={() => select('', selection.page + 1)}
+                                            >
+                                                {t('Next')}
+                                            </Button>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                            {detail.application ? (
+                                <KycDetailsContent
+                                    key={detail.application.id}
+                                    application={detail.application}
+                                    company={detail.company}
+                                    canViewDocuments={detail.canViewDocuments}
+                                    canReview={detail.canReview}
+                                    onChanged={(id) => {
+                                        select(id, selection.page);
+                                        setRetry((n) => n + 1);
+                                    }}
+                                />
+                            ) : (
+                                <p>{t('No identity verification submitted yet.')}</p>
+                            )}
+                        </>
+                    )
+                )}
+            </div>
+        </>
+    );
+    if (embedded) return <div className="flex min-h-0 flex-1 flex-col">{content}</div>;
     return (
         <Dialog
             open
@@ -100,119 +218,7 @@ export function UserKycDrawer({
                     }
                 }}
             >
-                <DialogHeader className="mb-0 shrink-0 border-b px-4 py-4 pr-14">
-                    <DialogTitle>
-                        {t('Identity verification details')}
-                        {detail ? ` · ${detail.user.displayName || '—'}` : ''}
-                    </DialogTitle>
-                    <DialogDescription>
-                        {detail
-                            ? `${detail.company.name} · ${detail.user.email || '—'}`
-                            : t('View identity information and document photos.')}
-                    </DialogDescription>
-                </DialogHeader>
-                <div
-                    className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4"
-                    data-detail-body
-                    scroll-region="true"
-                    aria-busy={loading}
-                >
-                    {loading ? (
-                        <p role="status">{t('Loading…')}</p>
-                    ) : failed ? (
-                        <div role="alert" className="space-y-3">
-                            <OperationFeedback>
-                                {t('Unable to load. Please retry.')}
-                            </OperationFeedback>
-                            <Button onClick={() => setRetry((n) => n + 1)}>{t('Retry')}</Button>
-                        </div>
-                    ) : (
-                        detail && (
-                            <>
-                                {detail.platformVerified && (
-                                    <p className="rounded-md bg-muted p-3 text-sm">
-                                        {t(
-                                            'Verified on platform account creation. No identity documents were submitted.',
-                                        )}
-                                    </p>
-                                )}
-                                {detail.applications.total > 1 && (
-                                    <div className="flex flex-wrap items-end gap-3">
-                                        <label className="min-w-0 flex-1 space-y-2">
-                                            <span>{t('Verification history')}</span>
-                                            <select
-                                                className="h-9 w-full rounded-md border bg-surface px-3"
-                                                value={detail.application?.id ?? ''}
-                                                onChange={(event) =>
-                                                    select(event.target.value, selection.page)
-                                                }
-                                            >
-                                                {detail.application &&
-                                                    !detail.applications.items.some(
-                                                        (item) =>
-                                                            item.id === detail.application?.id,
-                                                    ) && (
-                                                        <option value={detail.application.id}>
-                                                            {dateTime(
-                                                                detail.application.submittedAt,
-                                                            )}{' '}
-                                                            · {t(detail.application.reviewStatus)}
-                                                        </option>
-                                                    )}
-                                                {detail.applications.items.map((item) => (
-                                                    <option key={item.id} value={item.id}>
-                                                        {dateTime(item.submittedAt)} ·{' '}
-                                                        {t(item.reviewStatus)}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </label>
-                                        {detail.applications.lastPage > 1 && (
-                                            <>
-                                                <Button
-                                                    variant="secondary"
-                                                    disabled={selection.page <= 1}
-                                                    onClick={() => select('', selection.page - 1)}
-                                                >
-                                                    {t('Previous')}
-                                                </Button>
-                                                <span>
-                                                    {selection.page} /{' '}
-                                                    {detail.applications.lastPage}
-                                                </span>
-                                                <Button
-                                                    variant="secondary"
-                                                    disabled={
-                                                        selection.page >=
-                                                        detail.applications.lastPage
-                                                    }
-                                                    onClick={() => select('', selection.page + 1)}
-                                                >
-                                                    {t('Next')}
-                                                </Button>
-                                            </>
-                                        )}
-                                    </div>
-                                )}
-                                {detail.application ? (
-                                    <KycDetailsContent
-                                        key={detail.application.id}
-                                        application={detail.application}
-                                        company={detail.company}
-                                        canViewDocuments={detail.canViewDocuments}
-                                        canReview={detail.canReview}
-                                        onChanged={(id) => {
-                                            select(id, selection.page);
-                                            setRetry((n) => n + 1);
-                                        }}
-                                    />
-                                ) : (
-                                    <p>{t('No identity verification submitted yet.')}</p>
-                                )}
-                            </>
-                        )
-                    )}
-                </div>
+                {content}
             </DetailDrawerContent>
         </Dialog>
     );

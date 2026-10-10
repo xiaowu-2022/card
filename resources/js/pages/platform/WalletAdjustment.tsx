@@ -1,3 +1,4 @@
+import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { displayMoney } from '@/lib/admin-amount';
 import { useForm } from '@/components/admin/editor-context';
@@ -91,7 +92,7 @@ export default function WalletAdjustment({ account, balances, history }: Props) 
                             >
                                 {balances.map((b) => (
                                     <option key={b.asset} value={b.asset}>
-                                        {b.asset} · {t('Available balance')}:{' '}
+                                        {adminAssetLabel(b.asset)} · {t('Available balance')}:{' '}
                                         {displayMoney(b.amount)}
                                     </option>
                                 ))}
@@ -138,7 +139,8 @@ export default function WalletAdjustment({ account, balances, history }: Props) 
                                 )}{' '}
                                 ·{' '}
                                 <strong>
-                                    {displayMoney(form.data.amount || '0')} {form.data.asset}
+                                    {displayMoney(form.data.amount || '0')}{' '}
+                                    {adminAssetLabel(form.data.asset)}
                                 </strong>
                             </p>
                             <label className="mt-3 flex items-center gap-2">
@@ -172,7 +174,7 @@ export default function WalletAdjustment({ account, balances, history }: Props) 
                     page={history}
                     columns={[
                         { label: 'Type', render: () => t('Admin adjustment') },
-                        { label: 'Currency', render: (r) => r.asset },
+                        { label: 'Currency', render: (r) => adminAssetLabel(r.asset) },
                         {
                             label: 'Adjustment amount',
                             render: (r) =>

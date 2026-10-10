@@ -1,5 +1,10 @@
+import type { ReactNode } from 'react';
+import type { UserInfo } from '@/components/admin/UserInfoCell';
 import { displayMoney as adminAmount } from '@/lib/admin-amount';
-import { t, dateTime } from '@/i18n';
+import { t as consumerT, dateTime } from '@/i18n';
+import { t as adminT } from '@/i18n/admin';
+import { usePlatformUi } from '@/components/admin/platform-ui-context';
+import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { fullMoney } from '@/lib/promotion-report';
 import {
     partnerJournalNote,
@@ -9,6 +14,8 @@ import {
 
 export type StockPage<T> = { items: T[]; page: number; total: number; hasMore: boolean };
 export type JournalRow = {
+    userInfo?: UserInfo | null;
+    directUserInfo?: UserInfo | null;
     email?: string | null;
     id: string;
     partner_id: string;
@@ -24,6 +31,8 @@ export type JournalRow = {
     display_name?: string | null;
 };
 type Risk = {
+    userInfo?: UserInfo | null;
+    directUserInfo?: UserInfo | null;
     email?: string | null;
     id: string;
     account_id: string;
@@ -36,6 +45,8 @@ type Risk = {
     ends_at: string;
 };
 export type StockFlowDetails = StockPage<{
+    userInfo?: UserInfo | null;
+    directUserInfo?: UserInfo | null;
     id: string;
     source: string;
     account_id: string;
@@ -134,6 +145,7 @@ const trendNames: Record<string, string> = {
 };
 export function PartnerStockReport({
     report: r,
+    renderUser,
     onPage,
     onReverse,
     showShare = true,
@@ -144,6 +156,7 @@ export function PartnerStockReport({
     onPartners,
 }: {
     report: StockReport;
+    renderUser?: (user: UserInfo) => ReactNode;
     onPartners?: () => void;
     onPage: (page: number) => void;
     onReverse?: (row: JournalRow) => void;
@@ -153,9 +166,13 @@ export function PartnerStockReport({
     compactHeader?: boolean;
     onFlow?: (direction: 'inflow' | 'outflow' | null, page?: number) => void;
 }) {
+    const platform = usePlatformUi();
+    const t = platform ? adminT : consumerT;
+    const assetLabel = (asset: string) => (platform ? adminAssetLabel(asset) : asset);
     const number = (v: string) => (compactDecimals ? adminAmount(v) : v);
     const unavailable = t('Incomplete valuation');
-    const value = (v: string | null | undefined) => (v == null ? unavailable : fullMoney(v));
+    const value = (v: string | null | undefined) =>
+        v == null ? unavailable : assetLabel(fullMoney(v));
     const displayLines: [string, string, string][] =
         r.version === 'partner'
             ? [
@@ -196,26 +213,43 @@ export function PartnerStockReport({
                     {!details.items.length && <p>{t('No completed transactions in this team.')}</p>}
                     {details.items.map((row) => (
                         <article className="stock-flow-row" key={row.source + row.id}>
-                            <strong>
-                                {t('Transaction member')}:{' '}
-                                {showUserIdentity ? row.display_name || '—' : row.account_id}
-                            </strong>
-                            <p>{row.email}</p>
-                            <p>
-                                {t('Direct branch member')}:{' '}
-                                {row.direct_account_id
-                                    ? showUserIdentity
-                                        ? row.direct_display_name || '—'
-                                        : row.direct_account_id
-                                    : t('This partner')}
-                                {row.account_id === row.direct_account_id
-                                    ? ' · ' + t('Direct member themself')
-                                    : ''}
-                            </p>
-                            <p className="stock-muted">{row.direct_email}</p>
+                            {renderUser && row.userInfo ? (
+                                renderUser(row.userInfo)
+                            ) : (
+                                <>
+                                    <strong>
+                                        {t('Transaction member')}:{' '}
+                                        {showUserIdentity
+                                            ? row.display_name || '—'
+                                            : row.account_id}
+                                    </strong>
+                                    <p>{row.email}</p>
+                                </>
+                            )}
+                            {renderUser && row.directUserInfo ? (
+                                <div>
+                                    {t('Direct branch member')}
+                                    {renderUser(row.directUserInfo)}
+                                </div>
+                            ) : (
+                                <>
+                                    <p>
+                                        {t('Direct branch member')}:{' '}
+                                        {row.direct_account_id
+                                            ? showUserIdentity
+                                                ? row.direct_display_name || '—'
+                                                : row.direct_account_id
+                                            : t('This partner')}
+                                        {row.account_id === row.direct_account_id
+                                            ? ' · ' + t('Direct member themself')
+                                            : ''}
+                                    </p>
+                                    <p className="stock-muted">{row.direct_email}</p>
+                                </>
+                            )}
                             <p>
                                 {t(stockEntryLabels[row.source] ?? 'Amount')}: {number(row.amount)}{' '}
-                                USDT
+                                {assetLabel('USDT')}
                             </p>
                             <p className="stock-muted">
                                 {row.posted_at ? (
@@ -252,7 +286,7 @@ export function PartnerStockReport({
     return (
         <div className="partner-stock">
             <p className="stock-muted">
-                {t('Updated')}: {dateTime(r.updatedAt)} · {r.timezone} · USDT
+                {t('Updated')}: {dateTime(r.updatedAt)} · {r.timezone} · {assetLabel('USDT')}
             </p>
             {!compactHeader && (
                 <h2>{t(r.version === 'partner' ? 'Partner version' : 'Standard version')}</h2>
@@ -420,11 +454,19 @@ export function PartnerStockReport({
                         </summary>
                         {group.items.map((row) => (
                             <div className="stock-detail" key={row.id}>
-                                <strong>
-                                    {showUserIdentity ? row.display_name || '—' : row.account_id}
-                                </strong>
-                                {showUserIdentity && (
-                                    <p className="break-all">{row.email || '—'}</p>
+                                {renderUser && row.userInfo ? (
+                                    renderUser(row.userInfo)
+                                ) : (
+                                    <>
+                                        <strong>
+                                            {showUserIdentity
+                                                ? row.display_name || '—'
+                                                : row.account_id}
+                                        </strong>
+                                        {showUserIdentity && (
+                                            <p className="break-all">{row.email || '—'}</p>
+                                        )}
+                                    </>
                                 )}
                                 <span>
                                     {t('Progress')}: {number(row.weighted)} / {row.target}
@@ -488,10 +530,13 @@ export function PartnerStockReport({
                     </p>
                     {r.journal.items.map((row) => (
                         <div className="stock-detail" key={row.id}>
+                            {renderUser && row.userInfo && renderUser(row.userInfo)}
                             <strong>
-                                {showUserIdentity
-                                    ? `${row.display_name || '—'} · ${row.email || '—'}`
-                                    : row.account_id}{' '}
+                                {renderUser && row.userInfo
+                                    ? ''
+                                    : showUserIdentity
+                                      ? `${row.display_name || '—'} · ${row.email || '—'}`
+                                      : row.account_id}{' '}
                                 · {t(partnerJournalKind(row.kind))}{' '}
                                 {row.reverses_id && `· ${t('Reversal')}`}
                             </strong>
@@ -529,7 +574,7 @@ export function PartnerStockReport({
                     {r.unvalued.items.map((row) => (
                         <div className="stock-detail" key={row.id}>
                             <span>
-                                {number(row.fee_amount)} {row.asset_code}
+                                {number(row.fee_amount)} {assetLabel(row.asset_code)}
                             </span>
                             <small>{row.id}</small>
                         </div>

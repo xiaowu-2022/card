@@ -1,3 +1,4 @@
+import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { useEditorRouter } from '@/components/admin/useEditorRouter';
 import { Link } from '@inertiajs/react';
 import { useState, type ReactNode } from 'react';
@@ -59,7 +60,13 @@ export function PlatformAccountTable<T extends { id: string }>({
         [key: string]: string | undefined;
     };
     companies?: { id: string; name: string }[];
-    selectFilters?: { key: string; label: string; allLabel: string; values: string[] }[];
+    selectFilters?: {
+        key: string;
+        label: string;
+        allLabel: string;
+        values: string[];
+        valueLabels?: Record<string, string>;
+    }[];
     extraQuery?: Record<string, string>;
     showFilters?: boolean;
     statuses?: string[];
@@ -154,7 +161,9 @@ export function PlatformAccountTable<T extends { id: string }>({
                                 <SelectItem value="ALL">{t(item.allLabel)}</SelectItem>
                                 {item.values.map((value) => (
                                     <SelectItem key={value} value={value}>
-                                        {value}
+                                        {item.valueLabels
+                                            ? t(item.valueLabels[value] ?? value)
+                                            : adminAssetLabel(value)}
                                     </SelectItem>
                                 ))}
                             </SelectContent>

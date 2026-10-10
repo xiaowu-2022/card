@@ -32,7 +32,8 @@ type TenantRow = {
     slug: string;
     status: 'DRAFT' | 'ACTIVE' | 'SUSPENDED' | 'CLOSED';
     createdAt: string;
-    inflow?: string;
+    actualInflow?: string;
+    advanceInflow?: string;
     outflow?: string;
 };
 type Paginator = {
@@ -52,7 +53,7 @@ export default function Tenants({
 }: {
     tenants: Paginator;
     filters: { search?: string; status?: string; company?: string };
-    totals: { inflow?: string; outflow?: string };
+    totals: { actualInflow?: string; advanceInflow?: string; outflow?: string };
     financialAccess: { inflow: boolean; outflow: boolean };
 }) {
     useAdminTranslation();
@@ -93,14 +94,26 @@ export default function Tenants({
             <Head title={t('Tenants')} />
             <div className="space-y-4">
                 {(financialAccess.inflow || financialAccess.outflow) && (
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         {financialAccess.inflow && (
-                            <div className="rounded-xl border bg-surface p-4">
-                                <p className="text-sm text-muted-foreground">{t('Total inflow')}</p>
-                                <p className="mt-2 break-all text-2xl font-semibold">
-                                    <MoneyDisplay amount={totals.inflow!} asset="USDT" />
-                                </p>
-                            </div>
+                            <>
+                                <div className="rounded-xl border bg-surface p-4">
+                                    <p className="text-sm text-muted-foreground">
+                                        {t('Actual inflow')}
+                                    </p>
+                                    <p className="mt-2 break-all text-2xl font-semibold">
+                                        <MoneyDisplay amount={totals.actualInflow!} asset="USDT" />
+                                    </p>
+                                </div>
+                                <div className="rounded-xl border bg-surface p-4">
+                                    <p className="text-sm text-muted-foreground">
+                                        {t('Advance amount')}
+                                    </p>
+                                    <p className="mt-2 break-all text-2xl font-semibold">
+                                        <MoneyDisplay amount={totals.advanceInflow!} asset="USDT" />
+                                    </p>
+                                </div>
+                            </>
                         )}
                         {financialAccess.outflow && (
                             <div className="rounded-xl border bg-surface p-4">
@@ -162,9 +175,14 @@ export default function Tenants({
                                     <TableRow>
                                         <TableHead>{t('Tenant')}</TableHead>
                                         {financialAccess.inflow && (
-                                            <TableHead className="text-right">
-                                                {t('Inflow (top-ups)')}
-                                            </TableHead>
+                                            <>
+                                                <TableHead className="text-right">
+                                                    {t('Actual inflow')}
+                                                </TableHead>
+                                                <TableHead className="text-right">
+                                                    {t('Advance amount')}
+                                                </TableHead>
+                                            </>
                                         )}
                                         {financialAccess.outflow && (
                                             <TableHead className="text-right">
@@ -188,12 +206,20 @@ export default function Tenants({
                                                 </p>
                                             </TableCell>
                                             {financialAccess.inflow && (
-                                                <TableCell className="text-right whitespace-nowrap">
-                                                    <MoneyDisplay
-                                                        amount={tenant.inflow!}
-                                                        asset="USDT"
-                                                    />
-                                                </TableCell>
+                                                <>
+                                                    <TableCell className="text-right whitespace-nowrap">
+                                                        <MoneyDisplay
+                                                            amount={tenant.actualInflow!}
+                                                            asset="USDT"
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell className="text-right whitespace-nowrap">
+                                                        <MoneyDisplay
+                                                            amount={tenant.advanceInflow!}
+                                                            asset="USDT"
+                                                        />
+                                                    </TableCell>
+                                                </>
                                             )}
                                             {financialAccess.outflow && (
                                                 <TableCell

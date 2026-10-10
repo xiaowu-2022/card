@@ -1,3 +1,4 @@
+import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { useForm } from '@/components/admin/editor-context';
 import { t, errorMessage, useAdminTranslation } from '@/i18n/admin';
 import { displayMoney } from '@/lib/admin-amount';
@@ -44,7 +45,7 @@ export function CompanyDepositSettings({
                         <div className="grid gap-5 sm:grid-cols-2">
                             <FormField
                                 id="company-deposit-amount"
-                                label={`${t('Required security deposit')} (${asset})`}
+                                label={`${t('Required security deposit')} (${adminAssetLabel(asset)})`}
                                 error={errorMessage(form.errors.required_security_deposit_amount)}
                             >
                                 <MoneyInput
@@ -95,7 +96,7 @@ export function CompanyDepositSettings({
                                 {t('Required security deposit')}
                             </dt>
                             <dd>
-                                {displayMoney(amount)} {asset}
+                                {displayMoney(amount)} {adminAssetLabel(asset)}
                             </dd>
                         </div>
                         <div>

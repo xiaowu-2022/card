@@ -1,3 +1,5 @@
+import { adminAssetLabel } from '@/lib/admin-asset-label';
+import { UserInfoCell, RecordUserCell, type UserInfo } from '@/components/admin/UserInfoCell';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { partnerJournalKind } from '@/lib/partner-journal-note';
 import { PartnerHierarchyPanel } from '@/components/admin/PartnerHierarchyPanel';
@@ -26,6 +28,8 @@ import {
 import '../../../css/partner-stock.css';
 type Page<T> = { data: T[]; current_page: number; last_page: number; total: number };
 type Partner = {
+    userInfo?: UserInfo;
+    userId?: string;
     id: string;
     tenant_id: string;
     company_name: string;
@@ -222,7 +226,7 @@ export default function Partners({
         if (
             adjustment &&
             !confirm(
-                `${journalAccount} · ${t(partnerJournalKind(journal.data.kind))} · ${journal.data.amount} USDT${journal.data.reverses_id ? ` · ${t('Reversal')}` : ''}\n${t('Confirm this theoretical balance adjustment?')}`,
+                `${journalAccount} · ${t(partnerJournalKind(journal.data.kind))} · ${journal.data.amount} U${journal.data.reverses_id ? ` · ${t('Reversal')}` : ''}\n${t('Confirm this theoretical balance adjustment?')}`,
             )
         )
             return;
@@ -280,9 +284,7 @@ export default function Partners({
                                 <table className="partner-table">
                                     <thead>
                                         <tr>
-                                            <th>{t('Company')}</th>
-                                            <th>{t('Username')}</th>
-                                            <th>{t('Email')}</th>
+                                            <th>{t('Company / User')}</th>
                                             <th>{t('Partner share')}</th>
                                             <th>{t('Report access')}</th>
                                             <th>{t('Actions')}</th>
@@ -291,12 +293,8 @@ export default function Partners({
                                     <tbody>
                                         {partners.data.map((p) => (
                                             <tr key={p.id}>
-                                                <td>{p.company_name}</td>
-                                                <td data-label={t('Username')}>
-                                                    <strong>{p.display_name || '—'}</strong>
-                                                </td>
-                                                <td data-label={t('Email')} className="break-all">
-                                                    {p.email || '—'}
+                                                <td>
+                                                    <RecordUserCell row={p} />
                                                 </td>
                                                 <td data-label={t('Partner share')}>
                                                     {exactAmount(p.share_percent)}%
@@ -527,7 +525,7 @@ export default function Partners({
                                         </select>
                                     </label>
                                     <label>
-                                        {t('Amount')} (USDT)
+                                        {t('Amount')} (U)
                                         <input
                                             required
                                             readOnly={!!journal.data.reverses_id}
@@ -585,7 +583,8 @@ export default function Partners({
                             {pendingFees?.data.map((f) => (
                                 <div className="partner-admin-card" key={f.id}>
                                     <span>
-                                        {exactAmount(f.original_amount)} {f.asset_code}
+                                        {exactAmount(f.original_amount)}{' '}
+                                        {adminAssetLabel(f.asset_code)}
                                     </span>
                                     <small>
                                         {f.company_name} · {f.withdrawal_id}
@@ -812,6 +811,9 @@ export default function Partners({
                                                     )}
                                                     <div hidden={!!hierarchyPartner}>
                                                         <PartnerStockReport
+                                                            renderUser={(user) => (
+                                                                <UserInfoCell user={user} />
+                                                            )}
                                                             onPartners={() => {
                                                                 const el = document.querySelector(
                                                                     '[data-detail-body][scroll-region]',

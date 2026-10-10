@@ -1,10 +1,11 @@
+import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { useTranslation } from 'react-i18next';
 import { clientI18n, errorMessage as commonErrorMessage } from './index';
 
 export { dateTime } from './index';
 
 export function t(key: string, values?: Record<string, string | number>): string {
-    return clientI18n.t(key, { ...values, ns: 'admin' });
+    return adminAssetLabel(clientI18n.t(key, { ...values, ns: 'admin' }));
 }
 
 export function useAdminTranslation() {
@@ -19,5 +20,5 @@ export function countryName(code: string): string {
 export function errorMessage(message?: string): string | undefined {
     if (!message) return undefined;
     if (clientI18n.exists(message, { ns: 'admin' })) return t(message);
-    return commonErrorMessage(message);
+    return adminAssetLabel(commonErrorMessage(message) ?? message);
 }

@@ -34,7 +34,7 @@ final class PlatformFundsQuery
             ->join('tenants as t', 't.id', '=', 'o.tenant_id')
             ->join('users as u', fn ($join) => $join->on('u.id', '=', 'o.user_id')->on('u.tenant_id', '=', 'o.tenant_id'))
             ->select('o.*', 't.name as company_name', 'u.account_id', 'u.email');
-        foreach (['company' => 'o.tenant_id', 'asset' => 'o.asset_code', 'network' => 'o.network', 'status' => 'o.status'] as $filter => $column) {
+        foreach (['user' => 'o.user_id', 'company' => 'o.tenant_id', 'asset' => 'o.asset_code', 'network' => 'o.network', 'status' => 'o.status'] as $filter => $column) {
             $query->when($filters[$filter] ?? null, fn ($q, $value) => $q->where($column, $value));
         }
         $query->when($filters['search'] ?? null, function ($q, $search): void {

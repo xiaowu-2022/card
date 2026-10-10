@@ -108,10 +108,10 @@ export default function Cards({
                                                 <TableCell>{order.userEmail}</TableCell>
                                                 <TableCell>{order.productName}</TableCell>
                                                 <TableCell>
-                                                    {displayMoney(order.openingFee)} USDT
+                                                    {displayMoney(order.openingFee)} U
                                                 </TableCell>
                                                 <TableCell>
-                                                    {displayMoney(order.initialLoadAmount)} USDT
+                                                    {displayMoney(order.initialLoadAmount)} U
                                                 </TableCell>
                                                 <TableCell>
                                                     <StatusBadge

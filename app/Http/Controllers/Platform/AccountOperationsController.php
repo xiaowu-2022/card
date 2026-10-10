@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Platform;
 
 use App\Application\Kyc\PlatformKycQuery;
 use App\Application\Tenant\PlatformListFilters;
+use App\Application\User\PlatformUserSummary;
 use App\Domain\Tenant\Models\Tenant;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
@@ -23,7 +24,7 @@ final class AccountOperationsController extends Controller
 
         return Inertia::render('platform/Kyc', [
             'companies' => $lists->companies(), 'filters' => $filters,
-            'applications' => $kyc->paginate($filters['company'] ?? null, $filters['search'] ?? null, $filters['status'] ?? null),
+            'applications' => PlatformUserSummary::page($kyc->paginate($filters['company'] ?? null, $filters['search'] ?? null, $filters['status'] ?? null)),
         ]);
     }
 

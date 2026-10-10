@@ -1,3 +1,4 @@
+import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { useForm } from '@/components/admin/editor-context';
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
 import { Head, Link } from '@inertiajs/react';
@@ -156,7 +157,11 @@ export default function TenantCreate({
                                 description={t('Configuration only; no account is created.')}
                                 error={errorMessage(form.errors.default_asset)}
                             >
-                                <Input id="asset" value={form.data.default_asset} readOnly />
+                                <Input
+                                    id="asset"
+                                    value={adminAssetLabel(form.data.default_asset)}
+                                    readOnly
+                                />
                             </FormField>
                             <div className="flex items-end sm:justify-end">
                                 <Button

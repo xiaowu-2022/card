@@ -1,3 +1,4 @@
+import { RecordUserCell, type UserInfo } from '@/components/admin/UserInfoCell';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import {
     invitationLocation,
@@ -44,6 +45,7 @@ type Report = {
         page: number;
         hasMore: boolean;
         items: {
+            userInfo?: UserInfo;
             id: string;
             accountId: string;
             displayName: string | null;
@@ -166,10 +168,7 @@ export function PartnerInvitationsReport({
                                         {report.details.items.map((row) => (
                                             <TableRow key={row.id}>
                                                 <TableCell>
-                                                    <strong>{row.displayName || '—'}</strong>
-                                                    <p className="max-w-64 break-all text-xs text-muted-foreground">
-                                                        {row.email}
-                                                    </p>
+                                                    <RecordUserCell row={row} />
                                                 </TableCell>
                                                 <TableCell>
                                                     {t(row.direct ? 'Direct' : 'Indirect')}
@@ -179,9 +178,7 @@ export function PartnerInvitationsReport({
                                                 </TableCell>
                                                 <TableCell className="whitespace-nowrap">
                                                     {exactAmount(row.rate)}{' '}
-                                                    {report.details?.kind === 'ANNUAL'
-                                                        ? '%'
-                                                        : 'USDT'}
+                                                    {report.details?.kind === 'ANNUAL' ? '%' : 'U'}
                                                 </TableCell>
                                                 <TableCell className="whitespace-nowrap">
                                                     {exactAmount(row.amount)}
@@ -231,7 +228,7 @@ export function PartnerInvitationsReport({
                                 <div className="rounded-xl border bg-muted/30 p-4">
                                     <p>{t('Cumulative commission')}</p>
                                     <strong className="text-2xl">
-                                        {exactAmount(report.commission)} USDT
+                                        {exactAmount(report.commission)} U
                                     </strong>
                                 </div>
                                 <p className="text-sm">
@@ -403,7 +400,7 @@ export function PartnerInvitationsReport({
                                                                                                             ]
                                                                                                                 .amount,
                                                                                                         )}{' '}
-                                                                                                        USDT
+                                                                                                        U
                                                                                                     </p>
                                                                                                     {kind ===
                                                                                                         'ACTIVATION' && (
@@ -417,7 +414,7 @@ export function PartnerInvitationsReport({
                                                                                                                 relation
                                                                                                             ]
                                                                                                                 .count
-                                                                                                                ? `${exactAmount(row[relation].minimum)}–${exactAmount(row[relation].maximum)} USDT`
+                                                                                                                ? `${exactAmount(row[relation].minimum)}–${exactAmount(row[relation].maximum)} U`
                                                                                                                 : '—'}
                                                                                                         </p>
                                                                                                     )}

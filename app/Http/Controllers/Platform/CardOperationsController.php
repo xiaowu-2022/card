@@ -9,6 +9,7 @@ use App\Application\Card\RecordCardOverflowSpend;
 use App\Application\Card\RefreshManagedCardAction;
 use App\Application\Card\SyncUserCardTransactionsAction;
 use App\Application\Tenant\PlatformListFilters;
+use App\Application\User\PlatformUserSummary;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Card\Models\CardManagementOrder;
 use App\Domain\Card\Models\UserCard;
@@ -152,7 +153,7 @@ final class CardOperationsController extends Controller
         ]);
 
         return Inertia::render('platform/Cards', [
-            ...$query->get($filters['company'] ?? null, $filters['search'] ?? null),
+            ...array_map(PlatformUserSummary::page(...), $query->get($filters['company'] ?? null, $filters['search'] ?? null)),
             'filters' => $filters, 'companies' => $lists->companies(),
         ]);
     }

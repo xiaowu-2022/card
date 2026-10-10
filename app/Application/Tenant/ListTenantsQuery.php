@@ -17,6 +17,8 @@ final class ListTenantsQuery
             ->with(['domains' => fn ($query) => $query->orderBy('hostname')])
             ->when($financialAccess['inflow'] ?? false, fn ($query) => $query->selectSub(
                 $this->orders('wallet_topup_orders', 'CREDITED')->whereColumn('tenant_id', 'tenants.id')->selectRaw('COALESCE(SUM(COALESCE(actual_received_amount, amount)), 0)::text'), 'inflow'))
+            ->when($financialAccess['inflow'] ?? false, fn ($query) => $query->selectSub(
+                $this->orders('wallet_topup_orders', 'CREDITED')->where('manual_receipt_type', 'ADVANCE')->whereColumn('tenant_id', 'tenants.id')->selectRaw('COALESCE(SUM(COALESCE(actual_received_amount, amount)), 0)::text'), 'advance_inflow'))
             ->when($financialAccess['outflow'] ?? false, fn ($query) => $query->selectSub(
                 $this->orders('withdrawal_orders', 'SUCCEEDED')->whereColumn('tenant_id', 'tenants.id')->selectRaw('COALESCE(SUM(amount), 0)::text'), 'outflow'))
             ->latest()->orderBy('id')
@@ -29,7 +31,9 @@ final class ListTenantsQuery
                 'domains' => $tenant->domains->pluck('hostname')->all(),
                 'status' => $tenant->status->value,
                 'createdAt' => $tenant->created_at->toIso8601String(),
-            ] + (($financialAccess['inflow'] ?? false) ? ['inflow' => $this->decimal($tenant->inflow)] : [])
+            ] + (($financialAccess['inflow'] ?? false) ? ['inflow' => $this->decimal($tenant->inflow),
+                'actualInflow' => $this->decimal((string) BigDecimal::of($tenant->inflow)->minus($tenant->advance_inflow)),
+                'advanceInflow' => $this->decimal($tenant->advance_inflow)] : [])
                 + (($financialAccess['outflow'] ?? false) ? ['outflow' => $this->decimal($tenant->outflow)] : []));
     }
 
@@ -39,9 +43,17 @@ final class ListTenantsQuery
         foreach (['inflow' => ['wallet_topup_orders', 'CREDITED'], 'outflow' => ['withdrawal_orders', 'SUCCEEDED']] as $key => [$table, $state]) {
             if ($financialAccess[$key] ?? false) {
                 // Identical company filters, deliberately before pagination; orders are counted once.
-                $sum = $this->orders($table, $state)->whereIn('tenant_id', $this->filtered($search, $status, $company)->select('id'))
-                    ->selectRaw('COALESCE(SUM('.($key === 'inflow' ? 'COALESCE(actual_received_amount, amount)' : 'amount').'), 0)::text AS total')->first()->total;
-                $totals[$key] = $this->decimal($sum);
+                $query = $this->orders($table, $state)->whereIn('tenant_id', $this->filtered($search, $status, $company)->select('id'))
+                    ->selectRaw('COALESCE(SUM('.($key === 'inflow' ? 'COALESCE(actual_received_amount, amount)' : 'amount').'), 0)::text AS total');
+                if ($key === 'inflow') {
+                    $query->selectRaw("COALESCE(SUM(COALESCE(actual_received_amount, amount)) FILTER (WHERE manual_receipt_type = 'ADVANCE'), 0)::text AS advance");
+                }
+                $sum = $query->first();
+                $totals[$key] = $this->decimal($sum->total);
+                if ($key === 'inflow') {
+                    $totals['advanceInflow'] = $this->decimal($sum->advance);
+                    $totals['actualInflow'] = $this->decimal((string) BigDecimal::of($sum->total)->minus($sum->advance));
+                }
             }
         }
 

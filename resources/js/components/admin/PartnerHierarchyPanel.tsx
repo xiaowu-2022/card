@@ -1,9 +1,11 @@
+import '../../../css/partner-stock.css';
+import { UserInfoCell, RecordUserCell, type UserInfo } from '@/components/admin/UserInfoCell';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEffect, useRef, useState } from 'react';
 import { PartnerStockReport, type StockReport } from '@/components/user/PartnerStockReport';
 import { t } from '@/i18n/admin';
 
-type Identity = { id: string; name: string; accountId: string };
+type Identity = { userInfo?: UserInfo; id: string; name: string; accountId: string };
 type Listing = {
     subject: Identity;
     items: (Identity & { teamCount: number })[];
@@ -19,16 +21,18 @@ type View = {
     scroll: number;
 };
 export function PartnerHierarchyPanel({
+    initialView = 'children',
     partner,
     company,
     onClose,
 }: {
+    initialView?: 'children' | 'stock';
     partner: string;
     company: string | null;
     onClose: () => void;
 }) {
     const [stack, setStack] = useState<View[]>([
-        { id: partner, kind: 'children', page: 1, scroll: 0 },
+        { id: partner, kind: initialView, page: 1, scroll: 0 },
     ]);
     const [data, setData] = useState<
         Listing | { report: StockReport & { subject: Identity } } | null
@@ -51,11 +55,14 @@ export function PartnerHierarchyPanel({
         fetch(`/platform/partners/${view.id}/${view.kind}?${query}`, {
             headers: { Accept: 'application/json' },
             credentials: 'same-origin',
+            cache: 'no-store',
             signal: controller.signal,
         })
             .then(async (response) => {
                 if (!response.ok) throw Error();
-                return response.json();
+                return response.json() as Promise<
+                    Listing | { report: StockReport & { subject: Identity } }
+                >;
             })
             .then((result) => {
                 if (!controller.signal.aborted) {
@@ -85,9 +92,11 @@ export function PartnerHierarchyPanel({
     const list = data && 'items' in data ? data : null;
     return (
         <div ref={container} className="space-y-4">
-            <button className="partner-admin-action" onClick={back}>
-                {t('Back')}
-            </button>
+            {(initialView !== 'stock' || stack.length > 1) && (
+                <button className="partner-admin-action" onClick={back}>
+                    {t('Back')}
+                </button>
+            )}
             <h2 className="font-semibold">
                 {t(view.kind === 'children' ? 'Partner data' : 'Stock data')}
                 {data ? ` · ${report?.subject.name ?? list?.subject.name}` : ''}
@@ -118,7 +127,9 @@ export function PartnerHierarchyPanel({
                         <tbody>
                             {list.items.map((row) => (
                                 <tr key={row.id} className="border-b">
-                                    <td className="p-2">{row.name}</td>
+                                    <td className="p-2">
+                                        <RecordUserCell row={row} />
+                                    </td>
                                     <td className="text-center">{row.teamCount}</td>
                                     <td className="space-x-3 text-center">
                                         <button
@@ -172,6 +183,7 @@ export function PartnerHierarchyPanel({
             )}
             {report && (
                 <PartnerStockReport
+                    renderUser={(user) => <UserInfoCell user={user} />}
                     report={report}
                     compactDecimals
                     compactHeader

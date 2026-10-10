@@ -1,3 +1,5 @@
+import { adminAssetLabel } from '@/lib/admin-asset-label';
+import { RecordUserCell, type UserInfo } from '@/components/admin/UserInfoCell';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import {
     CardTransactionBatchSync,
@@ -13,6 +15,13 @@ import { displayMoney } from '@/lib/admin-amount';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -27,6 +36,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 
 type Order = {
+    userInfo?: UserInfo;
+    userId?: string;
     id: string;
     companyName: string;
     userEmail: string;
@@ -37,6 +48,8 @@ type Order = {
     status: string;
 };
 type UserCard = {
+    userInfo?: UserInfo;
+    userId?: string;
     id: string;
     tenantId: string;
     balance: string | null;
@@ -84,6 +97,11 @@ export default function Cards({
     const tab = filters.tab ?? 'orders';
     const [selected, setSelected] = useState<Record<string, UserCard>>({});
     const [syncScope, setSyncScope] = useState<SyncScope | null>(null);
+    const [syncOpen, setSyncOpen] = useState(false);
+    function openSync(scope: SyncScope) {
+        setSyncScope(scope);
+        setSyncOpen(true);
+    }
     const [transactionRefresh, setTransactionRefresh] = useState(0);
     useEffect(() => {
         setSelected({});
@@ -112,9 +130,23 @@ export default function Cards({
     return (
         <PlatformLayout
             title={t('Cards')}
-            description={t(
-                'Review card orders and balances, and manage individual card balance limits.',
-            )}
+            actions={
+                canManage && tab === 'cards' ? (
+                    <>
+                        {selection.length > 0 && (
+                            <Button
+                                variant="secondary"
+                                onClick={() => openSync({ cards: selection })}
+                            >
+                                {t('Sync selected cards ({{count}})', { count: selection.length })}
+                            </Button>
+                        )}
+                        <Button onClick={() => setSyncOpen(true)}>
+                            {t('Sync card transactions')}
+                        </Button>
+                    </>
+                ) : undefined
+            }
         >
             <Head title={t('Card operations')} />
             <div className="space-y-4">
@@ -143,13 +175,15 @@ export default function Cards({
                             extraQuery={{ tab: 'orders' }}
                             searchLabel={t('Search account ID, email or phone')}
                             columns={[
-                                { label: 'Tenant', render: (row) => row.companyName },
-                                { label: 'User', render: (row) => row.userEmail },
+                                {
+                                    label: 'Company / User',
+                                    render: (row) => <RecordUserCell row={row} />,
+                                },
                                 { label: 'Product', render: (row) => row.productName },
                                 {
                                     label: 'Amounts',
                                     render: (row) =>
-                                        `${displayMoney(row.openingFee)} + ${displayMoney(row.initialLoadAmount)} ${row.asset}`,
+                                        `${displayMoney(row.openingFee)} + ${displayMoney(row.initialLoadAmount)} ${adminAssetLabel(row.asset)}`,
                                 },
                                 {
                                     label: 'Status',
@@ -169,38 +203,45 @@ export default function Cards({
                     <TabsContent value="cards">
                         {canManage && (
                             <>
-                                <div className="mb-3 flex flex-wrap items-center gap-2">
-                                    <Button
-                                        onClick={() => setSyncScope({ company: filters.company })}
-                                    >
-                                        {t('Bulk sync card transactions')}
-                                    </Button>
-                                    <Button
-                                        variant="secondary"
-                                        disabled={!selection.length}
-                                        onClick={() => setSyncScope({ cards: selection })}
-                                    >
-                                        {t('Sync selected cards ({{count}})', {
-                                            count: selection.length,
-                                        })}
-                                    </Button>
-                                    {selection.length > 0 && (
+                                {selection.length > 0 && (
+                                    <div className="mb-3 flex flex-wrap items-center gap-2">
                                         <Button variant="ghost" onClick={() => setSelected({})}>
                                             {t('Clear selection')}
                                         </Button>
-                                    )}
-                                    <span className="text-xs text-muted-foreground">
-                                        {t(
-                                            'Select up to 500 cards across pages. Changing filters clears the selection.',
+                                    </div>
+                                )}
+                                <Dialog
+                                    open={syncOpen}
+                                    onOpenChange={(open) => {
+                                        setSyncOpen(open);
+                                        if (!open) setSyncScope(null);
+                                    }}
+                                >
+                                    <DialogContent className="max-w-5xl" closeLabel={t('Close')}>
+                                        <DialogHeader>
+                                            <DialogTitle>{t('Sync card transactions')}</DialogTitle>
+                                            <DialogDescription>
+                                                {t(
+                                                    'Closing this dialog pauses sync. Reopen and select Continue sync to resume.',
+                                                )}
+                                            </DialogDescription>
+                                        </DialogHeader>
+                                        <Button
+                                            className="mb-4"
+                                            onClick={() => openSync({ company: filters.company })}
+                                        >
+                                            {t('Bulk sync card transactions')}
+                                        </Button>
+                                        {syncOpen && (
+                                            <CardTransactionBatchSync
+                                                companies={companies}
+                                                scope={syncScope}
+                                                onClose={() => setSyncScope(null)}
+                                                onCompleted={completedSync}
+                                            />
                                         )}
-                                    </span>
-                                </div>
-                                <CardTransactionBatchSync
-                                    companies={companies}
-                                    scope={syncScope}
-                                    onClose={() => setSyncScope(null)}
-                                    onCompleted={completedSync}
-                                />
+                                    </DialogContent>
+                                </Dialog>
                             </>
                         )}
                         {refreshError && (
@@ -267,22 +308,7 @@ export default function Cards({
 
                                 {
                                     label: 'Company / User',
-                                    render: (row) => (
-                                        <div className="max-w-52 space-y-1">
-                                            <div
-                                                className="truncate font-medium"
-                                                title={row.companyName}
-                                            >
-                                                {row.companyName}
-                                            </div>
-                                            <div
-                                                className="truncate text-xs text-muted-foreground"
-                                                title={row.userEmail}
-                                            >
-                                                {row.userEmail}
-                                            </div>
-                                        </div>
-                                    ),
+                                    render: (row) => <RecordUserCell row={row} />,
                                 },
                                 {
                                     label: 'Product / Card',
@@ -331,7 +357,7 @@ export default function Cards({
                                             <div className="font-medium tabular-nums">
                                                 {row.balance === null
                                                     ? t('Not available')
-                                                    : `${displayMoney(row.balance)} ${row.currency}`}
+                                                    : `${displayMoney(row.balance)} ${adminAssetLabel(row.currency)}`}
                                             </div>
                                             <div className="text-xs text-muted-foreground">
                                                 {row.balanceUpdatedAt
@@ -369,69 +395,35 @@ export default function Cards({
                                     ),
                                 },
                                 {
-                                    label: 'Last successful sync',
-                                    render: (row) => (
-                                        <span
-                                            className="text-xs"
-                                            title={t(
-                                                'Latest completed date-range sync. This is separate from balance refresh.',
-                                            )}
-                                        >
-                                            {row.lastTransactionSyncAt
-                                                ? dateTime(row.lastTransactionSyncAt)
-                                                : t('Not yet synced')}
-                                        </span>
-                                    ),
-                                },
-                                {
                                     label: 'Actions',
                                     render: (row) => (
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                variant="secondary"
-                                                size="sm"
-                                                onClick={() => setSelectedCard(row)}
-                                            >
-                                                {t('View transactions')}
-                                            </Button>
-                                            {canManage && (
-                                                <Button
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        setSyncScope({
-                                                            company: row.tenantId,
-                                                            cards: [row],
-                                                        })
-                                                    }
-                                                >
-                                                    {t('Sync')}
-                                                </Button>
-                                            )}
-                                            <CardRowActions
-                                                card={row}
-                                                canManage={Boolean(canManage)}
-                                                refreshing={refreshing !== null}
-                                                onRefresh={() => {
-                                                    setRefreshing(row.id);
-                                                    setRefreshError('');
-                                                    router.post(
-                                                        `/platform/tenants/${row.tenantId}/cards/${row.id}/refresh`,
-                                                        {},
-                                                        {
-                                                            preserveState: true,
-                                                            preserveScroll: true,
-                                                            onError: (errors) =>
-                                                                setRefreshError(
-                                                                    errors.card_balance ??
-                                                                        'Card balance could not be refreshed. The last confirmed balance is shown.',
-                                                                ),
-                                                            onFinish: () => setRefreshing(null),
-                                                        },
-                                                    );
-                                                }}
-                                            />
-                                        </div>
+                                        <CardRowActions
+                                            card={row}
+                                            onViewTransactions={() => setSelectedCard(row)}
+                                            onSync={() =>
+                                                openSync({ company: row.tenantId, cards: [row] })
+                                            }
+                                            canManage={Boolean(canManage)}
+                                            refreshing={refreshing !== null}
+                                            onRefresh={() => {
+                                                setRefreshing(row.id);
+                                                setRefreshError('');
+                                                router.post(
+                                                    `/platform/tenants/${row.tenantId}/cards/${row.id}/refresh`,
+                                                    {},
+                                                    {
+                                                        preserveState: true,
+                                                        preserveScroll: true,
+                                                        onError: (errors) =>
+                                                            setRefreshError(
+                                                                errors.card_balance ??
+                                                                    'Card balance could not be refreshed. The last confirmed balance is shown.',
+                                                            ),
+                                                        onFinish: () => setRefreshing(null),
+                                                    },
+                                                );
+                                            }}
+                                        />
                                     ),
                                 },
                             ]}
@@ -447,7 +439,7 @@ export default function Cards({
                     onSync={
                         canManage
                             ? () => {
-                                  setSyncScope({
+                                  openSync({
                                       company: selectedCard.tenantId,
                                       cards: [selectedCard],
                                   });
@@ -467,11 +459,15 @@ function CardRowActions({
     canManage,
     refreshing,
     onRefresh,
+    onViewTransactions,
+    onSync,
 }: {
     card: UserCard;
     canManage: boolean;
     refreshing: boolean;
     onRefresh: () => void;
+    onViewTransactions: () => void;
+    onSync: () => void;
 }) {
     const [action, setAction] = useState<'reveal' | 'limit' | 'overflow' | null>(null);
     const trigger = useRef<HTMLButtonElement>(null);
@@ -495,6 +491,14 @@ function CardRowActions({
                         if (action) event.preventDefault();
                     }}
                 >
+                    <DropdownMenuItem onSelect={() => requestAnimationFrame(onViewTransactions)}>
+                        {t('View transactions')}
+                    </DropdownMenuItem>
+                    {canManage && (
+                        <DropdownMenuItem onSelect={() => requestAnimationFrame(onSync)}>
+                            {t('Sync')}
+                        </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem disabled={refreshing} onSelect={onRefresh}>
                         {t(refreshing ? 'Refreshing' : 'Refresh balance')}
                     </DropdownMenuItem>

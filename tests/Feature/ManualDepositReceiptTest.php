@@ -7,6 +7,7 @@ use App\Application\Payment\ConfirmPlatformTopupAction;
 use App\Application\Payment\CreditWalletTopupAction;
 use App\Application\Payment\PaymentLedgerReconciliationService;
 use App\Application\Payment\ProcessIncomingTrc20TransferAction;
+use App\Application\Tenant\ListTenantsQuery;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Assets\AssetDepositOrder;
 use App\Domain\Assets\ChainObservation;
@@ -39,15 +40,15 @@ beforeEach(function () {
     $this->partner = app(PartnerManagement::class)->configure($this->actor, $this->tenant->id, ['account_id' => $this->user->account_id, 'enabled' => true, 'share_percent' => '40']);
 });
 
-function receiptOrder($test, string $source): object
+function receiptOrder($test, string $source, string $expectedAmount = '100.01'): object
 {
     $id = (string) Str::uuid();
     $data = ['id' => $id, 'tenant_id' => $test->tenant->id, 'user_id' => $test->user->id, 'wallet_id' => $test->wallet->id,
-        'request_id' => (string) Str::uuid(), 'request_hash' => hash('sha256', $id), 'asset_code' => 'USDT', 'amount' => '100.01',
+        'request_id' => (string) Str::uuid(), 'request_hash' => hash('sha256', $id), 'asset_code' => 'USDT', 'amount' => $expectedAmount,
         'requested_amount' => '100', 'status' => 'PENDING', 'expires_at' => now()->addMinutes(30), 'created_at' => now(), 'updated_at' => now()];
     if ($source === 'primary') {
-        DB::table('wallet_topup_orders')->insert($data + ['payment_provider' => 'trc20-shared', 'payment_rail' => 'TRC20_SHARED', 'expected_amount' => '100.01',
-            'identification_increment' => '0.01', 'network_code' => 'TRON', 'deposit_address' => 'T111111111111111111111111111111111', 'token_contract' => 'T222222222222222222222222222222222']);
+        DB::table('wallet_topup_orders')->insert($data + ['payment_provider' => 'trc20-shared', 'payment_rail' => 'TRC20_SHARED', 'expected_amount' => $expectedAmount,
+            'identification_increment' => (string) BigDecimal::of($expectedAmount)->minus('100'), 'network_code' => 'TRON', 'deposit_address' => 'T111111111111111111111111111111111', 'token_contract' => 'T222222222222222222222222222222222']);
 
         return WalletTopupOrder::findOrFail($id);
     }
@@ -273,3 +274,55 @@ it('requires an actual amount through both HTTP endpoints', function ($source) {
     $this->actingAs($this->actor, 'platform_admin')->post($url, ['request_id' => (string) Str::uuid(), 'confirmed' => true])->assertSessionHasErrors('actual_received_amount');
     expect($order->fresh()->ledger_entry_id)->toBeNull();
 })->with(['primary', 'asset']);
+
+it('splits company inflow into actual and advance receipts using credited native amounts', function () {
+    $advance = receiptOrder($this, 'primary');
+    confirmReceipt($this, $advance, (string) Str::uuid(), 'ADVANCE', '123.12345678');
+    $actual = receiptOrder($this, 'primary', '100.02');
+    confirmReceipt($this, $actual, (string) Str::uuid(), 'ACTUAL', '89.87654321');
+    receiptOrder($this, 'primary', '100.03'); // Uncredited orders must not contribute.
+    $query = app(ListTenantsQuery::class);
+    $access = ['inflow' => true, 'outflow' => true];
+    $balances = DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all();
+    $totals = $query->totals(null, null, $access, $this->tenant->id);
+    expect($totals['actualInflow'])->toBe('89.87654321')
+        ->and($totals['advanceInflow'])->toBe('123.12345678')
+        ->and($totals['inflow'])->toBe('212.99999999');
+    $row = $query->execute(null, null, $access, $this->tenant->id)->items()[0];
+    expect($row['actualInflow'])->toBe($totals['actualInflow'])
+        ->and($row['advanceInflow'])->toBe($totals['advanceInflow']);
+    $other = Tenant::where('id', '!=', $this->tenant->id)->firstOrFail();
+    expect($query->totals(null, null, $access, $other->id)['advanceInflow'])->toBe('0.00000000')
+        ->and($query->totals('nonexistent', null, $access)['actualInflow'])->toBe('0.00000000')
+        ->and($query->totals(null, null, []))->toBe([]);
+    $hidden = $query->execute(null, null, [], $this->tenant->id)->items()[0];
+    expect($hidden)->not->toHaveKeys(['inflow', 'actualInflow', 'advanceInflow', 'outflow'])
+        ->and(DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all())->toBe($balances);
+    Http::assertNothingSent();
+});
+
+it('splits user receipts across deposit sources without counting pending orders or rewriting funds', function () {
+    $actual = receiptOrder($this, 'primary', '100.01');
+    $advance = receiptOrder($this, 'primary', '100.02');
+    $asset = receiptOrder($this, 'asset');
+    confirmReceipt($this, $actual, (string) Str::uuid(), 'ACTUAL', '89.87654321');
+    confirmReceipt($this, $advance, (string) Str::uuid(), 'ADVANCE', '123.12345678');
+    confirmReceipt($this, $asset, (string) Str::uuid(), 'ACTUAL', '20.12345679');
+    receiptOrder($this, 'primary', '100.03');
+    $before = DB::table('ledger_accounts')->orderBy('id')->get()->toJson();
+    $this->actingAs($this->actor, 'platform_admin');
+    $this->getJson("http://admin.localhost/platform/tenants/{$this->tenant->id}/users/{$this->user->id}/details")
+        ->assertOk()->assertJsonPath('financialAccess.receipts', true)
+        ->assertJsonPath('user.receiptTotals.0.asset', 'USDT')
+        ->assertJsonPath('user.receiptTotals.0.actual', fn ($value) => BigDecimal::of($value)->isEqualTo('110'))
+        ->assertJsonPath('user.receiptTotals.0.advance', fn ($value) => BigDecimal::of($value)->isEqualTo('123.12345678'));
+    $other = User::where('tenant_id', '<>', $this->tenant->id)->firstOrFail();
+    $this->getJson("http://admin.localhost/platform/tenants/{$other->tenant_id}/users/{$other->id}/details")
+        ->assertOk()->assertJsonPath('user.receiptTotals.0.actual', '0')->assertJsonPath('user.receiptTotals.0.advance', '0');
+    DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'wallet_topups.read')->value('id'))->delete();
+    $this->actingAs($this->actor->fresh(), 'platform_admin');
+    $this->getJson("http://admin.localhost/platform/tenants/{$this->tenant->id}/users/{$this->user->id}/details")
+        ->assertOk()->assertJsonPath('financialAccess.receipts', false)->assertJsonMissingPath('user.receiptTotals');
+    expect(DB::table('ledger_accounts')->orderBy('id')->get()->toJson())->toBe($before);
+    Http::assertNothingSent();
+});

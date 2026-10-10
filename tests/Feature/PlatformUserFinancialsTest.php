@@ -50,10 +50,10 @@ it('shows zeros without creating accounts and omits financial fields without the
     $this->get($url)->assertOk()->assertInertia(fn ($p) => $p
         ->where('users.data.0.wallets', [])->where('users.data.0.availableBalance', '0.00000000')->where('users.data.0.securityDeposit', '0.00000000')
         ->where('users.data.0.commission', '0.00000000')->where('users.data.0.totalWithdrawn', '0.00000000'));
-    $permissions = DB::table('permissions')->whereIn('name', ['wallet.read', 'ledger.read', 'withdrawals.read'])->pluck('id');
+    $permissions = DB::table('permissions')->whereIn('name', ['wallet.read', 'ledger.read', 'withdrawals.read', 'wallet_topups.read'])->pluck('id');
     DB::table('role_permissions')->whereIn('permission_id', $permissions)->delete();
     $this->get($url.'?balances=1&commission=1&withdrawals=1')->assertOk()->assertInertia(fn ($p) => $p
-        ->where('financialAccess', ['balances' => false, 'commission' => false, 'withdrawals' => false])
+        ->where('financialAccess', ['balances' => false, 'receipts' => false, 'commission' => false, 'withdrawals' => false])
         ->missing('users.data.0.wallets')->missing('users.data.0.availableBalance')->missing('users.data.0.securityDeposit')
         ->missing('users.data.0.commission')->missing('users.data.0.totalWithdrawn'));
     expect(LedgerAccount::query()->count())->toBe($count);

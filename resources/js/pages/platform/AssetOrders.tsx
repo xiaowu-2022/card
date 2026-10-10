@@ -1,3 +1,5 @@
+import { adminAssetLabel } from '@/lib/admin-asset-label';
+import { RecordUserCell, type UserInfo } from '@/components/admin/UserInfoCell';
 import { showOperationResult } from '@/components/admin/operation-result';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { ManualReceiptForm } from '@/components/admin/ManualReceiptForm';
@@ -19,7 +21,9 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { t, useAdminTranslation, errorMessage, dateTime } from '@/i18n/admin';
 
-type Order = {
+export type Order = {
+    userInfo?: UserInfo;
+    userId?: string;
     receiptType: 'ACTUAL' | 'ADVANCE';
     canAdvance: boolean;
     operations?: ManualOperation[];
@@ -115,30 +119,17 @@ export default function AssetOrders({
                         },
                     ]}
                     columns={[
-                        { label: 'Tenant', render: (o) => o.company },
                         {
-                            label: 'User',
-                            className: 'w-56 max-w-56',
-                            render: (o) => (
-                                <div className="w-48 max-w-48">
-                                    <p className="truncate" title={o.accountId}>
-                                        {o.accountId}
-                                    </p>
-                                    <p
-                                        className="truncate text-xs text-muted-foreground"
-                                        title={o.userEmail}
-                                    >
-                                        {o.userEmail}
-                                    </p>
-                                </div>
-                            ),
+                            label: 'Company / User',
+                            className: 'w-52 max-w-52',
+                            render: (o) => <RecordUserCell row={o} />,
                         },
                         { label: 'Order', render: (o) => <span title={o.id}>{o.reference}</span> },
                         {
                             label: 'Exact amount',
                             render: (o) => (
                                 <span className="tabular-nums">
-                                    {exactAmount(o.amount)} {o.asset}
+                                    {exactAmount(o.amount)} {adminAssetLabel(o.asset)}
                                 </span>
                             ),
                         },
@@ -152,7 +143,7 @@ export default function AssetOrders({
                                               '—'
                                           ) : (
                                               <span className="tabular-nums">
-                                                  {exactAmount(o.fee)} {o.asset}
+                                                  {exactAmount(o.fee)} {adminAssetLabel(o.asset)}
                                               </span>
                                           ),
                                   },
@@ -262,7 +253,7 @@ export default function AssetOrders({
         </PlatformLayout>
     );
 }
-function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
+export function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
     const permissions = usePage<SharedProps>().props.auth.admin?.permissions ?? [];
     const canReview = permissions.includes('withdrawals.review');
     const form = useForm({
@@ -346,7 +337,7 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <h2 className="font-semibold">
-                        {o.company} · {o.asset}
+                        {o.company} · {adminAssetLabel(o.asset)}
                         {o.network ? ` · ${o.network}` : ''}
                     </h2>
                     <p className="mt-1 break-all text-xs text-muted-foreground">{o.id}</p>
@@ -358,7 +349,7 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
                     </p>
                 </div>
                 <p className="break-all text-xl font-semibold">
-                    {exactAmount(o.amount)} {o.asset}
+                    {exactAmount(o.amount)} {adminAssetLabel(o.asset)}
                 </p>
             </div>
             <p className="break-all text-sm">{o.address || '—'}</p>
@@ -386,7 +377,7 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
             )}
             {o.fee !== null && (
                 <p className="text-sm">
-                    {t('Fee')}: {exactAmount(o.fee)} {o.asset}
+                    {t('Fee')}: {exactAmount(o.fee)} {adminAssetLabel(o.asset)}
                 </p>
             )}
             {mode === 'deposit' && (
@@ -543,7 +534,8 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
             )}
             {o.actualReceivedAmount && (
                 <p className="text-sm">
-                    {t('Actual received amount')}: {exactAmount(o.actualReceivedAmount)} {o.asset}
+                    {t('Actual received amount')}: {exactAmount(o.actualReceivedAmount)}{' '}
+                    {adminAssetLabel(o.asset)}
                 </p>
             )}
             {!!o.operations?.length && <ManualOperationHistory operations={o.operations} />}

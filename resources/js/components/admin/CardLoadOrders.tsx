@@ -1,3 +1,4 @@
+import { RecordUserCell, type UserInfo } from '@/components/admin/UserInfoCell';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -6,6 +7,8 @@ import { t, dateTime } from '@/i18n/admin';
 import { displayMoney } from '@/lib/admin-amount';
 import type { AccountPage } from '@/components/shared/PlatformAccountTable';
 export type CardLoadOrder = {
+    userInfo?: UserInfo;
+    userId?: string;
     id: string;
     tenantId: string;
     cardId: string;
@@ -44,8 +47,7 @@ export function CardLoadOrders({
                 <thead>
                     <tr className="border-b text-left">
                         {[
-                            'Tenant',
-                            'User',
+                            'Company / User',
                             'Card',
                             'Requested load',
                             'Actual arrival',
@@ -66,8 +68,9 @@ export function CardLoadOrders({
                 <tbody>
                     {page.data.map((o) => (
                         <tr className="border-b" key={o.id}>
-                            <td className="p-3">{o.companyName}</td>
-                            <td className="p-3">{o.userEmail}</td>
+                            <td className="p-3">
+                                <RecordUserCell row={o} />
+                            </td>
                             <td className="p-3 whitespace-nowrap">{o.maskedPan}</td>
                             <td className="p-3">{money(o.requestedAmount ?? o.amount)}</td>
                             <td className="p-3">

@@ -129,7 +129,7 @@ function ReturnRecord({ claim: c }: { claim: PaidClaim & { accountId: string } }
                     {c.accountId} · {name(c.rank)}
                 </h3>
                 <span>
-                    {exactAmount(c.amount)} {'USDT'} ·{' '}
+                    {exactAmount(c.amount)} {'U'} ·{' '}
                     {t(c.status === 'APPROVED' ? 'Fee returned' : 'Processing')}
                 </span>
             </div>

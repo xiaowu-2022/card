@@ -1,3 +1,4 @@
+import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useForm, useEditor } from '@/components/admin/editor-context';
 import { createContext, useContext, useState, type ReactNode } from 'react';
@@ -266,7 +267,7 @@ function AssetSettingsForm(p: Props) {
                                         className="text-sm text-destructive"
                                     >
                                         {section
-                                            ? `${section.kind === 'tron-rail' || section.kind === 'company-tron' ? 'USDT / TRON' : section.network || section.code || section.asset || t('Platform exchange rates')}: `
+                                            ? `${section.kind === 'tron-rail' || section.kind === 'company-tron' ? 'U / TRON' : section.network || section.code || adminAssetLabel(typeof section.asset === 'string' ? section.asset : '') || t('Platform exchange rates')}: `
                                             : ''}
                                         {errorMessage(message)}
                                     </OperationFeedback>
@@ -302,11 +303,11 @@ function AssetSettingsForm(p: Props) {
                                                         key={asset}
                                                         className="min-w-0 rounded-lg bg-muted/50 px-3 py-2 text-sm"
                                                     >
-                                                        <p className="text-xs text-muted-foreground">{`1 ${asset}`}</p>
+                                                        <p className="text-xs text-muted-foreground">{`1 ${adminAssetLabel(asset)}`}</p>
                                                         <p className="mt-1 break-all font-medium tabular-nums">
                                                             {trim(rate)}{' '}
                                                             <span className="text-xs font-normal text-muted-foreground">
-                                                                USDT
+                                                                U
                                                             </span>
                                                         </p>
                                                     </div>
@@ -326,7 +327,7 @@ function AssetSettingsForm(p: Props) {
                                 </p>
                                 <div className="divide-y overflow-hidden rounded-xl border bg-surface">
                                     <ConfigForm
-                                        title={['USDT', 'TRON (TRC20)'].join(' · ')}
+                                        title={['U', 'TRON (TRC20)'].join(' · ')}
                                         kind="tron-rail"
                                         fields={[
                                             {
@@ -339,7 +340,7 @@ function AssetSettingsForm(p: Props) {
                                     {p.rails.map((r) => (
                                         <ConfigForm
                                             key={r.code}
-                                            title={`${r.asset} · ${r.network === 'ETHEREUM' ? (r.asset === 'ETH' ? 'Ethereum' : 'ERC20') : 'Bitcoin'}`}
+                                            title={`${adminAssetLabel(r.asset)} · ${r.network === 'ETHEREUM' ? (r.asset === 'ETH' ? 'Ethereum' : 'ERC20') : 'Bitcoin'}`}
                                             kind="rail"
                                             fixed={{ code: r.code }}
                                             fields={[
@@ -364,7 +365,7 @@ function AssetSettingsForm(p: Props) {
                                     {t('Deposit and withdrawal networks')}
                                 </h2>
                                 <ConfigForm
-                                    title={['USDT', 'TRON (TRC20)'].join(' · ')}
+                                    title={['U', 'TRON (TRC20)'].join(' · ')}
                                     kind="company-tron"
                                     fields={[
                                         {
@@ -384,7 +385,7 @@ function AssetSettingsForm(p: Props) {
                                     return (
                                         <ConfigForm
                                             key={r.code}
-                                            title={`${r.asset} · ${r.network === 'ETHEREUM' ? (r.asset === 'ETH' ? 'Ethereum' : 'ERC20') : 'Bitcoin'}`}
+                                            title={`${adminAssetLabel(r.asset)} · ${r.network === 'ETHEREUM' ? (r.asset === 'ETH' ? 'Ethereum' : 'ERC20') : 'Bitcoin'}`}
                                             kind="company-rail"
                                             fixed={{ code: r.code }}
                                             fields={[
@@ -426,7 +427,7 @@ function AssetSettingsForm(p: Props) {
                                         return (
                                             <ConfigForm
                                                 key={asset}
-                                                title={`${asset} → USDT`}
+                                                title={`${adminAssetLabel(asset)} → U`}
                                                 kind="exchange"
                                                 fixed={{ asset }}
                                                 fields={[

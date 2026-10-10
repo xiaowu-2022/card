@@ -34,6 +34,7 @@ final readonly class PartnerInvitationReport
             $identities = app(PlatformPartnerIdentity::class)->users($tenant->id, [$user->account_id, ...array_column($details['items'] ?? [], 'accountId')]);
             if ($details !== null) {
                 foreach ($details['items'] as &$item) {
+                    $item['userInfo'] = $identities->get($item['accountId'])?->userInfo;
                     $item['email'] = $identities->get($item['accountId'])?->email;
                     $item['displayName'] = $identities->get($item['accountId'])?->display_name;
                     $item['occurredAt'] = CarbonImmutable::parse($item['occurredAt'])->toIso8601String();

@@ -129,3 +129,72 @@ SupportWorkspace、PlatformAndroidRelease、TenantArticles 测试，使用隔离
 公司状态列直接展示启停开关；无 tenant.manage 权限只读，关闭公司不可切换。
 草稿开启沿用原基础配置检查，正常公司关闭及停用公司开启沿用原生命周期端点。
 切换先确认，成功后更新开关，失败保留原状态，保留列表筛选、分页和滚动。
+
+### 2026-10-10 公司入金拆分
+
+公司列表和顶部汇总将原 USDT 入金拆为“实际入金”和“预支金额”。沿用原有
+CREDITED wallet_topup_orders 统计范围与最终入账金额（actual_received_amount，
+历史空值回退 amount）；manual_receipt_type=ADVANCE 单列预支，其余（包括自动到账
+和历史未分类记录）计入实际入金。两项之和保持原入金总额，出金口径不变。
+汇总使用相同公司/搜索/状态筛选且不受分页限制，两列均沿用原入金读取权限。
+不改余额、账本或历史分类；部署匹配 PHP 与 public/build，无新增迁移或 H5 重编译。
+
+### Shared user information and detail drawer (2026-10-10)
+
+Platform consumer-user identity cells share the Users layout (name, company remark,
+email, company and account ID), including card issue/load/card lists, deposit and
+withdrawal orders, KYC, partners and nested partner report identities. Existing page
+rows are batch-enriched with company-scoped user summaries only for `users.read`.
+Other readers retain their existing limited identity fields without a detail action.
+
+Click opens a lazy, no-store right drawer using
+`GET /platform/tenants/{tenant}/users/{user}/details`. It reuses the Users financial
+projection and action permissions, showing all user-list fields plus phone. Financial
+fields are omitted without their own read permissions. Passwords, tokens, identity
+originals and card secrets are not added to this DTO. Existing KYC, funds, adjustment,
+remark and restriction workflows retain their separate authorization and confirmation.
+The background list, filters and scroll remain mounted; closing restores trigger
+focus. Drawer data is refreshed after Inertia operations. No migration, H5 rebuild,
+provider call or financial write is required for this presentation change.
+
+Validation: the scoped detail/summary, native-precision wallet, funds-drawer and
+partner-hierarchy suites pass (19 tests, 131 assertions). Browser checks cover
+Users, deposit orders, card issue/card lists, KYC and partner lists, including
+nested remark/funds dialogs and return to the list. Expanded legacy suites still
+have two fixtures that fail the newer KYC identity-number requirement before their
+read assertions, plus four existing localization/source-shape assertions (manual
+receipt extraction, KYC Loading copy, partner navigation arrow, KYC upload message).
+These are not waived security checks or changes to KYC rules.
+
+On 2026-10-10 the Users list financial columns became Available balance, Actual
+deposits, Cumulative advances and Withdrawal amount. Deposit totals sum CREDITED
+wallet top-up and asset deposit orders for the exact company/user, using actual
+received amount with legacy amount fallback; ADVANCE is separate from actual/null
+classification. Totals remain decimal strings grouped by original currency and
+require wallet_topups.read. Pending orders and standalone cooperation journal
+entries are excluded. Withdrawals retain the existing successful gross USDT total
+(including fees). Held funds, security deposits and commission remain in user details.
+
+User rows now show a Details action rather than the user-operation dropdown.
+Details opens the shared Customer details drawer; all existing per-user actions
+are rendered as explicit buttons there, with unchanged permission gates. The list
+agent-level cell is read-only; its editor link remains in details. Identity cells
+continue to open the same drawer.
+
+### Customer detail tabs and action footer (2026-10-10)
+
+The shared customer drawer defaults to Basic information. Fund flows, Verification,
+Deposit orders and Withdrawal orders are permission-gated lazy tabs within the same
+drawer. Existing mutation buttons live in a non-scrolling footer; the tab body scrolls
+independently. Embedded fund/KYC views retain their existing read endpoints and document
+password gates without changing the parent list URL. Standalone legacy drawers remain
+available. Customer order tabs use explicit tenant/user-scoped read-only JSON endpoints,
+with users.read plus the corresponding deposit/withdrawal read permission. Order details
+reuse the original review/confirmation controls and scoped mutation endpoints. No schema
+or H5 rebuild is required; deploy PHP/routes and the rebuilt admin assets together.
+
+Enabled partners additionally expose a lazy Partner stock tab in customer details,
+only when the administrator has partners.manage. Resolve the enabled partner ID by
+both company and user on the detail GET, then reuse the existing scoped hierarchy
+stock reader, pagination and descendant drilldowns. Ordinary/disabled partners do
+not expose this tab; report reads recheck enabled status and company scope.

@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Platform;
 use App\Application\Assets\ExportPlatformWithdrawals;
 use App\Application\Assets\PlatformFundsQuery;
 use App\Application\Tenant\PlatformListFilters;
+use App\Application\User\PlatformUserSummary;
 use App\Domain\Assets\ChainObservation;
+use App\Domain\User\Models\User;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -21,6 +23,21 @@ final class FundsOrdersController extends Controller
     public function withdrawals(Request $request, PlatformFundsQuery $query, PlatformListFilters $lists)
     {
         return $this->listing('withdrawal', $request, $query, $lists);
+    }
+
+    public function userOrders(Request $request, string $tenant, string $user, string $mode, PlatformFundsQuery $query)
+    {
+        User::where('tenant_id', $tenant)->whereKey($user)->firstOrFail();
+        $statuses = $mode === 'deposit' ? PlatformFundsQuery::DEPOSIT_STATUSES : PlatformFundsQuery::WITHDRAWAL_STATUSES;
+        $filters = $request->validate([
+            'page' => 'nullable|integer|min:1|max:100000',
+            'status' => ['nullable', 'in:'.implode(',', $statuses)],
+        ]);
+        $filters['company'] = $tenant;
+        $filters['user'] = $user;
+
+        return response()->json(['orders' => $query->paginate($mode, $filters), 'statuses' => $statuses])
+            ->header('Cache-Control', 'private, no-store');
     }
 
     public function exportWithdrawals(Request $request, ExportPlatformWithdrawals $export, PlatformListFilters $lists)
@@ -56,7 +73,7 @@ final class FundsOrdersController extends Controller
         $filters = $this->filters($mode, $request, $lists);
 
         return Inertia::render('platform/AssetOrders', [
-            'mode' => $mode, 'orders' => $query->paginate($mode, $filters),
+            'mode' => $mode, 'orders' => PlatformUserSummary::page($query->paginate($mode, $filters)),
             'companies' => $lists->companies(), 'filters' => $filters, 'statuses' => $statuses,
             // Unassigned chain evidence has no company owner; never mix it into a filtered company list.
             'observations' => $mode === 'deposit' && ! array_filter($filters, fn ($v, $k) => $k !== 'page' && $v !== null && $v !== '', ARRAY_FILTER_USE_BOTH)

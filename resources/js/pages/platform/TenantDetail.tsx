@@ -1,3 +1,4 @@
+import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { displayMoney } from '@/lib/admin-amount';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, Link, router, usePage } from '@inertiajs/react';
@@ -175,7 +176,7 @@ export default function TenantDetail({ tenantRecord: tenant }: { tenantRecord: D
                             </p>
                             <p>
                                 <span className="text-muted-foreground">{t('Default asset:')}</span>{' '}
-                                {tenant.defaultAsset}
+                                {adminAssetLabel(tenant.defaultAsset)}
                             </p>
                             <p>
                                 <span className="text-muted-foreground">{t('Brand:')}</span>{' '}

@@ -296,7 +296,7 @@ function TenantProductEditor({ product, onClose }: { product: Product; onClose: 
                             <p>
                                 {product.openingFee === null
                                     ? t('Not configured')
-                                    : `${displayMoney(product.openingFee)} USDT`}
+                                    : `${displayMoney(product.openingFee)} U`}
                             </p>
                         </div>
                         <FormField

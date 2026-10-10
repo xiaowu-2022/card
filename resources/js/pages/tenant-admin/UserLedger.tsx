@@ -1,3 +1,4 @@
+import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { displayMoney } from '@/lib/admin-amount';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, Link } from '@inertiajs/react';
@@ -74,7 +75,9 @@ export default function UserLedger({ userId, entries }: { userId: string; entrie
                                                     {entry.reference}
                                                 </TableCell>
                                                 <TableCell>{t(entry.eventType)}</TableCell>
-                                                <TableCell>{entry.asset}</TableCell>
+                                                <TableCell>
+                                                    {adminAssetLabel(entry.asset)}
+                                                </TableCell>
                                                 <TableCell className="text-right font-medium tabular-nums">
                                                     {displayMoney(entry.delta)}
                                                 </TableCell>

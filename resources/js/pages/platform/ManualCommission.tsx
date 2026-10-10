@@ -114,7 +114,7 @@ export default function ManualCommission({
                     ].map(([label, value]) => (
                         <div key={label}>
                             <dt className="text-sm text-muted-foreground">{t(label!)}</dt>
-                            <dd>{displayMoney(value!)} USDT</dd>
+                            <dd>{displayMoney(value!)} U</dd>
                         </div>
                     ))}
                 </dl>
@@ -146,7 +146,7 @@ export default function ManualCommission({
                         <p className="rounded bg-muted p-3">
                             {t('Classify historical commission. No funds will move.')}{' '}
                             {classifying.direction === 'DECREASE' ? '−' : '+'}
-                            {displayMoney(classifying.amount)} USDT{' '}
+                            {displayMoney(classifying.amount)} U{' '}
                             <Button
                                 type="button"
                                 variant="ghost"
@@ -199,14 +199,14 @@ export default function ManualCommission({
                     <div className="rounded bg-muted p-3 text-sm">
                         <p>
                             {t('Expected category balance')}:{' '}
-                            {displayMoney(amount(category + adjustment))} USDT
+                            {displayMoney(amount(category + adjustment))} U
                         </p>
                         {!classifying && (
                             <p>
                                 {t('Expected available balance')}:{' '}
-                                {displayMoney(amount(balance + delta))} USDT {' · '}
+                                {displayMoney(amount(balance + delta))} U {' · '}
                                 {t('Expected cumulative net commission')}:{' '}
-                                {displayMoney(amount(total + delta))} USDT
+                                {displayMoney(amount(total + delta))} U
                             </p>
                         )}
                     </div>
@@ -273,7 +273,7 @@ export default function ManualCommission({
                         {
                             label: 'Amount',
                             render: (row) =>
-                                `${row.direction === 'DECREASE' ? '-' : '+'}${displayMoney(row.amount)} USDT`,
+                                `${row.direction === 'DECREASE' ? '-' : '+'}${displayMoney(row.amount)} U`,
                         },
                         {
                             label: 'Category balance',

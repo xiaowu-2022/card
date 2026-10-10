@@ -51,7 +51,7 @@ export function DailyFundsChart({
                             {t(fundsLabels[key])}
                         </span>
                     ))}
-                    <span>USDT</span>
+                    <span>U</span>
                 </div>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -157,7 +157,7 @@ export function DailyFundsChart({
                                     tabIndex={0}
                                     role="button"
                                     className="cursor-crosshair outline-none focus:stroke-primary"
-                                    aria-label={`${day.date}, ${series.map((key) => `${t(fundsLabels[key])} ${exactAmount(day[key] ?? '0')} USDT`).join(', ')}`}
+                                    aria-label={`${day.date}, ${series.map((key) => `${t(fundsLabels[key])} ${exactAmount(day[key] ?? '0')} U`).join(', ')}`}
                                     onMouseEnter={() => setSelected(index)}
                                     onFocus={() => setSelected(index)}
                                     onClick={() => setSelected(index)}
@@ -168,7 +168,7 @@ export function DailyFundsChart({
                                         }
                                     }}
                                 >
-                                    <title>{`${day.date}\n${series.map((key) => `${t(fundsLabels[key])}: ${exactAmount(day[key] ?? '0')} USDT`).join('\n')}`}</title>
+                                    <title>{`${day.date}\n${series.map((key) => `${t(fundsLabels[key])}: ${exactAmount(day[key] ?? '0')} U`).join('\n')}`}</title>
                                 </rect>
                             </g>
                         ))}

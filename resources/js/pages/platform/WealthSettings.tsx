@@ -1,3 +1,4 @@
+import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useForm } from '@/components/admin/editor-context';
 import { Head } from '@inertiajs/react';
@@ -85,7 +86,7 @@ export default function WealthSettings({
                                 className="space-y-4 rounded-xl border bg-surface p-4"
                                 key={s.asset}
                             >
-                                <h2 className="font-semibold">{s.asset}</h2>
+                                <h2 className="font-semibold">{adminAssetLabel(s.asset)}</h2>
                                 <FormField
                                     id={`minimum-${s.asset}`}
                                     label={t('Minimum wealth deposit')}

@@ -1,3 +1,4 @@
+import { RecordUserCell, type UserInfo } from '@/components/admin/UserInfoCell';
 import { useRef, useState } from 'react';
 import type { SharedProps } from '@/types/global';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,8 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 
 type Application = {
+    userInfo?: UserInfo;
+    userId?: string;
     id: string;
     companyName: string;
     companyId: string;
@@ -48,17 +51,9 @@ export default function Kyc({
                     searchLabel={t('Search email, phone or user ID')}
                     statuses={['PENDING', 'APPROVED', 'REJECTED', 'RESUBMISSION_REQUIRED']}
                     columns={[
-                        { label: 'Tenant', render: (row) => row.companyName },
                         {
-                            label: 'User',
-                            render: (row) => (
-                                <div>
-                                    <p className="font-medium">{row.user.displayName ?? '—'}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                        {row.user.contact ?? '—'}
-                                    </p>
-                                </div>
-                            ),
+                            label: 'Company / User',
+                            render: (row) => <RecordUserCell row={row} />,
                         },
                         {
                             label: 'Reference',

@@ -7,11 +7,13 @@ const symbols: Record<string, string> = { USD: '$', EUR: '€', GBP: '£', MYR: 
 export function MoneyDisplay({
     amount,
     asset,
+    assetLabel = asset,
     hideSymbol = false,
     exact = false,
 }: {
     amount: MoneyAmount;
     asset: string;
+    assetLabel?: string;
     compact?: boolean;
     hideSymbol?: boolean;
     exact?: boolean;
@@ -27,7 +29,7 @@ export function MoneyDisplay({
         <span className="tabular-nums">
             {!hideSymbol && (symbols[asset] ?? '')}
             {rendered}
-            {!hideSymbol && !symbols[asset] && ` ${asset}`}
+            {!hideSymbol && !symbols[asset] && ` ${assetLabel}`}
         </span>
     );
 }

@@ -1,3 +1,4 @@
+import { RecordUserCell, type UserInfo } from '@/components/admin/UserInfoCell';
 import { ManualReceiptForm } from '@/components/admin/ManualReceiptForm';
 import { Head, usePage } from '@inertiajs/react';
 import { useState } from 'react';
@@ -16,6 +17,8 @@ import { PlatformAccountTable, type AccountPage } from '@/components/shared/Plat
 import type { SharedProps } from '@/types/global';
 
 type Order = {
+    userInfo?: UserInfo;
+    userId?: string;
     id: string;
     companyId: string;
     companyName: string;
@@ -74,23 +77,10 @@ export default function Topups({ companies, filters, orders }: Props) {
                     'REQUIRES_REVIEW',
                 ]}
                 columns={[
-                    { label: 'Tenant', render: (order) => order.companyName },
                     {
-                        label: 'User',
-                        className: 'w-56 max-w-56',
-                        render: (order) => (
-                            <div className="w-48 max-w-48">
-                                <p className="truncate" title={order.accountId}>
-                                    {order.accountId}
-                                </p>
-                                <p
-                                    className="truncate text-xs text-muted-foreground"
-                                    title={order.userEmail}
-                                >
-                                    {order.userEmail}
-                                </p>
-                            </div>
-                        ),
+                        label: 'Company / User',
+                        className: 'w-52 max-w-52',
+                        render: (order) => <RecordUserCell row={order} />,
                     },
                     { label: 'Order', render: (order) => order.reference },
                     {
@@ -177,7 +167,9 @@ export default function Topups({ companies, filters, orders }: Props) {
                             key={selected.id}
                             amount={selected.amount}
                             asset={selected.asset}
-                            canAdvance={selected.canAdvance && permissions.includes('partners.manage')}
+                            canAdvance={
+                                selected.canAdvance && permissions.includes('partners.manage')
+                            }
                             url={`/platform/tenants/${selected.companyId}/topups/${selected.id}/confirm`}
                             onSuccess={() => setSelected(null)}
                         />

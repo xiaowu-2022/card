@@ -27,7 +27,7 @@ final class PlatformCardQuery
             'loads' => app(AdminCardLoadsQuery::class)->get($company, $search),
             'orders' => $scope(CardIssueOrder::query(), 'card_issue_orders')->paginate(20, ['*'], 'orders_page')->withQueryString()->through(fn (CardIssueOrder $order): array => [
                 'id' => $order->id, 'tenantId' => $order->tenant_id, 'companyName' => $order->company_name,
-                'userEmail' => $order->user_email, 'productName' => $order->product->name,
+                'userId' => $order->user_id, 'userEmail' => $order->user_email, 'productName' => $order->product->name,
                 'openingFee' => $order->opening_fee, 'initialLoadAmount' => $order->initial_load_amount,
                 'asset' => $order->wallet_asset, 'status' => $order->status->value,
                 'requestedAt' => $order->requested_at->toIso8601String(),
@@ -38,7 +38,7 @@ final class PlatformCardQuery
                 'last_transaction_sync_at'
             )->paginate(20, ['*'], 'cards_page')->withQueryString()->through(fn (UserCard $card): array => [
                 'id' => $card->id, 'tenantId' => $card->tenant_id, 'companyName' => $card->company_name,
-                'userEmail' => $card->user_email, 'productName' => $card->product->name,
+                'userId' => $card->user_id, 'userEmail' => $card->user_email, 'productName' => $card->product->name,
                 'maskedPan' => $card->masked_pan, 'currency' => $card->card_currency,
                 'balance' => $card->availableBalance(), 'providerBalance' => $card->provider_balance, 'overflowBalance' => $card->overflowBalance(), 'balanceLimit' => $card->balance_limit, 'effectiveBalanceLimit' => $card->effectiveBalanceLimit(), 'providerStatus' => $card->provider_status, 'formFactor' => $card->form_factor, 'produceStatus' => $card->produce_status, 'trackingNumber' => $card->tracking_number,
                 'balanceUpdatedAt' => $card->provider_balance_synced_at?->toIso8601String(),

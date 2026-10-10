@@ -8,9 +8,11 @@ import { t } from '@/i18n/admin';
 export function CustomerRemarkDialog({
     user,
     onClose,
+    onSaved,
 }: {
     user: { id: string; companyId: string; remark: string | null; remarkRevision: number };
     onClose: () => void;
+    onSaved?: () => void;
 }) {
     const [value, setValue] = useState(user.remark ?? '');
     const [busy, setBusy] = useState(false);
@@ -31,22 +33,25 @@ export function CustomerRemarkDialog({
                     <DialogTitle>{t('Customer remark')}</DialogTitle>
                 </DialogHeader>
                 <form
-                    onSubmit={async (e) => {
+                    onSubmit={(e) => {
                         e.preventDefault();
-                        setBusy(true);
-                        setError(false);
-                        try {
-                            await supportRequest(
-                                `/platform/tenants/${user.companyId}/users/${user.id}/support-remark`,
-                                { remark: value, revision: user.remarkRevision },
-                            );
-                            onClose();
-                            router.reload({ only: ['users'] });
-                        } catch {
-                            setError(true);
-                        } finally {
-                            setBusy(false);
-                        }
+                        void (async () => {
+                            setBusy(true);
+                            setError(false);
+                            try {
+                                await supportRequest(
+                                    `/platform/tenants/${user.companyId}/users/${user.id}/support-remark`,
+                                    { remark: value, revision: user.remarkRevision },
+                                );
+                                onClose();
+                                if (onSaved) onSaved();
+                                else router.reload({ only: ['users'] });
+                            } catch {
+                                setError(true);
+                            } finally {
+                                setBusy(false);
+                            }
+                        })();
                     }}
                     className="space-y-4"
                 >

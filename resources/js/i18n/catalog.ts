@@ -2312,12 +2312,12 @@ export const catalog = {
     ],
     'Withdrawal completed': ['提现完成', 'Pengeluaran selesai', 'Retiro completado'],
     'Card opening fee reserved': [
-        '已预留开卡费',
+        '开卡费',
         'Fi pembukaan kad ditempah',
         'Comisión de apertura reservada',
     ],
     'Initial card funding reserved': [
-        '已预留首次入卡资金',
+        '卡片充值',
         'Dana awal kad ditempah',
         'Fondos iniciales de tarjeta reservados',
     ],

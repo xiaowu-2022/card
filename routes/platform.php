@@ -47,6 +47,7 @@ use App\Http\Controllers\Platform\UserInvitationCodeController;
 use App\Http\Controllers\Platform\UserOperationsController;
 use App\Http\Controllers\Platform\UserPromotionController;
 use App\Http\Controllers\Platform\UserReferrerController;
+use App\Http\Controllers\Platform\UserRestrictionsController;
 use App\Http\Controllers\Platform\WalletAdjustmentController;
 use App\Http\Controllers\Platform\WealthController;
 use App\Http\Middleware\CompanyDirectoryAccess;
@@ -166,10 +167,15 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::post('/tenants/{tenant}/users/{user}/support-agent', [SupportWorkspaceController::class, 'grantUser'])->whereUuid(['tenant', 'user'])->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,support.read', 'admin.scope:platform,support.agents.manage', 'throttle:60,1']);
     Route::post('/tenants/{tenant}/users', UserCreationController::class)->whereUuid('tenant')->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.create', 'throttle:40,1']);
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.restrictions.manage'])->group(function () {
-        Route::get('/tenants/{tenant}/users/{user}/restrictions', [\App\Http\Controllers\Platform\UserRestrictionsController::class, 'show'])->whereUuid(['tenant', 'user']);
-        Route::post('/tenants/{tenant}/users/{user}/restrictions', [\App\Http\Controllers\Platform\UserRestrictionsController::class, 'update'])->whereUuid(['tenant', 'user'])->middleware('throttle:40,1');
+        Route::get('/tenants/{tenant}/users/{user}/restrictions', [UserRestrictionsController::class, 'show'])->whereUuid(['tenant', 'user']);
+        Route::post('/tenants/{tenant}/users/{user}/restrictions', [UserRestrictionsController::class, 'update'])->whereUuid(['tenant', 'user'])->middleware('throttle:40,1');
     });
     Route::middleware('admin.scope:platform,users.read')->get('/users', UserOperationsController::class)->name('users.index');
+    foreach (['deposit' => 'wallet_topups.read', 'withdrawal' => 'withdrawals.read'] as $mode => $permission) {
+        Route::get('/tenants/{tenant}/users/{user}/'.$mode.'-orders', [FundsOrdersController::class, 'userOrders'])
+            ->defaults('mode', $mode)->whereUuid(['tenant', 'user'])
+            ->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,'.$permission]);
+    }
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,ledger.read'])->get('/tenants/{tenant}/users/{user}/funds', UserFundsController::class)->whereUuid(['tenant', 'user'])->name('users.funds');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,kyc.read'])->get('/tenants/{tenant}/users/{user}/kyc', [KycDetailController::class, 'user'])->whereUuid(['tenant', 'user'])->name('users.kyc');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.invitation.manage'])->group(function () {
@@ -189,6 +195,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::get('/tenants/{tenant}/users/{user}/wallet-adjustments', [WalletAdjustmentController::class, 'show'])->whereUuid(['tenant', 'user']);
         Route::post('/tenants/{tenant}/users/{user}/wallet-adjustments', [WalletAdjustmentController::class, 'update'])->middleware('throttle:40,1')->whereUuid(['tenant', 'user']);
     });
+    Route::middleware('admin.scope:platform,users.read')->get('/tenants/{tenant}/users/{user}/details', [UserOperationsController::class, 'show'])->whereUuid(['tenant', 'user']);
     Route::middleware('admin.scope:platform,users.read')->get('/tenants/{tenant}/users/{user}/promotion', [UserPromotionController::class, 'show'])->whereUuid(['tenant', 'user']);
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,promotion_members.manage', 'throttle:40,1'])->post('/tenants/{tenant}/users/{user}/promotion', [UserPromotionController::class, 'update'])->whereUuid(['tenant', 'user']);
     Route::middleware('admin.scope:platform,provider_operation.read')->get('/card-providers', CardProviderController::class)->name('card-providers.index');

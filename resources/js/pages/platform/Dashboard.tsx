@@ -210,7 +210,7 @@ export default function Dashboard({
                                                     className="whitespace-nowrap p-3 text-right"
                                                 >
                                                     {t(reportLabels[key])}{' '}
-                                                    {key === 'overflow' ? '(USD)' : '(USDT)'}
+                                                    {key === 'overflow' ? '(USD)' : '(U)'}
                                                 </th>
                                             ))}
                                         </tr>

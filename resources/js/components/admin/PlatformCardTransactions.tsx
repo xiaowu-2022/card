@@ -1,3 +1,4 @@
+import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { DetailDrawerContent } from '@/components/admin/DetailDrawer';
 import { useEffect, useState } from 'react';
@@ -170,7 +171,9 @@ export function PlatformCardTransactions({
                                                 {item.merchant || '—'}
                                             </TableCell>
                                             <TableCell className="whitespace-nowrap font-medium tabular-nums">
-                                                {transactionMoney(item.amount, item.currency)}
+                                                {adminAssetLabel(
+                                                    transactionMoney(item.amount, item.currency),
+                                                )}
                                             </TableCell>
                                             <TableCell className="whitespace-nowrap tabular-nums">
                                                 {item.feeAmount != null && item.feeCurrency

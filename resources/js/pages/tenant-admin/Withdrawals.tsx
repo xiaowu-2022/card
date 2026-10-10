@@ -1,3 +1,4 @@
+import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { exactAmount } from '@/lib/exact-amount';
 import { displayMoney } from '@/lib/admin-amount';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
@@ -66,13 +67,15 @@ export default function Withdrawals({ orders }: { orders: { data: Order[] } }) {
                                         {order.userId.slice(0, 8)}…
                                     </TableCell>
                                     <TableCell className="font-medium">
-                                        {displayMoney(order.amount)} {order.asset}
+                                        {displayMoney(order.amount)} {adminAssetLabel(order.asset)}
                                     </TableCell>
                                     <TableCell>
-                                        {displayMoney(order.feeAmount)} {order.asset}
+                                        {displayMoney(order.feeAmount)}{' '}
+                                        {adminAssetLabel(order.asset)}
                                     </TableCell>
                                     <TableCell>
-                                        {exactAmount(order.receiveAmount)} {order.asset}
+                                        {exactAmount(order.receiveAmount)}{' '}
+                                        {adminAssetLabel(order.asset)}
                                     </TableCell>
                                     <TableCell>{order.maskedAddress}</TableCell>
                                     <TableCell>
