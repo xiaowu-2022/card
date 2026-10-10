@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { displayMoney } from '@/lib/admin-amount';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import {
@@ -101,9 +102,9 @@ function ReferenceForm({ record, close }: { record: Reference | null; close: () 
                 <p className="text-sm text-muted-foreground">{t('API balances are read-only.')}</p>
             )}
             {Object.entries(form.errors).map(([key, message]) => (
-                <p key={key} role="alert" className="text-sm text-destructive">
+                <OperationFeedback key={key} role="alert" className="text-sm text-destructive">
                     {errorMessage(message)}
-                </p>
+                </OperationFeedback>
             ))}
             <div className="flex justify-end gap-2">
                 <Button

@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { AdminPageLinks, type ListPagination } from '@/components/shared/AdminPageLinks';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -108,14 +109,14 @@ export default function Administrators({ team }: { team: Team }) {
                                             )}
                                         </p>
                                         {(form.errors as Record<string, string>).form && (
-                                            <p
+                                            <OperationFeedback
                                                 role="alert"
                                                 className="text-destructive sm:col-span-2"
                                             >
                                                 {errorMessage(
                                                     (form.errors as Record<string, string>).form,
                                                 )}
-                                            </p>
+                                            </OperationFeedback>
                                         )}
                                         {fields.map(([key, label, type]) => (
                                             <FormField

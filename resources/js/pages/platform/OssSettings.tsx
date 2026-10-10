@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { Head, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { PlatformSettingsLayout } from '@/layouts/PlatformSettingsLayout';
@@ -24,7 +25,10 @@ export default function OssSettings({
     driverRevision: number;
 }) {
     useAdminTranslation();
-    const mode = useForm({ storage_driver: serverStorage ? 'server' : 'oss', expected_revision: driverRevision });
+    const mode = useForm({
+        storage_driver: serverStorage ? 'server' : 'oss',
+        expected_revision: driverRevision,
+    });
     const [modeSaved, setModeSaved] = useState(false);
     const [result, setResult] = useState('');
     const form = useForm({
@@ -74,31 +78,55 @@ export default function OssSettings({
                             'Edit this configuration directly. Test checks the current form without saving; save applies it without a separate activation step.',
                         )}
                     </p>
-                    <form className="mb-6 space-y-3 border-b pb-6" onSubmit={(e) => {
-                        e.preventDefault();
-                        setModeSaved(false);
-                        mode.post('/platform/settings/oss/driver', {
-                            preserveScroll: true,
-                            onSuccess: (page) => {
-                                mode.setData({
-                                    storage_driver: page.props.serverStorage ? 'server' : 'oss',
-                                    expected_revision: page.props.driverRevision as number,
-                                });
-                                setModeSaved(true);
-                            },
-                        });
-                    }}>
-                        <FormField id="storage_driver" label={t('Image storage mode')} error={errorMessage(mode.errors.storage_driver)}>
-                            <select id="storage_driver" className="w-full rounded-md border bg-background p-2"
-                                value={mode.data.storage_driver} disabled={mode.processing || form.processing}
-                                onChange={(e) => { mode.setData('storage_driver', e.target.value); setModeSaved(false); }}>
+                    <form
+                        className="mb-6 space-y-3 border-b pb-6"
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            setModeSaved(false);
+                            mode.post('/platform/settings/oss/driver', {
+                                preserveScroll: true,
+                                onSuccess: (page) => {
+                                    mode.setData({
+                                        storage_driver: page.props.serverStorage ? 'server' : 'oss',
+                                        expected_revision: page.props.driverRevision as number,
+                                    });
+                                    setModeSaved(true);
+                                },
+                            });
+                        }}
+                    >
+                        <FormField
+                            id="storage_driver"
+                            label={t('Image storage mode')}
+                            error={errorMessage(mode.errors.storage_driver)}
+                        >
+                            <select
+                                id="storage_driver"
+                                className="w-full rounded-md border bg-background p-2"
+                                value={mode.data.storage_driver}
+                                disabled={mode.processing || form.processing}
+                                onChange={(e) => {
+                                    mode.setData('storage_driver', e.target.value);
+                                    setModeSaved(false);
+                                }}
+                            >
                                 <option value="server">{t('Local server')}</option>
                                 <option value="oss">{t('OSS')}</option>
                             </select>
                         </FormField>
-                        <p className="text-sm text-muted-foreground">{t('The saved mode applies to new uploads. Existing image records and OSS settings are retained.')}</p>
-                        <Button type="submit" disabled={mode.processing || form.processing}>{t('Save storage mode')}</Button>
-                        {modeSaved && <p role="status" className="text-sm text-emerald-700">{t('Storage mode saved.')}</p>}
+                        <p className="text-sm text-muted-foreground">
+                            {t(
+                                'The saved mode applies to new uploads. Existing image records and OSS settings are retained.',
+                            )}
+                        </p>
+                        <Button type="submit" disabled={mode.processing || form.processing}>
+                            {t('Save storage mode')}
+                        </Button>
+                        {modeSaved && (
+                            <OperationFeedback kind="success">
+                                {t('Storage mode saved.')}
+                            </OperationFeedback>
+                        )}
                     </form>
                     <form
                         className="space-y-4"
@@ -138,14 +166,10 @@ export default function OssSettings({
                                 </FormField>
                             );
                         })}
-                        <p role="alert" className="text-sm text-destructive">
+                        <OperationFeedback role="alert" className="text-sm text-destructive">
                             {errorMessage((form.errors as Record<string, string>).form)}
-                        </p>
-                        {result && (
-                            <p role="status" className="text-sm text-emerald-700">
-                                {result}
-                            </p>
-                        )}
+                        </OperationFeedback>
+                        {result && <OperationFeedback kind="success">{result}</OperationFeedback>}
                         <div className="flex gap-3">
                             <Button
                                 type="button"

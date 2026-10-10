@@ -21,6 +21,8 @@ use Throwable;
 /** Read-only mainnet USDT. Never signs, posts Ledger or falls back to Mock. */
 final class TronGridBlockchainGateway implements BlockchainGatewayInterface, Trc20ChainReader
 {
+    public const RUNTIME_REVISION = '2026-10-10-api-key-shared-backoff';
+
     public const TOKEN = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 
     private const TOKEN_HEX = 'a614f803b6fd780986a42c78ec9c7f77e6ded13c';
@@ -30,6 +32,12 @@ final class TronGridBlockchainGateway implements BlockchainGatewayInterface, Trc
     private const BASE = 'https://api.trongrid.io';
 
     private const BACKOFF_KEY = 'trc20:trongrid:backoff:v1';
+
+    /** Local transport metadata only; does not issue an upstream request or clear backoff. */
+    public function cooldownRemainingSeconds(): int
+    {
+        return max(0, (int) Cache::get(self::BACKOFF_KEY.':until', 0) - now()->timestamp);
+    }
 
     public function available(): bool
     {

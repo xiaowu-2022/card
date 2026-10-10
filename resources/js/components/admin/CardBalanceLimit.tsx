@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useState } from 'react';
 import { useForm } from '@inertiajs/react';
 import { t } from '@/i18n/admin';
@@ -63,9 +64,9 @@ export function CardBalanceLimit({
                             )}
                         </p>
                         {form.errors.balance_limit && (
-                            <p role="alert" className="text-sm text-destructive">
+                            <OperationFeedback role="alert" className="text-sm text-destructive">
                                 {t(form.errors.balance_limit)}
-                            </p>
+                            </OperationFeedback>
                         )}
                         <Button disabled={form.processing}>{t('Save')}</Button>
                     </form>

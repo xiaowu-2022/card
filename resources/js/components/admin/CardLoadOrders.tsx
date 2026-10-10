@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Link, router } from '@inertiajs/react';
@@ -35,9 +36,9 @@ export function CardLoadOrders({
     return (
         <div className="rounded-xl border bg-background overflow-x-auto">
             {error && (
-                <p role="alert" className="p-3 text-destructive">
+                <OperationFeedback role="alert" className="p-3 text-destructive">
                     {t(error)}
-                </p>
+                </OperationFeedback>
             )}
             <table className="w-full text-sm">
                 <thead>

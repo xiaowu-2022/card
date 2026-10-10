@@ -160,11 +160,6 @@ function ArticleEditor({
                 {form.isDirty && (
                     <span className="text-sm text-muted-foreground">{t('Unsaved changes')}</span>
                 )}
-                {form.recentlySuccessful && (
-                    <span className="text-sm text-success" role="status">
-                        {t('Article saved.')}
-                    </span>
-                )}
             </div>
         </ConfigurationForm>
     );

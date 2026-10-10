@@ -1,4 +1,5 @@
 import '../css/app.css';
+import { OperationResultHost } from '@/components/admin/OperationResultHost';
 import { createInertiaApp } from '@inertiajs/react';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from '@/components/ui/toast';
@@ -24,6 +25,7 @@ void createInertiaApp({
             <>
                 <App {...props} />
                 <Toaster />
+                <OperationResultHost />
             </>,
         );
     },

@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useForm } from '@/components/admin/editor-context';
 import { InvitationPosterSettings } from '@/components/admin/InvitationPosterSettings';
 import { Head, Link } from '@inertiajs/react';
@@ -46,9 +47,13 @@ function Tariffs({ levels, base }: { levels: PaidLevel[]; base: string }) {
                 <Button disabled={form.processing || !dirty.length}>{t('Save all changes')}</Button>
             </div>
             {Object.values(form.errors).map((error, i) => (
-                <p key={i} role="alert" className="px-4 py-2 text-sm text-destructive">
+                <OperationFeedback
+                    key={i}
+                    role="alert"
+                    className="px-4 py-2 text-sm text-destructive"
+                >
                     {errorMessage(error)}
-                </p>
+                </OperationFeedback>
             ))}
             <div className="overflow-x-auto">
                 <table className="w-full min-w-[720px] text-left text-sm">

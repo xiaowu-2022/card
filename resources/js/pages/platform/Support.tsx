@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
@@ -183,7 +184,8 @@ export default function Support({ inbox, chat, companies, filters, supportName }
                                 >
                                     {chat.email}
                                 </p>
-                                <SupportThread quickReplyUrl={`/platform/tenants/${chat.tenantId}/support/replies`}
+                                <SupportThread
+                                    quickReplyUrl={`/platform/tenants/${chat.tenantId}/support/replies`}
                                     key={chat.tenantId + ':' + chat.userId}
                                     chat={chat}
                                     admin
@@ -287,7 +289,11 @@ function StartConversation({ companies }: Pick<Props, 'companies'>) {
                 }}
             />
             <Button disabled={!company || !search.trim() || busy}>{t('Search')}</Button>
-            {failed && <p role="alert">{t('Unable to complete this request.')}</p>}
+            {failed && (
+                <OperationFeedback role="alert">
+                    {t('Unable to complete this request.')}
+                </OperationFeedback>
+            )}
             {users && (
                 <div className="max-h-72 overflow-y-auto">
                     {users.map((u) => (

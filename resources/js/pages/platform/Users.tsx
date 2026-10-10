@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { UserRestrictionsDialog } from '@/components/admin/UserRestrictionsDialog';
 import { CustomerRemarkDialog } from '@/components/admin/CustomerRemarkDialog';
 import { openAdminEditor } from '@/components/admin/editor-navigation';
@@ -146,7 +147,7 @@ export default function Users({
                 />
             )}
             <div className="space-y-4">
-                {supportError && <p role="alert">{supportError}</p>}
+                {supportError && <OperationFeedback role="alert">{supportError}</OperationFeedback>}
                 <PlatformAccountTable
                     key={JSON.stringify(filters)}
                     companies={companies}

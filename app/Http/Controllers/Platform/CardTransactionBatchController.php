@@ -60,7 +60,7 @@ final class CardTransactionBatchController extends Controller
                 'date_to' => $row->date_to, 'created_at' => $row->created_at,
                 'scope' => $row->card_ids !== null ? 'selected' : ($row->tenant_id ? 'company' : 'all'),
                 'execution_mode' => $row->execution_mode, 'counts' => $values,
-                'status' => $values['pending'] > 0 ? 'RUNNING' : ($values['failed'] > 0 ? 'PARTIAL_FAILED' : 'COMPLETED')];
+                'status' => $this->status($row->execution_mode, $values['pending'], $values['failed'])];
         })])->header('Cache-Control', 'private, no-store');
     }
 
@@ -68,7 +68,7 @@ final class CardTransactionBatchController extends Controller
     {
         $request->validate(['page' => ['sometimes', 'integer', 'min:1']]);
         $row = DB::table('card_transaction_sync_batches')->where('actor_id', $request->user('platform_admin')->id)->where('id', $batch)
-            ->first(['id', 'tenant_id', 'date_from', 'date_to', 'created_at']);
+            ->first(['id', 'tenant_id', 'date_from', 'date_to', 'created_at', 'execution_mode']);
         abort_unless($row, 404);
         $items = DB::table('card_transaction_sync_items')->where('batch_id', $batch);
         $counts = (clone $items)->selectRaw("COUNT(*) AS total,
@@ -84,9 +84,18 @@ final class CardTransactionBatchController extends Controller
                     'card_transaction_sync_items.status', 'error_code', 'next_page'], 'page', $request->integer('page', 1));
 
         return response()->json(['batch' => $row, 'counts' => $counts,
-            'status' => $counts->pending > 0 ? 'RUNNING' : ($counts->failed > 0 ? 'PARTIAL_FAILED' : 'COMPLETED'),
+            'status' => $this->status($row->execution_mode, (int) $counts->pending, (int) $counts->failed),
             'details' => ['items' => $details->items(), 'page' => $details->currentPage(), 'hasMore' => $details->hasMorePages()]])
             ->header('Cache-Control', 'private, no-store');
+    }
+
+    private function status(string $mode, int $pending, int $failed): string
+    {
+        if ($mode !== 'browser' && ($pending > 0 || $failed > 0)) {
+            return 'RETIRED';
+        }
+
+        return $pending > 0 ? 'RUNNING' : ($failed > 0 ? 'PARTIAL_FAILED' : 'COMPLETED');
     }
 
     public function advance(Request $request, string $batch, BatchCardTransactionSync $sync)

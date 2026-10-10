@@ -10,6 +10,7 @@ use App\Application\Card\CreateCardIssueAction;
 use App\Application\Card\CreateCardRecipientAction;
 use App\Application\Card\DTOs\CardManagementInput;
 use App\Application\Card\ManageCardAction;
+use App\Application\Card\PlatformCardQuery;
 use App\Application\Card\PlatformCardTransactionsQuery;
 use App\Application\Card\ProcessCardNotificationAction;
 use App\Application\Card\RecordCardTransactionsAction;
@@ -2729,7 +2730,6 @@ it('bulk syncs every page with Beijing boundaries and resumes without financial 
     $sync->process($id); // Immediate duplicate cannot skip the one-second gate.
     expect(DB::table('card_transaction_sync_items')->where('id', $id)->value('next_page'))->toBe(2);
     $this->travel(2)->seconds();
-    $sync->recover($batch);
     $sync->process($id);
     $sync->process($id); // A completed item never replays.
     $row = DB::table('card_transaction_sync_items')->where('id', $id)->first();
@@ -2859,6 +2859,7 @@ it('selected card sync validates exact scope and persists canonical idempotent s
     [$card, $provider] = transactionReadFixture($this);
     $provider->shouldReceive('issueCard')->once()->andReturnUsing(function ($request) {
         $result = new ProviderCardDTO('XR-SECOND-TRANSACTION-FIXTURE', '', '•••• 8888', '8888', 8, 2029, 'USD', 'normal', false, '20.00000000');
+
         return new ProviderOperationDTO($request->idempotencyKey, ProviderOperationStatus::Succeeded, $result->providerCardId, card: $result);
     });
     $this->holder = phaseTenHolder($this);
@@ -2900,7 +2901,7 @@ it('selected card sync restores progress and reports last success without changi
     $before = LedgerEntry::count();
     $wallet = phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance;
     $provider->shouldReceive('getTransactionPage')->once()->andReturn(new ProviderTransactionPageDTO([], 1, false));
-    $query = app(\App\Application\Card\PlatformCardQuery::class);
+    $query = app(PlatformCardQuery::class);
     expect($query->get($this->tenant->id)['cards']->items()[0]['lastTransactionSyncAt'])->toBeNull();
     $sync->process($item);
     $last = $query->get($this->tenant->id)['cards']->items()[0]['lastTransactionSyncAt'];
@@ -2925,6 +2926,7 @@ it('browser sync advances one checkpoint at a time and never dispatches queue wo
     $calls = 0;
     $provider->shouldReceive('getTransactionPage')->twice()->andReturnUsing(function ($id, $page) use (&$calls) {
         $calls++;
+
         return new ProviderTransactionPageDTO([
             new ProviderCardTransactionDTO('BROWSER-'.$page, '1.00000000', 'USD', 'purchase', 'completed', '2026-10-03T12:00:00', null),
         ], $page, $page === 1);
@@ -2934,8 +2936,6 @@ it('browser sync advances one checkpoint at a time and never dispatches queue wo
     $batch = $this->actingAs($actor, 'platform_admin')->postJson($base, transactionBatchInput($this) + ['card_ids' => [$card->id]])->assertAccepted()->json('id');
     $sync = app(BatchCardTransactionSync::class);
     $item = DB::table('card_transaction_sync_items')->where('batch_id', $batch)->value('id');
-    $sync->recover($batch);
-    (new \App\Jobs\SyncCardTransactionPage($item))->handle($sync);
     $this->getJson($base)->assertOk()->assertJsonPath('items.0.execution_mode', 'browser');
     $this->getJson($base.'/'.$batch)->assertOk()->assertJsonPath('counts.pages', 0);
     expect($calls)->toBe(0);
@@ -2968,3 +2968,37 @@ it('browser sync leaves rate limit backoff persisted for manual continuation wit
     expect($sync->advance($actor, $batch)['status'])->toBe('COMPLETED');
     Queue::assertNothingPushed();
 });
+
+it('retires legacy queue sync without changing historical checkpoints or dispatching jobs', function (string $status) {
+    $this->travelTo(CarbonImmutable::parse('2026-10-10T08:00:00+08:00'));
+    [$card, $provider] = transactionReadFixture($this);
+    $provider->shouldNotReceive('getTransactionPage');
+    Queue::fake();
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $sync = app(BatchCardTransactionSync::class);
+    $input = transactionBatchInput($this) + ['card_ids' => [$card->id]];
+    $batch = $sync->create($actor, $input);
+    DB::table('card_transaction_sync_batches')->where('id', $batch)->update(['execution_mode' => 'queue']);
+    DB::table('card_transaction_sync_items')->where('batch_id', $batch)->update(['status' => $status, 'next_page' => 3, 'pages_processed' => 2]);
+    $item = DB::table('card_transaction_sync_items')->where('batch_id', $batch)->first();
+    $before = (array) $item;
+    $entries = LedgerEntry::count();
+    $accounts = DB::table('card_transaction_sync_accounts')->get()->toJson();
+    $audits = AuditLog::count();
+    $sync->process($item->id); // Also rejects a call from an old still-present serialized handler.
+    $base = 'http://admin.localhost/platform/card-transaction-batches';
+    $this->actingAs($actor, 'platform_admin')->getJson($base)->assertOk()
+        ->assertJsonPath('items.0.status', 'RETIRED')->assertJsonPath('items.0.execution_mode', 'queue');
+    $this->getJson($base.'/'.$batch)->assertOk()->assertJsonPath('status', 'RETIRED')->assertJsonPath('counts.pages', 2);
+    $this->postJson($base.'/'.$batch.'/advance')->assertStatus(409);
+    $this->postJson($base.'/'.$batch.'/retry')->assertStatus(409);
+    // Replaying the original request retains its binding; it never creates a replacement task.
+    $this->postJson($base, $input)->assertAccepted()->assertJsonPath('id', $batch);
+    expect((array) DB::table('card_transaction_sync_items')->where('id', $item->id)->first())->toBe($before)
+        ->and(DB::table('card_transaction_sync_accounts')->get()->toJson())->toBe($accounts)
+        ->and(LedgerEntry::count())->toBe($entries)->and(AuditLog::count())->toBe($audits);
+    Queue::assertNothingPushed();
+    expect(array_key_exists('cards:recover-transaction-sync', Artisan::all()))->toBeFalse();
+    $commands = collect(app(Schedule::class)->events())->pluck('command')->implode('\n');
+    expect($commands)->not->toContain('cards:recover-transaction-sync')->toContain('topups:scan-trc20');
+})->with(['PENDING', 'FAILED']);

@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useForm, useEditor } from '@/components/admin/editor-context';
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { dateTime } from '@/i18n';
@@ -246,22 +247,29 @@ function AssetSettingsForm(p: Props) {
                                 </Button>
                             </div>
                             {Object.keys(form.errors).length > 0 && (
-                                <p role="alert" className="font-semibold text-destructive">
+                                <OperationFeedback
+                                    role="alert"
+                                    className="font-semibold text-destructive"
+                                >
                                     {t(
                                         'Save failed. No changes were saved. Your entries remain below; correct the errors and save again.',
                                     )}
-                                </p>
+                                </OperationFeedback>
                             )}
                             {Object.entries(form.errors).map(([key, message]) => {
                                 const match = /^sections\.(\d+)\./.exec(key);
                                 const section = match ? requestSections[Number(match[1])] : null;
                                 return (
-                                    <p key={key} role="alert" className="text-sm text-destructive">
+                                    <OperationFeedback
+                                        key={key}
+                                        role="alert"
+                                        className="text-sm text-destructive"
+                                    >
                                         {section
                                             ? `${section.kind === 'tron-rail' || section.kind === 'company-tron' ? 'USDT / TRON' : section.network || section.code || section.asset || t('Platform exchange rates')}: `
                                             : ''}
                                         {errorMessage(message)}
-                                    </p>
+                                    </OperationFeedback>
                                 );
                             })}
                         </div>
@@ -517,9 +525,13 @@ function ConfigForm({
                     ))}
                 </div>
                 {context.errorsFor(data).map((message, i) => (
-                    <p key={i} role="alert" className="text-sm text-destructive lg:col-span-2">
+                    <OperationFeedback
+                        key={i}
+                        role="alert"
+                        className="text-sm text-destructive lg:col-span-2"
+                    >
                         {message}
-                    </p>
+                    </OperationFeedback>
                 ))}
             </section>
         );
@@ -564,13 +576,13 @@ function ConfigForm({
                     </p>
                 )}
                 {context.errorsFor(data).map((message, i) => (
-                    <p
+                    <OperationFeedback
                         key={i}
                         role="alert"
                         className="col-span-2 text-sm text-destructive lg:col-span-3"
                     >
                         {message}
-                    </p>
+                    </OperationFeedback>
                 ))}
             </section>
         );
@@ -579,9 +591,9 @@ function ConfigForm({
         <section className="space-y-4 rounded-xl border bg-surface p-4">
             <h2 className="font-semibold">{t(title)}</h2>
             {context.errorsFor(data).map((message, i) => (
-                <p key={i} role="alert" className="text-sm text-destructive">
+                <OperationFeedback key={i} role="alert" className="text-sm text-destructive">
                     {message}
-                </p>
+                </OperationFeedback>
             ))}
             {extra && <p className="text-xs text-muted-foreground">{extra}</p>}
             <div className="grid gap-4 md:grid-cols-2">

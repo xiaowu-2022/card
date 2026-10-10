@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -69,7 +70,7 @@ export function QuickReplyPicker({
                         />
                         <Button disabled={busy}>{t('Search')}</Button>
                     </form>
-                    {error && <p role="alert">{error}</p>}
+                    {error && <OperationFeedback role="alert">{error}</OperationFeedback>}
                     <div className="max-h-[50vh] space-y-2 overflow-y-auto">
                         {data?.data.map((row) => (
                             <button

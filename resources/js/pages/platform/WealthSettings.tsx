@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useForm } from '@/components/admin/editor-context';
 import { Head } from '@inertiajs/react';
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
@@ -151,9 +152,13 @@ export default function WealthSettings({
                         ))}
                     </fieldset>
                     {Object.values(form.errors).map((e, i) => (
-                        <p key={i} role="alert" className="text-sm text-destructive">
+                        <OperationFeedback
+                            key={i}
+                            role="alert"
+                            className="text-sm text-destructive"
+                        >
                             {errorMessage(e)}
-                        </p>
+                        </OperationFeedback>
                     ))}
                     {!readOnly && <Button disabled={form.processing}>{t('Save settings')}</Button>}
                 </form>

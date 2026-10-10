@@ -1,3 +1,4 @@
+import { showOperationResult } from '@/components/admin/operation-result';
 import { useEditor } from '@/components/admin/editor-context';
 import { companyEditor } from '@/components/admin/company-settings';
 export class SupportRequestError extends Error {
@@ -29,7 +30,9 @@ export async function supportRequest<T>(url: string, data?: object, company?: st
     if (!response.ok || response.redirected) {
         throw new SupportRequestError(response.status, 'Unable to save. Refresh and try again.');
     }
-    return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
+    const result = response.status === 204 ? (undefined as T) : ((await response.json()) as T);
+    if (data) showOperationResult('success', 'Request completed.');
+    return result;
 }
 
 export function useSupportRequest() {

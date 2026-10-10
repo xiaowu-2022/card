@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEffect, useState, type RefObject } from 'react';
 import {
     Dialog,
@@ -99,7 +100,9 @@ export function KycApplicationDialog({
                 <div className="min-h-0 flex-1 overflow-y-auto">
                     {failed ? (
                         <div role="alert" className="space-y-3">
-                            <p>{t('Unable to load. Please retry.')}</p>
+                            <OperationFeedback>
+                                {t('Unable to load. Please retry.')}
+                            </OperationFeedback>
                             <Button onClick={() => setRevision((value) => value + 1)}>
                                 {t('Retry')}
                             </Button>

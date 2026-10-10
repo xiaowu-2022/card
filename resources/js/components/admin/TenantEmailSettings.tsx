@@ -1,7 +1,8 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useForm } from '@/components/admin/editor-context';
 import { ConfigurationForm } from '@/components/admin/CompanyConfiguration';
 import { t, useAdminTranslation, errorMessage } from '@/i18n/admin';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/form-field';
@@ -86,9 +87,9 @@ export function TenantEmailSettings({
                         />
                     </FormField>
                     {problem && (
-                        <Alert className="border-red-200 bg-red-50 text-red-800">
+                        <OperationFeedback className="border-red-200 bg-red-50 text-red-800">
                             <AlertDescription>{errorMessage(problem)}</AlertDescription>
-                        </Alert>
+                        </OperationFeedback>
                     )}
                     <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
                         <div>
@@ -262,9 +263,9 @@ export function CompanyEmailTest({
                         )}
                     </p>
                     {testProblem && (
-                        <Alert className="border-red-200 bg-red-50 text-red-800">
+                        <OperationFeedback className="border-red-200 bg-red-50 text-red-800">
                             <AlertDescription>{errorMessage(testProblem)}</AlertDescription>
-                        </Alert>
+                        </OperationFeedback>
                     )}
                     <div className="grid gap-5 sm:grid-cols-2">
                         <FormField

@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEffect } from 'react';
 import { useForm } from '@inertiajs/react';
 import { Input } from '@/components/ui/input';
@@ -39,9 +40,9 @@ export function SupportProfile({
                 {t('Save nickname')}
             </Button>
             {Object.values(form.errors).map((e, i) => (
-                <span key={i} role="alert" className="text-sm text-destructive">
+                <OperationFeedback key={i} role="alert" className="text-sm text-destructive">
                     {errorMessage(e)}
-                </span>
+                </OperationFeedback>
             ))}
         </form>
     );

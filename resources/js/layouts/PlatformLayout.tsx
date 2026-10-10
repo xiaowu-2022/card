@@ -21,7 +21,6 @@ import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { AppMark } from '@/components/shared/AppMark';
 import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
     Sheet,
     SheetContent,
@@ -178,7 +177,7 @@ export type PlatformLayoutProps = {
 export function PlatformLayout({ children, title, description, actions }: PlatformLayoutProps) {
     useLocaleSync();
     useAdminTranslation();
-    const { auth, flash } = usePage<SharedProps>().props;
+    const { auth } = usePage<SharedProps>().props;
     const editor = useEditor();
     if (editor)
         return (
@@ -249,11 +248,6 @@ export function PlatformLayout({ children, title, description, actions }: Platfo
                         </div>
                     </header>
                     <main data-platform-content className="min-w-0 space-y-4 p-5 lg:ml-64">
-                        {flash.success && (
-                            <Alert className="border-emerald-200 bg-emerald-50">
-                                <AlertDescription>{t(flash.success)}</AlertDescription>
-                            </Alert>
-                        )}
                         {description && (
                             <p className="text-sm text-muted-foreground">{description}</p>
                         )}

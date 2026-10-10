@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEffect, useState, type RefObject } from 'react';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { DetailDrawerContent } from './DetailDrawer';
@@ -120,7 +121,9 @@ export function UserKycDrawer({
                         <p role="status">{t('Loading…')}</p>
                     ) : failed ? (
                         <div role="alert" className="space-y-3">
-                            <p>{t('Unable to load. Please retry.')}</p>
+                            <OperationFeedback>
+                                {t('Unable to load. Please retry.')}
+                            </OperationFeedback>
                             <Button onClick={() => setRetry((n) => n + 1)}>{t('Retry')}</Button>
                         </div>
                     ) : (

@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -66,9 +67,9 @@ export function UserRestrictionsDialog({
                     {user.companyName} · {user.accountId} · {user.email}
                 </p>
                 {error && (
-                    <p role="alert" className="text-sm text-red-700">
+                    <OperationFeedback role="alert" className="text-sm text-red-700">
                         {t(error)}
-                    </p>
+                    </OperationFeedback>
                 )}
                 {!value ? (
                     <p>{t('Loading…')}</p>

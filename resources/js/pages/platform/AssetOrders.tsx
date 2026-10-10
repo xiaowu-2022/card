@@ -1,3 +1,5 @@
+import { showOperationResult } from '@/components/admin/operation-result';
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { ManualReceiptForm } from '@/components/admin/ManualReceiptForm';
 import { WithdrawalExport } from '@/components/admin/WithdrawalExport';
 import { DetailDrawerContent } from '@/components/admin/DetailDrawer';
@@ -331,6 +333,7 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
             )
                 throw Error();
             setAddress(data.address);
+            showOperationResult('success', 'Request completed.');
             setPassword('');
             setTimeout(() => setAddress(null), 30000);
         } catch {
@@ -451,9 +454,9 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
                             </p>
                         )}
                         {revealError && (
-                            <p className="text-destructive">
+                            <OperationFeedback className="text-destructive">
                                 {t('Unable to complete this request.')}
-                            </p>
+                            </OperationFeedback>
                         )}
                     </>
                 )}
@@ -545,9 +548,9 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
             )}
             {!!o.operations?.length && <ManualOperationHistory operations={o.operations} />}
             {Object.values(form.errors).map((m, i) => (
-                <p key={i} role="alert" className="text-sm text-destructive">
+                <OperationFeedback key={i} role="alert" className="text-sm text-destructive">
                     {errorMessage(m)}
-                </p>
+                </OperationFeedback>
             ))}
         </section>
     );

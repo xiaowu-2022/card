@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useForm } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -120,7 +121,7 @@ export function CreateUserDialog({
                     {Object.values(form.errors).length > 0 && (
                         <div role="alert" className="text-sm text-red-600">
                             {Object.values(form.errors).map((error, index) => (
-                                <p key={index}>{t(error)}</p>
+                                <OperationFeedback key={index}>{t(error)}</OperationFeedback>
                             ))}
                         </div>
                     )}

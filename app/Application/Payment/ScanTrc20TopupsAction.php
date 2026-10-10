@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class ScanTrc20TopupsAction
 {
+    public const RUNTIME_REVISION = '2026-10-10-grouped-pending-windows';
+
     public function __construct(private BlockchainGatewayInterface $gateway, private ProcessIncomingTrc20TransferAction $process, private ExpireTrc20TopupsAction $expire) {}
 
     /** @return array<string,int> */

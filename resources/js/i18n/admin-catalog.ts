@@ -3,6 +3,18 @@ import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
     'users.restrictions.manage': '管理用户操作限制',
+    'Legacy sync retired': '旧同步任务已停用',
+    'Legacy background sync is retired. Create a new browser sync.':
+        '旧后台同步任务已停用，如需同步请新建任务。',
+    'Sync completed.': '同步完成。',
+    'Sync finished with failed cards. Review the failed cards before retrying.':
+        '同步结束，部分卡片失败。请查看失败记录后重试。',
+    'Export prepared.': '导出文件已生成。',
+    'Operation result': '操作结果',
+    'Operation failed': '操作失败',
+    'Request completed.': '请求已完成。',
+    'Network request failed. Please try again.': '网络请求失败，请重试。',
+    OK: '确定',
     'Operation restrictions': '操作限制',
     'Block withdrawals': '禁止提现',
     'Block deposit refund requests': '禁止申请退保',

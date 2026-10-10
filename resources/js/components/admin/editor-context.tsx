@@ -1,3 +1,4 @@
+import { showOperationResult } from './operation-result';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useForm as useInertiaForm, usePage as useInertiaPage } from '@inertiajs/react';
 import { companyEditor } from './company-settings';
@@ -126,7 +127,7 @@ export function useForm<T extends FormDataType<T>>(data: T | (() => T)) {
                         Array.isArray(value) ? (value[0] ?? 'Unable to save.') : value,
                     ]),
                 );
-                if (errors.form) editor.error(errors.form);
+                showOperationResult('error', Object.values(errors));
                 form.setError(errors as FormDataErrors<T>);
                 options.onError?.(errors);
                 return;

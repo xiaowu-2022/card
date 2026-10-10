@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useForm, usePage } from '@/components/admin/editor-context';
 import { t, errorMessage, useAdminTranslation } from '@/i18n/admin';
 import { useCompanyConfigurationUrl } from '@/hooks/useCompanyConfigurationUrl';
@@ -84,9 +85,9 @@ export function CompanyNotificationProfile({
                             </FormField>
 
                             {(form.errors as Record<string, string>).form && (
-                                <p className="text-sm text-destructive">
+                                <OperationFeedback className="text-sm text-destructive">
                                     {errorMessage((form.errors as Record<string, string>).form)}
-                                </p>
+                                </OperationFeedback>
                             )}
                             <Button disabled={form.processing}>
                                 {t('Save configuration selection')}

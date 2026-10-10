@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEditorRouter } from '@/components/admin/useEditorRouter';
 import { useEditor } from '@/components/admin/editor-context';
 import { useEditorState } from '@/components/admin/useEditorRouter';
@@ -196,9 +197,9 @@ export default function SupportBot({
                     )}
                 </p>
                 {error && (
-                    <p role="alert" className="text-destructive">
+                    <OperationFeedback role="alert" className="text-destructive">
                         {error}
-                    </p>
+                    </OperationFeedback>
                 )}
                 <form
                     className="flex gap-3"
@@ -464,9 +465,9 @@ export default function SupportBot({
                                     )}
                                 </label>
                                 {error && (
-                                    <p role="alert" className="text-destructive">
+                                    <OperationFeedback role="alert" className="text-destructive">
                                         {error}
-                                    </p>
+                                    </OperationFeedback>
                                 )}
                                 <div className="flex justify-end gap-3">
                                     <Button

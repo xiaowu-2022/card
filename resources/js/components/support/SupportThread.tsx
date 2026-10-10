@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { QuickReplyPicker } from './QuickReplyPicker';
 import { supportRequest, SupportRequestError } from './supportRequest';
 import { PreviewImage } from '@/components/shared/PreviewImage';
@@ -198,14 +199,14 @@ export function SupportThread({
                 </p>
             )}
             {finishError && (
-                <p role="alert" className="support-error">
+                <OperationFeedback role="alert" className="support-error">
                     {finishError}
-                </p>
+                </OperationFeedback>
             )}
             {Object.values(transition.errors).map((error) => (
-                <p role="alert" key={error}>
+                <OperationFeedback role="alert" key={error}>
                     {error}
-                </p>
+                </OperationFeedback>
             ))}
             {disconnected && (
                 <p role="status" className="support-error">
@@ -399,11 +400,11 @@ export function SupportThread({
                         }
                     />
                     {(failed || errors.support_image || errors.support_message || errors.form) && (
-                        <p className="support-error" role="alert">
+                        <OperationFeedback className="support-error" role="alert">
                             {errors.support_image
                                 ? t('Use a JPG, PNG or WebP image up to 5 MB and 20 megapixels.')
                                 : t('Message not confirmed. Your draft is kept; please retry.')}
-                        </p>
+                        </OperationFeedback>
                     )}
                     <div className="support-composer-actions">
                         <input

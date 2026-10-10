@@ -1,3 +1,4 @@
+import { showOperationResult } from './operation-result';
 import { usePage } from '@inertiajs/react';
 import { Check, Languages } from 'lucide-react';
 import { useState } from 'react';
@@ -45,8 +46,11 @@ export function AdminLanguageSwitcher() {
             if (!response.ok) throw new Error('Locale preference was not saved');
             // No reload, navigation, form remount, or business request replay.
             configureClientLocale(locale, settings.timezone);
+            showOperationResult('success', 'Saved successfully.');
         } catch {
-            toast.error(t('Unable to change language. Please try again.'));
+            if (settings.surface === 'platform')
+                showOperationResult('error', 'Unable to change language. Please try again.');
+            else toast.error(t('Unable to change language. Please try again.'));
         } finally {
             setPending(false);
         }

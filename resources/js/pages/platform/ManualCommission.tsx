@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { displayMoney } from '@/lib/admin-amount';
 import { useForm, useEditor } from '@/components/admin/editor-context';
 import { Head, router } from '@inertiajs/react';
@@ -223,9 +224,9 @@ export default function ManualCommission({
                         )}
                     </label>
                     {Object.entries(form.errors).map(([key, value]) => (
-                        <p role="alert" className="text-destructive" key={key}>
+                        <OperationFeedback role="alert" className="text-destructive" key={key}>
                             {t(value)}
-                        </p>
+                        </OperationFeedback>
                     ))}
                     <Button disabled={!valid || !form.data.confirmed || form.processing}>
                         {t(classifying ? 'Confirm classification' : 'Confirm adjustment')}

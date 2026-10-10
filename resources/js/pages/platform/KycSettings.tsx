@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { Head, useForm } from '@inertiajs/react';
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
 import { PlatformSettingsLayout } from '@/layouts/PlatformSettingsLayout';
@@ -129,9 +130,9 @@ function KycForm({ policy }: { policy: KycPolicy }) {
                             </FormField>
                         )}
                         {form.errors.enabled && (
-                            <p className="text-sm text-destructive">
+                            <OperationFeedback className="text-sm text-destructive">
                                 {errorMessage(form.errors.enabled)}
-                            </p>
+                            </OperationFeedback>
                         )}
                         <Button
                             disabled={

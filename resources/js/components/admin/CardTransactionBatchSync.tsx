@@ -1,3 +1,5 @@
+import { showOperationResult } from './operation-result';
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEffect, useRef, useState } from 'react';
 import { t, dateTime } from '@/i18n/admin';
 import { Button } from '@/components/ui/button';
@@ -115,11 +117,13 @@ function dayOffset(day: string, offset: number) {
 }
 const statusLabel = (status: string) =>
     t(
-        status === 'RUNNING'
-            ? 'Sync in progress'
-            : status === 'PARTIAL_FAILED'
-              ? 'Sync completed with failures'
-              : 'Sync completed',
+        status === 'RETIRED'
+            ? 'Legacy sync retired'
+            : status === 'RUNNING'
+              ? 'Sync in progress'
+              : status === 'PARTIAL_FAILED'
+                ? 'Sync completed with failures'
+                : 'Sync completed',
     );
 const errorText = (error: unknown) =>
     error instanceof Error && error.name === 'Error'
@@ -297,6 +301,12 @@ export function CardTransactionBatchSync({
                     submitted.current.delete(runningId);
                     statuses.current.set(runningId, result.status);
                     completed.current();
+                    showOperationResult(
+                        result.status === 'COMPLETED' ? 'success' : 'error',
+                        result.status === 'COMPLETED'
+                            ? 'Sync completed.'
+                            : 'Sync finished with failed cards. Review the failed cards before retrying.',
+                    );
                     setRunningId('');
                     return;
                 }
@@ -393,10 +403,10 @@ export function CardTransactionBatchSync({
                     </Button>
                 </div>
                 {runError && (
-                    <p role="alert" className="px-3 pb-3 text-sm text-destructive">
+                    <OperationFeedback role="alert" className="px-3 pb-3 text-sm text-destructive">
                         {t(runError)}{' '}
                         {t('Select Continue sync to retry from the saved checkpoint.')}
-                    </p>
+                    </OperationFeedback>
                 )}
                 {runningId && (
                     <p role="status" className="px-3 pb-3 text-xs text-muted-foreground">
@@ -406,9 +416,9 @@ export function CardTransactionBatchSync({
                     </p>
                 )}
                 {listError && (
-                    <p role="alert" className="px-3 pb-3 text-sm text-destructive">
+                    <OperationFeedback role="alert" className="px-3 pb-3 text-sm text-destructive">
                         {t(listError)}
-                    </p>
+                    </OperationFeedback>
                 )}
                 {loading ? (
                     <p className="p-3" role="status">
@@ -459,6 +469,13 @@ export function CardTransactionBatchSync({
                                                 : statusLabel(batch.status)}
                                         </TableCell>
                                         <TableCell className="min-w-48">
+                                            {batch.status === 'RETIRED' && (
+                                                <p className="text-xs text-muted-foreground">
+                                                    {t(
+                                                        'Legacy background sync is retired. Create a new browser sync.',
+                                                    )}
+                                                </p>
+                                            )}
                                             <progress
                                                 className="h-2 w-full"
                                                 value={batch.counts.total - batch.counts.pending}
@@ -509,20 +526,21 @@ export function CardTransactionBatchSync({
                                                 >
                                                     {t('Details')}
                                                 </Button>
-                                                {batch.counts.failed > 0 && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="secondary"
-                                                        disabled={Boolean(retrying) || busy}
-                                                        onClick={() => void retry(batch.id)}
-                                                    >
-                                                        {t(
-                                                            retrying === batch.id
-                                                                ? 'Retrying…'
-                                                                : 'Retry failed cards',
-                                                        )}
-                                                    </Button>
-                                                )}
+                                                {batch.execution_mode === 'browser' &&
+                                                    batch.counts.failed > 0 && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="secondary"
+                                                            disabled={Boolean(retrying) || busy}
+                                                            onClick={() => void retry(batch.id)}
+                                                        >
+                                                            {t(
+                                                                retrying === batch.id
+                                                                    ? 'Retrying…'
+                                                                    : 'Retry failed cards',
+                                                            )}
+                                                        </Button>
+                                                    )}
                                             </div>
                                         </TableCell>
                                     </TableRow>
@@ -538,7 +556,7 @@ export function CardTransactionBatchSync({
                         </p>
                         {detailError ? (
                             <p role="alert">
-                                {t(detailError)}{' '}
+                                <OperationFeedback>{t(detailError)}</OperationFeedback>
                                 <Button
                                     size="sm"
                                     variant="secondary"
@@ -725,7 +743,7 @@ export function CardTransactionBatchSync({
                         </p>
                         {previewError && (
                             <p role="alert" className="text-sm text-destructive">
-                                {t(previewError)}{' '}
+                                <OperationFeedback>{t(previewError)}</OperationFeedback>
                                 <Button
                                     size="sm"
                                     variant="secondary"
@@ -746,9 +764,9 @@ export function CardTransactionBatchSync({
                             </p>
                         )}
                         {error && (
-                            <p role="alert" className="text-sm text-destructive">
+                            <OperationFeedback role="alert" className="text-sm text-destructive">
                                 {t(error)}
-                            </p>
+                            </OperationFeedback>
                         )}
                         <Button
                             disabled={busy || !preview || !validDates}

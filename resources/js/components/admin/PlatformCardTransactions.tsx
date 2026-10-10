@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { DetailDrawerContent } from '@/components/admin/DetailDrawer';
 import { useEffect, useState } from 'react';
 import { t, useAdminTranslation } from '@/i18n/admin';
@@ -122,9 +123,9 @@ export function PlatformCardTransactions({
                         </p>
                     ) : failed ? (
                         <div role="alert" className="space-y-3 py-6 text-center">
-                            <p className="text-sm">
+                            <OperationFeedback className="text-sm">
                                 {t('Card transactions could not be loaded. Please try again.')}
-                            </p>
+                            </OperationFeedback>
                             <Button
                                 variant="secondary"
                                 onClick={() => setAttempt((value) => value + 1)}

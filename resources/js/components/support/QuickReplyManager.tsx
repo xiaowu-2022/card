@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEditorRouter } from '@/components/admin/useEditorRouter';
 import { useEditor } from '@/components/admin/editor-context';
 import { useEditorState } from '@/components/admin/useEditorRouter';
@@ -204,7 +205,7 @@ export function QuickReplyManager({
                                     {t('Delete this quick reply')}
                                 </label>
                             )}
-                            {error && <p role="alert">{error}</p>}
+                            {error && <OperationFeedback role="alert">{error}</OperationFeedback>}
                             <div className="flex justify-end gap-3">
                                 <Button
                                     type="button"

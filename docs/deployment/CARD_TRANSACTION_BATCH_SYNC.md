@@ -1,6 +1,6 @@
 # 后台按日期同步卡片流水
 
-## 当前模式：浏览器驱动（2026-10-04）
+## 当前模式：浏览器驱动，旧队列已退役（2026-10-10）
 
 新任务无需队列 worker。卡片管理提供行内“同步”、跨页勾选卡片（最多 500 张）及
 整家公司/全部公司同步。选择今天、昨天、近7天或自定义日期，预览范围并确认后，
@@ -23,38 +23,31 @@ UUID 列表。平台全公司范围允许选不同公司的卡，逐卡仍执行
 
 需要部署 `2026_10_04_180000_add_selected_cards_to_transaction_sync_batches` 迁移、
 后端代码及整个 `public/build`。该迁移新增选择范围和执行模式元数据及成功时间查询索引；
-不修改已有流水或资金。新记录使用 `execution_mode=browser`，恢复命令和队列 job 均不会
-执行这种任务。历史记录保留 `queue` 模式，以下 worker 说明仅适用于尚未完成的旧队列任务。
+不修改已有流水或资金。新记录使用 `execution_mode=browser`。
 
-## 发布
+## 发布与旧任务退役（2026-10-10）
 
-部署本次后端代码及 `npm run build` 生成的后台资源，然后执行：
+本次删除 `SyncCardTransactionPage`、`cards:recover-transaction-sync` 命令及其每分钟
+调度，移除所有卡流水队列派发。此前保留历史 queue 执行的说明由本节替代。
+历史批次和检查点原样保留；未完成/失败旧批次显示“旧同步任务已停用”，不能继续或重试。
+需要同步时，由管理员确认范围后新建浏览器任务，不自动转换或重放旧任务。
 
-```sh
-cd /www/wwwroot/card
-/www/server/php/84/bin/php artisan migrate --force
-/www/server/php/84/bin/php artisan queue:restart
-```
+部署顺序：
 
-只有需要继续运行历史 `queue` 模式任务时，才保留以下独立 worker；新浏览器任务不需要：
+1. 停止仅服务 `--queue=card-transaction-sync` 的旧 worker，并取消该进程的自动启动；
+   若部署环境没有该 worker，无需创建。移除外部单独配置的 `cards:recover-transaction-sync`
+   cron（如有），保留项目正常的每分钟 `schedule:run`。
+2. 部署匹配的 PHP 代码和整个 `public/build`；覆盖式发布还须删除
+   `app/Jobs/SyncCardTransactionPage.php`，不能只覆盖新增/修改文件。
+3. 按正常发布流程刷新 Composer 优化类映射、PHP-FPM/opcache 和常驻 scheduler。
+   本次退役无需新增迁移；仍需已安装上述 2026-10-04 模式迁移。
 
-```sh
-/www/server/php/84/bin/php /www/wwwroot/card/artisan queue:work database --queue=card-transaction-sync --sleep=1 --tries=1 --timeout=60
-```
+不要删除 jobs 表、队列记录、批次、流水或充值订单，也不要停用 `topups:scan-trc20`。
+旧 worker 报 jobs 表不存在与 TronGrid 扫描限流是两个独立问题，创建 jobs 表不是本次修复。
+无需重新打包 App。
 
-数据库队列 `retry_after` 必须大于 60 秒（项目默认 90 秒）。进程管理器须自动重启退出的
-worker，停止宽限期至少 90 秒。多台主机必须共用数据库与支持原子锁的缓存；PostgreSQL
-连接必须支持 session advisory lock，不可通过 transaction-pooling 模式运行该 worker。
-同一卡及同一提供商账户的批量任务使用数据库 session 锁，账户分页调用起始间隔至少一秒。
-
-历史队列模式依赖现有 `schedule:run`；恢复调度只处理 `queue` 执行模式，不创建新批次，也不推进浏览器任务。
-也可手动恢复待处理队列：
-
-```sh
-/www/server/php/84/bin/php /www/wwwroot/card/artisan cards:recover-transaction-sync
-```
-
-部署不会自动同步历史数据。由管理员确认范围后提交。无需重新打包 App。
+同一卡及同一提供商账户的浏览器请求使用数据库 session 锁，账户分页调用起始间隔至少
+一秒。PostgreSQL 连接须支持 session advisory lock，不可使用 transaction-pooling。
 
 ## 日期与进度
 
@@ -67,7 +60,7 @@ worker，停止宽限期至少 90 秒。多台主机必须共用数据库与支�
 卡片集合提交后固定；权限或绑定改变会阻止后续处理。页面显示累计页数及记录写入次数，
 写入次数包含重复读取及重试，不能当作新增流水数。失败卡片可单独重试；手动重试从第一页
 开始，以应对上游分页偏移变化，成功卡片不重跑。普通限流／暂时失败退避 30、120、300 秒。
-worker 中断后的持久化租期为 120 秒，恢复仍从未提交成功的页开始，连续中断四次终止。
+浏览器请求中断后的持久化租期为 120 秒，再次显式继续仍从未提交成功的页开始，连续中断四次终止。
 
 所有写入复用已有按卡／提供商流水号幂等更新及读取起始时间防覆盖规则，不删除旧流水，
 不产生账本、充值、发卡、退款或余额调整。每页流水写入与检查点在同一事务提交。
@@ -78,5 +71,4 @@ worker 中断后的持久化租期为 120 秒，恢复仍从未提交成功的�
 Token、密钥或原始响应。原始请求／返回仍通过 PhotonPay 专用加密日志保存，沿用
 `PHOTONPAY_REQUEST_LOG_ENCRYPTION_KEY` 配置及 `photonpay:request-log` 查询命令。
 权限撤销、绑定变化、分页异常、日期异常、持续上游失败都会在批次中显示失败原因。
-浏览器任务显示“待继续”时需打开卡片页面点击“继续同步”；历史队列任务长期待处理才检查独立 worker、调度器及数据库连接；不要通过删除旧流水
-或重放业务订单修复。
+浏览器任务显示“待继续”时需打开卡片页面点击“继续同步”；旧队列任务已退役，需要时新建浏览器任务。不要通过删除旧流水或重放业务订单修复。

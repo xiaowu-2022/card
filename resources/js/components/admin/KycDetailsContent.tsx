@@ -1,3 +1,5 @@
+import { showOperationResult } from './operation-result';
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { router } from '@inertiajs/react';
 import { readEditorResponse } from './editor-response';
 import { PreviewImage } from '@/components/shared/PreviewImage';
@@ -172,6 +174,7 @@ export function KycDetailsContent({
                         Object.values(data.errors ?? {}).flat()[0] ??
                         'Unable to load. Please retry.',
                 );
+            showOperationResult('success', 'Request completed.');
             setIdentityNumber('');
             if (onChanged) onChanged(data.applicationId ?? application.id);
             else router.reload();
@@ -279,9 +282,9 @@ export function KycDetailsContent({
                             )}
                         </div>
                         {error && (
-                            <p role="alert" className="text-red-600">
+                            <OperationFeedback role="alert" className="text-red-600">
                                 {error}
-                            </p>
+                            </OperationFeedback>
                         )}
                     </section>
                 )}
@@ -318,9 +321,9 @@ export function KycDetailsContent({
                         )}
                     </p>
                     {error && (
-                        <p role="alert" className="text-sm text-red-600">
+                        <OperationFeedback role="alert" className="text-sm text-red-600">
                             {error}
-                        </p>
+                        </OperationFeedback>
                     )}
                     <div className="grid grid-cols-2 gap-4">
                         {Object.entries(documents).map(([side, url]) => (

@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useState } from 'react';
 import { useForm } from '@inertiajs/react';
 import { t, errorMessage } from '@/i18n/admin';
@@ -98,9 +99,13 @@ export function ManualReceiptForm({
                         </dd>
                     </dl>
                     {Object.values(form.errors).map((error, i) => (
-                        <p key={i} role="alert" className="text-sm text-destructive">
+                        <OperationFeedback
+                            key={i}
+                            role="alert"
+                            className="text-sm text-destructive"
+                        >
                             {errorMessage(error)}
-                        </p>
+                        </OperationFeedback>
                     ))}
                     <div className="flex justify-end gap-2">
                         <Button

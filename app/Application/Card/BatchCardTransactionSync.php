@@ -12,7 +12,6 @@ use App\Domain\CardProvider\Exceptions\ProviderRateLimitException;
 use App\Domain\CardProvider\Exceptions\ProviderUnavailableException;
 use App\Domain\CardProvider\Exceptions\ProviderUnknownResultException;
 use App\Domain\CardProvider\ProviderReference;
-use App\Jobs\SyncCardTransactionPage;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -113,7 +112,6 @@ final class BatchCardTransactionSync
             app(AuditLogger::class)->record($input['tenant_id'] ?? null, 'ADMIN', $actor->id,
                 'CARD_TRANSACTION_BATCH_CREATED', 'card_transaction_sync_batch', $id, null,
                 ['date_from' => $input['date_from'], 'date_to' => $input['date_to']], $input['request_id']);
-            DB::afterCommit(fn () => $this->recover($id));
 
             return $id;
         });
@@ -130,15 +128,6 @@ final class BatchCardTransactionSync
         }
 
         return $query;
-    }
-
-    public function recover(?string $batch = null): void
-    {
-        DB::table('card_transaction_sync_items')->whereIn('batch_id', DB::table('card_transaction_sync_batches')->where('execution_mode', 'queue')->select('id'))->where('status', 'PENDING')
-            ->where('next_attempt_at', '<=', now()->toIso8601String())
-            ->when($batch, fn ($q) => $q->where('batch_id', $batch))
-            ->orderBy('next_attempt_at')->limit(500)->get(['id'])
-            ->each(fn ($item) => SyncCardTransactionPage::dispatch($item->id)->onConnection('database')->onQueue('card-transaction-sync'));
     }
 
     /** One browser request advances at most one page, using persisted checkpoints. */
@@ -166,6 +155,7 @@ final class BatchCardTransactionSync
         DB::transaction(function () use ($actor, $batch) {
             $row = DB::table('card_transaction_sync_batches')->where('actor_id', $actor->id)->where('id', $batch)->lockForUpdate()->first();
             abort_unless($row, 404);
+            abort_unless($row->execution_mode === 'browser', 409, 'Legacy background sync is retired. Create a new browser sync.');
             // Start failed cards at page one: offset pages may have shifted since failure.
             $count = DB::table('card_transaction_sync_items')->where('batch_id', $batch)->where('status', 'FAILED')->update([
                 'status' => 'PENDING', 'next_page' => 1, 'failures' => 0, 'error_code' => null,
@@ -173,7 +163,6 @@ final class BatchCardTransactionSync
             ]);
             app(AuditLogger::class)->record($row->tenant_id, 'ADMIN', $actor->id,
                 'CARD_TRANSACTION_BATCH_RETRIED', 'card_transaction_sync_batch', $batch, null, ['cards' => $count], $row->request_id);
-            DB::afterCommit(fn () => $this->recover($batch));
         });
     }
 
@@ -189,7 +178,7 @@ final class BatchCardTransactionSync
         try {
             foreach (['card:'.$item->card_id, 'account:'.$item->account_key] as $key) {
                 if (! DB::selectOne('SELECT pg_try_advisory_lock(hashtextextended(?, 0)) AS acquired', ['card-transaction-sync:'.$key])->acquired) {
-                    return; // A later browser step or legacy queue recovery resumes the item.
+                    return; // A later explicit browser step resumes the item.
                 }
                 $locks[] = $key;
             }
@@ -198,6 +187,10 @@ final class BatchCardTransactionSync
                 return;
             }
             $batch = DB::table('card_transaction_sync_batches')->where('id', $item->batch_id)->first();
+            // Old records remain readable, but cannot restart provider work after retirement.
+            if (! $batch || $batch->execution_mode !== 'browser') {
+                return;
+            }
             $context = ['batch_id' => $batch->id, 'request_id' => $batch->request_id,
                 'tenant_id' => $item->tenant_id, 'card_id' => $item->card_id, 'page' => $item->next_page];
             request()->attributes->set('request_id', $batch->request_id);
@@ -272,9 +265,6 @@ final class BatchCardTransactionSync
                     ]);
                 });
                 Log::info('Card transaction batch page completed', $context + ['records_written' => count($items)]);
-                if ($result->hasMore && $batch->execution_mode === 'queue') {
-                    SyncCardTransactionPage::dispatch($id)->onConnection('database')->onQueue('card-transaction-sync')->delay(now()->addSecond());
-                }
             } catch (\Throwable $error) {
                 $transient = $error instanceof ProviderRateLimitException || $error instanceof ProviderUnavailableException || $error instanceof ProviderUnknownResultException;
                 $code = $error instanceof ProviderRateLimitException ? 'provider_rate_limit' : ($transient ? 'provider_read_failed' : 'sync_failed');
@@ -285,9 +275,6 @@ final class BatchCardTransactionSync
                         'next_attempt_at' => now()->addSeconds($delay), 'updated_at' => now(),
                     ]);
                     Log::warning('Card transaction batch page retry scheduled', $context + ['failure' => $code]);
-                    if ($batch->execution_mode === 'queue') {
-                        SyncCardTransactionPage::dispatch($id)->onConnection('database')->onQueue('card-transaction-sync')->delay(now()->addSeconds($delay));
-                    }
                 } else {
                     $this->failed($item, $code, $context);
                 }

@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useState } from 'react';
 import { useForm } from '@inertiajs/react';
 import { t } from '@/i18n/admin';
@@ -96,9 +97,13 @@ export function CardOverflowSpend({
                             {t('I confirm this consumption has occurred.')}
                         </label>
                         {Object.values(form.errors).map((error) => (
-                            <p key={error} role="alert" className="text-sm text-destructive">
+                            <OperationFeedback
+                                key={error}
+                                role="alert"
+                                className="text-sm text-destructive"
+                            >
                                 {t(error)}
-                            </p>
+                            </OperationFeedback>
                         ))}
                         <Button disabled={form.processing || !form.data.confirmed}>
                             {t('Confirm')}

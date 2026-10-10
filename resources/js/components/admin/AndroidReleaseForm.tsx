@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useForm } from '@/components/admin/editor-context';
 import { ConfigurationForm } from '@/components/admin/CompanyConfiguration';
 import { useCompanyConfigurationUrl } from '@/hooks/useCompanyConfigurationUrl';
@@ -81,9 +82,9 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
                             </FormField>
                         )}
                         {release.current?.appId && form.errors.appId && (
-                            <p role="alert" className="text-sm text-destructive">
+                            <OperationFeedback role="alert" className="text-sm text-destructive">
                                 {errorMessage(form.errors.appId)}
-                            </p>
+                            </OperationFeedback>
                         )}
                         <div className="grid gap-4 sm:grid-cols-2">
                             <FormField
@@ -180,9 +181,9 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
                             </label>
                         </FormField>
                         {form.errors.revision && (
-                            <p role="alert" className="text-sm text-destructive">
+                            <OperationFeedback role="alert" className="text-sm text-destructive">
                                 {errorMessage(form.errors.revision)}
-                            </p>
+                            </OperationFeedback>
                         )}
                         <Button type="submit" disabled={form.processing || !form.data.confirmed}>
                             {t(form.processing ? 'Publishing app release…' : 'Publish app release')}

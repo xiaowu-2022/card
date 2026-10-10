@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useForm } from '@/components/admin/editor-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,9 +49,9 @@ export function InvitationPosterSettings({
                 <Button disabled={!form.data.background || form.processing}>{t('Save')}</Button>
             </div>
             {Object.values(form.errors).map((error, i) => (
-                <p role="alert" className="text-sm text-destructive" key={i}>
+                <OperationFeedback role="alert" className="text-sm text-destructive" key={i}>
                     {errorMessage(error)}
-                </p>
+                </OperationFeedback>
             ))}
         </form>
     );

@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { partnerJournalKind } from '@/lib/partner-journal-note';
 import { PartnerHierarchyPanel } from '@/components/admin/PartnerHierarchyPanel';
 import { DetailDrawerContent } from '@/components/admin/DetailDrawer';
@@ -775,7 +776,9 @@ export default function Partners({
                                             </p>
                                         ) : reportError ? (
                                             <div className="space-y-4 py-10" role="alert">
-                                                <p>{t('Unable to load. Please retry.')}</p>
+                                                <OperationFeedback>
+                                                    {t('Unable to load. Please retry.')}
+                                                </OperationFeedback>
                                                 <button
                                                     className="partner-admin-action"
                                                     onClick={() => visit(...reportTarget.current)}
@@ -868,7 +871,7 @@ function Errors({ values }: { values: Record<string, string> }) {
     return (
         <div className="partner-error" role="alert">
             {Object.values(values).map((value, i) => (
-                <p key={i}>{value}</p>
+                <OperationFeedback key={i}>{value}</OperationFeedback>
             ))}
         </div>
     );

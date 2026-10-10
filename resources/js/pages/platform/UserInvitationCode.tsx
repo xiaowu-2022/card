@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useForm } from '@/components/admin/editor-context';
 import { Head } from '@inertiajs/react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
@@ -131,9 +132,9 @@ export default function UserInvitationCode({
                             )}
                         </label>
                         {Object.entries(form.errors).map(([key, value]) => (
-                            <p key={key} role="alert" className="text-destructive">
+                            <OperationFeedback key={key} role="alert" className="text-destructive">
                                 {t(value)}
-                            </p>
+                            </OperationFeedback>
                         ))}
                         <Button
                             disabled={

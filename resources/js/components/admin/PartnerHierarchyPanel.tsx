@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEffect, useRef, useState } from 'react';
 import { PartnerStockReport, type StockReport } from '@/components/user/PartnerStockReport';
 import { t } from '@/i18n/admin';
@@ -93,7 +94,7 @@ export function PartnerHierarchyPanel({
             </h2>
             {failed ? (
                 <div role="alert">
-                    <p>{t('Unable to load. Please retry.')}</p>
+                    <OperationFeedback>{t('Unable to load. Please retry.')}</OperationFeedback>
                     <button
                         className="partner-admin-action"
                         onClick={() => setRetry((value) => value + 1)}

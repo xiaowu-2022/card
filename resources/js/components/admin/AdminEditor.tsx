@@ -1,3 +1,5 @@
+import { showOperationResult } from './operation-result';
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import {
     useCallback,
     useEffect,
@@ -14,7 +16,7 @@ import { EditorContext, useEditor } from './editor-context';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { DetailDrawerContent } from './DetailDrawer';
 import { Button } from '@/components/ui/button';
-import { t, errorMessage } from '@/i18n/admin';
+import { t } from '@/i18n/admin';
 import { readEditorResponse } from './editor-response';
 import { SettingsTabs } from './SettingsTabs';
 import { companyEditor, allowedCompanySettings, companySettingsUrl } from './company-settings';
@@ -46,11 +48,9 @@ function EditorHost({ children }: { children: ReactNode }) {
     const [page, setPage] = useState<Page | null>(null);
     const [Component, setComponent] = useState<ComponentType<Record<string, unknown>> | null>(null);
     const [error, setError] = useState('');
-    const [operationError, setOperationError] = useState('');
     const [loading, setLoading] = useState(false);
     const [busy, setBusy] = useState(false);
     const [retry, setRetry] = useState(0);
-    const [notice, setNotice] = useState('');
     const bodyRef = useRef<HTMLDivElement>(null);
     const [actions, setActions] = useState<
         { node: HTMLButtonElement; label: string; disabled: boolean }[]
@@ -143,8 +143,6 @@ function EditorHost({ children }: { children: ReactNode }) {
         setPage(null);
         setComponent(null);
         setError('');
-        setOperationError('');
-        setNotice('');
         const ticket = ++generation.current;
         if (!url) return;
         setLoading(true);
@@ -296,6 +294,7 @@ function EditorHost({ children }: { children: ReactNode }) {
     }, [Component, url]);
     const saved = useCallback(
         (refreshed?: Page, destination?: string) => {
+            showOperationResult('success', 'Saved successfully.');
             if (destination) {
                 const next = new URL(destination, location.origin);
                 const target = next.searchParams.get('editor');
@@ -307,7 +306,6 @@ function EditorHost({ children }: { children: ReactNode }) {
             }
             if (companyEditor(url)) {
                 if (refreshed) setPage(refreshed);
-                setNotice(t('Saved successfully.'));
                 return;
             }
             states.current.clear();
@@ -332,7 +330,7 @@ function EditorHost({ children }: { children: ReactNode }) {
                       refresh,
                       state,
                       canNavigate: canClose,
-                      error: setOperationError,
+                      error: (message: string) => showOperationResult('error', message),
                       navigate: (next: string) => {
                           if (
                               companyEditor(url) &&
@@ -427,23 +425,10 @@ function EditorHost({ children }: { children: ReactNode }) {
                         className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 [&_button[data-editor-action]]:hidden"
                         scroll-region="true"
                     >
-                        {notice && (
-                            <p role="status" className="mb-4 text-success">
-                                {notice}
-                            </p>
-                        )}
-                        {operationError && (
-                            <p
-                                role="alert"
-                                className="mb-4 rounded border border-destructive p-3 text-destructive"
-                            >
-                                {errorMessage(operationError)}
-                            </p>
-                        )}
                         {loading && <p role="status">{t('Loading…')}</p>}
                         {error && (
                             <div role="alert">
-                                <p>{error}</p>
+                                <OperationFeedback>{error}</OperationFeedback>
                                 <Button
                                     onClick={() => {
                                         setRetry((value) => value + 1);

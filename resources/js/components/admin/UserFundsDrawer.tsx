@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEffect, useState, type RefObject } from 'react';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { DetailDrawerContent } from './DetailDrawer';
@@ -235,7 +236,7 @@ export function UserFundsDrawer({
                                             })
                                         }
                                     >
-                                {t('Reset filters')}
+                                        {t('Reset filters')}
                                     </Button>
                                 </div>
                             </form>
@@ -245,7 +246,7 @@ export function UserFundsDrawer({
                         <p role="status">{t('Loading…')}</p>
                     ) : error ? (
                         <div role="alert" className="space-y-2">
-                            <p>{error}</p>
+                            <OperationFeedback>{error}</OperationFeedback>
                             <Button onClick={() => setRetry((n) => n + 1)}>{t('Retry')}</Button>
                         </div>
                     ) : (

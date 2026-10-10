@@ -1,3 +1,5 @@
+import { showOperationResult } from '@/components/admin/operation-result';
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useState } from 'react';
 import { usePage } from '@inertiajs/react';
 import type { SharedProps } from '@/types/global';
@@ -78,6 +80,7 @@ export function WithdrawalExport({
             link.click();
             link.remove();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
+            showOperationResult('success', 'Export prepared.');
             setOpen(false);
             setConfirmed(false);
         } catch (e) {
@@ -145,9 +148,9 @@ export function WithdrawalExport({
                             </p>
                         )}
                         {error && (
-                            <p role="alert" className="text-sm text-destructive">
+                            <OperationFeedback role="alert" className="text-sm text-destructive">
                                 {t(error)}
-                            </p>
+                            </OperationFeedback>
                         )}
                         <Button
                             type="submit"

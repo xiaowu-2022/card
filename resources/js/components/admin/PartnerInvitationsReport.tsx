@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import {
     invitationLocation,
     initialSelection,
@@ -128,7 +129,7 @@ export function PartnerInvitationsReport({
                 <p role="status">{t('Loading…')}</p>
             ) : error ? (
                 <div role="alert" className="space-y-3">
-                    <p>{error}</p>
+                    <OperationFeedback>{error}</OperationFeedback>
                     <Button onClick={() => setRetry((value) => value + 1)}>{t('Retry')}</Button>
                 </div>
             ) : (
@@ -254,7 +255,9 @@ export function PartnerInvitationsReport({
                                     </TableHeader>
                                     <TableBody>
                                         <TableRow>
-                                            <TableCell>{t('Registered member (not activated)')}</TableCell>
+                                            <TableCell>
+                                                {t('Registered member (not activated)')}
+                                            </TableCell>
                                             <TableCell>
                                                 {report.summary.registeredMembers?.direct ?? 0}
                                             </TableCell>

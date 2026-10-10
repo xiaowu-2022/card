@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useState } from 'react';
 import { router } from '@inertiajs/react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -62,7 +63,11 @@ export function CustomerRemarkDialog({
                     <p className="text-sm text-muted-foreground">
                         {t('Shared within the company. Clear to show the original name.')}
                     </p>
-                    {error && <p role="alert">{t('Unable to save. Refresh and try again.')}</p>}
+                    {error && (
+                        <OperationFeedback role="alert">
+                            {t('Unable to save. Refresh and try again.')}
+                        </OperationFeedback>
+                    )}
                     <div className="flex justify-end gap-2">
                         <Button type="button" variant="secondary" disabled={busy} onClick={close}>
                             {t('Cancel')}

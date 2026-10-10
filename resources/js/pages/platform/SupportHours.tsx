@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEditorRouter } from '@/components/admin/useEditorRouter';
 import { useEditor } from '@/components/admin/editor-context';
 import { useEditorState } from '@/components/admin/useEditorRouter';
@@ -226,7 +227,7 @@ export default function SupportHours({
                                 </Button>
                             </div>
                         ))}
-                        {error && <p role="alert">{error}</p>}
+                        {error && <OperationFeedback role="alert">{error}</OperationFeedback>}
                         <Button disabled={busy || !dirty}>{t('Save')}</Button>
                     </form>
                 )}

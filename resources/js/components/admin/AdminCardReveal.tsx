@@ -1,3 +1,5 @@
+import { showOperationResult } from '@/components/admin/operation-result';
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEffect, useRef, useState } from 'react';
 import { t } from '@/i18n/admin';
 import { Button } from '@/components/ui/button';
@@ -130,7 +132,10 @@ export function AdminCardReveal({
                                             expiry: string;
                                             cvv: string;
                                         };
-                                        if (!controller.signal.aborted) setDetails(value);
+                                        if (!controller.signal.aborted) {
+                                            setDetails(value);
+                                            showOperationResult('success', 'Request completed.');
+                                        }
                                     } catch {
                                         if (!controller.signal.aborted)
                                             setError(
@@ -158,9 +163,9 @@ export function AdminCardReveal({
                         </form>
                     )}
                     {error && (
-                        <p role="alert" className="text-sm text-destructive">
+                        <OperationFeedback role="alert" className="text-sm text-destructive">
                             {error}
-                        </p>
+                        </OperationFeedback>
                     )}
                 </DialogContent>
             </Dialog>

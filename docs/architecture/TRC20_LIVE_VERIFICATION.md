@@ -253,3 +253,27 @@ is not guaranteed. The [official rate-limit guidance](https://developers.tron.ne
 warns that anonymous requests may be restricted or rejected. This change preserves
 the approved anonymous reader and does not activate legacy credentials. Production
 deployment and each reported order's status still require live verification.
+
+## 2026-10-10 production log and read-only runtime diagnosis
+
+The supplied full-day log ends at 12:01 and contains 605 discovery HTTP 429s and
+2 transport failures, with the last recorded scan failure at 11:35. Absence of
+later errors is not proof of settlement. Separately, 722 attempts by the obsolete
+card-transaction recovery command failed because the database jobs table is absent.
+Retiring that card queue does not resolve chain throttling and must not disable the
+deposit scanner. Stack line positions differ from the current gateway/grouped scanner,
+suggesting older runtime code; the log alone cannot establish the current deployment.
+
+Deploy the current gateway, grouped scanner and `config/payment.php` together.
+The operator configures the approved optional `TRONGRID_API_KEY` privately, runs
+`php artisan config:cache`, and reloads FPM/opcache and persistent scheduler processes.
+Keep the minute scheduler and shared persistent cache; do not reset cursors or clear
+cooldowns. A configured key does not guarantee unlimited upstream access.
+
+An optional `php artisan topups:diagnose-trc20` reads the CLI runtime revisions,
+config-cache state, key presence/syntax booleans, cache driver/cooldown, unfinished
+order counts and cursor timestamps. It prints no key, key hash, receiving address,
+order identifier or exception details. It does not contact TronGrid, authenticate
+the key, scan/expire orders, dispatch jobs, bootstrap cursors or change funds.
+CLI output does not establish the state of a separately running FPM/scheduler process.
+The command is for deployment diagnosis only, not proof that any online order arrived.

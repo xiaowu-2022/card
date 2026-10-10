@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { X } from 'lucide-react';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
@@ -238,14 +239,14 @@ function NotificationForm({
                     />
                 </label>
                 {error && (
-                    <p role="alert" className="text-sm text-destructive">
+                    <OperationFeedback role="alert" className="text-sm text-destructive">
                         {error}
-                    </p>
+                    </OperationFeedback>
                 )}
                 {Object.values(form.errors).map((message, i) => (
-                    <p role="alert" key={i} className="text-sm text-destructive">
+                    <OperationFeedback role="alert" key={i} className="text-sm text-destructive">
                         {errorMessage(message)}
-                    </p>
+                    </OperationFeedback>
                 ))}
                 {preview && (
                     <section
@@ -271,9 +272,13 @@ function NotificationForm({
                             {t('I confirm the content and recipients.')}
                         </label>
                         {Object.values(form.errors).map((message, i) => (
-                            <p role="alert" key={i} className="text-sm text-destructive">
+                            <OperationFeedback
+                                role="alert"
+                                key={i}
+                                className="text-sm text-destructive"
+                            >
                                 {errorMessage(message)}
-                            </p>
+                            </OperationFeedback>
                         ))}
                     </section>
                 )}

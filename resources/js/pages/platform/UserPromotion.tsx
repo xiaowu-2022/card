@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { Head, Link } from '@inertiajs/react';
 import { useForm } from '@/components/admin/editor-context';
 import { useEffect } from 'react';
@@ -178,9 +179,13 @@ export default function UserPromotion(p: Props) {
                             <span>{t('I confirm the account and level adjustment.')}</span>
                         </label>
                         {Object.values(form.errors).map((error, i) => (
-                            <p key={i} role="alert" className="text-sm text-red-600">
+                            <OperationFeedback
+                                key={i}
+                                role="alert"
+                                className="text-sm text-red-600"
+                            >
                                 {t(error)}
-                            </p>
+                            </OperationFeedback>
                         ))}
                         <Button
                             disabled={

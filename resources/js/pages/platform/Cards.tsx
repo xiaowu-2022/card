@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import {
     CardTransactionBatchSync,
     type SyncScope,
@@ -203,9 +204,12 @@ export default function Cards({
                             </>
                         )}
                         {refreshError && (
-                            <p role="alert" className="mb-3 text-sm text-destructive">
+                            <OperationFeedback
+                                role="alert"
+                                className="mb-3 text-sm text-destructive"
+                            >
                                 {t(refreshError)}
-                            </p>
+                            </OperationFeedback>
                         )}
                         <PlatformAccountTable
                             key={JSON.stringify(filters)}

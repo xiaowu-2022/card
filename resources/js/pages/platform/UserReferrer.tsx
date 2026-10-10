@@ -1,3 +1,4 @@
+import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEditor } from '@/components/admin/editor-context';
 import { useForm } from '@/components/admin/editor-context';
 import { Head, Link, router } from '@inertiajs/react';
@@ -156,9 +157,9 @@ export default function UserReferrer({
                             )}
                         </label>
                         {Object.entries(form.errors).map(([key, value]) => (
-                            <p key={key} role="alert" className="text-destructive">
+                            <OperationFeedback key={key} role="alert" className="text-destructive">
                                 {t(value)}
-                            </p>
+                            </OperationFeedback>
                         ))}
                         <Button disabled={!target || !form.data.confirmed || form.processing}>
                             {t('Confirm change')}
