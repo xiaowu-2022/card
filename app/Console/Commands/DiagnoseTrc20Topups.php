@@ -24,7 +24,7 @@ final class DiagnoseTrc20Topups extends Command
         $store = (string) config('cache.default');
         $driver = (string) config('cache.stores.'.$store.'.driver');
         $report = [
-            'diagnostic_revision' => '2026-10-10',
+            'diagnostic_revision' => '2026-10-10-recent-orders',
             'runtime' => PHP_SAPI,
             'php_version' => PHP_VERSION,
             'environment' => app()->environment(),
@@ -55,6 +55,13 @@ final class DiagnoseTrc20Topups extends Command
             $report['receiving_address_valid'] = $gateway->available();
             $orders = WalletTopupOrder::query()->where('payment_rail', 'TRC20_SHARED')->where('network_code', 'TRON')
                 ->whereIn('status', ['PENDING', 'PROCESSING', 'PAID']);
+            $cutoff = now()->subHour();
+            $recent = (clone $orders)->where('created_at', '>=', $cutoff);
+            $report['automatic_scan_cutoff'] = $cutoff->toIso8601String();
+            $report['recent_unfinished_orders'] = (clone $recent)->count();
+            $report['outside_automatic_window_orders'] = (clone $orders)->where('created_at', '<', $cutoff)->count();
+            $report['oldest_recent_order_at'] = (clone $recent)->min('created_at');
+            $report['newest_recent_order_at'] = (clone $recent)->max('created_at');
             $report['unfinished_orders'] = (clone $orders)->count();
             $report['oldest_unfinished_order_at'] = (clone $orders)->min('created_at');
             $report['scan_cursors'] = [];
@@ -62,7 +69,8 @@ final class DiagnoseTrc20Topups extends Command
                 $cursor = DB::table('trc20_scan_cursors')->where('id', hash('sha256', 'TRON:USDT:'.$address))
                     ->first(['started_at', 'scanned_through']);
                 $report['scan_cursors'][] = ['address_number' => $index + 1,
-                    'started_at' => $cursor?->started_at, 'scanned_through' => $cursor?->scanned_through];
+                    'started_at' => $cursor?->started_at, 'scanned_through' => $cursor?->scanned_through,
+                    'recent_unfinished_orders' => (clone $recent)->where('deposit_address', $address)->count()];
             }
         } catch (Throwable) {
             // Do not print SQL, bindings, addresses, credentials, or exception chains.

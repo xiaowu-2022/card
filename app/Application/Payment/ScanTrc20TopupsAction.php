@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class ScanTrc20TopupsAction
 {
-    public const RUNTIME_REVISION = '2026-10-10-one-hour-pending-window';
+    public const RUNTIME_REVISION = '2026-10-10-direct-pending-windows';
 
     public function __construct(private BlockchainGatewayInterface $gateway, private ProcessIncomingTrc20TransferAction $process, private ExpireTrc20TopupsAction $expire) {}
 
@@ -23,7 +23,7 @@ final readonly class ScanTrc20TopupsAction
         if (! $this->gateway->available() || $address === '') {
             throw new DomainException('BLOCKCHAIN_MONITOR_UNAVAILABLE', 'Blockchain monitoring is unavailable.', 503);
         }
-        $total = ['CREDITED' => 0, 'PAID' => 0, 'CONFIRMING' => 0, 'UNMATCHED' => 0];
+        $total = ['CREDITED' => 0, 'PAID' => 0, 'CONFIRMING' => 0, 'UNMATCHED' => 0, 'WINDOWS' => 0];
         $failure = null;
         $cutoff = now()->subHour()->toDateTimeImmutable();
         foreach (app(TronDepositConfiguration::class)->addresses() as $receivingAddress) {
@@ -45,8 +45,8 @@ final readonly class ScanTrc20TopupsAction
     /**
      * Public transaction indexes can lag behind solidified receipts. A successful
      * empty index response is not proof that an unfinished order received nothing.
-     * Revisit only that order's already-scanned validity interval, without rewinding
-     * the forward cursor or replaying completed/pre-boundary orders.
+     * Read recent unfinished orders directly through the confirmed head. Saved
+     * progress must never delay new orders behind historical empty windows.
      *
      * @param  array<string,int>  $counts
      * @return array<string,int>
@@ -81,7 +81,9 @@ final readonly class ScanTrc20TopupsAction
                 }
             }
             foreach ($windows as $window) {
-                foreach ($this->gateway->between($address, $window['from'], $window['to']) as $transfer) {
+                $transfers = $this->gateway->between($address, $window['from'], $window['to']);
+                $counts['WINDOWS']++;
+                foreach ($transfers as $transfer) {
                     foreach ($window['orders'] as $order) {
                         // A merged query must never extend an order's validity.
                         if ($transfer->occurredAt < $order->created_at || $transfer->occurredAt > $order->expires_at) {
@@ -99,7 +101,7 @@ final readonly class ScanTrc20TopupsAction
 
     private function scanAddress(string $address, DateTimeImmutable $cutoff): array
     {
-        $counts = ['CREDITED' => 0, 'PAID' => 0, 'CONFIRMING' => 0, 'UNMATCHED' => 0];
+        $counts = ['CREDITED' => 0, 'PAID' => 0, 'CONFIRMING' => 0, 'UNMATCHED' => 0, 'WINDOWS' => 0];
         // A rolling creation-time boundary, shared by every address in this run.
         // Older unresolved orders remain intact for explicit administrator handling.
         $oldest = WalletTopupOrder::query()->where('payment_rail', 'TRC20_SHARED')
@@ -126,14 +128,13 @@ final readonly class ScanTrc20TopupsAction
                 $cursor = DB::table('trc20_scan_cursors')->where('id', $id)->first();
             }
             $start = max($cutoff, new DateTimeImmutable($cursor->started_at));
-            $from = max($start, new DateTimeImmutable($cursor->scanned_through));
-            $safe = $this->gateway->confirmedThrough();
-            $counts = $this->recheckPending($address, $start, min($from, $safe), $counts);
-            if ($safe <= $from) {
+            $to = $this->gateway->confirmedThrough();
+            if ($to <= $start) {
                 return $counts;
             }
-            $to = min($safe, $from->modify('+5 minutes'));
-            $transfers = $this->gateway->between($address, $from, $to);
+            $counts = $this->recheckPending($address, $start, $to, $counts);
+            // Every eligible order window was queried above; no separate historical walk.
+            $transfers = [];
         } else {
             $transfers = $this->gateway->listIncomingUsdtTrc20Transfers($address);
         }
@@ -143,7 +144,8 @@ final readonly class ScanTrc20TopupsAction
         }
         // Full successful window only. Replays after crash/concurrent scans are Ledger-idempotent.
         // No HTTP occurs inside a DB transaction, and uncertainty never advances the checkpoint.
-        if ($cursor && $counts['CONFIRMING'] === 0 && $counts['PAID'] === 0) {
+        if ($cursor && $to >= new DateTimeImmutable($cursor->scanned_through)
+            && $counts['CONFIRMING'] === 0 && $counts['PAID'] === 0) {
             DB::table('trc20_scan_cursors')->where('id', $cursor->id)->where('scanned_through', $cursor->scanned_through)
                 ->update(['scanned_through' => $to->format('Y-m-d H:i:s.uP')]);
             $this->expire->execute($to, $start, $address);

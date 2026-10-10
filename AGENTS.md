@@ -1,3 +1,12 @@
+On 2026-10-10 the user reported automatic TRC20 scans missing deposits that
+Platform automatic verification finds. Scan recent unfinished order validity
+windows directly through the confirmed head, merging overlaps; historical cursors
+must not delay newer orders through five-minute catch-up steps. Retain the one-hour
+creation cutoff, started-at boundary, immutable evidence, exact receipt checks,
+confirmation, scoped idempotent settlement and shared 429 cooldown. Record safe
+per-run window/result counts and expose recent versus older unfinished counts in
+read-only diagnostics. No production financial test or cursor reset.
+
 On 2026-10-10 the user capped automatic TRC20 scanning to unfinished orders
 created within the last hour (inclusive boundary per scan invocation). Apply the
 same cutoff to bootstrap, lookback, forward matching and automatic expiration;

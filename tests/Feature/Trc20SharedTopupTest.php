@@ -41,6 +41,7 @@ use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -502,10 +503,10 @@ it('checkpoints only a fully verified live scan window and leaves pre-start orde
     $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
     $gateway->shouldReceive('available')->andReturn(true);
     $gateway->shouldReceive('confirmedThrough')->andReturn($end);
-    $gateway->shouldReceive('between')->once()->andReturn([trc20Transfer($order, 20, overrides: ['occurred_at' => $start->addSecond()])]);
+    $gateway->shouldNotReceive('between');
     $this->app->instance(BlockchainGatewayInterface::class, $gateway);
     $counts = app(ScanTrc20TopupsAction::class)->execute();
-    expect($counts['UNMATCHED'])->toBe(1)->and($order->fresh()->status)->toBe(WalletTopupStatus::Pending)
+    expect($counts['UNMATCHED'])->toBe(0)->and($order->fresh()->status)->toBe(WalletTopupStatus::Pending)
         ->and(new DateTimeImmutable(DB::table('trc20_scan_cursors')->value('scanned_through')))->toEqual($end);
 });
 
@@ -597,21 +598,18 @@ it('expires only the UTC verified interval in a UTC plus eight database session'
 it('recovers a late indexed transfer behind the cursor without rewinding or duplicate credit', function (): void {
     $order = createTrc20Topup($this, '700');
     $start = $order->created_at->toDateTimeImmutable();
-    $firstEnd = $start->modify('+5 minutes');
     $end = $start->modify('+10 minutes');
     $transfer = trc20Transfer($order, 30, overrides: ['occurred_at' => $start->modify('+1 minute')]);
     $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
     $gateway->shouldReceive('available')->andReturn(true);
     $gateway->shouldReceive('confirmedThrough')->andReturn($end);
     // First index response is successful but empty; the transaction appears later.
-    $gateway->shouldReceive('between')->withArgs(fn ($address, $from, $to) => $address === $order->deposit_address && $from == $start && $to == $firstEnd)
+    $gateway->shouldReceive('between')->withArgs(fn ($address, $from, $to) => $address === $order->deposit_address && $from == $start && $to == $end)
         ->twice()->andReturn([], [$transfer]);
-    $gateway->shouldReceive('between')->withArgs(fn ($address, $from, $to) => $from == $firstEnd && $to == $end)
-        ->once()->andReturn([]);
     $this->app->instance(BlockchainGatewayInterface::class, $gateway);
     $scan = app(ScanTrc20TopupsAction::class);
     expect($scan->execute()['CREDITED'])->toBe(0)
-        ->and(new DateTimeImmutable(DB::table('trc20_scan_cursors')->value('scanned_through')))->toEqual($firstEnd);
+        ->and(new DateTimeImmutable(DB::table('trc20_scan_cursors')->value('scanned_through')))->toEqual($end);
     expect($scan->execute()['CREDITED'])->toBe(1)->and($scan->execute()['CREDITED'])->toBe(0);
     expect(new DateTimeImmutable(DB::table('trc20_scan_cursors')->value('scanned_through')))->toEqual($end)
         ->and(new DateTimeImmutable(DB::table('trc20_scan_cursors')->value('started_at')))->toEqual($start)
@@ -1178,7 +1176,7 @@ it('limits automatic scans to unfinished orders created within one hour includin
     $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
     $gateway->shouldReceive('available')->andReturn(true);
     $gateway->shouldReceive('confirmedThrough')->once()->andReturn(now()->toDateTimeImmutable());
-    $gateway->shouldReceive('between')->once()->withArgs(fn ($address, $from, $to) => $address === $recent->deposit_address && $from == $boundary && $to == $boundary->modify('+5 minutes'))
+    $gateway->shouldReceive('between')->once()->withArgs(fn ($address, $from, $to) => $address === $recent->deposit_address && $from == $boundary && $to == $recent->expires_at)
         ->andReturn([
             trc20Transfer($old, overrides: ['occurred_at' => $boundary->modify('+1 minute')]),
             trc20Transfer($recent, overrides: ['occurred_at' => $boundary->modify('+1 minute')]),
@@ -1190,7 +1188,7 @@ it('limits automatic scans to unfinished orders created within one hour includin
         ->and($old->fresh()->matched_tx_hash)->toBeNull()
         ->and($recent->fresh()->status)->toBe(WalletTopupStatus::Credited)
         ->and(new DateTimeImmutable(DB::table('trc20_scan_cursors')->where('id', $id)->value('scanned_through')))
-        ->toEqual($boundary->modify('+5 minutes'));
+        ->toEqual(now()->toDateTimeImmutable());
     // Only the old unresolved order remains: no further upstream reads or expiry.
     expect($scan->execute()['CREDITED'])->toBe(0)
         ->and($old->fresh()->status)->toBe(WalletTopupStatus::Pending)
@@ -1230,17 +1228,18 @@ it('excludes older pending lookback windows even when the saved cursor is curren
         ->and($old->fresh()->status)->toBe(WalletTopupStatus::Pending);
 });
 
-it('keeps an old cursor unchanged when a bounded forward scan fails', function (): void {
+it('keeps an old cursor unchanged when direct pending-window discovery fails', function (): void {
     $this->travelTo(now()->startOfSecond());
     $order = createTrc20Topup($this);
     $id = hash('sha256', 'TRON:USDT:'.$order->deposit_address);
     $stale = now()->subDay()->toDateTimeImmutable();
     DB::table('trc20_scan_cursors')->insert(['id' => $id, 'started_at' => $stale, 'scanned_through' => $stale]);
-    $cutoff = now()->subHour()->toDateTimeImmutable();
+    $this->travel(2)->minutes();
+    $through = now()->toDateTimeImmutable();
     $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
     $gateway->shouldReceive('available')->andReturn(true);
     $gateway->shouldReceive('confirmedThrough')->andReturn(now()->toDateTimeImmutable());
-    $gateway->shouldReceive('between')->once()->withArgs(fn ($address, $from, $to) => $from == $cutoff && $to == $cutoff->modify('+5 minutes'))
+    $gateway->shouldReceive('between')->once()->withArgs(fn ($address, $from, $to) => $from == $order->created_at && $to == $through)
         ->andThrow(new DomainException('UNAVAILABLE', 'Unavailable', 503));
     $this->app->instance(BlockchainGatewayInterface::class, $gateway);
     expect(fn () => app(ScanTrc20TopupsAction::class)->execute())->toThrow(DomainException::class);
@@ -1264,4 +1263,49 @@ it('does not automatically revive an expired order while retaining explicit rece
     expect(app(ScanTrc20TopupsAction::class)->execute()['CREDITED'])->toBe(1)
         ->and($expired->fresh()->status)->toBe(WalletTopupStatus::Expired);
     expect(app(ProcessIncomingTrc20TransferAction::class)->execute($transfer, $expired->tenant_id, $expired->id))->toBe('CREDITED');
+});
+
+it('credits recent orders immediately despite a day-old cursor without scanning empty history', function (): void {
+    $this->travelTo(now()->startOfSecond());
+    $first = createTrc20Topup($this, '91');
+    $this->travel(2)->minutes();
+    $second = createTrc20Topup($this, '92');
+    $this->travel(2)->minutes();
+    $safe = now()->toDateTimeImmutable();
+    $id = hash('sha256', 'TRON:USDT:'.$first->deposit_address);
+    DB::table('trc20_scan_cursors')->insert(['id' => $id, 'started_at' => now()->subDays(2), 'scanned_through' => now()->subDay()]);
+    $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
+    $gateway->shouldReceive('available')->andReturn(true);
+    $gateway->shouldReceive('confirmedThrough')->once()->andReturn($safe);
+    $gateway->shouldReceive('between')->once()->withArgs(fn ($address, $from, $to) => $address === $first->deposit_address && $from == $first->created_at && $to == $safe)
+        ->andReturn([trc20Transfer($first), trc20Transfer($second)]);
+    $this->app->instance(BlockchainGatewayInterface::class, $gateway);
+    $scan = app(ScanTrc20TopupsAction::class);
+    expect($scan->execute()['CREDITED'])->toBe(2)
+        ->and($first->fresh()->status)->toBe(WalletTopupStatus::Credited)
+        ->and($second->fresh()->status)->toBe(WalletTopupStatus::Credited)
+        ->and(new DateTimeImmutable(DB::table('trc20_scan_cursors')->where('id', $id)->value('scanned_through')))->toEqual($safe);
+    expect($scan->execute()['CREDITED'])->toBe(0)
+        ->and(LedgerEntry::query()->where('event_type', 'WALLET_TOPUP_CREDIT')->count())->toBe(2);
+});
+
+it('diagnoses recent versus old unfinished orders without running a scan', function (): void {
+    $this->travelTo(now()->startOfSecond());
+    createTrc20Topup($this, '93');
+    $this->travel(61)->minutes();
+    createTrc20Topup($this, '94');
+    $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
+    $gateway->shouldReceive('available')->andReturn(true);
+    $gateway->shouldNotReceive('confirmedThrough');
+    $gateway->shouldNotReceive('between');
+    $this->app->instance(BlockchainGatewayInterface::class, $gateway);
+    expect(Artisan::call('topups:diagnose-trc20'))->toBe(0);
+    $result = json_decode(Artisan::output(), true, 512, JSON_THROW_ON_ERROR);
+    expect($result['unfinished_orders'])->toBe(2)
+        ->and($result['recent_unfinished_orders'])->toBe(1)
+        ->and($result['outside_automatic_window_orders'])->toBe(1)
+        ->and($result['scan_cursors'][0]['recent_unfinished_orders'])->toBe(1)
+        ->and($result['provider_contacted'])->toBeFalse()
+        ->and(DB::table('trc20_scan_cursors')->count())->toBe(0)
+        ->and(LedgerEntry::count())->toBe(0);
 });

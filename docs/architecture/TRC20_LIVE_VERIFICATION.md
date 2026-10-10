@@ -299,3 +299,33 @@ permission, receipt, amount, confirmation and audit requirements.
 Deploy ScanTrc20TopupsAction, ProcessIncomingTrc20TransferAction and ScanTrc20Topups
 command together and reload persistent PHP runtimes. No migration or frontend build
 is required. Never reset cursors or clear cooldown caches during deployment.
+
+
+## Direct recent-order scan (2026-10-10, supersedes five-minute cursor walking)
+
+A lagging saved cursor previously restricted lookback to already-scanned history and
+advanced by only five minutes per invocation. Platform search instead reads the
+selected order's complete validity interval. Thus a scheduled command could finish
+successfully while not yet querying a newer order's transfer time.
+
+Automatic scans now query the merged validity windows of all eligible unfinished
+orders directly through the confirmed head, independently of scanned_through.
+The rolling one-hour creation cutoff and original started_at boundary remain; each
+order retains its creation/expiry bounds. No empty historical forward query is made.
+After successful reads without unresolved confirmations/settlement, scanned_through
+advances monotonically to the confirmed head. Failures retain the previous progress;
+future scans revisit still-unfinished windows even if progress is already current.
+Overlapping windows remain batched/merged and share upstream cooldown. This neither
+relaxes matching nor guarantees upstream availability or instantaneous settlement.
+
+Deploy ScanTrc20TopupsAction, ScanTrc20Topups and DiagnoseTrc20Topups together.
+Expected scanner revision: `2026-10-10-direct-pending-windows`. No migration,
+frontend rebuild, manual financial scan, cache clear or cursor reset is needed.
+`php artisan topups:diagnose-trc20` adds recent_unfinished_orders,
+outside_automatic_window_orders, automatic_scan_cutoff and recent-order dates,
+plus per-address recent counts, without contacting the provider or exposing identities.
+The normal scheduler writes `TRC20 automatic scan completed` with window count,
+credited/confirming/pending-settlement counts and scanner revision to application
+logs. This is command completion evidence, not a promise that every payment matched.
+Zero windows means no eligible time window was queried; use the read-only counts and
+original start boundary to distinguish missing eligible orders from an unconfirmed head.

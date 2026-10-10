@@ -43,3 +43,14 @@ API key 不保证无限流量；上游仍可能限流。已有共享冷却和合
 本次只完成代码与隔离回归验证，未操作生产服务器或核对生产订单。
 
 自动充值扫描已限制为近 1 小时创建的未完成订单；超过范围的订单保留原状态，需显式人工处理。旧扫描进度不会继续追赶一小时前的历史。
+
+
+### 充值扫描进度修复
+
+部署最新 `ScanTrc20TopupsAction.php`、`ScanTrc20Topups.php` 和
+`DiagnoseTrc20Topups.php` 后，诊断版本应为 `2026-10-10-direct-pending-windows`。
+现在直接查询近 1 小时未完成订单的有效时间段，不再等待旧游标逐段追赶。
+诊断中 `recent_unfinished_orders` 是当前时间范围内的未完成数，
+`outside_automatic_window_orders` 是范围外数量。运行后在 Laravel 日志查找
+`TRC20 automatic scan completed`，其中 `windows_read` 是读取成功的合并窗口数，
+`credited` 是本次处理返回到账成功的数量。不要为了验证自动调度而手动执行资金扫描。
