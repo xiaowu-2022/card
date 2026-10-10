@@ -62,6 +62,53 @@ beforeEach(function () {
     app(PromotionMembershipAction::class)->ensure($this->tenant->id, $this->user->id);
 });
 
+it('defaults newly enabled partners to blocked card funding and preserves later overrides', function (): void {
+    $before = DB::table('ledger_entries')->count();
+    stockPartner($this, $this->user, false);
+    expect($this->user->fresh()->card_transfer_blocked)->toBeFalse();
+    stockPartner($this, $this->user);
+    $user = $this->user->fresh();
+    expect($user->card_transfer_blocked)->toBeTrue()
+        ->and($user->operation_restrictions_revision)->toBe(1)
+        ->and($user->withdrawal_blocked)->toBeFalse()
+        ->and($user->deposit_refund_blocked)->toBeFalse()
+        ->and($user->wallet_transfer_blocked)->toBeFalse();
+    expect(fn () => \App\Application\User\UserOperationRestrictions::assertAllowed($user->tenant_id, $user->id, 'card_transfer_blocked'))->toThrow(DomainException::class);
+    stockPartner($this, $user);
+    expect($user->fresh()->operation_restrictions_revision)->toBe(1);
+    $input = \App\Application\User\UserOperationRestrictions::values($user) + ['revision' => 1, 'confirmed' => true, 'request_id' => (string) Str::uuid()];
+    $input['card_transfer_blocked'] = false;
+    app(\App\Application\User\UpdateUserOperationRestrictions::class)->execute($user->tenant_id, $user->id, $this->admin, $input);
+    stockPartner($this, $user);
+    expect($user->fresh()->card_transfer_blocked)->toBeFalse()->and($user->fresh()->operation_restrictions_revision)->toBe(2);
+    stockPartner($this, $user, false);
+    stockPartner($this, $user);
+    expect($user->fresh()->card_transfer_blocked)->toBeTrue()->and($user->fresh()->operation_restrictions_revision)->toBe(3);
+    expect(DB::table('audit_logs')->where('action', 'PARTNER_CARD_FUNDING_RESTRICTED')->where('resource_id', $user->id)->count())->toBe(2)
+        ->and(DB::table('ledger_entries')->count())->toBe($before);
+    Http::assertNothingSent();
+});
+
+it('adds partner restriction atomically without resetting existing restriction flags', function (): void {
+    $this->user->forceFill(['withdrawal_blocked' => true, 'wallet_transfer_blocked' => true])->save();
+    try {
+        DB::transaction(function (): void {
+            stockPartner($this, $this->user);
+            throw new RuntimeException('Rollback partner creation');
+        });
+    } catch (RuntimeException $error) {
+        expect($error->getMessage())->toBe('Rollback partner creation');
+    }
+    expect($this->user->fresh()->card_transfer_blocked)->toBeFalse()
+        ->and($this->user->fresh()->operation_restrictions_revision)->toBe(0)
+        ->and(DB::table('partner_configurations')->where('user_id', $this->user->id)->exists())->toBeFalse()
+        ->and(DB::table('audit_logs')->where('action', 'PARTNER_CARD_FUNDING_RESTRICTED')->count())->toBe(0);
+    stockPartner($this, $this->user);
+    expect($this->user->fresh()->withdrawal_blocked)->toBeTrue()->and($this->user->fresh()->wallet_transfer_blocked)->toBeTrue();
+    stockPartner($this, $this->user, false);
+    expect($this->user->fresh()->card_transfer_blocked)->toBeTrue();
+});
+
 function stockChild(User $parent): User
 {
     $member = app(PromotionMembershipAction::class)->ensure($parent->tenant_id, $parent->id);

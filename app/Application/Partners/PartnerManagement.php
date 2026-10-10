@@ -3,8 +3,10 @@
 namespace App\Application\Partners;
 
 use App\Application\Assets\AssetAccess;
+use App\Application\User\UserOperationRestrictions;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Audit\Services\AuditLogger;
+use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use Brick\Math\BigDecimal;
 use Illuminate\Support\Facades\DB;
@@ -20,8 +22,17 @@ final class PartnerManagement
 
         return DB::transaction(function () use ($actor, $tenant, $data) {
             app(AssetAccess::class)->platform($actor, 'partners.manage');
+            Tenant::whereKey($tenant)->lockForUpdate()->firstOrFail();
             $user = User::where('tenant_id', $tenant)->where('account_id', $data['account_id'])->lockForUpdate()->firstOrFail();
             $old = DB::table('partner_configurations')->where('tenant_id', $tenant)->where('user_id', $user->id)->first();
+            // Becoming a partner defaults to blocked card funding; later edits must
+            // preserve an administrator's explicit restriction override.
+            if ($data['enabled'] && ! ($old?->enabled ?? false) && ! $user->card_transfer_blocked) {
+                $before = UserOperationRestrictions::values($user) + ['revision' => (int) $user->operation_restrictions_revision];
+                $user->forceFill(['card_transfer_blocked' => true, 'operation_restrictions_revision' => $before['revision'] + 1])->save();
+                app(AuditLogger::class)->record($tenant, 'ADMIN', $actor->id, 'PARTNER_CARD_FUNDING_RESTRICTED', 'user', $user->id,
+                    $before, UserOperationRestrictions::values($user) + ['revision' => (int) $user->operation_restrictions_revision]);
+            }
             $id = $old?->id ?? (string) Str::uuid();
             DB::table('partner_configurations')->updateOrInsert(['id' => $id], ['tenant_id' => $tenant, 'user_id' => $user->id, 'enabled' => $data['enabled'], 'share_percent' => $data['share_percent'], 'updated_by' => $actor->id, 'created_at' => $old?->created_at ?? now(), 'updated_at' => now()]);
             app(AuditLogger::class)->record($tenant, 'ADMIN', $actor->id, 'PARTNER_CONFIGURED', 'partner', $id, $old ? (array) $old : null, $data);

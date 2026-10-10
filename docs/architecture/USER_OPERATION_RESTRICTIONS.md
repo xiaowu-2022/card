@@ -1,7 +1,7 @@
 # User operation restrictions
 
 2026-10-09: Platform Users → More actions → Operation restrictions provides four
-independent, default-off flags on each company-owned consumer account:
+independent flags, default-off for ordinary new accounts:
 
 - `withdrawal_blocked`: new USDT/TRON and multi-asset withdrawal confirmations.
 - `deposit_refund_blocked`: new security-deposit refund applications only.
@@ -58,3 +58,17 @@ A WebView APK rebuild is not required for these server/H5 changes.
 - `tests/Browser/platform-user-restrictions.mjs`: offline built UI, lazy reads,
   populated controls, explicit confirmation, unsaved changes, stale-save feedback
   and permission visibility.
+
+## 2026-10-10 New partner default
+
+The existing `partners.manage` configuration workflow now sets
+`card_transfer_blocked=true` when a user becomes an enabled partner (including
+re-enabling a disabled partner). This automatic partner default is part of the
+partner operation; manual restriction edits retain users.read +
+users.restrictions.manage, confirmation and revision checks.
+Tenant then User locks serialize the change with financial operation acceptance.
+Only the card-funding flag changes; increment the restriction revision and append
+PARTNER_CARD_FUNDING_RESTRICTED before/after evidence atomically with partner
+configuration. Editing an already-enabled partner preserves a later manual override;
+disabling a partner does not clear restrictions. No historical partner backfill,
+financial writes, migration or frontend rebuild. Deploy the PHP backend.
