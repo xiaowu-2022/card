@@ -1,5 +1,39 @@
 # Platform recharge and withdrawal lists
 
+## Order-scoped TRC20 automatic search (2026-10-10)
+
+The recharge detail drawer's Recheck transfer panel supports both Verify by hash
+and Automatically search for TRC20 shared-address USDT orders. Search does not
+require a hash. Both actions require explicit order confirmation; the explanation
+states that an exact, confirmed match can credit the wallet. Opening a drawer or
+panel never calls the chain. Other deposit rails retain their existing hash flow.
+
+The existing scoped `POST /platform/tenants/{tenant}/topups/{topup}/verify` accepts
+`verification_mode=SEARCH` with no `tx_hash`; missing mode remains HASH for old
+clients. HASH still requires a valid 64-character hash. The server owns address,
+token, exact expected amount and creation/expiry bounds, and rejects transport
+overrides. Search ends no later than now or the immutable expiry. Existing matched
+receipts are looked up directly and never replaced. Multiple distinct exact
+receipt events return AMBIGUOUS without settlement, asking the administrator to
+specify a hash. Insufficient confirmations and no match also do not credit funds.
+
+Use the existing Platform `wallet_topups.verify` permission, CSRF, throttle,
+actor status/membership checks, tenant/order lookup, audit and settlement action.
+The immutable actor/request audit binds SEARCH versus HASH as well as company,
+order and hash where applicable; historical intents without a mode remain HASH.
+The UI maintains separate search/hash request UUIDs and changes the hash UUID
+when the input changes. All settlement continues through exact receipt validation
+and the original idempotent Ledger credit. Explicit selected-order expiry review
+keeps the existing rules; scheduled scanning is not broadened to closed history.
+
+Public-reader failures and HTTP 429 stay unconfirmed and use the shared cooldown.
+Automatic search cannot bypass an upstream outage. Deploy the updated verification
+action/controller and compiled `public/build`; no migration or H5 build is needed.
+The accompanying TRC20 rate-limit mitigation must also be deployed if absent.
+Acceptance uses isolated synthetic backend orders and a fully intercepted offline
+browser fixture, `tests/Browser/topup-auto-search.mjs`; no real order is verified
+or credited during implementation.
+
 ## Withdrawal export (2026-10-06)
 
 The Platform withdrawal header offers a CSV download of all records matching the

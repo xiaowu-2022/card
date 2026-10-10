@@ -129,6 +129,45 @@ it('reads public receipts without any API key configuration', function (): void 
     Http::assertNotSent(fn ($request) => $request->hasHeader('TRON-PRO-API-KEY') || $request->hasHeader('Authorization'));
 });
 
+it('uses the configured server key for head block discovery and receipt requests without putting it in URLs or bodies', function (): void {
+    config(['payment.trongrid_api_key' => 'synthetic-trongrid-key-only']);
+    Http::fake([
+        'api.trongrid.io/walletsolidity/getnowblock' => Http::response(['block_header' => ['raw_data' => ['number' => 125]]]),
+        'api.trongrid.io/walletsolidity/getblockbynum' => Http::response(['block_header' => ['raw_data' => ['number' => 106, 'timestamp' => 1789264800000]]]),
+        'api.trongrid.io/v1/accounts/*' => Http::response(['success' => true, 'data' => [['transaction_id' => $this->hash]], 'meta' => []]),
+        'api.trongrid.io/walletsolidity/gettransactioninfobyid' => Http::response($this->receipt),
+    ]);
+    $through = $this->gateway->confirmedThrough();
+    expect($this->gateway->between(TronGridBlockchainGateway::TOKEN, $through->modify('-1 minute'), $through))->toHaveCount(1);
+    Http::assertSentCount(5);
+    foreach (Http::recorded() as [$request]) {
+        expect($request->header('TRON-PRO-API-KEY'))->toBe(['synthetic-trongrid-key-only'])
+            ->and(parse_url($request->url(), PHP_URL_HOST))->toBe('api.trongrid.io')
+            ->and($request->url().$request->body())->not->toContain('synthetic-trongrid-key-only');
+    }
+});
+
+it('does not fall back or leak the configured key after authentication or upstream failures', function (int $status): void {
+    config(['payment.trongrid_api_key' => 'synthetic-trongrid-key-only']);
+    Log::spy();
+    Http::fake(['*' => Http::response('synthetic-trongrid-key-only', $status, ['Location' => 'https://example.invalid/'])]);
+    try {
+        $this->gateway->lookup($this->hash, TronGridBlockchainGateway::TOKEN);
+        $this->fail('Expected closed read');
+    } catch (DomainException $error) {
+        expect($error->getMessage())->not->toContain('synthetic-trongrid-key-only')->and($error->getPrevious())->toBeNull();
+    }
+    Log::shouldHaveReceived('warning')->once()->withArgs(fn ($message, $context) => ! str_contains(json_encode([$message, $context]), 'synthetic-trongrid-key-only'));
+    Http::assertSentCount(1);
+    Http::assertSent(fn ($request) => $request->hasHeader('TRON-PRO-API-KEY', 'synthetic-trongrid-key-only'));
+})->with([401, 403, 429, 302]);
+
+it('rejects malformed configured credentials before making any request', function (): void {
+    config(['payment.trongrid_api_key' => "synthetic-key\r\nInjected: private"]);
+    expect(fn () => $this->gateway->lookup($this->hash, TronGridBlockchainGateway::TOKEN))->toThrow(DomainException::class);
+    Http::assertNothingSent();
+});
+
 it('uses the public reader in production despite legacy disabled or mock flags', function (string $driver): void {
     $this->app->instance('env', 'production');
     config(['withdrawal.blockchain_driver' => $driver]);
@@ -194,4 +233,41 @@ it('keeps failed reads closed and sanitized when diagnostic logging fails', func
             ->and($error->getMessage())->not->toContain('PRIVATE');
     }
     Http::assertSentCount(1);
+});
+
+it('shares 429 cooldown across gateway instances and endpoints and resumes after Retry-After', function (bool $httpDate): void {
+    $this->freezeTime();
+    $retry = $httpDate ? now()->addMinutes(5)->toRfc7231String() : '300';
+    Http::fake(['*' => Http::sequence()->push('limited', 429, ['Retry-After' => $retry])
+        ->push($this->receipt)->push(['block_header' => ['raw_data' => ['number' => 125]]])]);
+    expect(fn () => $this->gateway->between(TronGridBlockchainGateway::TOKEN, new DateTimeImmutable('-1 minute'), new DateTimeImmutable))
+        ->toThrow(DomainException::class);
+    $this->travel(299)->seconds();
+    expect(fn () => (new TronGridBlockchainGateway)->lookup($this->hash, TronGridBlockchainGateway::TOKEN))
+        ->toThrow(DomainException::class);
+    Http::assertSentCount(1);
+    $this->travel(1)->seconds();
+    expect((new TronGridBlockchainGateway)->lookup($this->hash, TronGridBlockchainGateway::TOKEN))->toHaveCount(1);
+    Http::assertSentCount(3);
+})->with([false, true]);
+
+it('backs off repeated discovery limits even when head requests succeed', function (): void {
+    $this->freezeTime();
+    Http::fake([
+        'api.trongrid.io/v1/accounts/*' => Http::response('limited', 429, ['Retry-After' => 'invalid']),
+        'api.trongrid.io/walletsolidity/getnowblock' => Http::response(['block_header' => ['raw_data' => ['number' => 125]]]),
+        'api.trongrid.io/walletsolidity/getblockbynum' => Http::response(['block_header' => ['raw_data' => ['number' => 106, 'timestamp' => 1789264800000]]]),
+    ]);
+    $discover = fn () => (new TronGridBlockchainGateway)->between(TronGridBlockchainGateway::TOKEN, new DateTimeImmutable('-1 minute'), new DateTimeImmutable);
+    expect($discover)->toThrow(DomainException::class);
+    $this->travel(76)->seconds();
+    $this->gateway->confirmedThrough();
+    expect($discover)->toThrow(DomainException::class);
+    Http::assertSentCount(4);
+    $this->travel(119)->seconds();
+    expect($discover)->toThrow(DomainException::class);
+    Http::assertSentCount(4);
+    $this->travel(17)->seconds();
+    expect($discover)->toThrow(DomainException::class);
+    Http::assertSentCount(5);
 });

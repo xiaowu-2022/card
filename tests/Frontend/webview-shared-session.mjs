@@ -30,50 +30,50 @@ test('only an unambiguous encrypted remember cookie is eligible, never session/a
 });
 test('adopts existing native cookie once and restores it only to verified same-company hosts',async()=>{
     const h=setup();h.jar.set(a+'/',`admin=other; consumer_remember=${cookie}`);
-    const s=h.create();s.configure(listing,a);assert.equal(h.saved(),cookie);
+    const s=h.create();await s.configure(listing,a);assert.equal(h.saved(),cookie);
     await s.restore(b);
     assert.equal(exports.readRememberCookie(h.jar.get(b+'/')),cookie);
     assert.ok(h.writes.every(([url,value])=>url===b+'/' && value.startsWith('consumer_remember=') && /Secure; HttpOnly; SameSite=Lax/.test(value) && !value.includes('Domain=')));
     await assert.rejects(s.restore(c),/Unverified/);assert.equal(s.capture(c),false);
-    assert.throws(()=>s.configure({...listing,tenantId:'other'}),/Company/);
-    const restarted=h.create();restarted.configure(listing);await restarted.restore(a);
+    await assert.rejects(s.configure({...listing,tenantId:'other'}),/Company/);
+    const restarted=h.create();await restarted.configure(listing);await restarted.restore(a);
     assert.equal(exports.readRememberCookie(h.jar.get(a+'/')),cookie);
 });
 test('logout tombstone prevents resurrection even if an old cookie reappears',async()=>{
     const h=setup();h.jar.set(a+'/',`consumer_remember=${cookie}`);
-    const s=h.create();s.configure(listing,a);s.clear();
+    const s=h.create();await s.configure(listing,a);s.clear();
     assert.equal(h.saved(),null);assert.equal(h.meta().signedIn,false);
     h.jar.set(a+'/',`consumer_remember=${cookie}`);
-    const restarted=h.create();restarted.configure(listing,a);await restarted.restore(b);
+    const restarted=h.create();await restarted.configure(listing,a);await restarted.restore(b);
     assert.equal(h.jar.get(b+'/'),'');assert.equal(h.saved(),null);
 });
 test('iOS uses native HttpOnly cookie store and nonsecret source metadata across restarts',async()=>{
     const h=setup(false);h.jar.set(a+'/',`consumer_remember=${cookie}`);
-    const s=h.create();s.configure(listing,a);await s.restore(b);s.capture(b);
+    const s=h.create();await s.configure(listing,a);await s.restore(b);s.capture(b);
     assert.ok(!JSON.stringify(h.meta()).includes(cookie));
-    const restarted=h.create();restarted.configure({...listing,selected:a});await restarted.restore(a);
+    const restarted=h.create();await restarted.configure({...listing,selected:a});await restarted.restore(a);
     assert.equal(exports.readRememberCookie(h.jar.get(a+'/')),cookie);
     restarted.clear();h.jar.set(b+'/',`consumer_remember=${cookie}`);
-    const loggedOut=h.create();loggedOut.configure(listing,b);await loggedOut.restore(a);
+    const loggedOut=h.create();await loggedOut.configure(listing,b);await loggedOut.restore(a);
     assert.equal(h.jar.get(a+'/'),'');
 });
 test('missing Android key does not fall back to a copied native cookie; storage errors do not persist plaintext',async()=>{
     const h=setup();h.ports.metadata.set({initialized:true,signedIn:true,source:a});
     h.jar.set(a+'/',`consumer_remember=${cookie}`);
-    const s=h.create();s.configure(listing,a);await s.restore(b);assert.equal(h.jar.get(b+'/'),'');
+    const s=h.create();await s.configure(listing,a);await s.restore(b);assert.equal(h.jar.get(b+'/'),'');
     h.ports.vault.write=()=>{throw Error('unavailable');};
     assert.throws(()=>s.capture(a),/unavailable/);
     assert.equal(h.saved(),null);
 });
 test('the native cookie commit must complete before the destination opens',async()=>{
     const h=setup();h.jar.set(a+'/',`consumer_remember=${cookie}`);
-    const s=h.create();s.configure(listing,a);
+    const s=h.create();await s.configure(listing,a);
     h.ports.cookies.set=(url,value)=>setTimeout(()=>h.jar.set(url,value.split(';')[0]),75);
     await s.restore(b);assert.equal(exports.readRememberCookie(h.jar.get(b+'/')),cookie);
 });
 test('a failed capture after account change cannot restore the earlier account',async()=>{
     const h=setup();h.jar.set(a+'/',`consumer_remember=${cookie}`);
-    const s=h.create();s.configure(listing,a);
+    const s=h.create();await s.configure(listing,a);
     h.jar.set(a+'/',`consumer_remember=${'B'.repeat(160)}`);
     const original=h.ports.vault.write;
     h.ports.vault.write=value=>{if(value)throw Error('keystore failed');original(null);};
@@ -91,4 +91,44 @@ test('session signal transports only status and company, including a completed b
     assert.ok(titles.every(value=>!value.includes('token')&&!value.includes('password')));
     assert.equal(JSON.parse(titles.at(-1).slice(7)).signedIn,false);
     assert.equal(JSON.parse(titles.at(-1).slice(7)).sequence,2);
+});
+
+
+test('iOS cold start waits for native cookies and never turns an empty read into logout', async()=>{
+    const h=setup(false);
+    h.ports.metadata.set({initialized:true,signedIn:true,source:a});
+    setTimeout(()=>h.jar.set(a+'/',`consumer_remember=${cookie}`),100);
+    const s=h.create();await s.configure(listing);await s.restore(b);
+    assert.equal(exports.readRememberCookie(h.jar.get(b+'/')),cookie);
+    assert.equal(h.meta().signedIn,true);
+    assert.match(h.writes.at(-1)[1],/Expires=[^;]+GMT;/);
+});
+test('unavailable iOS cookie store fails without deleting cookies and can retry initialization',async()=>{
+    const h=setup(false);h.ports.metadata.set({initialized:true,signedIn:true,source:a});
+    const s=h.create();await assert.rejects(s.configure(listing),/尚未恢复/);
+    assert.equal(h.writes.length,0);assert.equal(h.meta().signedIn,true);
+    h.jar.set(a+'/',`consumer_remember=${cookie}`);
+    await s.configure(listing);await s.restore(b);
+    assert.equal(exports.readRememberCookie(h.jar.get(b+'/')),cookie);
+});
+test('delayed capture keeps the new source without restoring an earlier account',async()=>{
+    const h=setup(false);h.jar.set(a+'/',`consumer_remember=${cookie}`);
+    const s=h.create();await s.configure(listing,a);
+    assert.equal(s.capture(b),false);assert.equal(h.meta().source,b);assert.equal(h.meta().signedIn,true);
+    const newer='B'.repeat(160);h.jar.set(b+'/',`consumer_remember=${newer}`);
+    const restarted=h.create();await restarted.configure(listing);await restarted.restore(a);
+    assert.equal(exports.readRememberCookie(h.jar.get(a+'/')),newer);
+});
+test('restoring the same credential on the same host preserves its persistent cookie attributes',async()=>{
+    const h=setup(false);h.jar.set(a+'/',`consumer_remember=${cookie}`);
+    const s=h.create();await s.configure(listing,a);await s.restore(a);
+    assert.equal(h.writes.length,0);
+});
+
+
+test('explicit sign-in recovery can clear missing expired cookies without waiting forever',async()=>{
+    const h=setup(false);h.ports.metadata.set({initialized:true,signedIn:true,source:a});
+    const s=h.create();await assert.rejects(s.configure(listing),/尚未恢复/);
+    s.clear();await s.configure(listing);await s.restore(b);
+    assert.equal(h.meta().signedIn,false);assert.equal(h.jar.get(b+'/'),'');
 });

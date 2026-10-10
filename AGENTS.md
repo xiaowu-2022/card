@@ -1,3 +1,13 @@
+On 2026-10-10 the user approved configuring a server-side TronGrid API key for
+TRC20 deposit scans and Platform hash verification/automatic search. Read the
+optional TRONGRID_API_KEY from private deployment configuration and send it only
+as TRON-PRO-API-KEY to the fixed HTTPS TronGrid origin. Never embed credentials in
+source, frontend, release bundles, URLs, logs or audit. Blank config retains the
+anonymous reader; legacy stored credentials stay inactive. Keep exact receipt
+validation, company/order scope, confirmation, idempotent settlement and shared
+429 cooldown; do not promise unlimited traffic or alter provider rate limits.
+The user will configure production. See docs/architecture/TRC20_LIVE_VERIFICATION.md.
+
 On 2026-10-09 the user added per-user Platform operation restrictions: prohibit
 withdrawals, new security-deposit refund applications, card funding and outgoing
 account transfers. Default all flags off; confirmation returns “请联系客服”.

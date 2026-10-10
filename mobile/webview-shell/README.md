@@ -62,6 +62,17 @@ WebView 不注入 5+ 权限；业务使用 H5 的浏览器接口、Cookie 和原
 
 ## 2026-10-09 同公司跨域保持登录
 
+后续冷启动修正：iOS 读取已登录来源的 Cookie 时先做有界等待；首次读空不再
+写入“已退出”标记并清掉目标线路。仍无法恢复时显示重试，只有用户确认
+“重新登录”才清除本机状态。捕获暂时失败时保留新来源信息但丢弃旧账号凭证，
+防止恢复成前一个账号。同域已有相同 Cookie 时不覆盖，跨域写入同时带
+Max-Age 与 Expires；服务端 30 天、公司/账号/密码撤销校验保持不变。
+
+这次修改在壳内，需重新云打包并覆盖安装。离线测试覆盖 Cookie 延迟可见、
+恢复失败后重试、明确重新登录、退出不复活及同域不重写；仍需 iPhone 登录后
+杀进程重开、切换线路和退出重开验收。没有将浏览器模拟当作真机登录保持成功。
+
+
 壳通过 [HTML5+ 原生 Cookie API](https://www.html5plus.org/specification/Navigator.html)
 读取/设置 `consumer_remember` 这一项 HttpOnly 凭证，保持 Secure、SameSite=Lax、
 host-only；不复制 Laravel 会话、CSRF、管理员或第三方 Cookie，不向网页注入 Token。

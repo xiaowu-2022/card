@@ -8,8 +8,10 @@ export const adminCatalog: Record<string, string> = {
     'Block deposit refund requests': '禁止申请退保',
     'Block card transfers': '禁止转卡（卡片充值）',
     'Block account transfers': '禁止账户互转',
-    'These settings have changed. Close and reopen to load the latest settings.': '设置已被修改，请关闭后重新打开以获取最新设置。',
-    'Restricted users will see “Please contact support” when confirming a new operation. Existing orders remain unchanged.': '被限制的用户确认新操作时会提示“请联系客服”。已有订单不受影响。',
+    'These settings have changed. Close and reopen to load the latest settings.':
+        '设置已被修改，请关闭后重新打开以获取最新设置。',
+    'Restricted users will see “Please contact support” when confirming a new operation. Existing orders remain unchanged.':
+        '被限制的用户确认新操作时会提示“请联系客服”。已有订单不受影响。',
     'I confirm these changes.': '我确认以上设置。',
 
     'Monthly fee': '月费',
@@ -1212,6 +1214,12 @@ export const adminCatalog: Record<string, string> = {
     'Withdrawal fee income': '提现手续费收入',
     'Fee income': '手续费收入',
     'Verify on chain': '链上核验',
+    'Verify by hash': '按 Hash 核验',
+    'Automatically search': '自动搜索',
+    'No hash available? Automatically search this order’s receiving address and validity window for the exact amount. A verified match can credit the wallet.':
+        '没有 Hash？可按此订单的收款地址、有效期和精确金额自动搜索。匹配并通过链上核验后可自动入账。',
+    'Multiple matching transfers found. Enter a transaction hash to verify the intended payment. No funds were credited.':
+        '找到多笔匹配交易，请填写交易 Hash 核验指定付款。本次未入账。',
     'This verification request was already used for different details.':
         '此核验请求已绑定其他订单或交易，请核对后重新发起。',
     'Verifying…': '核验中…',

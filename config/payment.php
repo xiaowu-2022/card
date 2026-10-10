@@ -14,6 +14,7 @@ return [
     'webhook_max_bytes' => (int) env('PAYMENT_WEBHOOK_MAX_BYTES', 65536),
     'checkout_hosts' => env('PAYMENT_CHECKOUT_HOSTS', ''),
     'trc20_deposit_address' => env('TRON_USDT_DEPOSIT_ADDRESS'),
+    'trongrid_api_key' => env('TRONGRID_API_KEY', ''),
     'trc20_token_contract' => TronGridBlockchainGateway::TOKEN,
     'trc20_validity_minutes' => (int) env('TRON_TOPUP_VALIDITY_MINUTES', 30),
     'trc20_required_confirmations' => (int) env('TRON_TOPUP_REQUIRED_CONFIRMATIONS', 20),

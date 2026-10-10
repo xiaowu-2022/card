@@ -56,15 +56,38 @@ final readonly class ScanTrc20TopupsAction
             ->where('created_at', '>=', $start->format('Y-m-d H:i:s.uP'))
             ->where('created_at', '<', $through->format('Y-m-d H:i:s.uP'))
             ->lazyById(100);
-        foreach ($orders as $order) {
-            $from = $order->created_at->toDateTimeImmutable();
-            $to = min($through, $order->expires_at->toDateTimeImmutable());
-            if ($to <= $from) {
-                continue;
+        // Keep keyset pagination while grouping at most 100 orders in memory.
+        // Shared-address orders often overlap: discover/verify each grouped
+        // interval once (at most an hour of merged history), then retain the
+        // original tenant/order processing scope and individual validity limits.
+        foreach ($orders->chunk(100) as $chunk) {
+            $windows = [];
+            foreach ($chunk->sortBy('created_at') as $order) {
+                $from = $order->created_at->toDateTimeImmutable();
+                $to = min($through, $order->expires_at->toDateTimeImmutable());
+                if ($to <= $from) {
+                    continue;
+                }
+                $last = array_key_last($windows);
+                if ($last !== null && $from <= $windows[$last]['to']
+                    && $to <= max($windows[$last]['to'], $windows[$last]['from']->modify('+1 hour'))) {
+                    $windows[$last]['to'] = max($windows[$last]['to'], $to);
+                    $windows[$last]['orders'][] = $order;
+                } else {
+                    $windows[] = ['from' => $from, 'to' => $to, 'orders' => [$order]];
+                }
             }
-            foreach ($this->gateway->between($address, $from, $to) as $transfer) {
-                $result = $this->process->execute($transfer, $order->tenant_id, $order->id, $start);
-                $counts[$result] = ($counts[$result] ?? 0) + 1;
+            foreach ($windows as $window) {
+                foreach ($this->gateway->between($address, $window['from'], $window['to']) as $transfer) {
+                    foreach ($window['orders'] as $order) {
+                        // A merged query must never extend an order's validity.
+                        if ($transfer->occurredAt < $order->created_at || $transfer->occurredAt > $order->expires_at) {
+                            continue;
+                        }
+                        $result = $this->process->execute($transfer, $order->tenant_id, $order->id, $start);
+                        $counts[$result] = ($counts[$result] ?? 0) + 1;
+                    }
+                }
             }
         }
 

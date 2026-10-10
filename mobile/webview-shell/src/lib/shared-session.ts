@@ -1,6 +1,9 @@
 import { origin, type DirectoryCache } from './directory';
 
 export const rememberCookie = 'consumer_remember';
+export class LoginRestoreUnavailable extends Error {
+    constructor() { super('登录状态尚未恢复，请重试；若仍无法恢复，可重新登录。'); }
+}
 // Laravel's encrypted/URL-encoded cookie value only, never a Set-Cookie string.
 export const validRememberCookie = (value: string) => /^[A-Za-z0-9%+/=_-]{32,8192}$/.test(value);
 export function readRememberCookie(header: string): string | null {
@@ -36,7 +39,14 @@ export function sharedSession(ports: {
         if (!trusted(url)) return false;
         try {
             const value = readRememberCookie(ports.cookies.get(url + '/'));
-            if (!value) { forget(); return false; }
+            if (!value) {
+                // Do not restore an earlier account, but retain the trusted source
+                // so a delayed native cookie sync can recover on the next start.
+                credential = null;
+                ports.vault?.write(null);
+                remember(url, true);
+                return false;
+            }
             if (credential !== value) ports.vault?.write(value);
             credential = value;
             remember(url, true);
@@ -58,19 +68,28 @@ export function sharedSession(ports: {
         }
     }
     return {
-        configure(value: DirectoryCache, previousOrigin?: string) {
+        async configure(value: DirectoryCache, previousOrigin?: string) {
             if (directory && directory.tenantId !== value.tenantId) throw new Error('Company changed');
             directory = value;
             if (initialized) return;
-            initialized = true;
             const meta = ports.metadata.get();
-            if (meta?.initialized && !meta.signedIn) return;
+            if (meta?.initialized && !meta.signedIn) { initialized = true; return; }
             credential = ports.vault?.read() ?? null;
             if (credential && !validRememberCookie(credential)) credential = null;
             // Adopt an existing installation once. iOS restores from the last
             // verified host's native cookie store, not JS/localStorage.
             const source = meta?.source ?? previousOrigin;
-            if (!credential && (!ports.vault || !meta?.initialized) && source && trusted(source)) capture(source);
+            if (!credential && (!ports.vault || !meta?.initialized) && source && trusted(source)) {
+                // WKWebView's cookie store can become available after the shell.
+                // An empty first read must not become a durable logout marker.
+                for (let attempt = 0; attempt < 20; attempt++) {
+                    const value = readRememberCookie(ports.cookies.get(source + '/'));
+                    if (value) { capture(source); break; }
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                }
+                if (!credential && meta?.signedIn) throw new LoginRestoreUnavailable();
+            }
+            initialized = true;
         },
         capture,
         clear,
@@ -78,8 +97,9 @@ export function sharedSession(ports: {
             if (!trusted(url)) throw new Error('Unverified login destination');
             const value = credential;
             const cookie = value
-                ? `${rememberCookie}=${value}; Path=/; Max-Age=2592000; Secure; HttpOnly; SameSite=Lax`
+                ? `${rememberCookie}=${value}; Path=/; Max-Age=2592000; Expires=${new Date(Date.now() + 2592000000).toUTCString()}; Secure; HttpOnly; SameSite=Lax`
                 : `${rememberCookie}=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; HttpOnly; SameSite=Lax`;
+            if (value && readRememberCookie(ports.cookies.get(url + '/')) === value) return;
             ports.cookies.set(url + '/', cookie);
             // Some runtimes commit native cookie writes asynchronously. Do not
             // start the destination H5 before the intended credential is ready.

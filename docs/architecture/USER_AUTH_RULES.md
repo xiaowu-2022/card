@@ -2,6 +2,17 @@
 
 ## WebView cross-domain sign-in — 2026-10-09
 
+Cold-start recovery now waits for the trusted source's native cookie store before
+opening the selected line. A missing first read is not a logout: it does not write
+an anonymous tombstone or delete the destination credential. If a previously signed-in
+iOS source remains unavailable, recovery offers Retry or an explicitly confirmed
+fresh sign-in. A delayed capture discards any previous in-memory account but keeps
+only the new trusted source metadata for the next attempt. Explicit logout tombstones
+still prevent re-adoption. Same-host restoration does not rewrite an identical cookie;
+cross-host native writes include both Max-Age and Expires. This shell change requires
+rebuilding and installing the IPA/APK; offline tests do not prove device persistence.
+
+
 The user approved retaining sign-in across verified domains of the same company.
 The WebView shell transfers only the existing encrypted `consumer_remember`
 HttpOnly cookie through native cookie APIs, never the Laravel/admin session or a

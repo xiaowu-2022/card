@@ -88,7 +88,13 @@ function prepareTrc20User(Tenant $tenant, User $user, string $identity): array
         kycTestImage("trc20-{$identity}-front.png"), kycTestImage("trc20-{$identity}-back.png"),
     );
     $reviewer = AdminUser::query()->where('email', 'owner@'.($tenant->slug === 'tenant-a' ? 'a' : 'b').'.localhost')->firstOrFail();
-    app(ApproveKycAction::class)->execute($tenant->id, $application->id, $reviewer);
+    // Current manual review requires a valid synthetic national identity number.
+    $digits = '11010519900101'.str_pad((string) DB::table('kyc_applications')->count(), 3, '0', STR_PAD_LEFT);
+    $sum = 0;
+    foreach ([7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2] as $index => $weight) {
+        $sum += (int) $digits[$index] * $weight;
+    }
+    app(ApproveKycAction::class)->execute($tenant->id, $application->id, $reviewer, identityNumber: $digits.'10X98765432'[$sum % 11]);
 
     return [$user, app(ActivateUserWalletAction::class)->execute($tenant->id, $user->id)->wallet];
 }
@@ -389,6 +395,92 @@ it('requires an active SaaS membership even when a verification action is invoke
     expect($order->fresh()->status)->toBe(WalletTopupStatus::Pending);
 });
 
+it('automatically searches only the selected order window and reuses its matched receipt without duplicate credit', function (): void {
+    $this->freezeTime();
+    $order = createTrc20Topup($this, '10');
+    $other = createTrc20Topup($this, '12');
+    $transfer = trc20Transfer($order, 30);
+    $this->travel(40)->minutes();
+    $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
+    $gateway->shouldReceive('available')->andReturn(true);
+    $gateway->shouldReceive('between')->once()->withArgs(fn ($address, $from, $to) => $address === $order->deposit_address
+        && $from == $order->created_at && $to == $order->expires_at)
+        ->andReturn([$transfer, trc20Transfer($other, 30, overrides: ['occurred_at' => $other->created_at->toDateTimeImmutable()])]);
+    $gateway->shouldReceive('lookup')->once()->with($transfer->txHash, $order->deposit_address)->andReturn([$transfer]);
+    $this->app->instance(BlockchainGatewayInterface::class, $gateway);
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $request = (string) Str::uuid();
+    $action = app(VerifyPlatformTopupAction::class);
+    expect($action->execute($this->tenant->id, $order->id, null, $request, $actor))->toBe('CREDITED')
+        ->and($action->execute($this->tenant->id, $order->id, null, $request, $actor))->toBe('CREDITED')
+        ->and($other->fresh()->status)->toBe(WalletTopupStatus::Pending)
+        ->and(LedgerEntry::where('event_type', 'WALLET_TOPUP_CREDIT')->count())->toBe(1);
+    $intent = DB::table('audit_logs')->where('action', 'PLATFORM_TOPUP_VERIFICATION_REQUESTED')->where('request_id', $request)->first();
+    expect(json_decode($intent->after_data, true)['mode'])->toBe('SEARCH');
+    expect(fn () => $action->execute($this->tenant->id, $order->id, $transfer->txHash, $request, $actor))->toThrow(DomainException::class);
+    expect(fn () => $action->execute($this->tenant->id, $other->id, null, $request, $actor))->toThrow(DomainException::class);
+});
+
+it('does not credit ambiguous automatic search results', function (): void {
+    $order = createTrc20Topup($this);
+    $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
+    $gateway->shouldReceive('available')->andReturn(true);
+    $gateway->shouldReceive('between')->once()->andReturn([trc20Transfer($order, 30, str_repeat('a', 64)), trc20Transfer($order, 30, str_repeat('b', 64))]);
+    $this->app->instance(BlockchainGatewayInterface::class, $gateway);
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    expect(app(VerifyPlatformTopupAction::class)->execute($this->tenant->id, $order->id, null, (string) Str::uuid(), $actor))->toBe('AMBIGUOUS')
+        ->and($order->fresh()->matched_tx_hash)->toBeNull()->and(LedgerEntry::count())->toBe(0);
+});
+
+it('keeps automatic search unmatched or confirming without credit for invalid or insufficient evidence', function (string $case): void {
+    $order = createTrc20Topup($this);
+    $transfer = match ($case) {
+        'amount' => trc20Transfer($order, 30, overrides: ['amount' => '100.00000000']),
+        'time' => trc20Transfer($order, 30, overrides: ['occurred_at' => $order->expires_at->addSecond()]),
+        'token' => trc20Transfer($order, 30, overrides: ['token_contract' => 'wrong-token']),
+        'address' => trc20Transfer($order, 30, overrides: ['destination' => 'wrong-address']),
+        default => trc20Transfer($order, 1),
+    };
+    $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
+    $gateway->shouldReceive('available')->andReturn(true);
+    $gateway->shouldReceive('between')->once()->andReturn([$transfer]);
+    $this->app->instance(BlockchainGatewayInterface::class, $gateway);
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    expect(app(VerifyPlatformTopupAction::class)->execute($this->tenant->id, $order->id, null, (string) Str::uuid(), $actor))
+        ->toBe($case === 'confirmations' ? 'CONFIRMING' : 'UNMATCHED')->and(LedgerEntry::count())->toBe(0);
+})->with(['amount', 'time', 'token', 'address', 'confirmations']);
+
+it('requires explicit search mode consent permissions and server-owned search parameters', function (): void {
+    $order = createTrc20Topup($this);
+    $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/topups/'.$order->id.'/verify';
+    $data = ['request_id' => (string) Str::uuid(), 'verification_mode' => 'SEARCH', 'confirmed' => true];
+    $company = AdminUser::where('email', 'owner@a.localhost')->firstOrFail();
+    $this->actingAs($company, 'platform_admin')->postJson($url, $data)->assertForbidden();
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $this->actingAs($actor, 'platform_admin');
+    $this->postJson($url, [...$data, 'confirmed' => false])->assertUnprocessable();
+    $this->postJson($url, [...$data, 'verification_mode' => 'HASH'])->assertUnprocessable();
+    $this->postJson($url, [...$data, 'amount' => '10'])->assertUnprocessable();
+    $this->postJson($url, [...$data, 'tx_hash' => str_repeat('a', 64)])->assertUnprocessable();
+    $foreign = Tenant::where('slug', 'tenant-b')->firstOrFail();
+    $this->postJson(str_replace($this->tenant->id, $foreign->id, $url), $data)->assertNotFound();
+    $this->postJson($url, $data)->assertRedirect()->assertSessionHas('success', 'No matching transfer found. No funds were credited.');
+    expect(LedgerEntry::count())->toBe(0);
+});
+
+it('audits unavailable automatic searches without confirming funds', function (): void {
+    $order = createTrc20Topup($this);
+    $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
+    $gateway->shouldReceive('available')->andReturn(true);
+    $gateway->shouldReceive('between')->once()->andThrow(new DomainException('BLOCKCHAIN_MONITOR_UNAVAILABLE', 'Unavailable', 503));
+    $this->app->instance(BlockchainGatewayInterface::class, $gateway);
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $request = (string) Str::uuid();
+    expect(fn () => app(VerifyPlatformTopupAction::class)->execute($this->tenant->id, $order->id, null, $request, $actor))->toThrow(DomainException::class);
+    expect(DB::table('audit_logs')->where('request_id', $request)->where('action', 'PLATFORM_TOPUP_VERIFICATION_UNAVAILABLE')->exists())->toBeTrue()
+        ->and($order->fresh()->status)->toBe(WalletTopupStatus::Pending)->and(LedgerEntry::count())->toBe(0);
+});
+
 it('binds a SaaS verification request to one immutable company order and transaction hash', function (): void {
     $order = createTrc20Topup($this);
     $other = createTrc20Topup($this, '200');
@@ -558,6 +650,63 @@ it('preserves pending orders and the forward cursor when a lookback request fail
     expect(new DateTimeImmutable(DB::table('trc20_scan_cursors')->value('scanned_through')))->toEqual($through)
         ->and($order->fresh()->status)->toBe(WalletTopupStatus::Pending)
         ->and(LedgerEntry::query()->count())->toBe(0);
+});
+
+it('queries overlapping pending windows once without extending validity or duplicating credit', function (): void {
+    $this->freezeTime();
+    $first = createTrc20Topup($this, '10');
+    $start = $first->created_at->toDateTimeImmutable();
+    $this->travel(5)->minutes();
+    $second = createTrc20Topup($this, '12');
+    $through = $start->modify('+40 minutes');
+    DB::table('trc20_scan_cursors')->insert(['id' => hash('sha256', 'TRON:USDT:'.$first->deposit_address),
+        'started_at' => $start, 'scanned_through' => $through]);
+    $gateway = Mockery::mock(BlockchainGatewayInterface::class.', '.Trc20ChainReader::class);
+    $gateway->shouldReceive('available')->andReturn(true);
+    $gateway->shouldReceive('confirmedThrough')->andReturn($through);
+    $gateway->shouldReceive('between')->once()->withArgs(fn ($address, $from, $to) => $address === $first->deposit_address && $from == $start && $to == $second->expires_at)
+        ->andReturn([
+            trc20Transfer($second, 30, str_repeat('c', 64), ['occurred_at' => $start->modify('+1 minute')]),
+            trc20Transfer($first, 30, str_repeat('d', 64), ['occurred_at' => $start->modify('+31 minutes')]),
+            trc20Transfer($first, 30, str_repeat('a', 64), ['occurred_at' => $start->modify('+1 minute')]),
+            trc20Transfer($second, 30, str_repeat('b', 64), ['occurred_at' => $start->modify('+6 minutes')]),
+        ]);
+    $this->app->instance(BlockchainGatewayInterface::class, $gateway);
+    $scan = app(ScanTrc20TopupsAction::class);
+    expect($scan->execute()['CREDITED'])->toBe(2)->and($scan->execute()['CREDITED'])->toBe(0)
+        ->and($first->fresh()->status)->toBe(WalletTopupStatus::Credited)
+        ->and($first->fresh()->matched_tx_hash)->toBe(str_repeat('a', 64))
+        ->and($second->fresh()->matched_tx_hash)->toBe(str_repeat('b', 64))
+        ->and(LedgerEntry::query()->where('event_type', 'WALLET_TOPUP_CREDIT')->count())->toBe(2)
+        ->and(new DateTimeImmutable(DB::table('trc20_scan_cursors')->value('scanned_through')))->toEqual($through);
+});
+
+it('retains reservations and progress during real-reader throttling and shared cooldown', function (): void {
+    $this->freezeTime();
+    config(['payment.trc20_deposit_address' => TronGridBlockchainGateway::TOKEN,
+        'payment.trc20_token_contract' => TronGridBlockchainGateway::TOKEN]);
+    $order = createTrc20Topup($this, '10');
+    $start = $order->created_at->toDateTimeImmutable();
+    $through = $start->modify('+20 minutes');
+    DB::table('trc20_scan_cursors')->insert(['id' => hash('sha256', 'TRON:USDT:'.$order->deposit_address),
+        'started_at' => $start, 'scanned_through' => $through]);
+    Http::preventStrayRequests();
+    Http::fake([
+        'api.trongrid.io/v1/accounts/*' => Http::response('limited', 429, ['Retry-After' => '300']),
+        'api.trongrid.io/walletsolidity/getnowblock' => Http::response(['block_header' => ['raw_data' => ['number' => 125]]]),
+        'api.trongrid.io/walletsolidity/getblockbynum' => Http::response(['block_header' => ['raw_data' => [
+            'number' => 106, 'timestamp' => (int) $start->modify('+40 minutes')->format('Uv'),
+        ]]]),
+    ]);
+    $this->app->instance(BlockchainGatewayInterface::class, new TronGridBlockchainGateway);
+    expect(fn () => app(ScanTrc20TopupsAction::class)->execute())->toThrow(DomainException::class);
+    $this->app->instance(BlockchainGatewayInterface::class, new TronGridBlockchainGateway);
+    expect(fn () => app(ScanTrc20TopupsAction::class)->execute())->toThrow(DomainException::class);
+    Http::assertSentCount(3);
+    expect($order->fresh()->status)->toBe(WalletTopupStatus::Pending)
+        ->and($order->fresh()->matched_tx_hash)->toBeNull()
+        ->and(LedgerEntry::query()->count())->toBe(0)
+        ->and(new DateTimeImmutable(DB::table('trc20_scan_cursors')->value('scanned_through')))->toEqual($through);
 });
 
 it('automatically credits a pending 700.01 order from public receipts without scanner configuration', function (string $timezone): void {

@@ -5,7 +5,7 @@ import config from '../../config.json';
 import { discover, type DirectoryCache } from '../../lib/directory';
 import { readinessScript } from '../../lib/readiness';
 import { safeAddress, debugScript, debugMessages } from '../../lib/debug';
-import { sharedSession, pageOrigin, validRememberCookie } from '../../lib/shared-session';
+import { sharedSession, pageOrigin, validRememberCookie, LoginRestoreUnavailable } from '../../lib/shared-session';
 import { sessionSignalScript } from '../../lib/session-signal';
 import { posterBridgeScript, posterReceiver, savePoster, type PosterRuntime } from '../../lib/poster-bridge';
 import { androidCredentialVault, type AndroidBridge } from '../../../../uni-app/src/lib/device-credentials';
@@ -18,7 +18,7 @@ type Webview = {
 };
 declare const plus: PosterRuntime & { webview: { create: (url: string, id: string, styles: Record<string, unknown>) => Webview }; runtime: { appid: string; quit: () => void }; os: { name: string }; android: AndroidBridge; navigator: { getCookie(url: string): string; setCookie(url: string, value: string): void } };
 const state = ref<'discovering' | 'loading' | 'ready' | 'error'>('discovering');
-const error = ref(''), active = ref('');
+const error = ref(''), active = ref(''), loginRecoveryFailed = ref(false);
 const debugEnabled = ref(false), debugRows = ref<string[]>([]), debugUrl = ref('');
 const debugHeight = Math.min(300, Math.floor((uni.getSystemInfoSync().screenHeight || 800) * 0.4));
 let debugTimer: ReturnType<typeof setTimeout> | undefined, debugLease: ReturnType<typeof setTimeout> | undefined;
@@ -34,7 +34,7 @@ let loginStore: ReturnType<typeof sharedSession> | null = null, loginTenant = ''
 let loginDirectory: DirectoryCache | null = null;
 let sessionSequence = 0;
 let posterChannel: ReturnType<typeof posterReceiver> | null = null;
-function configureLogin(directory: DirectoryCache, previous: DirectoryCache | null) {
+async function configureLogin(directory: DirectoryCache, previous: DirectoryCache | null) {
     if (loginTenant && loginTenant !== directory.tenantId) throw new Error('公司信息已变更，请重新打开应用。');
     if (!loginStore) {
         loginTenant = directory.tenantId;
@@ -53,7 +53,7 @@ function configureLogin(directory: DirectoryCache, previous: DirectoryCache | nu
         });
     }
     loginDirectory = directory;
-    loginStore.configure(directory, previous?.tenantId === directory.tenantId ? previous.selected : undefined);
+    await loginStore.configure(directory, previous?.tenantId === directory.tenantId ? previous.selected : undefined);
 }
 function trustedLoginPage(view: Webview) {
     return !!loginDirectory && pageOrigin(view.getURL()) === active.value && loginDirectory.origins.includes(active.value);
@@ -276,23 +276,32 @@ function open(url: string) {
 }
 async function connect() {
     if (detecting || disposed) return;
-    detecting = true; state.value = 'discovering'; error.value = ''; stopTimer();
+    detecting = true; state.value = 'discovering'; error.value = ''; loginRecoveryFailed.value = false; stopTimer();
     try { captureLogin(); } catch { loginStorageFailure(); }
     const previous = cache();
     const previousChild = child; child = null; previousChild?.close();
     try {
         const result = await discover(config.seeds, config.tenantSlug, previous, probe);
         if (disposed) return;
-        configureLogin(result, previous);
+        await configureLogin(result, previous);
         await loginStore!.restore(result.selected);
         if (disposed) return;
         save(result); lastRefresh = Date.now(); active.value = result.selected;
         stopDebug(); refreshDebug(); open(result.selected);
-    } catch (e) { failure(e instanceof Error ? e.message : '连接失败，请重试。'); }
+    } catch (e) { loginRecoveryFailed.value = e instanceof LoginRestoreUnavailable; failure(e instanceof Error ? e.message : '连接失败，请重试。'); }
     finally { detecting = false; }
 }
 function retry() {
     return connect();
+}
+function signInAgain() {
+    if (detecting || !loginRecoveryFailed.value) return;
+    uni.showModal({ title: '重新登录', content: '将清除本机保存的登录状态，需要重新输入账号和密码。',
+        confirmText: '继续', cancelText: '取消', success: result => {
+            if (!result.confirm) return;
+            try { loginStore?.clear(); signedIn = false; void connect(); }
+            catch { loginStorageFailure(); }
+        } });
 }
 function changeLine() {
     if (detecting) return;
@@ -350,7 +359,8 @@ onUnload(() => { disposed = true; posterChannel?.dispose(); stopDebug(); uni.off
                     <text class="error-message">{{ error }}</text>
                     <text v-if="active" class="error-message">{{ active }}</text>
                     <button class="primary" @click="retry">重试</button>
-                    <button class="secondary" @click="changeLine">重新连接</button>
+                    <button v-if="loginRecoveryFailed" class="secondary" @click="signInAgain">重新登录</button>
+                    <button v-else class="secondary" @click="changeLine">重新连接</button>
                 </view>
                 <view v-else class="loading-state" role="status">
                     <view class="loading-track"><view class="loading-glow"/></view>

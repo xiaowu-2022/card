@@ -13,6 +13,7 @@ use Brick\Math\BigInteger;
 use DateTimeImmutable;
 use GuzzleHttp\Exception\ConnectException;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -27,6 +28,8 @@ final class TronGridBlockchainGateway implements BlockchainGatewayInterface, Trc
     private const TRANSFER = 'ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 
     private const BASE = 'https://api.trongrid.io';
+
+    private const BACKOFF_KEY = 'trc20:trongrid:backoff:v1';
 
     public function available(): bool
     {
@@ -206,15 +209,41 @@ final class TronGridBlockchainGateway implements BlockchainGatewayInterface, Trc
         if (! $this->available()) {
             $this->unavailable();
         }
+        // A scheduler retry or another address must respect the same upstream
+        // cooldown. This cache contains transport metadata only, never receipts.
+        try {
+            if ((int) Cache::get(self::BACKOFF_KEY.':until', 0) > now()->timestamp) {
+                $this->unavailable();
+            }
+        } catch (Throwable) {
+            $this->unavailable();
+        }
+        $endpoint = match ($path) {
+            'walletsolidity/getnowblock' => 'solid_head',
+            'walletsolidity/getblockbynum' => 'solid_block',
+            'walletsolidity/gettransactioninfobyid' => 'transaction_receipt',
+            default => str_starts_with($path, 'v1/accounts/') ? 'account_transfers' : 'unknown',
+        };
         $started = hrtime(true);
         $phase = 'transport';
         $status = null;
         try {
-            // Public read-only access: never decrypt or forward stored credentials.
+            // Only the explicitly configured server key is sent to this fixed
+            // HTTPS origin. Legacy stored credentials remain inactive.
+            $apiKey = trim((string) config('payment.trongrid_api_key', ''));
+            if ($apiKey !== '' && ! preg_match('/^[A-Za-z0-9_-]{8,256}$/D', $apiKey)) {
+                $this->unavailable();
+            }
             $client = Http::acceptJson()->connectTimeout(3)->timeout(10)->withoutRedirecting();
+            if ($apiKey !== '') {
+                $client = $client->withHeaders(['TRON-PRO-API-KEY' => $apiKey]);
+            }
             $response = $get ? $client->get(self::BASE.'/'.$path, $data) : $client->post(self::BASE.'/'.$path, $data);
             $status = $response->status();
             $phase = 'http_status';
+            if ($status === 429) {
+                $this->backOff($endpoint, $response->header('Retry-After'));
+            }
             if (! $response->successful()) {
                 $this->unavailable();
             }
@@ -232,15 +261,12 @@ final class TronGridBlockchainGateway implements BlockchainGatewayInterface, Trc
                 $this->unavailable();
             }
 
+            // Head/block successes must not reset repeated discovery failures.
+            Cache::forget(self::BACKOFF_KEY.':failures:'.$endpoint);
+
             return $json;
         } catch (Throwable $error) {
             // Never include request headers, upstream bodies or credentials in exceptions/logs.
-            $endpoint = match ($path) {
-                'walletsolidity/getnowblock' => 'solid_head',
-                'walletsolidity/getblockbynum' => 'solid_block',
-                'walletsolidity/gettransactioninfobyid' => 'transaction_receipt',
-                default => str_starts_with($path, 'v1/accounts/') ? 'account_transfers' : 'unknown',
-            };
             $errno = null;
             if ($phase === 'transport') {
                 for ($cause = $error; $cause !== null; $cause = $cause->getPrevious()) {
@@ -263,6 +289,27 @@ final class TronGridBlockchainGateway implements BlockchainGatewayInterface, Trc
             }
             $this->unavailable();
         }
+    }
+
+    private function backOff(string $endpoint, string $retryAfter): void
+    {
+        $retryAfter = trim($retryAfter);
+        $seconds = 0;
+        if (preg_match('/^[0-9]{1,9}$/D', $retryAfter)) {
+            $seconds = (int) $retryAfter;
+        } elseif (strlen($retryAfter) <= 64) {
+            $date = DateTimeImmutable::createFromFormat(DATE_RFC7231, $retryAfter);
+            $seconds = $date ? max(0, $date->getTimestamp() - now()->timestamp) : 0;
+        }
+        Cache::lock(self::BACKOFF_KEY.':lock', 5)->block(2, function () use ($endpoint, $seconds): void {
+            $key = self::BACKOFF_KEY.':failures:'.$endpoint;
+            $failures = min(6, (int) Cache::get($key, 0) + 1);
+            // Application retry policy, not an assumed provider QPS allowance.
+            $delay = max($seconds, min(900, 60 * (2 ** ($failures - 1))) + random_int(0, 15));
+            $until = max((int) Cache::get(self::BACKOFF_KEY.':until', 0), now()->timestamp + $delay);
+            Cache::put($key, $failures, max(3600, $delay));
+            Cache::put(self::BACKOFF_KEY.':until', $until, $until - now()->timestamp);
+        });
     }
 
     private function unavailable(): never

@@ -26,13 +26,20 @@ final class TopupVerificationController extends Controller
 
     public function verify(Request $request, Tenant $tenant, string $topup, VerifyPlatformTopupAction $verify)
     {
-        $data = $request->validate(['request_id' => ['required', 'uuid'], 'tx_hash' => ['required', 'string', 'regex:/^[a-fA-F0-9]{64}$/'], 'confirmed' => ['accepted']]);
-        $result = $verify->execute($tenant->id, $topup, $data['tx_hash'], $data['request_id'], $request->user('platform_admin'));
+        $data = $request->validate([
+            'request_id' => ['required', 'uuid'], 'verification_mode' => ['sometimes', 'required', 'in:HASH,SEARCH'],
+            'tx_hash' => ['prohibited_if:verification_mode,SEARCH', 'required_unless:verification_mode,SEARCH', 'nullable', 'string', 'regex:/^[a-fA-F0-9]{64}$/'],
+            'confirmed' => ['required', 'accepted'],
+            'address' => ['prohibited'], 'amount' => ['prohibited'], 'from' => ['prohibited'], 'to' => ['prohibited'],
+            'tenant_id' => ['prohibited'], 'user_id' => ['prohibited'], 'wallet_id' => ['prohibited'],
+        ]);
+        $result = $verify->execute($tenant->id, $topup, ($data['verification_mode'] ?? 'HASH') === 'SEARCH' ? null : $data['tx_hash'], $data['request_id'], $request->user('platform_admin'));
 
         return back()->with('success', match ($result) {
             'CREDITED' => 'Chain verification passed. Payment credited.',
             'PAID' => 'Payment verified. Wallet credit is pending.',
             'CONFIRMING' => 'The transaction needs more confirmations. No wallet credit yet.',
+            'AMBIGUOUS' => 'Multiple matching transfers found. Enter a transaction hash to verify the intended payment. No funds were credited.',
             default => 'No matching transfer found. No funds were credited.',
         });
     }

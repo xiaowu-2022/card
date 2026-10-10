@@ -272,10 +272,22 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
         reason: '',
     });
     const [action, setAction] = useState('');
+    const [searchRequestId] = useState(() => crypto.randomUUID());
+    const canSearch = mode === 'deposit' && o.legacy && o.network === 'TRON' && o.asset === 'USDT';
     const [password, setPassword] = useState('');
     const [address, setAddress] = useState<string | null>(null);
     const [revealError, setRevealError] = useState(false);
-    const post = () =>
+    const post = (search = false) => {
+        form.transform((data) =>
+            canSearch && action === 'recheck'
+                ? {
+                      ...data,
+                      verification_mode: search ? 'SEARCH' : 'HASH',
+                      tx_hash: search ? null : data.tx_hash,
+                      request_id: search ? searchRequestId : data.request_id,
+                  }
+                : data,
+        );
         form.post(
             `/platform/tenants/${o.tenant_id}/${o.legacy ? (mode === 'deposit' ? 'topups' : 'asset-tron-withdrawals') : 'asset-orders'}/${o.id}/${o.legacy && mode === 'deposit' && action === 'recheck' ? 'verify' : action}`,
             {
@@ -286,6 +298,7 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
                 },
             },
         );
+    };
     async function reveal() {
         setRevealError(false);
         try {
@@ -459,15 +472,31 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
                         {t(
                             action === 'confirm'
                                 ? 'Confirm receipt of this exact asset and amount. This action credits the account and cannot be undone.'
-                                : 'Review the order details before confirming. Unverified payouts remain on hold.',
+                                : action === 'recheck'
+                                  ? 'This check can credit a verified payment. It cannot bypass the address, token, amount or confirmation checks.'
+                                  : 'Review the order details before confirming. Unverified payouts remain on hold.',
                         )}
                     </p>
                     {['verify', 'recheck'].includes(action) && (
                         <Input
                             value={form.data.tx_hash}
                             placeholder={t('Transaction hash')}
-                            onChange={(e) => form.setData('tx_hash', e.target.value)}
+                            disabled={form.processing}
+                            onChange={(e) =>
+                                form.setData({
+                                    ...form.data,
+                                    tx_hash: e.target.value,
+                                    request_id: crypto.randomUUID(),
+                                })
+                            }
                         />
+                    )}
+                    {canSearch && action === 'recheck' && (
+                        <p className="text-sm text-muted-foreground">
+                            {t(
+                                'No hash available? Automatically search this order’s receiving address and validity window for the exact amount. A verified match can credit the wallet.',
+                            )}
+                        </p>
                     )}
                     {o.legacy && action === 'review' && !form.data.approve && (
                         <Input
@@ -485,9 +514,28 @@ function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
                         />
                         {t('I confirm the order details.')}
                     </label>
-                    <Button disabled={!form.data.confirmed || form.processing} onClick={post}>
-                        {t('Confirm')}
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                        <Button
+                            disabled={
+                                !form.data.confirmed ||
+                                form.processing ||
+                                (['verify', 'recheck'].includes(action) &&
+                                    !form.data.tx_hash.trim())
+                            }
+                            onClick={() => post()}
+                        >
+                            {t(action === 'recheck' ? 'Verify by hash' : 'Confirm')}
+                        </Button>
+                        {canSearch && action === 'recheck' && (
+                            <Button
+                                variant="secondary"
+                                disabled={!form.data.confirmed || form.processing}
+                                onClick={() => post(true)}
+                            >
+                                {t(form.processing ? 'Verifying…' : 'Automatically search')}
+                            </Button>
+                        )}
+                    </div>
                 </div>
             )}
             {o.actualReceivedAmount && (

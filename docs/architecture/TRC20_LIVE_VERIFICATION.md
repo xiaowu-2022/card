@@ -1,5 +1,46 @@
 # Live incoming USDT and SaaS rechecks
 
+## Optional server API key (2026-10-10)
+
+The user approved using a configured TronGrid key after read-only authenticated
+requests successfully returned the reported transactions and solidified receipts.
+`config/payment.php` reads `TRONGRID_API_KEY` from private deployment configuration.
+When nonempty, the gateway sends it as `TRON-PRO-API-KEY` on every discovery,
+receipt and block request to the fixed `https://api.trongrid.io` origin. Redirects
+stay disabled. It is never put in URLs, bodies, frontend DTOs, source, audit or
+logs. Malformed configured values fail closed before HTTP. Authentication failure
+does not fall back to anonymous traffic. Blank configuration retains anonymous
+reads; old encrypted credentials are not activated implicitly. This supersedes
+the anonymous-only behavior described in older sections below.
+
+The key applies equally to scheduled scans and Platform hash/automatic-search
+verification. Exact receipt checks, immutable order scope, Ledger idempotency,
+bounded queries and shared HTTP 429 backoff remain unchanged. Provider quotas may
+depend on account plan, endpoint, IP and time window; no fixed throughput or
+absence of future throttling is promised. See the
+[official quota guidance](https://developers.tron.network/reference/rate-limits).
+
+The user will configure production. Deploy the PHP/config changes, set the
+following in the existing private server `.env` (substitute the real key):
+
+```dotenv
+TRONGRID_API_KEY=your_trongrid_api_key
+```
+
+Then run the site's PHP version from `/www/wwwroot/card`:
+
+```sh
+/www/server/php/84/bin/php artisan config:cache
+```
+
+Reload the site's PHP-FPM/opcache and any persistent scheduler process through
+the existing deployment process. Keep the normal minute scheduler and its cache;
+do not start extra scans or clear shared cooldowns. No database migration is
+needed. The combined deployment bundle also includes the previously built
+Platform automatic-search UI; no new frontend or H5 change is needed for the key.
+The bundle excludes `.env` and all real credentials. The PHPUnit environment
+explicitly clears this key; fake-request tests use synthetic credentials only.
+
 Later 2026-09-13 approval adds [SaaS manual receipt confirmation](PLATFORM_MANUAL_TOPUP_CONFIRMATION.md)
 without online verification. That separate audited order workflow supersedes the
 no-manual-confirmation prohibition below; this chain adapter still requires exact proof.
@@ -173,3 +214,42 @@ Offline HTTP fakes cover HTTP failures, transport errors, invalid/oversized JSON
 upstream errors, redaction and logger failure, alongside the existing receipt and
 shared-top-up regression suites. This adds evidence for future failures; it does
 not establish that the historical latency issue has been resolved.
+
+## Shared-address request amplification and HTTP 429 (2026-10-10)
+
+The supplied production log at 10:49:03 records `account_transfers`,
+`http_status=429`, in 100 ms. That request was throttled before a discovery list
+could be read; no receipt or credit can be inferred from the failure. This log
+alone does not establish the status of the two reported overnight payments.
+
+Pending-order recovery previously queried overlapping validity intervals separately
+for every order. It now groups overlapping windows within each 100-order keyset
+batch, with merged spans bounded to one hour (an individual existing longer
+validity window is retained). Discovery and receipt verification run once per
+group; processing still binds each transfer to the original tenant/order and
+individual creation/expiry interval. Cursor starts, forward five-minute windows,
+completed-order exclusion, exact matching and Ledger idempotency stay unchanged.
+
+HTTP 429 now establishes a shared cache cooldown across addresses, endpoints and
+PHP processes. Retry-After seconds and HTTP dates are honored; otherwise retries
+back off exponentially from 60 seconds to 15 minutes with up to 15 seconds jitter.
+These are application retry delays, not assumed upstream quotas. Failure streaks
+are endpoint-specific, so a successful head request does not reset repeated
+discovery throttling. During cooldown no upstream request is sent, and the next
+normal scheduler invocation can retry after it expires. Only transport metadata
+is cached. Cache failure is fail-closed; uncertain scans retain their checkpoint
+and do not release reservations. No receipt facts or balances are cached here.
+
+Deploy both `ScanTrc20TopupsAction.php` and `TronGridBlockchainGateway.php`, preserving
+the existing shared persistent cache (production Redis). Reload PHP-FPM/opcache and
+any persistent scheduler process through the normal deployment procedure. No
+migration, frontend build, key, cursor reset or manual financial scan is required.
+Keep the existing minute scheduler; do not add extra scanner cron jobs or repeatedly
+clear the cache, which would discard the cooldown. Local tests use only synthetic
+orders in `card_ui_test` and fake HTTP responses.
+
+This mitigates duplicate traffic and retry pressure; anonymous upstream availability
+is not guaranteed. The [official rate-limit guidance](https://developers.tron.network/reference/rate-limits)
+warns that anonymous requests may be restricted or rejected. This change preserves
+the approved anonymous reader and does not activate legacy credentials. Production
+deployment and each reported order's status still require live verification.
