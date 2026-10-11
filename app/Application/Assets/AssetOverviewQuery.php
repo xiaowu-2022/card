@@ -17,7 +17,6 @@ use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Tenant\Models\TenantBusinessSetting;
 use App\Domain\Wallet\Models\Wallet;
 use Brick\Math\BigDecimal;
-use Brick\Math\RoundingMode;
 use Illuminate\Support\Facades\DB;
 
 final readonly class AssetOverviewQuery
@@ -31,22 +30,9 @@ final readonly class AssetOverviewQuery
         $eligible = $legacy['transferAvailable'] ?? false;
         $wallets = Wallet::where('tenant_id', $tenantId)->where('user_id', $userId)->get()->keyBy('asset_code');
         $snapshot = $this->prices->latest();
-        $total = BigDecimal::of('0');
-        $valuationAvailable = true;
-        $usesMarketPrices = false;
-        // Match card display balances, using confirmed local data and the existing USD/USDT 1:1 convention.
-        $overflow = $accounts->filter(fn ($account) => $account->account_type->value === 'USER_CARD_OVERFLOW'
-            && $account->asset_code === 'USDT')->keyBy('card_id');
         $cards = UserCard::query()->where('tenant_id', $tenantId)->where('user_id', $userId)
             ->whereNull('archived_at')->get(['id', 'card_currency', 'provider_balance']);
-        foreach ($cards as $card) {
-            if ($card->provider_balance === null || $card->card_currency !== 'USD') {
-                $valuationAvailable = false;
-
-                continue;
-            }
-            $total = $total->plus($card->provider_balance)->plus($overflow->get($card->id)?->balance ?? '0');
-        }
+        $valuation = app(AssetValuation::class)->calculate($accounts, $cards, $snapshot);
         $assets = [];
         $rails = AssetRail::query()->where('enabled', true)->get();
         $company = CompanyRail::query()->where('tenant_id', $tenantId)->get()->keyBy('rail_code');
@@ -61,18 +47,6 @@ final readonly class AssetOverviewQuery
             }
             $available = $balance('USER_AVAILABLE');
             $deposit = $asset === 'USDT' ? $balance('USER_SECURITY_DEPOSIT') : '0';
-            $native = BigDecimal::of($available)->plus($held)->plus($deposit)->plus($balance('USER_WEALTH_PRINCIPAL'));
-            if ($asset === 'USDT') {
-                // USDT is the valuation unit; its own balance needs no market quote.
-                $total = $total->plus($native);
-            } elseif (! $native->isZero()) {
-                if ($snapshot === null) {
-                    $valuationAvailable = false;
-                } else {
-                    $total = $total->plus($native->multipliedBy($this->prices->rate($snapshot, $asset)));
-                    $usesMarketPrices = true;
-                }
-            }
             $options = [];
             if ($asset === 'USDT' && (($legacy['topupAvailable'] ?? false) || ($legacy['withdrawalAvailable'] ?? false))) {
                 $options[] = ['code' => 'USDT_TRON', 'network' => 'TRON', 'deposit' => (bool) $legacy['topupAvailable'], 'withdrawal' => (bool) $legacy['withdrawalAvailable'], 'feePercent' => null, 'minimum' => TenantBusinessSetting::where('tenant_id', $tenantId)->value('tron_minimum_deposit')];
@@ -106,6 +80,6 @@ final readonly class AssetOverviewQuery
             $assets[] = ['asset' => $asset, 'available' => $available, 'held' => Money::of((string) $held, $asset)->amount(), 'deposit' => $deposit, 'rails' => $options, 'transfer' => $asset === 'USDT' && $eligible, 'exchange' => $exchangeReason === null, 'exchangeUnavailableReason' => $exchangeReason, 'activity' => $activity, 'orders' => $orders->sortByDesc('time')->take(10)->values()->all()];
         }
 
-        return ['activation' => app(AccountActivationStatus::class)->get($tenantId, $userId), 'cumulativeCommission' => $this->promotion->cumulative($tenantId, $userId), 'assets' => $assets, 'estimate' => $valuationAvailable ? (string) $total->toScale(8, RoundingMode::Down) : null, 'updatedAt' => $valuationAvailable && $usesMarketPrices ? $snapshot?->observed_at->toIso8601String() : null];
+        return ['activation' => app(AccountActivationStatus::class)->get($tenantId, $userId), 'cumulativeCommission' => $this->promotion->cumulative($tenantId, $userId), 'assets' => $assets, 'estimate' => $valuation['estimate'], 'updatedAt' => $valuation['updatedAt']];
     }
 }

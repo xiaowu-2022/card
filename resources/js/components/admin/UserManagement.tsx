@@ -1,3 +1,4 @@
+import { UserAssetSummaryDialog, SummaryAmount, AssetAmounts } from './UserAssetSummaryDialog';
 import { Pencil } from 'lucide-react';
 import { EnablePartnerDialog } from './EnablePartnerDialog';
 import { ReferrerFilterSelect } from './ReferrerFilterSelect';
@@ -35,6 +36,19 @@ type Wallet = {
     held: string;
 };
 export type PlatformUser = {
+    directReferrer?: { accountId: string; displayName: string | null } | null;
+    financialSummary?: {
+        estimate?: string | null;
+        cardBalance?: string | null;
+        annualCommission?: string;
+        activationCommission?: string;
+        annualExpense?: string;
+        transfers?: {
+            incoming: { asset: string; amount: string }[];
+            outgoing: { asset: string; amount: string }[];
+        };
+        withdrawals?: { asset: string; amount: string }[];
+    };
     partnerId?: string | null;
     promotionTeamCount?: number;
     descendantCount?: number;
@@ -121,9 +135,13 @@ export default function UserManagement({
         balances: boolean;
         commission: boolean;
         withdrawals: boolean;
+        funds?: boolean;
     };
 }) {
     useAdminTranslation();
+    const [assetTarget, setAssetTarget] = useState<
+        (PlatformUser & { view: 'funds' | 'cards' }) | null
+    >(null);
     const [partnerUser, setPartnerUser] = useState<PlatformUser | null>(null);
     const [detailTab, setDetailTab] = useState('basic');
     const detailTabsId = useId();
@@ -163,6 +181,11 @@ export default function UserManagement({
                 </>
             }
         >
+            <UserAssetSummaryDialog
+                key={assetTarget ? `${assetTarget.id}-${assetTarget.view}` : 'closed'}
+                target={assetTarget}
+                onClose={() => setAssetTarget(null)}
+            />
             {!detail && <Head title={t('Users')} />}
             {cleanup && (
                 <DataCleanupDialog
@@ -392,6 +415,24 @@ export default function UserManagement({
                                     </span>
                                 ),
                         },
+                        ...(!detail
+                            ? [
+                                  {
+                                      label: 'Direct referrer',
+                                      render: (row: PlatformUser) =>
+                                          row.directReferrer ? (
+                                              <div>
+                                                  {row.directReferrer.displayName || '—'}
+                                                  <div className="text-xs text-muted-foreground">
+                                                      {row.directReferrer.accountId}
+                                                  </div>
+                                              </div>
+                                          ) : (
+                                              '—'
+                                          ),
+                                  },
+                              ]
+                            : []),
                         ...(detail
                             ? [
                                   {
@@ -417,10 +458,44 @@ export default function UserManagement({
                                   },
                               ]
                             : []),
+                        ...(!detail && financialAccess.funds
+                            ? [
+                                  {
+                                      label: 'Estimated total funds',
+                                      render: (row: PlatformUser) => (
+                                          <button
+                                              className="text-primary underline underline-offset-4"
+                                              onClick={() =>
+                                                  setAssetTarget({ ...row, view: 'funds' })
+                                              }
+                                          >
+                                              <SummaryAmount
+                                                  amount={row.financialSummary?.estimate}
+                                              />
+                                          </button>
+                                      ),
+                                  },
+                                  {
+                                      label: 'Card balance',
+                                      render: (row: PlatformUser) => (
+                                          <button
+                                              className="text-primary underline underline-offset-4"
+                                              onClick={() =>
+                                                  setAssetTarget({ ...row, view: 'cards' })
+                                              }
+                                          >
+                                              <SummaryAmount
+                                                  amount={row.financialSummary?.cardBalance}
+                                              />
+                                          </button>
+                                      ),
+                                  },
+                              ]
+                            : []),
                         ...(financialAccess.receipts
                             ? [
                                   {
-                                      label: 'Actual deposits',
+                                      label: detail ? 'Actual deposits' : 'Actual deposit amount',
                                       render: (row: PlatformUser) => (
                                           <ReceiptAmounts
                                               totals={row.receiptTotals}
@@ -429,14 +504,69 @@ export default function UserManagement({
                                           />
                                       ),
                                   },
+                                  ...(detail
+                                      ? [
+                                            {
+                                                label: 'Cumulative advances',
+                                                render: (row: PlatformUser) => (
+                                                    <ReceiptAmounts
+                                                        totals={row.receiptTotals}
+                                                        hideUsdt={!detail}
+                                                        field="advance"
+                                                    />
+                                                ),
+                                            },
+                                        ]
+                                      : []),
+                              ]
+                            : []),
+                        ...(!detail && financialAccess.commission
+                            ? [
                                   {
-                                      label: 'Cumulative advances',
+                                      label: 'Annual commission',
                                       render: (row: PlatformUser) => (
-                                          <ReceiptAmounts
-                                              totals={row.receiptTotals}
-                                              hideUsdt={!detail}
-                                              field="advance"
+                                          <SummaryAmount
+                                              amount={row.financialSummary?.annualCommission}
                                           />
+                                      ),
+                                  },
+                                  {
+                                      label: 'Activation commission',
+                                      render: (row: PlatformUser) => (
+                                          <SummaryAmount
+                                              amount={row.financialSummary?.activationCommission}
+                                          />
+                                      ),
+                                  },
+                                  {
+                                      label: 'Annual fee expense',
+                                      render: (row: PlatformUser) => (
+                                          <SummaryAmount
+                                              amount={row.financialSummary?.annualExpense}
+                                          />
+                                      ),
+                                  },
+                                  {
+                                      label: 'Transfers',
+                                      render: (row: PlatformUser) => (
+                                          <div className="space-y-2">
+                                              <div>
+                                                  {t('Incoming')}
+                                                  <AssetAmounts
+                                                      items={
+                                                          row.financialSummary?.transfers?.incoming
+                                                      }
+                                                  />
+                                              </div>
+                                              <div>
+                                                  {t('Outgoing')}
+                                                  <AssetAmounts
+                                                      items={
+                                                          row.financialSummary?.transfers?.outgoing
+                                                      }
+                                                  />
+                                              </div>
+                                          </div>
                                       ),
                                   },
                               ]
@@ -454,20 +584,25 @@ export default function UserManagement({
                         ...(financialAccess.withdrawals
                             ? [
                                   {
-                                      label: 'Withdrawal amount',
-                                      render: (row: PlatformUser) => (
-                                          <span
-                                              title={t(
-                                                  'Successful withdrawal amounts including fees.',
-                                              )}
-                                          >
-                                              <MoneyDisplay
-                                                  amount={row.totalWithdrawn!}
-                                                  hideSymbol={!detail}
-                                                  asset="USDT"
+                                      label: detail ? 'Withdrawal amount' : 'Outgoing funds',
+                                      render: (row: PlatformUser) =>
+                                          !detail ? (
+                                              <AssetAmounts
+                                                  items={row.financialSummary?.withdrawals}
                                               />
-                                          </span>
-                                      ),
+                                          ) : (
+                                              <span
+                                                  title={t(
+                                                      'Successful withdrawal amounts including fees.',
+                                                  )}
+                                              >
+                                                  <MoneyDisplay
+                                                      amount={row.totalWithdrawn!}
+                                                      hideSymbol={!detail}
+                                                      asset="USDT"
+                                                  />
+                                              </span>
+                                          ),
                                   },
                               ]
                             : []),
@@ -577,6 +712,9 @@ export default function UserManagement({
                             ? [
                                   {
                                       label: 'Actions',
+                                      pin: 'right' as const,
+                                      className:
+                                          'sticky right-0 z-10 bg-surface shadow-[-1px_0_0_var(--color-border)]',
                                       render: (row: PlatformUser) => (
                                           <div className="flex items-center gap-2 whitespace-nowrap">
                                               <UserInfoCell user={row} action />

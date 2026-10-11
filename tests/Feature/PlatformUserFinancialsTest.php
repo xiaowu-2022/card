@@ -52,8 +52,9 @@ it('shows zeros without creating accounts and omits financial fields without the
         ->where('users.data.0.commission', '0.00000000')->where('users.data.0.totalWithdrawn', '0.00000000'));
     $permissions = DB::table('permissions')->whereIn('name', ['wallet.read', 'ledger.read', 'withdrawals.read', 'wallet_topups.read'])->pluck('id');
     DB::table('role_permissions')->whereIn('permission_id', $permissions)->delete();
+    DB::table('permissions')->whereIn('id', $permissions)->delete();
     $this->get($url.'?balances=1&commission=1&withdrawals=1')->assertOk()->assertInertia(fn ($p) => $p
-        ->where('financialAccess', ['balances' => false, 'receipts' => false, 'commission' => false, 'withdrawals' => false])
+        ->where('financialAccess', ['balances' => false, 'receipts' => false, 'commission' => false, 'withdrawals' => false, 'funds' => false])
         ->missing('users.data.0.wallets')->missing('users.data.0.availableBalance')->missing('users.data.0.securityDeposit')
         ->missing('users.data.0.commission')->missing('users.data.0.totalWithdrawn'));
     expect(LedgerAccount::query()->count())->toBe($count);
@@ -104,7 +105,7 @@ it('reads exact owned balances and successful gross withdrawal totals without mu
         ], AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail());
         fakeMatchingKycOcr('FINANCIALS-'.$user->id);
         $kyc = app(SubmitKycApplicationAction::class)->execute($tenant, $user, 'CN', 'FINANCIALS-'.$user->id, kycTestImage(), kycTestImage('back.png'));
-        app(ApproveKycAction::class)->execute($tenant->id, $kyc->id, $owner);
+        app(ApproveKycAction::class)->execute($tenant->id, $kyc->id, $owner, identityNumber: '11010519491231002X');
         $wallet = app(ActivateUserWalletAction::class)->execute($tenant->id, $user->id)->wallet;
         $available = LedgerAccount::query()->where('tenant_id', $tenant->id)->where('wallet_id', $wallet->id)->where('account_type', 'USER_AVAILABLE')->sole();
         $clearing = LedgerAccount::query()->where('tenant_id', $tenant->id)->where('account_type', 'TENANT_TOPUP_CLEARING')->sole();

@@ -2,7 +2,6 @@
 
 namespace App\Application\User;
 
-use App\Application\Promotion\ManualPromotion;
 use App\Application\Promotion\OrdinaryMemberQuery;
 use App\Application\Wallet\PlatformWalletQuery;
 use Brick\Math\BigDecimal;
@@ -61,6 +60,9 @@ final class PlatformUserQuery
 
         $descendants = app(PlatformUserDescendantCounts::class)->forUsers($page->getCollection()->pluck('id')->all());
 
+        $summaries = app(PlatformUserFinancialSummary::class)->forUsers($page->getCollection()->all(), $financialAccess);
+        $identities = app(PlatformUserListIdentity::class)->forUsers($page->getCollection()->all());
+
         return $page->through(fn ($row): array => [
             'descendantCount' => $descendants[$row->id] ?? 0,
             'id' => $row->id, 'companyId' => $row->tenant_id, 'companyName' => $row->company_name,
@@ -68,9 +70,9 @@ final class PlatformUserQuery
             'supportAgent' => (bool) $row->support_enabled, 'supportRevision' => (int) ($row->support_revision ?? 0),
             'ordinaryMember' => (bool) $row->ordinary_member,
             'remark' => $row->support_remark, 'remarkRevision' => (int) $row->support_remark_revision,
-            'email' => $row->email, 'phone' => $row->phone, 'promotionRank' => app(ManualPromotion::class)->benefit($row->tenant_id, $row->id, $at)?->rank ?? 0, 'status' => $row->status,
+            'email' => $row->email, 'phone' => $row->phone, 'status' => $row->status,
             'createdAt' => $row->created_at, 'lastLoginAt' => $row->last_login_at,
-        ] + (($financialAccess['receipts'] ?? false) ? ['receiptTotals' => $receipts[$row->tenant_id.':'.$row->id] ?? []] : []) + (($financialAccess['balances'] ?? false) ? [
+        ] + ($identities[$row->tenant_id.':'.$row->id] ?? []) + ['financialSummary' => $summaries[$row->tenant_id.':'.$row->id] ?? []] + (($financialAccess['receipts'] ?? false) ? ['receiptTotals' => $receipts[$row->tenant_id.':'.$row->id] ?? []] : []) + (($financialAccess['balances'] ?? false) ? [
             'wallets' => $wallets[$row->id] ?? [],
             'availableBalance' => $this->decimal($row->available_balance), 'securityDeposit' => $this->decimal($row->security_deposit),
         ] : []) + (($financialAccess['commission'] ?? false) ? ['commission' => $this->decimal($row->commission)] : [])

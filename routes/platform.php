@@ -50,6 +50,7 @@ use App\Http\Controllers\Platform\UserOperationsController;
 use App\Http\Controllers\Platform\UserPromotionController;
 use App\Http\Controllers\Platform\UserReferrerController;
 use App\Http\Controllers\Platform\UserRestrictionsController;
+use App\Http\Controllers\Platform\UserSummaryController;
 use App\Http\Controllers\Platform\WalletAdjustmentController;
 use App\Http\Controllers\Platform\WealthController;
 use App\Http\Middleware\CompanyDirectoryAccess;
@@ -190,6 +191,10 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
             ->defaults('mode', $mode)->whereUuid(['tenant', 'user'])
             ->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,'.$permission]);
     }
+    Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,ledger.read', 'admin.scope:platform,cards.read'])->group(function (): void {
+        Route::get('/tenants/{tenant}/users/{user}/funds-summary', [UserSummaryController::class, 'funds'])->whereUuid(['tenant', 'user']);
+        Route::get('/tenants/{tenant}/users/{user}/cards-summary', [UserSummaryController::class, 'cards'])->whereUuid(['tenant', 'user']);
+    });
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,ledger.read'])->get('/tenants/{tenant}/users/{user}/funds', UserFundsController::class)->whereUuid(['tenant', 'user'])->name('users.funds');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,kyc.read'])->get('/tenants/{tenant}/users/{user}/kyc', [KycDetailController::class, 'user'])->whereUuid(['tenant', 'user'])->name('users.kyc');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.invitation.manage'])->group(function () {

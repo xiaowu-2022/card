@@ -1,3 +1,10 @@
+import { ReferrerFilterSelect } from '@/components/admin/ReferrerFilterSelect';
+import {
+    PartnerDailyStatistics,
+    partnerDailyColumns,
+    type PartnerDaily,
+} from '@/components/admin/PartnerDailyStatistics';
+import { SummaryAmount } from '@/components/admin/UserAssetSummaryDialog';
 import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { UserInfoCell, RecordUserCell, type UserInfo } from '@/components/admin/UserInfoCell';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
@@ -28,6 +35,21 @@ import {
 import '../../../css/partner-stock.css';
 type Page<T> = { data: T[]; current_page: number; last_page: number; total: number };
 type Partner = {
+    promotionRank?: number;
+    ordinaryMember?: boolean;
+    directReferrer?: { accountId: string; displayName: string | null } | null;
+    summary?: {
+        advance: string;
+        stock: string | null;
+        theoretical: string | null;
+        actual: string | null;
+        difference: string | null;
+        reimbursement: string;
+        daily: PartnerDaily;
+        alerts: { remaining: string; refund10: string; refund3: string };
+        timezone: string;
+        updatedAt: string;
+    };
     userInfo?: UserInfo;
     userId?: string;
     id: string;
@@ -75,6 +97,14 @@ export default function Partners({
         request_id: requestId(),
         reverses_id: null as string | null,
     });
+    const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+    const toggleRow = (id: string) =>
+        setExpandedRows((previous) => {
+            const next = new Set(previous);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
     const [targetCompany, setTargetCompany] = useState(companyId ?? '');
     const [journalPartner, setJournalPartner] = useState('');
     const [journalAccount, setJournalAccount] = useState('');
@@ -256,7 +286,7 @@ export default function Partners({
         >
             <Head title={t('Partners')} />
             <div className="partner-admin partner-admin-platform">
-                <div className="partner-form">
+                <div className="partner-form partner-summary-filters">
                     <label>
                         {t('Company')}
                         <select
@@ -273,6 +303,17 @@ export default function Partners({
                             ))}
                         </select>
                     </label>
+                    <ReferrerFilterSelect
+                        company={companyId ?? ''}
+                        value={new URL(url, location.origin).searchParams.get('referrer') ?? ''}
+                        onChange={(referrer) =>
+                            router.get(
+                                '/platform/partners',
+                                { company: companyId ?? '', referrer },
+                                { preserveScroll: true },
+                            )
+                        }
+                    />
                 </div>
                 {
                     <>
@@ -281,61 +322,166 @@ export default function Partners({
                                 {t('Partner list')} <span>{partners?.total ?? 0}</span>
                             </div>
                             {partners?.data.length ? (
-                                <table className="partner-table">
-                                    <thead>
-                                        <tr>
-                                            <th>{t('Company / User')}</th>
-                                            <th>{t('Partner share')}</th>
-                                            <th>{t('Report access')}</th>
-                                            <th>{t('Actions')}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {partners.data.map((p) => (
-                                            <tr key={p.id}>
-                                                <td>
-                                                    <RecordUserCell row={p} />
-                                                </td>
-                                                <td data-label={t('Partner share')}>
-                                                    {exactAmount(p.share_percent)}%
-                                                </td>
-                                                <td data-label={t('Report access')}>
-                                                    <span
-                                                        className={`partner-status ${p.enabled ? 'is-enabled' : ''}`}
-                                                    >
-                                                        {t(p.enabled ? 'Enabled' : 'Disabled')}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <div className="partner-row-actions">
-                                                        <button
-                                                            type="button"
-                                                            onClick={(event) => {
-                                                                reportTrigger.current =
-                                                                    event.currentTarget;
-                                                                visit(p.id);
-                                                            }}
-                                                        >
-                                                            {t('View report')}
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => record(p)}
-                                                        >
-                                                            {t('Record entry')}
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => edit(p)}
-                                                        >
-                                                            {t('Edit')}
-                                                        </button>
-                                                    </div>
-                                                </td>
+                                <div className="overflow-x-auto">
+                                    <table className="partner-table partner-summary-table">
+                                        <thead>
+                                            <tr>
+                                                <th className="partner-summary-identity">
+                                                    {t('Company / User')}
+                                                </th>
+                                                {[
+                                                    'Agent level',
+                                                    'Direct referrer',
+                                                    'Cumulative advances',
+                                                    'Stock',
+                                                    'Theoretical balance',
+                                                    'Actual balance',
+                                                    'Partner balance difference',
+                                                    'Reimbursements',
+                                                ].map((label) => (
+                                                    <th key={label}>{t(label)}</th>
+                                                ))}
+                                                {partnerDailyColumns.map(([key, label]) => (
+                                                    <th key={key}>{t(label)}</th>
+                                                ))}
+                                                <th>{t('Team alerts')}</th>
+                                                <th className="partner-summary-actions">
+                                                    {t('Actions')}
+                                                </th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            {partners.data.map((p) => (
+                                                <tr key={p.id}>
+                                                    <td className="partner-summary-identity">
+                                                        <RecordUserCell row={p} />
+                                                        <div className="mt-2 text-xs text-muted-foreground">
+                                                            {t(p.enabled ? 'Enabled' : 'Disabled')}{' '}
+                                                            · {exactAmount(p.share_percent)}%
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        {p.promotionRank
+                                                            ? t('Mastercard level {{rank}}', {
+                                                                  rank: p.promotionRank,
+                                                              })
+                                                            : t(
+                                                                  p.ordinaryMember
+                                                                      ? 'Ordinary member'
+                                                                      : 'Registered member',
+                                                              )}
+                                                    </td>
+                                                    <td>
+                                                        {p.directReferrer ? (
+                                                            <div>
+                                                                {p.directReferrer.displayName ||
+                                                                    '—'}
+                                                                <div className="text-xs text-muted-foreground">
+                                                                    {p.directReferrer.accountId}
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            '—'
+                                                        )}
+                                                    </td>
+                                                    {(
+                                                        [
+                                                            'advance',
+                                                            'stock',
+                                                            'theoretical',
+                                                            'actual',
+                                                            'difference',
+                                                            'reimbursement',
+                                                        ] as const
+                                                    ).map((key) => (
+                                                        <td key={key}>
+                                                            <SummaryAmount
+                                                                amount={p.summary?.[key]}
+                                                            />
+                                                        </td>
+                                                    ))}
+                                                    {partnerDailyColumns.map(([key]) => (
+                                                        <td key={key}>
+                                                            {p.summary ? (
+                                                                <PartnerDailyStatistics
+                                                                    account={p.account_id}
+                                                                    values={p.summary.daily[key]}
+                                                                    expanded={expandedRows.has(
+                                                                        p.id,
+                                                                    )}
+                                                                    onToggle={() => toggleRow(p.id)}
+                                                                />
+                                                            ) : (
+                                                                '—'
+                                                            )}
+                                                        </td>
+                                                    ))}
+                                                    <td className="min-w-64">
+                                                        <div
+                                                            className="space-y-2 text-xs"
+                                                            title={p.summary?.timezone}
+                                                        >
+                                                            <div>
+                                                                {t('70% annual refund remaining')}:{' '}
+                                                                <SummaryAmount
+                                                                    amount={
+                                                                        p.summary?.alerts.remaining
+                                                                    }
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                {t(
+                                                                    'Deposit refunds within 10 days',
+                                                                )}
+                                                                :{' '}
+                                                                <SummaryAmount
+                                                                    amount={
+                                                                        p.summary?.alerts.refund10
+                                                                    }
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                {t('Deposit refunds within 3 days')}
+                                                                :{' '}
+                                                                <SummaryAmount
+                                                                    amount={
+                                                                        p.summary?.alerts.refund3
+                                                                    }
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="partner-summary-actions">
+                                                        <div className="partner-row-actions">
+                                                            <button
+                                                                type="button"
+                                                                onClick={(event) => {
+                                                                    reportTrigger.current =
+                                                                        event.currentTarget;
+                                                                    visit(p.id);
+                                                                }}
+                                                            >
+                                                                {t('View report')}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => record(p)}
+                                                            >
+                                                                {t('Record entry')}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => edit(p)}
+                                                            >
+                                                                {t('Edit')}
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             ) : (
                                 <div className="partner-list-empty">
                                     <strong>{t('No partners yet')}</strong>

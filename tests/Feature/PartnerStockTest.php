@@ -385,6 +385,8 @@ it('uses weighted first activation snapshots at the 70 percent boundary and keep
     }
     $r = $this->report->read($this->tenant->id, $this->user->id);
     expect($r['risks']['activeCount'])->toBe(1)->and((string) $r['risks']['active']['items'][0]->weighted)->toBe('7.0')->and($r['risks']['remaining'])->toBe($level->fee);
+    $partner = DB::table('partner_configurations')->where('user_id',$this->user->id)->first();
+    expect(app(\App\Application\Partners\PartnerListSummary::class)->forRows([$partner])[$partner->id]['summary']['alerts']['remaining'])->toBe($r['risks']['remaining']);
     DB::unprepared("CREATE OR REPLACE FUNCTION test_stock_rebate_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='PROMOTION_REBATE_AUTO_COMPLETED' THEN RAISE EXCEPTION 'offline test failure'; END IF; RETURN NEW; END $$; CREATE TRIGGER test_stock_rebate_failure BEFORE INSERT ON audit_logs FOR EACH ROW EXECUTE FUNCTION test_stock_rebate_failure()");
     for ($i = 0; $i < 3; $i++) {
         $c = stockChild($this->user);
@@ -1083,4 +1085,63 @@ it('requires confirmed positive theoretical adjustments within the authorized co
     $permission = DB::table('permissions')->where('name', 'partners.manage')->value('id');
     DB::table('role_permissions')->where('permission_id', $permission)->delete();
     $this->postJson($url, stockEntry('ADJUSTMENT_INCREASE', '1') + ['confirmed' => true])->assertForbidden();
+});
+
+it('batches partner layout summaries with own net advances and the shared report formula', function () {
+    $p = stockPartner($this, $this->user);
+    stockFundWallet($this, $this->user);
+    stockBuy($this, $this->user, 1);
+    $advance = $this->management->journal($this->admin, $this->tenant->id, $p->id, stockEntry('ADVANCE','100'));
+    $this->management->journal($this->admin, $this->tenant->id, $p->id, stockEntry('ADVANCE','100') + ['reverses_id'=>$advance->id]);
+    $this->management->journal($this->admin, $this->tenant->id, $p->id, stockEntry('ADVANCE','40'));
+    $child = stockChild($this->user); $second = stockPartner($this,$child);
+    $rows = DB::table('partner_configurations')->whereIn('id',[$p->id,$second->id])->get()->all();
+    $before = DB::table('ledger_entries')->count();
+    $summaries = app(\App\Application\Partners\PartnerListSummary::class)->forRows($rows);
+    $report = app(PartnerReport::class)->read($this->tenant->id,$this->user->id,false);
+    expect((string) \Brick\Math\BigDecimal::of($summaries[$p->id]['summary']['advance'])->toScale(8))->toBe('40.00000000');
+    foreach (['stock','theoretical','actual','difference','reimbursement'] as $key) {
+        $expected = $key === 'stock' ? $report['stock'] : $report['accountBalance'][$key === 'reimbursement' ? 'reimbursements' : $key];
+        expect((string) \Brick\Math\BigDecimal::of($summaries[$p->id]['summary'][$key])->toScale(8))->toBe($expected);
+    }
+    expect($summaries[$second->id]['directReferrer']['accountId'])->toBe($this->user->account_id);
+    expect($summaries[$second->id]['summary']['daily']['annual']['3'])->toBe('0.00000000');
+    expect(DB::table('ledger_entries')->count())->toBe($before); Http::assertNothingSent();
+});
+
+it('batches company local day averages including zeros and only live pending refund deadlines', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-11T16:30:00Z'));
+    $this->tenant->update(['timezone'=>'Asia/Shanghai']);
+    $p = stockPartner($this,$this->user);
+    $first = stockChild($this->user); stockFundWallet($this,$first);
+    // 23:59:59 yesterday in company timezone belongs to the preceding complete days.
+    $this->travelTo(CarbonImmutable::parse('2026-10-11T15:59:59Z'));
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id,$first->id,(string) Str::uuid(),'50');
+    $this->travelTo(CarbonImmutable::parse('2026-10-11T16:30:00Z'));
+    $second = stockChild($this->user); stockFundWallet($this,$second);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id,$second->id,(string) Str::uuid(),'50');
+    $refund = app(\App\Application\SecurityDeposit\RefundSecurityDepositAction::class);
+    $this->tenant->businessSettings()->update(['security_deposit_refund_wait_days'=>3]);
+    $r1 = $refund->request($this->tenant->id,$first->id,(string) Str::uuid());
+    $this->tenant->businessSettings()->update(['security_deposit_refund_wait_days'=>10]);
+    $r2 = $refund->request($this->tenant->id,$second->id,(string) Str::uuid());
+    $summaries = app(\App\Application\Partners\PartnerListSummary::class);
+    $row = $summaries->forRows([$p])[$p->id]['summary'];
+    expect($row['daily']['deposits']['today'])->toBe('50.00000000')->and($row['daily']['deposits'][3])->toBe('16.66666667');
+    expect($row['alerts']['refund3'])->toBe('50.00000000')->and($row['alerts']['refund10'])->toBe('100.00000000');
+    $refund->cancel($this->tenant->id,$first->id,$r1->id);
+    $row = $summaries->forRows([$p])[$p->id]['summary'];
+    expect($row['alerts']['refund3'])->toBe('0')->and($row['alerts']['refund10'])->toBe('50.00000000');
+    Http::assertNothingSent();
+});
+
+it('retains standard stock for disabled partners and rejects foreign company summary selectors', function () {
+    $p = stockPartner($this,$this->user,false); stockGuarantee($this->user,'25');
+    $summary = app(\App\Application\Partners\PartnerListSummary::class)->forRows([$p])[$p->id]['summary'];
+    $report = app(PartnerReport::class)->read($this->tenant->id,$this->user->id,false);
+    expect((string) \Brick\Math\BigDecimal::of($summary['stock'])->toScale(8))->toBe($report['stock']);
+    expect($summary['theoretical'])->toBeNull();
+    $this->withoutVite(); $this->actingAs($this->admin,'platform_admin');
+    $other = Tenant::where('slug','tenant-b')->firstOrFail();
+    $this->get('http://admin.localhost/platform/partners?company='.$other->id)->assertOk()->assertInertia(fn ($page) => $page->has('partners.data',0));
 });

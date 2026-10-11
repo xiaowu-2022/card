@@ -34,3 +34,50 @@ and same-company isolation, all required permissions, stable pagination, date bo
 ETH native precision, no writes and no external requests. WalletTransferTest covers both
 sides' counterparties. Deploy backend and rebuilt admin assets together. No migration,
 consumer H5 build or APK packaging is required. This work does not deploy production.
+
+## User list funds and card summaries (2026-10-11)
+
+The user list includes all accounts, including enabled/disabled partners. Its wide
+summary layout retains company/referrer filters, pagination, detail drawers and
+subordinate actions, with fixed identity/action columns. Current-page identities
+(rank and direct inviter) and financial aggregates are batched by company.
+
+`AssetValuation` is shared by consumer `AssetOverviewQuery` and Platform summaries.
+It includes available plus withdrawal/card-issue/card-funding holds in USDT, USDC,
+ETH and BTC; USDT guarantee; wealth principal per asset; and unarchived cards'
+provider USD balance plus their USDT overflow. Holds are explained separately but
+counted once. Only fresh saved `MarketPrices::latest()` snapshots are used; USDT
+needs no quote and the existing USD/USDT 1:1 convention applies to cards. Required
+missing/invalid rates or unknown card balances return null, never guessed parity
+or zero. Decimal calculations round the complete total once to eight USDT places.
+The modal shows native components, USDT valuations, quote time (or read time when
+no quote is necessary), and total. Opening card details switches the same modal
+and permits returning to funds details, without stacking dialogs.
+
+`GET /platform/tenants/{tenant}/users/{user}/funds-summary` and `cards-summary`
+require active Platform users.read, wallet.read, ledger.read and cards.read.
+They validate company/user ownership and run repeatable-read/read-only snapshots,
+with private/no-store responses. The list omits estimated/card totals when any
+required permission is missing. These reads never call a provider, synchronize
+cards, fetch prices, provision wallets or modify financial evidence.
+
+Card details use 20-row pagination and `archived=0|1` (unarchived by default).
+Totals cover the complete selected scope, independently of the displayed page.
+Cumulative funding = successful initial issue funding + successful LOAD arrival
+and overflow funding, excluding opening fees. Unique business order rows are
+aggregated before joins; service-provider transaction copies are not counted.
+Returned funds = successful RETURN/CANCEL_RETURN arrival credited to wallets.
+Current balance = cached provider balance + local overflow. Estimated consumption
+including fees = funding - returned funds - current balance. Negative values are
+retained. Any unknown current balance makes that card and the complete scope's
+balance/consumption totals unavailable, while known funding remains visible.
+
+Annual/activation commissions reuse signed classified PromotionReportQuery income
+(including activation/legacy deduplication); annual expense uses completed,
+Ledger-linked settlement_total (including deposit conversion and upgrade difference).
+Wallet transfer receipts are summed separately by incoming/outgoing and asset.
+Successful gross withdrawal requests include their fee and remain per currency.
+No mixed-currency sums are shown except the explicitly valued funds estimate.
+
+Deploy changed PHP/routes together with rebuilt public/build. No migration,
+consumer rebuild or production financial/cleanup test is required.

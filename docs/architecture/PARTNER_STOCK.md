@@ -258,3 +258,39 @@ new partners start at the existing 40% default, disabled partners retain their s
 and already-enabled retries return the current record without another update. Existing
 card-funding restriction and immutable audit behavior apply; no wallet or Ledger write
 is added. The confirmation names the account and describes the default restriction.
+
+### Platform partner summary layout (2026-10-11)
+
+`PartnerListSummary` batches only the selected page's partner roots by company.
+It aggregates the existing business-stock entries, income, personal journals and
+risk queries without reading a complete paginated report for every row. Direct
+inviter/rank use the shared user-list identity projection. Company/referrer filters,
+report/invitation drawers and journal/edit actions remain available; identity and
+action columns stay fixed during horizontal scrolling. Wallet/ledger read access
+is required for the new financial DTO. Disabled partner stock retains the standard
+report formula; its unavailable personal reconciliation stays null.
+
+Cumulative advance is the owner's ADVANCE journals minus reversal journals. It
+excludes descendant advances and does not deduct annual fees. Personal theoretical
+balance still deducts completed own annual-fee settlements under the existing
+reconciliation formula, now shared in `PartnerAccountBalance`; stock, actual USDT
+available balance, signed difference and own reimbursement retain report semantics.
+
+Six daily columns are deposit first-funding income, annual income, completed
+guarantee refunds, activation commission, annual refunds and annual commission.
+Deposit/annual/refund contributors and commission beneficiaries follow the current
+business-stock descendant scope, traversing partner branches but excluding enabled
+partners personally. Deposit income uses original first successful activity;
+refund exits require completed Ledger-linked refunds. Signed classified commission
+income and posted annual/refund evidence are reused. Today's company-local activity
+and preceding complete 3/7/15/30-day averages include zero days. Each row defaults
+to today; clicking any of its six columns expands/collapses all six together,
+independent of other rows and without a popup or additional request.
+
+The 70% alert reuses the report's active-cycle weighted progress and shows the
+remaining paid amount after approved returns. Deposit alerts read existing CHECKING
+requests in the existing report team, with no cancellation intent, using saved
+refund_eligible_at between now and the next 3/10 days inclusive. Completed,
+cancelled, cancellation-requested, undated and already-overdue requests are excluded;
+the three-day amount is a subset of ten days. No request/deadline is fabricated or
+recomputed. Summary reads do not synchronize services or alter accounting.

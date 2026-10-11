@@ -414,3 +414,71 @@
 .partner-admin-platform .partner-table td {
     padding-block: 10px;
 }
+
+/* Wide summary lists retain table geometry on narrow admin viewports. */
+.partner-admin-platform .partner-summary-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+.partner-admin-platform .partner-summary-table thead {
+    display: table-header-group;
+}
+.partner-admin-platform .partner-summary-table tbody {
+    display: table-row-group;
+}
+.partner-admin-platform .partner-summary-table tr {
+    display: table-row;
+}
+.partner-admin-platform .partner-summary-table td,
+.partner-admin-platform .partner-summary-table th {
+    display: table-cell;
+    vertical-align: top;
+    white-space: nowrap;
+    padding: 10px 16px;
+}
+.partner-admin-platform .partner-summary-table td::before {
+    display: none;
+}
+.partner-admin-platform .partner-summary-identity {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--color-surface);
+    width: 208px;
+    min-width: 208px;
+    max-width: 208px;
+    box-shadow: 1px 0 0 var(--color-border);
+}
+.partner-admin-platform .partner-summary-actions {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    background: var(--color-surface);
+    box-shadow: -1px 0 0 var(--color-border);
+    width: 220px;
+    min-width: 220px;
+}
+.partner-admin-platform .partner-summary-table thead th {
+    background: var(--color-muted);
+}
+.partner-admin-platform .partner-summary-actions .partner-row-actions {
+    flex-wrap: wrap;
+    width: 190px;
+}
+.partner-admin-platform .partner-summary-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 12px;
+}
+.partner-admin-platform .partner-summary-filters > label {
+    flex: 0 1 240px;
+    width: 240px;
+    max-width: 100%;
+}
+.partner-admin-platform .partner-summary-filters > button {
+    width: 240px;
+    max-width: 100%;
+}

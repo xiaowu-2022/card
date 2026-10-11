@@ -89,21 +89,8 @@ final class LegacyStockReport
         // Personal reconciliation only: paid annual fees are negative advances, not journal writes.
         $annualFees = DB::table('paid_promotion_orders')->where('tenant_id', $tenant)->where('user_id', $user)
             ->where('status', 'COMPLETED')->whereNotNull('ledger_entry_id')->sum('settlement_total');
-        $advances = BigDecimal::of($journal->advances)->minus((string) $annualFees);
-        $theoretical = $advances->plus($income->activation)->plus($income->annual)->plus($income->unclassified)->minus($journal->reimbursements)->plus($journal->adjustments);
 
-        return [
-            'advances' => $this->decimal($advances),
-            'activationCommission' => $this->decimal($income->activation),
-            'annualCommission' => $this->decimal($income->annual),
-            'unclassifiedCommission' => $this->decimal($income->unclassified),
-            'reimbursements' => $this->decimal($journal->reimbursements),
-            'adjustments' => $this->decimal($journal->adjustments),
-            'hasAdjustments' => (int) $journal->adjustment_count > 0,
-            'theoretical' => $this->decimal($theoretical),
-            'actual' => $this->decimal($actual),
-            'difference' => $this->decimal($theoretical->minus((string) $actual)),
-        ];
+        return PartnerAccountBalance::calculate((string) $journal->advances, (string) $annualFees, (string) $income->activation, (string) $income->annual, (string) $income->unclassified, (string) $journal->reimbursements, (string) $journal->adjustments, (string) $actual, (int) $journal->adjustment_count > 0);
     }
 
     private function trend(Builder $query, string $time, string $amount, CarbonImmutable $today, CarbonImmutable $at): array
@@ -124,7 +111,7 @@ final class LegacyStockReport
         return $result;
     }
 
-    private function risks(string $tenant, Builder $team, CarbonImmutable $at, int $page): array
+    public function riskBase(string $tenant, Builder $team, CarbonImmutable $at): Builder
     {
         $paid = DB::table('paid_promotion_orders')->where('tenant_id', $tenant)->whereIn('user_id', clone $team)->where('status', 'COMPLETED')->selectRaw('cycle_id, SUM(settlement_total) AS paid')->groupBy('cycle_id');
         $returned = DB::table('paid_promotion_rebates')->where('tenant_id', $tenant)->whereIn('user_id', clone $team)->selectRaw("cycle_id, COALESCE(SUM(amount) FILTER(WHERE status='APPROVED' AND ledger_entry_id IS NOT NULL),0) AS returned, COALESCE(SUM(amount) FILTER(WHERE status='PENDING'),0) AS pending")->groupBy('cycle_id');
@@ -132,10 +119,21 @@ final class LegacyStockReport
             ->join('account_activations as e', fn ($j) => $j->on('e.id', '=', 's.activation_id')->on('e.tenant_id', '=', 's.tenant_id')->on('e.activated_at', '>=', 'c.starts_at')->on('e.activated_at', '<', 'c.ends_at'))
             ->leftJoin('activation_count_snapshots as k', fn ($j) => $j->on('k.activation_id', '=', 's.activation_id')->on('k.tenant_id', '=', 's.tenant_id')->on('k.ancestor_user_id', '=', 's.ancestor_user_id'))
             ->where('c.tenant_id', $tenant)->whereIn('c.user_id', clone $team)->where(fn ($q) => $q->where('e.counting_policy', 'LEGACY')->orWhere('k.eligible', true))->selectRaw('c.id, SUM(CASE WHEN s.depth=1 THEN 1 ELSE 0.5 END) AS weighted')->groupBy('c.id');
-        $base = DB::table('paid_promotion_cycles as c')->join('users as u', fn ($j) => $j->on('u.id', '=', 'c.user_id')->on('u.tenant_id', '=', 'c.tenant_id'))
+
+        return DB::table('paid_promotion_cycles as c')->join('users as u', fn ($j) => $j->on('u.id', '=', 'c.user_id')->on('u.tenant_id', '=', 'c.tenant_id'))
             ->leftJoinSub($paid, 'p', 'p.cycle_id', '=', 'c.id')->leftJoinSub($returned, 'r', 'r.cycle_id', '=', 'c.id')->leftJoinSub($counts, 'n', 'n.id', '=', 'c.id')
             ->where('c.tenant_id', $tenant)->whereIn('c.user_id', clone $team);
-        $active = (clone $base)->where('c.starts_at', '<=', $at)->where('c.ends_at', '>', $at)->whereRaw('COALESCE(n.weighted,0)*10 >= c.target*7')->whereRaw('COALESCE(p.paid,0)>COALESCE(r.returned,0)');
+    }
+
+    public function activeRisks(string $tenant, Builder $team, CarbonImmutable $at): Builder
+    {
+        return $this->riskBase($tenant, $team, $at)->where('c.starts_at', '<=', $at)->where('c.ends_at', '>', $at)->whereRaw('COALESCE(n.weighted,0)*10 >= c.target*7')->whereRaw('COALESCE(p.paid,0)>COALESCE(r.returned,0)');
+    }
+
+    private function risks(string $tenant, Builder $team, CarbonImmutable $at, int $page): array
+    {
+        $base = $this->riskBase($tenant, $team, $at);
+        $active = $this->activeRisks($tenant, $team, $at);
         $expired = (clone $base)->where('c.ends_at', '<=', $at)->whereRaw('COALESCE(r.pending,0)>0');
         $sum = (clone $active)->selectRaw('COUNT(*) AS count, COALESCE(SUM(p.paid-COALESCE(r.returned,0)),0) AS remaining')->first();
         $pending = (clone $expired)->selectRaw('COUNT(*) AS count, COALESCE(SUM(r.pending),0) AS amount')->first();

@@ -291,6 +291,9 @@ it('returns only confirmed net card funds and never replays a return', function 
     expect($order->status)->toBe('SUCCEEDED')->and($order->arrival_amount)->toBe('9.00000000')
         ->and(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe(Money::of($before, 'USDT')->add(Money::of('9', 'USDT'))->amount());
     expect($action->operate($this->tenant->id, $this->user->id, $card->id, $id, 'RETURN', '10')->id)->toBe($order->id);
+    $card->forceFill(['provider_balance'=>'10'])->save();
+    $summary = app(\App\Application\User\PlatformUserCardsSummary::class)->read($this->tenant->id,$this->user->id,false,1);
+    expect($summary['items'][0]->returned)->toBe('9.00000000')->and($summary['items'][0]->consumed)->toBe('1.00000000');
     expect(fn () => $action->operate($this->tenant->id, $this->user->id, $card->id, $id, 'RETURN', '11'))->toThrow(DomainException::class);
     DB::statement('SET CONSTRAINTS card_management_accounting IMMEDIATE');
 });
@@ -3066,3 +3069,48 @@ it('retires legacy queue sync without changing historical checkpoints or dispatc
     $commands = collect(app(Schedule::class)->events())->pluck('command')->implode('\n');
     expect($commands)->not->toContain('cards:recover-transaction-sync')->toContain('topups:scan-trc20');
 })->with(['PENDING', 'FAILED']);
+
+it('reads card layout funding returns consumption and archive totals without calling providers', function () {
+    [$card,$provider,$action] = managedCardFixture($this, available: '200');
+    $card->forceFill(['balance_limit'=>'20'])->save();
+    $load = $action->quote($this->tenant->id,$this->user->id,$card->id,(string) Str::uuid(),'80');
+    $action->confirmLoad($this->tenant->id,$this->user->id,$card->id,$load->id);
+    $provider->shouldNotReceive('getCard');
+    $query = app(\App\Application\User\PlatformUserCardsSummary::class);
+    $v = $query->read($this->tenant->id,$this->user->id,false,1);
+    $initial = $card->issueOrder->initial_load_amount;
+    $funded = (string) \Brick\Math\BigDecimal::of($initial)->plus('80')->toScale(8);
+    expect($v['items'][0]->funded)->toBe($funded);
+    expect($v['items'][0]->balance)->toBe('100.00000000');
+    expect($v['items'][0]->consumed)->toBe((string) \Brick\Math\BigDecimal::of($funded)->minus('100')->toScale(8));
+    expect($query->read($this->tenant->id,$this->user->id,false,2)['totals'])->toBe($v['totals']);
+    $entries = LedgerEntry::count();
+    $this->actingAs(AdminUser::where('email','owner@platform.local')->firstOrFail(),'platform_admin');
+    $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/users/'.$this->user->id;
+    $this->getJson($url.'/funds-summary')->assertOk()->assertJsonPath('estimate',app(AssetOverviewQuery::class)->get($this->tenant->id,$this->user->id,[])['estimate']);
+    $this->getJson($url.'/cards-summary')->assertOk()->assertJsonPath('items.0.funded',$funded);
+    $card->forceFill(['provider_balance'=>null])->save();
+    expect($query->read($this->tenant->id,$this->user->id,false,1)['totals']['consumed'])->toBeNull();
+    $card->forceFill(['archived_at'=>now()])->save();
+    expect($query->read($this->tenant->id,$this->user->id,false,1)['total'])->toBe(0);
+    expect($query->read($this->tenant->id,$this->user->id,true,1)['total'])->toBe(1);
+    expect(LedgerEntry::count())->toBe($entries); Http::assertNothingSent();
+});
+
+it('keeps selected card scope totals across real pagination and retains negative net usage', function () {
+    phaseTenReadyUser($this, '2000');
+    TenantCardProductConfig::where('tenant_id',$this->tenant->id)->where('card_product_id',$this->product->id)->update(['max_cards_per_user'=>30]);
+    for ($i=0; $i<21; $i++) { phaseTenHolder($this); phaseTenIssue($this); }
+    $card = UserCard::where('tenant_id',$this->tenant->id)->where('user_id',$this->user->id)->firstOrFail();
+    $card->forceFill(['provider_balance'=>'21'])->save();
+    $query = app(\App\Application\User\PlatformUserCardsSummary::class);
+    $first = $query->read($this->tenant->id,$this->user->id,false,1);
+    $second = $query->read($this->tenant->id,$this->user->id,false,2);
+    expect($first['items'])->toHaveCount(20)->and($second['items'])->toHaveCount(1)->and($first['total'])->toBe(21)->and($first['totals'])->toBe($second['totals']);
+    expect((string) \Brick\Math\BigDecimal::of($first['totals']['funded'])->toScale(8))->toBe('420.00000000');
+    expect((string) \Brick\Math\BigDecimal::of($first['totals']['consumed'])->toScale(8))->toBe('-1.00000000');
+    $card->forceFill(['archived_at'=>now()])->save();
+    expect($query->read($this->tenant->id,$this->user->id,false,1)['total'])->toBe(20);
+    expect($query->read($this->tenant->id,$this->user->id,true,1)['items'][0]->consumed)->toBe('-1.00000000');
+    Http::assertNothingSent();
+});

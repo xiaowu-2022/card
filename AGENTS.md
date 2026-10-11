@@ -1,3 +1,19 @@
+On 2026-10-11 the user approved separate Platform user/partner summary layouts.
+Users still include partners. Share consumer/Platform AssetValuation: four native
+wallet available/held balances, USDT guarantee, wealth principal and unarchived
+cached card/overflow balances using fresh saved rates; unknown evidence is null.
+Scoped funds-summary/cards-summary GETs require users/wallet/ledger/cards reads,
+remain read-only and never query providers, refresh rates or provision accounts.
+Card funding uses unique successful issue/load arrivals; estimated fee-inclusive
+consumption is funding minus successful wallet returns minus current balance,
+retaining negatives and full-scope pagination totals. Partner list aggregates only
+current-page roots, uses own net advances and existing stock/reconciliation scopes,
+six synchronized per-row daily expansions with company-local zero-inclusive
+averages, 70% annual remaining refund and live saved 3/10-day refund deadlines.
+Preserve filters, drawers, actions, decimal strings and company isolation. Deploy
+PHP/admin assets together; no migration or production financial/cleanup test.
+See PLATFORM_USER_FUNDS.md and PARTNER_STOCK.md in docs/architecture.
+
 On 2026-10-11 the user explicitly approved permanent company-scoped cleanup of
 selected consumer account test data, with no date or real/mock cutoff. Platform
 administrators alone may preview and confirm account/orders/commissions/cards;

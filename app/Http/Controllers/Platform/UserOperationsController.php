@@ -68,7 +68,7 @@ final class UserOperationsController extends Controller
     private function access(Request $request, AuthorizationService $authorization): array
     {
         $allowed = fn (string $permission): bool => $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, $permission);
-        $financialAccess = ['balances' => $allowed('wallet.read'), 'receipts' => $allowed('wallet_topups.read'), 'commission' => $allowed('ledger.read'), 'withdrawals' => $allowed('withdrawals.read')];
+        $financialAccess = ['balances' => $allowed('wallet.read'), 'receipts' => $allowed('wallet_topups.read'), 'commission' => $allowed('ledger.read'), 'withdrawals' => $allowed('withdrawals.read'), 'funds' => $allowed('wallet.read') && $allowed('ledger.read') && $allowed('cards.read')];
 
         return [
             'financialAccess' => $financialAccess, 'canManageSupport' => $allowed('support.read') && $allowed('support.agents.manage'),

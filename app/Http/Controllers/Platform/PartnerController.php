@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Platform;
 use App\Application\Partners\FeeValuation;
 use App\Application\Partners\PartnerHierarchy;
 use App\Application\Partners\PartnerInvitationReport;
+use App\Application\Partners\PartnerListSummary;
 use App\Application\Partners\PartnerManagement;
 use App\Application\Partners\PartnerReport;
 use App\Application\Partners\PlatformPartnerIdentity;
 use App\Application\User\PlatformUserSummary;
+use App\Domain\Admin\Enums\ScopeType;
+use App\Domain\Admin\Services\AuthorizationService;
 use App\Domain\Tenant\Models\Tenant;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -46,7 +49,7 @@ final class PartnerController extends Controller
 
     public function index(Request $request)
     {
-        $request->validate(['company' => 'nullable|uuid|exists:tenants,id', 'tenant' => 'nullable|uuid|exists:tenants,id', 'partner' => 'nullable|uuid', 'invitation_partner' => 'nullable|uuid', 'page' => 'nullable|integer|min:1|max:100000', 'report_page' => 'nullable|integer|min:1|max:100000', 'fees_page' => 'nullable|integer|min:1|max:100000', 'flow' => 'nullable|in:inflow,outflow', 'flow_page' => 'nullable|integer|min:1|max:100000']);
+        $request->validate(['company' => 'nullable|uuid|exists:tenants,id', 'tenant' => 'nullable|uuid|exists:tenants,id', 'partner' => 'nullable|uuid', 'invitation_partner' => 'nullable|uuid', 'page' => 'nullable|integer|min:1|max:100000', 'report_page' => 'nullable|integer|min:1|max:100000', 'referrer' => 'nullable|string|max:120', 'fees_page' => 'nullable|integer|min:1|max:100000', 'flow' => 'nullable|in:inflow,outflow', 'flow_page' => 'nullable|integer|min:1|max:100000']);
         $tenant = $request->query('company', $request->query('tenant'));
         $selected = null;
         $report = null;
@@ -57,9 +60,15 @@ final class PartnerController extends Controller
             $report = app(PlatformPartnerIdentity::class)->stock($selected->tenant_id, $report);
         }
 
+        $partnerPage = DB::table('partner_configurations as p')->join('users as u', fn ($j) => $j->on('u.id', '=', 'p.user_id')->on('u.tenant_id', '=', 'p.tenant_id'))->leftJoin('user_profiles as profile', fn ($j) => $j->on('profile.user_id', '=', 'u.id')->on('profile.tenant_id', '=', 'u.tenant_id'))->join('tenants as t', 't.id', '=', 'p.tenant_id')->when($tenant, fn ($q) => $q->where('p.tenant_id', $tenant))->when($request->filled('referrer'), fn ($q) => $q->whereExists(fn ($m) => $m->selectRaw('1')->from('promotion_members as m')->join('promotion_members as parent', fn ($j) => $j->on('parent.id', '=', 'm.inviter_id')->on('parent.tenant_id', '=', 'm.tenant_id'))->join('users as referrer', fn ($j) => $j->on('referrer.id', '=', 'parent.user_id')->on('referrer.tenant_id', '=', 'parent.tenant_id'))->whereColumn('m.tenant_id', 'p.tenant_id')->whereColumn('m.user_id', 'p.user_id')->where('referrer.account_id', $request->query('referrer'))))->orderBy('u.account_id')->paginate(20, ['p.id', 'p.tenant_id', 'p.user_id', 't.name as company_name', 'p.enabled', 'p.share_percent', 'u.account_id', 'profile.display_name', 'u.email'])->withQueryString();
+        $authorization = app(AuthorizationService::class);
+        $canReadAmounts = $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'wallet.read') && $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'ledger.read');
+        $summaries = $canReadAmounts ? app(PartnerListSummary::class)->forRows($partnerPage->items()) : [];
+        $partnerPage->through(fn ($p) => (array) $p + ($summaries[$p->id] ?? []));
+
         return Inertia::render('platform/Partners', [
             'companies' => Tenant::orderBy('name')->get(['id', 'name']), 'companyId' => $tenant,
-            'partners' => PlatformUserSummary::page(DB::table('partner_configurations as p')->join('users as u', fn ($j) => $j->on('u.id', '=', 'p.user_id')->on('u.tenant_id', '=', 'p.tenant_id'))->leftJoin('user_profiles as profile', fn ($j) => $j->on('profile.user_id', '=', 'u.id')->on('profile.tenant_id', '=', 'u.tenant_id'))->join('tenants as t', 't.id', '=', 'p.tenant_id')->when($tenant, fn ($q) => $q->where('p.tenant_id', $tenant))->orderBy('u.account_id')->paginate(20, ['p.id', 'p.tenant_id', 't.name as company_name', 'p.enabled', 'p.share_percent', 'u.account_id', 'profile.display_name', 'u.email'])->withQueryString()),
+            'partners' => PlatformUserSummary::page($partnerPage),
             'reportCompanyId' => $selected?->tenant_id, 'report' => $report,
             'pendingFees' => DB::table('withdrawal_fee_valuations as f')->join('tenants as t', 't.id', '=', 'f.tenant_id')->when($tenant, fn ($q) => $q->where('f.tenant_id', $tenant))->where('f.source', 'PENDING')->orderBy('f.created_at')->orderBy('f.id')->paginate(20, ['f.id', 'f.tenant_id', 't.name as company_name', 'f.withdrawal_id', 'f.asset_code', 'f.original_amount', 'f.created_at'], 'fees_page')->withQueryString(),
         ])->toResponse($request)->header('Cache-Control', 'private, no-store');
