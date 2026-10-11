@@ -16,6 +16,7 @@ type Records = {
         asset: string | null;
         amount: string | null;
         related: boolean;
+        operation?: string;
     }[];
     page: number;
     lastPage: number;
@@ -25,6 +26,8 @@ type Preview = {
     status: string;
     summary: {
         total: number;
+        deleteCount?: number;
+        retainedCount?: number;
         categoryCounts: { category: string; count: number; related: number }[];
         affectedAccounts: { id: string; accountId: string; deleted: boolean }[];
         blockers: { code: string; accountId?: string; asset?: string }[];
@@ -259,8 +262,14 @@ export function DataCleanupDialog({
                                 {selected.map((u) => u.accountId).join('、')}
                             </p>
                             <p className="text-sm">
-                                {t('Records to remove')}: {preview.summary.total}
+                                {t('Records to remove')}:{' '}
+                                {preview.summary.deleteCount ?? preview.summary.total}
                             </p>
+                            {!!preview.summary.retainedCount && (
+                                <p className="text-sm">
+                                    {t('Identifiers to retain')}: {preview.summary.retainedCount}
+                                </p>
+                            )}
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="border-b">
@@ -326,6 +335,8 @@ export function DataCleanupDialog({
                                                         </td>
                                                         <td className="p-2 break-all">
                                                             {r.recordId}
+                                                            {r.operation === 'RETIRE' &&
+                                                                ` (${t('Retain identifier')})`}
                                                         </td>
                                                         <td className="p-2">
                                                             {r.accountId || '—'}
@@ -374,43 +385,76 @@ export function DataCleanupDialog({
                                 </div>
                             )}
                             {!!preview.summary.balances.length && (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full min-w-[640px] text-sm">
-                                        <thead>
-                                            <tr className="border-b">
-                                                <th className="text-left">{t('Account')}</th>
-                                                <th>{t('Type')}</th>
-                                                <th>{t('Before')}</th>
-                                                <th>{t('After')}</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {preview.summary.balances.map((b) => (
-                                                <tr key={b.id} className="border-b">
-                                                    <td className="py-2">
-                                                        {b.accountId || t('Company')}
-                                                    </td>
-                                                    <td>{t(b.accountType)}</td>
-                                                    <td className="text-center">
+                                <div>
+                                    <div className="space-y-2 sm:hidden">
+                                        {preview.summary.balances.map((b) => (
+                                            <div
+                                                key={b.id}
+                                                className="space-y-2 rounded-md border p-3 text-sm"
+                                            >
+                                                <div className="flex flex-wrap justify-between gap-1">
+                                                    <span>{b.accountId || t('Company')}</span>
+                                                    <span>{t(b.accountType)}</span>
+                                                </div>
+                                                <div className="flex justify-between gap-2">
+                                                    <span>{t('Before')}</span>
+                                                    <MoneyDisplay
+                                                        amount={b.before}
+                                                        asset={b.asset}
+                                                    />
+                                                </div>
+                                                <div className="flex justify-between gap-2">
+                                                    <span>{t('After')}</span>
+                                                    {b.removed ? (
+                                                        t('Removed')
+                                                    ) : (
                                                         <MoneyDisplay
-                                                            amount={b.before}
+                                                            amount={b.after}
                                                             asset={b.asset}
                                                         />
-                                                    </td>
-                                                    <td className="text-center">
-                                                        {b.removed ? (
-                                                            t('Removed')
-                                                        ) : (
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="hidden overflow-x-auto sm:block">
+                                        <table className="w-full min-w-[640px] text-sm">
+                                            <thead>
+                                                <tr className="border-b">
+                                                    <th className="text-left">{t('Account')}</th>
+                                                    <th>{t('Type')}</th>
+                                                    <th>{t('Before')}</th>
+                                                    <th>{t('After')}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {preview.summary.balances.map((b) => (
+                                                    <tr key={b.id} className="border-b">
+                                                        <td className="py-2">
+                                                            {b.accountId || t('Company')}
+                                                        </td>
+                                                        <td>{t(b.accountType)}</td>
+                                                        <td className="text-center">
                                                             <MoneyDisplay
-                                                                amount={b.after}
+                                                                amount={b.before}
                                                                 asset={b.asset}
                                                             />
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                                        </td>
+                                                        <td className="text-center">
+                                                            {b.removed ? (
+                                                                t('Removed')
+                                                            ) : (
+                                                                <MoneyDisplay
+                                                                    amount={b.after}
+                                                                    asset={b.asset}
+                                                                />
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             )}
                             {preview.summary.blockers.map((b, i) => (

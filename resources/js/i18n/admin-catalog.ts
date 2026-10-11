@@ -12,6 +12,8 @@ export const adminCatalog: Record<string, string> = {
     'Search accounts': '搜索账号',
     'Selected accounts': '已选账号',
     'Records to remove': '待清理记录',
+    'Identifiers to retain': '永久保留的标识记录',
+    'Retain identifier': '永久保留标识',
     'Data category': '数据类别',
     'Related records': '连带记录',
     'Affected accounts': '受影响账号',

@@ -6,6 +6,7 @@ use App\Application\CardProduct\CreateCardProductAction;
 use App\Application\CardProduct\UpdateCardProductAction;
 use App\Application\CardProviderDirectory\PhotonPayAccounts;
 use App\Application\Cleanup\DataCleanup;
+use App\Application\User\CreatePlatformUserAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Card\Models\CardProviderEvent;
 use App\Domain\Card\Models\ProviderCardholder;
@@ -128,7 +129,8 @@ it('retains referenced cleanup images and respects the latest backup retention b
     $key = 'private-cleanup-test-image';
     $holder = accountHolderFixture($this, $product, ['documents' => ['front' => $key]]);
     Storage::disk('private')->put($key, 'offline image fixture');
-    $other = User::where('tenant_id', $holder->tenant_id)->where('id', '<>', $holder->user_id)->firstOrFail();
+    $other = app(CreatePlatformUserAction::class)->execute($holder->tenant_id, $this->owner,
+        ['email' => 'image-cleanup-other@example.test', 'display_name' => 'Other fixture', 'password' => 'secret123', 'request_id' => (string) Str::uuid()]);
     $second = $holder->replicate(['provider_cardholder_id', 'request_id']);
     $second->forceFill(['user_id' => $other->id, 'provider_cardholder_id' => 'CH-'.Str::uuid(), 'request_id' => (string) Str::uuid()])->save();
     $cleanup = app(DataCleanup::class);

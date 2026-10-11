@@ -359,7 +359,10 @@ final class PlanDataCleanup
         ksort($counts);
         usort($balances, fn ($a, $b) => strcmp($a['id'], $b['id']));
         $affected = array_values(array_filter($data['users'], fn ($u) => in_array($u['id'], $affectedUsers, true)));
-        $summary = ['counts' => array_values($counts), 'total' => count($items), 'balances' => $balances, 'blockers' => $blockers,
+        $summary = ['counts' => array_values($counts), 'total' => count($items),
+            'deleteCount' => count(array_filter($items, fn ($item) => $item['operation'] === 'DELETE')),
+            'retainedCount' => count(array_filter($items, fn ($item) => $item['operation'] === 'RETIRE')),
+            'balances' => $balances, 'blockers' => $blockers,
             'affectedAccounts' => array_map(fn ($u) => ['id' => $u['id'], 'accountId' => $u['account_id'], 'deleted' => $account && in_array($u['id'], $users, true)], $affected)];
         $categories = [];
         foreach ($counts as $table => $count) {

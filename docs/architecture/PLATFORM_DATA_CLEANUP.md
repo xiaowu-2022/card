@@ -36,6 +36,8 @@
 
 私有图片不随数据库删除立即移除。七天后维护任务检查全部公司的剩余业务引用，确认无人引用才通过既有 ImageStorage 异步清除。共享或仍被引用的图片保留。
 
+同一图片被多个清理备份引用时，以最晚的七天保留期限为准；私有位置仅保存加密引用及 SHA-256 查重值。图片清除与本公司新引用写入互斥，不以备份文件修改时间覆盖已登记批次的保留期限。
+
 ## API 与部署
 
 平台路由前缀 `/platform/tenants/{tenant}/data-cleanup`：GET `accounts` 搜索账号；POST `preview`；GET `{batch}` 查询状态；GET `{batch}/records` 分页安全清单；POST `{batch}/execute` 确认执行。接口权限为平台 `users.read` + `users.cleanup`，不存在公司后台对应路由。状态 GET 与预览不执行删除。执行同步完成；界面显示忙碌状态，网络结果不明可通过状态 GET 恢复并使用原 UUID 重试。
