@@ -2,6 +2,7 @@
 
 namespace App\Application\Assets;
 
+use App\Application\Cleanup\CleanupTombstones;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Assets\AssetDepositOrder;
 use App\Domain\Assets\ChainConnection;
@@ -39,6 +40,9 @@ final readonly class RecheckAssetDeposit
         $p = $proofs[0];
         DB::transaction(function () use ($o, $p): void {
             AssetAccess::lock('asset-observation:'.$o->network.':'.$p['event_id']);
+            if (CleanupTombstones::contains('chain:'.$o->network, $p['event_id'])) {
+                throw new DomainException('CHAIN_TRANSFER_USED', 'This chain transfer has already been used.', 409);
+            }
             $observation = ChainObservation::where('network', $o->network)->where('event_id', $p['event_id'])->first();
             // Previously ambiguous evidence must never be reassigned by a manual recheck.
             if ($observation) {

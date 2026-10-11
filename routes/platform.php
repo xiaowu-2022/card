@@ -167,9 +167,11 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware(['admin.scope:platform,card_product.manage', 'throttle:20,1'])->post('/tenants/{tenant}/cards/{card}/reveal', [CardOperationsController::class, 'reveal'])->whereUuid(['tenant', 'card'])->name('cards.reveal');
     Route::middleware('admin.scope:platform,cards.read')->get('/cards', CardOperationsController::class)->name('cards.index');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.cleanup', 'throttle:20,1'])->group(function (): void {
+        Route::get('/tenants/{tenant}/data-cleanup/accounts', [DataCleanupController::class, 'accounts'])->whereUuid('tenant')->name('data-cleanup.accounts');
         Route::post('/tenants/{tenant}/data-cleanup/preview', [DataCleanupController::class, 'preview'])->whereUuid('tenant')->name('data-cleanup.preview');
         Route::post('/tenants/{tenant}/data-cleanup/{batch}/execute', [DataCleanupController::class, 'execute'])->whereUuid(['tenant', 'batch'])->name('data-cleanup.execute');
         Route::get('/tenants/{tenant}/data-cleanup/{batch}', [DataCleanupController::class, 'show'])->whereUuid(['tenant', 'batch'])->name('data-cleanup.show');
+        Route::get('/tenants/{tenant}/data-cleanup/{batch}/records', [DataCleanupController::class, 'records'])->whereUuid(['tenant', 'batch'])->name('data-cleanup.records');
     });
     Route::middleware(['admin.scope:platform,cards.read', 'throttle:240,1'])->get('/tenants/{tenant}/cards/{card}/transactions', [CardOperationsController::class, 'transactions'])->whereUuid(['tenant', 'card'])->name('cards.transactions');
     Route::middleware(['admin.scope:platform,cards.read', 'admin.scope:platform,card_product.manage', 'throttle:20,1'])->post('/tenants/{tenant}/cards/{card}/transactions/sync', [CardOperationsController::class, 'syncTransactions'])->whereUuid(['tenant', 'card'])->name('cards.transactions.sync');

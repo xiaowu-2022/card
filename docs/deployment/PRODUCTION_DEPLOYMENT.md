@@ -248,3 +248,10 @@ ps -eo pid,user,args | grep -E '[a]rtisan schedule:(run|work)'
 日志中子命令出现 PHP 绝对路径可能是框架展开当前解释器路径，不能单凭这个判定 cron
 仍硬编码路径。`fileinfo/exif is already loaded` 则是 CLI 扩展重复加载；根据 `php --ini`
 定位主配置和附加 ini，只保留一份加载配置。它与调度抢锁跳过是两个独立问题。
+## 2026-10-11 指定账号清理部署
+
+参见 [清理数据契约](../architecture/PLATFORM_DATA_CLEANUP.md)。部署迁移
+`2026_10_11_200000_add_scoped_platform_data_cleanup.php`、PHP 与后台资源，并重启
+队列和 PHP 长驻进程。私有磁盘需可写，保留现有 APP_KEY；scheduler 每小时运行
+`data-cleanup:expire-backups`。部署仅建立预览/执行及保护机制，不清理业务数据。
+不要运行 Seeder、migrate:fresh、生产清理测试或服务商金融测试。

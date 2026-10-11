@@ -13,6 +13,6 @@ final class PaymentWebhookController extends Controller
     {
         $event = $action->execute($provider, $request);
 
-        return response()->json(['accepted' => true, 'event_id' => $event->id], 202);
+        return response()->json(['accepted' => true, 'event_id' => $event?->id], 202);
     }
 }

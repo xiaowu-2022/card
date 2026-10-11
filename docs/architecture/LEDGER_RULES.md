@@ -1,5 +1,16 @@
 # Ledger Rules
 
+## Explicit permanent-cleanup exception (2026-10-11)
+
+The user authorized [selected-account cleanup](PLATFORM_DATA_CLEANUP.md) as a
+dedicated Platform-only exception to DELETE bans. An encrypted backup, reviewed
+immutable company/table/row manifest, exact row hashes and transaction-bound
+database guard are mandatory. Delete complete entries and all postings, then
+recompute retained accounts from remaining sealed postings atomically, rejecting
+negative constrained balances. Retain audit and permanent deduplication evidence.
+Ordinary business updates/deletes remain prohibited; no trigger/FK bypass or
+generic financial-history editing endpoint is permitted.
+
 ## Authorized promotion extension
 
 [Promotion contracts](PROMOTION_REQUIREMENTS.md) add USER_COMMISSION (nonnegative,

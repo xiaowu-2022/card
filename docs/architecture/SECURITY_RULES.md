@@ -1,5 +1,13 @@
 # Security Rules
 
+The explicitly approved [permanent selected-account cleanup](PLATFORM_DATA_CLEANUP.md)
+is restricted to active Platform administrators, an explicit company, immutable
+preview and confirmation. Its transaction-bound exact manifest is the sole
+historical deletion exception. Encrypted backups remain private for seven days;
+operation audit and identifier reservations remain permanent. Whole-account
+deletion revokes credentials by deleting the scoped identity and device/browser
+tokens. No company-admin endpoint or provider financial operation is exposed.
+
 Tenant host resolution and membership scope are server-authoritative. Client-provided tenant identifiers are ignored. Authorization is enforced by backend policy/permission checks; hidden UI controls are only UX. Platform Admin is isolated on its own host and user/admin identity stores are separate.
 
 End User authentication uses its own `tenant_user` guard. Login resolution begins with `tenant_id + normalized email/phone`; a Tenant-aware Eloquent provider also scopes session restoration by resolved `tenant_id + user_id`, and middleware clears missing, mismatched, or DISABLED identities before shared props/controllers run. Anonymous failures use generic credential/challenge errors. Successful login/registration regenerates the session. Guard-scoped logout rotates the session id while preserving a separate Admin guard session on the same Tenant host.

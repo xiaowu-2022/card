@@ -2,6 +2,7 @@
 
 namespace App\Application\Assets;
 
+use App\Application\Cleanup\CleanupTombstones;
 use App\Domain\Assets\AssetDepositOrder;
 use App\Domain\Assets\AssetRail;
 use App\Domain\Assets\ChainConnection;
@@ -37,6 +38,9 @@ final readonly class ScanAssetNetwork
                 }
                 $rails = AssetRail::query()->where('network', $network)->whereNotNull('deposit_address')->get();
                 foreach ($block['transfers'] as $transfer) {
+                    if (CleanupTombstones::contains('chain:'.$network, $transfer['event_id'])) {
+                        continue;
+                    }
                     $atAddress = $rails->where('deposit_address', $transfer['address']);
                     $historical = AssetDepositOrder::query()->where('network', $network)->where('address', $transfer['address'])->where('contract', $transfer['contract'])->get();
                     if ($atAddress->isEmpty() && $historical->isEmpty()) {

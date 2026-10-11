@@ -2,6 +2,7 @@
 
 namespace App\Application\Card;
 
+use App\Application\Cleanup\CleanupCompanyFence;
 use App\Domain\Admin\Enums\AdminUserStatus;
 use App\Domain\Admin\Enums\ScopeType;
 use App\Domain\Admin\Models\AdminUser;
@@ -12,6 +13,7 @@ use App\Domain\CardProvider\Exceptions\ProviderRateLimitException;
 use App\Domain\CardProvider\Exceptions\ProviderUnavailableException;
 use App\Domain\CardProvider\Exceptions\ProviderUnknownResultException;
 use App\Domain\CardProvider\ProviderReference;
+use App\Support\Errors\DomainException;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -168,6 +170,21 @@ final class BatchCardTransactionSync
 
     /** PostgreSQL session locks cover external reads without holding row locks/transactions. */
     public function process(string $id): void
+    {
+        $tenant = DB::table('card_transaction_sync_items')->where('id', $id)->value('tenant_id');
+        if (! $tenant) {
+            return;
+        }
+        try {
+            app(CleanupCompanyFence::class)->run($tenant, fn () => $this->processUnlocked($id));
+        } catch (DomainException $exception) {
+            if ($exception->errorCode !== 'CLEANUP_BUSY') {
+                throw $exception;
+            }
+        }
+    }
+
+    private function processUnlocked(string $id): void
     {
         $item = DB::table('card_transaction_sync_items')->where('id', $id)->first();
         if (! $item || $item->status !== 'PENDING') {

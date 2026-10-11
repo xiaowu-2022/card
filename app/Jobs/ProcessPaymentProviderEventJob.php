@@ -7,6 +7,7 @@ use App\Domain\Payment\Enums\PaymentEventProcessingStatus;
 use App\Domain\Payment\Models\PaymentProviderEvent;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\Tenant\TenantContext;
+use App\Jobs\Middleware\CleanupJobFence;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -21,6 +22,11 @@ final class ProcessPaymentProviderEventJob implements ShouldQueue
     public int $tries = 5;
 
     public function __construct(public readonly string $tenantId, public readonly string $eventId) {}
+
+    public function middleware(): array
+    {
+        return [new CleanupJobFence($this->tenantId)];
+    }
 
     public function handle(ProcessPaymentProviderEventAction $action, TenantContext $context): void
     {

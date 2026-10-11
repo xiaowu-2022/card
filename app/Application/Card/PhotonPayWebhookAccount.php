@@ -8,6 +8,7 @@ use App\Domain\Card\Models\UserCard;
 use App\Domain\CardProduct\Models\CardProduct;
 use App\Domain\CardProviderDirectory\Models\CardProviderReference;
 use App\Support\Errors\DomainException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final class PhotonPayWebhookAccount
@@ -33,6 +34,13 @@ final class PhotonPayWebhookAccount
                 }
                 foreach ($model::where('provider', 'PHOTONPAY')->where($column, $value)->pluck('card_product_id') as $productId) {
                     $accounts[] = CardProduct::whereKey($productId)->value('card_provider_reference_id');
+                }
+                $tombstoneColumn = $field === 'requestId' ? 'provider_request_id' : $column;
+                foreach (DB::table('data_cleanup_tombstones')->where('identifier_hash', md5($value))->where('namespace', 'like', 'card:%:'.$tombstoneColumn)->pluck('namespace') as $namespace) {
+                    $providerId = explode(':', $namespace)[1] ?? '';
+                    if (Str::isUuid($providerId)) {
+                        $accounts[] = $providerId;
+                    }
                 }
             }
             $accounts = array_values(array_unique($accounts));

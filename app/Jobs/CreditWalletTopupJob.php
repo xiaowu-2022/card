@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Application\Payment\CreditWalletTopupAction;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\Tenant\TenantContext;
+use App\Jobs\Middleware\CleanupJobFence;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -18,6 +19,11 @@ final class CreditWalletTopupJob implements ShouldQueue
     public int $tries = 10;
 
     public function __construct(public readonly string $tenantId, public readonly string $orderId) {}
+
+    public function middleware(): array
+    {
+        return [new CleanupJobFence($this->tenantId)];
+    }
 
     public function handle(CreditWalletTopupAction $action, TenantContext $context): void
     {

@@ -2,6 +2,7 @@
 
 namespace App\Application\Cleanup;
 
+use App\Domain\Card\Services\CardholderMaterials;
 use App\Domain\Ledger\Enums\LedgerAccountType;
 use App\Support\Errors\DomainException;
 use Brick\Math\BigDecimal;
@@ -21,7 +22,10 @@ final class PlanDataCleanup
                 throw new DomainException('CLEANUP_SCHEMA_UNSUPPORTED', 'Cleanup schema is incomplete.', 409);
             }
             $query = DB::table($table.' as t')->select('t.*')->selectRaw('md5(to_jsonb(t)::text) AS _cleanup_hash');
-            if (in_array('tenant_id', $metadata[$table]['columns'], true)) {
+            if ($table === 'card_transaction_sync_batches') {
+                $query->where(fn ($q) => $q->where('t.tenant_id', $tenant)->orWhere(fn ($q) => $q->whereNull('t.tenant_id')
+                    ->whereIn('t.id', DB::table('card_transaction_sync_items')->where('tenant_id', $tenant)->select('batch_id'))));
+            } elseif (in_array('tenant_id', $metadata[$table]['columns'], true)) {
                 $query->where('t.tenant_id', $tenant);
             } elseif ($table === 'asset_chain_observations') {
                 $query->whereIn('t.order_id', DB::table('asset_deposit_orders')->where('tenant_id', $tenant)->select('id'));
@@ -85,6 +89,17 @@ final class PlanDataCleanup
                 }
             }
         }
+        if (in_array('orders', $modules, true)) {
+            // Legacy non-USDT deposits have no promotion_funding_events row.
+            // Their sealed business entry is still a security-deposit operation.
+            $ownedAccounts = array_column(array_filter($data['ledger_accounts'], fn ($r) => in_array($r['user_id'], $users, true)), 'id');
+            $ownedEntries = array_column(array_filter($data['ledger_postings'], fn ($r) => in_array($r['ledger_account_id'], $ownedAccounts, true)), 'ledger_entry_id');
+            foreach ($data['ledger_entries'] as $key => $entry) {
+                if (in_array($entry['id'], $ownedEntries, true) && in_array($entry['event_type'], ['SECURITY_DEPOSIT_FUND', 'SECURITY_DEPOSIT_REFUND'], true)) {
+                    $add('ledger_entries', $key, true);
+                }
+            }
+        }
         // Received and source-generated commissions are independent roots. Funding
         // evidence is retained when commissions alone are selected.
         if (in_array('commissions', $modules, true)) {
@@ -111,6 +126,7 @@ final class PlanDataCleanup
         // Build child indexes using actual composite FKs. No broad cascades or
         // guessing ownership from a UUID-shaped string.
         $indexes = [];
+        $parentIndexes = [];
         foreach ($foreignKeys as $i => $fk) {
             if (! isset($data[$fk['child']])) {
                 continue;
@@ -119,6 +135,18 @@ final class PlanDataCleanup
                 $value = $this->tuple($row, $fk['columns']);
                 if ($value !== null) {
                     $indexes[$i][$value][] = $key;
+                }
+            }
+            if (isset($data[$fk['parent']]) && in_array($fk['parent'], ['ledger_entries', 'partner_journal_entries', 'paid_promotion_cycles', 'provider_cardholders'], true)) {
+                $group = $fk['parent'].'|'.implode(',', $fk['parentColumns']);
+                if (! isset($parentIndexes[$group])) {
+                    $parentIndexes[$group] = [];
+                    foreach ($data[$fk['parent']] as $parentKey => $parent) {
+                        $tuple = $this->tuple($parent, $fk['parentColumns']);
+                        if ($tuple !== null) {
+                            $parentIndexes[$group][$tuple][] = $parentKey;
+                        }
+                    }
                 }
             }
         }
@@ -135,6 +163,10 @@ final class PlanDataCleanup
                 if ($fk['parent'] === $table) {
                     $tuple = $this->tuple($row, $fk['parentColumns']);
                     foreach ($indexes[$i][$tuple] ?? [] as $childKey) {
+                        if ($table === 'promotion_members' && $fk['child'] === 'promotion_members'
+                            && ! in_array($data['promotion_members'][$childKey]['user_id'], $users, true)) {
+                            continue; // The descendant blocker owns this case; never expand another member tree.
+                        }
                         // Never expand deletion to another identity.
                         if ($fk['child'] === 'users' && ! in_array($data['users'][$childKey]['id'], $users, true)) {
                             throw new DomainException('CLEANUP_USER_SCOPE', 'Cleanup cannot delete another account.', 409);
@@ -148,10 +180,9 @@ final class PlanDataCleanup
                     || $fk['parent'] === 'provider_cardholders' && in_array($table, ['user_cards', 'card_issue_orders'], true))) {
                     $tuple = $this->tuple($row, $fk['columns']);
                     if ($tuple !== null) {
-                        foreach ($data[$fk['parent']] as $parentKey => $parent) {
-                            if ($this->tuple($parent, $fk['parentColumns']) === $tuple) {
-                                $add($fk['parent'], $parentKey);
-                            }
+                        $group = $fk['parent'].'|'.implode(',', $fk['parentColumns']);
+                        foreach ($parentIndexes[$group][$tuple] ?? [] as $parentKey) {
+                            $add($fk['parent'], $parentKey);
                         }
                     }
                 }
@@ -193,7 +224,14 @@ final class PlanDataCleanup
                     }
                 }
                 foreach ($data['card_transaction_sync_batches'] as $batchKey => $batch) {
-                    if (in_array($row['id'], json_decode($batch['card_ids'], true), true)) {
+                    $items = array_filter($data['card_transaction_sync_items'], fn ($item) => $item['batch_id'] === $batch['id']);
+                    $allOwned = $items && ! array_filter($items, function ($item) use ($data, $users) {
+                        $card = collect($data['user_cards'])->firstWhere('id', $item['card_id']);
+
+                        return ! $card || ! in_array($card['user_id'], $users, true);
+                    });
+                    $crossCompany = DB::table('card_transaction_sync_items')->where('batch_id', $batch['id'])->where('tenant_id', '<>', $tenant)->exists();
+                    if ($allOwned && ! $crossCompany && in_array($row['id'], array_column($items, 'card_id'), true)) {
                         $add('card_transaction_sync_batches', $batchKey);
                     }
                 }
@@ -209,7 +247,13 @@ final class PlanDataCleanup
         // Discover non-allowlisted FK dependents, failing closed rather than
         // silently destroying a new module introduced after this feature.
         foreach ($foreignKeys as $fk) {
-            if (! isset($selected[$fk['parent']]) || in_array($fk['child'], CleanupSchema::TABLES, true)) {
+            if (! isset($selected[$fk['parent']])) {
+                continue;
+            }
+            $registered = in_array($fk['child'], CleanupSchema::TABLES, true);
+            $scopeColumn = array_search('tenant_id', $fk['columns'], true);
+            if ($registered && $scopeColumn !== false && $fk['parentColumns'][$scopeColumn] === 'tenant_id') {
+                // The actual composite FK already forbids cross-company children.
                 continue;
             }
             foreach ($selected[$fk['parent']] as $key => $operation) {
@@ -220,7 +264,11 @@ final class PlanDataCleanup
                 foreach ($fk['columns'] as $i => $column) {
                     $query->where($column, $data[$fk['parent']][$key][$fk['parentColumns'][$i]]);
                 }
-                if ($query->exists()) {
+                if ($registered && in_array('tenant_id', $metadata[$fk['child']]['columns'], true)) {
+                    if ($query->where('tenant_id', '<>', $tenant)->exists()) {
+                        $blockers[] = ['code' => 'CLEANUP_UNKNOWN_DEPENDENCY', 'table' => $fk['child']];
+                    }
+                } elseif (! $registered && $query->exists()) {
                     $blockers[] = ['code' => 'CLEANUP_UNKNOWN_DEPENDENCY', 'table' => $fk['child']];
                 }
             }
@@ -229,7 +277,9 @@ final class PlanDataCleanup
         $affectedUsers = $users;
         $entryIds = array_column(array_intersect_key($data['ledger_entries'], $selected['ledger_entries'] ?? []), 'id');
         $removedDeltas = [];
+        $postingTotals = [];
         foreach ($data['ledger_postings'] as $posting) {
+            $postingTotals[$posting['ledger_account_id']] = ($postingTotals[$posting['ledger_account_id']] ?? BigDecimal::zero())->plus($posting['delta']);
             if (in_array($posting['ledger_entry_id'], $entryIds, true)) {
                 $removedDeltas[$posting['ledger_account_id']] = ($removedDeltas[$posting['ledger_account_id']] ?? BigDecimal::zero())->plus($posting['delta']);
             }
@@ -238,7 +288,11 @@ final class PlanDataCleanup
             if (! isset($removedDeltas[$ledgerAccount['id']]) && ! isset($selected['ledger_accounts'][$key])) {
                 continue;
             }
-            $after = BigDecimal::of($ledgerAccount['balance'])->minus($removedDeltas[$ledgerAccount['id']] ?? '0');
+            $truth = $postingTotals[$ledgerAccount['id']] ?? BigDecimal::zero();
+            if (! $truth->isEqualTo($ledgerAccount['balance'])) {
+                $blockers[] = ['code' => 'CLEANUP_LEDGER_MISMATCH', 'accountId' => $this->accountId($data, $ledgerAccount['user_id']), 'asset' => $ledgerAccount['asset_code']];
+            }
+            $after = $truth->minus($removedDeltas[$ledgerAccount['id']] ?? '0');
             if ($after->isNegative() && ! LedgerAccountType::from($ledgerAccount['account_type'])->permitsNegativeBalance()) {
                 $blockers[] = ['code' => 'CLEANUP_NEGATIVE_BALANCE', 'accountId' => $this->accountId($data, $ledgerAccount['user_id']), 'asset' => $ledgerAccount['asset_code'], 'accountType' => $ledgerAccount['account_type']];
             }
@@ -257,6 +311,15 @@ final class PlanDataCleanup
             foreach ($keys as $key => $operation) {
                 $row = $data[$table][$key];
                 $items[] = ['table_name' => $table, 'row_key' => $key, 'row_hash' => $row['_cleanup_hash'], 'operation' => $operation];
+                $last = count($items) - 1;
+                $items[$last]['public_details'] = json_encode([
+                    'recordId' => $row['id'] ?? $row['code'] ?? $row['member_id'] ?? $row['activation_id'] ?? $row['user_id'] ?? '',
+                    'category' => CleanupSchema::category($table),
+                    'accountId' => $this->accountId($data, $row['user_id'] ?? $row['sender_user_id'] ?? $row['ancestor_user_id'] ?? null),
+                    'asset' => $row['asset_code'] ?? $row['card_currency'] ?? $row['currency'] ?? null,
+                    'amount' => $row['amount'] ?? $row['delta'] ?? $row['principal'] ?? null,
+                    'related' => ! isset($roots[$table][$key]), 'operation' => $operation,
+                ], JSON_THROW_ON_ERROR);
                 $counts[$table] ??= ['table' => $table, 'count' => 0, 'related' => 0, 'operation' => $operation];
                 $counts[$table]['count']++;
                 if (! isset($roots[$table][$key])) {
@@ -270,6 +333,14 @@ final class PlanDataCleanup
                 foreach (['front_object_key', 'back_object_key', 'image_object_key'] as $column) {
                     if (! empty($row[$column])) {
                         $images[$row[$column]] = ['disk' => 'private', 'key' => $row[$column]];
+                    }
+                }
+                if ($table === 'provider_cardholders' && ! empty($row['materials_encrypted'])) {
+                    $materials = json_decode(app(CardholderMaterials::class)->decrypt($row['materials_encrypted']), true, flags: JSON_THROW_ON_ERROR);
+                    foreach ($materials['documents'] ?? [] as $documentKey) {
+                        if (is_string($documentKey) && $documentKey !== '' && ($materials['document_disk'] ?? 'private') === 'private') {
+                            $images[$documentKey] = ['disk' => 'private', 'key' => $documentKey];
+                        }
                     }
                 }
                 if ($table === 'direct_image_uploads') {
@@ -290,6 +361,16 @@ final class PlanDataCleanup
         $affected = array_values(array_filter($data['users'], fn ($u) => in_array($u['id'], $affectedUsers, true)));
         $summary = ['counts' => array_values($counts), 'total' => count($items), 'balances' => $balances, 'blockers' => $blockers,
             'affectedAccounts' => array_map(fn ($u) => ['id' => $u['id'], 'accountId' => $u['account_id'], 'deleted' => $account && in_array($u['id'], $users, true)], $affected)];
+        $categories = [];
+        foreach ($counts as $table => $count) {
+            $category = CleanupSchema::category($table);
+            $categories[$category] ??= ['category' => $category, 'count' => 0, 'related' => 0];
+            $categories[$category]['count'] += $count['count'];
+            $categories[$category]['related'] += $count['related'];
+        }
+        ksort($categories);
+        $summary['categoryCounts'] = array_values($categories);
+
         return ['items' => $items, 'summary' => $summary, 'snapshot' => $snapshot, 'images' => array_values($images),
             'fingerprint' => hash('sha256', json_encode([$items, $summary, array_values($images)], JSON_THROW_ON_ERROR))];
     }
@@ -298,12 +379,14 @@ final class PlanDataCleanup
     {
         $key = array_intersect_key($row, array_flip($columns));
         ksort($key);
+
         return json_encode($key, JSON_THROW_ON_ERROR);
     }
 
     private function tuple(array $row, array $columns): ?string
     {
         $values = array_map(fn ($c) => $row[$c], $columns);
+
         return in_array(null, $values, true) ? null : json_encode($values, JSON_THROW_ON_ERROR);
     }
 
@@ -314,6 +397,7 @@ final class PlanDataCleanup
                 return $row['account_id'];
             }
         }
+
         return null;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Jobs\Middleware\CleanupJobFence;
 use App\Support\Logging\PhotonPayLog;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -16,6 +17,11 @@ final class ProcessCardNotification implements ShouldQueue
     public int $timeout = 120;
 
     public function __construct(public readonly string $tenantId, public readonly string $resourceId) {}
+
+    public function middleware(): array
+    {
+        return [new CleanupJobFence($this->tenantId)];
+    }
 
     public function handle(): void
     {

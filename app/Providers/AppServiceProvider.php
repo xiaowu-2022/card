@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Application\Cleanup\DiscardCleanedJobs;
 use App\Application\Inbox\CaptureInboxEvent;
 use App\Application\Media\PublicAssets;
 use App\Domain\Audit\Models\AuditLog;
@@ -44,6 +45,7 @@ use App\Infrastructure\Sms\FakeSmsVerificationSender;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
@@ -138,6 +140,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Queue::before(app(DiscardCleanedJobs::class));
         Vite::createAssetPathsUsing(function (string $path): string {
             $request = request();
             if (! $request->attributes->has('oss_asset_manifest')) {

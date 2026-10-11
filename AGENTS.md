@@ -1,3 +1,16 @@
+On 2026-10-11 the user explicitly approved permanent company-scoped cleanup of
+selected consumer account test data, with no date or real/mock cutoff. Platform
+administrators alone may preview and confirm account/orders/commissions/cards;
+whole-account deletion requires no descendants. Include received and source-generated
+commissions, complete Ledger entries/postings, native-precision balance recomputation,
+negative-balance blockers, stale previews, encrypted seven-day private backup,
+atomic deletion/audit, permanent identity/receipt reservations and no-revival guards.
+This narrowly scoped batch/table/record manifest is the only exception to historical
+deletion bans. Never disable triggers/FKs, delete another identity automatically,
+call card providers or run production cleanup/tests during migration/deployment.
+Retain administrators, company/shared configuration and operation audit. See
+docs/architecture/PLATFORM_DATA_CLEANUP.md.
+
 On 2026-10-11 the user added recharge order arrival types: automatic receipt,
 manual confirmation and advance amount. Only settled manual receipts may switch
 ACTUAL/ADVANCE via explicit confirmation, scoped permissions, request idempotency

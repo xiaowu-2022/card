@@ -27,6 +27,8 @@ use App\Application\Card\UserCardTransactionsQuery;
 use App\Application\CardProduct\CardProductCatalogQuery;
 use App\Application\CardProduct\UpdateCardProductAction;
 use App\Application\CardProviderDirectory\SaveCardProviderReferenceAction;
+use App\Application\Cleanup\CleanupTombstones;
+use App\Application\Cleanup\DataCleanup;
 use App\Application\Kyc\ApproveKycAction;
 use App\Application\Kyc\SubmitKycApplicationAction;
 use App\Application\Promotion\PaidPromotionPurchase;
@@ -157,6 +159,33 @@ function managedCardFixture($test, ?Closure $cardRead = null, string $available 
 
     return [$card, $provider, app(ManageCardAction::class)];
 }
+
+it('permanently cleans card materials orders transactions and sync data without provider operations', function (bool $companyBatch): void {
+    Http::preventStrayRequests();
+    [$card, $provider, $management] = managedCardFixture($this);
+    $provider->shouldReceive('quoteCardLoad')->once()->andReturnUsing(fn ($id, $amount, $request) => new ProviderCardQuoteDTO($request, '20', '20', '0'));
+    $provider->shouldReceive('confirmCardLoad')->once()->andReturnUsing(fn ($id, $request) => new ProviderCardFundsDTO(ProviderOperationStatus::Succeeded, $id, $request, 'CLEANUP-LOAD', '20', '20', '0'));
+    $load = $management->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '20');
+    $management->confirmLoad($this->tenant->id, $this->user->id, $card->id, $load->id);
+    app(RecordCardTransactionsAction::class)->execute($card, [new ProviderCardTransactionDTO('CLEANUP-TX', '1.23456789', 'USD', 'purchase', 'completed', now()->format('Y-m-d H:i:s'), null)], CarbonImmutable::now());
+    $platform = AdminUser::where('email', 'owner@platform.local')->sole();
+    $batch = app(BatchCardTransactionSync::class)->create($platform, [...transactionBatchInput($this), 'tenant_id' => $companyBatch ? $this->tenant->id : null, 'card_ids' => [$card->id]]);
+    $provider->shouldNotReceive('closeCard');
+    $provider->shouldNotReceive('confirmCardTransferOut');
+    $provider->shouldNotReceive('refundCardLoad');
+    $cleanup = app(DataCleanup::class);
+    $preview = $cleanup->preview($this->tenant->id, $platform, ['user_ids' => [$this->user->id], 'modules' => ['cards']]);
+    expect($preview['summary']['blockers'])->toBe([]);
+    $cleanup->execute($this->tenant->id, $preview['id'], $platform, (string) Str::uuid(), true);
+    expect(UserCard::find($card->id))->toBeNull()->and(ProviderCardholder::find($this->holder->id))->toBeNull();
+    foreach (['card_issue_orders', 'card_management_orders', 'card_transactions', 'card_provider_events', 'card_transaction_sync_items'] as $table) {
+        expect(DB::table($table)->where('tenant_id', $this->tenant->id)->count())->toBe(0);
+    }
+    expect(DB::table('card_transaction_sync_batches')->where('id', $batch)->exists())->toBeFalse();
+    expect($this->user->fresh())->not->toBeNull()->and($this->product->fresh())->not->toBeNull();
+    expect((float) phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe(100.0);
+    expect(CleanupTombstones::contains('card::provider_card_id', $card->provider_card_id))->toBeTrue();
+})->with(['company batch' => true, 'global header with one company' => false]);
 
 it('blocks restricted card funding at confirmation and preserves completed replay', function (): void {
     [$card, $provider, $action] = managedCardFixture($this);

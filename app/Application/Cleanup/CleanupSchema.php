@@ -58,7 +58,22 @@ final class CleanupSchema
         foreach (DB::select("SELECT c.relname AS table_name,a.attname AS column_name FROM pg_index i JOIN pg_class c ON c.oid=i.indrelid JOIN pg_namespace n ON n.oid=c.relnamespace JOIN LATERAL unnest(i.indkey) WITH ORDINALITY k(num,pos) ON true JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum=k.num WHERE i.indisprimary AND n.nspname='public' ORDER BY c.relname,k.pos") as $row) {
             $tables[$row->table_name]['keys'][] = $row->column_name;
         }
+
         return $tables;
+    }
+
+    public static function category(string $table): string
+    {
+        return match (true) {
+            str_starts_with($table, 'ledger_'), $table === 'wallets' => 'Funds and ledger data',
+            in_array($table, self::CARDS, true), str_starts_with($table, 'card_transaction_sync_') => 'Cards',
+            in_array($table, self::ORDERS, true), $table === 'wealth_installments' => 'Orders',
+            in_array($table, self::COMMISSIONS, true), $table === 'paid_promotion_events' => 'Commissions',
+            str_contains($table, 'promotion'), str_starts_with($table, 'partner_'), str_starts_with($table, 'account_activation'), $table === 'referrer_changes', $table === 'activation_count_snapshots' => 'Promotion and partner data',
+            str_starts_with($table, 'kyc_'), $table === 'identity_records', $table === 'direct_image_uploads' => 'Verification data',
+            str_starts_with($table, 'support_'), str_starts_with($table, 'inbox_') => 'Support and notifications',
+            default => 'Account and related data',
+        };
     }
 
     public function foreignKeys(): array
@@ -74,6 +89,7 @@ final class CleanupSchema
         if (! in_array($table, self::TABLES, true)) {
             throw new LogicException('Unregistered cleanup table.');
         }
+
         return '"'.$table.'"';
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Application\Payment;
 
+use App\Application\Cleanup\CleanupTombstones;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Payment\Contracts\PaymentProviderInterface;
 use App\Domain\Payment\DTOs\NormalizedPaymentEvent;
@@ -21,7 +22,7 @@ final readonly class PersistPaymentProviderEventAction
 {
     public function __construct(private PaymentProviderInterface $provider) {}
 
-    public function execute(string $providerName, Request $request): PaymentProviderEvent
+    public function execute(string $providerName, Request $request): ?PaymentProviderEvent
     {
         if ($providerName !== $this->provider->name() || ! $this->provider->available()) {
             throw new DomainException('PAYMENT_PROVIDER_UNAVAILABLE', 'Payment provider is unavailable.', 404);
@@ -32,6 +33,11 @@ final readonly class PersistPaymentProviderEventAction
         }
         $event = $this->provider->normalizeWebhook($this->provider->verifyWebhook($request, $rawBody));
         $event = $this->validateFinancialFields($event);
+        foreach (['provider_request_id' => $event->providerRequestId, 'provider_transaction_id' => $event->providerTransactionId, 'provider_event_key' => $event->eventKey] as $column => $value) {
+            if ($value !== null && CleanupTombstones::contains('payment:'.$providerName.':'.$column, $value)) {
+                return null;
+            }
+        }
         $transaction = $this->mappedTransaction($providerName, $event);
         if (! $transaction) {
             Log::warning('Verified payment event did not map to an internal transaction.', [

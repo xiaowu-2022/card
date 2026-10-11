@@ -8,16 +8,17 @@ use App\Domain\Kyc\DTOs\KycOcrRequestDTO;
 use App\Domain\Kyc\Enums\KycOcrOutcome;
 use App\Domain\Kyc\Enums\KycOcrStatus;
 use App\Domain\Kyc\Enums\KycReviewStatus;
-use Illuminate\Support\Facades\DB;
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Kyc\Services\IdentityNumberNormalizer;
 use App\Domain\Kyc\Services\IdentityNumberProtector;
 use App\Domain\Kyc\Services\KycDataCipher;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\Tenant\TenantContext;
+use App\Jobs\Middleware\CleanupJobFence;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 final class ProcessKycOcrJob implements ShouldQueue
@@ -31,7 +32,7 @@ final class ProcessKycOcrJob implements ShouldQueue
     /** @return list<object> */
     public function middleware(): array
     {
-        return [(new WithoutOverlapping("kyc-ocr:{$this->tenantId}:{$this->kycApplicationId}"))->expireAfter(120)];
+        return [new CleanupJobFence($this->tenantId), (new WithoutOverlapping("kyc-ocr:{$this->tenantId}:{$this->kycApplicationId}"))->expireAfter(120)];
     }
 
     public function handle(
@@ -49,7 +50,9 @@ final class ProcessKycOcrJob implements ShouldQueue
                 || $application->ocr_status === KycOcrStatus::Succeeded) {
                 return;
             }
-            if (! $this->savePending(['ocr_status' => KycOcrStatus::Processing])) return;
+            if (! $this->savePending(['ocr_status' => KycOcrStatus::Processing])) {
+                return;
+            }
             try {
                 $disk = (string) config('kyc.document_disk');
                 $images = app(ImageStorage::class);
@@ -97,8 +100,11 @@ final class ProcessKycOcrJob implements ShouldQueue
         return DB::transaction(function () use ($values): bool {
             $application = KycApplication::where('tenant_id', $this->tenantId)->whereKey($this->kycApplicationId)->lockForUpdate()->firstOrFail();
             if ($application->review_status !== KycReviewStatus::Pending || $application->processing_status !== null
-                || $application->ocr_status === KycOcrStatus::Succeeded) return false;
+                || $application->ocr_status === KycOcrStatus::Succeeded) {
+                return false;
+            }
             $application->forceFill($values)->save();
+
             return true;
         });
     }

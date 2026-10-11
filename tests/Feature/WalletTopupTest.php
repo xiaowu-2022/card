@@ -1,5 +1,6 @@
 <?php
 
+use App\Application\Cleanup\DataCleanup;
 use App\Application\Kyc\ApproveKycAction;
 use App\Application\Kyc\SubmitKycApplicationAction;
 use App\Application\Payment\CreateWalletTopupAction;
@@ -52,7 +53,7 @@ use Illuminate\Support\Str;
 
 beforeEach(function (): void {
     Http::preventStrayRequests();
-    config(['payment.mock_mode' => 'PENDING', 'inertia.ssr.enabled' => false]);
+    config(['payment.driver' => 'mock', 'payment.mock_mode' => 'PENDING', 'inertia.ssr.enabled' => false]);
     $this->seed();
     legacyUsdAccountingFixtures();
     Storage::fake('private');
@@ -65,7 +66,7 @@ beforeEach(function (): void {
     app()->instance(KycOcrProviderInterface::class, $ocr);
     $application = app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', 'TOPUP-'.$this->user->id, kycTestImage('topup-front.png'), kycTestImage('topup-back.png'));
     $reviewer = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
-    app(ApproveKycAction::class)->execute($this->tenant->id, $application->id, $reviewer);
+    app(ApproveKycAction::class)->execute($this->tenant->id, $application->id, $reviewer, identityNumber: '11010519491231002X');
     $this->wallet = app(ActivateUserWalletAction::class)->execute($this->tenant->id, $this->user->id)->wallet;
 });
 
@@ -90,6 +91,24 @@ function phaseFiveEvent($test, WalletTopupOrder $order, string $eventId, string 
 
     return app(PersistPaymentProviderEventAction::class)->execute('mock', $request);
 }
+
+it('acknowledges verified late payment callbacks after cleanup without another event or credit', function (): void {
+    $order = createPhaseFiveTopup($this);
+    $transaction = PaymentProviderTransaction::where('wallet_topup_order_id', $order->id)->sole();
+    $body = json_encode(['event_id' => 'late-cleaned-payment', 'event_type' => 'PAYMENT_SUCCEEDED',
+        'provider_request_id' => $transaction->provider_request_id, 'provider_transaction_id' => $transaction->provider_transaction_id,
+        'status' => 'SUCCEEDED', 'amount' => $order->amount, 'asset' => 'USD']);
+    $cleanup = app(DataCleanup::class);
+    $platform = AdminUser::where('email', 'owner@platform.local')->sole();
+    $preview = $cleanup->preview($this->tenant->id, $platform, ['user_ids' => [$this->user->id], 'modules' => ['orders']]);
+    expect($preview['summary']['blockers'])->toBe([]);
+    $cleanup->execute($this->tenant->id, $preview['id'], $platform, (string) Str::uuid(), true);
+    $request = Request::create('/webhooks/payments/mock', 'POST', [], [], [], [], $body);
+    $request->headers->set('X-Mock-Signature', hash_hmac('sha256', $body, (string) config('payment.mock_webhook_secret')));
+    expect(app(PersistPaymentProviderEventAction::class)->execute('mock', $request))->toBeNull();
+    expect(PaymentProviderEvent::count())->toBe(0)->and(PaymentProviderTransaction::find($transaction->id))->toBeNull();
+    expect(LedgerEntry::count())->toBe(0)->and($this->user->fresh())->not->toBeNull();
+});
 
 it('creates one tenant-scoped order and provider transaction for an idempotent request', function (): void {
     $requestId = (string) Str::uuid();
@@ -440,7 +459,7 @@ it('enforces credited financial facts and one ledger link at the database bounda
         $tenantB, $userB, 'CN', 'TOPUP-B-'.$userB->id, kycTestImage('topup-b-front.png'), kycTestImage('topup-b-back.png'),
     );
     $reviewerB = AdminUser::query()->where('email', 'owner@b.localhost')->firstOrFail();
-    app(ApproveKycAction::class)->execute($tenantB->id, $applicationB->id, $reviewerB);
+    app(ApproveKycAction::class)->execute($tenantB->id, $applicationB->id, $reviewerB, identityNumber: '11010519491231002X');
     $walletB = app(ActivateUserWalletAction::class)->execute($tenantB->id, $userB->id)->wallet;
     $orderB = app(CreateWalletTopupAction::class)->execute(
         $tenantB->id, $userB->id, $walletB->id, '10', 'USD', (string) Str::uuid(),

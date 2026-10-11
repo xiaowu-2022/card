@@ -5,6 +5,7 @@ use App\Application\Card\ReceiveCardNotificationAction;
 use App\Application\CardProduct\CreateCardProductAction;
 use App\Application\CardProduct\UpdateCardProductAction;
 use App\Application\CardProviderDirectory\PhotonPayAccounts;
+use App\Application\Cleanup\DataCleanup;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Card\Models\CardProviderEvent;
 use App\Domain\Card\Models\ProviderCardholder;
@@ -16,6 +17,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -89,17 +91,63 @@ it('protects credentials from validation-session flashing and enforces platform 
     $this->post('http://admin.localhost/platform/card-providers/'.$this->account->id.'/check')->assertRedirect();
 });
 
-function accountHolderFixture($test, $product): ProviderCardholder
+function accountHolderFixture($test, $product, array $materials = []): ProviderCardholder
 {
     $user = User::firstOrFail();
     $holder = new ProviderCardholder;
     $holder->forceFill(['tenant_id' => $user->tenant_id, 'user_id' => $user->id, 'provider' => 'PHOTONPAY',
         'provider_cardholder_id' => 'CH-'.Str::uuid(), 'request_id' => (string) Str::uuid(), 'request_hash' => str_repeat('a', 64),
-        'card_product_id' => $product->id, 'submission_version' => 1, 'materials_encrypted' => app(CardholderMaterials::class)->encrypt('{}'),
+        'card_product_id' => $product->id, 'submission_version' => 1, 'materials_encrypted' => app(CardholderMaterials::class)->encrypt($materials === [] ? '{}' : json_encode($materials)),
         'status' => 'READY', 'provider_status' => 'normal', 'provider_review_status' => 'pass', 'submitted_at' => now(), 'synced_at' => now()])->save();
 
     return $holder;
 }
+
+it('acknowledges verified late card callbacks after cleanup without recreating resources', function (): void {
+    Storage::fake('private');
+    $product = app(CreateCardProductAction::class)->execute($this->productInput, $this->owner);
+    $holder = accountHolderFixture($this, $product);
+    $body = json_encode(['cardholderId' => $holder->provider_cardholder_id]);
+    openssl_sign($body, $signature, $this->keys[0], OPENSSL_ALGO_MD5);
+    $cleanup = app(DataCleanup::class);
+    $preview = $cleanup->preview($holder->tenant_id, $this->owner, ['user_ids' => [$holder->user_id], 'modules' => ['cards']]);
+    expect($preview['summary']['blockers'])->toBe([]);
+    $cleanup->execute($holder->tenant_id, $preview['id'], $this->owner, (string) Str::uuid(), true);
+    $receive = app(ReceiveCardNotificationAction::class);
+    $receive->execute($body, base64_encode($signature), 'issuing_card', 'cardholder', $this->account->id);
+    $receive->execute($body, base64_encode($signature), 'issuing_card', 'cardholder');
+    expect(fn () => $receive->execute($body, 'invalid', 'issuing_card', 'cardholder', $this->account->id))->toThrow(DomainException::class);
+    expect(ProviderCardholder::find($holder->id))->toBeNull()->and(CardProviderEvent::count())->toBe(0);
+    expect($product->fresh())->not->toBeNull()->and($this->account->fresh())->not->toBeNull();
+    Http::assertNothingSent();
+});
+
+it('retains referenced cleanup images and respects the latest backup retention before removal', function (): void {
+    Storage::fake('private');
+    $product = app(CreateCardProductAction::class)->execute($this->productInput, $this->owner);
+    $key = 'private-cleanup-test-image';
+    $holder = accountHolderFixture($this, $product, ['documents' => ['front' => $key]]);
+    Storage::disk('private')->put($key, 'offline image fixture');
+    $other = User::where('tenant_id', $holder->tenant_id)->where('id', '<>', $holder->user_id)->firstOrFail();
+    $second = $holder->replicate(['provider_cardholder_id', 'request_id']);
+    $second->forceFill(['user_id' => $other->id, 'provider_cardholder_id' => 'CH-'.Str::uuid(), 'request_id' => (string) Str::uuid()])->save();
+    $cleanup = app(DataCleanup::class);
+    $preview = $cleanup->preview($holder->tenant_id, $this->owner, ['user_ids' => [$holder->user_id], 'modules' => ['cards']]);
+    $cleanup->execute($holder->tenant_id, $preview['id'], $this->owner, (string) Str::uuid(), true);
+    $this->travel(8)->days();
+    $this->artisan('data-cleanup:expire-backups')->assertSuccessful();
+    expect(Storage::disk('private')->exists($key))->toBeTrue();
+    $preview = $cleanup->preview($second->tenant_id, $this->owner, ['user_ids' => [$second->user_id], 'modules' => ['cards']]);
+    $cleanup->execute($second->tenant_id, $preview['id'], $this->owner, (string) Str::uuid(), true);
+    $this->artisan('data-cleanup:expire-backups')->assertSuccessful();
+    expect(Storage::disk('private')->exists($key))->toBeTrue();
+    $backup = DB::table('data_cleanup_batches')->where('id', $preview['id'])->value('backup_path');
+    expect(Storage::disk('private')->exists($backup))->toBeTrue();
+    $this->travel(8)->days();
+    $this->artisan('data-cleanup:expire-backups')->assertSuccessful();
+    expect(Storage::disk('private')->exists($key))->toBeFalse();
+    Http::assertNothingSent();
+});
 
 it('locks used account identity but permits credential rotation and preserves pending reads when paused', function (): void {
     $product = app(CreateCardProductAction::class)->execute($this->productInput, $this->owner);

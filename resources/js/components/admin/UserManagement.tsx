@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UserOrdersPanel } from './UserOrdersPanel';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { UserRestrictionsDialog } from '@/components/admin/UserRestrictionsDialog';
+import { DataCleanupDialog } from '@/components/admin/DataCleanupDialog';
 import { CustomerRemarkDialog } from '@/components/admin/CustomerRemarkDialog';
 import { openAdminEditor } from '@/components/admin/editor-navigation';
 import { CreateUserDialog } from '@/components/admin/CreateUserDialog';
@@ -87,6 +88,7 @@ export default function UserManagement({
     canManageSupport,
     canManagePartners,
     canCreateUser,
+    canCleanup = false,
     canRemark,
     canManageRestrictions,
 }: {
@@ -95,6 +97,7 @@ export default function UserManagement({
     canRemark: boolean;
     canManagePartners?: boolean;
     canCreateUser: boolean;
+    canCleanup?: boolean;
     canManageSupport: boolean;
     canAdjustWallet: boolean;
     canChangeInvitation: boolean;
@@ -127,6 +130,7 @@ export default function UserManagement({
     const [restrictionsUser, setRestrictionsUser] = useState<PlatformUser | null>(null);
     const [remarkUser, setRemarkUser] = useState<PlatformUser | null>(null);
     const [createOpen, setCreateOpen] = useState(false);
+    const [cleanup, setCleanup] = useState<{ user?: PlatformUser } | null>(null);
     const [supportBusy, setSupportBusy] = useState(false);
     const [supportError, setSupportError] = useState('');
     const { url } = usePage();
@@ -148,6 +152,11 @@ export default function UserManagement({
             title={t('Users')}
             actions={
                 <>
+                    {canCleanup && !detail && (
+                        <Button variant="secondary" onClick={() => setCleanup({})}>
+                            {t('Cleanup data')}
+                        </Button>
+                    )}
                     {canCreateUser && (
                         <Button onClick={() => setCreateOpen(true)}>{t('Add account')}</Button>
                     )}
@@ -155,6 +164,14 @@ export default function UserManagement({
             }
         >
             {!detail && <Head title={t('Users')} />}
+            {cleanup && (
+                <DataCleanupDialog
+                    companies={companies}
+                    company={filters.company}
+                    initialUser={cleanup.user}
+                    onClose={() => setCleanup(null)}
+                />
+            )}
             {partnerUser && (
                 <EnablePartnerDialog
                     user={partnerUser}
@@ -563,6 +580,15 @@ export default function UserManagement({
                                       render: (row: PlatformUser) => (
                                           <div className="flex items-center gap-2 whitespace-nowrap">
                                               <UserInfoCell user={row} action />
+                                              {canCleanup && (
+                                                  <Button
+                                                      variant="secondary"
+                                                      size="sm"
+                                                      onClick={() => setCleanup({ user: row })}
+                                                  >
+                                                      {t('Cleanup data')}
+                                                  </Button>
+                                              )}
                                               <Button
                                                   variant="secondary"
                                                   size="sm"
@@ -585,7 +611,8 @@ export default function UserManagement({
                                       ),
                                   },
                               ]
-                            : canManagePartners ||
+                            : canCleanup ||
+                                canManagePartners ||
                                 canManageRestrictions ||
                                 canManageSupport ||
                                 canAdjustWallet ||
@@ -596,7 +623,8 @@ export default function UserManagement({
                                         label: 'Actions',
                                         render: (row: PlatformUser) => (
                                             <div className="flex items-center gap-2">
-                                                {(canManagePartners ||
+                                                {(canCleanup ||
+                                                    canManagePartners ||
                                                     canManageRestrictions ||
                                                     canManageSupport ||
                                                     canAdjustWallet ||
@@ -614,6 +642,16 @@ export default function UserManagement({
                                                                 onClick={() => setPartnerUser(row)}
                                                             >
                                                                 {t('Set as partner')}
+                                                            </Button>
+                                                        )}
+                                                        {canCleanup && (
+                                                            <Button
+                                                                variant="secondary"
+                                                                onClick={() =>
+                                                                    setCleanup({ user: row })
+                                                                }
+                                                            >
+                                                                {t('Cleanup data')}
                                                             </Button>
                                                         )}
                                                         {canManageRestrictions && (

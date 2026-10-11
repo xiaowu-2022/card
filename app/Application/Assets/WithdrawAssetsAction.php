@@ -2,7 +2,9 @@
 
 namespace App\Application\Assets;
 
+use App\Application\Cleanup\CleanupTombstones;
 use App\Application\Partners\FeeValuation;
+use App\Application\User\UserOperationRestrictions;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Assets\AssetWithdrawalOrder;
 use App\Domain\Assets\WithdrawalFee;
@@ -38,7 +40,7 @@ final readonly class WithdrawAssetsAction
 
             return $existing;
         }
-        \App\Application\User\UserOperationRestrictions::assertAllowed($tenantId, $userId, 'withdrawal_blocked');
+        UserOperationRestrictions::assertAllowed($tenantId, $userId, 'withdrawal_blocked');
         [$rail,,$connection] = $this->rails->enabled($tenantId, $railCode, 'withdrawal');
         $address = trim($address);
         if ($rail->network === 'ETHEREUM') {
@@ -63,7 +65,7 @@ final readonly class WithdrawAssetsAction
                 return $existing;
             }
             [$tenant,$user] = $this->access->operational($tenantId, $userId);
-            \App\Application\User\UserOperationRestrictions::assertAllowed($tenantId, $userId, 'withdrawal_blocked');
+            UserOperationRestrictions::assertAllowed($tenantId, $userId, 'withdrawal_blocked');
             [$rail,$company] = $this->rails->enabled($tenantId, $railCode, 'withdrawal');
             $money = $this->rails->amount($amount, $rail->asset_code);
             $fee = WithdrawalFee::calculate($money->amount(), $company->withdrawal_fee_percent, $rail->asset_code);
@@ -176,6 +178,9 @@ final readonly class WithdrawAssetsAction
                 return $o;
             }
             AssetAccess::lock('asset-payout:'.$o->network.':'.$matches[0]['event_id']);
+            if (CleanupTombstones::contains('chain:'.$o->network, $matches[0]['event_id'])) {
+                throw new DomainException('CHAIN_TRANSFER_USED', 'This chain transfer has already been used.', 409);
+            }
             if (AssetWithdrawalOrder::query()->where('network', $o->network)->where('chain_event_id', $matches[0]['event_id'])->exists()) {
                 throw new DomainException('WITHDRAWAL_PROOF_CONFLICT', 'This transfer has already been used.', 409);
             }

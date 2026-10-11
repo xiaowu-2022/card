@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Application\Payment\InitiateWalletTopupPaymentAction;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\Tenant\TenantContext;
+use App\Jobs\Middleware\CleanupJobFence;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -22,6 +23,11 @@ final class InitiateWalletTopupPaymentJob implements ShouldQueue
         public readonly string $orderId,
         public readonly string $returnUrl,
     ) {}
+
+    public function middleware(): array
+    {
+        return [new CleanupJobFence($this->tenantId)];
+    }
 
     public function handle(InitiateWalletTopupPaymentAction $action, TenantContext $context): void
     {

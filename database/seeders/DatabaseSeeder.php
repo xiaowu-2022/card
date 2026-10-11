@@ -40,6 +40,7 @@ final class DatabaseSeeder extends Seeder
         }
 
         $permissions = collect([
+            'users.cleanup',
             'support.read', 'support.send', 'support.agents.manage', 'support.bot.manage', 'support.hours.manage', 'support.replies.manage', 'promotion_members.manage', 'wallet.adjust', 'users.referrer.manage', 'users.invitation.manage', 'users.restrictions.manage', 'commissions.adjust', 'notifications.read', 'notifications.send', 'storage.manage', 'partners.manage', 'promotion_refunds.review', 'tenant.read', 'tenant.manage', 'users.read', 'users.create', 'users.suspend', 'wallet_topups.verify', 'wallet_topups.confirm',
             'kyc.read', 'kyc.review', 'kyc.document.view', 'wallet.read', 'ledger.read', 'wallet_topups.read', 'withdrawals.read', 'withdrawals.review',
             'cards.read', 'cards.reveal_sensitive', 'card_load.process',
@@ -63,6 +64,7 @@ final class DatabaseSeeder extends Seeder
 
         $permissions->put('support.manage', Permission::query()->firstOrCreate(['name' => 'support.manage']));
         $roles['PLATFORM_ADMIN'][1][] = 'card_provider_reference.manage';
+        $roles['PLATFORM_ADMIN'][1][] = 'users.cleanup';
         $roles['PLATFORM_ADMIN'][1][] = 'kyc.review';
         foreach (['support.read', 'support.send', 'support.agents.manage', 'support.bot.manage', 'support.hours.manage', 'support.replies.manage'] as $permission) {
             $roles['PLATFORM_ADMIN'][1][] = $permission;

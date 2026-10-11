@@ -48,7 +48,7 @@ final class ImageReferences
         return compact('tenant', 'disk', 'key', 'purpose', 'reference', 'codec');
     }
 
-    public function contains(string $tenant, string $disk, string $key): bool
+    public function contains(?string $tenant, string $disk, string $key): bool
     {
         foreach ($this->all($tenant) as $ref) {
             if ($ref['disk'] === $disk && $ref['key'] === $key) {

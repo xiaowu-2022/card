@@ -61,6 +61,7 @@ final class CleanupTombstones
                     $providerAccount = $product?->card_provider_reference_id ?? '';
                     foreach (['provider_card_id', 'provider_cardholder_id', 'provider_request_id', 'provider_recipient_id'] as $column) {
                         $add('card:'.$providerAccount.':'.$column, $row[$column] ?? null);
+                        $add('card-global:'.($row['provider'] ?? 'PHOTONPAY').':'.$column, $row[$column] ?? null);
                     }
                     // PhotonPay issue notifications use the internal order UUID.
                     if ($table === 'card_issue_orders') {

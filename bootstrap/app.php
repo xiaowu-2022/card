@@ -8,6 +8,7 @@ use App\Http\Middleware\EnsureAuthenticatedTenantUser;
 use App\Http\Middleware\EnsureOperationalUser;
 use App\Http\Middleware\EnsureRecentTenantAdminAuthentication;
 use App\Http\Middleware\EnsureTenantSurfaceAvailable;
+use App\Http\Middleware\FenceDataCleanup;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PlatformEditorResponse;
 use App\Http\Middleware\RememberConsumerSession;
@@ -27,12 +28,12 @@ use Symfony\Component\HttpFoundation\Response;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         using: function (): void {
-            Route::prefix('api/v1')->middleware(['web', 'tenant', RememberConsumerSession::class, 'user.session-scope', ConsumerApiContext::class.':web', 'user.locale'])->group(base_path('routes/consumer-api.php'));
-            Route::prefix('api/mobile/v1')->middleware(['api', 'tenant', ConsumerApiContext::class.':mobile', 'user.locale'])->group(base_path('routes/consumer-api.php'));
+            Route::prefix('api/v1')->middleware(['web', 'tenant', 'cleanup.fence', RememberConsumerSession::class, 'user.session-scope', ConsumerApiContext::class.':web', 'user.locale'])->group(base_path('routes/consumer-api.php'));
+            Route::prefix('api/mobile/v1')->middleware(['api', 'tenant', 'cleanup.fence', ConsumerApiContext::class.':mobile', 'user.locale'])->group(base_path('routes/consumer-api.php'));
             Route::middleware('web')->group(base_path('routes/public.php'));
-            Route::middleware(['web', 'tenant', RememberConsumerSession::class, 'user.session-scope', 'user.locale', 'inertia'])->group(base_path('routes/user.php'));
-            Route::middleware(['web', 'tenant', 'user.session-scope', 'admin.locale', 'inertia'])->group(base_path('routes/admin.php'));
-            Route::middleware(['web', 'admin.locale', 'inertia', CompanyDrawerScope::class, PlatformEditorResponse::class])->domain((string) config('tenancy.platform_admin_host'))->group(base_path('routes/platform.php'));
+            Route::middleware(['web', 'tenant', 'cleanup.fence', RememberConsumerSession::class, 'user.session-scope', 'user.locale', 'inertia'])->group(base_path('routes/user.php'));
+            Route::middleware(['web', 'tenant', 'cleanup.fence', 'user.session-scope', 'admin.locale', 'inertia'])->group(base_path('routes/admin.php'));
+            Route::middleware(['web', 'cleanup.fence', 'admin.locale', 'inertia', CompanyDrawerScope::class, PlatformEditorResponse::class])->domain((string) config('tenancy.platform_admin_host'))->group(base_path('routes/platform.php'));
             Route::middleware('api')->prefix('webhooks')->group(base_path('routes/webhooks.php'));
         },
         commands: __DIR__.'/../routes/console.php',
@@ -43,6 +44,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'inertia' => HandleInertiaRequests::class,
             'tenant' => ResolveTenantFromHost::class,
+            'cleanup.fence' => FenceDataCleanup::class,
             'tenant.surface' => EnsureTenantSurfaceAvailable::class,
             'admin.scope' => AuthorizeAdminScope::class,
             'user.authenticated' => EnsureAuthenticatedTenantUser::class,
