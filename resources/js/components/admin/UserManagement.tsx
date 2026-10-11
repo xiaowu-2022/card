@@ -1,3 +1,6 @@
+import { Pencil } from 'lucide-react';
+import { EnablePartnerDialog } from './EnablePartnerDialog';
+import { ReferrerFilterSelect } from './ReferrerFilterSelect';
 import { PartnerHierarchyPanel } from './PartnerHierarchyPanel';
 import { UserInfoCell } from '@/components/admin/UserInfoCell';
 import { Fragment, type ReactNode } from 'react';
@@ -33,6 +36,7 @@ type Wallet = {
 export type PlatformUser = {
     partnerId?: string | null;
     promotionTeamCount?: number;
+    descendantCount?: number;
     invitationCode?: string | null;
     ancestors?: {
         id: string;
@@ -81,6 +85,7 @@ export default function UserManagement({
     canViewFunds,
     canViewTopups,
     canManageSupport,
+    canManagePartners,
     canCreateUser,
     canRemark,
     canManageRestrictions,
@@ -88,6 +93,7 @@ export default function UserManagement({
     detail?: boolean;
     canManageRestrictions: boolean;
     canRemark: boolean;
+    canManagePartners?: boolean;
     canCreateUser: boolean;
     canManageSupport: boolean;
     canAdjustWallet: boolean;
@@ -105,6 +111,7 @@ export default function UserManagement({
         status?: string;
         support?: string;
         partner?: string;
+        referrer?: string;
     };
     financialAccess: {
         receipts: boolean;
@@ -114,6 +121,7 @@ export default function UserManagement({
     };
 }) {
     useAdminTranslation();
+    const [partnerUser, setPartnerUser] = useState<PlatformUser | null>(null);
     const [detailTab, setDetailTab] = useState('basic');
     const detailTabsId = useId();
     const [restrictionsUser, setRestrictionsUser] = useState<PlatformUser | null>(null);
@@ -143,23 +151,20 @@ export default function UserManagement({
                     {canCreateUser && (
                         <Button onClick={() => setCreateOpen(true)}>{t('Add account')}</Button>
                     )}
-                    {canViewTopups && (
-                        <Button asChild variant="secondary">
-                            <Link
-                                href={
-                                    filters.company
-                                        ? `/platform/topups?company=${filters.company}`
-                                        : '/platform/topups'
-                                }
-                            >
-                                {t('Top-up management')}
-                            </Link>
-                        </Button>
-                    )}
                 </>
             }
         >
             {!detail && <Head title={t('Users')} />}
+            {partnerUser && (
+                <EnablePartnerDialog
+                    user={partnerUser}
+                    onClose={() => setPartnerUser(null)}
+                    onSaved={() => {
+                        setPartnerUser(null);
+                        router.reload();
+                    }}
+                />
+            )}
             {restrictionsUser && (
                 <UserRestrictionsDialog
                     key={restrictionsUser.id}
@@ -294,6 +299,14 @@ export default function UserManagement({
                     url="/platform/users"
                     searchLabel={t('Search name, account ID or email')}
                     statuses={['ACTIVE', 'SUSPENDED', 'DISABLED']}
+                    textFilters={[
+                        {
+                            key: 'referrer',
+                            label: 'Filter by referrer',
+                            placeholder: 'Referrer account ID or email',
+                            render: (props) => <ReferrerFilterSelect {...props} />,
+                        },
+                    ]}
                     selectFilters={[
                         {
                             key: 'partner',
@@ -485,18 +498,23 @@ export default function UserManagement({
                                   {
                                       label: 'Customer remark',
                                       render: (row: PlatformUser) => (
-                                          <div className="flex min-w-0 items-start gap-3">
+                                          <div className="flex min-w-0 items-center gap-1">
                                               <span className="min-w-0 whitespace-pre-wrap break-words">
                                                   {row.remark || '—'}
                                               </span>
                                               {canRemark && (
                                                   <Button
-                                                      variant="secondary"
-                                                      size="sm"
-                                                      className="shrink-0 whitespace-nowrap"
+                                                      variant="ghost"
+                                                      size="icon"
+                                                      className="size-6 min-h-6 shrink-0 text-muted-foreground"
+                                                      aria-label={t('Edit customer remark')}
+                                                      title={t('Edit customer remark')}
                                                       onClick={() => setRemarkUser(row)}
                                                   >
-                                                      {t('Edit customer remark')}
+                                                      <Pencil
+                                                          className="size-3.5"
+                                                          aria-hidden="true"
+                                                      />
                                                   </Button>
                                               )}
                                           </div>
@@ -509,15 +527,17 @@ export default function UserManagement({
                                   {
                                       label: 'Invitation code',
                                       render: (row: PlatformUser) => (
-                                          <div className="flex min-w-0 items-center gap-3">
+                                          <div className="flex min-w-0 items-center gap-1">
                                               <span className="tabular-nums">
                                                   {row.invitationCode || '—'}
                                               </span>
                                               {canChangeInvitation && row.invitationCode && (
                                                   <Button
-                                                      variant="secondary"
-                                                      size="sm"
-                                                      className="shrink-0 whitespace-nowrap"
+                                                      variant="ghost"
+                                                      size="icon"
+                                                      className="size-6 min-h-6 shrink-0 text-muted-foreground"
+                                                      aria-label={t('Change invitation code')}
+                                                      title={t('Change invitation code')}
                                                       onClick={(event) =>
                                                           openAdminEditor(
                                                               `/platform/tenants/${row.companyId}/users/${row.id}/invitation-code`,
@@ -525,7 +545,10 @@ export default function UserManagement({
                                                           )
                                                       }
                                                   >
-                                                      {t('Change invitation code')}
+                                                      <Pencil
+                                                          className="size-3.5"
+                                                          aria-hidden="true"
+                                                      />
                                                   </Button>
                                               )}
                                           </div>
@@ -538,11 +561,32 @@ export default function UserManagement({
                                   {
                                       label: 'Actions',
                                       render: (row: PlatformUser) => (
-                                          <UserInfoCell user={row} action />
+                                          <div className="flex items-center gap-2 whitespace-nowrap">
+                                              <UserInfoCell user={row} action />
+                                              <Button
+                                                  variant="secondary"
+                                                  size="sm"
+                                                  onClick={() =>
+                                                      router.get(
+                                                          '/platform/users',
+                                                          {
+                                                              company: row.companyId,
+                                                              referrer: row.accountId,
+                                                          },
+                                                          { preserveState: true },
+                                                      )
+                                                  }
+                                              >
+                                                  {t('Subordinates ({{count}})', {
+                                                      count: row.descendantCount ?? 0,
+                                                  })}
+                                              </Button>
+                                          </div>
                                       ),
                                   },
                               ]
-                            : canManageRestrictions ||
+                            : canManagePartners ||
+                                canManageRestrictions ||
                                 canManageSupport ||
                                 canAdjustWallet ||
                                 canChangeReferrer ||
@@ -552,7 +596,8 @@ export default function UserManagement({
                                         label: 'Actions',
                                         render: (row: PlatformUser) => (
                                             <div className="flex items-center gap-2">
-                                                {(canManageRestrictions ||
+                                                {(canManagePartners ||
+                                                    canManageRestrictions ||
                                                     canManageSupport ||
                                                     canAdjustWallet ||
                                                     canChangeReferrer ||
@@ -563,6 +608,14 @@ export default function UserManagement({
                                                             kycTrigger.current = event.target;
                                                         }}
                                                     >
+                                                        {canManagePartners && !row.partnerId && (
+                                                            <Button
+                                                                variant="secondary"
+                                                                onClick={() => setPartnerUser(row)}
+                                                            >
+                                                                {t('Set as partner')}
+                                                            </Button>
+                                                        )}
                                                         {canManageRestrictions && (
                                                             <Button
                                                                 variant="secondary"
@@ -785,7 +838,7 @@ function UserRecordsView({
                                         .map((column) => (
                                             <div
                                                 key={column.label}
-                                                className={`flex min-w-0 items-start gap-1 ${['Customer remark', 'Invitation code'].includes(column.label) ? 'col-span-full items-center' : ''}`}
+                                                className={`flex min-w-0 gap-1 ${['Customer remark', 'Invitation code'].includes(column.label) ? 'col-span-full items-center' : 'items-start'}`}
                                             >
                                                 <dt className="shrink-0 text-sm text-muted-foreground">
                                                     {t(column.label)}：

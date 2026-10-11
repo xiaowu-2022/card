@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
 
 final class PlatformUserQuery
 {
-    public function paginate(?string $company, ?string $search, ?string $status, array $financialAccess = [], ?string $support = null, ?string $userId = null, ?string $partner = null): LengthAwarePaginator
+    public function paginate(?string $company, ?string $search, ?string $status, array $financialAccess = [], ?string $support = null, ?string $userId = null, ?string $partner = null, ?string $referrer = null): LengthAwarePaginator
     {
         $at = CarbonImmutable::now();
         // Platform-only aggregate. Profile ownership matches both company and user.
@@ -30,6 +30,13 @@ final class PlatformUserQuery
                     ->whereColumn('pc.tenant_id', 'u.tenant_id')->whereColumn('pc.user_id', 'u.id')->where('pc.enabled', true),
                 'and', $partner === 'Disabled'
             ))
+            ->when($referrer !== null && $referrer !== '', fn ($q) => $q->whereExists(fn ($members) => $members
+                ->selectRaw('1')->from('promotion_members as member')
+                ->join('promotion_members as inviter', fn ($j) => $j->on('inviter.id', '=', 'member.inviter_id')->on('inviter.tenant_id', '=', 'member.tenant_id'))
+                ->join('users as referrer', fn ($j) => $j->on('referrer.id', '=', 'inviter.user_id')->on('referrer.tenant_id', '=', 'inviter.tenant_id'))
+                ->whereColumn('member.tenant_id', 'u.tenant_id')->whereColumn('member.user_id', 'u.id')
+                ->where(fn ($identity) => $identity->where('referrer.account_id', $referrer)
+                    ->orWhereRaw('LOWER(referrer.email) = ?', [mb_strtolower($referrer)]))))
             ->when($status, fn ($q) => $q->where('u.status', $status))
             ->when($search, fn ($q) => $q->where(function ($q) use ($search): void {
                 $pattern = '%'.addcslashes($search, '%_').'%';
@@ -52,7 +59,10 @@ final class PlatformUserQuery
 
         $receipts = ($financialAccess['receipts'] ?? false) ? app(PlatformUserReceiptQuery::class)->forUsers($page->getCollection()->all()) : [];
 
+        $descendants = app(PlatformUserDescendantCounts::class)->forUsers($page->getCollection()->pluck('id')->all());
+
         return $page->through(fn ($row): array => [
+            'descendantCount' => $descendants[$row->id] ?? 0,
             'id' => $row->id, 'companyId' => $row->tenant_id, 'companyName' => $row->company_name,
             'accountId' => $row->account_id, 'displayName' => $row->display_name,
             'supportAgent' => (bool) $row->support_enabled, 'supportRevision' => (int) ($row->support_revision ?? 0),

@@ -239,3 +239,14 @@ No migration is required. Publish rebuilt admin assets and compile/synchronize H
 into public/h5. `PartnerHierarchyTest` exercises scope, tree projection, pagination,
 full report consistency and read-only behavior; `tests/Browser/partner-hierarchy.mjs`
 uses offline fixtures to exercise desktop/mobile navigation without real mutations.
+
+
+### User details partner shortcut (2026-10-11)
+
+Platform user details expose Set as partner only with partners.manage and no enabled
+partner record. The company/user-scoped POST requires users.read, partners.manage
+and explicit confirmation. Under the company/user locks it reuses PartnerManagement:
+new partners start at the existing 40% default, disabled partners retain their share,
+and already-enabled retries return the current record without another update. Existing
+card-funding restriction and immutable audit behavior apply; no wallet or Ledger write
+is added. The confirmation names the account and describes the default restriction.

@@ -44,6 +44,7 @@ export function PlatformAccountTable<T extends { id: string }>({
     extraQuery = {},
     showFilters = true,
     selectFilters = [],
+    textFilters = [],
     rowKey = (row) => row.id,
 }: {
     page: AccountPage<T>;
@@ -71,6 +72,16 @@ export function PlatformAccountTable<T extends { id: string }>({
         allLabel: string;
         values: string[];
         valueLabels?: Record<string, string>;
+    }[];
+    textFilters?: {
+        key: string;
+        label: string;
+        placeholder: string;
+        render?: (props: {
+            company: string;
+            value: string;
+            onChange: (value: string) => void;
+        }) => ReactNode;
     }[];
     extraQuery?: Record<string, string>;
     showFilters?: boolean;
@@ -107,6 +118,9 @@ export function PlatformAccountTable<T extends { id: string }>({
         filters.company && companies?.find((item) => item.id === filters.company)?.name,
         filters.search,
         filters.status && t(filters.status),
+        ...textFilters.map((item) =>
+            filters[item.key] ? `${t(item.label)}: ${filters[item.key]}` : undefined,
+        ),
         ...selectFilters.map((item) =>
             filters[item.key] && filters[item.key] !== 'ALL'
                 ? `${t(item.label)}: ${t(item.valueLabels?.[filters[item.key]!] ?? adminAssetLabel(filters[item.key]!))}`
@@ -116,6 +130,9 @@ export function PlatformAccountTable<T extends { id: string }>({
 
     const [additional, setAdditional] = useState<Record<string, string>>(() =>
         Object.fromEntries(selectFilters.map((item) => [item.key, filters[item.key] ?? 'ALL'])),
+    );
+    const [textValues, setTextValues] = useState<Record<string, string>>(() =>
+        Object.fromEntries(textFilters.map((item) => [item.key, filters[item.key] ?? ''])),
     );
     const [search, setSearch] = useState(filters.search ?? '');
     const [status, setStatus] = useState(filters.status ?? 'ALL');
@@ -137,6 +154,12 @@ export function PlatformAccountTable<T extends { id: string }>({
                             url,
                             {
                                 ...extraQuery,
+                                ...Object.fromEntries(
+                                    Object.entries(textValues).map(([key, value]) => [
+                                        key,
+                                        value.trim() || undefined,
+                                    ]),
+                                ),
                                 ...Object.fromEntries(
                                     Object.entries(additional).map(([key, value]) => [
                                         key,
@@ -176,6 +199,36 @@ export function PlatformAccountTable<T extends { id: string }>({
                         aria-label={searchLabel}
                         placeholder={searchLabel}
                     />
+                    {textFilters.map((item) =>
+                        item.render ? (
+                            <div key={item.key} className="platform-filter-field w-56">
+                                {item.render({
+                                    company: company === 'ALL' ? '' : company,
+                                    value: textValues[item.key] ?? '',
+                                    onChange: (value) =>
+                                        setTextValues((current) => ({
+                                            ...current,
+                                            [item.key]: value,
+                                        })),
+                                })}
+                            </div>
+                        ) : (
+                            <Input
+                                key={item.key}
+                                className="platform-filter-field w-56"
+                                value={textValues[item.key] ?? ''}
+                                onChange={(event) =>
+                                    setTextValues((current) => ({
+                                        ...current,
+                                        [item.key]: event.target.value,
+                                    }))
+                                }
+                                aria-label={t(item.label)}
+                                placeholder={t(item.placeholder)}
+                                maxLength={120}
+                            />
+                        ),
+                    )}
                     {statuses && (
                         <Select value={status} onValueChange={setStatus}>
                             <SelectTrigger
@@ -256,6 +309,9 @@ export function PlatformAccountTable<T extends { id: string }>({
                         type="button"
                         className="shrink-0 px-2 py-1 text-primary hover:underline"
                         onClick={() => {
+                            setTextValues(
+                                Object.fromEntries(textFilters.map((item) => [item.key, ''])),
+                            );
                             setSearch('');
                             setStatus('ALL');
                             setCompany('ALL');

@@ -79,6 +79,13 @@ final class PartnerController extends Controller
         return response()->json(['items' => $users->items(), 'hasMore' => $users->hasMorePages()])->header('Cache-Control', 'private, no-store');
     }
 
+    public function enableUser(Request $request, Tenant $tenant, string $user, PartnerManagement $action)
+    {
+        $partner = $action->enableUser($request->user('platform_admin'), $tenant->id, $user, $request->all());
+
+        return response()->json(['partnerId' => $partner->id])->header('Cache-Control', 'private, no-store');
+    }
+
     public function configure(Request $request, Tenant $tenant, PartnerManagement $action)
     {
         $action->configure($request->user('platform_admin'), $tenant->id, $request->all());

@@ -15,6 +15,25 @@ use Illuminate\Support\Str;
 
 final class PartnerManagement
 {
+    public function enableUser(AdminUser $actor, string $tenant, string $userId, array $input): object
+    {
+        app(AssetAccess::class)->platform($actor, 'partners.manage');
+        Validator::make($input, ['confirmed' => 'required|accepted'])->validate();
+
+        return DB::transaction(function () use ($actor, $tenant, $userId) {
+            Tenant::whereKey($tenant)->lockForUpdate()->firstOrFail();
+            $user = User::where('tenant_id', $tenant)->whereKey($userId)->lockForUpdate()->firstOrFail();
+            $old = DB::table('partner_configurations')->where('tenant_id', $tenant)->where('user_id', $user->id)->first();
+            if ($old?->enabled) {
+                app(AssetAccess::class)->platform($actor, 'partners.manage');
+                return $old;
+            }
+
+            return $this->configure($actor, $tenant, ['account_id' => $user->account_id, 'enabled' => true,
+                'share_percent' => $old?->share_percent ?? '40']);
+        });
+    }
+
     public function configure(AdminUser $actor, string $tenant, array $input): object
     {
         app(AssetAccess::class)->platform($actor, 'partners.manage');

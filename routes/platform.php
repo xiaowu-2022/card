@@ -121,6 +121,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::get('/partners/{partner}/invitations', [PartnerController::class, 'invitations'])->whereUuid('partner')->middleware('throttle:240,1');
         Route::get('/partners/{partner}/children', [PartnerController::class, 'hierarchy'])->whereUuid('partner')->middleware('throttle:240,1');
         Route::get('/partners/{partner}/stock', [PartnerController::class, 'hierarchy'])->whereUuid('partner')->middleware('throttle:240,1');
+        Route::post('/tenants/{tenant}/users/{user}/partner', [PartnerController::class, 'enableUser'])->whereUuid(['tenant', 'user'])->middleware('admin.scope:platform,users.read');
         Route::post('/tenants/{tenant}/partners', [PartnerController::class, 'configure'])->whereUuid('tenant');
         Route::post('/tenants/{tenant}/partners/{partner}/journal', [PartnerController::class, 'journal'])->whereUuid(['tenant', 'partner']);
         Route::post('/tenants/{tenant}/fee-valuations/{valuation}', [PartnerController::class, 'valueFee'])->whereUuid(['tenant', 'valuation']);
@@ -170,6 +171,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::get('/tenants/{tenant}/users/{user}/restrictions', [UserRestrictionsController::class, 'show'])->whereUuid(['tenant', 'user']);
         Route::post('/tenants/{tenant}/users/{user}/restrictions', [UserRestrictionsController::class, 'update'])->whereUuid(['tenant', 'user'])->middleware('throttle:40,1');
     });
+    Route::middleware(['admin.scope:platform,users.read', 'throttle:240,1'])->get('/users/referrer-candidates', [UserOperationsController::class, 'referrerCandidates']);
     Route::middleware('admin.scope:platform,users.read')->get('/users', UserOperationsController::class)->name('users.index');
     foreach (['deposit' => 'wallet_topups.read', 'withdrawal' => 'withdrawals.read'] as $mode => $permission) {
         Route::get('/tenants/{tenant}/users/{user}/'.$mode.'-orders', [FundsOrdersController::class, 'userOrders'])
