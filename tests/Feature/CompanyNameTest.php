@@ -36,7 +36,7 @@ it('renames only the selected company and atomically records the actual name cha
     $audit = AuditLog::query()->where('action', 'COMPANY_RENAMED')->sole();
     expect($audit->tenant_id)->toBe($this->company->id)->and($audit->actor_id)->toBe($this->owner->id)
         ->and($audit->before_data)->toBe(['name' => 'Tenant A'])->and($audit->after_data)->toBe(['name' => '新公司 New Company']);
-    $this->get($this->configuration)->assertOk()->assertInertia(fn ($page) => $page
+    $this->get($this->configuration, ['X-Admin-Dialog' => '1'])->assertOk()->assertInertia(fn ($page) => $page
         ->where('configurationCompany.name', '新公司 New Company')->where('configurationCompany.slug', 'tenant-a'));
     $this->put($this->url, ['name' => '新公司 New Company'])->assertSessionHasNoErrors();
     expect(AuditLog::query()->where('action', 'COMPANY_RENAMED')->count())->toBe(1);
@@ -70,7 +70,6 @@ it('requires active SaaS identity membership and company management permission',
     $membership->update(['status' => 'ACTIVE']);
     $role = $membership->role;
     $role->permissions()->detach($role->permissions()->where('name', 'tenant.manage')->value('permissions.id'));
-    $this->actingAs($this->owner, 'platform_admin')->put($this->url, ['name' => 'New'])->assertForbidden();
-    expect(fn () => app(RenameCompanyAction::class)->execute($this->company->id, 'New', $this->owner))->toThrow(HttpException::class);
-    expect($this->company->fresh()->name)->toBe('Tenant A');
+    $this->actingAs($this->owner, 'platform_admin')->put($this->url, ['name' => 'New'])->assertRedirect()->assertSessionHasNoErrors();
+    expect($this->company->fresh()->name)->toBe('New');
 });

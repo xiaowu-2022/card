@@ -24,6 +24,9 @@ final readonly class ProcessIncomingTrc20TransferAction
         }
 
         [$txHash, $amount, $destination] = $normalized;
+        if (\App\Application\Cleanup\CleanupTombstones::contains('chain:TRON', $txHash.':'.$transfer->transferIndex)) {
+            return 'UNMATCHED';
+        }
         $snapshot = $this->candidateSnapshot($transfer, $txHash, $amount, $destination);
         if (! $snapshot || (($tenantId === null) !== ($orderId === null))
             || ($tenantId !== null && ($snapshot->tenant_id !== $tenantId || $snapshot->id !== $orderId))
@@ -41,6 +44,9 @@ final readonly class ProcessIncomingTrc20TransferAction
                 return null;
             }
             DB::statement('SELECT pg_advisory_xact_lock(?)', [$this->transferLockKey($txHash, $transfer->transferIndex)]);
+            if (\App\Application\Cleanup\CleanupTombstones::contains('chain:TRON', $txHash.':'.$transfer->transferIndex)) {
+                return null;
+            }
             $matched = WalletTopupOrder::query()->where('network_code', 'TRON')->where('matched_tx_hash', $txHash)
                 ->where('matched_transfer_index', $transfer->transferIndex)->lockForUpdate()->first();
             if ($matched) {

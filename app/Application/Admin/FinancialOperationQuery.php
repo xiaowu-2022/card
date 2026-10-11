@@ -13,7 +13,7 @@ final class FinancialOperationQuery
             ->leftJoin('tenants as company', 'company.id', '=', 'a.tenant_id')
             ->where('a.actor_type', 'ADMIN')->whereIn('a.resource_type', ['wallet_topup_order', 'withdrawal_order', 'asset_deposit_order', 'asset_withdrawal_order', 'promotion_rebate'])
             ->select('a.id', 'a.tenant_id', 'a.resource_id', 'a.resource_type', 'a.action', 'a.actor_id', 'a.created_at', 'actor.name as actor_name', 'company.name as company_name')
-            ->selectRaw("CASE WHEN a.action IN ('PLATFORM_TOPUP_MANUALLY_CONFIRMED', 'ASSET_DEPOSIT_MANUALLY_CONFIRMED') THEN COALESCE(a.after_data->>'manual_receipt_type', 'ACTUAL') ELSE NULL END AS receipt_type")
+            ->selectRaw("CASE WHEN a.action='DEPOSIT_RECEIPT_TYPE_CHANGED' THEN a.after_data->>'receipt_type' WHEN a.action IN ('PLATFORM_TOPUP_MANUALLY_CONFIRMED', 'ASSET_DEPOSIT_MANUALLY_CONFIRMED') THEN COALESCE(a.after_data->>'manual_receipt_type', 'ACTUAL') ELSE NULL END AS receipt_type")
             ->orderByDesc('a.created_at')->orderByDesc('a.id');
     }
 

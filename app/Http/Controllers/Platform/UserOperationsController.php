@@ -76,6 +76,7 @@ final class UserOperationsController extends Controller
             'canManageRestrictions' => $allowed('users.restrictions.manage'),
             'canManagePartners' => $allowed('partners.manage'),
             'canCreateUser' => $allowed('users.create'),
+            'canCleanup' => $allowed('users.cleanup'),
             'canChangeInvitation' => $allowed('users.invitation.manage'),
             'canChangeReferrer' => $allowed('users.referrer.manage'),
             'canAdjustCommission' => $financialAccess['balances'] && $allowed('commissions.adjust'),

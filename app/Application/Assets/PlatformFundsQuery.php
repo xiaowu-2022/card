@@ -3,6 +3,7 @@
 namespace App\Application\Assets;
 
 use App\Application\Admin\FinancialOperationQuery;
+use App\Application\Payment\DepositReceiptClassification;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Assets\AssetDepositOrder;
 use App\Domain\Assets\AssetWithdrawalOrder;
@@ -56,6 +57,13 @@ final class PlatformFundsQuery
             if ($withdrawal && $source === 'primary') {
                 $builder->with('destination');
             }
+            if (! $withdrawal) {
+                $table = $source === 'primary' ? 'wallet_topup_orders' : 'asset_deposit_orders';
+                $builder = DepositReceiptClassification::join($builder, $table, $source)
+                    ->select($table.'.*')->selectRaw(DepositReceiptClassification::effectiveType($table).' AS effective_receipt_type')
+                    ->selectRaw('COALESCE(receipt_change.revision,0) AS receipt_type_revision')
+                    ->selectRaw("CASE WHEN receipt_change.revision IS NULL THEN {$table}.advance_journal_id ELSE receipt_change.after_journal_id END AS effective_journal_id");
+            }
             $models[$source] = $builder->get()->keyBy('id');
         }
 
@@ -72,8 +80,11 @@ final class PlatformFundsQuery
 
             return [
                 'id' => $o->id, 'source' => $row->source, 'legacy' => $primary,
-                'receiptType' => $withdrawal ? null : ($o->manual_receipt_type ?? 'ACTUAL'),
-                'advanceJournalId' => $withdrawal ? null : $o->advance_journal_id,
+                'receiptType' => $withdrawal ? null : $o->effective_receipt_type,
+                'arrivalType' => $withdrawal || $row->status !== 'CREDITED' ? null : ($o->manual_confirmed_at === null ? 'AUTO' : ($o->effective_receipt_type === 'ADVANCE' ? 'ADVANCE' : 'MANUAL')),
+                'receiptTypeRevision' => $withdrawal ? null : (int) $o->receipt_type_revision,
+                'canChangeReceiptType' => ! $withdrawal && $row->status === 'CREDITED' && $o->manual_confirmed_at !== null,
+                'advanceJournalId' => $withdrawal ? null : $o->effective_journal_id,
                 'canAdvance' => ! $withdrawal && $o->asset_code === 'USDT' && DB::table('partner_configurations')->where('tenant_id', $o->tenant_id)->where('user_id', $o->user_id)->where('enabled', true)->exists(),
                 'manuallyConfirmed' => ! $withdrawal && $o->manual_confirmed_at !== null,
                 'canConfirm' => ! $withdrawal && ($primary

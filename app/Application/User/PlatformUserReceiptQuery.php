@@ -2,6 +2,7 @@
 
 namespace App\Application\User;
 
+use App\Application\Payment\DepositReceiptClassification;
 use Brick\Math\BigDecimal;
 use Illuminate\Support\Facades\DB;
 
@@ -14,16 +15,17 @@ final class PlatformUserReceiptQuery
         }
         $totals = [];
         foreach (['wallet_topup_orders', 'asset_deposit_orders'] as $table) {
-            $rows = DB::table($table)->where('status', 'CREDITED')
-                ->where(function ($query) use ($users) {
+            $type = DepositReceiptClassification::effectiveType($table);
+            $rows = DepositReceiptClassification::join(DB::table($table), $table, $table === 'wallet_topup_orders' ? 'primary' : 'asset')->where($table.'.status', 'CREDITED')
+                ->where(function ($query) use ($users, $table) {
                     foreach ($users as $user) {
-                        $query->orWhere(fn ($q) => $q->where('tenant_id', $user->tenant_id)->where('user_id', $user->id));
+                        $query->orWhere(fn ($q) => $q->where($table.'.tenant_id', $user->tenant_id)->where($table.'.user_id', $user->id));
                     }
                 })
-                ->select('tenant_id', 'user_id', 'asset_code')
-                ->selectRaw("COALESCE(SUM(COALESCE(actual_received_amount, amount)) FILTER (WHERE manual_receipt_type IS DISTINCT FROM 'ADVANCE'), 0)::text AS actual")
-                ->selectRaw("COALESCE(SUM(COALESCE(actual_received_amount, amount)) FILTER (WHERE manual_receipt_type = 'ADVANCE'), 0)::text AS advance")
-                ->groupBy('tenant_id', 'user_id', 'asset_code')->get();
+                ->select($table.'.tenant_id', $table.'.user_id', 'asset_code')
+                ->selectRaw("COALESCE(SUM(COALESCE(actual_received_amount, amount)) FILTER (WHERE {$type} <> 'ADVANCE'), 0)::text AS actual")
+                ->selectRaw("COALESCE(SUM(COALESCE(actual_received_amount, amount)) FILTER (WHERE {$type} = 'ADVANCE'), 0)::text AS advance")
+                ->groupBy($table.'.tenant_id', $table.'.user_id', 'asset_code')->get();
             foreach ($rows as $row) {
                 $key = $row->tenant_id.':'.$row->user_id;
                 foreach (['actual', 'advance'] as $kind) {

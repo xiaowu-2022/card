@@ -2,6 +2,7 @@
 
 namespace App\Application\Tenant;
 
+use App\Application\Payment\DepositReceiptClassification;
 use App\Domain\Tenant\Enums\TenantStatus;
 use App\Domain\Tenant\Models\Tenant;
 use Brick\Math\BigDecimal;
@@ -18,7 +19,7 @@ final class ListTenantsQuery
             ->when($financialAccess['inflow'] ?? false, fn ($query) => $query->selectSub(
                 $this->orders('wallet_topup_orders', 'CREDITED')->whereColumn('tenant_id', 'tenants.id')->selectRaw('COALESCE(SUM(COALESCE(actual_received_amount, amount)), 0)::text'), 'inflow'))
             ->when($financialAccess['inflow'] ?? false, fn ($query) => $query->selectSub(
-                $this->orders('wallet_topup_orders', 'CREDITED')->where('manual_receipt_type', 'ADVANCE')->whereColumn('tenant_id', 'tenants.id')->selectRaw('COALESCE(SUM(COALESCE(actual_received_amount, amount)), 0)::text'), 'advance_inflow'))
+                $this->orders('wallet_topup_orders', 'CREDITED')->where('effective_receipt_type', 'ADVANCE')->whereColumn('tenant_id', 'tenants.id')->selectRaw('COALESCE(SUM(COALESCE(actual_received_amount, amount)), 0)::text'), 'advance_inflow'))
             ->when($financialAccess['outflow'] ?? false, fn ($query) => $query->selectSub(
                 $this->orders('withdrawal_orders', 'SUCCEEDED')->whereColumn('tenant_id', 'tenants.id')->selectRaw('COALESCE(SUM(amount), 0)::text'), 'outflow'))
             ->latest()->orderBy('id')
@@ -46,7 +47,7 @@ final class ListTenantsQuery
                 $query = $this->orders($table, $state)->whereIn('tenant_id', $this->filtered($search, $status, $company)->select('id'))
                     ->selectRaw('COALESCE(SUM('.($key === 'inflow' ? 'COALESCE(actual_received_amount, amount)' : 'amount').'), 0)::text AS total');
                 if ($key === 'inflow') {
-                    $query->selectRaw("COALESCE(SUM(COALESCE(actual_received_amount, amount)) FILTER (WHERE manual_receipt_type = 'ADVANCE'), 0)::text AS advance");
+                    $query->selectRaw("COALESCE(SUM(COALESCE(actual_received_amount, amount)) FILTER (WHERE effective_receipt_type = 'ADVANCE'), 0)::text AS advance");
                 }
                 $sum = $query->first();
                 $totals[$key] = $this->decimal($sum->total);
@@ -71,6 +72,18 @@ final class ListTenantsQuery
 
     private function orders(string $table, string $status): \Illuminate\Database\Query\Builder
     {
+        if ($table === 'wallet_topup_orders') {
+            $sources = [];
+            foreach (['primary' => 'wallet_topup_orders', 'asset' => 'asset_deposit_orders'] as $source => $depositTable) {
+                $sources[] = DepositReceiptClassification::join(DB::table($depositTable), $depositTable, $source)
+                    ->where($depositTable.'.asset_code', 'USDT')->where($depositTable.'.status', $status)
+                    ->select($depositTable.'.tenant_id', 'amount', 'actual_received_amount')
+                    ->selectRaw(DepositReceiptClassification::effectiveType($depositTable).' AS effective_receipt_type');
+            }
+
+            return DB::query()->fromSub($sources[0]->unionAll($sources[1]), 'deposits');
+        }
+
         return DB::table($table)->where('asset_code', 'USDT')->where('status', $status);
     }
 

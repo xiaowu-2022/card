@@ -1,3 +1,22 @@
+On 2026-10-11 the user added recharge order arrival types: automatic receipt,
+manual confirmation and advance amount. Only settled manual receipts may switch
+ACTUAL/ADVANCE via explicit confirmation, scoped permissions, request idempotency
+and stale revisions. Append immutable correction evidence and advance/reversal
+journals; never rewrite original receipts or credit wallets again. Refresh order,
+user/company receipt totals and partner reconciliation. Automatic receipts remain
+unchanged; new advances require an enabled same-company USDT partner. Deploy the
+receipt-type-change migration and PHP/admin assets; no production financial test.
+See docs/architecture/PLATFORM_FUNDS_ORDERS.md.
+
+On 2026-10-11 the user removed backend administrator permission differences.
+All active administrators share full access within their assigned Platform/company
+scope, including historical auditor/reviewer/operator roles. Use the same scoped
+permission catalog for server authorization and menu/action DTOs. New creation
+forms omit role selection. Preserve active account/membership checks, company
+isolation, retired dedicated-support exclusion, owner lifecycle protection,
+confirmation, audit and login throttling; do not rewrite passwords or memberships.
+See docs/architecture/PLATFORM_ADMIN_AND_FINANCIAL_OPERATIONS.md.
+
 On 2026-10-10 the user reduced new backend administrator passwords to a minimum
 of 6 characters without composition requirements. Retain the 72-character maximum,
 confirmation, hashing, permissions, scope, audit and login throttling. Apply to direct

@@ -51,13 +51,14 @@ it('rejects invalid roles and passwords without retaining password input', funct
     [['password' => str_repeat('a', 73), 'password_confirmation' => str_repeat('a', 73)], 'password'],
 ]);
 
-it('refuses company actors suspended actors and read-only platform roles at the action boundary', function (): void {
+it('refuses company and suspended actors but allows historical platform auditor roles', function (): void {
     $company = AdminUser::query()->where('email', 'owner@a.localhost')->sole();
     $this->actingAs($company, 'platform_admin')->post('http://admin.localhost/platform/administrators', $this->data)->assertForbidden();
     expect(fn () => app(CreatePlatformAdminAction::class)->execute($company, 'No', 'no@example.test', $this->data['password'], 'PLATFORM_ADMIN'))->toThrow(DomainException::class);
     $this->owner->memberships()->sole()->update(['role_id' => Role::query()->where('name', 'PLATFORM_AUDITOR')->sole()->id]);
-    $this->actingAs($this->owner, 'platform_admin')->post('http://admin.localhost/platform/administrators', $this->data)->assertForbidden();
-    expect(fn () => app(CreatePlatformAdminAction::class)->execute($this->owner, 'No', 'no@example.test', $this->data['password'], 'PLATFORM_ADMIN'))->toThrow(DomainException::class);
+    $this->actingAs($this->owner, 'platform_admin')->post('http://admin.localhost/platform/administrators', $this->data)->assertRedirect()->assertSessionHasNoErrors();
+    app(CreatePlatformAdminAction::class)->execute($this->owner, 'Allowed', 'allowed@example.test', $this->data['password'], 'PLATFORM_ADMIN');
+    expect(AdminUser::where('email', 'allowed@example.test')->exists())->toBeTrue();
     $this->owner->update(['status' => 'SUSPENDED']);
     expect(fn () => app(CreatePlatformAdminAction::class)->execute($this->owner, 'No', 'no@example.test', $this->data['password'], 'PLATFORM_ADMIN'))->toThrow(DomainException::class);
 });

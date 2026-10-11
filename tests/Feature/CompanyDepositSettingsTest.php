@@ -33,8 +33,8 @@ it('saves distinct company deposit amounts and waiting days without moving money
         ->and(LedgerEntry::query()->count())->toBe(0)
         ->and(DB::table('wallets')->count())->toBe(0)
         ->and(AuditLog::query()->where('action', 'COMPANY_DEPOSIT_SETTINGS_UPDATED')->count())->toBe(2);
-    $this->get('http://admin.localhost/platform/tenants/'.$this->company->id)->assertRedirect('http://admin.localhost/platform/tenants/'.$this->company->id.'/configuration/card-products');
-    $this->get('http://admin.localhost/platform/tenants/'.$this->company->id.'/configuration/settings/business')->assertOk()
+    $this->get('http://admin.localhost/platform/tenants/'.$this->company->id)->assertRedirect('http://admin.localhost/platform/tenants?editor='.urlencode('/platform/tenants/'.$this->company->id.'/configuration/domains'));
+    $this->get('http://admin.localhost/platform/tenants/'.$this->company->id.'/configuration/settings/business', ['X-Admin-Dialog' => '1'])->assertOk()
         ->assertInertia(fn ($page) => $page->where('settings.business.depositRefundWaitDays', 30));
     $this->actingAs($this->companyOwner, 'tenant_admin')->get('http://a.localhost/admin/settings/business')
         ->assertOk()->assertInertia(fn ($page) => $page->where('settings.business.depositRefundWaitDays', 30));
@@ -53,7 +53,7 @@ it('rejects company-admin deposit mutations at both HTTP and application boundar
 
 it('returns to the same company business settings after saving from that page', function (): void {
     $businessUrl = 'http://admin.localhost/platform/tenants/'.$this->company->id.'/configuration/settings/business';
-    $this->actingAs($this->platformOwner, 'platform_admin')->get($businessUrl)->assertOk()
+    $this->actingAs($this->platformOwner, 'platform_admin')->get($businessUrl, ['X-Admin-Dialog' => '1'])->assertOk()
         ->assertInertia(fn ($page) => $page->where('configurationCompany.id', $this->company->id)
             ->where('configurationReadOnly', false));
     $this->from($businessUrl)->put($this->url, [
@@ -90,15 +90,14 @@ it('requires active platform membership and permission including direct calls', 
     expect(fn () => app(UpdateCompanyDepositSettingsAction::class)->execute($this->company->id, '100', 30, $this->platformOwner))->toThrow(DomainException::class);
 });
 
-it('rejects a suspended platform administrator or a role without company-management permission', function (string $restriction): void {
+it('rejects a suspended platform administrator or membership', function (string $restriction): void {
     if ($restriction === 'admin') {
         $this->platformOwner->update(['status' => 'SUSPENDED']);
     } else {
-        $role = $this->platformOwner->memberships()->firstOrFail()->role;
-        $role->permissions()->detach($role->permissions()->where('name', 'tenant.manage')->value('permissions.id'));
+        $this->platformOwner->memberships()->firstOrFail()->update(['status' => 'SUSPENDED']);
     }
     expect(fn () => app(UpdateCompanyDepositSettingsAction::class)->execute($this->company->id, '100', 30, $this->platformOwner))->toThrow(DomainException::class);
-})->with(['admin', 'permission']);
+})->with(['admin', 'membership']);
 
 it('accepts explicit waiting-period boundaries without changing another company', function (int $days): void {
     app(UpdateCompanyDepositSettingsAction::class)->execute($this->company->id, '0', $days, $this->platformOwner);

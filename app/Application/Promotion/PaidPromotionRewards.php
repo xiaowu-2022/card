@@ -23,6 +23,9 @@ final readonly class PaidPromotionRewards
         if (DB::transactionLevel() < 1) {
             throw new \LogicException('Reward allocation requires source transaction.');
         }
+        if (\App\Application\Cleanup\CleanupTombstones::contains('promotion-event:'.$tenant.':'.$kind, $sourceId)) {
+            return;
+        }
         if (DB::table('paid_promotion_events')->where('tenant_id', $tenant)->where('kind', $kind)->where('source_id', $sourceId)->exists()) {
             return;
         }

@@ -1,3 +1,5 @@
+import { arrivalTypeLabel } from '@/lib/deposit-receipt-label';
+import { DepositReceiptTypeSwitch } from '@/components/admin/DepositReceiptTypeSwitch';
 import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { RecordUserCell, type UserInfo } from '@/components/admin/UserInfoCell';
 import { showOperationResult } from '@/components/admin/operation-result';
@@ -25,6 +27,9 @@ export type Order = {
     userInfo?: UserInfo;
     userId?: string;
     receiptType: 'ACTUAL' | 'ADVANCE';
+    arrivalType?: 'AUTO' | 'MANUAL' | 'ADVANCE' | null;
+    receiptTypeRevision?: number;
+    canChangeReceiptType?: boolean;
     canAdvance: boolean;
     operations?: ManualOperation[];
     legacy: boolean;
@@ -147,6 +152,23 @@ export default function AssetOrders({
                                                   {exactAmount(o.fee)} {adminAssetLabel(o.asset)}
                                               </span>
                                           ),
+                                  },
+                              ]
+                            : []),
+                        ...(mode === 'deposit'
+                            ? [
+                                  {
+                                      label: 'Receipt type',
+                                      render: (o: Order) => (
+                                          <div className="flex flex-col items-start gap-2">
+                                              <span>
+                                                  {o.arrivalType
+                                                      ? t(arrivalTypeLabel(o.arrivalType))
+                                                      : '—'}
+                                              </span>
+                                              <DepositReceiptTypeSwitch order={o} />
+                                          </div>
+                                      ),
                                   },
                               ]
                             : []),
@@ -365,10 +387,9 @@ export function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
                     {t('Transaction hash')}: {o.tx_hash}
                 </p>
             )}
-            {mode === 'deposit' && o.manuallyConfirmed && (
+            {mode === 'deposit' && (
                 <p>
-                    {t('Receipt type')}:{' '}
-                    {t(o.receiptType === 'ADVANCE' ? 'Advance amount' : 'Actual receipt')}
+                    {t('Receipt type')}: {o.arrivalType ? t(arrivalTypeLabel(o.arrivalType)) : '—'}
                 </p>
             )}
             {o.operator && o.operated_at && (
@@ -383,6 +404,7 @@ export function OrderRow({ order: o, mode }: { order: Order; mode: string }) {
             )}
             {mode === 'deposit' && (
                 <div className="flex flex-wrap gap-2">
+                    <DepositReceiptTypeSwitch order={o} />
                     {o.canRecheck && permissions.includes('wallet_topups.verify') && (
                         <Button variant="secondary" onClick={() => setAction('recheck')}>
                             {t('Recheck transfer')}

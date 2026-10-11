@@ -13,6 +13,7 @@ use App\Application\Assets\TronDepositConfiguration;
 use App\Application\Assets\WithdrawAssetsAction;
 use App\Application\Kyc\ApproveKycAction;
 use App\Application\Kyc\SubmitKycApplicationAction;
+use App\Application\Payment\CreateTrc20WalletTopupAction;
 use App\Application\Wallet\ActivateUserWalletAction;
 use App\Application\Withdrawal\CreateWithdrawalAction;
 use App\Domain\Admin\Models\AdminUser;
@@ -39,9 +40,11 @@ use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use App\Domain\Wallet\Models\Wallet;
+use App\Domain\Withdrawal\Contracts\BlockchainGatewayInterface;
 use App\Infrastructure\Assets\ChainReader;
 use App\Infrastructure\Assets\ChainRpc;
 use App\Infrastructure\Assets\ExactJson;
+use App\Infrastructure\Providers\Blockchain\MockBlockchainGateway;
 use App\Support\Errors\DomainException;
 use Brick\Math\BigDecimal;
 use Illuminate\Foundation\Testing\RefreshDatabaseState;
@@ -758,7 +761,7 @@ it('requires explicit receipt confirmation without a second password and credits
     Http::fake();
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/asset-orders/'.$o->id.'/confirm';
-    $input = ['request_id' => (string) Str::uuid(), 'confirmed' => true];
+    $input = ['request_id' => (string) Str::uuid(), 'confirmed' => true, 'actual_received_amount' => '1'];
     $this->actingAs($actor, 'platform_admin')->post($url, [...$input, 'confirmed' => false])->assertSessionHasErrors('confirmed');
     expect($o->fresh()->status)->toBe('PENDING');
     $this->post($url, $input)->assertRedirect()->assertSessionHasNoErrors();
@@ -1029,7 +1032,7 @@ it('configures the existing company TRC20 percentage fee and minimum through ass
     expect($other->fresh()->businessSettings->tron_minimum_deposit)->toBe('0.00000000');
     expect($other->fresh()->businessSettings->withdrawal_fee_percent)->toBe($otherFee);
     expect(LedgerEntry::count())->toBe($entries);
-    $this->get('http://admin.localhost/platform/settings/assets?company='.$this->tenant->id)
+    $this->get('http://admin.localhost/platform/settings/assets?company='.$this->tenant->id, ['X-Admin-Dialog' => '1'])
         ->assertInertia(fn ($page) => $page->where('tronFeePercent', '2.50000000'));
     $this->post($url, ['kind' => 'batch', 'sections' => [
         ['kind' => 'company-tron', 'minimum' => '50', 'fee_percent' => '3'],
@@ -1145,8 +1148,9 @@ it('adapts scoped deposit withdrawal and exchange flows without changing exact e
 
 it('unifies deposit sources with company user asset network filters and stable cross-source pagination', function () {
     $this->withoutVite();
+    app()->instance(BlockchainGatewayInterface::class, new MockBlockchainGateway('CONFIRMED'));
     config(['inertia.ssr.enabled' => false, 'payment.trc20_deposit_address' => 'T111111111111111111111111111111111']);
-    $primary = app(\App\Application\Payment\CreateTrc20WalletTopupAction::class)->execute($this->tenant->id, $this->user->id, '100', (string) Str::uuid())->order;
+    $primary = app(CreateTrc20WalletTopupAction::class)->execute($this->tenant->id, $this->user->id, '100', (string) Str::uuid())->order;
     $assets = [];
     for ($i = 0; $i < 26; $i++) {
         $assets[] = app(DepositAssetsAction::class)->create($this->tenant->id, $this->user->id, 'ETH_ETHEREUM', '1', (string) Str::uuid());

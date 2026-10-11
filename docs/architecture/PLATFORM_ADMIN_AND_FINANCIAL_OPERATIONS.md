@@ -1,5 +1,18 @@
 # Platform administrator creation and manual financial provenance
 
+Update (2026-10-11): Active backend administrators have equal permissions within
+their assigned scope. All Platform roles share the full Platform permission catalog;
+all company roles share the full company catalog. The server authorization service
+and shared menu/action permissions use the same scope catalog, independent of the
+member's historical role. Existing role/password records are not rewritten. New
+administrator forms use PLATFORM_ADMIN or TENANT_ADMIN without a role selector;
+historical role values remain accepted by existing APIs for compatibility.
+Active account/membership checks, company isolation, Platform/company separation,
+owner lifecycle protection, confirmation, audit and login throttling remain enforced.
+Retired dedicated support identities do not acquire backend access. Deploy matching
+PHP and rebuilt public/build assets; no migration or consumer rebuild is required.
+This supersedes previous per-role administrator permission differences.
+
 Update (2026-10-10): New administrator passwords require 6–72 characters, with no
 mandatory uppercase/lowercase/letter/number combination. Apply to direct Platform
 and company creation and new identities accepting invitations. Confirmation, hashing,

@@ -40,7 +40,7 @@ it('updates only the selected company membership and audits once with actor and 
         ->and(json_encode($audit->toArray()))->not->toContain('local-password', $this->admin->password);
     $this->put($this->url, $this->data)->assertRedirect()->assertSessionHasNoErrors();
     expect(AuditLog::query()->where('action', 'ADMIN_MEMBERSHIP_UPDATED')->count())->toBe(1);
-    $this->get($this->base)->assertOk()->assertInertia(fn ($page) => $page->has('team.members', 2)
+    $this->get($this->base, ['X-Admin-Dialog' => '1'])->assertOk()->assertInertia(fn ($page) => $page->has('team.members', 2)
         ->where('team.members.0.accountStatus', 'ACTIVE'));
     $this->actingAs($this->admin, 'tenant_admin')->get('http://a.localhost/admin/team')->assertForbidden();
     expect(app(AuthorizationService::class)->hasActiveMembership($this->admin, ScopeType::Tenant, $this->otherCompany->id))->toBeTrue();

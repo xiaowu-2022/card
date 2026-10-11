@@ -97,11 +97,11 @@ it('rejects other customers, other companies and platform-only admins from priva
     $this->actingAs($platform, 'tenant_admin')->get('http://a.localhost/admin/support')->assertForbidden();
 });
 
-it('requires active admin membership and support permission on every read and reply', function (): void {
+it('allows historical finance roles and requires active admin membership on every read and reply', function (): void {
     $conversationId = $this->action->user($this->company->id, $this->customer->id, (string) Str::uuid(), 'help');
     $membership = AdminMembership::query()->where('scope_id', $this->company->id)->where('admin_user_id', $this->agent->id)->firstOrFail();
     $membership->update(['role_id' => Role::query()->where('name', 'FINANCE_VIEWER')->value('id')]);
-    $this->actingAs($this->agent, 'tenant_admin')->get('http://a.localhost/admin/support/'.$conversationId)->assertForbidden();
+    $this->actingAs($this->agent, 'tenant_admin')->get('http://a.localhost/admin/support/'.$conversationId)->assertOk();
     $membership->update(['role_id' => Role::query()->where('name', 'SUPPORT')->value('id')]);
     $this->get('http://a.localhost/admin/support/'.$conversationId)->assertOk();
     $membership->update(['status' => 'SUSPENDED']);

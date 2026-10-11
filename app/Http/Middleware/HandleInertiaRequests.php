@@ -6,9 +6,9 @@ use App\Application\Inbox\InboxQuery;
 use App\Application\Media\ImageStorage;
 use App\Application\Media\PublicAssets;
 use App\Application\Support\SupportUnread;
-use App\Domain\Admin\Enums\MembershipStatus;
 use App\Domain\Admin\Enums\ScopeType;
 use App\Domain\Admin\Models\AdminUser;
+use App\Domain\Admin\Services\AuthorizationService;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use Illuminate\Http\Request;
@@ -30,15 +30,7 @@ final class HandleInertiaRequests extends Middleware
         $user = $tenant ? Auth::guard('tenant_user')->user() : null;
         $scopeId = $scope === ScopeType::Tenant ? $tenant?->id : null;
         $permissions = $admin instanceof AdminUser
-            ? $admin->memberships()
-                ->where('scope_type', $scope)
-                ->where('scope_id', $scopeId)
-                ->where('status', MembershipStatus::Active)
-                ->with('role.permissions')
-                ->get()
-                ->flatMap(fn ($membership) => $membership->role->permissions->pluck('name'))
-                ->unique()
-                ->values()
+            ? app(AuthorizationService::class)->permissions($admin, $scope, $scopeId)
             : collect();
 
         return [

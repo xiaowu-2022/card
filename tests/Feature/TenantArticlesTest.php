@@ -97,14 +97,14 @@ it('denies unauthenticated and company-scope configuration mutations', function 
     expect(TenantArticle::query()->count())->toBe(0);
 });
 
-it('requires current Platform permission and active membership', function (): void {
+it('allows historical Platform auditor roles but requires active membership', function (): void {
     $url = "http://admin.localhost/platform/tenants/{$this->articleTenant->id}/configuration/settings/articles/terms/zh-CN";
     $membership = $this->articleAdmin->memberships()->where('scope_type', 'PLATFORM')->whereNull('scope_id')->sole();
     $membership->update(['role_id' => Role::query()->where('name', 'PLATFORM_AUDITOR')->value('id')]);
-    $this->actingAs($this->articleAdmin, 'platform_admin')->post($url, ['body' => 'Denied'])->assertForbidden();
+    $this->actingAs($this->articleAdmin, 'platform_admin')->post($url, ['body' => 'Allowed'])->assertRedirect()->assertSessionHasNoErrors();
     $membership->update(['role_id' => Role::query()->where('name', 'PLATFORM_OWNER')->value('id'), 'status' => 'SUSPENDED']);
     $this->post($url, ['body' => 'Denied'])->assertForbidden();
-    expect(TenantArticle::query()->count())->toBe(0);
+    expect(TenantArticle::query()->count())->toBe(1);
 });
 
 it('rejects arbitrary articles locales identity selectors and invalid content', function (): void {

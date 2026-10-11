@@ -178,7 +178,7 @@ export default function Team({ team }: { team: TeamData }) {
                                     type="password"
                                     autoComplete="new-password"
                                     required
-                                    minLength={12}
+                                    minLength={6}
                                     maxLength={72}
                                     value={form.data.password}
                                     onChange={(event) =>
@@ -196,7 +196,7 @@ export default function Team({ team }: { team: TeamData }) {
                                     type="password"
                                     autoComplete="new-password"
                                     required
-                                    minLength={12}
+                                    minLength={6}
                                     maxLength={72}
                                     value={form.data.password_confirmation}
                                     onChange={(event) =>
@@ -204,31 +204,10 @@ export default function Team({ team }: { team: TeamData }) {
                                     }
                                 />
                             </FormField>
-                            <FormField
-                                id="invite-role"
-                                label={t('Role')}
-                                error={errorMessage(form.errors.role)}
-                            >
-                                <Select
-                                    value={form.data.role}
-                                    onValueChange={(value) => form.setData('role', value)}
-                                >
-                                    <SelectTrigger id="invite-role">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {team.roles.map((role) => (
-                                            <SelectItem key={role} value={role}>
-                                                {t(role)}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </FormField>
 
                             <p className="text-sm text-muted-foreground sm:col-span-2">
                                 {t(
-                                    'Creating this administrator grants immediate access with the selected role. Existing accounts and passwords will not be changed.',
+                                    'Creating this administrator grants full access to this company backend. Existing accounts and passwords will not be changed.',
                                 )}
                             </p>
                             <div className="flex justify-end gap-2 sm:col-span-2">
@@ -251,7 +230,6 @@ export default function Team({ team }: { team: TeamData }) {
                     <EditMemberDialog
                         key={editing.id}
                         member={editing}
-                        roles={team.roles}
                         onClose={() => setEditing(null)}
                     />
                 )}
@@ -267,7 +245,6 @@ export default function Team({ team }: { team: TeamData }) {
                                     <TableRow>
                                         <TableHead>{t('Name')}</TableHead>
                                         <TableHead>{t('Login account')}</TableHead>
-                                        <TableHead>{t('Role')}</TableHead>
                                         <TableHead>{t('Membership status')}</TableHead>
                                         <TableHead>{t('Account status')}</TableHead>
                                         {canManage && (
@@ -284,7 +261,6 @@ export default function Team({ team }: { team: TeamData }) {
                                                 <p className="font-medium">{member.name}</p>
                                             </TableCell>
                                             <TableCell>{member.email}</TableCell>
-                                            <TableCell>{t(member.role)}</TableCell>
                                             <TableCell>
                                                 <StatusBadge
                                                     status={
@@ -370,7 +346,7 @@ export default function Team({ team }: { team: TeamData }) {
                                             <div>
                                                 <p className="font-medium">{invite.email}</p>
                                                 <p className="text-sm text-muted-foreground">
-                                                    {t(invite.role)} · {t(invite.status)}
+                                                    {t(invite.status)}
                                                 </p>
                                             </div>
                                             {canManage && invite.status === 'PENDING' && (
@@ -419,11 +395,9 @@ export default function Team({ team }: { team: TeamData }) {
 
 function EditMemberDialog({
     member,
-    roles,
     onClose,
 }: {
     member: TeamData['members'][number];
-    roles: string[];
     onClose: () => void;
 }) {
     const configurationUrl = useCompanyConfigurationUrl();
@@ -468,27 +442,6 @@ function EditMemberDialog({
                             {errorMessage((form.errors as Record<string, string>).form)}
                         </p>
                     )}
-                    <FormField
-                        id="edit-admin-role"
-                        label={t('Role')}
-                        error={errorMessage(form.errors.role)}
-                    >
-                        <Select
-                            value={form.data.role}
-                            onValueChange={(value) => form.setData('role', value)}
-                        >
-                            <SelectTrigger id="edit-admin-role">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {roles.map((role) => (
-                                    <SelectItem key={role} value={role}>
-                                        {t(role)}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </FormField>
                     <FormField
                         id="edit-admin-status"
                         label={t('Membership status')}

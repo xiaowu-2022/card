@@ -18,13 +18,19 @@ export function OperationResultHost() {
     const result = useSyncExternalStore(subscribeOperationResults, getOperationResults)[0];
     useEffect(() => {
         const mutations = new Set<string>();
+        const authVisits = new Set<string>();
+        const isAuthVisit = (visitId?: string) => !!visitId && authVisits.has(visitId);
         const off = [
             router.on('start', (event) => {
+                if (/^\/(platform|admin)\/(login|logout)\/?$/.test(event.detail.visit.url.pathname)) {
+                    authVisits.add(event.detail.visit.id);
+                    return;
+                }
                 if (isPlatform() && event.detail.visit.method !== 'get')
                     mutations.add(event.detail.visit.id);
             }),
             router.on('success', (event) => {
-                if (!isPlatform()) return;
+                if (!isPlatform() || isAuthVisit(event.detail.visitId)) return;
                 const flash = event.detail.page.props.flash as
                     { success?: string; error?: string } | undefined;
                 if (flash?.error) showOperationResult('error', flash.error);
@@ -33,19 +39,20 @@ export function OperationResultHost() {
                     showOperationResult('success', 'Request completed.');
             }),
             router.on('error', (event) => {
-                if (isPlatform())
+                if (isPlatform() && !isAuthVisit(event.detail.visitId))
                     showOperationResult('error', Object.values(event.detail.errors).flat());
             }),
             router.on('finish', (event) => {
                 mutations.delete(event.detail.visit.id);
+                authVisits.delete(event.detail.visit.id);
             }),
             router.on('networkError', (event) => {
-                if (!isPlatform()) return;
+                if (!isPlatform() || authVisits.size > 0) return;
                 event.preventDefault();
                 showOperationResult('error', 'Network request failed. Please try again.');
             }),
             router.on('httpException', (event) => {
-                if (!isPlatform()) return;
+                if (!isPlatform() || authVisits.size > 0) return;
                 event.preventDefault();
                 showOperationResult('error', 'Unable to complete this request.');
             }),

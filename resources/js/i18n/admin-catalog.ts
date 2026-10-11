@@ -245,7 +245,7 @@ export const adminCatalog: Record<string, string> = {
     'FAQ changed. Close and reopen before saving.': 'FAQ 已更新，请关闭并重新打开后编辑。',
     'Unable to save. Check the fields and try again.': '保存失败，请检查字段长度和内容后重试。',
     Archived: '已归档',
-    'Receipt type': '入金类型',
+    'Receipt type': '到账类型',
     'Actual receipt': '充值到账',
     'Closing this dialog pauses sync. Reopen and select Continue sync to resume.':
         '关闭弹窗会暂停后续同步，重新打开后点击“继续同步”恢复。',
@@ -1035,10 +1035,32 @@ export const adminCatalog: Record<string, string> = {
     normal: '正常',
     frozen: '已冻结',
     expired: '已过期',
+    'Automatic receipt': '自动到账',
+    'Manual confirmation': '手动确认',
+    'Switch to advance amount': '切换为预支金额',
+    'Switch to manual confirmation': '切换为手动确认',
+    'Change receipt type': '更改到账类型',
+    'Changing receipt type updates receipt totals and partner advances. The wallet balance and credited amount stay unchanged.':
+        '更改到账类型将更新收款统计和合作方预支数据，钱包余额及已到账金额保持不变。',
+    'I confirm the receipt type change.': '我确认更改到账类型。',
+    'Receipt type updated. Related totals have been refreshed.': '到账类型已更新，相关统计已刷新。',
+    DEPOSIT_RECEIPT_TYPE_CHANGED: '到账类型变更',
+    'Confirm the receipt type change.': '请确认更改到账类型。',
+    'This request was used with a different receipt type or order.':
+        '此请求已用于其他到账类型或订单。',
+    'Only credited manually confirmed deposits can change receipt type.':
+        '仅已到账且经手动确认的充值订单可更改到账类型。',
+    'Receipt type changed. Refresh the order and try again.': '到账类型已变化，请刷新订单后重试。',
+    'Choose a different receipt type.': '请选择不同的到账类型。',
+    'Advance receipt evidence could not be confirmed.': '无法确认对应的预支记录。',
     'SaaS administrators': 'SaaS 管理员',
     'Platform administrator created.': 'SaaS 管理员已创建。',
     'This grants access to the SaaS backend. Confirm the account and role before creating. Use 6–72 characters for the new password.':
         '创建后将授予 SaaS 后台访问权限，请确认账号和角色。新密码须为 6–72 位。',
+    'This grants full access to the SaaS backend. Confirm the account before creating. Use 6–72 characters for the new password.':
+        '此账号将拥有 SaaS 后台的全部权限。创建前请确认账号，新密码须为 6–72 个字符。',
+    'Creating this administrator grants full access to this company backend. Existing accounts and passwords will not be changed.':
+        '创建后，该管理员将拥有本公司后台的全部权限。现有账号和密码不会更改。',
     'Platform administrators can manage companies and confirm top-ups. Platform auditors have read-only access.':
         '平台管理员可以管理公司和确认充值；平台审计员仅有只读权限。',
     'Confirm and create administrator': '确认创建管理员',

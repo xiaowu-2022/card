@@ -10,7 +10,7 @@ final class PlatformTopupQuery
 {
     public function paginate(?string $company, ?string $search, ?string $status): LengthAwarePaginator
     {
-        return WalletTopupOrder::query()
+        return DepositReceiptClassification::join(WalletTopupOrder::query(), 'wallet_topup_orders', 'primary')
             ->leftJoin('admin_users as confirmer', 'confirmer.id', '=', 'wallet_topup_orders.manual_confirmed_by')
             ->join('tenants as t', 't.id', '=', 'wallet_topup_orders.tenant_id')
             ->join('users as u', fn ($join) => $join->on('u.id', '=', 'wallet_topup_orders.user_id')->on('u.tenant_id', '=', 'wallet_topup_orders.tenant_id'))
@@ -22,13 +22,14 @@ final class PlatformTopupQuery
                     ->orWhereRaw("replace(wallet_topup_orders.id::text, '-', '') ilike ?", ['%'.str_replace('-', '', addcslashes($search, '%_')).'%']);
             }))
             ->select('wallet_topup_orders.*', 't.name as company_name', 'u.account_id', 'u.email as user_email', 'confirmer.name as confirmer_name')
+            ->selectRaw(DepositReceiptClassification::effectiveType('wallet_topup_orders').' AS effective_receipt_type')
             ->orderByDesc('wallet_topup_orders.created_at')->orderBy('wallet_topup_orders.id')
             ->paginate(25)->withQueryString()->through(fn (WalletTopupOrder $order): array => [
                 'id' => $order->id, 'reference' => strtoupper(substr(str_replace('-', '', $order->id), 0, 12)),
                 'companyId' => $order->tenant_id, 'companyName' => $order->company_name,
                 'accountId' => $order->account_id, 'userEmail' => $order->user_email,
                 'amount' => $order->amount, 'asset' => $order->asset_code, 'status' => $order->status->value,
-                'receiptType' => $order->manual_receipt_type ?? 'ACTUAL',
+                'receiptType' => $order->effective_receipt_type,
                 'canAdvance' => $order->asset_code === 'USDT' && DB::table('partner_configurations')->where('tenant_id', $order->tenant_id)->where('user_id', $order->user_id)->where('enabled', true)->exists(),
                 'network' => $order->network_code, 'manuallyConfirmed' => $order->manual_confirmed_at !== null,
                 'manualConfirmedAt' => $order->manual_confirmed_at?->toIso8601String(),

@@ -23,6 +23,11 @@ final readonly class ReceiveCardNotificationAction
     {
         $account = app(PhotonPayWebhookAccount::class)->resolve($body, $accountId);
         $facts = $this->verifier->verify($body, $signature, $category, $type, Crypt::decryptString($account->photonpay_webhook_key_encrypted));
+        foreach (['cardId' => 'provider_card_id', 'cardholderId' => 'provider_cardholder_id', 'requestId' => 'provider_request_id'] as $fact => $column) {
+            if (! empty($facts[$fact]) && \App\Application\Cleanup\CleanupTombstones::contains('card:'.$account->id.':'.$column, $facts[$fact])) {
+                return; // Verified late notification for a deliberately removed resource.
+            }
+        }
         $products = CardProduct::where('card_provider_reference_id', $account->id)->select('id');
         PhotonPayLog::write('webhook.verified', ['category' => $facts['category'], 'notification_type_ref' => PhotonPayLog::reference($facts['event_type'])]);
         // Sole global lookups: trusted provider-resource mappings, never a body tenant or Host.

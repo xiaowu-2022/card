@@ -2,12 +2,16 @@
 
 use App\Application\Admin\FinancialOperationQuery;
 use App\Application\Assets\DepositAssetsAction;
+use App\Application\Assets\PlatformFundsQuery;
+use App\Application\Partners\LegacyStockReport;
 use App\Application\Partners\PartnerManagement;
+use App\Application\Payment\ChangeDepositReceiptTypeAction;
 use App\Application\Payment\ConfirmPlatformTopupAction;
 use App\Application\Payment\CreditWalletTopupAction;
 use App\Application\Payment\PaymentLedgerReconciliationService;
 use App\Application\Payment\ProcessIncomingTrc20TransferAction;
 use App\Application\Tenant\ListTenantsQuery;
+use App\Application\User\PlatformUserReceiptQuery;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Assets\AssetDepositOrder;
 use App\Domain\Assets\ChainObservation;
@@ -326,3 +330,150 @@ it('splits user receipts across deposit sources without counting pending orders 
     expect(DB::table('ledger_accounts')->orderBy('id')->get()->toJson())->toBe($before);
     Http::assertNothingSent();
 });
+
+function changeReceiptType($test, object $order, string $type, int $revision, ?string $request = null): void
+{
+    app(ChangeDepositReceiptTypeAction::class)->execute($test->actor, $test->tenant->id,
+        $order instanceof WalletTopupOrder ? 'primary' : 'asset', $order->id, $type, $revision, $request ?? (string) Str::uuid(), true);
+}
+
+it('switches settled manual receipt types and refreshes all projections without another credit', function ($source): void {
+    $order = receiptOrder($this, $source);
+    confirmReceipt($this, $order, (string) Str::uuid(), 'ACTUAL', '89.12345678');
+    $order->refresh();
+    $original = $order->getAttributes();
+    $balances = DB::table('ledger_accounts')->orderBy('id')->get()->toJson();
+    $ledger = DB::table('ledger_entries')->orderBy('id')->get()->toJson();
+    $request = (string) Str::uuid();
+    foreach ([1 => 'ADVANCE', 2 => 'ACTUAL', 3 => 'ADVANCE'] as $revision => $type) {
+        changeReceiptType($this, $order, $type, $revision - 1, $revision === 1 ? $request : null);
+        if ($revision === 1) {
+            changeReceiptType($this, $order, $type, 0, $request);
+        }
+        $row = app(PlatformFundsQuery::class)->paginate('deposit', ['company' => $this->tenant->id])->items()[0];
+        expect($row['receiptType'])->toBe($type)->and($row['arrivalType'])->toBe($type === 'ADVANCE' ? 'ADVANCE' : 'MANUAL')
+            ->and($row['receiptTypeRevision'])->toBe($revision);
+        $totals = app(ListTenantsQuery::class)->totals(null, null, ['inflow' => true], $this->tenant->id);
+        expect($totals['inflow'])->toBe('89.12345678')->and($totals['advanceInflow'])->toBe($type === 'ADVANCE' ? '89.12345678' : '0.00000000');
+        $companyRow = app(ListTenantsQuery::class)->execute(null, null, ['inflow' => true], $this->tenant->id)->items()[0];
+        expect($companyRow['advanceInflow'])->toBe($totals['advanceInflow']);
+        $userTotals = app(PlatformUserReceiptQuery::class)->forUsers([$this->user])[$this->tenant->id.':'.$this->user->id][0];
+        expect(BigDecimal::of($userTotals['advance'])->isEqualTo($type === 'ADVANCE' ? '89.12345678' : '0'))->toBeTrue()
+            ->and(BigDecimal::of($userTotals['actual'])->isEqualTo($type === 'ACTUAL' ? '89.12345678' : '0'))->toBeTrue();
+        $report = app(LegacyStockReport::class)->read($this->tenant->id, $this->user->id);
+        expect($report['accountBalance']['advances'])->toBe($type === 'ADVANCE' ? '89.12345678' : '0.00000000');
+    }
+    // A successful request replay stays a no-op even after later changes.
+    changeReceiptType($this, $order, 'ADVANCE', 0, $request);
+    expect(DB::table('deposit_receipt_type_changes')->count())->toBe(3)
+        ->and(DB::table('partner_journal_entries')->count())->toBe(3)
+        ->and($order->fresh()->getAttributes())->toBe($original)
+        ->and(DB::table('ledger_accounts')->orderBy('id')->get()->toJson())->toBe($balances)
+        ->and(DB::table('ledger_entries')->orderBy('id')->get()->toJson())->toBe($ledger);
+    $operations = app(FinancialOperationQuery::class)->forOrder($this->tenant->id, $source === 'primary' ? 'wallet_topup_order' : 'asset_deposit_order', $order->id);
+    expect(collect($operations)->where('action', 'DEPOSIT_RECEIPT_TYPE_CHANGED')->count())->toBe(3);
+    Http::assertNothingSent();
+})->with(['primary', 'asset']);
+
+it('reverses initial advances even for disabled partners and reuses an existing reversal', function ($source, bool $alreadyReversed): void {
+    $order = receiptOrder($this, $source);
+    confirmReceipt($this, $order, (string) Str::uuid(), 'ADVANCE', '91.00000001');
+    $order->refresh();
+    if ($alreadyReversed) {
+        app(PartnerManagement::class)->journal($this->actor, $this->tenant->id, $this->partner->id, [
+            'kind' => 'ADVANCE', 'amount' => '91.00000001', 'business_date' => now()->format('Y-m-d'), 'note' => 'Offline reversal',
+            'request_id' => (string) Str::uuid(), 'reverses_id' => $order->advance_journal_id,
+        ]);
+    }
+    DB::table('partner_configurations')->where('id', $this->partner->id)->update(['enabled' => false]);
+    changeReceiptType($this, $order, 'ACTUAL', 0);
+    expect(DB::table('partner_journal_entries')->count())->toBe(2)
+        ->and(DB::table('deposit_receipt_type_changes')->value('before_journal_id'))->toBe($order->advance_journal_id)
+        ->and(DB::table('deposit_receipt_type_changes')->value('after_journal_id'))->toBeNull();
+    expect(fn () => changeReceiptType($this, $order, 'ADVANCE', 1))->toThrow(DomainException::class);
+    expect(DB::table('deposit_receipt_type_changes')->count())->toBe(1);
+})->with(['primary', 'asset'])->with([true, false]);
+
+it('rejects stale revisions conflicting retries company overrides and unconfirmed type changes', function ($source): void {
+    $order = receiptOrder($this, $source);
+    confirmReceipt($this, $order, (string) Str::uuid());
+    $request = (string) Str::uuid();
+    changeReceiptType($this, $order, 'ADVANCE', 0, $request);
+    expect(fn () => changeReceiptType($this, $order, 'ACTUAL', 0))->toThrow(DomainException::class)
+        ->and(fn () => changeReceiptType($this, $order, 'ACTUAL', 1, $request))->toThrow(DomainException::class);
+    $url = "http://admin.localhost/platform/tenants/{$this->tenant->id}/deposit-orders/{$source}/{$order->id}/receipt-type";
+    $this->actingAs($this->actor, 'platform_admin');
+    $data = ['receipt_type' => 'ACTUAL', 'revision' => 1, 'request_id' => (string) Str::uuid(), 'confirmed' => true];
+    $this->post($url, [...$data, 'confirmed' => false])->assertSessionHasErrors('confirmed');
+    $this->post($url, [...$data, 'amount' => '5', 'actual_received_amount' => '7', 'tenant_id' => $this->tenant->id])->assertSessionHasErrors(['amount', 'actual_received_amount', 'tenant_id']);
+    $other = Tenant::where('slug', 'tenant-b')->sole();
+    $this->post(str_replace($this->tenant->id, $other->id, $url), $data)->assertNotFound();
+    $this->post($url, $data)->assertRedirect()->assertSessionHasNoErrors();
+    $this->post($url, $data)->assertRedirect()->assertSessionHasNoErrors();
+    expect(DB::table('deposit_receipt_type_changes')->count())->toBe(2)->and(DB::table('partner_journal_entries')->count())->toBe(2);
+})->with(['primary', 'asset']);
+
+it('rejects changes to pending and automatic receipts and labels automatic arrival distinctly', function ($source): void {
+    $order = receiptOrder($this, $source);
+    expect(fn () => changeReceiptType($this, $order, 'ADVANCE', 0))->toThrow(DomainException::class);
+    if ($source === 'primary') {
+        $order->status = WalletTopupStatus::Paid;
+        $order->matched_tx_hash = str_repeat('a', 64);
+        $order->matched_transfer_index = 0;
+        $order->blockchain_detected_at = now();
+        $order->blockchain_confirmed_at = now();
+        $order->paid_at = now();
+        $order->save();
+        app(CreditWalletTopupAction::class)->execute($order->tenant_id, $order->id);
+    } else {
+        $observation = ChainObservation::create(['network' => 'ETHEREUM', 'event_id' => 'offline-classification', 'block_height' => 100, 'block_hash' => str_repeat('b', 64), 'rail_code' => 'USDT_ETHEREUM', 'address' => $order->address, 'amount' => $order->amount, 'status' => 'MATCHED', 'order_id' => $order->id, 'occurred_at' => now()]);
+        app(DepositAssetsAction::class)->verified($observation);
+    }
+    expect(fn () => changeReceiptType($this, $order, 'ADVANCE', 0))->toThrow(DomainException::class);
+    $row = app(PlatformFundsQuery::class)->paginate('deposit', ['company' => $this->tenant->id])->items()[0];
+    expect($row['arrivalType'])->toBe('AUTO')->and($row['canChangeReceiptType'])->toBeFalse()
+        ->and(DB::table('deposit_receipt_type_changes')->count())->toBe(0)->and(DB::table('partner_journal_entries')->count())->toBe(0);
+})->with(['primary', 'asset']);
+
+it('keeps receipt changes immutable and rolls back classification when its audit fails', function ($source): void {
+    $order = receiptOrder($this, $source);
+    confirmReceipt($this, $order, (string) Str::uuid());
+    changeReceiptType($this, $order, 'ADVANCE', 0);
+    expect(fn () => DB::transaction(fn () => DB::table('deposit_receipt_type_changes')->update(['after_type' => 'ACTUAL'])))->toThrow(QueryException::class)
+        ->and(fn () => DB::transaction(fn () => DB::table('deposit_receipt_type_changes')->delete()))->toThrow(QueryException::class);
+    $before = DB::table('partner_journal_entries')->count();
+    if (! app()->environment('testing') || DB::connection()->getDatabaseName() !== 'card_ui_test') {
+        throw new RuntimeException('Audit failure injection requires isolated card_ui_test.');
+    }
+    DB::unprepared("CREATE OR REPLACE FUNCTION test_receipt_audit_failure() RETURNS trigger LANGUAGE plpgsql AS \$\$ BEGIN
+        IF NEW.action='DEPOSIT_RECEIPT_TYPE_CHANGED' THEN RAISE EXCEPTION 'Offline audit failure'; END IF; RETURN NEW; END \$\$;
+        CREATE TRIGGER test_receipt_audit_failure BEFORE INSERT ON audit_logs FOR EACH ROW EXECUTE FUNCTION test_receipt_audit_failure();");
+    expect(fn () => changeReceiptType($this, $order, 'ACTUAL', 1))->toThrow(QueryException::class);
+    expect(DB::table('partner_journal_entries')->count())->toBe($before)->and(DB::table('deposit_receipt_type_changes')->count())->toBe(1);
+    DB::unprepared('DROP TRIGGER test_receipt_audit_failure ON audit_logs; DROP FUNCTION test_receipt_audit_failure();');
+})->with(['primary', 'asset']);
+
+it('serializes competing receipt type changes without duplicate advances', function ($source): void {
+    $order = receiptOrder($this, $source);
+    confirmReceipt($this, $order, (string) Str::uuid());
+    $result = raceReceiptOperations([fn () => changeReceiptType($this, $order, 'ADVANCE', 0), fn () => changeReceiptType($this, $order, 'ADVANCE', 0)]);
+    sort($result);
+    expect($result)->toBe(['completed', 'rejected'])->and(DB::table('deposit_receipt_type_changes')->count())->toBe(1)
+        ->and(DB::table('partner_journal_entries')->count())->toBe(1);
+})->with(['primary', 'asset']);
+
+it('rechecks administrator scope status and both permissions before changing receipt type', function ($restriction): void {
+    $order = receiptOrder($this, 'primary');
+    confirmReceipt($this, $order, (string) Str::uuid());
+    if ($restriction === 'account') {
+        $this->actor->update(['status' => 'SUSPENDED']);
+    } elseif ($restriction === 'membership') {
+        $this->actor->memberships()->update(['status' => 'SUSPENDED']);
+    } elseif ($restriction === 'company') {
+        $this->actor = AdminUser::where('email', 'owner@a.localhost')->sole();
+    } else {
+        DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', $restriction)->value('id'))->delete();
+    }
+    expect(fn () => changeReceiptType($this, $order, 'ADVANCE', 0))->toThrow(HttpException::class)
+        ->and(DB::table('deposit_receipt_type_changes')->count())->toBe(0)->and(DB::table('partner_journal_entries')->count())->toBe(0);
+})->with(['account', 'membership', 'company', 'wallet_topups.confirm', 'partners.manage']);

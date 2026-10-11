@@ -72,15 +72,16 @@ it('rejects weak passwords mismatched confirmation and owner/platform roles', fu
     [['role' => 'PLATFORM_ADMIN'], 'role'],
 ]);
 
-it('rejects company administrators and read-only Platform memberships', function (): void {
+it('rejects actors outside company scope and allows historical platform auditor memberships', function (): void {
     $companyOwner = AdminUser::query()->where('email', 'owner@a.localhost')->sole();
     $this->actingAs($companyOwner, 'tenant_admin')->post('http://b.localhost/admin/team/administrators', $this->data)->assertForbidden();
-    $this->post('http://a.localhost/admin/team/administrators', $this->data)->assertForbidden();
+    $this->post('http://admin.localhost/platform/administrators', $this->data)->assertRedirect('/platform/login');
+    $companyOwner->update(['status' => 'SUSPENDED']);
     expect(fn () => app(CreateTenantAdminAction::class)->execute($this->tenant, $companyOwner, 'Direct', $this->data['email'], $this->data['password'], 'TENANT_ADMIN'))->toThrow(HttpException::class);
     $membership = $this->owner->memberships()->where('scope_type', 'PLATFORM')->whereNull('scope_id')->sole();
     $membership->update(['role_id' => Role::query()->where('name', 'PLATFORM_AUDITOR')->sole()->id]);
-    $this->actingAs($this->owner, 'platform_admin')->post("http://admin.localhost/platform/tenants/{$this->tenant->id}/configuration/team/administrators", $this->data)->assertForbidden();
-    expect(AdminUser::query()->where('email', $this->data['email'])->exists())->toBeFalse();
+    $this->actingAs($this->owner, 'platform_admin')->post("http://admin.localhost/platform/tenants/{$this->tenant->id}/configuration/team/administrators", $this->data)->assertRedirect()->assertSessionHasNoErrors();
+    expect(AdminUser::query()->where('email', $this->data['email'])->exists())->toBeTrue();
 });
 
 it('treats a repeated create as a duplicate without extra memberships or audit', function (): void {

@@ -1,5 +1,13 @@
 ## Theoretical balance adjustments (2026-10-08)
 
+Update (2026-10-11): Recharge orders may explicitly switch settled manual receipts
+between ACTUAL and ADVANCE. The scoped workflow appends advance/reversal journals
+for the immutable actual settled USDT amount, plus immutable classification events.
+Personal/team advance projections refresh from signed journals; business stock,
+wallets and Ledger stay unchanged. Original receipt evidence is retained. See
+[receipt type corrections](PLATFORM_FUNDS_ORDERS.md#receipt-type-display-and-corrections-2026-10-11).
+
+
 Platform Partners → Record entry now offers Increase theoretical balance and Decrease
 theoretical balance. Both accept positive USDT decimal strings (up to 18 integer and
 8 fractional digits), business date and required note. Explicit confirmation is

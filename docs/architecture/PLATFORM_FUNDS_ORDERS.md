@@ -136,3 +136,46 @@ Deploy `2026_10_08_180000_add_actual_deposit_receipt_amount` before the matching
 and rebuilt admin assets. Do not drop receipt evidence after real settlements;
 application rollback must preserve the column and actual-amount settlement logic.
 No historical replay or consumer rebuild is required.
+
+## Receipt type display and corrections (2026-10-11)
+
+The recharge list and detail drawer show Receipt type: Automatic receipt, Manual
+confirmation or Advance amount. Pending/uncredited orders show no arrival type.
+Automatic receipts retain their verified chain origin and cannot be reclassified.
+Credited manual USDT receipts can switch ACTUAL/ADVANCE with explicit confirmation
+and a server-owned revision. A new advance still requires an enabled same-company
+partner; switching an existing advance back to manual also works after partner
+status is disabled. The native settled amount, including actual_received_amount,
+is server-owned and cannot be edited by this operation.
+
+POST /platform/tenants/{tenant}/deposit-orders/{source}/{order}/receipt-type handles
+both primary and asset sources. It requires wallet_topups.confirm and
+partners.manage, the active Platform scope, CSRF and throttling. Tenant -> User ->
+Order -> Partner locks serialize changes with settlements and partner updates.
+Request UUIDs are actor-bound, reject changed inputs and remain no-ops after later
+switches. Stale revisions fail without any journal or money changes.
+
+Original manual_receipt_type, advance_journal_id, confirmation actor/time, amount,
+Ledger and chain evidence remain immutable. Append-only deposit_receipt_type_changes
+records before/after type, revision, exact settled amount, actor/request and scoped
+journal associations. The latest event is the current classification projection.
+ACTUAL -> ADVANCE appends one matching positive advance; ADVANCE -> ACTUAL appends
+a matching reversal, or references an already recorded reversal. Switching again
+creates a new advance rather than rewriting any journal. Journal/evidence/audit
+writes commit together. Database guards reject changes to history, wrong-company
+order/journal associations, uncredited/automatic receipts and stale revisions.
+
+Order DTOs, user receipt totals and company USDT inflow splits use the latest
+classification; company inflow combines both deposit sources. Partner personal
+reconciliation reads the same signed journal evidence. Successful changes refresh
+the order list and open details through Inertia, retaining filters, pagination and
+scroll; dependent read-only summaries re-read current data. Actual wallet balances,
+Ledger postings, promotions, business stock and original consumer receipts are not
+changed or replayed. The immutable financial operation history includes each switch.
+
+Deploy migration 2026_10_11_100000_add_deposit_receipt_type_changes before matching
+PHP and rebuilt public/build. No H5/native rebuild or historical backfill is needed.
+Do not drop the new evidence after production corrections. Verify with isolated
+ManualDepositReceiptTest and the fully intercepted deposit-receipt-type.mjs browser
+fixture; never use production orders for financial tests. This supersedes the prior
+prohibition on post-credit classification changes only for this explicit workflow.

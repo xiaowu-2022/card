@@ -266,7 +266,7 @@ export default function TenantDetail({ tenantRecord: tenant }: { tenantRecord: D
                                     <div key={admin.email} className="rounded-lg border p-3">
                                         <p className="font-medium">{admin.name}</p>
                                         <p className="text-sm text-muted-foreground">
-                                            {admin.email} · {t(admin.role)} · {t(admin.status)}
+                                            {admin.email} · {t(admin.status)}
                                         </p>
                                     </div>
                                 ))
@@ -291,7 +291,7 @@ export default function TenantDetail({ tenantRecord: tenant }: { tenantRecord: D
                                         <div>
                                             <p className="font-medium">{invitation.email}</p>
                                             <p className="text-sm text-muted-foreground">
-                                                {t(invitation.role)} · {t(invitation.status)}
+                                                {t(invitation.status)}
                                             </p>
                                         </div>
                                         {canManageTeam && invitation.status === 'PENDING' && (

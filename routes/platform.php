@@ -20,6 +20,8 @@ use App\Http\Controllers\Platform\CompanyConfiguration\TenantSettingsController;
 use App\Http\Controllers\Platform\CompanyConfiguration\TenantSmsSettingsController;
 use App\Http\Controllers\Platform\CompanyConfigurationListController;
 use App\Http\Controllers\Platform\DashboardController;
+use App\Http\Controllers\Platform\DataCleanupController;
+use App\Http\Controllers\Platform\DepositReceiptTypeController;
 use App\Http\Controllers\Platform\DomainManagementController;
 use App\Http\Controllers\Platform\FinancialOperationsController;
 use App\Http\Controllers\Platform\FundsOrdersController;
@@ -133,6 +135,9 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::post('/tenants/{tenant}/assets/settings', [AssetsController::class, 'save'])->whereUuid('tenant')->middleware('throttle:20,1')->name('assets.company.save');
     });
     Route::get('/asset-deposits', fn (Request $request) => redirect()->route('platform.topups.all', $request->query()))->middleware('admin.scope:platform,wallet_topups.read')->name('assets.deposits');
+    Route::post('/tenants/{tenant}/deposit-orders/{source}/{order}/receipt-type', DepositReceiptTypeController::class)
+        ->whereUuid(['tenant', 'order'])->whereIn('source', ['primary', 'asset'])
+        ->middleware(['admin.scope:platform,wallet_topups.confirm', 'admin.scope:platform,partners.manage', 'throttle:10,1'])->name('deposits.receipt-type');
     Route::get('/asset-withdrawals', [FundsOrdersController::class, 'withdrawals'])->middleware('admin.scope:platform,withdrawals.read')->name('assets.withdrawals');
     Route::post('/asset-withdrawals/export', [FundsOrdersController::class, 'exportWithdrawals'])->middleware(['admin.scope:platform,withdrawals.read', 'admin.scope:platform,withdrawals.review', 'throttle:10,1'])->name('assets.withdrawals.export');
     foreach (['confirm' => 'wallet_topups.confirm', 'recheck' => 'wallet_topups.verify', 'review' => 'withdrawals.review', 'verify' => 'withdrawals.review', 'reveal' => 'withdrawals.review'] as $action => $permission) {
@@ -161,6 +166,11 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware('admin.scope:platform,card_product.manage')->put('/tenants/{tenant}/cards/{card}/balance-limit', [CardOperationsController::class, 'updateLimit'])->whereUuid(['tenant', 'card'])->name('cards.balance-limit');
     Route::middleware(['admin.scope:platform,card_product.manage', 'throttle:20,1'])->post('/tenants/{tenant}/cards/{card}/reveal', [CardOperationsController::class, 'reveal'])->whereUuid(['tenant', 'card'])->name('cards.reveal');
     Route::middleware('admin.scope:platform,cards.read')->get('/cards', CardOperationsController::class)->name('cards.index');
+    Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.cleanup', 'throttle:20,1'])->group(function (): void {
+        Route::post('/tenants/{tenant}/data-cleanup/preview', [DataCleanupController::class, 'preview'])->whereUuid('tenant')->name('data-cleanup.preview');
+        Route::post('/tenants/{tenant}/data-cleanup/{batch}/execute', [DataCleanupController::class, 'execute'])->whereUuid(['tenant', 'batch'])->name('data-cleanup.execute');
+        Route::get('/tenants/{tenant}/data-cleanup/{batch}', [DataCleanupController::class, 'show'])->whereUuid(['tenant', 'batch'])->name('data-cleanup.show');
+    });
     Route::middleware(['admin.scope:platform,cards.read', 'throttle:240,1'])->get('/tenants/{tenant}/cards/{card}/transactions', [CardOperationsController::class, 'transactions'])->whereUuid(['tenant', 'card'])->name('cards.transactions');
     Route::middleware(['admin.scope:platform,cards.read', 'admin.scope:platform,card_product.manage', 'throttle:20,1'])->post('/tenants/{tenant}/cards/{card}/transactions/sync', [CardOperationsController::class, 'syncTransactions'])->whereUuid(['tenant', 'card'])->name('cards.transactions.sync');
     Route::middleware(['admin.scope:platform,cards.read', 'throttle:60,1'])->post('/tenants/{tenant}/cards/{card}/refresh', [CardOperationsController::class, 'refresh'])->whereUuid(['tenant', 'card'])->name('cards.refresh');

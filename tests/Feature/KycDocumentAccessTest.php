@@ -8,10 +8,9 @@ use App\Domain\Admin\Enums\MembershipStatus;
 use App\Domain\Admin\Enums\ScopeType;
 use App\Domain\Admin\Models\AdminMembership;
 use App\Domain\Admin\Models\AdminUser;
-use App\Domain\Admin\Models\Permission;
 use App\Domain\Admin\Models\Role;
+use App\Domain\Admin\Services\AuthorizationService;
 use App\Domain\Audit\Models\AuditLog;
-use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Tenant\Models\PlatformKycSetting;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
@@ -28,7 +27,7 @@ beforeEach(function (): void {
     $this->tenant = Tenant::query()->where('slug', 'tenant-a')->firstOrFail();
     $this->user = User::query()->where('tenant_id', $this->tenant->id)->firstOrFail();
     $this->owner = AdminUser::query()->where('email', 'owner@a.localhost')->firstOrFail();
-    $this->application = app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', '11010519491231002X', kycTestImage('front.jpg'), kycTestImage('back.jpg'));
+    $this->application = app(SubmitKycApplicationAction::class)->execute($this->tenant, $this->user, 'CN', '11010519491231002X', kycTestImage('front.png'), kycTestImage('back.png'));
 });
 
 function phaseThreeAdmin(Tenant $tenant, string $role, string $email): AdminUser
@@ -88,7 +87,7 @@ it('expires temporary document access and rechecks recent authentication', funct
 it('returns a safe denial for another tenant application UUID', function (): void {
     $tenantB = Tenant::query()->where('slug', 'tenant-b')->firstOrFail();
     $userB = User::query()->where('tenant_id', $tenantB->id)->firstOrFail();
-    $applicationB = app(SubmitKycApplicationAction::class)->execute($tenantB, $userB, 'CN', '11010519491231002X', kycTestImage('front.jpg'), kycTestImage('back.jpg'));
+    $applicationB = app(SubmitKycApplicationAction::class)->execute($tenantB, $userB, 'CN', '11010519491231002X', kycTestImage('front.png'), kycTestImage('back.png'));
     unlockPhaseThreeDocuments($this, $this->owner);
     $this->actingAs($this->owner, 'tenant_admin')
         ->post("http://a.localhost/admin/kyc/{$applicationB->id}/documents/front/access")->assertNotFound();
@@ -120,18 +119,17 @@ it('binds recent authentication to tenant and current password state', function 
         'status' => MembershipStatus::Active,
     ]);
     $userB = User::query()->where('tenant_id', $tenantB->id)->firstOrFail();
-    $applicationB = app(SubmitKycApplicationAction::class)->execute($tenantB, $userB, 'CN', '11010519491231002X', kycTestImage('front.jpg'), kycTestImage('back.jpg'));
+    $applicationB = app(SubmitKycApplicationAction::class)->execute($tenantB, $userB, 'CN', '11010519491231002X', kycTestImage('front.png'), kycTestImage('back.png'));
     app(TenantAdminRecentAuthentication::class)->mark($this->app['session.store'], $this->owner->fresh(), $this->tenant->id);
     $this->actingAs($this->owner->fresh(), 'tenant_admin')
         ->post("http://b.localhost/admin/kyc/{$applicationB->id}/documents/front/access")->assertForbidden();
 });
 
-it('rechecks permission after issuing a signed application route', function (): void {
+it('rechecks active membership after issuing a signed application route', function (): void {
     $reviewer = phaseThreeAdmin($this->tenant, 'KYC_REVIEWER', 'revoked@a.localhost');
     unlockPhaseThreeDocuments($this, $reviewer);
     $url = $this->post("http://a.localhost/admin/kyc/{$this->application->id}/documents/front/access")->headers->get('Location');
-    $role = Role::query()->where('name', 'KYC_REVIEWER')->firstOrFail();
-    $role->permissions()->detach(Permission::query()->where('name', 'kyc.document.view')->firstOrFail());
+    $reviewer->memberships()->update(['status' => 'SUSPENDED']);
 
     $this->get($url)->assertForbidden();
 });
@@ -146,16 +144,16 @@ it('rate limits sensitive document access per tenant administrator', function ()
     $this->post($url)->assertTooManyRequests();
 });
 
-it('keeps KYC role permissions separated by responsibility', function (): void {
+it('gives historical company roles equal KYC access', function (): void {
     $reviewer = phaseThreeAdmin($this->tenant, 'KYC_REVIEWER', 'reviewer2@a.localhost');
     $support = phaseThreeAdmin($this->tenant, 'SUPPORT', 'support2@a.localhost');
     $finance = phaseThreeAdmin($this->tenant, 'FINANCE_VIEWER', 'finance@a.localhost');
 
-    $this->actingAs($reviewer, 'tenant_admin')->post("http://a.localhost/admin/kyc/{$this->application->id}/approve")->assertRedirect();
-    expect(KycApplication::query()->whereKey($this->application->id)->firstOrFail()->review_status->value)->toBe('APPROVED');
-    $this->actingAs($support, 'tenant_admin')->post("http://a.localhost/admin/kyc/{$this->application->id}/approve")->assertForbidden();
-    $this->actingAs($support, 'tenant_admin')->get("http://a.localhost/admin/kyc/{$this->application->id}")->assertForbidden();
-    $this->actingAs($finance, 'tenant_admin')->get('http://a.localhost/admin/kyc')->assertForbidden();
+    foreach ([$reviewer, $support, $finance] as $admin) {
+        expect(app(AuthorizationService::class)->allows($admin, ScopeType::Tenant, $this->tenant->id, 'kyc.review'))->toBeTrue();
+        $this->actingAs($admin, 'tenant_admin')->get("http://a.localhost/admin/kyc/{$this->application->id}")->assertOk();
+        $this->get('http://a.localhost/admin/kyc')->assertOk();
+    }
 });
 
 it('searches queue contacts safely and never emits sensitive persistence fields', function (): void {

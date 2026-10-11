@@ -39,7 +39,7 @@ final class TenantAdminTeamQuery
                     'status' => $invitation->status->value,
                     'expiresAt' => $invitation->expires_at->toIso8601String(),
                 ]),
-            'roles' => ['TENANT_ADMIN', 'KYC_REVIEWER', 'CARD_OPERATOR', 'FINANCE_VIEWER', 'SUPPORT'],
+            'roles' => ['TENANT_ADMIN'],
         ];
     }
 }

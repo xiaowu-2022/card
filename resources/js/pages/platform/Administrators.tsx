@@ -9,13 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FormField } from '@/components/ui/form-field';
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import {
     Table,
     TableBody,
     TableCell,
@@ -48,7 +41,7 @@ export default function Administrators({ team }: { team: Team }) {
         email: '',
         password: '',
         password_confirmation: '',
-        role: 'PLATFORM_AUDITOR',
+        role: 'PLATFORM_ADMIN',
     });
     const [open, setOpen] = useState(false);
     const fields = [
@@ -102,7 +95,7 @@ export default function Administrators({ team }: { team: Team }) {
                                     >
                                         <p className="text-sm text-muted-foreground sm:col-span-2">
                                             {t(
-                                                'This grants access to the SaaS backend. Confirm the account and role before creating. Use 6–72 characters for the new password.',
+                                                'This grants full access to the SaaS backend. Confirm the account before creating. Use 6–72 characters for the new password.',
                                             )}
                                         </p>
                                         {(form.errors as Record<string, string>).form && (
@@ -153,34 +146,6 @@ export default function Administrators({ team }: { team: Team }) {
                                                 />
                                             </FormField>
                                         ))}
-                                        <FormField
-                                            id="platform-admin-role"
-                                            label={t('Role')}
-                                            error={errorMessage(form.errors.role)}
-                                        >
-                                            <Select
-                                                value={form.data.role}
-                                                onValueChange={(value) =>
-                                                    form.setData('role', value)
-                                                }
-                                            >
-                                                <SelectTrigger id="platform-admin-role">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {team.roles.map((role) => (
-                                                        <SelectItem key={role} value={role}>
-                                                            {t(role)}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </FormField>
-                                        <p className="text-sm text-muted-foreground sm:col-span-2">
-                                            {t(
-                                                'Platform administrators can manage companies and confirm top-ups. Platform auditors have read-only access.',
-                                            )}
-                                        </p>
                                         <Button
                                             className="justify-self-start"
                                             disabled={form.processing}
@@ -200,7 +165,6 @@ export default function Administrators({ team }: { team: Team }) {
                                 {[
                                     'Name',
                                     'Login account',
-                                    'Role',
                                     'Membership status',
                                     'Account status',
                                     'Created',
@@ -214,7 +178,6 @@ export default function Administrators({ team }: { team: Team }) {
                                 <TableRow key={member.id}>
                                     <TableCell>{member.name}</TableCell>
                                     <TableCell>{member.email}</TableCell>
-                                    <TableCell>{t(member.role)}</TableCell>
                                     <TableCell>{t(member.status)}</TableCell>
                                     <TableCell>{t(member.accountStatus)}</TableCell>
                                     <TableCell>{dateTime(member.createdAt)}</TableCell>

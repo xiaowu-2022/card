@@ -1,9 +1,8 @@
-import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
 import { Head, useForm } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { AdminAuthLayout } from '@/layouts/AdminAuthLayout';
-import { AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/form-field';
@@ -32,11 +31,11 @@ export default function Login() {
                         <CardContent>
                             <form className="space-y-5" onSubmit={submit}>
                                 {form.errors.email && (
-                                    <OperationFeedback className="border-red-200 bg-red-50 text-danger">
+                                    <Alert className="border-red-200 bg-red-50 text-danger">
                                         <AlertDescription>
                                             {errorMessage(form.errors.email)}
                                         </AlertDescription>
-                                    </OperationFeedback>
+                                    </Alert>
                                 )}
                                 <FormField
                                     id="platform-email"
