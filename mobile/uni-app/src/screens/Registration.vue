@@ -110,7 +110,7 @@ async function submit() {
                     ><FormField
                         v-model="form.destination"
                         :label="t('Email address')"
-                        :disabled="action.pending.value" /><FormField
+                        :disabled="action.pending.value || action.registrationCreated.value" /><FormField
                         v-model="form.invitation_code"
                         :label="t('Invitation code')"
                         :maxlength="6"
@@ -141,7 +141,7 @@ async function submit() {
                     type="number"
                     digits-only
                     :maxlength="6"
-                /><button class="auth-button" form-type="submit" :disabled="action.pending.value">
+                /><button class="auth-button" form-type="submit" :disabled="action.pending.value || action.registrationCreated.value">
                     {{
                         t(
                             !page.challenge
@@ -153,7 +153,8 @@ async function submit() {
                     }}
                 </button>
             </form>
-            <button v-if="page.challenge" class="text-button" @click="go('/register', true)">
+            <button v-if="action.registrationCreated.value" class="text-button" @click="go('/login', true)">{{ t('Sign in') }}</button>
+            <button v-else-if="page.challenge" class="text-button" @click="go('/register', true)">
                 {{ t('Request another code') }}</button
             ><view v-else class="auth-footer"
                 ><text>{{ t('Already registered?') }} </text

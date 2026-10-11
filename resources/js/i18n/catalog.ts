@@ -15,6 +15,20 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    "The app could not finish processing the response. Refresh or sign in again. [CLIENT_RESPONSE_ERROR]": ["客户端处理响应失败，请刷新页面或重新登录。[CLIENT_RESPONSE_ERROR]", "Aplikasi gagal memproses respons. Muat semula atau log masuk semula. [CLIENT_RESPONSE_ERROR]", "La aplicación no pudo procesar la respuesta. Actualiza o inicia sesión otra vez. [CLIENT_RESPONSE_ERROR]"],
+    "The request timed out. Its result is unknown; check your account status before retrying.": ["请求超时，结果尚未确认。请先检查账户状态，再决定是否重试。", "Permintaan tamat masa. Semak status akaun sebelum mencuba lagi.", "La solicitud agotó el tiempo. Comprueba el estado de la cuenta antes de reintentar."],
+    "Cannot connect to the server. Check your network connection.": ["无法连接服务器，请检查网络连接。", "Tidak dapat menyambung ke pelayan. Semak rangkaian anda.", "No se puede conectar al servidor. Comprueba tu conexión."],
+    "Cannot resolve the company service address. Try again later.": ["无法获取公司服务地址，请稍后重试。", "Tidak dapat mendapatkan alamat perkhidmatan syarikat. Cuba lagi nanti.", "No se pudo obtener la dirección del servicio de la empresa. Inténtalo más tarde."],
+    "This operation is not permitted for your account or company.": ["当前账户或公司无权执行此操作。", "Operasi ini tidak dibenarkan untuk akaun atau syarikat anda.", "Esta operación no está permitida para tu cuenta o empresa."],
+    "The requested service or record was not found. Refresh and try again.": ["请求的服务或记录不存在，请刷新后重试。", "Perkhidmatan atau rekod tidak ditemui. Muat semula dan cuba lagi.", "No se encontró el servicio o registro. Actualiza e inténtalo de nuevo."],
+    "The server is temporarily unavailable. Try again later.": ["服务器暂时不可用，请稍后重试。", "Pelayan tidak tersedia buat sementara. Cuba lagi nanti.", "El servidor no está disponible temporalmente. Inténtalo más tarde."],
+    "The server could not process this request. Contact support with the reference below.": ["服务器处理请求失败，请将下方请求编号提供给客服排查。", "Pelayan gagal memproses permintaan. Hubungi sokongan dengan rujukan di bawah.", "El servidor no pudo procesar la solicitud. Contacta con soporte con la referencia siguiente."],
+    "Some submitted information is invalid. Check the fields and try again.": ["提交的信息不符合要求，请检查填写内容后重试。", "Maklumat yang dihantar tidak sah. Semak medan dan cuba lagi.", "Algunos datos enviados no son válidos. Revisa los campos."],
+    "The server returned an unexpected response. Contact support with the reference below.": ["服务器返回异常响应，请将下方请求编号提供给客服排查。", "Pelayan memberikan respons tidak dijangka. Hubungi sokongan dengan rujukan di bawah.", "El servidor devolvió una respuesta inesperada. Contacta con soporte con la referencia siguiente."],
+    "Request reference: {{reference}}": ["请求编号：{{reference}}", "Rujukan permintaan: {{reference}}", "Referencia de solicitud: {{reference}}"],
+    "Account creation was not confirmed.": ["账户创建结果尚未确认。", "Penciptaan akaun belum disahkan.", "La creación de la cuenta aún no está confirmada."],
+    "Your account was created, but sign-in setup failed. Go to sign in; do not create the account again.": ["账户已创建，但登录状态初始化失败。请前往登录，不要重复创建账户。", "Akaun telah dicipta tetapi persediaan log masuk gagal. Pergi ke log masuk; jangan cipta akaun lagi.", "Tu cuenta se creó, pero falló la configuración de sesión. Ve a iniciar sesión; no vuelvas a crear la cuenta."],
+
     'Please contact support.': ['请联系客服', 'Sila hubungi sokongan.', 'Contacta con soporte.'],
     "Poster saved to your photo library.": ["海报已保存到系统相册。", "Poster telah disimpan ke pustaka foto anda.", "El cartel se ha guardado en tu galería."],
     'Tap Save image, then choose Save Image in the system menu, or press and hold the poster.': ['点击“保存图片”，再在系统菜单中选择“存储图像”，也可长按海报保存。', 'Ketik Simpan imej, kemudian pilih Simpan Imej dalam menu sistem, atau tekan lama poster.', 'Toca Guardar imagen y elige Guardar imagen en el menú del sistema, o mantén pulsado el cartel.'],

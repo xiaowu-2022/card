@@ -46,9 +46,10 @@ export class ApiError extends Error {
     constructor(
         public status: number,
         public payload?: {
-            error?: { code?: string; message?: string };
+            error?: { code?: string; message?: string; request_id?: string };
             errors?: Record<string, string[]>;
         },
+        public requestId?: string,
     ) {
         super('Request failed');
     }
@@ -65,7 +66,7 @@ async function uploadStep<T>(stage: UploadStage, field: string | null, run: () =
 }
 function transportError(error?: { errMsg?: string }) {
     return new ApiError(0, /timeout/i.test(error?.errMsg ?? '')
-        ? { error: { code: 'CLIENT_REQUEST_TIMEOUT' } } : undefined);
+        ? { error: { code: 'CLIENT_REQUEST_TIMEOUT' } } : { error: { code: 'CLIENT_NETWORK_UNAVAILABLE' } });
 }
 // Only same-origin API upload responses are parsed. Raw storage/provider bodies
 // remain private; presentation still uses the consumer translation allowlist.
@@ -116,7 +117,11 @@ export async function request<T>(
         setCsrf(fresh.csrfToken);
     }
     await ensureCompanyOrigin().catch(() => {
-        throw new ApiError(0);
+        throw new ApiError(0, { error: { code: 'CLIENT_ORIGIN_UNAVAILABLE' } });
+    });
+    const reference = globalThis.crypto?.randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const value = Math.floor(Math.random() * 16);
+        return (c === 'x' ? value : (value & 3) | 8).toString(16);
     });
     const generation = sessionGeneration;
     const send = () => new Promise<T>((resolve, reject) =>
@@ -124,7 +129,7 @@ export async function request<T>(
             url: url(path),
             method,
             data,
-            header: headers(),
+            header: { ...headers(), 'X-Request-ID': reference },
             withCredentials: !native,
             timeout: ['/client/kyc/applications', '/client/kyc/recognize-front'].includes(path.split('?')[0]) ? 300000
                 : path.split('?')[0] === '/client/cards/cardholder' ? 180000
@@ -135,7 +140,8 @@ export async function request<T>(
                 if (response.statusCode >= 200 && response.statusCode < 300)
                     resolve(response.data as T);
                 else
-                    reject(new ApiError(response.statusCode, response.data as ApiError['payload']));
+                    reject(new ApiError(response.statusCode, response.data as ApiError['payload'],
+                        String(Object.entries(response.header ?? {}).find(([key]) => key.toLowerCase() === 'x-request-id')?.[1] ?? reference)));
             },
             fail(error) {
                 reject(transportError(error));

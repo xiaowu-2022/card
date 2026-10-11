@@ -6,6 +6,7 @@ import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 
 function harness() {
+    const state = { calls: 0, refreshFailure: false };
     const cache = new Map();
     class ApiError extends Error {
         constructor(status, payload) { super(); this.status = status; this.payload = payload; }
@@ -21,9 +22,10 @@ function harness() {
         runInNewContext(source, {
             exports,
             require: id => {
-                if (id === 'vue') return { ref: value => ({ value }) };
-                if (id === './api') return { ApiError };
-                if (id === './session' || id === './navigation') return {};
+                if (id === 'vue') return { ref: value => ({ value }), onScopeDispose: () => {} };
+                if (id === './api') return { ApiError, native: false, request: async () => { state.calls++; return { redirect: '/dashboard' }; } };
+                if (id === './session') return { bootstrap: async () => { if (state.refreshFailure) throw new ApiError(503); } };
+                if (id === './navigation') return { go: () => {} };
                 return load(resolve(dirname(path), id + '.ts'));
             },
         });
@@ -31,7 +33,7 @@ function harness() {
     }
     const i18n = load('mobile/uni-app/src/lib/i18n.ts');
     i18n.locale.value = 'zh-CN';
-    return { i18n, ApiError, explainError: load('mobile/uni-app/src/lib/client.ts').explainError };
+    return { i18n, ApiError, state, client: load('mobile/uni-app/src/lib/client.ts'), explainError: load('mobile/uni-app/src/lib/client.ts').explainError };
 }
 
 test('exchange balance errors display the accurate Chinese message through the real client catalog', () => {
@@ -85,4 +87,31 @@ test('operation restrictions display contact support in every consumer language'
         i18n.locale.value = locale;
         assert.equal(explainError(new ApiError(403, { error: { code: 'USER_OPERATION_RESTRICTED', message: 'Please contact support.' } })).form, text);
     }
+});
+
+
+test('diagnostics distinguish timeout, network and server failures without exposing internals', () => {
+    const { ApiError, explainError } = harness();
+    assert.match(explainError(new ApiError(0, { error: { code: 'CLIENT_REQUEST_TIMEOUT' } }), true).form, /请求超时.*结果尚未确认/);
+    assert.match(explainError(new ApiError(0), true).form, /无法连接服务器/);
+    const reference = '12345678-1234-4234-8234-123456789012';
+    const result = explainError(new ApiError(500, { error: { message: 'SQLSTATE secret password', request_id: reference } }), true);
+    assert.match(result.form, /服务器处理请求失败/);
+    assert.match(result.form, /HTTP 500/);
+    assert.ok(result.form.includes(reference));
+    assert.ok(!result.form.includes('SQLSTATE'));
+    assert.ok(!explainError(new ApiError(500, { error: { code: 'secret text', request_id: 'secret text' } }), true).form.includes('secret text'));
+    assert.match(explainError(new ApiError(422, { errors: { password: ['The password field confirmation does not match.'] } }), true).password, /两次输入不一致/);
+});
+
+test('confirmed registration followed by bootstrap failure directs sign-in and blocks duplicate creation', async () => {
+    const { state, client } = harness();
+    state.refreshFailure = true;
+    const action = client.useAction();
+    await action.submit('/register/challenges/12345678-1234-4234-8234-123456789012/complete', {});
+    assert.equal(action.registrationCreated.value, true);
+    assert.match(action.errors.value.form, /账户已创建.*登录状态初始化失败/);
+    assert.match(action.errors.value.form, /HTTP 503/);
+    await action.submit('/register/challenges/12345678-1234-4234-8234-123456789012/complete', {});
+    assert.equal(state.calls, 1);
 });

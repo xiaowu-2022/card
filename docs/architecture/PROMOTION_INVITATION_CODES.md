@@ -96,3 +96,14 @@ backend and admin assets, in a maintenance window to keep old registration code
 from racing changes during rollout. Rebuild the uni-app H5/App resources for the
 open-form recovery change. Do not exercise changes against real customers as a
 deployment test. Validate in isolated card_ui_test and offline browser fixtures.
+
+### 2026-10-11 reservation insertion ordering
+
+Migration `2026_10_11_210000_reserve_invitation_codes_after_insert` keeps allocation
+in the existing BEFORE INSERT trigger and inserts permanent reservations in an
+AFTER INSERT trigger on both member and company invitation tables. The referenced
+identity therefore exists even with immediate foreign key checks. The counter lock,
+reserved-code skipping and reservation remain in the same transaction; any failure
+rolls back all three. Existing codes, reservations and financial history are unchanged.
+Deploy with `php artisan migrate --force`; no production registration test or
+provider request is needed. Rollback requires a forward migration.
