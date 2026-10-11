@@ -718,15 +718,6 @@ export default function UserManagement({
                                       render: (row: PlatformUser) => (
                                           <div className="flex items-center gap-2 whitespace-nowrap">
                                               <UserInfoCell user={row} action />
-                                              {canCleanup && (
-                                                  <Button
-                                                      variant="secondary"
-                                                      size="sm"
-                                                      onClick={() => setCleanup({ user: row })}
-                                                  >
-                                                      {t('Cleanup data')}
-                                                  </Button>
-                                              )}
                                               <Button
                                                   variant="secondary"
                                                   size="sm"
