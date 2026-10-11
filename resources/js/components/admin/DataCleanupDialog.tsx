@@ -124,6 +124,7 @@ export function DataCleanupDialog({
     const [requestId, setRequestId] = useState(() => crypto.randomUUID());
     const url = `/platform/tenants/${company}/data-cleanup`;
     useEffect(() => {
+        if (initialUser) return;
         let active = true;
         const timer = setTimeout(() => {
             if (company)
@@ -141,7 +142,7 @@ export function DataCleanupDialog({
             active = false;
             clearTimeout(timer);
         };
-    }, [company, search, url]);
+    }, [company, search, url, initialUser]);
     return (
         <Dialog
             open
@@ -174,7 +175,7 @@ export function DataCleanupDialog({
                                 <span>{t('Company')}</span>
                                 <select
                                     className="h-9 w-full rounded-md border px-3"
-                                    disabled={busy}
+                                    disabled={busy || Boolean(initialUser)}
                                     value={company}
                                     onChange={(e) => {
                                         setCompany(e.target.value);
@@ -189,40 +190,48 @@ export function DataCleanupDialog({
                                     ))}
                                 </select>
                             </label>
-                            <Input
-                                aria-label={t('Search accounts')}
-                                placeholder={t('Account ID or email')}
-                                value={search}
-                                disabled={busy}
-                                onChange={(e) => setSearch(e.target.value)}
-                            />
-                            <div className="max-h-48 overflow-y-auto rounded-md border p-3">
-                                {accounts.map((account) => (
-                                    <label
-                                        key={account.id}
-                                        className="flex items-center gap-2 py-1.5 text-sm"
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            disabled={busy}
-                                            checked={selected.some((u) => u.id === account.id)}
-                                            onChange={(e) =>
-                                                setSelected(
-                                                    e.target.checked
-                                                        ? [...selected, account]
-                                                        : selected.filter(
-                                                              (u) => u.id !== account.id,
-                                                          ),
-                                                )
-                                            }
-                                        />
-                                        {account.accountId} · {account.displayName || '—'}
-                                    </label>
-                                ))}
-                            </div>
+                            {!initialUser && (
+                                <>
+                                    <Input
+                                        aria-label={t('Search accounts')}
+                                        placeholder={t('Account ID or email')}
+                                        value={search}
+                                        disabled={busy}
+                                        onChange={(e) => setSearch(e.target.value)}
+                                    />
+                                    <div className="max-h-48 overflow-y-auto rounded-md border p-3">
+                                        {accounts.map((account) => (
+                                            <label
+                                                key={account.id}
+                                                className="flex items-center gap-2 py-1.5 text-sm"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    disabled={busy}
+                                                    checked={selected.some(
+                                                        (u) => u.id === account.id,
+                                                    )}
+                                                    onChange={(e) =>
+                                                        setSelected(
+                                                            e.target.checked
+                                                                ? [...selected, account]
+                                                                : selected.filter(
+                                                                      (u) => u.id !== account.id,
+                                                                  ),
+                                                        )
+                                                    }
+                                                />
+                                                {account.accountId} · {account.displayName || '—'}
+                                            </label>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                             <p className="text-sm">
                                 {t('Selected accounts')}:{' '}
-                                {selected.map((u) => u.accountId).join('、') || '—'}
+                                {selected
+                                    .map((u) => `${u.accountId} · ${u.displayName || '—'}`)
+                                    .join('、') || '—'}
                             </p>
                             <div className="flex flex-wrap gap-4">
                                 {Object.entries(modules).map(([key, label]) => (
