@@ -5,10 +5,11 @@ import ts from 'typescript';
 let source = readFileSync('mobile/uni-app/src/lib/support-reminder.ts', 'utf8')
     .replace(/import .*?;\n/, '')
     .replace(/\/\/ #ifdef APP-PLUS[\s\S]*?\/\/ #endif/g, '');
-let now = 100000, plays = 0;
+let now = 100000, plays = 0, player;
 const events = {};
 class Audio {
     paused = true;
+    constructor() { player = this; }
     play() { plays++; this.paused = false; return Promise.resolve(); }
     pause() { this.paused = true; }
 }
@@ -38,3 +39,17 @@ events.pointerdown();
 now += 60000;
 assert.equal(plays, 3, 'revoked agents stop playback');
 console.log('Support voice reminder timing checks passed');
+
+reminder.remindSupportUnread(2, true);
+const beforeNewMessage = plays;
+player.paused = true;
+now += 5000;
+reminder.remindSupportUnread(3, true);
+assert.equal(plays, beforeNewMessage + 1, 'new messages bypass minute delay');
+player.paused = true;
+now += 5000;
+reminder.remindSupportUnread(3, true);
+assert.equal(plays, beforeNewMessage + 1, 'unchanged unread waits a minute');
+now += 55000;
+reminder.remindSupportUnread(3, true);
+assert.equal(plays, beforeNewMessage + 2, 'unread repeats a minute after new message alert');

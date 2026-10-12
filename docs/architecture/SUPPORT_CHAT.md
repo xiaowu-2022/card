@@ -348,7 +348,8 @@ The header still counts unhandled messages; reading alone does not count as repl
 Logged-in consumer agents receive a global foreground voice reminder for their own
 unread customer messages. Fresh /unread counters revalidate active assignment; ordinary
 users and revoked agents receive agentSupport=0. The bundled Chinese AAC prompt plays
-at most once per minute, stops on logout/read/background, and resumes after fresh
+as soon as a fresh counter increases, then once per minute while unread remains.
+Global foreground counters poll every five seconds. Playback stops on logout/read/background and resumes after fresh
 foreground counters. H5 requires a user gesture to unlock audio; background/closed-tab
 and device-muted playback are not guaranteed. No OS push permission or external TTS
 service is used. Header pending counts remain separate from unread reminders.
@@ -398,7 +399,9 @@ foreign conversations and future sequences. GET never marks a conversation read.
 
 The administration layout polls fresh counters every five seconds while visible.
 It uses the same local support-unread.m4a recording as the frontend, published under
-public/audio. A browser interaction enables playback, limited to once per minute.
+public/audio. A browser interaction enables playback. A fresh unread-count increase triggers an
+immediate reminder without waiting for the minute interval; unchanged unread counts
+repeat once per minute after the last reminder.
 Backgrounding, read acknowledgement, logout, access loss and failed/stale counter
 reads stop or suppress reminders. No speech service or external notification request
 is used. Deploy the administrator-cursor migration, PHP, audio asset and rebuilt

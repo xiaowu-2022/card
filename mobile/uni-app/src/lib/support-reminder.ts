@@ -4,6 +4,7 @@ import { staticAsset } from './origin';
 // may trigger it; stale offline data never schedules speech by itself.
 let count = 0,
     lastSpoken = 0,
+    pendingNewMessage = false,
     active = true,
     authorized = false;
 let nativeAudio: ReturnType<typeof uni.createInnerAudioContext> | undefined;
@@ -44,18 +45,22 @@ document.addEventListener('keydown', unlock);
 // #endif
 export function remindSupportUnread(value: number, isAgent: boolean) {
     authorized = isAgent === true;
-    count = authorized ? value : 0;
+    const nextCount = authorized ? value : 0;
+    if (nextCount > count) pendingNewMessage = true;
+    count = nextCount;
     if (!count) {
         resetSupportReminder();
         return;
     }
-    if (!active || Date.now() - lastSpoken < 60000) return;
+    if (!active || (!pendingNewMessage && lastSpoken !== 0 && Date.now() - lastSpoken < 60000))
+        return;
     // #ifdef H5
     if (document.hidden || !unlocked) return;
     const player = webAudio();
     if (!player.paused) return;
     player.muted = false;
     player.currentTime = 0;
+    pendingNewMessage = false;
     lastSpoken = Date.now();
     void player.play().catch(() => {
         unlocked = false;
@@ -69,6 +74,7 @@ export function remindSupportUnread(value: number, isAgent: boolean) {
             /* A device may prohibit audio playback. */
         });
     }
+    pendingNewMessage = false;
     lastSpoken = Date.now();
     nativeAudio.play();
     // #endif
@@ -87,6 +93,7 @@ export function resetSupportReminder() {
     authorized = false;
     count = 0;
     lastSpoken = 0;
+    pendingNewMessage = false;
     // #ifdef H5
     audio?.pause();
     // #endif

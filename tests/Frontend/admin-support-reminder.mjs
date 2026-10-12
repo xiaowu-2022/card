@@ -13,9 +13,10 @@ function harness() {
     document.hidden = false;
     const window = new EventTarget();
     const timers = new Set();
-    let effect, count = 2, fail = false, now = 100000, plays = 0, pauses = 0, visibleCount = 0;
+    let effect, count = 2, fail = false, now = 100000, plays = 0, pauses = 0, visibleCount = 0, player;
     class Audio {
         paused = true;
+        constructor() { player = this; }
         play() { plays++; this.paused = false; return Promise.resolve(); }
         pause() { pauses++; this.paused = true; }
     }
@@ -38,6 +39,7 @@ function harness() {
     exports.AdminSupportReminder({ children: null, platform: true });
     const cleanup = effect();
     return { document, window, cleanup, tick: async () => { for (const fn of timers) fn(); await flush(); },
+        finish: () => { player.paused = true; },
         read: () => window.dispatchEvent(new Event('admin-support-read')),
         unlock: () => document.dispatchEvent(new Event('pointerdown')),
         get plays() { return plays; }, get pauses() { return pauses; }, get visibleCount() { return visibleCount; },
@@ -95,4 +97,23 @@ test('failed counters, background and disposal suppress audio and clear unread s
     await h.tick();
     assert.equal(h.plays, 1);
     assert.equal(h.pauses, pauses);
+});
+
+ test('new customer messages bypass the minute delay, unchanged unread repeats after a minute', async () => {
+    const h = harness();
+    await flush();
+    h.unlock();
+    h.finish();
+    h.now = 105000;
+    h.count = 3;
+    await h.tick();
+    assert.equal(h.plays, 2);
+    h.finish();
+    h.now = 110000;
+    await h.tick();
+    assert.equal(h.plays, 2);
+    h.now = 165000;
+    await h.tick();
+    assert.equal(h.plays, 3);
+    h.cleanup();
 });

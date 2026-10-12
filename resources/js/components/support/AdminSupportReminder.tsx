@@ -37,6 +37,7 @@ export function AdminSupportReminder({
         let freshCount = 0,
             lastFresh = 0,
             lastSpoken = 0,
+            pendingNewMessage = false,
             unlocked = false,
             busy = false,
             stopped = false,
@@ -48,10 +49,11 @@ export function AdminSupportReminder({
                 !unlocked ||
                 freshCount < 1 ||
                 Date.now() - lastFresh > 15000 ||
-                Date.now() - lastSpoken < 60000 ||
+                (!pendingNewMessage && lastSpoken !== 0 && Date.now() - lastSpoken < 60000) ||
                 !audio.paused
             )
                 return;
+            pendingNewMessage = false;
             lastSpoken = Date.now();
             audio.currentTime = 0;
             void audio.play().catch(() => {
@@ -76,16 +78,19 @@ export function AdminSupportReminder({
                 const data = (await response.json()) as { count: number };
                 if (!Number.isSafeInteger(data.count) || data.count < 0) throw new Error();
                 if (stopped || revision !== readRevision) return;
+                if (data.count > freshCount) pendingNewMessage = true;
                 freshCount = data.count;
                 lastFresh = Date.now();
                 setCount(freshCount);
                 if (!freshCount) {
                     audio.pause();
                     lastSpoken = 0;
+                    pendingNewMessage = false;
                 }
                 remind();
             } catch {
                 freshCount = 0;
+                pendingNewMessage = false;
                 audio.pause();
                 if (!stopped) setCount(0);
             } finally {

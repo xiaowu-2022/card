@@ -19,7 +19,7 @@ function resume() {
     void refreshUnread().catch(() => {
         /* Existing request error UI handles offline state. */
     });
-    timer = setInterval(() => void refreshUnread(), 30000);
+    timer = setInterval(() => void refreshUnread(), 5000);
 }
 onShow(resume);
 onHide(pause);
