@@ -1,3 +1,7 @@
+import {
+    AdminSupportReminder,
+    SupportUnreadBadge,
+} from '@/components/support/AdminSupportReminder';
 import { useEditor, usePage } from '@/components/admin/editor-context';
 import { useAdminTranslation, t } from '@/i18n/admin';
 import { useLocaleSync } from '@/i18n/useLocaleSync';
@@ -106,12 +110,13 @@ const AdminNav = ({ permissions }: { permissions: string[] }) => (
                 >
                     <item.icon className="size-4" />
                     {t(item.label)}
+                    {item.href === '/admin/support' && <SupportUnreadBadge />}
                 </Link>
             ))}
     </nav>
 );
 
-export function TenantAdminLayout({ children }: { children: ReactNode }) {
+function TenantAdminLayoutContent({ children }: { children: ReactNode }) {
     useLocaleSync();
     useAdminTranslation();
     const { tenant, auth, flash } = usePage<SharedProps>().props;
@@ -172,5 +177,13 @@ export function TenantAdminLayout({ children }: { children: ReactNode }) {
                 {children}
             </main>
         </div>
+    );
+}
+
+export function TenantAdminLayout(props: { children: ReactNode }) {
+    return (
+        <AdminSupportReminder platform={false}>
+            <TenantAdminLayoutContent {...props} />
+        </AdminSupportReminder>
     );
 }

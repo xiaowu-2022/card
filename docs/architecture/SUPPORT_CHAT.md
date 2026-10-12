@@ -380,3 +380,27 @@ The workspace header now uses the current agent's company-wide unreadMessageCoun
 matching /unread.agentSupport and row read cursors. Reading messages reduces it and
 zero hides the badge. This supersedes the earlier header unhandled-message count;
 pendingMessageCount remains a separate backward-compatible API field only.
+
+## Administrator unread reminders (2026-10-12)
+
+Platform and company administration now show customer-message unread badges on the
+support menu and inbox rows. Each administrator has an independent monotonic cursor
+in support_admin_reads, scoped by company and conversation. No historical cursor
+backfill is performed; customer messages not yet acknowledged by that administrator
+remain unread. Customer and consumer-agent cursors, awaiting-reply state, conversation
+timestamps and immutable messages remain unchanged.
+
+Authorized GET /platform/support/unread and /admin/support/unread return private,
+no-store counts across the administrator's full authorized scope, independent of
+inbox filters/pagination. Visible delivered threads POST through to their existing
+conversation URL plus /read; scoped authorization and a conversation lock reject
+foreign conversations and future sequences. GET never marks a conversation read.
+
+The administration layout polls fresh counters every five seconds while visible.
+It uses the same local support-unread.m4a recording as the frontend, published under
+public/audio. A browser interaction enables playback, limited to once per minute.
+Backgrounding, read acknowledgement, logout, access loss and failed/stale counter
+reads stop or suppress reminders. No speech service or external notification request
+is used. Deploy the administrator-cursor migration, PHP, audio asset and rebuilt
+public/build together. Validate only offline isolated fixtures; never send live
+customer test messages or execute production financial tests.

@@ -2145,6 +2145,10 @@ export const adminCatalog: Record<string, string> = {
     'Open admin navigation': '打开公司后台导航',
     'Open platform navigation': '打开 SaaS 后台导航',
     'Open the Tenant-scoped user directory.': '查看本公司范围内的用户目录。',
+    'User level': '用户等级',
+    'U-card funding': 'U卡充值',
+    'Consumption amount': '消费金额',
+    'Card wallet balance': '卡包余额',
     'Opening fee': '开卡费',
     'Opening fee (USDT)': '开卡费（USDT）',
     'Opening fee changes future pricing only. No user is charged and no Wallet or Ledger entry is changed here.':

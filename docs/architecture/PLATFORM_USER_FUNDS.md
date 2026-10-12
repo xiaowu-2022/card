@@ -110,3 +110,18 @@ inclusive UTC+8 dates are database filters. Exact 25-entry numbered pagination r
 filters and deterministic posted_at/id ordering. GET never provisions wallets, repairs
 history, calls providers, or mutates financial data. Card-provider transaction history
 remains separate. Deploy matching PHP/admin assets; no schema migration or H5 rebuild.
+
+## Platform card list layout (2026-10-12)
+
+Cards management defaults to the Cards tab; explicit Orders/Loads tab links remain
+supported. Its leading columns are company/user, user level, direct referrer,
+U-card funding, opening fee, estimated consumption and card wallet balance.
+Product/card identity, status and existing actions remain available afterward.
+Ranks and same-company direct inviters reuse PlatformUserListIdentity. Funding and
+consumption reuse PlatformUserCardsSummary for current-page card IDs, including
+archived cards when present in the existing list. Opening fees use each card's
+same-company/user successful issue order and retain its native wallet currency.
+Card wallet balance includes saved provider balance and local overflow; unknown
+balances and estimated consumption remain unavailable, and negatives are retained.
+All list projections share a read-only repeatable-read snapshot; no provider calls,
+wallet provisioning, migration or financial mutations occur on entry/pagination.

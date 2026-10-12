@@ -49,6 +49,13 @@ type Order = {
     status: string;
 };
 type UserCard = {
+    promotionRank?: number;
+    ordinaryMember?: boolean;
+    directReferrer?: { accountId: string; displayName: string | null } | null;
+    funded: string | null;
+    consumed: string | null;
+    openingFee: string | null;
+    openingFeeAsset: string | null;
     userInfo?: UserInfo;
     userId?: string;
     id: string;
@@ -97,7 +104,7 @@ export default function Cards({
     useAdminTranslation();
     const canManage =
         usePage<SharedProps>().props.auth.admin?.permissions.includes('card_product.manage');
-    const tab = filters.tab ?? 'orders';
+    const tab = filters.tab ?? 'cards';
     const [selected, setSelected] = useState<Record<string, UserCard>>({});
     const [syncScope, setSyncScope] = useState<SyncScope | null>(null);
     const [syncOpen, setSyncOpen] = useState(false);
@@ -347,6 +354,71 @@ export default function Cards({
                                     render: (row) => <RecordUserCell row={row} />,
                                 },
                                 {
+                                    label: 'User level',
+                                    render: (row) =>
+                                        row.promotionRank
+                                            ? t('Mastercard level {{rank}}', {
+                                                  rank: row.promotionRank,
+                                              })
+                                            : t(
+                                                  row.ordinaryMember
+                                                      ? 'Ordinary member'
+                                                      : 'Registered member',
+                                              ),
+                                },
+                                {
+                                    label: 'Direct referrer',
+                                    render: (row) =>
+                                        row.directReferrer ? (
+                                            <div>
+                                                {row.directReferrer.displayName || '—'}
+                                                <div className="text-xs text-muted-foreground">
+                                                    {row.directReferrer.accountId}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            '—'
+                                        ),
+                                },
+                                {
+                                    label: 'U-card funding',
+                                    render: (row) =>
+                                        row.funded === null
+                                            ? t('Not available')
+                                            : `${displayMoney(row.funded)} USDT`,
+                                },
+                                {
+                                    label: 'Opening fee',
+                                    render: (row) =>
+                                        row.openingFee === null
+                                            ? t('Not available')
+                                            : `${displayMoney(row.openingFee)} ${adminAssetLabel(row.openingFeeAsset ?? 'USDT')}`,
+                                },
+                                {
+                                    label: 'Consumption amount',
+                                    render: (row) =>
+                                        row.consumed === null
+                                            ? t('Not available')
+                                            : `${displayMoney(row.consumed)} USDT`,
+                                },
+                                {
+                                    label: 'Card wallet balance',
+                                    render: (row) => (
+                                        <div className="whitespace-nowrap">
+                                            <div className="font-medium tabular-nums">
+                                                {row.balance === null
+                                                    ? t('Not available')
+                                                    : `${displayMoney(row.balance)} ${adminAssetLabel(row.currency)}`}
+                                            </div>
+                                            <div className="text-xs text-muted-foreground">
+                                                {row.balanceUpdatedAt
+                                                    ? dateTime(row.balanceUpdatedAt)
+                                                    : t('Not yet synced')}
+                                            </div>
+                                        </div>
+                                    ),
+                                },
+                                {
                                     label: 'Product / Card',
                                     render: (row) => (
                                         <div className="max-w-52 space-y-1">
@@ -385,41 +457,6 @@ export default function Cards({
                                             )}
                                         </div>
                                     ),
-                                },
-                                {
-                                    label: 'Current balance',
-                                    render: (row) => (
-                                        <div className="whitespace-nowrap">
-                                            <div className="font-medium tabular-nums">
-                                                {row.balance === null
-                                                    ? t('Not available')
-                                                    : `${displayMoney(row.balance)} ${adminAssetLabel(row.currency)}`}
-                                            </div>
-                                            <div className="text-xs text-muted-foreground">
-                                                {row.balanceUpdatedAt
-                                                    ? dateTime(row.balanceUpdatedAt)
-                                                    : t('Not yet synced')}
-                                            </div>
-                                        </div>
-                                    ),
-                                },
-                                {
-                                    label: 'Overflow balance',
-                                    render: (row) => `${displayMoney(row.overflowBalance)} USD`,
-                                },
-                                {
-                                    label: 'Provider balance',
-                                    render: (row) =>
-                                        row.providerBalance === null
-                                            ? t('Not available')
-                                            : `${displayMoney(row.providerBalance)} USD`,
-                                },
-                                {
-                                    label: 'Balance limit',
-                                    render: (row) =>
-                                        row.effectiveBalanceLimit === null
-                                            ? t('No limit')
-                                            : `${displayMoney(row.effectiveBalanceLimit)} USD`,
                                 },
                                 {
                                     label: 'Status',

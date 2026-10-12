@@ -20,6 +20,19 @@ use Symfony\Component\HttpFoundation\Response;
 
 final class SupportController extends Controller
 {
+    public function unread(Request $r, TenantContext $context, \App\Application\Support\SupportAdminUnread $unread)
+    {
+        return response()->json(['count' => $unread->count($r->user('tenant_admin')->id, $context->id())])->header('Cache-Control', 'private, no-store');
+    }
+
+    public function read(Request $r, TenantContext $context, string $conversation, \App\Application\Support\SupportAdminUnread $unread)
+    {
+        $data = $r->validate(['through' => 'required|integer|min:0|max:2147483647']);
+        $unread->read($r->user('tenant_admin')->id, $context->id(), $conversation, $data['through'], false);
+
+        return response()->noContent();
+    }
+
     public function index(Request $request, TenantContext $context, SupportChatQuery $query): Response
     {
         $request->validate(['page' => ['nullable', 'integer', 'min:1', 'max:100000']]);

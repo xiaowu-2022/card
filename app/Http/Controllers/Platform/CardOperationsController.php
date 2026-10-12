@@ -153,8 +153,17 @@ final class CardOperationsController extends Controller
             'loads_page' => ['sometimes', 'integer', 'min:1'],
         ]);
 
+        $outer = DB::transactionLevel();
+        $pages = DB::transaction(function () use ($query, $filters, $outer) {
+            if ($outer === 0) {
+                DB::statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+            }
+
+            return array_map(PlatformUserSummary::page(...), $query->get($filters['company'] ?? null, $filters['search'] ?? null));
+        });
+
         return Inertia::render('platform/Cards', [
-            ...array_map(PlatformUserSummary::page(...), $query->get($filters['company'] ?? null, $filters['search'] ?? null)),
+            ...$pages,
             'filters' => $filters, 'companies' => $lists->companies(),
             'canVoidCards' => CardVoidPolicy::allowed($request->user('platform_admin')->fresh()),
         ]);

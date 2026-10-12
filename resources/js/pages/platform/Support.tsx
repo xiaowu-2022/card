@@ -1,3 +1,4 @@
+import { SupportUnreadBadge } from '@/components/support/AdminSupportReminder';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 import { adminPageHref } from '@/lib/admin-pagination';
 import { UserInfoCell, type UserInfo } from '@/components/admin/UserInfoCell';
@@ -32,6 +33,7 @@ type Row = {
     accountId: string;
     email: string;
     mode?: 'BOT' | 'WAITING' | 'HUMAN';
+    unreadCount: number;
     awaitingReply: boolean;
     updatedAt: string;
 };
@@ -147,6 +149,7 @@ export default function Support({ inbox, chat, companies, filters, supportName }
                                                 }}
                                             />
                                         </div>
+                                        <SupportUnreadBadge count={row.unreadCount} />
                                         <span className="shrink-0 text-xs text-muted-foreground">
                                             {t(
                                                 row.mode === 'BOT'

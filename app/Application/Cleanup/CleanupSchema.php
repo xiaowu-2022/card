@@ -28,7 +28,7 @@ final class CleanupSchema
         'card_provider_events', 'card_transaction_sync_batches', 'card_transaction_sync_items',
         'wealth_orders', 'wealth_installments',
         'kyc_applications', 'identity_records', 'kyc_processing_retries', 'direct_image_uploads',
-        'inbox_events', 'inbox_receipts', 'support_user_agents', 'support_user_quick_replies', 'support_agent_reads',
+        'inbox_events', 'inbox_receipts', 'support_user_agents', 'support_user_quick_replies', 'support_agent_reads', 'support_admin_reads',
         'support_conversations', 'support_messages', 'support_message_revisions', 'support_message_revision_reads', 'support_transitions',
     ];
 

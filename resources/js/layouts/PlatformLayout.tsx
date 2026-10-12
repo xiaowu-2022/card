@@ -1,3 +1,7 @@
+import {
+    AdminSupportReminder,
+    SupportUnreadBadge,
+} from '@/components/support/AdminSupportReminder';
 import { AdminEditorHost } from '@/components/admin/AdminEditor';
 import { PlatformUiContext } from '@/components/admin/platform-ui-context';
 import { useEditor } from '@/components/admin/editor-context';
@@ -192,6 +196,7 @@ const PlatformNav = () => {
                         >
                             <item.icon className="size-4" />
                             {t(item.label)}
+                            {item.href === '/platform/support' && <SupportUnreadBadge />}
                         </Link>
                     ))}
                 </div>
@@ -206,7 +211,7 @@ export type PlatformLayoutProps = {
     description?: string;
     actions?: ReactNode;
 };
-export function PlatformLayout({ children, title, description, actions }: PlatformLayoutProps) {
+function PlatformLayoutContent({ children, title, description, actions }: PlatformLayoutProps) {
     useLocaleSync();
     useAdminTranslation();
     const { auth } = usePage<SharedProps>().props;
@@ -308,5 +313,13 @@ export function PlatformLayout({ children, title, description, actions }: Platfo
                 </div>
             </AdminEditorHost>
         </PlatformUiContext.Provider>
+    );
+}
+
+export function PlatformLayout(props: PlatformLayoutProps) {
+    return (
+        <AdminSupportReminder platform={true}>
+            <PlatformLayoutContent {...props} />
+        </AdminSupportReminder>
     );
 }

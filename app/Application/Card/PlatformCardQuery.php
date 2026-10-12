@@ -23,7 +23,7 @@ final class PlatformCardQuery
                 ->with('product:id,name,balance_limit')->orderByDesc($table.'.created_at')->orderBy($table.'.id');
         };
 
-        return [
+        $result = [
             'loads' => app(AdminCardLoadsQuery::class)->get($company, $search),
             'orders' => $scope(CardIssueOrder::query(), 'card_issue_orders')->paginate(20, ['*'], 'orders_page')->withQueryString()->through(fn (CardIssueOrder $order): array => [
                 'id' => $order->id, 'tenantId' => $order->tenant_id, 'companyName' => $order->company_name,
@@ -45,5 +45,31 @@ final class PlatformCardQuery
                 'lastTransactionSyncAt' => $card->last_transaction_sync_at ? CarbonImmutable::parse($card->last_transaction_sync_at)->toIso8601String() : null,
             ]),
         ];
+        $actor = request()->user('platform_admin');
+        $allows = fn ($permission) => $actor && app(\App\Domain\Admin\Services\AuthorizationService::class)->allows($actor, \App\Domain\Admin\Enums\ScopeType::Platform, null, $permission);
+        $canSummarize = $allows('users.read') && $allows('wallet.read') && $allows('ledger.read') && $allows('cards.read');
+        $identities = $allows('users.read') ? app(\App\Application\User\PlatformUserListIdentity::class)->forUsers(
+            collect($result['cards']->items())->map(fn ($row) => (object) ['tenant_id' => $row['tenantId'], 'id' => $row['userId']])->unique(fn ($u) => $u->tenant_id.':'.$u->id)->all()
+        ) : [];
+        $summaries = [];
+        $cardIds = collect($result['cards']->items())->pluck('id')->all();
+        $fees = DB::table('card_issue_orders')->where('status', 'SUCCEEDED')
+            ->whereIn('id', DB::table('user_cards')->whereIn('id', collect($result['cards']->items())->pluck('id'))->select('card_issue_order_id'))
+            ->get(['id', 'tenant_id', 'user_id', 'opening_fee', 'wallet_asset'])->keyBy(fn ($i) => $i->tenant_id.':'.$i->user_id.':'.$i->id);
+        $issueIds = DB::table('user_cards')->whereIn('id', collect($result['cards']->items())->pluck('id'))->pluck('card_issue_order_id', 'id');
+        $result['cards']->through(function ($row) use ($identities, &$summaries, $fees, $issueIds, $cardIds, $canSummarize) {
+            $key = $row['tenantId'].':'.$row['userId'];
+            if ($canSummarize && ! isset($summaries[$key])) {
+                $reader = app(\App\Application\User\PlatformUserCardsSummary::class);
+                $summaries[$key] = $reader->query($row['tenantId'], $row['userId'], false)->whereIn('id', $cardIds)->get()->merge($reader->query($row['tenantId'], $row['userId'], true)->whereIn('id', $cardIds)->get())->keyBy('id');
+            }
+            $summary = $canSummarize ? $summaries[$key]->get($row['id']) : null;
+            $fee = $fees->get($key.':'.$issueIds->get($row['id']));
+
+            return [...$row, ...($identities[$key] ?? []), 'funded' => $summary?->funded, 'consumed' => $summary?->consumed,
+                'openingFee' => $fee?->opening_fee, 'openingFeeAsset' => $fee?->wallet_asset];
+        });
+
+        return $result;
     }
 }

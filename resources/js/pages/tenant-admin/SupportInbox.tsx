@@ -1,3 +1,4 @@
+import { SupportUnreadBadge } from '@/components/support/AdminSupportReminder';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 import { SupportProfile } from '@/components/support/SupportProfile';
 import { Head, Link } from '@inertiajs/react';
@@ -16,6 +17,7 @@ type Inbox = {
         id: string;
         accountId: string;
         mode?: 'BOT' | 'WAITING' | 'HUMAN';
+        unreadCount: number;
         awaitingReply: boolean;
         updatedAt: string;
     }[];
@@ -88,6 +90,7 @@ export default function SupportInbox({
                                             : 'Replied',
                                 )}
                             </span>
+                            <SupportUnreadBadge count={item.unreadCount} />
                             <ChevronRight className="size-4 shrink-0" />
                         </Link>
                     ))}

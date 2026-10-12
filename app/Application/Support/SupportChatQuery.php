@@ -38,10 +38,10 @@ final readonly class SupportChatQuery
             ->join('users', function ($join): void {
                 $join->on('users.id', '=', 'support_conversations.user_id')->on('users.tenant_id', '=', 'support_conversations.tenant_id');
             })->orderByDesc('support_conversations.updated_at')->orderBy('support_conversations.id')
-            ->select(['support_conversations.*', 'users.account_id'])->paginate(30, ['*'], 'page', $page);
+            ->select(['support_conversations.*', 'users.account_id'])->selectSub(app(SupportAdminUnread::class)->rowCount($adminId), 'unread_count')->paginate(30, ['*'], 'page', $page);
 
         return ['page' => $page, 'lastPage' => $rows->lastPage(), 'total' => $rows->total(), 'hasMore' => $rows->hasMorePages(), 'items' => $rows->map(fn ($row): array => [
-            'id' => $row->id, 'accountId' => $row->account_id, 'mode' => $row->mode, 'awaitingReply' => $row->mode === 'WAITING' || ($row->mode === 'HUMAN' && $row->last_sender === 'USER'),
+            'unreadCount' => (int) $row->unread_count, 'id' => $row->id, 'accountId' => $row->account_id, 'mode' => $row->mode, 'awaitingReply' => $row->mode === 'WAITING' || ($row->mode === 'HUMAN' && $row->last_sender === 'USER'),
             'updatedAt' => $row->updated_at->toIso8601String(),
         ])->all()];
     }

@@ -20,6 +20,20 @@ use Inertia\Inertia;
 
 final class SupportController extends Controller
 {
+    public function unread(Request $r, \App\Application\Support\SupportAdminUnread $unread)
+    {
+        return response()->json(['count' => $unread->count($r->user('platform_admin')->id)])->header('Cache-Control', 'private, no-store');
+    }
+
+    public function read(Request $r, Tenant $tenant, string $user, \App\Application\Support\SupportAdminUnread $unread)
+    {
+        $data = $r->validate(['through' => 'required|integer|min:0|max:2147483647']);
+        $row = SupportConversation::where('tenant_id', $tenant->id)->where('user_id', $user)->firstOrFail();
+        $unread->read($r->user('platform_admin')->id, $tenant->id, $row->id, $data['through'], true);
+
+        return response()->noContent();
+    }
+
     public function index(Request $r, PlatformListFilters $lists)
     {
         return $this->page($r, $lists);
@@ -49,9 +63,10 @@ final class SupportController extends Controller
             })
             ->when($filters['search'] ?? null, fn ($q, $v) => $q->where(fn ($q) => $q->where('u.account_id', 'like', '%'.addcslashes($v, '%_').'%')->orWhere('u.email', 'ilike', '%'.addcslashes($v, '%_').'%')))
             ->select('support_conversations.*', 'u.account_id', 'u.email', 't.name as company_name')
+            ->selectSub(app(\App\Application\Support\SupportAdminUnread::class)->rowCount($r->user('platform_admin')->id), 'unread_count')
             ->orderByDesc('support_conversations.updated_at')->orderBy('support_conversations.id')->paginate(30)->withQueryString()
             ->through(fn ($o) => ['id' => $o->id, 'tenantId' => $o->tenant_id, 'userId' => $o->user_id, 'company' => $o->company_name, 'accountId' => $o->account_id,
-                'email' => $o->email, 'mode' => $o->mode, 'awaitingReply' => $o->mode === 'WAITING' || ($o->mode === 'HUMAN' && $o->last_sender === 'USER'), 'updatedAt' => $o->updated_at->toIso8601String()]);
+                'unreadCount' => (int) $o->unread_count, 'email' => $o->email, 'mode' => $o->mode, 'awaitingReply' => $o->mode === 'WAITING' || ($o->mode === 'HUMAN' && $o->last_sender === 'USER'), 'updatedAt' => $o->updated_at->toIso8601String()]);
 
         return Inertia::render('platform/Support', ['inbox' => PlatformUserSummary::page($rows), 'chat' => $chat, 'companies' => $lists->companies(), 'filters' => $filters, 'supportName' => $r->user('platform_admin')->support_name])
             ->toResponse($r)->header('Cache-Control', 'private, no-store');

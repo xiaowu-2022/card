@@ -29,6 +29,8 @@ Route::middleware(['tenant.surface:tenant-admin', CompanyConfigurationReadOnly::
         Route::get('/support/replies', [SupportController::class, 'quick']);
         Route::post('/support/profile', [SupportController::class, 'profile'])->middleware('throttle:40,1');
         Route::get('/support/images/{message}', [SupportController::class, 'image'])->whereUuid('message')->name('support.image');
+        Route::get('/support/unread', [SupportController::class, 'unread'])->middleware('throttle:120,1');
+        Route::post('/support/{conversation}/read', [SupportController::class, 'read'])->whereUuid('conversation')->middleware('throttle:240,1');
         Route::get('/support', [SupportController::class, 'index'])->middleware('throttle:120,1')->name('support');
         Route::get('/support/{conversation}', [SupportController::class, 'show'])->whereUuid('conversation')->middleware('throttle:120,1')->name('support.show');
     Route::post('/support/{conversation}/finish', [SupportController::class, 'finish'])->whereUuid('conversation')->middleware('throttle:40,1');

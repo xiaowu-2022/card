@@ -1,3 +1,4 @@
+import { useAdminSupportRead } from './useAdminSupportRead';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { QuickReplyPicker } from './QuickReplyPicker';
 import { supportRequest, SupportRequestError } from './supportRequest';
@@ -81,6 +82,7 @@ export function SupportThread({
         workspace ? 'workspace' : 'chat',
         !form.processing && !transition.processing && !finishing && chat.before === 0,
     );
+    useAdminSupportRead(base, chat.messages.at(-1)?.sequence ?? 0, admin && Boolean(chat.id));
     const lastId = chat.messages.at(-1)?.id;
     useSupportRead(chat.messages.at(-1)?.sequence ?? 0, !admin);
     useEffect(() => {

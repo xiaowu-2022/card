@@ -91,6 +91,8 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
             Route::post('/support/replies', [SupportWorkspaceController::class, 'saveReply'])->middleware('throttle:60,1');
         });
 
+        Route::get('/support/unread', [SupportController::class, 'unread'])->middleware('throttle:120,1');
+        Route::post('/tenants/{tenant}/support/users/{user}/read', [SupportController::class, 'read'])->whereUuid(['tenant', 'user'])->middleware('throttle:240,1');
         Route::get('/support', [SupportController::class, 'index'])->middleware('throttle:120,1');
         Route::get('/tenants/{tenant}/support/users/{user}', [SupportController::class, 'show'])->whereUuid(['tenant', 'user'])->middleware('throttle:120,1');
         Route::get('/tenants/{tenant}/support/images/{message}', [SupportController::class, 'image'])->whereUuid(['tenant', 'message'])->middleware('throttle:240,1');

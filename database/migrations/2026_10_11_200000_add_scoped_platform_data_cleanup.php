@@ -122,7 +122,7 @@ return new class extends Migration
             DB::statement('ALTER TABLE promotion_invitation_reservations DROP CONSTRAINT "'.$check->conname.'"');
         }
         DB::statement('ALTER TABLE promotion_invitation_reservations ADD CHECK ((member_id IS NOT NULL)::integer + (company_invitation_id IS NOT NULL)::integer + (cleanup_member_id IS NOT NULL)::integer = 1)');
-        $tables = CleanupSchema::TABLES;
+        $tables = array_values(array_filter(CleanupSchema::TABLES, fn ($table) => Schema::hasTable($table)));
         $placeholders = implode(',', array_fill(0, count($tables), '?'));
         // Preserve the original checking time. Cleanup may defer cycles without
         // disabling any FK; its exact-row history exception remains transaction bound.
