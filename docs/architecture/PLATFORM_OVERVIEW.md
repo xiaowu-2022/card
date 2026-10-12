@@ -127,3 +127,15 @@ modal shows its read time and aggregate; changes since the initial dashboard loa
 not fabricated as historical balances. Reads never provision, refresh market rates,
 replay payments or mutate financial evidence. Only the approved provider-balance
 merchant reporting exception may contact a provider. No migration or H5 rebuild.
+
+## Actual receipt exclusion (2026-10-12)
+
+Homepage recharge periods and their source dialogs only count CREDITED receipts whose
+current effective classification is ACTUAL: automatic arrivals and manual actual
+confirmations. Use DepositReceiptClassification for both primary/multi-asset orders,
+including the latest same-company append-only correction. Initial or corrected ADVANCE
+receipts are excluded; changing back to ACTUAL restores the settled amount exactly
+once. Amounts remain actual_received_amount with original amount fallback for legacy
+settlements. This does not alter wallets, original receipts, advance journals, global
+fund flows or the independent historical section. No schema migration or frontend
+change is required.

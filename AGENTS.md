@@ -1,3 +1,12 @@
+On 2026-10-12 the user excluded ADVANCE receipts from homepage Actual received
+recharges. Count credited automatic/manual ACTUAL receipts using the current effective
+append-only receipt classification for primary and multi-asset orders; automatic
+receipts switched to ADVANCE are excluded, and switches back to ACTUAL are included.
+Use actual settled amounts, identical source-dialog filters, native decimals and UTC+8
+periods. Preserve all original receipts, wallets/Ledger, partner advances and independent
+historical filters. No migration, external requests or production financial tests.
+See PLATFORM_OVERVIEW.md.
+
 On 2026-10-12 the user allowed settled automatic recharge receipts to switch
 ACTUAL/ADVANCE through the existing scoped administrative correction workflow.
 Preserve original automatic chain/credit evidence and show AUTO after switching

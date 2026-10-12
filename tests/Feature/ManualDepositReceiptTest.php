@@ -11,6 +11,7 @@ use App\Application\Payment\CreditWalletTopupAction;
 use App\Application\Payment\PaymentLedgerReconciliationService;
 use App\Application\Payment\ProcessIncomingTrc20TransferAction;
 use App\Application\Tenant\ListTenantsQuery;
+use App\Application\Tenant\PlatformOverviewQuery;
 use App\Application\User\PlatformUserReceiptQuery;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Assets\AssetDepositOrder;
@@ -366,6 +367,8 @@ it('switches settled manual and automatic receipt types and refreshes all projec
         $userTotals = app(PlatformUserReceiptQuery::class)->forUsers([$this->user])[$this->tenant->id.':'.$this->user->id][0];
         expect(BigDecimal::of($userTotals['advance'])->isEqualTo($type === 'ADVANCE' ? $settled : '0'))->toBeTrue()
             ->and(BigDecimal::of($userTotals['actual'])->isEqualTo($type === 'ACTUAL' ? $settled : '0'))->toBeTrue();
+        $overview = app(PlatformOverviewQuery::class)->execute(array_replace(array_fill_keys(['inflow', 'outflow', 'partners', 'cards', 'providers', 'assets'], false), ['inflow' => true]));
+        expect($overview['inflow']['totals']['today'])->toBe($type === 'ACTUAL' ? $settled : '0.00000000');
         $report = app(LegacyStockReport::class)->read($this->tenant->id, $this->user->id);
         expect($report['accountBalance']['advances'])->toBe($type === 'ADVANCE' ? $settled : '0.00000000');
     }
@@ -495,3 +498,28 @@ it('rechecks administrator scope status and both permissions before changing rec
     expect(fn () => changeReceiptType($this, $order, 'ADVANCE', 0))->toThrow(HttpException::class)
         ->and(DB::table('deposit_receipt_type_changes')->count())->toBe(0)->and(DB::table('partner_journal_entries')->count())->toBe(0);
 })->with(['account', 'membership', 'company', 'wallet_topups.confirm', 'partners.manage']);
+
+it('homepage actual recharge periods and sources include automatic and manual actual receipts but exclude advances', function () {
+    $this->actingAs($this->actor, 'platform_admin');
+    foreach (['primary', 'asset'] as $source) {
+        $auto = receiptOrder($this, $source);
+        confirmAutomaticReceipt($auto);
+        $actual = receiptOrder($this, $source, '100.02');
+        confirmReceipt($this, $actual, (string) Str::uuid(), 'ACTUAL', '73.01');
+        $advance = receiptOrder($this, $source, '100.03');
+        confirmReceipt($this, $advance, (string) Str::uuid(), 'ADVANCE', '89.01');
+        receiptOrder($this, $source, '100.04');
+    }
+    $before = collect(['wallets', 'ledger_accounts', 'ledger_entries', 'ledger_postings', 'partner_journal_entries', 'audit_logs'])->mapWithKeys(fn ($table) => [$table => DB::table($table)->orderBy('id')->get()->toJson()]);
+    $access = array_replace(array_fill_keys(['inflow', 'outflow', 'partners', 'cards', 'providers', 'assets'], false), ['inflow' => true]);
+    $overview = app(PlatformOverviewQuery::class)->execute($access);
+    foreach (['today', 'd3', 'd7', 'd15', 'd30', 'total'] as $period) {
+        expect($overview['inflow']['totals'][$period])->toBe('346.04000000');
+        $this->getJson('http://admin.localhost/platform/overview/sources?metric=inflow&period='.$period)
+            ->assertOk()->assertJsonPath('amount', '346.04000000')->assertJsonPath('rows.total', 4);
+    }
+    foreach ($before as $table => $json) {
+        expect(DB::table($table)->orderBy('id')->get()->toJson())->toBe($json);
+    }
+    Http::assertNothingSent();
+});

@@ -8,6 +8,7 @@ use App\Application\CardProviderDirectory\CardProviderReferenceQuery;
 use App\Application\Partners\LegacyStockReport;
 use App\Application\Partners\PartnerAccountBalance;
 use App\Application\Partners\PartnerBusinessStock;
+use App\Application\Payment\DepositReceiptClassification;
 use App\Application\User\PlatformUserFinancialSummary;
 use App\Domain\Assets\MarketSnapshot;
 use Brick\Math\BigDecimal;
@@ -68,10 +69,11 @@ final class PlatformOverviewQuery
     public function cashSource(bool $outflow): Builder
     {
         if (! $outflow) {
-            return DB::table('wallet_topup_orders')->where('status', 'CREDITED')
-                ->selectRaw("id, tenant_id, user_id, asset_code, COALESCE(actual_received_amount, amount) AS amount, credited_at AS posted_at, 'Actual receipt'::text AS source")
-                ->unionAll(DB::table('asset_deposit_orders as o')->join('ledger_entries as l', fn ($j) => $j->on('l.id', '=', 'o.ledger_entry_id')->on('l.tenant_id', '=', 'o.tenant_id')->on('l.asset_code', '=', 'o.asset_code'))
-                    ->where('o.status', 'CREDITED')->selectRaw("o.id, o.tenant_id, o.user_id, o.asset_code, COALESCE(o.actual_received_amount,o.amount) AS amount, l.posted_at, 'Actual receipt'::text AS source"));
+            return DepositReceiptClassification::join(DB::table('wallet_topup_orders'), 'wallet_topup_orders', 'primary')
+                ->where('wallet_topup_orders.status', 'CREDITED')->whereRaw(DepositReceiptClassification::effectiveType('wallet_topup_orders')." = 'ACTUAL'")
+                ->selectRaw("wallet_topup_orders.id, wallet_topup_orders.tenant_id, wallet_topup_orders.user_id, wallet_topup_orders.asset_code, COALESCE(wallet_topup_orders.actual_received_amount, wallet_topup_orders.amount) AS amount, wallet_topup_orders.credited_at AS posted_at, 'Actual receipt'::text AS source")
+                ->unionAll(DepositReceiptClassification::join(DB::table('asset_deposit_orders as o'), 'o', 'asset')->join('ledger_entries as l', fn ($j) => $j->on('l.id', '=', 'o.ledger_entry_id')->on('l.tenant_id', '=', 'o.tenant_id')->on('l.asset_code', '=', 'o.asset_code'))
+                    ->where('o.status', 'CREDITED')->whereRaw(DepositReceiptClassification::effectiveType('o')." = 'ACTUAL'")->selectRaw("o.id, o.tenant_id, o.user_id, o.asset_code, COALESCE(o.actual_received_amount,o.amount) AS amount, l.posted_at, 'Actual receipt'::text AS source"));
         }
 
         return DB::table('withdrawal_orders')->where('status', 'SUCCEEDED')
