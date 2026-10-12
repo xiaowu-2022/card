@@ -1,14 +1,16 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
 import { SupportProfile } from '@/components/support/SupportProfile';
 import { Head, Link } from '@inertiajs/react';
 import { t, dateTime, useAdminTranslation } from '@/i18n/admin';
 import { TenantAdminLayout } from '@/layouts/TenantAdminLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { Button } from '@/components/ui/button';
 import { MessageSquare, ChevronRight } from 'lucide-react';
 import { useSupportPolling } from '@/components/support/useSupportPolling';
 
 type Inbox = {
     page: number;
+    lastPage: number;
+    total: number;
     hasMore: boolean;
     items: {
         id: string;
@@ -91,22 +93,12 @@ export default function SupportInbox({
                     ))}
                 </div>
                 {(inbox.page > 1 || inbox.hasMore) && (
-                    <div className="flex gap-3">
-                        {inbox.page > 1 && (
-                            <Button asChild variant="secondary">
-                                <Link href={`/admin/support?page=${inbox.page - 1}`}>
-                                    {t('Previous page')}
-                                </Link>
-                            </Button>
-                        )}
-                        {inbox.hasMore && (
-                            <Button asChild variant="secondary">
-                                <Link href={`/admin/support?page=${inbox.page + 1}`}>
-                                    {t('Next page')}
-                                </Link>
-                            </Button>
-                        )}
-                    </div>
+                    <AdminPagination
+                        page={inbox.page}
+                        pages={inbox.lastPage}
+                        total={inbox.total}
+                        href={(page) => `/admin/support?page=${page}`}
+                    />
                 )}
             </div>
         </TenantAdminLayout>

@@ -2,6 +2,7 @@
 
 namespace App\Application\Card;
 
+use App\Application\User\UserOperationRestrictions;
 use App\Application\Wallet\WalletEligibilityService;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Card\Models\CardManagementOrder;
@@ -40,6 +41,7 @@ final readonly class ManageCardAction
         if ($existing) {
             return $existing;
         }
+        CardVoidPolicy::assertAllowed($tenantId, $userId, $cardId);
         $balanceReadAt = null;
         if ($card->effectiveBalanceLimit() !== null) {
             $balanceReadAt = now();
@@ -83,7 +85,7 @@ final readonly class ManageCardAction
     {
         $snapshot = CardManagementOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('card_id', $cardId)->whereKey($orderId)->firstOrFail();
         if ($snapshot->status === 'QUOTED') {
-            \App\Application\User\UserOperationRestrictions::assertAllowed($tenantId, $userId, 'card_transfer_blocked');
+            UserOperationRestrictions::assertAllowed($tenantId, $userId, 'card_transfer_blocked');
         }
         if ($snapshot->status === 'QUOTED' && $snapshot->balance_limit_snapshot !== null && Money::of($snapshot->amount, 'USD')->isPositive()) {
             $this->refresh->execute($tenantId, $userId, $cardId);
@@ -98,7 +100,8 @@ final readonly class ManageCardAction
             if ($order->status !== 'QUOTED') {
                 return [$order, false];
             }
-            \App\Application\User\UserOperationRestrictions::assertAllowed($order->tenant_id, $order->user_id, 'card_transfer_blocked');
+            CardVoidPolicy::assertAllowed($order->tenant_id, $order->user_id, $order->card_id);
+            UserOperationRestrictions::assertAllowed($order->tenant_id, $order->user_id, 'card_transfer_blocked');
             if ($order->quote_expires_at === null || $order->quote_expires_at->isPast()) {
                 $order->forceFill(['status' => 'EXPIRED'])->save();
 
@@ -140,7 +143,7 @@ final readonly class ManageCardAction
     }
 
     /** @param array<string,string> $holderFields */
-    public function operate(string $tenantId, string $userId, string $cardId, string $requestId, string $kind, ?string $amount = null, #[\SensitiveParameter] array $holderFields = [], ?string $refundId = null): CardManagementOrder
+    public function operate(string $tenantId, string $userId, string $cardId, string $requestId, string $kind, ?string $amount = null, #[\SensitiveParameter] array $holderFields = [], ?string $refundId = null, ?string $voidItemId = null): CardManagementOrder
     {
         if (! in_array($kind, ['RETURN', 'FREEZE', 'UNFREEZE', 'CANCEL', 'HOLDER_UPDATE'], true)) {
             throw new DomainException('CARD_OPERATION_INVALID', 'This card operation is invalid.');
@@ -154,9 +157,11 @@ final readonly class ManageCardAction
         if ($existing) {
             return $existing;
         }
+        $voidItemId === null ? CardVoidPolicy::assertAllowed($tenantId, $userId, $cardId)
+            : CardVoidPolicy::assertWorker($tenantId, $userId, $cardId, $voidItemId, $kind, $requestId);
         // Refresh before creating a new intent; ordinary replay never performs a second provider write.
         $this->refresh->execute($tenantId, $userId, $cardId);
-        [$order, $send] = $this->prepare($tenantId, $userId, $cardId, $requestId, $kind, $value, $holderFields, $refundId);
+        [$order, $send] = $this->prepare($tenantId, $userId, $cardId, $requestId, $kind, $value, $holderFields, $refundId, voidItemId: $voidItemId);
         if (! $send) {
             return $order;
         }
@@ -307,20 +312,27 @@ final readonly class ManageCardAction
         return $order;
     }
 
-    private function prepare(string $tenantId, string $userId, string $cardId, string $requestId, string $kind, string $amount, #[\SensitiveParameter] array $fields = [], ?string $refundId = null, ?CarbonInterface $balanceReadAt = null): array
+    private function prepare(string $tenantId, string $userId, string $cardId, string $requestId, string $kind, string $amount, #[\SensitiveParameter] array $fields = [], ?string $refundId = null, ?CarbonInterface $balanceReadAt = null, ?string $voidItemId = null): array
     {
         if (! Str::isUuid($requestId)) {
             throw new DomainException('CARD_OPERATION_INVALID', 'This card operation is invalid.');
         }
         $fingerprint = $this->fingerprint($tenantId, $userId, $cardId, $kind, $amount, $fields);
 
-        return DB::transaction(function () use ($tenantId, $userId, $cardId, $requestId, $kind, $amount, $fields, $fingerprint, $refundId, $balanceReadAt): array {
+        return DB::transaction(function () use ($tenantId, $userId, $cardId, $requestId, $kind, $amount, $fields, $fingerprint, $refundId, $balanceReadAt, $voidItemId): array {
             $card = $this->access->card($tenantId, $userId, $cardId, lock: true);
             $refundId === null ? RefundCardPolicy::assertAllowed($tenantId, $userId, $cardId)
                 : RefundCardPolicy::assertWorker($tenantId, $userId, $refundId, $cardId, $kind, $requestId);
             $existing = $this->existing($tenantId, $userId, $requestId, $fingerprint);
             if ($existing) {
                 return [$existing, false];
+            }
+            $void = $voidItemId === null ? null : CardVoidPolicy::assertWorker($tenantId, $userId, $cardId, $voidItemId, $kind, $requestId);
+            if ($voidItemId === null) {
+                CardVoidPolicy::assertAllowed($tenantId, $userId, $cardId);
+            }
+            if ($void && $kind === 'CANCEL' && ($card->provider_balance === null || ! Money::of($card->provider_balance, 'USD')->isZero())) {
+                throw new DomainException('CARD_VOID_BALANCE_REMAINS', 'Card funds must be returned before cancellation.', 409);
             }
             CardManagementOrder::query()->where('tenant_id', $tenantId)->where('card_id', $cardId)->whereIn('status', ['QUOTING', 'QUOTED'])
                 ->where('created_at', '<', now()->subMinute())->update(['status' => 'EXPIRED']);
@@ -378,7 +390,8 @@ final readonly class ManageCardAction
                 'balance_limit_snapshot' => $limit,
                 'provider_called_at' => $kind === 'LOAD' ? null : now(),
                 'holder_changes_encrypted' => $kind === 'HOLDER_UPDATE' ? $this->materials->encrypt(json_encode($fields, JSON_THROW_ON_ERROR)) : null])->save();
-            $this->audit->record($tenantId, 'USER', $userId, 'CARD_MANAGEMENT_REQUESTED', 'card_management_order', $id, after: ['kind' => $kind]);
+            $this->audit->record($tenantId, $void ? 'ADMIN' : 'USER', $void?->actor_id ?? $userId, 'CARD_MANAGEMENT_REQUESTED', 'card_management_order', $id,
+                after: ['kind' => $kind, ...($void ? ['void_item_id' => $voidItemId] : [])], requestId: $requestId);
 
             return [$order, true];
         });

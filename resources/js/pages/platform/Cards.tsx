@@ -1,3 +1,4 @@
+import { CardVoidBatchDialog, type VoidCard } from '@/components/admin/CardVoidBatchDialog';
 import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { RecordUserCell, type UserInfo } from '@/components/admin/UserInfoCell';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
@@ -84,7 +85,9 @@ export default function Cards({
     cards,
     companies,
     filters,
+    canVoidCards = false,
 }: {
+    canVoidCards?: boolean;
     orders: AccountPage<Order>;
     loads: AccountPage<CardLoadOrder>;
     cards: AccountPage<UserCard>;
@@ -102,6 +105,7 @@ export default function Cards({
         setSyncScope(scope);
         setSyncOpen(true);
     }
+    const [voidScope, setVoidScope] = useState<VoidCard[] | null | undefined>(undefined);
     const [transactionRefresh, setTransactionRefresh] = useState(0);
     useEffect(() => {
         setSelected({});
@@ -133,6 +137,23 @@ export default function Cards({
             actions={
                 canManage && tab === 'cards' ? (
                     <>
+                        {canVoidCards && (
+                            <>
+                                {selection.length > 0 && (
+                                    <Button
+                                        variant="destructive"
+                                        onClick={() => setVoidScope(selection)}
+                                    >
+                                        {t('Void selected cards ({{count}})', {
+                                            count: selection.length,
+                                        })}
+                                    </Button>
+                                )}
+                                <Button variant="secondary" onClick={() => setVoidScope(null)}>
+                                    {t('Card voiding tasks')}
+                                </Button>
+                            </>
+                        )}
                         {selection.length > 0 && (
                             <Button
                                 variant="secondary"
@@ -148,6 +169,17 @@ export default function Cards({
                 ) : undefined
             }
         >
+            {voidScope !== undefined && (
+                <CardVoidBatchDialog
+                    cards={voidScope}
+                    company={filters.company}
+                    onClose={() => setVoidScope(undefined)}
+                    onCompleted={() => {
+                        setSelected({});
+                        router.reload({ only: ['cards'] });
+                    }}
+                />
+            )}
             <Head title={t('Card operations')} />
             <div className="space-y-4">
                 <Tabs
@@ -407,6 +439,9 @@ export default function Cards({
                                             onSync={() =>
                                                 openSync({ company: row.tenantId, cards: [row] })
                                             }
+                                            onVoid={
+                                                canVoidCards ? () => setVoidScope([row]) : undefined
+                                            }
                                             canManage={Boolean(canManage)}
                                             refreshing={refreshing !== null}
                                             onRefresh={() => {
@@ -465,6 +500,7 @@ function CardRowActions({
     onRefresh,
     onViewTransactions,
     onSync,
+    onVoid,
 }: {
     card: UserCard;
     canManage: boolean;
@@ -472,6 +508,7 @@ function CardRowActions({
     onRefresh: () => void;
     onViewTransactions: () => void;
     onSync: () => void;
+    onVoid?: () => void;
 }) {
     const [action, setAction] = useState<'reveal' | 'limit' | 'overflow' | null>(null);
     const trigger = useRef<HTMLButtonElement>(null);
@@ -506,6 +543,14 @@ function CardRowActions({
                     <DropdownMenuItem disabled={refreshing} onSelect={onRefresh}>
                         {t(refreshing ? 'Refreshing' : 'Refresh balance')}
                     </DropdownMenuItem>
+                    {onVoid && (
+                        <DropdownMenuItem
+                            className="text-destructive"
+                            onSelect={() => requestAnimationFrame(onVoid)}
+                        >
+                            {t('Void card')}
+                        </DropdownMenuItem>
+                    )}
                     {canManage && (
                         <>
                             <DropdownMenuItem onSelect={() => setAction('reveal')}>

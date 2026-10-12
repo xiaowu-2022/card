@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Platform;
 
 use App\Application\Card\CardProductProviderRouter;
+use App\Application\Card\CardVoidPolicy;
 use App\Application\Card\PlatformCardQuery;
 use App\Application\Card\PlatformCardTransactionsQuery;
 use App\Application\Card\RecordCardOverflowSpend;
@@ -155,6 +156,7 @@ final class CardOperationsController extends Controller
         return Inertia::render('platform/Cards', [
             ...array_map(PlatformUserSummary::page(...), $query->get($filters['company'] ?? null, $filters['search'] ?? null)),
             'filters' => $filters, 'companies' => $lists->companies(),
+            'canVoidCards' => CardVoidPolicy::allowed($request->user('platform_admin')->fresh()),
         ]);
     }
 }

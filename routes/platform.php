@@ -8,6 +8,7 @@ use App\Http\Controllers\Platform\CardOperationsController;
 use App\Http\Controllers\Platform\CardProductController;
 use App\Http\Controllers\Platform\CardProviderController;
 use App\Http\Controllers\Platform\CardTransactionBatchController;
+use App\Http\Controllers\Platform\CardVoidBatchController;
 use App\Http\Controllers\Platform\CompanyConfiguration\AndroidReleaseController;
 use App\Http\Controllers\Platform\CompanyConfiguration\InvitationPosterController;
 use App\Http\Controllers\Platform\CompanyConfiguration\OnboardingController;
@@ -59,6 +60,14 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('platform')->name('platform.')->group(function (): void {
+    Route::middleware(['admin.scope:platform,cards.read', 'admin.scope:platform,card_product.manage', 'admin.scope:platform,wallet.read', 'admin.scope:platform,ledger.read'])->prefix('card-void-batches')->group(function (): void {
+        Route::get('/', [CardVoidBatchController::class, 'index']);
+        Route::post('/', [CardVoidBatchController::class, 'store'])->middleware('throttle:10,1');
+        Route::get('/{batch}', [CardVoidBatchController::class, 'show'])->whereUuid('batch');
+        Route::post('/{batch}/advance', [CardVoidBatchController::class, 'advance'])->whereUuid('batch')->middleware('throttle:120,1');
+        Route::post('/{batch}/retry', [CardVoidBatchController::class, 'retry'])->whereUuid('batch')->middleware('throttle:10,1');
+    });
+
     Route::middleware(['admin.scope:platform,cards.read', 'admin.scope:platform,card_product.manage'])->prefix('card-transaction-batches')->group(function (): void {
         Route::get('/preview', [CardTransactionBatchController::class, 'preview'])->middleware('throttle:60,1');
         Route::post('/preview', [CardTransactionBatchController::class, 'preview'])->middleware('throttle:60,1');
@@ -222,6 +231,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::post('/card-providers/{reference}/check', [CardProviderController::class, 'check'])->whereUuid('reference')->name('card-providers.check');
         Route::post('/card-providers', [CardProviderController::class, 'store'])->name('card-providers.store');
         Route::put('/card-providers/{reference}', [CardProviderController::class, 'update'])->whereUuid('reference')->name('card-providers.update');
+        Route::delete('/card-providers/{reference}', [CardProviderController::class, 'destroy'])->whereUuid('reference')->name('card-providers.destroy');
     });
     Route::middleware(['admin.scope:platform,kyc.read', 'admin.scope:platform,kyc.document.view'])->group(function (): void {
         Route::post('/tenants/{tenant}/kyc/{kyc}/documents', [KycDetailController::class, 'access'])->whereUuid(['tenant', 'kyc'])->middleware('throttle:10,1')->name('kyc.documents.access');

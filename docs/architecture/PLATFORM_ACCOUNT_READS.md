@@ -132,7 +132,11 @@ binding, serializing retries and never overwriting a changed record on replay.
 Updates lock the record and use version checks to prevent stale overwrites.
 Identical resubmission is a no-op. Every actual create/update appends a sanitized
 Platform audit with MANUAL_REFERENCE_ONLY provenance inside the same transaction.
-No deletion endpoint, Ledger posting or external API call exists in this flow.
+The 2026-10-12 deletion addition allows explicitly confirmed removal of unused
+references only, with version checks, scoped management authorization, atomic audit,
+request replay protection and permanent ID reservations via retained deletion audit.
+All product/history/BIN references block deletion; no Ledger posting or provider
+call occurs. See PHOTONPAY_ACCOUNTS.md.
 UI labels the balance as manually entered reference only in list and form, with
 Chinese/English translations. Overview uses the persisted reference-record count,
 never fabricated provider health. An unauthorized viewer receives no count.

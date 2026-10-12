@@ -2,6 +2,52 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Go to page': '跳转页码',
+    Go: '跳转',
+    'Void cards': '卡片作废',
+    'Void card': '作废卡片',
+    'Card voiding tasks': '作废任务',
+    'Void selected cards ({{count}})': '批量作废（{{count}}）',
+    'Checking card': '检查卡片',
+    'Freezing card': '冻结卡片',
+    'Returning card balance': '退回卡上余额',
+    'Returning overflow balance': '退回溢出余额',
+    'Cancelling card': '注销卡片',
+    'Verifying cancellation': '确认注销结果',
+    'Card voided': '已作废',
+    'Closing pauses further steps. Reopen the task to continue.':
+        '关闭后暂停后续步骤，可重新打开任务继续。',
+    'Return all card and overflow balances to each cardholder’s USDT wallet, then permanently cancel the cards. Provider fees reduce the amount received.':
+        '将卡上余额及溢出余额全部退回各持卡人的 USDT 钱包，再永久注销卡片。实际到账金额扣除卡商手续费。',
+    'Open a task to view its results or continue processing.': '打开任务查看结果或继续处理。',
+    'Confirm refund and void cards': '确认退款并作废卡片',
+    'No card voiding tasks': '暂无作废任务',
+    'Continue card voiding': '继续作废',
+    'Confirm retry of failed cards': '确认重试失败卡片',
+    'Amount returned': '已退回金额',
+    'Review this card before continuing.': '请检查卡片后再继续。',
+    'Card tasks could not be loaded.': '作废任务加载失败。',
+    'Card voiding could not be completed. Check the task before trying again.':
+        '作废处理未完成，请先检查任务结果再继续。',
+    'Card balance remains. Cancellation has not been submitted.': '卡片仍有余额，尚未提交注销。',
+    'The provider rejected this card voiding step.': '卡商拒绝了本次作废步骤。',
+    'The provider balance requires manual review before voiding.':
+        '卡商余额需要人工核查后才能作废。',
+    'This card is being voided. Wait for the operation to finish.':
+        '卡片正在作废，请等待处理完成。',
+    'Card voiding is awaiting confirmation.': '卡片作废等待确认。',
+    'The card is unavailable for voiding.': '该卡片目前无法作废。',
+
+    Delete: '删除',
+    'Delete card provider': '删除卡商',
+    'Delete {{name}}? This cannot be undone.': '确认删除卡商“{{name}}”？删除后无法恢复。',
+    'Confirm deletion': '确认删除',
+    'Card provider deleted.': '卡商已删除。',
+    'This card provider is in use and cannot be deleted.': '该卡商已关联产品或业务记录，不能删除。',
+    'This card provider was deleted. Start a new creation request.':
+        '该卡商已删除，请重新发起新增。',
+    'This card provider was updated elsewhere. Refresh before deleting.':
+        '该卡商已被更新，请刷新后再删除。',
     'All companies · USDT · UTC+8': '全平台 · USDT · UTC+8',
     'Successful withdrawals (excluding fees)': '成功出金（不含手续费）',
     'Third-party reference balance': '三方余额（参考）',

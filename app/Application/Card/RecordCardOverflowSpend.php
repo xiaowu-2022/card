@@ -31,6 +31,7 @@ final readonly class RecordCardOverflowSpend
         $completed = CardManagementOrder::query()->where('tenant_id', $tenantId)->where('card_id', $cardId)->where('status', 'SUCCEEDED')->count();
         $generation = null;
         if (! $existing) {
+            CardVoidPolicy::assertAllowed($tenantId, $card->user_id, $cardId);
             $generation = app(RefreshManagedCardAction::class)->execute($tenantId, $card->user_id, $cardId)->refresh_generation;
         }
         DB::transaction(function () use ($tenantId, $cardId, $card, $data, $actor, $amount, $completed, $generation): void {
@@ -49,6 +50,7 @@ final readonly class RecordCardOverflowSpend
 
                 return;
             }
+            CardVoidPolicy::assertAllowed($tenantId, $owned->user_id, $cardId);
             if ($owned->refresh_generation !== $generation || CardManagementOrder::query()->where('tenant_id', $tenantId)->where('card_id', $cardId)->where('status', 'SUCCEEDED')->count() !== $completed) {
                 throw ValidationException::withMessages(['amount' => 'The card changed during refresh. Please try again.']);
             }

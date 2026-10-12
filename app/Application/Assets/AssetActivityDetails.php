@@ -69,7 +69,7 @@ final class AssetActivityDetails
             'CARD_LOAD_HOLD' => 'Funds reserved for a card reload.',
             'CARD_LOAD_SETTLE' => 'Payment for a card reload.',
             'CARD_LOAD_RELEASE' => 'Reserved card reload funds returned to the wallet.',
-            'CARD_RETURN_SETTLE', 'CARD_CANCEL_RETURN_SETTLE' => 'Card funds returned to the wallet.',
+            'CARD_RETURN_SETTLE', 'CARD_CANCEL_RETURN_SETTLE', 'CARD_OVERFLOW_RETURN' => 'Card funds returned to the wallet.',
             'WITHDRAWAL_HOLD', 'ASSET_WITHDRAWAL_HOLD' => 'Funds reserved for a withdrawal.',
             'WITHDRAWAL_SETTLE', 'ASSET_WITHDRAWAL_SETTLE' => 'Reserved funds used to complete a withdrawal.',
             'WITHDRAWAL_RELEASE', 'ASSET_WITHDRAWAL_RELEASE' => 'Reserved withdrawal funds returned to the wallet.',

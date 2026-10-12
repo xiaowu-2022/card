@@ -1,9 +1,10 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
+import { adminPageHref } from '@/lib/admin-pagination';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEditorRouter } from '@/components/admin/useEditorRouter';
 import { useEditor } from '@/components/admin/editor-context';
 import { useEditorState } from '@/components/admin/useEditorRouter';
 import { useEffect, useRef, useState } from 'react';
-import { Link } from '@inertiajs/react';
 import type { AccountPage } from '@/components/shared/PlatformAccountTable';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -105,15 +106,12 @@ export function QuickReplyManager({
                     </tbody>
                 </table>
                 {!replies.data.length && <p className="p-5">{t('No quick replies yet.')}</p>}
-                <div className="flex justify-between p-3">
-                    {replies.prev_page_url && (
-                        <Link href={replies.prev_page_url}>{t('Previous')}</Link>
-                    )}
-                    <span>
-                        {replies.current_page} / {replies.last_page}
-                    </span>
-                    {replies.next_page_url && <Link href={replies.next_page_url}>{t('Next')}</Link>}
-                </div>
+                <AdminPagination
+                    className="p-3"
+                    page={replies.current_page}
+                    pages={replies.last_page}
+                    href={(page) => adminPageHref(replies, page)}
+                />
             </div>
             <Dialog
                 open={!!draft}

@@ -6,6 +6,7 @@ use App\Application\Card\AdminCardLoadsQuery;
 use App\Application\Card\ApplyCardIssueResultAction;
 use App\Application\Card\ArchiveClearedUserCardAction;
 use App\Application\Card\BatchCardTransactionSync;
+use App\Application\Card\CardVoidBatch;
 use App\Application\Card\CreateCardIssueAction;
 use App\Application\Card\CreateCardRecipientAction;
 use App\Application\Card\DTOs\CardManagementInput;
@@ -37,8 +38,10 @@ use App\Application\SecurityDeposit\RefundSecurityDepositAction;
 use App\Application\Tenant\PlatformDailyFundsQuery;
 use App\Application\Tenant\PlatformOverviewQuery;
 use App\Application\Tenant\UpdateTenantBusinessSettingsAction;
+use App\Application\User\PlatformUserCardsSummary;
 use App\Application\Wallet\ActivateUserWalletAction;
 use App\Application\Wallet\WalletActivityQuery;
+use App\Domain\Admin\Enums\AdminUserStatus;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Audit\Models\AuditLog;
 use App\Domain\Audit\Services\AuditLogger;
@@ -3142,4 +3145,209 @@ it('keeps selected card scope totals across real pagination and retains negative
     expect($query->read($this->tenant->id,$this->user->id,false,1)['total'])->toBe(20);
     expect($query->read($this->tenant->id,$this->user->id,true,1)['items'][0]->consumed)->toBe('-1.00000000');
     Http::assertNothingSent();
+});
+
+function cardVoidFixture($test, bool $unknownReturn = false, bool $remainingBalance = false): array
+{
+    $state = (object) ['status' => 'normal', 'balance' => '20.00000000'];
+    $card = null;
+    [$card, $provider, $manage] = managedCardFixture($test, function () use ($state, &$card) {
+        return new ProviderCardDTO($card->provider_card_id, '', $card->masked_pan, $card->last4, 8, 2029, 'USD', $state->status, false, $state->balance);
+    }, available: '1000');
+    $provider->shouldReceive('freezeCard')->once()->andReturnUsing(function ($id, $request) use ($state) {
+        $state->status = 'frozen';
+
+        return new ProviderOperationDTO($request, ProviderOperationStatus::Succeeded, $id);
+    });
+    $provider->shouldReceive('returnCardFunds')->once()->andReturnUsing(function ($id, $amount, $request) use ($state, $unknownReturn, $remainingBalance) {
+        expect($amount)->toBe('20.00000000');
+        $state->balance = $remainingBalance ? '1.00000000' : '0.00000000';
+        if ($unknownReturn) {
+            throw new ProviderUnknownResultException('Timeout');
+        }
+
+        return new ProviderCardFundsDTO(ProviderOperationStatus::Succeeded, $id, $request, 'VOID-RETURN', '20.00000000', '19.00000000', '1.00000000');
+    });
+    if ($unknownReturn) {
+        $provider->shouldReceive('queryCardFunds')->once()->andReturnUsing(fn ($id, $request) => new ProviderCardFundsDTO(ProviderOperationStatus::Succeeded, $id, $request, 'VOID-RETURN', '20.00000000', '19.00000000', '1.00000000'));
+    }
+    if ($remainingBalance) {
+        $provider->shouldNotReceive('cancelCard');
+    } else {
+        $provider->shouldReceive('cancelCard')->once()->andReturnUsing(function ($id, $request) use ($state) {
+            $state->status = 'cancelled';
+
+            return new ProviderOperationDTO($request, ProviderOperationStatus::Succeeded, $id);
+        });
+    }
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+
+    return [$card, $actor, $manage, $state];
+}
+
+function completeCardVoid($test, $service, $actor, string $batch): array
+{
+    for ($i = 0; $i < 12; $i++) {
+        $data = $service->advance($actor, $batch);
+        if ($data['counts']['SUCCEEDED'] + $data['counts']['FAILED'] === count($data['items'])) {
+            return $data;
+        }
+        $test->travel(11)->seconds();
+    }
+
+    return $data;
+}
+
+it('card void refunds verified net provider and overflow funds once before cancellation with read-only history', function (bool $unknown): void {
+    [$card, $actor, $manage] = cardVoidFixture($this, unknownReturn: $unknown);
+    $card->forceFill(['balance_limit' => '0'])->save();
+    $quote = $manage->quote($card->tenant_id, $card->user_id, $card->id, (string) Str::uuid(), '80');
+    $manage->confirmLoad($card->tenant_id, $card->user_id, $card->id, $quote->id);
+    $before = phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance;
+    $entries = LedgerEntry::count();
+    $service = app(CardVoidBatch::class);
+    $input = ['card_ids' => [$card->id], 'request_id' => (string) Str::uuid(), 'confirmed' => true, 'tenant_id' => $card->tenant_id];
+    $batch = $service->create($actor, $input);
+    expect($service->create($actor, $input))->toBe($batch)->and(LedgerEntry::count())->toBe($entries);
+    $this->actingAs($actor, 'platform_admin')->getJson('http://admin.localhost/platform/card-void-batches/'.$batch)->assertOk()->assertJsonPath('counts.PENDING', 1);
+    expect(LedgerEntry::count())->toBe($entries);
+    expect(fn () => $manage->quote($card->tenant_id, $card->user_id, $card->id, (string) Str::uuid(), '50'))->toThrow(DomainException::class);
+    expect(fn () => app(RefundSecurityDepositAction::class)->request($card->tenant_id, $card->user_id, (string) Str::uuid()))->toThrow(DomainException::class, 'being voided');
+    if ($unknown) {
+        for ($i = 0; $i < 3; $i++) {
+            $result = $service->advance($actor, $batch);
+        }
+        expect($result['counts']['UNKNOWN'])->toBe(1);
+        $this->user->forceFill(['status' => 'SUSPENDED'])->save();
+        $this->travel(11)->seconds();
+        expect($service->advance($actor, $batch)['counts']['UNKNOWN'])->toBe(1);
+        $this->user->forceFill(['status' => 'ACTIVE'])->save();
+        $this->travel(11)->seconds();
+    }
+    $result = completeCardVoid($this, $service, $actor, $batch);
+    expect($result['counts']['SUCCEEDED'])->toBe(1)->and($result['counts']['UNKNOWN'])->toBe(0)
+        ->and($card->fresh()->provider_status)->toBe('cancelled')->and($card->fresh()->archived_at)->not->toBeNull()
+        ->and($card->fresh()->overflowBalance())->toBe('0.00000000')
+        ->and(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe(Money::of($before, 'USDT')->add(Money::of('99', 'USDT'))->amount())
+        ->and($result['items'][0]->returned)->toBe('99.00000000')->and($result['items'][0]->fee)->toBe('1.00000000');
+    $summary = app(PlatformUserCardsSummary::class)->read($card->tenant_id, $card->user_id, true, 1);
+    expect($summary['items'][0]->returned)->toBe('99.00000000')->and($summary['items'][0]->consumed)->toBe('1.00000000');
+    $settled = LedgerEntry::count();
+    $service->advance($actor, $batch);
+    $service->retry($actor, $batch, ['confirmed' => true]);
+    $service->show($actor, $batch);
+    expect(LedgerEntry::count())->toBe($settled)->and(DB::table('card_overflow_movements')->where('kind', 'RETURN')->count())->toBe(1);
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+})->with([false, true]);
+
+it('card void never cancels while a verified provider balance remains', function (): void {
+    [$card, $actor] = cardVoidFixture($this, remainingBalance: true);
+    $service = app(CardVoidBatch::class);
+    $batch = $service->create($actor, ['card_ids' => [$card->id], 'request_id' => (string) Str::uuid(), 'confirmed' => true]);
+    $result = completeCardVoid($this, $service, $actor, $batch);
+    expect($result['counts']['UNKNOWN'])->toBe(1)->and($result['items'][0]->error_code)->toBe('CARD_VOID_BALANCE_REMAINS')
+        ->and($card->fresh()->archived_at)->toBeNull()->and($card->fresh()->provider_status)->toBe('frozen');
+    expect(fn () => $service->create($actor, ['card_ids' => [$card->id], 'request_id' => (string) Str::uuid(), 'confirmed' => true]))->toThrow(DomainException::class);
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+});
+
+it('card void validates explicit confirmation scope identity and active administrators without provider reads', function (): void {
+    [$card] = managedCardFixture($this);
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $this->actingAs($actor, 'platform_admin');
+    $url = 'http://admin.localhost/platform/card-void-batches';
+    $input = ['card_ids' => [$card->id], 'request_id' => (string) Str::uuid(), 'confirmed' => true];
+    $this->postJson($url, [...$input, 'confirmed' => false])->assertUnprocessable();
+    $this->postJson($url, [...$input, 'tenant_id' => Tenant::where('id', '!=', $card->tenant_id)->firstOrFail()->id])->assertNotFound();
+    $batch = $this->postJson($url, $input)->assertAccepted()->json('id');
+    $this->postJson($url, $input)->assertAccepted()->assertJsonPath('id', $batch);
+    $this->postJson($url, [...$input, 'tenant_id' => $card->tenant_id])->assertConflict();
+    $this->getJson($url)->assertOk()->assertJsonCount(1, 'items');
+    $this->getJson($url.'/'.$batch)->assertOk()->assertHeader('Cache-Control', 'no-store, private');
+    $this->postJson($url.'/'.$batch.'/retry', [])->assertUnprocessable();
+    $actor->forceFill(['status' => AdminUserStatus::Suspended])->save();
+    $this->getJson($url.'/'.$batch)->assertForbidden();
+});
+
+it('card void cancellation timeout only queries the existing intent and keeps the balance reservation', function (): void {
+    $state = 'frozen';
+    $card = null;
+    [$card, $provider] = managedCardFixture($this, function () use (&$state, &$card) {
+        return new ProviderCardDTO($card->provider_card_id, '', $card->masked_pan, $card->last4, 8, 2029, 'USD', $state, false, '0.00000000');
+    });
+    $provider->shouldNotReceive('returnCardFunds');
+    $provider->shouldNotReceive('freezeCard');
+    $provider->shouldReceive('cancelCard')->once()->andThrow(new ProviderUnknownResultException('Timeout'));
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $service = app(CardVoidBatch::class);
+    $batch = $service->create($actor, ['card_ids' => [$card->id], 'request_id' => (string) Str::uuid(), 'confirmed' => true]);
+    for ($i = 0; $i < 4; $i++) {
+        $result = $service->advance($actor, $batch);
+    }
+    expect($result['counts']['UNKNOWN'])->toBe(1)->and($card->fresh()->archived_at)->toBeNull();
+    $service->retry($actor, $batch, ['confirmed' => true]);
+    expect(DB::table('card_void_items')->where('batch_id', $batch)->value('attempt'))->toBe(1);
+    $state = 'cancelled';
+    $this->travel(11)->seconds();
+    $result = completeCardVoid($this, $service, $actor, $batch);
+    expect($result['counts']['SUCCEEDED'])->toBe(1)->and(CardManagementOrder::where('card_id', $card->id)->where('kind', 'CANCEL')->count())->toBe(1);
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+});
+
+it('card void partial batches continue other cards and retry only definitive failures with new intents', function (): void {
+    $states = [];
+    $card = null;
+    [$card, $provider] = managedCardFixture($this, function ($providerId) use (&$states, &$card) {
+        return new ProviderCardDTO($providerId, '', $providerId === $card->provider_card_id ? $card->masked_pan : '•••• 8888', $providerId === $card->provider_card_id ? $card->last4 : '8888', 8, 2029, 'USD', $states[$providerId] ?? 'normal', false, '0.00000000');
+    });
+    $provider->shouldReceive('issueCard')->once()->andReturnUsing(fn ($request) => new ProviderOperationDTO($request->idempotencyKey, ProviderOperationStatus::Succeeded, 'XR-VOID-SECOND', card: new ProviderCardDTO('XR-VOID-SECOND', '', '•••• 8888', '8888', 8, 2029, 'USD', 'normal', false, '20.00000000')));
+    $this->holder = phaseTenHolder($this);
+    $order = phaseTenIssue($this);
+    $second = UserCard::where('card_issue_order_id', $order->id)->firstOrFail();
+    $reject = true;
+    $provider->shouldReceive('freezeCard')->times(3)->andReturnUsing(function ($id, $request) use (&$states, &$reject, $card) {
+        if ($id === $card->provider_card_id && $reject) {
+            throw new ProviderRejectedException('rejected');
+        }
+        $states[$id] = 'frozen';
+
+        return new ProviderOperationDTO($request, ProviderOperationStatus::Succeeded, $id);
+    });
+    $provider->shouldNotReceive('returnCardFunds');
+    $provider->shouldReceive('cancelCard')->twice()->andReturnUsing(function ($id, $request) use (&$states) {
+        $states[$id] = 'cancelled';
+
+        return new ProviderOperationDTO($request, ProviderOperationStatus::Succeeded, $id);
+    });
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $service = app(CardVoidBatch::class);
+    $batch = $service->create($actor, ['card_ids' => [$card->id, $second->id], 'request_id' => (string) Str::uuid(), 'confirmed' => true]);
+    for ($i = 0; $i < 20; $i++) {
+        $result = $service->advance($actor, $batch);
+        $this->travel(11)->seconds();
+    }
+    expect($result['counts']['SUCCEEDED'])->toBe(1)->and($result['counts']['FAILED'])->toBe(1)->and($second->fresh()->archived_at)->not->toBeNull()->and($card->fresh()->archived_at)->toBeNull();
+    $reject = false;
+    $service->retry($actor, $batch, ['confirmed' => true]);
+    $result = completeCardVoid($this, $service, $actor, $batch);
+    expect($result['counts']['SUCCEEDED'])->toBe(2)
+        ->and(CardManagementOrder::where('card_id', $card->id)->where('kind', 'FREEZE')->count())->toBe(2)
+        ->and(CardManagementOrder::where('card_id', $second->id)->where('kind', 'FREEZE')->count())->toBe(1);
+    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+});
+
+it('card void refuses non-cent provider balances without truncation or cancellation', function (): void {
+    $card = null;
+    [$card, $provider] = managedCardFixture($this, function () use (&$card) {
+        return new ProviderCardDTO($card->provider_card_id, '', $card->masked_pan, $card->last4, 8, 2029, 'USD', 'frozen', false, '20.12345678');
+    });
+    $provider->shouldNotReceive('returnCardFunds');
+    $provider->shouldNotReceive('cancelCard');
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $service = app(CardVoidBatch::class);
+    $before = LedgerEntry::count();
+    $batch = $service->create($actor, ['card_ids' => [$card->id], 'request_id' => (string) Str::uuid(), 'confirmed' => true]);
+    $result = completeCardVoid($this, $service, $actor, $batch);
+    expect($result['counts']['FAILED'])->toBe(1)->and($result['items'][0]->error_code)->toBe('CARD_VOID_PRECISION')
+        ->and(LedgerEntry::count())->toBe($before)->and($card->fresh()->archived_at)->toBeNull();
 });

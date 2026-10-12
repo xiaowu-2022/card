@@ -1,3 +1,4 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
 import { showOperationResult } from './operation-result';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEffect, useRef, useState } from 'react';
@@ -50,6 +51,8 @@ type Progress = {
             next_page: number;
         }[];
         page: number;
+        lastPage: number;
+        total: number;
         hasMore: boolean;
     };
 };
@@ -589,24 +592,12 @@ export function CardTransactionBatchSync({
                                     </p>
                                 ))}
                                 {detail.details.items.length > 0 && (
-                                    <div className="flex gap-2">
-                                        <Button
-                                            size="sm"
-                                            variant="secondary"
-                                            disabled={detailPage <= 1}
-                                            onClick={() => setDetailPage((v) => v - 1)}
-                                        >
-                                            {t('Previous')}
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="secondary"
-                                            disabled={!detail.details.hasMore}
-                                            onClick={() => setDetailPage((v) => v + 1)}
-                                        >
-                                            {t('Next')}
-                                        </Button>
-                                    </div>
+                                    <AdminPagination
+                                        page={detailPage}
+                                        pages={detail.details.lastPage}
+                                        total={detail.details.total}
+                                        onPage={setDetailPage}
+                                    />
                                 )}
                             </>
                         )}

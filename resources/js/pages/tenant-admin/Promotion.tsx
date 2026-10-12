@@ -1,3 +1,4 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,8 @@ export default function Promotion({
         accountId: string;
         members: { accountId: string; code: string | null; levelId: string | null }[];
         page: number;
+        lastPage: number;
+        total: number;
         hasMore: boolean;
     };
 }) {
@@ -72,32 +75,14 @@ export default function Promotion({
                         </tbody>
                     </table>
                 </div>
-                <div className="flex gap-4">
-                    {p.page > 1 && (
-                        <button
-                            onClick={() =>
-                                router.get(url('/admin/promotion'), {
-                                    page: p.page - 1,
-                                    account_id: p.accountId,
-                                })
-                            }
-                        >
-                            {t('Previous')}
-                        </button>
-                    )}
-                    {p.hasMore && (
-                        <button
-                            onClick={() =>
-                                router.get(url('/admin/promotion'), {
-                                    page: p.page + 1,
-                                    account_id: p.accountId,
-                                })
-                            }
-                        >
-                            {t('Next')}
-                        </button>
-                    )}
-                </div>
+                <AdminPagination
+                    page={p.page}
+                    pages={p.lastPage}
+                    total={p.total}
+                    onPage={(page) =>
+                        router.get(url('/admin/promotion'), { page, account_id: p.accountId })
+                    }
+                />
             </div>
         </CompanyConfigurationLayout>
     );

@@ -1,3 +1,4 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -92,22 +93,12 @@ export function QuickReplyPicker({
                         ))}
                         {data && !data.data.length && <p>{t('No quick replies yet.')}</p>}
                     </div>
-                    <div className="flex justify-between">
-                        <Button
-                            variant="secondary"
-                            disabled={busy || !data || data.current_page <= 1}
-                            onClick={() => void load(data!.current_page - 1)}
-                        >
-                            {t('Previous')}
-                        </Button>
-                        <Button
-                            variant="secondary"
-                            disabled={busy || !data || data.current_page >= data.last_page}
-                            onClick={() => void load(data!.current_page + 1)}
-                        >
-                            {t('Next')}
-                        </Button>
-                    </div>
+                    <AdminPagination
+                        page={data?.current_page ?? 1}
+                        pages={data?.last_page ?? 1}
+                        disabled={busy || !data}
+                        onPage={(page) => void load(page)}
+                    />
                 </DialogContent>
             </Dialog>
         </>

@@ -937,6 +937,11 @@ export const catalog = {
         'Operasi ini tidak tersedia untuk status kad semasa.',
         'Esta operación no está disponible para el estado actual de la tarjeta.',
     ],
+    'This card is being voided. Wait for the operation to finish.': [
+        '卡片正在作废，请等待处理完成。',
+        'Kad ini sedang dibatalkan. Tunggu operasi selesai.',
+        'Esta tarjeta se está anulando. Espera a que termine la operación.',
+    ],
     'Wait for the current card operation to finish.': [
         '请等待当前卡片操作确认完成。',
         'Tunggu operasi kad semasa selesai.',

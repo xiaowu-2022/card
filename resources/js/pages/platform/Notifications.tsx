@@ -1,6 +1,8 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
+import { adminPageHref } from '@/lib/admin-pagination';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { X } from 'lucide-react';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { t, dateTime, errorMessage, useAdminTranslation } from '@/i18n/admin';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
@@ -32,7 +34,14 @@ type Batch = {
 type Props = {
     companies: Company[];
     company: string | null;
-    batches: { data: Batch[]; next_page_url: string | null; prev_page_url: string | null } | null;
+    batches: {
+        current_page: number;
+        last_page: number;
+        total: number;
+        data: Batch[];
+        next_page_url: string | null;
+        prev_page_url: string | null;
+    } | null;
 };
 
 function NotificationForm({
@@ -455,20 +464,12 @@ export default function Notifications({ companies, company, batches }: Props) {
                             </dl>
                         </article>
                     ))}
-                    <nav className="flex justify-between">
-                        {batches.prev_page_url ? (
-                            <Link preserveScroll href={batches.prev_page_url}>
-                                {t('Previous')}
-                            </Link>
-                        ) : (
-                            <span />
-                        )}
-                        {batches.next_page_url && (
-                            <Link preserveScroll href={batches.next_page_url}>
-                                {t('Next')}
-                            </Link>
-                        )}
-                    </nav>
+                    <AdminPagination
+                        page={batches.current_page}
+                        pages={batches.last_page}
+                        total={batches.total}
+                        href={(page) => adminPageHref(batches, page)}
+                    />
                 </section>
             )}
         </PlatformLayout>

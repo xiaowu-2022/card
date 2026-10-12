@@ -1,3 +1,4 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
 import { ReferrerFilterSelect } from '@/components/admin/ReferrerFilterSelect';
 import {
     PartnerDailyStatistics,
@@ -1029,19 +1030,11 @@ function Errors({ values }: { values: Record<string, string> }) {
 }
 function Pager({ page, onPage }: { page: Page<unknown> | null; onPage: (page: number) => void }) {
     return page && page.last_page > 1 ? (
-        <nav className="stock-pagination">
-            <button disabled={page.current_page <= 1} onClick={() => onPage(page.current_page - 1)}>
-                {t('Previous')}
-            </button>
-            <span>
-                {page.current_page} / {page.last_page}
-            </span>
-            <button
-                disabled={page.current_page >= page.last_page}
-                onClick={() => onPage(page.current_page + 1)}
-            >
-                {t('Next')}
-            </button>
-        </nav>
+        <AdminPagination
+            page={page.current_page}
+            pages={page.last_page}
+            total={page.total}
+            onPage={onPage}
+        />
     ) : null;
 }

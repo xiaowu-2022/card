@@ -13,7 +13,7 @@ final class PlatformAdminTeamQuery
             ->where('scope_type', ScopeType::Platform)->whereNull('scope_id')->with(['adminUser', 'role'])->latest()->orderBy('id')->paginate(20)->withQueryString();
 
         return ['roles' => ['PLATFORM_ADMIN'],
-            'pagination' => ['previous' => $members->previousPageUrl(), 'next' => $members->nextPageUrl(), 'total' => $members->total()],
+            'pagination' => ['previous' => $members->previousPageUrl(), 'next' => $members->nextPageUrl(), 'total' => $members->total(), 'currentPage' => $members->currentPage(), 'lastPage' => $members->lastPage(), 'first' => $members->url(1)],
             'members' => $members->getCollection()->map(fn ($membership): array => [
                 'id' => $membership->id, 'name' => $membership->adminUser->name, 'email' => $membership->adminUser->email,
                 'role' => $membership->role->name, 'status' => $membership->status->value,

@@ -1,6 +1,6 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
 import { Head, router } from '@inertiajs/react';
 import { TenantAdminLayout } from '@/layouts/TenantAdminLayout';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { t, useAdminTranslation, dateTime } from '@/i18n/admin';
 import { displayMoney } from '@/lib/admin-amount';
@@ -56,6 +56,8 @@ type Book = {
     };
     rows: { id: string; type: string; amount: string; occurredAt: string }[];
     page: number;
+    lastPage: number;
+    total: number;
     hasMore: boolean;
 };
 export default function CompanyFunds({ book: b }: { book: Book }) {
@@ -159,22 +161,12 @@ export default function CompanyFunds({ book: b }: { book: Book }) {
                         {t('No fund book entries on this date.')}
                     </p>
                 )}
-                <div className="flex justify-between">
-                    <Button
-                        variant="secondary"
-                        disabled={b.page === 1}
-                        onClick={() => visit({ page: b.page - 1 })}
-                    >
-                        {t('Previous')}
-                    </Button>
-                    <Button
-                        variant="secondary"
-                        disabled={!b.hasMore}
-                        onClick={() => visit({ page: b.page + 1 })}
-                    >
-                        {t('Next')}
-                    </Button>
-                </div>
+                <AdminPagination
+                    page={b.page}
+                    pages={b.lastPage}
+                    total={b.total}
+                    onPage={(page) => visit({ page })}
+                />
             </div>
         </TenantAdminLayout>
     );

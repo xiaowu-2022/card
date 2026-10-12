@@ -1,3 +1,5 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
+import { adminPageHref } from '@/lib/admin-pagination';
 import { allowedCompanySettings, companySettingsUrl } from '@/components/admin/company-settings';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, Link, router, usePage } from '@inertiajs/react';
@@ -267,35 +269,13 @@ export default function Tenants({
                             </Table>
                         </div>
                     )}
-                    <div className="flex items-center justify-between gap-3 border-t p-4">
-                        <p className="text-sm text-muted-foreground">
-                            {t('Page {{value1}} of {{value2}} · {{value3}}  total', {
-                                value1: tenants.current_page,
-                                value2: tenants.last_page,
-                                value3: tenants.total,
-                            })}
-                        </p>
-                        <div className="flex gap-2">
-                            {tenants.prev_page_url ? (
-                                <Button asChild variant="secondary" size="sm">
-                                    <Link href={tenants.prev_page_url}>{t('Previous')}</Link>
-                                </Button>
-                            ) : (
-                                <Button variant="secondary" size="sm" disabled>
-                                    {t('Previous')}
-                                </Button>
-                            )}
-                            {tenants.next_page_url ? (
-                                <Button asChild variant="secondary" size="sm">
-                                    <Link href={tenants.next_page_url}>{t('Next')}</Link>
-                                </Button>
-                            ) : (
-                                <Button variant="secondary" size="sm" disabled>
-                                    {t('Next')}
-                                </Button>
-                            )}
-                        </div>
-                    </div>
+                    <AdminPagination
+                        className="border-t p-4"
+                        page={tenants.current_page}
+                        pages={tenants.last_page}
+                        total={tenants.total}
+                        href={(page) => adminPageHref(tenants, page)}
+                    />
                 </div>
             </div>
         </PlatformLayout>

@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 final class CardProviderReference extends Model
 {
+    public const DEPENDENCIES = ['card_products', 'card_recipient_applications', 'card_provider_events', 'card_bin_claims'];
+
     protected $table = 'platform_card_provider_references';
 
     public $incrementing = false;

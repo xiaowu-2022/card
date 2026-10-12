@@ -1,3 +1,6 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
+import { adminPageHref } from '@/lib/admin-pagination';
+import { UserInfoCell, type UserInfo } from '@/components/admin/UserInfoCell';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
@@ -21,6 +24,7 @@ import type { AccountPage } from '@/components/shared/PlatformAccountTable';
 import '../../../css/support.css';
 
 type Row = {
+    userInfo?: UserInfo | null;
     id: string;
     tenantId: string;
     userId: string;
@@ -127,9 +131,22 @@ export default function Support({ inbox, chat, companies, filters, supportName }
                                     className={`block border-b p-4 ${chat?.userId === row.userId && chat.tenantId === row.tenantId ? 'bg-muted' : 'hover:bg-muted/50'}`}
                                 >
                                     <div className="flex justify-between gap-2">
-                                        <span className="truncate text-sm font-medium">
-                                            {row.company}
-                                        </span>
+                                        <div className="min-w-0 flex-1">
+                                            <UserInfoCell
+                                                interactive={false}
+                                                user={{
+                                                    ...(row.userInfo ?? {
+                                                        id: row.userId,
+                                                        companyId: row.tenantId,
+                                                        companyName: row.company,
+                                                        accountId: row.accountId,
+                                                        email: row.email,
+                                                    }),
+                                                    displayName:
+                                                        row.userInfo?.displayName || row.accountId,
+                                                }}
+                                            />
+                                        </div>
                                         <span className="shrink-0 text-xs text-muted-foreground">
                                             {t(
                                                 row.mode === 'BOT'
@@ -142,13 +159,6 @@ export default function Support({ inbox, chat, companies, filters, supportName }
                                             )}
                                         </span>
                                     </div>
-                                    <p className="mt-2 text-sm">{row.accountId}</p>
-                                    <p
-                                        className="max-w-full truncate text-xs text-muted-foreground"
-                                        title={row.email}
-                                    >
-                                        {row.email}
-                                    </p>
                                     <p className="mt-2 text-xs text-muted-foreground">
                                         {dateTime(row.updatedAt)}
                                     </p>
@@ -160,17 +170,12 @@ export default function Support({ inbox, chat, companies, filters, supportName }
                                 </p>
                             )}
                         </div>
-                        <div className="flex items-center justify-between p-3 text-sm">
-                            <span>
-                                {inbox.current_page} / {inbox.last_page}
-                            </span>
-                            {inbox.prev_page_url && (
-                                <Link href={inbox.prev_page_url}>{t('Previous')}</Link>
-                            )}
-                            {inbox.next_page_url && (
-                                <Link href={inbox.next_page_url}>{t('Next')}</Link>
-                            )}
-                        </div>
+                        <AdminPagination
+                            className="p-3"
+                            page={inbox.current_page}
+                            pages={inbox.last_page}
+                            href={(page) => adminPageHref(inbox, page)}
+                        />
                     </aside>
                     <div className="min-w-0 p-4">
                         {chat ? (
@@ -185,6 +190,7 @@ export default function Support({ inbox, chat, companies, filters, supportName }
                                     {chat.email}
                                 </p>
                                 <SupportThread
+                                    showServiceControls={false}
                                     quickReplyUrl={`/platform/tenants/${chat.tenantId}/support/replies`}
                                     key={chat.tenantId + ':' + chat.userId}
                                     chat={chat}

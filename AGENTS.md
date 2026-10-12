@@ -1,3 +1,30 @@
+On 2026-10-12 the user requested ordinary numbered pagination across backend
+lists and detail drawers, replacing previous/next-only controls. Use the shared
+AdminPagination with exact scoped page totals, current-page highlighting and direct
+jump; preserve filters, named page parameters, company isolation and drawer state.
+Pagination reads never query providers, provision accounts or mutate financial data.
+
+On 2026-10-12 the user approved single-card and explicitly selected batch Platform
+card voiding: verified provider balance and native local overflow return to each
+cardholder's own USDT wallet, followed by confirmed empty-card cancellation/archive.
+Preserve immutable history, active scoped administrators, explicit confirmation,
+durable idempotent intents, company cleanup fences and audit. UNKNOWN provider
+results retain reservations and query existing intents; never blindly resend refunds
+or cancellation. Failed-only retry requires explicit confirmation. GETs never advance
+or query providers. Deploy the card-void migration and PHP/admin assets together;
+validate only in isolated/offline fixtures, never production financial operations.
+See docs/architecture/PLATFORM_CARD_VOID.md. This narrowly supersedes the old ban
+on returning local overflow solely for this confirmed administrative void workflow.
+
+On 2026-10-12 the user requested card-provider deletion. Only unused local provider
+configuration may be removed; any products (including archived), recipients, provider
+events or BIN claims block deletion. Require active Platform manage scope, explicit
+confirmation, stale-version checks, request replay protection and atomic safe audit.
+Retained deletion audit reserves the ID against historical creation replay. Never
+delete/unbind dependent history, disable FK guards, call providers or move funds.
+Deploy PHP/admin assets together, no migration or production deletion/financial test.
+See docs/architecture/PHOTONPAY_ACCOUNTS.md.
+
 On 2026-10-12 the user approved a full-platform operating homepage. Sum currently
 enabled partner reports for stock/theoretical/actual/difference; actual remains the
 report's own USDT available balance. Recharge uses actual settled receipts; successful

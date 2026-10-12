@@ -1,6 +1,8 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
+import { adminPageHref } from '@/lib/admin-pagination';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { displayMoney } from '@/lib/admin-amount';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, useForm, usePage } from '@inertiajs/react';
 import {
     PhotonPayAccountForm,
     type PhotonPayConfiguration,
@@ -13,7 +15,13 @@ import type { AccountPage } from '@/components/shared/PlatformAccountTable';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import {
     Table,
     TableHeader,
@@ -36,6 +44,7 @@ type Reference = {
     apiConnected: boolean;
     sandbox: boolean;
     issuedCardCount: string | null;
+    canDelete: boolean;
 };
 
 function ReferenceForm({ record, close }: { record: Reference | null; close: () => void }) {
@@ -129,6 +138,8 @@ export default function CardProviders({ providers }: { providers: AccountPage<Re
         'card_provider_reference.manage',
     );
     const [editing, setEditing] = useState<Reference | 'new' | null>(null);
+    const [deleting, setDeleting] = useState<Reference | null>(null);
+    const deletion = useForm({ version: 0, confirmed: true, request_id: '' });
     return (
         <PlatformLayout
             title={t('Card providers')}
@@ -202,13 +213,41 @@ export default function CardProviders({ providers }: { providers: AccountPage<Re
                                         </TableCell>
                                         {canManage && (
                                             <TableCell>
-                                                <Button
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    onClick={() => setEditing(record)}
-                                                >
-                                                    {t('Edit')}
-                                                </Button>
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        variant="secondary"
+                                                        size="sm"
+                                                        onClick={() => setEditing(record)}
+                                                    >
+                                                        {t('Edit')}
+                                                    </Button>
+                                                    <span
+                                                        title={
+                                                            record.canDelete === false
+                                                                ? t(
+                                                                      'This card provider is in use and cannot be deleted.',
+                                                                  )
+                                                                : undefined
+                                                        }
+                                                    >
+                                                        <Button
+                                                            variant="destructive"
+                                                            size="sm"
+                                                            disabled={record.canDelete === false}
+                                                            onClick={() => {
+                                                                deletion.clearErrors();
+                                                                deletion.setData({
+                                                                    version: record.version,
+                                                                    confirmed: true,
+                                                                    request_id: crypto.randomUUID(),
+                                                                });
+                                                                setDeleting(record);
+                                                            }}
+                                                        >
+                                                            {t('Delete')}
+                                                        </Button>
+                                                    </span>
+                                                </div>
                                             </TableCell>
                                         )}
                                     </TableRow>
@@ -217,27 +256,12 @@ export default function CardProviders({ providers }: { providers: AccountPage<Re
                         </Table>
                     </div>
                 )}
-                <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-                    <span>
-                        {t('Page {{page}} of {{pages}} · {{total}} records', {
-                            page: providers.current_page,
-                            pages: providers.last_page,
-                            total: providers.total,
-                        })}
-                    </span>
-                    <div className="flex gap-2">
-                        {providers.prev_page_url && (
-                            <Button variant="secondary" asChild>
-                                <Link href={providers.prev_page_url}>{t('Previous')}</Link>
-                            </Button>
-                        )}
-                        {providers.next_page_url && (
-                            <Button variant="secondary" asChild>
-                                <Link href={providers.next_page_url}>{t('Next')}</Link>
-                            </Button>
-                        )}
-                    </div>
-                </div>
+                <AdminPagination
+                    page={providers.current_page}
+                    pages={providers.last_page}
+                    total={providers.total}
+                    href={(page) => adminPageHref(providers, page)}
+                />
             </div>
             <Dialog
                 open={editing !== null}
@@ -271,6 +295,61 @@ export default function CardProviders({ providers }: { providers: AccountPage<Re
                             />
                         )
                     )}
+                </DialogContent>
+            </Dialog>
+            <Dialog
+                open={deleting !== null}
+                onOpenChange={(open) => {
+                    if (!open && !deletion.processing) setDeleting(null);
+                }}
+            >
+                <DialogContent closeLabel={t('Close')}>
+                    <DialogHeader>
+                        <DialogTitle>{t('Delete card provider')}</DialogTitle>
+                        <DialogDescription>
+                            {t('Delete {{name}}? This cannot be undone.', {
+                                name: deleting?.name ?? '',
+                            })}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form
+                        className="space-y-4"
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            if (!deleting || deletion.processing) return;
+                            deletion.delete(`/platform/card-providers/${deleting.id}`, {
+                                preserveScroll: true,
+                                onSuccess: () => setDeleting(null),
+                            });
+                        }}
+                    >
+                        {Object.entries(deletion.errors).map(([key, message]) => (
+                            <OperationFeedback
+                                key={key}
+                                role="alert"
+                                className="text-sm text-destructive"
+                            >
+                                {errorMessage(message)}
+                            </OperationFeedback>
+                        ))}
+                        <div className="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                disabled={deletion.processing}
+                                onClick={() => setDeleting(null)}
+                            >
+                                {t('Cancel')}
+                            </Button>
+                            <Button
+                                type="submit"
+                                variant="destructive"
+                                disabled={deletion.processing}
+                            >
+                                {t('Confirm deletion')}
+                            </Button>
+                        </div>
+                    </form>
                 </DialogContent>
             </Dialog>
         </PlatformLayout>

@@ -38,6 +38,9 @@ final readonly class SaveCardProviderReferenceAction
             $recordId = $id ?? $data['request_id'];
             if ($id === null) {
                 DB::select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['card-provider-reference:'.$recordId]);
+                if (DB::table('audit_logs')->where('resource_type', 'card_provider_reference')->where('resource_id', $recordId)->where('action', 'CARD_PROVIDER_REFERENCE_DELETED')->exists()) {
+                    throw new DomainException('CARD_PROVIDER_REFERENCE_DELETED', 'This card provider was deleted. Start a new creation request.', 409);
+                }
             }
             $query = CardProviderReference::query()->whereKey($recordId)->lockForUpdate();
             $record = $id === null ? $query->first() : $query->firstOrFail();

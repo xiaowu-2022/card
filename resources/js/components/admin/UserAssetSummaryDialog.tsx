@@ -1,3 +1,4 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
 import { useEffect, useState } from 'react';
 import {
     Dialog,
@@ -310,23 +311,11 @@ export function UserAssetSummaryDialog({
                                 'Estimated net usage including fees = total funding − successful returns to wallet − current balance. Negative values are retained.',
                             )}
                         </p>
-                        <div className="mt-4 flex justify-end gap-2">
-                            <Button
-                                variant="secondary"
-                                disabled={page <= 1}
-                                onClick={() => setPage(page - 1)}
-                            >
-                                {t('Previous')}
-                            </Button>
-                            <span className="self-center">{page}</span>
-                            <Button
-                                variant="secondary"
-                                disabled={!cards.hasMore}
-                                onClick={() => setPage(page + 1)}
-                            >
-                                {t('Next')}
-                            </Button>
-                        </div>
+                        <AdminPagination
+                            page={page}
+                            pages={Math.max(1, Math.ceil(cards.total / 20))}
+                            onPage={setPage}
+                        />
                     </>
                 ) : null}
             </DialogContent>

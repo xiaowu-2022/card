@@ -1,7 +1,8 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useForm } from '@/components/admin/editor-context';
 import { InvitationPosterSettings } from '@/components/admin/InvitationPosterSettings';
-import { Head, Link } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import {
     CompanyConfigurationLayout,
     CompanyConfigurationHeader,
@@ -159,6 +160,8 @@ export default function PaidPromotion({
         levels: PaidLevel[];
         claims: (PaidClaim & { accountId: string })[];
         page: number;
+        lastPage: number;
+        total: number;
         hasMore: boolean;
     };
 }) {
@@ -180,10 +183,12 @@ export default function PaidPromotion({
                     <ReturnRecord key={c.id} claim={c} />
                 ))}
                 {!p.claims.length && <p>{t('No activity yet')}</p>}
-                <div className="flex gap-4">
-                    {p.page > 1 && <Link href={`${base}?page=${p.page - 1}`}>{t('Previous')}</Link>}
-                    {p.hasMore && <Link href={`${base}?page=${p.page + 1}`}>{t('Next')}</Link>}
-                </div>
+                <AdminPagination
+                    page={p.page}
+                    pages={p.lastPage}
+                    total={p.total}
+                    href={(page) => `${base}?page=${page}`}
+                />
             </div>
         </CompanyConfigurationLayout>
     );

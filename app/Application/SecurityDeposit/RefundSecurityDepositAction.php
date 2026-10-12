@@ -2,6 +2,8 @@
 
 namespace App\Application\SecurityDeposit;
 
+use App\Application\Card\CardVoidPolicy;
+use App\Application\User\UserOperationRestrictions;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Ledger\Models\LedgerAccount;
 use App\Domain\Ledger\ValueObjects\Money;
@@ -37,7 +39,8 @@ final readonly class RefundSecurityDepositAction
             if ($existing) {
                 return $existing;
             }
-            \App\Application\User\UserOperationRestrictions::assertAllowed($tenantId, $userId, 'deposit_refund_blocked');
+            CardVoidPolicy::assertAllowed($tenantId, $userId);
+            UserOperationRestrictions::assertAllowed($tenantId, $userId, 'deposit_refund_blocked');
             self::assertNoPending($tenantId, $userId);
             $days = Tenant::query()->whereKey($tenantId)->firstOrFail()->businessSettings->security_deposit_refund_wait_days;
             if ($days === null) {

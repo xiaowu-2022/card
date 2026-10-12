@@ -33,6 +33,7 @@ export function walletActivityItems(entries: WalletActivity[]): UserActivityItem
         CARD_LOAD_HOLD: 'Card reload reserved',
         CARD_LOAD_SETTLE: 'Card reload completed',
         CARD_LOAD_RELEASE: 'Card reload returned',
+        CARD_OVERFLOW_RETURN: 'Card balance returned',
         CARD_RETURN_SETTLE: 'Card balance returned',
         CARD_CANCEL_RETURN_SETTLE: 'Card balance returned',
         PROMOTION_ANNUAL_FEE: 'Promotion annual fee paid',

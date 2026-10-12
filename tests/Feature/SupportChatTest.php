@@ -235,3 +235,23 @@ it('counts only unread support replies and acknowledges the displayed sequence w
     $this->actingAs($other, 'tenant_user')->postJson('http://b.localhost/support/read', ['through' => 3, 'user_id' => $this->customer->id])->assertUnprocessable();
     expect(DB::table('support_conversations')->where('id', $id)->value('user_read_sequence'))->toBe(3);
 });
+
+it('returns exact scoped support inbox totals and pages without sending messages or changing financial data', function (): void {
+    $this->withoutVite();
+    for ($i = 0; $i < 35; $i++) {
+        $user = $this->customer->replicate(['account_id']);
+        $user->id = (string) Str::uuid();
+        $user->email = 'pagination-'.$i.'@example.test';
+        $user->save();
+        SupportConversation::create(['tenant_id' => $this->company->id, 'user_id' => $user->id, 'last_sender' => 'USER']);
+    }
+    $foreign = User::where('tenant_id', '<>', $this->company->id)->firstOrFail();
+    SupportConversation::create(['tenant_id' => $foreign->tenant_id, 'user_id' => $foreign->id, 'last_sender' => 'USER']);
+    $before = DB::table('ledger_entries')->count();
+    $first = $this->query->inbox($this->company->id, $this->agent->id, 1);
+    $second = $this->query->inbox($this->company->id, $this->agent->id, 2);
+    expect($first['total'])->toBe(35)->and($first['lastPage'])->toBe(2)->and($first['items'])->toHaveCount(30)
+        ->and($second['items'])->toHaveCount(5)->and($second['hasMore'])->toBeFalse()
+        ->and(DB::table('support_messages')->count())->toBe(0)->and(DB::table('ledger_entries')->count())->toBe($before);
+    Http::assertNothingSent();
+});

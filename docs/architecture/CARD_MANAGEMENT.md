@@ -1,3 +1,8 @@
+Platform single-card and batch voiding, approved 2026-10-12, is documented in
+[PLATFORM_CARD_VOID.md](PLATFORM_CARD_VOID.md). Its confirmed scoped flow returns
+local overflow as well as verified provider funds before empty-card cancellation;
+ordinary card management and historical evidence remain unchanged.
+
 # PhotonPay Card management extension
 
 The user explicitly authorized extending Phase 10 to the complete lifecycle of the

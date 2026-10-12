@@ -1,3 +1,4 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
 import { useEffect, useState } from 'react';
 import { router } from '@inertiajs/react';
 import { t, dateTime } from '@/i18n/admin';
@@ -151,26 +152,14 @@ export function UserOrdersPanel({
                 )}
             </div>
             {result && (
-                <div className="flex shrink-0 items-center justify-between border-t px-5 py-3">
-                    <Button
-                        variant="secondary"
-                        disabled={loading || page <= 1}
-                        onClick={() => setPage((n) => n - 1)}
-                    >
-                        {t('Previous')}
-                    </Button>
-                    <span className="text-sm">
-                        {result.orders.current_page} / {result.orders.last_page} ·{' '}
-                        {t('Total records')}: {result.orders.total}
-                    </span>
-                    <Button
-                        variant="secondary"
-                        disabled={loading || page >= result.orders.last_page}
-                        onClick={() => setPage((n) => n + 1)}
-                    >
-                        {t('Next')}
-                    </Button>
-                </div>
+                <AdminPagination
+                    className="shrink-0 border-t px-5 py-3"
+                    page={result.orders.current_page}
+                    pages={result.orders.last_page}
+                    total={result.orders.total}
+                    disabled={loading}
+                    onPage={setPage}
+                />
             )}
             <Dialog
                 open={!!order}

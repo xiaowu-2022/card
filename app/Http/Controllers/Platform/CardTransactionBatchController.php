@@ -85,7 +85,7 @@ final class CardTransactionBatchController extends Controller
 
         return response()->json(['batch' => $row, 'counts' => $counts,
             'status' => $this->status($row->execution_mode, (int) $counts->pending, (int) $counts->failed),
-            'details' => ['items' => $details->items(), 'page' => $details->currentPage(), 'hasMore' => $details->hasMorePages()]])
+            'details' => ['items' => $details->items(), 'page' => $details->currentPage(), 'lastPage' => $details->lastPage(), 'total' => $details->total(), 'hasMore' => $details->hasMorePages()]])
             ->header('Cache-Control', 'private, no-store');
     }
 

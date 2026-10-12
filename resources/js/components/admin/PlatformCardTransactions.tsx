@@ -1,3 +1,4 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
 import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { DetailDrawerContent } from '@/components/admin/DetailDrawer';
@@ -30,7 +31,7 @@ type Card = {
     productName: string;
     maskedPan: string;
 };
-type Page = CardTransactionPage & { timezone: string };
+type Page = CardTransactionPage & { timezone: string; lastPage: number; total: number };
 
 export function PlatformCardTransactions({
     card,
@@ -78,7 +79,23 @@ export function PlatformCardTransactions({
                 )
                     throw new Error('Missing timezone');
                 new Intl.DateTimeFormat('en', { timeZone: value.timezone });
-                if (!controller.signal.aborted) setData({ ...parsed, timezone: value.timezone });
+                const metadata = value as { lastPage?: unknown; total?: unknown };
+                if (
+                    typeof metadata.lastPage !== 'number' ||
+                    !Number.isInteger(metadata.lastPage) ||
+                    metadata.lastPage < 1 ||
+                    typeof metadata.total !== 'number' ||
+                    !Number.isInteger(metadata.total) ||
+                    metadata.total < 0
+                )
+                    throw new Error('Missing pagination');
+                if (!controller.signal.aborted)
+                    setData({
+                        ...parsed,
+                        timezone: value.timezone,
+                        lastPage: metadata.lastPage,
+                        total: metadata.total,
+                    });
             } catch {
                 if (!controller.signal.aborted) setFailed(true);
             } finally {
@@ -236,23 +253,14 @@ export function PlatformCardTransactions({
                         )
                     )}
                 </div>
-                <div className="flex shrink-0 items-center justify-between gap-3 border-t pt-4">
-                    <Button
-                        variant="secondary"
-                        disabled={loading || page <= 1}
-                        onClick={() => setPage((value) => value - 1)}
-                    >
-                        {t('Previous')}
-                    </Button>
-                    <span className="text-sm tabular-nums">{page}</span>
-                    <Button
-                        variant="secondary"
-                        disabled={loading || failed || !data?.hasMore}
-                        onClick={() => setPage((value) => value + 1)}
-                    >
-                        {t('Next')}
-                    </Button>
-                </div>
+                <AdminPagination
+                    className="shrink-0 border-t pt-4"
+                    page={page}
+                    pages={data?.lastPage}
+                    total={data?.total}
+                    disabled={loading || failed}
+                    onPage={setPage}
+                />
             </DetailDrawerContent>
         </Dialog>
     );

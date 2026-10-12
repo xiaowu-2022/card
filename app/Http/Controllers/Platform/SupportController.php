@@ -9,6 +9,7 @@ use App\Application\Support\SupportChatQuery;
 use App\Application\Support\SupportImageStorage;
 use App\Application\Support\SupportProfiles;
 use App\Application\Tenant\PlatformListFilters;
+use App\Application\User\PlatformUserSummary;
 use App\Domain\Support\Models\SupportConversation;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
@@ -52,7 +53,7 @@ final class SupportController extends Controller
             ->through(fn ($o) => ['id' => $o->id, 'tenantId' => $o->tenant_id, 'userId' => $o->user_id, 'company' => $o->company_name, 'accountId' => $o->account_id,
                 'email' => $o->email, 'mode' => $o->mode, 'awaitingReply' => $o->mode === 'WAITING' || ($o->mode === 'HUMAN' && $o->last_sender === 'USER'), 'updatedAt' => $o->updated_at->toIso8601String()]);
 
-        return Inertia::render('platform/Support', ['inbox' => $rows, 'chat' => $chat, 'companies' => $lists->companies(), 'filters' => $filters, 'supportName' => $r->user('platform_admin')->support_name])
+        return Inertia::render('platform/Support', ['inbox' => PlatformUserSummary::page($rows), 'chat' => $chat, 'companies' => $lists->companies(), 'filters' => $filters, 'supportName' => $r->user('platform_admin')->support_name])
             ->toResponse($r)->header('Cache-Control', 'private, no-store');
     }
 

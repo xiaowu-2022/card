@@ -1,8 +1,9 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
+import { adminPageHref } from '@/lib/admin-pagination';
 import { usePlatformUi } from '@/components/admin/platform-ui-context';
 import { useId } from 'react';
 import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { useEditorRouter } from '@/components/admin/useEditorRouter';
-import { Link } from '@inertiajs/react';
 import { useState, type ReactNode } from 'react';
 import { t } from '@/i18n/admin';
 import { cn } from '@/lib/utils';
@@ -29,6 +30,7 @@ export type AccountPage<T> = {
     total: number;
     current_page: number;
     last_page: number;
+    first_page_url?: string | null;
     prev_page_url: string | null;
     next_page_url: string | null;
 };
@@ -395,39 +397,13 @@ export function PlatformAccountTable<T extends { id: string }>({
                     {t('No matching records.')}
                 </p>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t p-4 text-sm">
-                <span className="text-muted-foreground">
-                    {t('Page {{page}} of {{pages}} · {{total}} records', {
-                        page: page.current_page,
-                        pages: page.last_page,
-                        total: page.total,
-                    })}
-                </span>
-                <div className="flex gap-2">
-                    {page.prev_page_url ? (
-                        <Button asChild variant="secondary" size="sm">
-                            <Link preserveScroll href={pageUrl(page.prev_page_url)}>
-                                {t('Previous')}
-                            </Link>
-                        </Button>
-                    ) : (
-                        <Button variant="secondary" size="sm" disabled>
-                            {t('Previous')}
-                        </Button>
-                    )}
-                    {page.next_page_url ? (
-                        <Button asChild variant="secondary" size="sm">
-                            <Link preserveScroll href={pageUrl(page.next_page_url)}>
-                                {t('Next')}
-                            </Link>
-                        </Button>
-                    ) : (
-                        <Button variant="secondary" size="sm" disabled>
-                            {t('Next')}
-                        </Button>
-                    )}
-                </div>
-            </div>
+            <AdminPagination
+                className="border-t p-4"
+                page={page.current_page}
+                pages={page.last_page}
+                total={page.total}
+                href={(target) => pageUrl(adminPageHref(page, target, url))}
+            />
         </div>
     );
 }

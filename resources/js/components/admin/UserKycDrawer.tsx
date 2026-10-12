@@ -1,3 +1,4 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEffect, useState, type RefObject } from 'react';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -155,27 +156,11 @@ export function UserKycDrawer({
                                         </select>
                                     </label>
                                     {detail.applications.lastPage > 1 && (
-                                        <>
-                                            <Button
-                                                variant="secondary"
-                                                disabled={selection.page <= 1}
-                                                onClick={() => select('', selection.page - 1)}
-                                            >
-                                                {t('Previous')}
-                                            </Button>
-                                            <span>
-                                                {selection.page} / {detail.applications.lastPage}
-                                            </span>
-                                            <Button
-                                                variant="secondary"
-                                                disabled={
-                                                    selection.page >= detail.applications.lastPage
-                                                }
-                                                onClick={() => select('', selection.page + 1)}
-                                            >
-                                                {t('Next')}
-                                            </Button>
-                                        </>
+                                        <AdminPagination
+                                            page={selection.page}
+                                            pages={detail.applications.lastPage}
+                                            onPage={(page) => select('', page)}
+                                        />
                                     )}
                                 </div>
                             )}

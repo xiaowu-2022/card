@@ -204,3 +204,8 @@ not expose this tab; report reads recheck enabled status and company scope.
 Platform 桌面侧栏现为 224px，顶栏仍为 56px。新增独立的 Platform 样式上下文、
 导航分组、可折叠筛选、金额/日期列规范和可选右抽屉编辑布局。
 详见 [UI 改版交付与验证](PLATFORM_UI_REDESIGN.md)。
+
+
+## Backend pagination (2026-10-12)
+
+Backend lists and detail drawers use `AdminPagination`: numbered page links, a highlighted current page, first/last page numbers with ellipses, total records where available and direct page entry for multiple pages. Previous/next controls remain beside the numbers with disabled boundary states. Small screens wrap the controls. `adminPageHref` preserves the server URL's filters and named page parameter; drawer callbacks retain their independent selection and URL state. Custom list DTOs and formerly simple admin queries expose exact scoped totals and last pages. Provider calls, account provisioning and financial writes are never part of pagination. Consumer stock-report controls retain their existing presentation. Deploy matching PHP and admin assets together; no migration is required.

@@ -1,8 +1,10 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
+import { adminPageHref } from '@/lib/admin-pagination';
 import { RecordUserCell, type UserInfo } from '@/components/admin/UserInfoCell';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Link, router } from '@inertiajs/react';
+import { router } from '@inertiajs/react';
 import { t, dateTime } from '@/i18n/admin';
 import { displayMoney } from '@/lib/admin-amount';
 import type { AccountPage } from '@/components/shared/PlatformAccountTable';
@@ -136,21 +138,17 @@ export function CardLoadOrders({
             {!page.data.length && (
                 <p className="p-4 text-muted-foreground">{t('No records yet.')}</p>
             )}
-            <div className="flex gap-3 p-3">
-                {page.prev_page_url && (
-                    <Link href={page.prev_page_url + '&tab=loads'} preserveState preserveScroll>
-                        {t('Previous')}
-                    </Link>
-                )}
-                <span>
-                    {page.current_page} / {page.last_page}
-                </span>
-                {page.next_page_url && (
-                    <Link href={page.next_page_url + '&tab=loads'} preserveState preserveScroll>
-                        {t('Next')}
-                    </Link>
-                )}
-            </div>
+            <AdminPagination
+                className="p-3"
+                page={page.current_page}
+                pages={page.last_page}
+                total={page.total}
+                href={(target) => {
+                    const link = new URL(adminPageHref(page, target), window.location.origin);
+                    link.searchParams.set('tab', 'loads');
+                    return link.pathname + link.search;
+                }}
+            />
         </div>
     );
 }

@@ -29,13 +29,13 @@ final class CompanyFundBookQuery
         $rows = (clone $daily)->where(fn ($q) => $q->where(fn ($q) => $q->where('e.event_type', '<>', 'MANUAL_COMMISSION')->where('p.delta', '>', 0))->orWhere(fn ($q) => $q->where('e.event_type', 'MANUAL_COMMISSION')->where('a.account_type', 'USER_AVAILABLE')))->whereIn('e.event_type', [
             'PROMOTION_ANNUAL_FEE', 'PROMOTION_FEE_REBATE', 'PROMOTION_ANNUAL_COMMISSION', 'ASSET_DEPOSIT', 'ASSET_WITHDRAWAL_SETTLE', 'ASSET_EXCHANGE_IN', 'WALLET_TOPUP_CREDIT', 'WITHDRAWAL_SETTLE', 'COMMISSION_EARN', 'MANUAL_COMMISSION', 'COMMISSION_TRANSFER', 'SECURITY_DEPOSIT_FUND', 'SECURITY_DEPOSIT_REFUND',
             'CARD_ISSUE_FEE_SETTLE', 'CARD_INITIAL_LOAD_SETTLE', 'CARD_LOAD_SETTLE', 'CARD_RETURN_SETTLE', 'CARD_CANCEL_RETURN_SETTLE',
-        ])->orderByDesc('e.posted_at')->orderBy('e.id')->orderBy('p.id')->offset(($page - 1) * 30)->limit(31)->get(['p.id', 'c.kind', 'e.event_type', 'e.posted_at', 'p.delta', 'a.account_type']);
+        ])->orderByDesc('e.posted_at')->orderBy('e.id')->orderBy('p.id')->paginate(30, ['p.id', 'c.kind', 'e.event_type', 'e.posted_at', 'p.delta', 'a.account_type'], 'page', $page);
 
         return ['date' => $day->format('Y-m-d'), 'timezone' => $tenant->timezone,
             'totals' => $totals($daily), 'lifetimeTotals' => $totals($base),
             'rows' => $rows->take(30)->map(fn ($row) => ['id' => $row->id,
                 'type' => $row->event_type === 'MANUAL_COMMISSION' ? (['activation' => 'COMMISSION_EARN', 'annual' => 'PROMOTION_ANNUAL_COMMISSION', 'legacy' => 'LEGACY_COMMISSION'][$row->kind] ?? 'COMMISSION') : (in_array($row->event_type, ['WITHDRAWAL_SETTLE', 'ASSET_WITHDRAWAL_SETTLE'], true) && $row->account_type === 'TENANT_FEE_REVENUE' ? 'WITHDRAWAL_FEE_INCOME' : $row->event_type),
                 'amount' => Money::of($row->delta, 'USDT')->amount(), 'occurredAt' => $row->posted_at])->all(),
-            'page' => $page, 'hasMore' => $rows->count() > 30];
+            'page' => $page, 'lastPage' => $rows->lastPage(), 'total' => $rows->total(), 'hasMore' => $rows->hasMorePages()];
     }
 }

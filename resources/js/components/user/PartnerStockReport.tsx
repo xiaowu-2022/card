@@ -1,3 +1,4 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
 import type { ReactNode } from 'react';
 import type { UserInfo } from '@/components/admin/UserInfoCell';
 import { displayMoney as adminAmount } from '@/lib/admin-amount';
@@ -262,23 +263,31 @@ export function PartnerStockReport({
                             </p>
                         </article>
                     ))}
-                    {(details.page > 1 || details.hasMore) && (
-                        <nav className="stock-pagination">
-                            <button
-                                disabled={details.page <= 1}
-                                onClick={() => onFlow(details.direction, details.page - 1)}
-                            >
-                                {t('Previous')}
-                            </button>
-                            <span>{details.page}</span>
-                            <button
-                                disabled={!details.hasMore}
-                                onClick={() => onFlow(details.direction, details.page + 1)}
-                            >
-                                {t('Next')}
-                            </button>
-                        </nav>
-                    )}
+                    {(details.page > 1 || details.hasMore) &&
+                        (platform ? (
+                            <AdminPagination
+                                page={details.page}
+                                pages={Math.max(1, Math.ceil(details.total / 20))}
+                                total={details.total}
+                                onPage={(page) => onFlow(details.direction, page)}
+                            />
+                        ) : (
+                            <nav className="stock-pagination">
+                                <button
+                                    disabled={details.page <= 1}
+                                    onClick={() => onFlow(details.direction, details.page - 1)}
+                                >
+                                    {t('Previous')}
+                                </button>
+                                <span>{details.page}</span>
+                                <button
+                                    disabled={!details.hasMore}
+                                    onClick={() => onFlow(details.direction, details.page + 1)}
+                                >
+                                    {t('Next')}
+                                </button>
+                            </nav>
+                        ))}
                 </section>
             </div>
         );
@@ -581,17 +590,29 @@ export function PartnerStockReport({
                     ))}
                 </section>
             )}
-            {(page > 1 || more) && (
-                <nav className="stock-pagination">
-                    <button type="button" disabled={page <= 1} onClick={() => onPage(page - 1)}>
-                        {t('Previous')}
-                    </button>
-                    <span>{page}</span>
-                    <button type="button" disabled={!more} onClick={() => onPage(page + 1)}>
-                        {t('Next')}
-                    </button>
-                </nav>
-            )}
+            {(page > 1 || more) &&
+                (platform ? (
+                    <AdminPagination
+                        page={page}
+                        pages={Math.max(
+                            1,
+                            ...[r.journal, r.unvalued, r.risks.active, r.risks.expired].map((p) =>
+                                Math.ceil(p.total / 20),
+                            ),
+                        )}
+                        onPage={onPage}
+                    />
+                ) : (
+                    <nav className="stock-pagination">
+                        <button type="button" disabled={page <= 1} onClick={() => onPage(page - 1)}>
+                            {t('Previous')}
+                        </button>
+                        <span>{page}</span>
+                        <button type="button" disabled={!more} onClick={() => onPage(page + 1)}>
+                            {t('Next')}
+                        </button>
+                    </nav>
+                ))}
             <p className="stock-muted">
                 {t(
                     r.version === 'partner'

@@ -46,7 +46,7 @@ final readonly class CardProductCatalogQuery
             ->get(['b.bin', 'b.card_product_id', 'm.name', 'b.conflicted'])->map(fn ($c): array => ['bin' => $c->bin, 'productId' => $c->card_product_id, 'merchantName' => $c->name, 'conflicted' => (bool) $c->conflicted])->all();
 
         return ['products' => $products->items(),
-            'pagination' => ['previous' => $products->previousPageUrl(), 'next' => $products->nextPageUrl(), 'total' => $products->total()],
+            'pagination' => ['previous' => $products->previousPageUrl(), 'next' => $products->nextPageUrl(), 'total' => $products->total(), 'currentPage' => $products->currentPage(), 'lastPage' => $products->lastPage(), 'first' => $products->url(1)],
             'cardProviders' => CardProviderReference::query()->orderBy('name')->get()
                 ->map(fn ($provider): array => ['id' => $provider->id, 'name' => $provider->name,
                     'apiBins' => $provider->photonpay_reporting_encrypted !== null,

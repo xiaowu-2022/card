@@ -1,3 +1,4 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
 import '../../../css/partner-stock.css';
 import { UserInfoCell, RecordUserCell, type UserInfo } from '@/components/admin/UserInfoCell';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
@@ -10,6 +11,7 @@ type Listing = {
     subject: Identity;
     items: (Identity & { teamCount: number })[];
     page: number;
+    total: number;
     hasMore: boolean;
 };
 type View = {
@@ -164,21 +166,12 @@ export function PartnerHierarchyPanel({
                         </tbody>
                     </table>
                     {!list.items.length && <p>{t('No subordinate partners')}</p>}
-                    <div className="flex justify-between">
-                        <button
-                            disabled={view.page <= 1}
-                            onClick={() => replace({ page: view.page - 1 })}
-                        >
-                            {t('Previous')}
-                        </button>
-                        <span>{view.page}</span>
-                        <button
-                            disabled={!list.hasMore}
-                            onClick={() => replace({ page: view.page + 1 })}
-                        >
-                            {t('Next')}
-                        </button>
-                    </div>
+                    <AdminPagination
+                        page={view.page}
+                        pages={Math.max(1, Math.ceil(list.total / 20))}
+                        total={list.total}
+                        onPage={(page) => replace({ page })}
+                    />
                 </>
             )}
             {report && (

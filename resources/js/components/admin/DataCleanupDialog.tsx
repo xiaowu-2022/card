@@ -1,3 +1,4 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
 import { useEffect, useState } from 'react';
 import { router } from '@inertiajs/react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -365,32 +366,24 @@ export function DataCleanupDialog({
                                             </tbody>
                                         </table>
                                     </div>
-                                    <div className="flex items-center justify-end gap-2">
-                                        {[records.page - 1, records.page + 1].map((page, i) => (
-                                            <Button
-                                                key={i}
-                                                size="sm"
-                                                variant="secondary"
-                                                disabled={page < 1 || page > records.lastPage}
-                                                onClick={run(async () => {
-                                                    try {
-                                                        setRecords(
-                                                            await request<Records>(
-                                                                `${url}/${preview.id}/records?page=${page}`,
-                                                            ),
-                                                        );
-                                                    } catch (failure) {
-                                                        setError((failure as Error).message);
-                                                    }
-                                                })}
-                                            >
-                                                {t(i === 0 ? 'Previous' : 'Next')}
-                                            </Button>
-                                        ))}
-                                        <span className="text-xs">
-                                            {records.page} / {records.lastPage}
-                                        </span>
-                                    </div>
+                                    <AdminPagination
+                                        page={records.page}
+                                        pages={records.lastPage}
+                                        disabled={busy}
+                                        onPage={(page) =>
+                                            run(async () => {
+                                                try {
+                                                    setRecords(
+                                                        await request<Records>(
+                                                            `${url}/${preview.id}/records?page=${page}`,
+                                                        ),
+                                                    );
+                                                } catch (failure) {
+                                                    setError((failure as Error).message);
+                                                }
+                                            })()
+                                        }
+                                    />
                                 </div>
                             )}
                             {!!preview.summary.balances.length && (

@@ -4,6 +4,19 @@
 
 ## 账号
 
+2026-10-12：卡商列表增加删除。仅未被任何产品（含归档产品）、收件人申请、
+回调事件或 BIN 占用引用的卡商配置可删除；有业务历史的卡商保留原有路由。
+Platform `card_provider_reference.manage`、明确确认、版本检查、请求幂等及原子
+删除审计必须全部满足，数据库外键仍负责并发引用保护。审计不保存配置密钥；
+已删除 ID 通过永久审计记录保留，旧新增请求不能复活该卡商。
+删除仅移除本地配置及手工参考金额，不调用卡商、不改钱包或 Ledger，不自动
+删除/解绑产品和业务记录。删除最后一页最后一项后返回有效页码。
+PHP/admin 资产一起发布，无迁移或生产删除/资金测试。
+
+验证：CardProviderReferenceTest 与 PhotonPayMerchantReportingTest 使用隔离测试库；
+`tests/Browser/card-provider-delete.mjs` 使用离线响应覆盖中英文、三种宽度、取消/
+确认、关联禁用、旧版本错误及权限隐藏，不删除开发库已有卡商。
+
 `platform_card_provider_references` 的一个 PhotonPay 记录对应一个账号。Platform 的 `card_provider_reference.manage` 权限维护名称、环境、App ID/Secret、商户签名私钥、回调公钥、USD account/member、可选 Matrix 以及新业务开关。固定环境地址，不接受用户输入 URL；CSRF、版本锁、审计保留，无重复密码确认。
 
 凭据使用 Laravel Crypt 加密，响应不返回密钥或 Secret，编辑空值保留。异常不闪存这些输入，前端不使用记忆表单，提交结束清空秘密字段。身份独立保存在 `photonpay_identity`；有持卡人、收件人、订单或卡历史时不能改变身份。轮换不改变产品绑定。配置改变使连接检查、目录、能力缓存失效，发卡 Token 缓存由加密配置摘要隔离，不复用旧版本 Token。

@@ -44,6 +44,7 @@ export function SupportThread({
     canSend = true,
     workspace = false,
     quickReplyUrl,
+    showServiceControls = true,
 }: {
     chat: SupportChat;
     admin?: boolean;
@@ -51,6 +52,7 @@ export function SupportThread({
     canSend?: boolean;
     workspace?: boolean;
     quickReplyUrl?: string;
+    showServiceControls?: boolean;
     t: (key: string) => string;
 }) {
     const base = baseUrl ?? (admin ? `/admin/support/${chat.id}` : '/support');
@@ -115,7 +117,7 @@ export function SupportThread({
                     'Do not send passwords, verification codes, full card numbers, CVV or identity documents.',
                 )}
             </p>
-            {chat.mode && (
+            {showServiceControls && chat.mode && (
                 <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
                     <span>
                         {t(

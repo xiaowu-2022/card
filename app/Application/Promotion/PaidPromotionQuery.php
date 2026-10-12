@@ -128,10 +128,9 @@ final readonly class PaidPromotionQuery
     public function details(string $tenant, string $user, string $kind, int $rank, int $page): array
     {
         $rows = $this->shares($tenant, $user)->join('users as u', fn ($j) => $j->on('u.id', '=', 'e.user_id')->on('u.tenant_id', '=', 'e.tenant_id'))
-            ->where('e.kind', $kind)->where('e.source_rank', $rank)->orderByDesc('e.occurred_at')->orderBy('s.id')->offset(($page - 1) * 30)->limit(31)
-            ->get(['s.id', 's.depth', 's.rate', 's.amount', 'e.amount as source_amount', 'e.occurred_at', 'u.account_id']);
+            ->where('e.kind', $kind)->where('e.source_rank', $rank)->orderByDesc('e.occurred_at')->orderBy('s.id')->paginate(30, ['s.id', 's.depth', 's.rate', 's.amount', 'e.amount as source_amount', 'e.occurred_at', 'u.account_id'], 'page', $page);
 
-        return ['kind' => $kind, 'rank' => $rank, 'page' => $page, 'hasMore' => $rows->count() > 30, 'items' => $rows->take(30)->map(fn ($r) => [
+        return ['kind' => $kind, 'rank' => $rank, 'page' => $page, 'lastPage' => $rows->lastPage(), 'total' => $rows->total(), 'hasMore' => $rows->hasMorePages(), 'items' => $rows->take(30)->map(fn ($r) => [
             'id' => $r->id, 'direct' => $r->depth === 1, 'rate' => $r->rate, 'amount' => $r->amount, 'sourceAmount' => $r->source_amount, 'occurredAt' => $r->occurred_at, 'accountId' => $r->account_id,
         ])->all()];
     }
@@ -160,9 +159,9 @@ final readonly class PaidPromotionQuery
     {
         $rows = DB::table('paid_promotion_rebates as r')->join('users as u', fn ($j) => $j->on('u.id', '=', 'r.user_id')->on('u.tenant_id', '=', 'r.tenant_id'))
             ->where('r.tenant_id', $tenant)
-            ->orderByRaw("CASE WHEN r.status='PENDING' THEN 0 ELSE 1 END")->orderByDesc('r.created_at')->orderBy('r.id')->offset(($page - 1) * 30)->limit(31)->get(['r.*', 'u.account_id']);
+            ->orderByRaw("CASE WHEN r.status='PENDING' THEN 0 ELSE 1 END")->orderByDesc('r.created_at')->orderBy('r.id')->paginate(30, ['r.*', 'u.account_id'], 'page', $page);
 
-        return ['companyName' => Tenant::query()->whereKey($tenant)->value('name'), 'tenantId' => $tenant, 'levels' => $this->levels($tenant), 'page' => $page, 'hasMore' => $rows->count() > 30,
+        return ['companyName' => Tenant::query()->whereKey($tenant)->value('name'), 'tenantId' => $tenant, 'levels' => $this->levels($tenant), 'page' => $page, 'lastPage' => $rows->lastPage(), 'total' => $rows->total(), 'hasMore' => $rows->hasMorePages(),
             'claims' => $rows->take(30)->map(fn ($r) => $this->claim($r) + ['accountId' => $r->account_id])->all()];
     }
 

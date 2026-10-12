@@ -20,14 +20,14 @@ final class NotificationProfilesController extends Controller
     {
         $profiles = $query->execute('sms');
 
-        return Inertia::render('platform/NotificationProfiles', ['channel' => 'sms', 'profiles' => $profiles->items(), 'pagination' => ['previous' => $profiles->previousPageUrl(), 'next' => $profiles->nextPageUrl(), 'total' => $profiles->total()]]);
+        return Inertia::render('platform/NotificationProfiles', ['channel' => 'sms', 'profiles' => $profiles->items(), 'pagination' => ['previous' => $profiles->previousPageUrl(), 'next' => $profiles->nextPageUrl(), 'total' => $profiles->total(), 'currentPage' => $profiles->currentPage(), 'lastPage' => $profiles->lastPage(), 'first' => $profiles->url(1)]]);
     }
 
     public function email(PlatformNotificationProfilesQuery $query): Response
     {
         $profiles = $query->execute('email');
 
-        return Inertia::render('platform/NotificationProfiles', ['channel' => 'email', 'profiles' => $profiles->items(), 'pagination' => ['previous' => $profiles->previousPageUrl(), 'next' => $profiles->nextPageUrl(), 'total' => $profiles->total()]]);
+        return Inertia::render('platform/NotificationProfiles', ['channel' => 'email', 'profiles' => $profiles->items(), 'pagination' => ['previous' => $profiles->previousPageUrl(), 'next' => $profiles->nextPageUrl(), 'total' => $profiles->total(), 'currentPage' => $profiles->currentPage(), 'lastPage' => $profiles->lastPage(), 'first' => $profiles->url(1)]]);
     }
 
     public function saveSms(SavePlatformSmsProfileRequest $request, SavePlatformSmsProfileAction $action, ?string $profile = null): RedirectResponse

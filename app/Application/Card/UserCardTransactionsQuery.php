@@ -40,15 +40,17 @@ final readonly class UserCardTransactionsQuery
             })
             ->selectRaw("o.id,o.card_id,o.provider_transaction_id,-o.debit_amount AS amount,'USD' AS currency,'transfer_out' AS type,'completed' AS state,NULL::text AS merchant,-o.fee_amount AS fee_amount,'USD' AS fee_currency,NULL::numeric AS fee_return_amount,NULL::text AS fee_return_currency,e.posted_at AS display_at,e.id AS completed_entry_id");
         $spends = DB::table('card_overflow_movements as m')->join('ledger_entries as e', 'e.id', '=', 'm.ledger_entry_id')
-            ->where('m.tenant_id', $tenantId)->where('m.user_id', $userId)->where('m.card_id', $cardId)->where('m.kind', 'SPEND')
+            ->where('m.tenant_id', $tenantId)->where('m.user_id', $userId)->where('m.card_id', $cardId)->whereIn('m.kind', ['SPEND', 'RETURN'])
             ->where('e.tenant_id', $tenantId)->whereNotNull('e.sealed_at')
-            ->selectRaw("m.id,m.card_id,'local-spend:'||m.id AS provider_transaction_id,m.amount,'USD' AS currency,'purchase' AS type,'completed' AS state,NULL::text AS merchant,NULL::numeric AS fee_amount,NULL::text AS fee_currency,NULL::numeric AS fee_return_amount,NULL::text AS fee_return_currency,e.posted_at AS display_at,e.id AS completed_entry_id");
+            ->selectRaw("m.id,m.card_id,(CASE WHEN m.kind='RETURN' THEN 'local-return:' ELSE 'local-spend:' END)||m.id AS provider_transaction_id,CASE WHEN m.kind='RETURN' THEN -m.amount ELSE m.amount END AS amount,'USD' AS currency,CASE WHEN m.kind='RETURN' THEN 'transfer_out' ELSE 'purchase' END AS type,'completed' AS state,NULL::text AS merchant,NULL::numeric AS fee_amount,NULL::text AS fee_currency,NULL::numeric AS fee_return_amount,NULL::text AS fee_return_currency,e.posted_at AS display_at,e.id AS completed_entry_id");
         $last4 = UserCard::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->whereKey($cardId)->value('last4');
-        $rows = DB::query()->fromSub($provider->toBase()->unionAll($loads)->unionAll($returns)->unionAll($spends), 'activity')
+        $activity = DB::query()->fromSub($provider->toBase()->unionAll($loads)->unionAll($returns)->unionAll($spends), 'activity');
+        $total = $admin ? (clone $activity)->count() : null;
+        $rows = $activity
             ->select('activity.*')->selectRaw('? AS last4', [$last4])->orderByDesc('display_at')->orderBy('id')
             ->offset(($page - 1) * 20)->limit(21)->get();
 
-        return ['page' => $page, 'hasMore' => $rows->count() > 20,
+        return [...($admin ? ['total' => $total, 'lastPage' => max(1, (int) ceil($total / 20))] : []), 'page' => $page, 'hasMore' => $rows->count() > 20,
             'items' => $rows->take(20)->map(function ($row) use ($admin, $tenantId, $cardId): array {
                 $item = $this->item($row);
                 if ($admin && str_starts_with($row->provider_transaction_id, 'local-spend:')) {

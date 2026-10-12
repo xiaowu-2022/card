@@ -13,7 +13,9 @@ final class CardProviderReferenceQuery
 
     public function list(): array
     {
-        return ['providers' => CardProviderReference::query()->latest('created_at')->orderBy('id')->paginate(20)
+        $usage = implode(' OR ', array_map(fn ($table) => "EXISTS (SELECT 1 FROM {$table} WHERE {$table}.card_provider_reference_id=platform_card_provider_references.id)", CardProviderReference::DEPENDENCIES));
+
+        return ['providers' => CardProviderReference::query()->select('platform_card_provider_references.*')->selectRaw('('.$usage.') AS deletion_blocked')->withCasts(['deletion_blocked' => 'boolean'])->latest('created_at')->orderBy('id')->paginate(20)
             ->through(function (CardProviderReference $record): array {
                 $connected = $record->photonpay_reporting_encrypted !== null;
                 $report = $connected ? $this->report->read($record->photonpay_reporting_encrypted) : null;
@@ -28,6 +30,7 @@ final class CardProviderReferenceQuery
                     'asset' => $connected ? $report['asset'] : $record->asset_code, 'version' => $record->version,
                     'localMock' => $record->runtime_driver === 'LOCAL_MOCK',
                     'apiConnected' => $connected, 'sandbox' => $report['sandbox'] ?? false,
+                    'canDelete' => ! $record->deletion_blocked,
                     'issuedCardCount' => $connected ? $report['issuedCardCount'] : (string) $localCount,
                     'updatedAt' => $connected ? $report['queriedAt'] : $record->updated_at->toIso8601String(),
                 ];

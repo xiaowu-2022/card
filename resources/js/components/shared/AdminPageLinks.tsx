@@ -1,28 +1,31 @@
-import { Link } from '@inertiajs/react';
-import { t } from '@/i18n/admin';
-export type ListPagination = { previous: string | null; next: string | null; total: number };
+import { AdminPagination } from '@/components/admin/AdminPagination';
+import { adminPageHref } from '@/lib/admin-pagination';
+export type ListPagination = {
+    previous: string | null;
+    next: string | null;
+    total: number;
+    currentPage: number;
+    lastPage: number;
+    first?: string;
+};
 export function AdminPageLinks({ page }: { page?: ListPagination }) {
     if (!page) return null;
     return (
-        <nav
-            className="flex items-center justify-between gap-4 border-t p-4"
-            aria-label={t('Pagination')}
-        >
-            <span>
-                {t('Total')}: {page.total}
-            </span>
-            <div className="flex gap-4">
-                {page.previous && (
-                    <Link preserveScroll href={page.previous}>
-                        {t('Previous')}
-                    </Link>
-                )}
-                {page.next && (
-                    <Link preserveScroll href={page.next}>
-                        {t('Next')}
-                    </Link>
-                )}
-            </div>
-        </nav>
+        <AdminPagination
+            className="border-t p-4"
+            page={page.currentPage}
+            pages={page.lastPage}
+            total={page.total}
+            href={(target) =>
+                adminPageHref(
+                    {
+                        first_page_url: page.first,
+                        prev_page_url: page.previous,
+                        next_page_url: page.next,
+                    },
+                    target,
+                )
+            }
+        />
     );
 }

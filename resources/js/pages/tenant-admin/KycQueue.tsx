@@ -1,8 +1,9 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
+import { adminPageHref } from '@/lib/admin-pagination';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
 import { Head, Link, router } from '@inertiajs/react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatusBadge, type StatusTone } from '@/components/shared/StatusBadge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
@@ -157,32 +158,11 @@ export default function KycQueue({ applications, filters }: Props) {
                         )}
                     </CardContent>
                 </Card>
-                <div className="flex items-center justify-between">
-                    <Button
-                        variant="secondary"
-                        disabled={!applications.prev_page_url}
-                        onClick={() =>
-                            applications.prev_page_url && router.get(applications.prev_page_url)
-                        }
-                    >
-                        {t('Previous')}
-                    </Button>
-                    <span className="text-sm text-muted-foreground">
-                        {t('Page {{value1}} of {{value2}}', {
-                            value1: applications.current_page,
-                            value2: applications.last_page,
-                        })}
-                    </span>
-                    <Button
-                        variant="secondary"
-                        disabled={!applications.next_page_url}
-                        onClick={() =>
-                            applications.next_page_url && router.get(applications.next_page_url)
-                        }
-                    >
-                        {t('Next')}
-                    </Button>
-                </div>
+                <AdminPagination
+                    page={applications.current_page}
+                    pages={applications.last_page}
+                    href={(page) => adminPageHref(applications, page)}
+                />
             </div>
         </TenantAdminLayout>
     );

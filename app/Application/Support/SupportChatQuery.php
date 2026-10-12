@@ -38,9 +38,9 @@ final readonly class SupportChatQuery
             ->join('users', function ($join): void {
                 $join->on('users.id', '=', 'support_conversations.user_id')->on('users.tenant_id', '=', 'support_conversations.tenant_id');
             })->orderByDesc('support_conversations.updated_at')->orderBy('support_conversations.id')
-            ->select(['support_conversations.*', 'users.account_id'])->simplePaginate(30, ['*'], 'page', $page);
+            ->select(['support_conversations.*', 'users.account_id'])->paginate(30, ['*'], 'page', $page);
 
-        return ['page' => $page, 'hasMore' => $rows->hasMorePages(), 'items' => $rows->map(fn ($row): array => [
+        return ['page' => $page, 'lastPage' => $rows->lastPage(), 'total' => $rows->total(), 'hasMore' => $rows->hasMorePages(), 'items' => $rows->map(fn ($row): array => [
             'id' => $row->id, 'accountId' => $row->account_id, 'mode' => $row->mode, 'awaitingReply' => $row->mode === 'WAITING' || ($row->mode === 'HUMAN' && $row->last_sender === 'USER'),
             'updatedAt' => $row->updated_at->toIso8601String(),
         ])->all()];
@@ -89,16 +89,20 @@ final readonly class SupportChatQuery
     /** Only the already authorized inbox page; no image delivery or read acknowledgements. */
     public function previews(string $tenant, array $conversations): array
     {
-        if ($conversations === []) return [];
+        if ($conversations === []) {
+            return [];
+        }
         $messages = SupportMessage::where('tenant_id', $tenant)->whereIn('conversation_id', $conversations)
             ->selectRaw('DISTINCT ON (conversation_id) id, conversation_id, support_message, image_mime')
             ->orderBy('conversation_id')->orderByDesc('sequence')->get();
         $changes = DB::table('support_message_revisions')->where('tenant_id', $tenant)->whereIn('message_id', $messages->pluck('id'))
             ->selectRaw('DISTINCT ON (message_id) message_id, operation, body')->orderBy('message_id')->orderByDesc('revision')->get()->keyBy('message_id');
+
         return $messages->mapWithKeys(function ($message) use ($changes) {
             $change = $changes->get($message->id);
             $deleted = $change?->operation === 'DELETE';
             $text = $deleted ? '' : ($change ? Crypt::decryptString($change->body) : ($message->support_message ?? ''));
+
             return [$message->conversation_id => ['text' => mb_substr(preg_replace('/\s+/u', ' ', trim($text)), 0, 120),
                 'deleted' => $deleted, 'image' => ! $deleted && (bool) $message->image_mime]];
         })->all();

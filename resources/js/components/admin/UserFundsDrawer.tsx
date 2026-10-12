@@ -1,3 +1,4 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
 import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEffect, useState, type RefObject } from 'react';
@@ -347,26 +348,14 @@ export function UserFundsDrawer({
                 )}
             </div>
             {report && (
-                <div className="flex shrink-0 items-center justify-between border-t p-4">
-                    <Button
-                        variant="secondary"
-                        disabled={loading || filters.page <= 1}
-                        onClick={() => visit({ ...filters, page: filters.page - 1 })}
-                    >
-                        {t('Previous')}
-                    </Button>
-                    <span className="text-sm">
-                        {report.rows.page} / {report.rows.lastPage} · {t('Total records')}:{' '}
-                        {report.rows.total}
-                    </span>
-                    <Button
-                        variant="secondary"
-                        disabled={loading || filters.page >= report.rows.lastPage}
-                        onClick={() => visit({ ...filters, page: filters.page + 1 })}
-                    >
-                        {t('Next')}
-                    </Button>
-                </div>
+                <AdminPagination
+                    className="shrink-0 border-t p-4"
+                    page={report.rows.page}
+                    pages={report.rows.lastPage}
+                    total={report.rows.total}
+                    disabled={loading}
+                    onPage={(page) => visit({ ...filters, page })}
+                />
             )}
         </>
     );

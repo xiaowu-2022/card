@@ -1,3 +1,4 @@
+import { AdminPagination } from '@/components/admin/AdminPagination';
 import { RecordUserCell, type UserInfo } from '@/components/admin/UserInfoCell';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import {
@@ -43,6 +44,8 @@ type Report = {
         kind: Kind;
         rank: number;
         page: number;
+        lastPage: number;
+        total: number;
         hasMore: boolean;
         items: {
             userInfo?: UserInfo;
@@ -195,33 +198,12 @@ export function PartnerInvitationsReport({
                                     </TableBody>
                                 </Table>
                                 {!report.details.items.length && <p>{t('No matching records.')}</p>}
-                                <div className="flex items-center justify-between gap-3">
-                                    <Button
-                                        variant="secondary"
-                                        disabled={report.details.page <= 1}
-                                        onClick={() =>
-                                            visit({
-                                                ...selection!,
-                                                page: report.details!.page - 1,
-                                            })
-                                        }
-                                    >
-                                        {t('Previous')}
-                                    </Button>
-                                    <span>{report.details.page}</span>
-                                    <Button
-                                        variant="secondary"
-                                        disabled={!report.details.hasMore}
-                                        onClick={() =>
-                                            visit({
-                                                ...selection!,
-                                                page: report.details!.page + 1,
-                                            })
-                                        }
-                                    >
-                                        {t('Next')}
-                                    </Button>
-                                </div>
+                                <AdminPagination
+                                    page={report.details.page}
+                                    pages={report.details.lastPage}
+                                    total={report.details.total}
+                                    onPage={(page) => visit({ ...selection!, page })}
+                                />
                             </>
                         ) : (
                             <>
