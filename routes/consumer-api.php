@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AppReleaseController;
 use App\Http\Controllers\Api\ConsumerController;
 use App\Http\Controllers\Api\DirectImageUploadController;
 use App\Http\Controllers\Api\SupportWorkspaceController;
+use App\Http\Controllers\SupportRealtimeController;
 use App\Http\Middleware\ConsumerFlowSession;
 use App\Http\Middleware\ConsumerPageResponse;
 use App\Http\Middleware\RequireConsumerApiUser;
@@ -33,6 +34,8 @@ Route::middleware(RequireConsumerApiUser::class)->group(function (): void {
     Route::post('support/read', [ConsumerController::class, 'supportRead'])->middleware('throttle:240,1');
 });
 Route::middleware(RequireConsumerApiUser::class.':operational')->group(function (): void {
+    Route::get('support/realtime', [SupportRealtimeController::class, 'configuration'])->middleware('throttle:120,1');
+    Route::post('support/realtime/auth', [SupportRealtimeController::class, 'authorize'])->middleware('throttle:240,1');
     Route::post('images/direct', [DirectImageUploadController::class, 'store'])->middleware(ThrottleConsumerMedia::class.':image-upload-authorize');
     Route::post('images/direct/{upload}/backup', [DirectImageUploadController::class, 'backup'])->whereUuid('upload')->middleware(ThrottleConsumerMedia::class.':image-upload-backup');
     Route::post('images/direct/{upload}/complete', [DirectImageUploadController::class, 'complete'])->whereUuid('upload')->middleware(ThrottleConsumerMedia::class.':image-upload-complete');

@@ -1,4 +1,5 @@
 import '../css/app.css';
+import { AdminSupportReminderRoot } from '@/components/support/AdminSupportReminder';
 import { OperationResultHost } from '@/components/admin/OperationResultHost';
 import { createInertiaApp } from '@inertiajs/react';
 import { createRoot } from 'react-dom/client';
@@ -11,6 +12,7 @@ const pages = import.meta.glob<ComponentType>('./pages/**/*.tsx', {
 });
 
 void createInertiaApp({
+    layout: () => AdminSupportReminderRoot,
     title: (title) => (title ? `${title} · Aperture Cards` : 'Aperture Cards'),
     resolve: (name) => {
         const page = pages[`./pages/${name}.tsx`];

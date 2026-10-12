@@ -6,15 +6,21 @@ use App\Application\Support\ConsumerPresence;
 use App\Application\Support\SendSupportMessageAction;
 use App\Application\Support\SupportBot;
 use App\Application\Support\SupportChatQuery;
+use App\Application\Support\SupportCustomerProfile;
+use App\Application\Support\SupportCustomerRemark;
 use App\Application\Support\SupportImageStorage;
 use App\Application\Support\SupportMessageChanges;
+use App\Application\Support\SupportRealtime;
+use App\Application\Support\SupportUnread;
 use App\Application\Support\SupportUserAgents;
 use App\Domain\Support\Models\SupportConversation;
 use App\Domain\Support\Models\SupportMessage;
+use App\Domain\Tenant\Models\Tenant;
 use App\Domain\Tenant\TenantContext;
 use App\Domain\User\Models\User;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SendSupportMessageRequest;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -56,9 +62,9 @@ final class SupportWorkspaceController extends Controller
             ->orderByDesc('support_conversations.updated_at')->orderBy('support_conversations.id')->paginate(30);
         $online = app(ConsumerPresence::class)->onlineUsers($tenant, $rows->getCollection()->pluck('user_id')->all());
         $previews = app(SupportChatQuery::class)->previews($tenant, $rows->getCollection()->pluck('id')->all());
-        $rows->through(fn ($row) => ['id' => $row->id, 'lastMessage' => $previews[$row->id] ?? null, 'accountId' => $row->account_id, 'name' => $row->support_remark ?? $row->display_name, 'online' => in_array($row->user_id, $online, true), 'mode' => $row->mode, 'updatedAt' => $row->updated_at->toIso8601String(), 'unreadCount' => (int) $row->unread_count, 'lastMessageAt' => $row->last_message_at ? \Carbon\Carbon::parse($row->last_message_at)->toIso8601String() : null]);
+        $rows->through(fn ($row) => ['id' => $row->id, 'lastMessage' => $previews[$row->id] ?? null, 'accountId' => $row->account_id, 'name' => $row->support_remark ?? $row->display_name, 'online' => in_array($row->user_id, $online, true), 'mode' => $row->mode, 'updatedAt' => $row->updated_at->toIso8601String(), 'unreadCount' => (int) $row->unread_count, 'lastMessageAt' => $row->last_message_at ? Carbon::parse($row->last_message_at)->toIso8601String() : null]);
 
-        return response()->json(['inbox' => $rows, 'awaitingCount' => $awaitingCount, 'pendingMessageCount' => $pendingMessageCount, 'unreadMessageCount' => app(\App\Application\Support\SupportUnread::class)->agentCount($tenant, $actor), 'profile' => app(SupportUserAgents::class)->profile($tenant, $actor)])->header('Cache-Control', 'private, no-store');
+        return response()->json(['inbox' => $rows, 'awaitingCount' => $awaitingCount, 'pendingMessageCount' => $pendingMessageCount, 'unreadMessageCount' => app(SupportUnread::class)->agentCount($tenant, $actor), 'profile' => app(SupportUserAgents::class)->profile($tenant, $actor)])->header('Cache-Control', 'private, no-store');
     }
 
     public function show(Request $r, TenantContext $context, string $conversation, SupportChatQuery $query)
@@ -83,14 +89,16 @@ final class SupportWorkspaceController extends Controller
     public function remark(Request $r, TenantContext $context, string $conversation)
     {
         [$tenant, $actor] = $this->identity($r, $context);
-        app(\App\Application\Support\SupportCustomerRemark::class)->save($tenant, $actor, $r->all(), $conversation);
+        app(SupportCustomerRemark::class)->save($tenant, $actor, $r->all(), $conversation);
+
         return response()->noContent();
     }
 
     public function customer(Request $r, TenantContext $context, string $conversation)
     {
         [$tenant, $actor] = $this->identity($r, $context);
-        return response()->json(app(\App\Application\Support\SupportCustomerProfile::class)->get($tenant, $actor, $conversation))->header('Cache-Control', 'private, no-store');
+
+        return response()->json(app(SupportCustomerProfile::class)->get($tenant, $actor, $conversation))->header('Cache-Control', 'private, no-store');
     }
 
     public function read(Request $r, TenantContext $context, string $conversation)
@@ -98,10 +106,11 @@ final class SupportWorkspaceController extends Controller
         [$tenant, $actor] = $this->identity($r, $context);
         $data = $r->validate(['through' => 'required|integer|min:0']);
         DB::transaction(function () use ($tenant, $actor, $conversation, $data) {
-            \App\Domain\Tenant\Models\Tenant::whereKey($tenant)->lockForUpdate()->firstOrFail();
+            Tenant::whereKey($tenant)->lockForUpdate()->firstOrFail();
             $row = app(SupportUserAgents::class)->conversation($tenant, $actor, $conversation);
             abort_if($data['through'] > $row->last_sequence, 422);
             DB::statement('INSERT INTO support_agent_reads (tenant_id, conversation_id, user_id, through_sequence) VALUES (?, ?, ?, ?) ON CONFLICT (tenant_id, conversation_id, user_id) DO UPDATE SET through_sequence = GREATEST(support_agent_reads.through_sequence, EXCLUDED.through_sequence)', [$tenant, $conversation, $actor, $data['through']]);
+            app(SupportRealtime::class)->notify([SupportRealtime::userChannel($tenant, $actor)]);
         });
 
         return response()->noContent();

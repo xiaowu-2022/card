@@ -37,13 +37,17 @@ final class SupportAdminUnread
             abort_unless($row, 404);
             abort_unless($through >= 0 && $through <= $row->last_sequence, 422);
             DB::statement('INSERT INTO support_admin_reads (tenant_id, conversation_id, admin_id, through_sequence) VALUES (?, ?, ?, ?) ON CONFLICT (tenant_id, conversation_id, admin_id) DO UPDATE SET through_sequence = GREATEST(support_admin_reads.through_sequence, EXCLUDED.through_sequence)', [$tenant, $conversation, $admin, $through]);
+            app(SupportRealtime::class)->notify([SupportRealtime::adminChannel($admin)]);
         });
     }
 
     private function authorize(string $admin, ?string $tenant): void
     {
         $access = app(SupportAccess::class);
-        if ($tenant === null) $access->platform($admin);
-        else $access->admin($tenant, $admin);
+        if ($tenant === null) {
+            $access->platform($admin);
+        } else {
+            $access->admin($tenant, $admin);
+        }
     }
 }

@@ -8,16 +8,18 @@ const compiled = ts.transpileModule(fs.readFileSync('resources/js/components/sup
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
 const flush = async () => { for (let i = 0; i < 5; i++) await new Promise(setImmediate); };
-function harness() {
+function harness(initialCount = 2) {
     const document = new EventTarget();
     document.hidden = false;
     const window = new EventTarget();
     const timers = new Set();
-    let effect, count = 2, fail = false, now = 100000, plays = 0, pauses = 0, visibleCount = 0, player;
+    let push, connected = false;
+    let effect, count = initialCount, fail = false, now = 100000, plays = 0, primes = 0, pauses = 0, visibleCount = 0, player;
     class Audio {
         paused = true;
+        muted = false;
         constructor() { player = this; }
-        play() { plays++; this.paused = false; return Promise.resolve(); }
+        play() { if (this.muted) primes++; else plays++; this.paused = false; return Promise.resolve(); }
         pause() { pauses++; this.paused = true; }
     }
     const react = {
@@ -32,17 +34,17 @@ function harness() {
         fetch: async () => ({ ok: !fail, redirected: false, json: async () => ({ count }) }),
         require: (name) => name === 'react' ? react : name === 'react/jsx-runtime' ? { jsx: () => null } : name === '@inertiajs/react' ? {
             usePage: () => ({ props: { auth: { admin: { id: 'fixture-admin', permissions: ['support.read'] } }, tenant: null } }),
-        } : { t: (s) => s },
+        } : name === '@/lib/supportRealtime' ? { subscribeSupportRealtime: (fn) => { push = fn; return () => { push = undefined; }; }, supportRealtimeConnected: () => connected } : { t: (s) => s },
         clearInterval: (id) => timers.delete(id),
     });
     window.setInterval = (fn) => { timers.add(fn); return fn; };
     exports.AdminSupportReminder({ children: null, platform: true });
     const cleanup = effect();
-    return { document, window, cleanup, tick: async () => { for (const fn of timers) fn(); await flush(); },
+    return { document, window, cleanup, push: async () => { push?.(); await flush(); }, set connected(v) { connected = v; }, tick: async () => { for (const fn of timers) fn(); await flush(); },
         finish: () => { player.paused = true; },
         read: () => window.dispatchEvent(new Event('admin-support-read')),
         unlock: () => document.dispatchEvent(new Event('pointerdown')),
-        get plays() { return plays; }, get pauses() { return pauses; }, get visibleCount() { return visibleCount; },
+        get plays() { return plays; }, get primes() { return primes; }, get pauses() { return pauses; }, get visibleCount() { return visibleCount; },
         set count(v) { count = v; }, set fail(v) { fail = v; }, set now(v) { now = v; },
     };
 }
@@ -54,6 +56,7 @@ test('admin reminders require interaction and fresh unread counters, repeat at m
     assert.equal(h.plays, 0);
     h.unlock();
     assert.equal(h.plays, 1);
+    h.finish();
     h.document.hidden = true;
     h.document.dispatchEvent(new Event('visibilitychange'));
     h.document.hidden = false;
@@ -75,18 +78,19 @@ test('admin reminders require interaction and fresh unread counters, repeat at m
     h.cleanup();
 });
 
-test('failed counters, background and disposal suppress audio and clear unread state', async () => {
+test('failed counters and disposal suppress audio while hidden-tab recovery can remind', async () => {
     const h = harness();
     await flush();
     h.fail = true;
     await h.tick();
     assert.equal(h.visibleCount, 0);
     h.unlock();
+    await flush();
     assert.equal(h.plays, 0);
     h.fail = false;
     h.document.hidden = true;
     await h.tick();
-    assert.equal(h.plays, 0);
+    assert.equal(h.plays, 1);
     h.document.hidden = false;
     h.document.dispatchEvent(new Event('visibilitychange'));
     await flush();
@@ -116,4 +120,35 @@ test('failed counters, background and disposal suppress audio and clear unread s
     await h.tick();
     assert.equal(h.plays, 3);
     h.cleanup();
+});
+
+
+test('WebSocket notifications immediately update admin badge and sound while connected fallback reads pause', async () => {
+    const h = harness(); await flush(); h.unlock(); h.finish();
+    h.connected = true; h.count = 3; h.now = 105000;
+    await h.tick(); assert.equal(h.visibleCount, 2, 'healthy socket pauses five-second counter reads');
+    await h.push(); assert.equal(h.visibleCount, 3); assert.equal(h.plays, 2, 'push immediately triggers new-message sound');
+    h.read(); await flush(); h.count = 0; await h.push();
+    assert.equal(h.visibleCount, 0);
+    h.cleanup(); h.count = 9; await h.push(); assert.equal(h.visibleCount, 0, 'disposed listener cannot update');
+});
+
+
+test('a hidden admin tab keeps sound, receives pushes, repeats unread and never marks messages read', async () => {
+    const h = harness(0); await flush();
+    h.unlock(); await flush();
+    assert.equal(h.primes, 1, 'gesture primes the same audio element before the first message');
+    assert.equal(h.plays, 0);
+    h.connected = true;
+    h.document.hidden = true; h.document.dispatchEvent(new Event('visibilitychange')); await flush();
+    h.count = 1; h.now = 105000; await h.push();
+    assert.equal(h.visibleCount, 1); assert.equal(h.plays, 1, 'hidden-tab push sounds immediately');
+    const pauses = h.pauses;
+    h.document.dispatchEvent(new Event('visibilitychange')); await flush();
+    assert.equal(h.pauses, pauses, 'switching tabs does not interrupt ongoing sound');
+    h.finish(); h.now = 110000; h.count = 2; await h.push();
+    assert.equal(h.plays, 2, 'another background arrival bypasses repeat cooldown');
+    h.finish(); h.now = 170000; await h.tick(); assert.equal(h.plays, 3, 'unread can repeat in the background');
+    h.count = 0; await h.push(); assert.equal(h.visibleCount, 0);
+    h.cleanup(); const before = h.plays; h.count = 4; await h.push(); await h.tick(); assert.equal(h.plays, before);
 });

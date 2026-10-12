@@ -1,13 +1,21 @@
 import { router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
+import { subscribeSupportRealtime, supportRealtimeConnected } from '@/lib/supportRealtime';
 
 export function useSupportPolling(prop: 'chat' | 'inbox' | 'workspace', enabled = true) {
     const [disconnected, setDisconnected] = useState(false);
     useEffect(() => {
         if (!enabled) return;
         let busy = false;
-        const timer = window.setInterval(() => {
-            if (busy || document.visibilityState !== 'visible') return;
+        let pending = false,
+            stopped = false;
+        const refresh = () => {
+            if (stopped) return;
+            if (busy) {
+                pending = true;
+                return;
+            }
+            if (document.visibilityState !== 'visible') return;
             busy = true;
             router.reload({
                 only: prop === 'workspace' ? ['chat', 'inbox'] : [prop],
@@ -23,10 +31,27 @@ export function useSupportPolling(prop: 'chat' | 'inbox' | 'workspace', enabled 
                 },
                 onFinish: () => {
                     busy = false;
+                    if (pending) {
+                        pending = false;
+                        refresh();
+                    }
                 },
             });
+        };
+        const unsubscribe = subscribeSupportRealtime(refresh);
+        const foreground = () => {
+            if (!document.hidden) refresh();
+        };
+        document.addEventListener('visibilitychange', foreground);
+        const timer = window.setInterval(() => {
+            if (!supportRealtimeConnected()) refresh();
         }, 5000);
-        return () => window.clearInterval(timer);
+        return () => {
+            stopped = true;
+            unsubscribe();
+            document.removeEventListener('visibilitychange', foreground);
+            window.clearInterval(timer);
+        };
     }, [prop, enabled]);
     return disconnected;
 }

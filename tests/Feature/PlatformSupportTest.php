@@ -88,11 +88,12 @@ it('filters all-company conversations with stable thirty-row pages and scoped cu
     $this->post($forged.'/messages', ['request_id' => (string) Str::uuid(), 'support_message' => 'wrong scope'])->assertNotFound();
 });
 
-it('separates reading sending and nickname management and blocks inactive admins', function () {
+it('requires the scoped support catalog and blocks inactive admins', function () {
     $role = Role::where('name', 'PLATFORM_OWNER')->firstOrFail();
     $send = DB::table('permissions')->where('name', 'support.send')->value('id');
     $manage = DB::table('permissions')->where('name', 'support.agents.manage')->value('id');
-    DB::table('role_permissions')->where('role_id', $role->id)->whereIn('permission_id', [$send, $manage])->delete();
+    // Permissions belong to the complete Platform catalog, rather than one admin role.
+    DB::table('role_permissions')->whereIn('role_id', Role::where('scope_type', 'PLATFORM')->pluck('id'))->whereIn('permission_id', [$send, $manage])->delete();
     $this->get($this->url)->assertOk();
     $this->post($this->url.'/messages', ['request_id' => (string) Str::uuid(), 'support_message' => 'no permission'])->assertForbidden();
     $this->post('http://admin.localhost/platform/support/profile', ['support_name' => 'denied'])->assertForbidden();
@@ -143,7 +144,7 @@ it('requires read permission even when send exists and bounds Platform history t
     }
     $this->get($this->url)->assertOk()->assertInertia(fn ($p) => $p->has('chat.messages', 50)->where('chat.olderCursor', 2));
     $this->get($this->url.'?before=2')->assertOk()->assertInertia(fn ($p) => $p->has('chat.messages', 1)->where('chat.messages.0.sequence', 1));
-    DB::table('role_permissions')->where('role_id', Role::where('name', 'PLATFORM_OWNER')->value('id'))
+    DB::table('role_permissions')->whereIn('role_id', Role::where('scope_type', 'PLATFORM')->pluck('id'))
         ->where('permission_id', DB::table('permissions')->where('name', 'support.read')->value('id'))->delete();
     $this->post($this->url.'/messages', ['request_id' => (string) Str::uuid(), 'support_message' => 'no read'])->assertForbidden();
 });

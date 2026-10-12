@@ -1,7 +1,4 @@
-import {
-    AdminSupportReminder,
-    SupportUnreadBadge,
-} from '@/components/support/AdminSupportReminder';
+import { SupportUnreadBadge } from '@/components/support/AdminSupportReminder';
 import { useEditor, usePage } from '@/components/admin/editor-context';
 import { useAdminTranslation, t } from '@/i18n/admin';
 import { useLocaleSync } from '@/i18n/useLocaleSync';
@@ -181,9 +178,5 @@ function TenantAdminLayoutContent({ children }: { children: ReactNode }) {
 }
 
 export function TenantAdminLayout(props: { children: ReactNode }) {
-    return (
-        <AdminSupportReminder platform={false}>
-            <TenantAdminLayoutContent {...props} />
-        </AdminSupportReminder>
-    );
+    return <TenantAdminLayoutContent {...props} />;
 }

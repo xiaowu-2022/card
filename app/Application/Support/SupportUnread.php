@@ -16,7 +16,9 @@ final class SupportUnread
 
     public function agentCount(string $tenant, string $user): int
     {
-        if (! app(SupportUserAgents::class)->enabled($tenant, $user)) return 0;
+        if (! app(SupportUserAgents::class)->enabled($tenant, $user)) {
+            return 0;
+        }
 
         return DB::table('support_messages as m')
             ->join('support_conversations as c', fn ($j) => $j->on('c.id', '=', 'm.conversation_id')->on('c.tenant_id', '=', 'm.tenant_id'))
@@ -45,6 +47,7 @@ final class SupportUnread
             if ($through > $conversation->user_read_sequence) {
                 DB::table('support_conversations')->where('tenant_id', $tenant)->where('user_id', $user)->where('id', $conversation->id)
                     ->update(['user_read_sequence' => $through]);
+                app(SupportRealtime::class)->notify([SupportRealtime::userChannel($tenant, $user)]);
             }
         });
     }

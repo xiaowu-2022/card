@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { onSupportRealtime, supportRealtimeConnected } from '../../lib/support-realtime';
+let stopRealtime: (() => void) | undefined;
 import { computed, nextTick, ref, watch, onBeforeUnmount } from 'vue';
 import { onHide, onShow, onUnload, onLoad } from '@dcloudio/uni-app';
 import SupportReplyPicker from '../../components/SupportReplyPicker.vue';
@@ -170,6 +172,7 @@ async function handoff() {
         busy.value = false;
     }
 }
+let realtimeDirty = false;
 let intent: { request_id: string; support_message: string; image: string } | null = null;
 const locked = ref(false);
 let visible = false,
@@ -185,7 +188,11 @@ function foreground() {
     return visible;
 }
 async function load(silent = false) {
-    if (polling.value) return;
+    if (polling.value) {
+        realtimeDirty = true;
+        return;
+    }
+    realtimeDirty = false;
     polling.value = true;
     const run = ++generation;
     if (!silent) loading.value = true;
@@ -215,6 +222,7 @@ async function load(silent = false) {
     } finally {
         polling.value = false;
         loading.value = false;
+        if (realtimeDirty && foreground()) setTimeout(tick, 0);
     }
 }
 async function acknowledge() {
@@ -241,17 +249,27 @@ async function acknowledge() {
     }
 }
 function tick() {
-    if (!foreground() || busy.value || changing.value) return;
+    if (!foreground()) return;
+    if (busy.value || changing.value) {
+        realtimeDirty = true;
+        return;
+    }
     void load(true);
 }
 onShow(() => {
     visible = true;
     void load();
     clearInterval(timer);
-    timer = setInterval(tick, 5000);
+    stopRealtime?.();
+    stopRealtime = onSupportRealtime(tick);
+    timer = setInterval(() => {
+        if (!supportRealtimeConnected() || realtimeDirty) tick();
+    }, 5000);
 });
 function stop() {
     visible = false;
+    stopRealtime?.();
+    stopRealtime = undefined;
     clearInterval(timer);
 }
 onHide(stop);

@@ -1,7 +1,4 @@
-import {
-    AdminSupportReminder,
-    SupportUnreadBadge,
-} from '@/components/support/AdminSupportReminder';
+import { SupportUnreadBadge } from '@/components/support/AdminSupportReminder';
 import { AdminEditorHost } from '@/components/admin/AdminEditor';
 import { PlatformUiContext } from '@/components/admin/platform-ui-context';
 import { useEditor } from '@/components/admin/editor-context';
@@ -317,9 +314,5 @@ function PlatformLayoutContent({ children, title, description, actions }: Platfo
 }
 
 export function PlatformLayout(props: PlatformLayoutProps) {
-    return (
-        <AdminSupportReminder platform={true}>
-            <PlatformLayoutContent {...props} />
-        </AdminSupportReminder>
-    );
+    return <PlatformLayoutContent {...props} />;
 }

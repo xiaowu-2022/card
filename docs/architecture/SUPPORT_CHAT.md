@@ -407,3 +407,73 @@ reads stop or suppress reminders. No speech service or external notification req
 is used. Deploy the administrator-cursor migration, PHP, audio asset and rebuilt
 public/build together. Validate only offline isolated fixtures; never send live
 customer test messages or execute production financial tests.
+
+
+## WebSocket updates (2026-10-12)
+
+Support now uses self-hosted Laravel Reverb for immediate committed-message updates
+across Platform/company administration, uni-app H5, native App and the consumer-agent
+workspace. This supersedes the five-second primary polling contract above. HTTP POST
+continues to own message persistence, confirmations, request UUIDs, encrypted images,
+monotonic sequences, actor snapshots and read acknowledgements. No schema migration,
+financial/provider operation or historical replay is involved.
+
+Conversation saves (including human takeover, bot replies, handoff and finish),
+message corrections, agent grants/revocations and actor-owned read acknowledgements
+publish only after commit. Rollbacks publish nothing; a failed publication never fails
+or repeats an already committed message. Private events contain only `{refresh: true}`:
+no message body, company/customer identifiers, counts, remarks, image URLs or staff data.
+Clients refetch the current filtered/page-scoped DTO through existing authorization;
+GET never marks messages read. Existing render/foreground/sequence rules own the
+separate read POST. Drafts, request intents, history pages and loaded inbox ranges survive.
+
+The host-resolved authenticated HTTP configuration/auth endpoints are:
+`/platform/support/realtime`, `/admin/support/realtime`, `/api/v1/support/realtime`,
+and `/api/mobile/v1/support/realtime`, each with POST `/auth`. Callers cannot select
+a company/user/admin identity. Ordinary consumers sign only their own hashed private
+channel; currently active same-company agents additionally sign the team channel.
+Company administrators sign their company team plus personal admin channel; active
+Platform support readers sign the global support plus personal admin channel.
+Native requests retain the existing device token/session-version/company checks.
+Channel signatures bind the exact socket ID/channel. Reverb rejects client events.
+Secret/signature credentials never enter the WebSocket URL, persisted client storage,
+logs or static builds; only the public Reverb application key appears in the path.
+
+One foreground socket is shared by each client session. All subscription acknowledgements
+are required before disabling five-second fallback chat reads. Connections reauthorize
+through the current HTTP identity every minute, catch up on every successful subscription,
+answer server pings, detect missing heartbeats and back off on failed reconnects.
+Hidden/background/logged-out clients stop sockets; stale async/socket callbacks cannot
+revive them. Multiple updates are coalesced, and updates arriving during a read are
+retried. Administrative and consumer badges/reminders refresh on push; foreground
+counters retain a ten-second read as a safety check for missed publications, general
+inbox messages and agent revocation (five seconds while disconnected). Reminder audio
+keeps its user-gesture/fresh-count/one-minute-repeat rules.
+
+An already signed connection can retain its invalidation-only subscription until it
+closes; it never receives content or bypasses fresh HTTP access checks after revocation.
+The official clients renew every minute and react to grant/revoke notifications sooner.
+Installations without the Reverb configuration/process/proxy retain polling automatically.
+Deployment and isolated checks are in `docs/deployment/SUPPORT_WEBSOCKET.md`.
+
+
+### Backend reminders across pages and hidden browser tabs (2026-10-12)
+
+Platform/company administration now uses a persistent root Inertia layout for its
+one scoped reminder. Page navigation preserves the audio element, gesture enablement,
+unread repeat timing and WebSocket subscription; company drawers do not create extra
+reminder instances. The shared administration socket stays open when the tab is hidden,
+and push/fallback counter reads plus voice reminders run in background tabs on any
+backend page. Returning to a visible chat explicitly refreshes the saved page/filter
+before its existing delivered-sequence acknowledgement. Visibility transitions never
+silence sound or clear unread counts by themselves.
+
+Only authenticated fresh counter reads may sound. A user gesture primes the same audio
+element even before the first unread arrival; blocked playback waits for a new gesture.
+A new customer message bypasses the one-minute repeat interval; an unchanged unread
+count keeps the existing interval. Logout/lost permission/unmount stops sound and
+subscription. Reminder/background reads never mark messages read or fetch their bodies;
+hidden conversation pages retain their foreground-only DTO refresh/read gates.
+Consumer H5/native App lifecycle is unchanged by this backend-only request. Browser
+suspension, a closed tab, muted site audio or denied autoplay can still prevent sound;
+this is not OS/mobile background push. No desktop notification permission is requested.

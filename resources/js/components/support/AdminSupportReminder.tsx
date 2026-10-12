@@ -2,8 +2,23 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { usePage } from '@inertiajs/react';
 import type { SharedProps } from '@/types/global';
 import { t } from '@/i18n/admin';
+import { subscribeSupportRealtime, supportRealtimeConnected } from '@/lib/supportRealtime';
 
 const UnreadContext = createContext(0);
+
+// Inertia keeps this layout mounted across pages, including non-support screens.
+export function AdminSupportReminderRoot({ children }: { children: ReactNode }) {
+    const { url } = usePage<SharedProps>();
+    return (
+        <AdminSupportReminder
+            platform={/^\/platform(?:\/|$)/.test(url)}
+            enabled={/^\/(?:platform|admin)(?:\/|$)/.test(url)}
+        >
+            {children}
+        </AdminSupportReminder>
+    );
+}
+
 export function SupportUnreadBadge({ count }: { count?: number }) {
     const globalCount = useContext(UnreadContext);
     const value = count ?? globalCount;
@@ -20,13 +35,16 @@ export function SupportUnreadBadge({ count }: { count?: number }) {
 export function AdminSupportReminder({
     children,
     platform,
+    enabled = true,
 }: {
     children: ReactNode;
     platform: boolean;
+    enabled?: boolean;
 }) {
     const { auth, tenant } = usePage<SharedProps>().props;
     const actor = auth.admin;
     const allowed =
+        enabled &&
         actor?.permissions.includes(platform ? 'support.read' : 'support.manage') === true;
     const [count, setCount] = useState(0);
     useEffect(() => {
@@ -39,13 +57,16 @@ export function AdminSupportReminder({
             lastSpoken = 0,
             pendingNewMessage = false,
             unlocked = false,
+            priming = false,
             busy = false,
             stopped = false,
-            readRevision = 0;
+            readRevision = 0,
+            pendingRefresh = false,
+            lastCheck = 0;
         const controller = new AbortController();
         const remind = () => {
             if (
-                document.hidden ||
+                stopped ||
                 !unlocked ||
                 freshCount < 1 ||
                 Date.now() - lastFresh > 15000 ||
@@ -58,10 +79,17 @@ export function AdminSupportReminder({
             audio.currentTime = 0;
             void audio.play().catch(() => {
                 unlocked = false;
+                pendingNewMessage = freshCount > 0;
+                lastSpoken = 0;
             });
         };
         const refresh = async () => {
-            if (busy || document.hidden || stopped) return;
+            if (stopped) return;
+            if (busy) {
+                pendingRefresh = true;
+                return;
+            }
+            lastCheck = Date.now();
             busy = true;
             const revision = readRevision;
             try {
@@ -83,7 +111,7 @@ export function AdminSupportReminder({
                 lastFresh = Date.now();
                 setCount(freshCount);
                 if (!freshCount) {
-                    audio.pause();
+                    if (!priming) audio.pause();
                     lastSpoken = 0;
                     pendingNewMessage = false;
                 }
@@ -95,15 +123,43 @@ export function AdminSupportReminder({
                 if (!stopped) setCount(0);
             } finally {
                 busy = false;
+                if (pendingRefresh && !stopped) {
+                    pendingRefresh = false;
+                    void refresh();
+                }
             }
         };
         const unlock = () => {
+            if (unlocked) {
+                remind();
+                return;
+            }
             unlocked = true;
-            remind();
+            if (freshCount > 0) {
+                remind();
+                return;
+            }
+            // Prime this same audio element during the gesture, before a future hidden-tab arrival.
+            priming = true;
+            audio.muted = true;
+            void audio
+                .play()
+                .then(() => {
+                    priming = false;
+                    audio.pause();
+                    audio.currentTime = 0;
+                    audio.muted = false;
+                    if (!stopped) remind();
+                })
+                .catch(() => {
+                    priming = false;
+                    audio.muted = false;
+                    unlocked = false;
+                });
         };
         const visibility = () => {
-            audio.pause();
-            if (!document.hidden) void refresh();
+            // Refresh after either transition, but never stop background sound or mark read.
+            void refresh();
         };
         const read = () => {
             readRevision++;
@@ -116,11 +172,14 @@ export function AdminSupportReminder({
         document.addEventListener('visibilitychange', visibility);
         window.addEventListener('admin-support-read', read);
         void refresh();
+        const unsubscribe = subscribeSupportRealtime(() => void refresh());
         const timer = window.setInterval(() => {
-            void refresh();
+            if (!supportRealtimeConnected() || Date.now() - lastCheck >= 10000) void refresh();
+            remind();
         }, 5000);
         return () => {
             stopped = true;
+            unsubscribe();
             controller.abort();
             audio.pause();
             clearInterval(timer);

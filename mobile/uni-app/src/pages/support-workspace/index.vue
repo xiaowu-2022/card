@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { onSupportRealtime, supportRealtimeConnected } from '../../lib/support-realtime';
+let stopRealtime: (() => void) | undefined;
 import TextInput from '../../components/TextInput.vue';
 import { ref, onBeforeUnmount } from 'vue';
 import { onShow, onHide, onUnload, onReachBottom } from '@dcloudio/uni-app';
@@ -41,10 +43,15 @@ const data = ref<Data | null>(null),
     settingsOpen = ref(false),
     settingsView = ref<'menu' | 'name'>('menu'),
     saveError = ref(false);
+let realtimeDirty = false;
 let visible = false,
     timer: ReturnType<typeof setInterval> | undefined;
 async function load(reset = false, append = false) {
-    if (busy.value || settingsOpen.value) return;
+    if (busy.value || settingsOpen.value) {
+        realtimeDirty = true;
+        return;
+    }
+    realtimeDirty = false;
     if (append && (!data.value || page.value >= data.value.inbox.last_page)) return;
     const query = reset ? search.value.trim() : activeSearch.value;
     const targetPage = reset ? 1 : append ? page.value + 1 : page.value;
@@ -85,6 +92,7 @@ async function load(reset = false, append = false) {
     } finally {
         busy.value = false;
         loadingMore.value = false;
+        if (realtimeDirty && visible && !settingsOpen.value) setTimeout(() => void load(), 0);
     }
 }
 onReachBottom(() => {
@@ -139,14 +147,20 @@ async function save() {
 }
 function stop() {
     visible = false;
+    stopRealtime?.();
+    stopRealtime = undefined;
     clearInterval(timer);
 }
 onShow(() => {
     visible = true;
     void load();
     clearInterval(timer);
+    stopRealtime?.();
+    stopRealtime = onSupportRealtime(() => {
+        if (visible) void load();
+    });
     timer = setInterval(() => {
-        if (!visible) return;
+        if (!visible || (supportRealtimeConnected() && !realtimeDirty)) return;
         // #ifdef H5
         if (document.visibilityState !== 'visible') return;
         // #endif

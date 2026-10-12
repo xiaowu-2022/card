@@ -184,3 +184,12 @@ the current administrator before updated_at descending and stable conversation I
 Apply this in SQL before pagination, retaining company/search/status filters. It uses
 the same per-administrator unread projection as badges; read acknowledgements remain
 explicit and listing never changes them. Backend-only, no schema migration.
+
+
+## 2026-10-12 WebSocket rollout
+
+Support push now uses self-hosted Reverb; deploy PHP/Composer lock, rebuilt admin/H5
+assets and the managed Reverb process together. No migration is required. See
+[SUPPORT_WEBSOCKET.md](SUPPORT_WEBSOCKET.md) for same-origin WSS proxy configuration,
+private credentials, native builds and isolated verification. Earlier five-second
+polling remains the disconnected/unconfigured fallback, not the primary transport.

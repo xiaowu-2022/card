@@ -52,6 +52,7 @@ final class SupportUserAgents
             } else {
                 DB::table('support_user_agents')->insert($values + ['tenant_id' => $tenant, 'user_id' => $user, 'created_at' => now()]);
             }
+            app(SupportRealtime::class)->notify([SupportRealtime::userChannel($tenant, $user)]);
             app(AuditLogger::class)->record($tenant, 'ADMIN', $actor, 'SUPPORT_USER_AUTHORIZATION', 'user', $user, ['enabled' => (bool) ($old?->enabled ?? false)], $values);
         });
     }

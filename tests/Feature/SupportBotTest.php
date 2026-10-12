@@ -127,15 +127,18 @@ it('disables only robot conversations and exposes waiting requests to the human 
     expect(SupportConversation::sole()->mode)->toBe('HUMAN');
 });
 
-it('enforces bot management permissions and validates preview and scope without creating messages', function () {
+it('enforces active scoped bot management and validates preview without creating messages', function () {
     $this->faqs->save($this->owner->id, null, null, $this->input);
     $this->postJson('http://admin.localhost/platform/support/bot/preview', ['company' => $this->company->id, 'question' => '如何开卡'])->assertOk()->assertJsonPath('answer.answer', $this->input['answer']);
     $this->getJson('http://admin.localhost/platform/support/bot?company=bad')->assertUnprocessable();
     expect(SupportMessage::count())->toBe(0);
     DB::table('role_permissions')->where('role_id', Role::where('name', 'PLATFORM_OWNER')->value('id'))->where('permission_id', DB::table('permissions')->where('name', 'support.bot.manage')->value('id'))->delete();
+    // Active administrators share the scoped permission catalog (2026-10-11).
+    $this->get('http://admin.localhost/platform/support/bot')->assertOk();
+    $this->owner->update(['status' => 'SUSPENDED']);
     $this->get('http://admin.localhost/platform/support/bot')->assertForbidden();
-    $this->postJson('http://admin.localhost/platform/support/bot/faqs', $this->input)->assertForbidden();
-    $this->postJson('http://admin.localhost/platform/support/bot/preview', ['company' => $this->company->id, 'question' => '如何开卡'])->assertForbidden();
+    $this->actingAs($this->owner, 'platform_admin')->postJson('http://admin.localhost/platform/support/bot/faqs', $this->input)->assertForbidden();
+    $this->actingAs($this->owner, 'platform_admin')->postJson('http://admin.localhost/platform/support/bot/preview', ['company' => $this->company->id, 'question' => '如何开卡'])->assertForbidden();
 });
 
 it('rolls back the customer message if automatic reply persistence fails and handles image-only fallback', function () {

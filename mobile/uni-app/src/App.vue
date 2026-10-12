@@ -1,10 +1,59 @@
 <script setup lang="ts">
 import { onShow, onHide } from '@dcloudio/uni-app';
+import { watch } from 'vue';
+import {
+    onSupportRealtime,
+    pauseSupportRealtime,
+    resumeSupportRealtime,
+    restartSupportRealtime,
+    supportRealtimeConnected,
+} from './lib/support-realtime';
 import { checkAppUpdate } from './lib/app-update';
 import { pauseSupportReminder, resumeSupportReminder } from './lib/support-reminder';
-import { refreshUnread } from './lib/session';
+import { refreshUnread, session } from './lib/session';
+let foreground = false,
+    lastCheck = 0,
+    refreshing = false,
+    pendingRefresh = false;
+function refresh() {
+    if (!foreground) return;
+    if (refreshing) {
+        pendingRefresh = true;
+        return;
+    }
+    refreshing = true;
+    lastCheck = Date.now();
+    void refreshUnread().finally(() => {
+        refreshing = false;
+        if (pendingRefresh) {
+            pendingRefresh = false;
+            refresh();
+        }
+    });
+}
+onSupportRealtime(refresh);
+watch(
+    () =>
+        session.value?.user
+            ? session.value.tenant.id +
+              ':' +
+              session.value.user.id +
+              ':' +
+              session.value.restricted +
+              ':' +
+              session.value.supportAgent
+            : null,
+    (value) => {
+        if (foreground && value) {
+            resumeSupportRealtime();
+            restartSupportRealtime();
+        } else pauseSupportRealtime();
+    },
+);
 let timer: ReturnType<typeof setInterval> | undefined;
 function pause() {
+    foreground = false;
+    pauseSupportRealtime();
     pauseSupportReminder();
     clearInterval(timer);
     timer = undefined;
@@ -14,12 +63,14 @@ function resume() {
     // #ifdef H5
     if (document.hidden) return;
     // #endif
+    foreground = true;
+    if (session.value?.user) resumeSupportRealtime();
     resumeSupportReminder();
     void checkAppUpdate(true);
-    void refreshUnread().catch(() => {
-        /* Existing request error UI handles offline state. */
-    });
-    timer = setInterval(() => void refreshUnread(), 5000);
+    refresh();
+    timer = setInterval(() => {
+        if (!supportRealtimeConnected() || Date.now() - lastCheck >= 10000) refresh();
+    }, 5000);
 }
 onShow(resume);
 onHide(pause);

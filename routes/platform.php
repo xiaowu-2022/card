@@ -57,6 +57,7 @@ use App\Http\Controllers\Platform\UserRestrictionsController;
 use App\Http\Controllers\Platform\UserSummaryController;
 use App\Http\Controllers\Platform\WalletAdjustmentController;
 use App\Http\Controllers\Platform\WealthController;
+use App\Http\Controllers\SupportRealtimeController;
 use App\Http\Middleware\CompanyDirectoryAccess;
 use App\Http\Middleware\PlatformCompanyConfiguration;
 use Illuminate\Http\Request;
@@ -82,6 +83,8 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     });
 
     Route::middleware('admin.scope:platform,support.read')->group(function (): void {
+        Route::get('/support/realtime', [SupportRealtimeController::class, 'configuration'])->middleware('throttle:120,1');
+        Route::post('/support/realtime/auth', [SupportRealtimeController::class, 'authorize'])->middleware('throttle:240,1');
         Route::middleware('admin.scope:platform,support.hours.manage')->group(function () {
             Route::get('/support/hours', [SupportWorkspaceController::class, 'hours']);
             Route::post('/support/hours', [SupportWorkspaceController::class, 'saveHours'])->middleware('throttle:40,1');

@@ -45,6 +45,7 @@ final class SupportMessageChanges
                 'revision' => $revision, 'operation' => $data['operation'],
                 'body' => $data['operation'] === 'EDIT' ? Crypt::encryptString($body) : null, 'created_at' => now(),
             ]);
+            app(SupportRealtime::class)->conversation($tenant, app(SupportUserAgents::class)->conversation($tenant, $actor, $conversation)->user_id);
             app(AuditLogger::class)->record($tenant, 'USER', $actor, 'SUPPORT_MESSAGE_'.$data['operation'], 'support_message', $message,
                 ['revision' => $revision - 1], ['revision' => $revision]);
         });

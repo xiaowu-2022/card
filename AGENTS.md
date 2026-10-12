@@ -1,3 +1,25 @@
+On 2026-10-12 the user required Platform/company backend support reminders on every
+administrative page and while its browser tab is hidden. Keep one persistent scoped
+administration reminder/socket across Inertia navigation, including background reads,
+reconnect/fallback and gesture-enabled sound. Hidden tabs never acknowledge chats;
+only visible delivered conversations may advance read cursors. Stop reminder/socket
+on logout or lost authorization and retain fresh-counter/audio failure gates. This
+supersedes foreground-only administration reminder/connection behavior; consumer App
+lifecycle stays unchanged. No financial/provider operations or real-customer tests.
+See docs/architecture/SUPPORT_CHAT.md and docs/deployment/SUPPORT_WEBSOCKET.md.
+
+On 2026-10-12 the user approved self-hosted WebSocket support updates instead of
+five-second primary polling. Use authenticated, company/identity-scoped Reverb private
+invalidation channels for Platform/company administrators, consumer agents and App/H5
+customers. Publish only committed support evidence; read message DTOs through existing
+scoped HTTP authorization. Preserve encrypted history, UUID/sequence/read rules, drafts,
+filters, agent revocation and reminder gates. Share foreground sockets with heartbeat,
+reconnection/catch-up and disconnected polling fallback; never put credentials or message
+content in WebSocket URLs/logs. Deploy the Composer/PHP/admin/H5 changes with a managed
+Reverb process and same-origin WSS proxy; existing native Apps need rebuilt installation.
+No migration, real-customer test messages, provider calls or production financial tests.
+See docs/architecture/SUPPORT_CHAT.md and docs/deployment/SUPPORT_WEBSOCKET.md.
+
 On 2026-10-12 the user excluded ADVANCE receipts from homepage Actual received
 recharges. Count credited automatic/manual ACTUAL receipts using the current effective
 append-only receipt classification for primary and multi-asset orders; automatic

@@ -22,6 +22,15 @@ services:
       SESSION_COOKIE: card_mock_session
       CACHE_STORE: array
       QUEUE_CONNECTION: sync
+      SUPPORT_REALTIME_ENABLED: "true"
+      SUPPORT_SOCKET_PORT: "8080"
+      REVERB_APP_ID: card-local-support
+      REVERB_APP_KEY: card-local-support-key
+      REVERB_APP_SECRET: local-development-only-support-secret
+      REVERB_HOST: support-realtime
+      REVERB_PORT: "8080"
+      REVERB_SCHEME: http
+      REVERB_ALLOWED_ORIGINS: "a.localhost,b.localhost,admin.localhost,localhost"
       CARD_PROVIDER_DRIVER: mock
       MOCK_CARD_PROVIDER_MODE: ${MOCK_CARD_PROVIDER_MODE:-SUCCESS}
       MOCK_CARDHOLDER_MODE: ${MOCK_CARDHOLDER_MODE:-READY}
@@ -62,6 +71,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    restart: unless-stopped
+
+  support-realtime:
+    build: .
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+    environment: *local-app-environment
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    ports:
+      - "127.0.0.1:8080:8080"
     restart: unless-stopped
 
   node:

@@ -60,9 +60,9 @@ it('rejects offline handoff without writes, permits queued messages and replays 
     $this->getJson('http://a.localhost/api/v1/support')->assertJsonPath('humanSupport.available', false)->assertJsonPath('humanSupport.nextOpenAt', null);
 });
 
-it('separates hours, shared reply and agent management permissions from sending', function () {
+it('requires scoped hours, reply and agent management catalog entries', function () {
     foreach (['support.hours.manage', 'support.replies.manage', 'support.agents.manage'] as $name) {
-        DB::table('role_permissions')->where('role_id', Role::where('name', 'PLATFORM_OWNER')->value('id'))->where('permission_id', DB::table('permissions')->where('name', $name)->value('id'))->delete();
+        DB::table('role_permissions')->whereIn('role_id', Role::where('scope_type', 'PLATFORM')->pluck('id'))->where('permission_id', DB::table('permissions')->where('name', $name)->value('id'))->delete();
     }
     $this->get('http://admin.localhost/platform/support/hours')->assertForbidden();
     $this->get('http://admin.localhost/platform/support/replies')->assertForbidden();

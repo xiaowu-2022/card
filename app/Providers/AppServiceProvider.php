@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Application\Cleanup\DiscardCleanedJobs;
 use App\Application\Inbox\CaptureInboxEvent;
 use App\Application\Media\PublicAssets;
+use App\Application\Support\SupportRealtime;
 use App\Domain\Audit\Models\AuditLog;
 use App\Domain\Card\Models\CardManagementOrder;
 use App\Domain\CardProvider\Contracts\CardProviderInterface;
@@ -16,6 +17,7 @@ use App\Domain\Notification\Contracts\SmsVerificationSender;
 use App\Domain\Notification\Contracts\TestEmailSender;
 use App\Domain\Payment\Contracts\PaymentProviderInterface;
 use App\Domain\Payment\Enums\MockPaymentMode;
+use App\Domain\Support\Models\SupportConversation;
 use App\Domain\Tenant\Contracts\DomainVerificationService;
 use App\Domain\Tenant\Repositories\TenantDomainRepository;
 use App\Domain\Tenant\TenantContext;
@@ -141,6 +143,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Queue::before(app(DiscardCleanedJobs::class));
+        SupportConversation::saved(fn ($row) => app(SupportRealtime::class)->conversation($row->tenant_id, $row->user_id));
+
         Vite::createAssetPathsUsing(function (string $path): string {
             $request = request();
             if (! $request->attributes->has('oss_asset_manifest')) {
