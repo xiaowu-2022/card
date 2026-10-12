@@ -170,3 +170,11 @@ capability, not a cached account-page flag. Voice reminders require the same exp
 capability and agent unread count; ordinary customer messages never trigger speech.
 Logout, login replacement and denied workspace access stop playback; unread failures
 clear queued reminders. Deploy matching PHP and public/h5; native clients need rebuilding.
+
+## Inbox labels (2026-10-12)
+
+Platform conversation rows show only the unread-count badge alongside customer
+identity, without awaiting/replied/bot/handoff status labels. Badges align to the top
+of the identity block rather than stretching to its height. Existing status filters,
+unread accounting, polling and conversation modes remain unchanged. Frontend only;
+no schema change, message send or live customer test.

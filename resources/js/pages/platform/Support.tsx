@@ -132,7 +132,7 @@ export default function Support({ inbox, chat, companies, filters, supportName }
                                     data={filters}
                                     className={`block border-b p-4 ${chat?.userId === row.userId && chat.tenantId === row.tenantId ? 'bg-muted' : 'hover:bg-muted/50'}`}
                                 >
-                                    <div className="flex justify-between gap-2">
+                                    <div className="flex items-start justify-between gap-2">
                                         <div className="min-w-0 flex-1">
                                             <UserInfoCell
                                                 interactive={false}
@@ -150,17 +150,6 @@ export default function Support({ inbox, chat, companies, filters, supportName }
                                             />
                                         </div>
                                         <SupportUnreadBadge count={row.unreadCount} />
-                                        <span className="shrink-0 text-xs text-muted-foreground">
-                                            {t(
-                                                row.mode === 'BOT'
-                                                    ? 'Bot support'
-                                                    : row.mode === 'WAITING'
-                                                      ? 'Waiting for human support'
-                                                      : row.awaitingReply
-                                                        ? 'Awaiting reply'
-                                                        : 'Replied',
-                                            )}
-                                        </span>
                                     </div>
                                     <p className="mt-2 text-xs text-muted-foreground">
                                         {dateTime(row.updatedAt)}
