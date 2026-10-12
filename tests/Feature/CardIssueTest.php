@@ -35,6 +35,7 @@ use App\Application\Promotion\PaidPromotionPurchase;
 use App\Application\SecurityDeposit\FundSecurityDepositAction;
 use App\Application\SecurityDeposit\RefundSecurityDepositAction;
 use App\Application\Tenant\PlatformDailyFundsQuery;
+use App\Application\Tenant\PlatformOverviewQuery;
 use App\Application\Tenant\UpdateTenantBusinessSettingsAction;
 use App\Application\Wallet\ActivateUserWalletAction;
 use App\Application\Wallet\WalletActivityQuery;
@@ -159,6 +160,34 @@ function managedCardFixture($test, ?Closure $cardRead = null, string $available 
 
     return [$card, $provider, app(ManageCardAction::class)];
 }
+
+it('platform operating overview totals unique successful card funding all cards and unknown cached balances without provider reads', function (): void {
+    [$card, $provider, $action] = managedCardFixture($this, available: '1000.00000000');
+    $provider->shouldReceive('quoteCardLoad')->once()->andReturnUsing(fn ($id, $amount, $request) => new ProviderCardQuoteDTO($request, '101.00000000', '100.00000000', '1.00000000'));
+    $provider->shouldReceive('confirmCardLoad')->once()->andReturnUsing(fn ($id, $request) => new ProviderCardFundsDTO(ProviderOperationStatus::Succeeded, $id, $request, 'OVERVIEW-LOAD', '101.00000000', '100.00000000', '1.00000000'));
+    $card->forceFill(['balance_limit' => '120'])->save();
+    $quote = $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '500');
+    expect($action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $quote->id)->status)->toBe('SUCCEEDED');
+    $action->confirmLoad($this->tenant->id, $this->user->id, $card->id, $quote->id);
+    app(RecordCardTransactionsAction::class)->execute($card, [new ProviderCardTransactionDTO('OVERVIEW-LOAD', '100', 'USD', 'load', 'completed', now()->format('Y-m-d H:i:s'), null)], CarbonImmutable::now());
+    $reader = Mockery::mock(CardProviderInterface::class);
+    $reader->shouldNotReceive('getCard')->shouldNotReceive('getTransactionPage');
+    app()->instance(CardProviderInterface::class, $reader);
+    $access = array_fill_keys(['inflow', 'outflow', 'partners', 'cards', 'providers', 'assets'], true);
+    $before = DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all();
+    $overview = app(PlatformOverviewQuery::class)->execute($access);
+    expect($overview['cards']['today'])->toBe('520.00000000')->and($overview['cards']['total'])->toBe('520.00000000');
+    expect($overview['cards']['balance'])->toBe($card->fresh()->availableBalance());
+    expect($overview['assets']['ordinary'])->toBe(app(\App\Application\User\PlatformUserFinancialSummary::class)->funds($this->tenant->id, $this->user->id)['estimate']);
+    expect(DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all())->toBe($before);
+    $card->forceFill(['provider_balance' => null])->save();
+    $overview = app(PlatformOverviewQuery::class)->execute($access);
+    expect($overview['cards']['balance'])->toBeNull()->and($overview['assets']['ordinary'])->toBeNull()->and($overview['cards']['total'])->toBe('520.00000000');
+    $card->forceFill(['provider_balance' => '21', 'archived_at' => now()])->save();
+    $overview = app(PlatformOverviewQuery::class)->execute($access);
+    expect($overview['cards']['balance'])->toBe('421.00000000')->and($overview['cards']['total'])->toBe('520.00000000');
+    Http::assertNothingSent();
+});
 
 it('permanently cleans card materials orders transactions and sync data without provider operations', function (bool $companyBatch): void {
     Http::preventStrayRequests();

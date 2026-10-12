@@ -42,7 +42,9 @@ beforeEach(function () {
 it('defaults to unrestricted and saves four independent flags with scoped audit and replay', function () {
     $money = DB::table('ledger_accounts')->orderBy('id')->get()->toJson();
     $this->actingAs($this->actor, 'platform_admin')->getJson($this->url)->assertOk()->assertJsonPath('revision', 0)->assertJsonPath('withdrawal_blocked', false);
-    $this->get('http://admin.localhost/platform/users')->assertInertia(fn ($p) => $p->where('canManageRestrictions', true));
+    $listUrl = 'http://admin.localhost/platform/users?company='.$this->tenant->id.'&search='.$this->subject->account_id;
+    $this->get($listUrl)->assertInertia(fn ($p) => $p->where('canManageRestrictions', true)
+        ->where('users.total', 1)->where('users.data.0.operationRestrictions', array_fill_keys(UserOperationRestrictions::FIELDS, false)));
     $this->postJson($this->url, $this->data)->assertOk()->assertJsonPath('revision', 1);
     $this->postJson($this->url, $this->data)->assertOk()->assertJsonPath('revision', 1);
     expect(AuditLog::where('action', 'USER_OPERATION_RESTRICTIONS_UPDATED')->count())->toBe(1);
@@ -52,6 +54,13 @@ it('defaults to unrestricted and saves four independent flags with scoped audit 
     $this->postJson($this->url, [...$this->data, 'request_id' => (string) Str::uuid()])->assertConflict();
     $this->postJson($this->url, [...$this->data, 'revision' => 1, 'request_id' => (string) Str::uuid(), 'withdrawal_blocked' => false])->assertOk();
     expect($this->subject->fresh()->withdrawal_blocked)->toBeFalse()->and($this->subject->fresh()->deposit_refund_blocked)->toBeTrue();
+    $expected = array_fill_keys(UserOperationRestrictions::FIELDS, true);
+    $expected['withdrawal_blocked'] = false;
+    $auditBefore = AuditLog::count();
+    $this->get($listUrl)->assertInertia(fn ($p) => $p->where('users.data.0.operationRestrictions', $expected));
+    $this->getJson(str_replace('/restrictions', '/details', $this->url))->assertOk()->assertJsonPath('user.operationRestrictions', $expected);
+    expect(AuditLog::count())->toBe($auditBefore);
+    Http::assertNothingSent();
     expect(DB::table('ledger_accounts')->orderBy('id')->get()->toJson())->toBe($money);
 });
 
@@ -67,6 +76,9 @@ it('requires permission confirmation and same company and keeps reads inert', fu
     DB::table('role_permissions')->where('permission_id', $permission)->delete();
     $this->getJson($this->url)->assertForbidden();
     $this->postJson($this->url, $this->data)->assertForbidden();
+    $this->get('http://admin.localhost/platform/users?search='.$this->subject->account_id)->assertInertia(fn ($p) => $p
+        ->where('canManageRestrictions', false)->missing('users.data.0.operationRestrictions'));
+    $this->getJson(str_replace('/restrictions', '/details', $this->url))->assertOk()->assertJsonMissingPath('user.operationRestrictions');
     expect($this->subject->fresh()->operation_restrictions_revision)->toBe(0);
     expect(AuditLog::where('action', 'USER_OPERATION_RESTRICTIONS_UPDATED')->count())->toBe(0);
 });

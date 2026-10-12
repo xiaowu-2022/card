@@ -37,10 +37,19 @@ consumer H5 build or APK packaging is required. This work does not deploy produc
 
 ## User list funds and card summaries (2026-10-11)
 
-The user list includes all accounts, including enabled/disabled partners. Its wide
-summary layout retains company/referrer filters, pagination, detail drawers and
+The user list excludes currently enabled same-company partners. Disabled partner
+configurations remain user rows. There is no partner-status filter; legacy `partner`
+query parameters are ignored and omitted from pagination links. Partner detail reads
+and referrer candidates remain available through their existing scoped endpoints.
+Its wide summary layout retains company/referrer filters, pagination, detail drawers and
 subordinate actions, with fixed identity/action columns. Current-page identities
 (rank and direct inviter) and financial aggregates are batched by company.
+
+The status filter also offers `DEPOSIT_REFUNDING` (退押中): a correlated,
+same-company/user refund request in `CHECKING` with no cancellation intent.
+Waiting, freezing and blocked requests are included even past their saved deadline;
+completed/cancelled requests and cancellation restoration are excluded. This is
+a read-only filter over refund evidence, not a new user account status.
 
 `AssetValuation` is shared by consumer `AssetOverviewQuery` and Platform summaries.
 It includes available plus withdrawal/card-issue/card-funding holds in USDT, USDC,

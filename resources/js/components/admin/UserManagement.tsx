@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UserOrdersPanel } from './UserOrdersPanel';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { UserRestrictionsDialog } from '@/components/admin/UserRestrictionsDialog';
+import { userRestrictionLabels, type OperationRestrictions } from './user-operation-restrictions';
 import { DataCleanupDialog } from '@/components/admin/DataCleanupDialog';
 import { CustomerRemarkDialog } from '@/components/admin/CustomerRemarkDialog';
 import { openAdminEditor } from '@/components/admin/editor-navigation';
@@ -76,6 +77,7 @@ export type PlatformUser = {
     email: string | null;
     phone?: string | null;
     status: string;
+    operationRestrictions?: OperationRestrictions;
     createdAt: string;
     lastLoginAt: string | null;
     wallets?: Wallet[];
@@ -127,7 +129,6 @@ export default function UserManagement({
         search?: string;
         status?: string;
         support?: string;
-        partner?: string;
         referrer?: string;
     };
     financialAccess: {
@@ -210,6 +211,7 @@ export default function UserManagement({
                     key={restrictionsUser.id}
                     user={restrictionsUser}
                     onClose={() => setRestrictionsUser(null)}
+                    onSaved={() => router.reload({ only: ['users'] })}
                 />
             )}
             {canCreateUser && createOpen && (
@@ -338,7 +340,7 @@ export default function UserManagement({
                     filters={filters}
                     url="/platform/users"
                     searchLabel={t('Search name, account ID or email')}
-                    statuses={['ACTIVE', 'SUSPENDED', 'DISABLED']}
+                    statuses={['ACTIVE', 'SUSPENDED', 'DISABLED', 'DEPOSIT_REFUNDING']}
                     textFilters={[
                         {
                             key: 'referrer',
@@ -348,16 +350,6 @@ export default function UserManagement({
                         },
                     ]}
                     selectFilters={[
-                        {
-                            key: 'partner',
-                            label: 'Partner status',
-                            allLabel: 'All partner statuses',
-                            values: ['Enabled', 'Disabled'],
-                            valueLabels: {
-                                Enabled: 'Partner users',
-                                Disabled: 'Non-partner users',
-                            },
-                        },
                         {
                             key: 'support',
                             advanced: true,
@@ -628,16 +620,33 @@ export default function UserManagement({
                         {
                             label: 'Status',
                             render: (row) => (
-                                <StatusBadge
-                                    status={
-                                        row.status === 'ACTIVE'
-                                            ? 'SUCCESS'
-                                            : row.status === 'SUSPENDED'
-                                              ? 'WARNING'
-                                              : 'DANGER'
-                                    }
-                                    label={t(row.status)}
-                                />
+                                <div className="space-y-1">
+                                    <StatusBadge
+                                        status={
+                                            row.status === 'ACTIVE'
+                                                ? 'SUCCESS'
+                                                : row.status === 'SUSPENDED'
+                                                  ? 'WARNING'
+                                                  : 'DANGER'
+                                        }
+                                        label={t(row.status)}
+                                    />
+                                    {canManageRestrictions &&
+                                        (
+                                            Object.keys(
+                                                userRestrictionLabels,
+                                            ) as (keyof OperationRestrictions)[]
+                                        ).map((field) =>
+                                            row.operationRestrictions?.[field] ? (
+                                                <p
+                                                    key={field}
+                                                    className="whitespace-nowrap text-xs text-black"
+                                                >
+                                                    {t(userRestrictionLabels[field])}
+                                                </p>
+                                            ) : null,
+                                        )}
+                                </div>
                             ),
                         },
                         { label: 'Created', render: (row) => dateTime(row.createdAt) },

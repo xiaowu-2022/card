@@ -2,6 +2,55 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'All companies · USDT · UTC+8': '全平台 · USDT · UTC+8',
+    'Successful withdrawals (excluding fees)': '成功出金（不含手续费）',
+    'Third-party reference balance': '三方余额（参考）',
+    'Historical withdrawals include fees.': '历史出金含手续费。',
+    'UTC+8 · Up to 366 days': 'UTC+8 · 最多366天',
+    'Platform operating overview': '平台经营概览',
+    'All-platform totals · USDT estimates · periods include today':
+        '全平台统计 · USDT口径 · 近期合计包含今天',
+    'Stock and reconciliation sum enabled partner reports. Reimbursements are net of reversals.':
+        '存量及对账金额为当前启用合伙人的报表合计；报销按扣除冲销后的净额统计。',
+    'Actual received top-ups': '充值实际到账',
+    'Successful withdrawals': '成功出金',
+    'T+1 arrival rule': '到账规则 T+1',
+    'Lifetime total': '累计合计',
+    '3-day total': '3日合计',
+    '7-day total': '7日合计',
+    '15-day total': '15日合计',
+    '30-day total': '30日合计',
+    'Successful payout amounts, excluding withdrawal fees.':
+        '仅统计提现成功的到账金额，不含手续费。',
+    'Successful actual receipts, using the settled amount.':
+        '仅统计成功到账记录，金额取实际结算到账数值。',
+    'Native currency totals': '各币种累计金额',
+    'Card funds': '卡资金',
+    'Total card balance': '卡上余额',
+    'Card funding today': '今日转入',
+    'Cumulative card funding': '累计转入',
+    'Third-party balance': '三方余额',
+    'Saved balances of all issued cards; third-party balance is the manually entered provider reference total.':
+        '卡上余额取所有已开卡的已保存余额，包含溢出余额；三方余额为手工填写的卡商参考余额合计。',
+    'Partner total asset valuation': '合伙人总资产估值合计',
+    'Non-partner total asset valuation': '非合伙人总资产估值合计',
+    Bubble: '泡沫',
+    'Asset estimates use saved fresh rates and include wallets, holds, deposits, wealth principal and unarchived card funds.':
+        '资产估值使用已保存的有效汇率，包含钱包、冻结资金、保证金、理财本金及未归档卡资金。',
+    'Rate time': '汇率时间',
+    'Operating totals': '经营合计',
+    Period: '周期',
+    'Calendar-day totals include today. Deposit income and refunds exclude enabled partners; other operating totals include all users. Each event is counted once.':
+        '按自然日合计，包含今天；保证金收入及退出排除启用合伙人，其余经营指标统计全部用户，每笔业务只计一次。',
+    'Ordinary member activation deposits': '普通会员激活保证金收入',
+    'Annual fee returns': '年费返还',
+    'Annual fees at 70% return progress': '返还进度达到70%的有效年费金额',
+    'Remaining annual fees after approved returns': '已扣除批准返还的剩余年费金额',
+    'Deposit refunds due within 10 days': '10日内到期退保金额',
+    'Deposit refunds due within 3 days': '3日内到期退保金额',
+    'Historical funds analysis': '历史资金分析',
+    'These date and company filters affect historical analysis only. Historical outflow includes fees; the overview above excludes fees.':
+        '日期和公司筛选仅影响历史分析。历史出金保留含手续费口径，上方概览出金不含手续费。',
     'No cards': '暂无卡片',
     'Loading...': '加载中…',
     'Unable to load data.': '暂时无法加载数据。',
@@ -1624,6 +1673,7 @@ export const adminCatalog: Record<string, string> = {
     'Card Product — coming in a later phase': '卡产品 — 后续阶段提供',
     ALL: '全部',
     ACTIVE: '正常',
+    DEPOSIT_REFUNDING: '退押中',
     INACTIVE: '未启用',
     DRAFT: '草稿',
     CLOSED: '已关闭',

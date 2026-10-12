@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 
 final class PlatformUserQuery
 {
-    public function paginate(?string $company, ?string $search, ?string $status, array $financialAccess = [], ?string $support = null, ?string $userId = null, ?string $partner = null, ?string $referrer = null): LengthAwarePaginator
+    public function paginate(?string $company, ?string $search, ?string $status, array $financialAccess = [], ?string $support = null, ?string $userId = null, ?string $partner = null, ?string $referrer = null, bool $withRestrictions = false): LengthAwarePaginator
     {
         $at = CarbonImmutable::now();
         // Platform-only aggregate. Profile ownership matches both company and user.
@@ -36,7 +36,11 @@ final class PlatformUserQuery
                 ->whereColumn('member.tenant_id', 'u.tenant_id')->whereColumn('member.user_id', 'u.id')
                 ->where(fn ($identity) => $identity->where('referrer.account_id', $referrer)
                     ->orWhereRaw('LOWER(referrer.email) = ?', [mb_strtolower($referrer)]))))
-            ->when($status, fn ($q) => $q->where('u.status', $status))
+            ->when($status === 'DEPOSIT_REFUNDING', fn ($q) => $q->whereExists(fn ($refunds) => $refunds
+                ->selectRaw('1')->from('security_deposit_refund_requests as refund')
+                ->whereColumn('refund.tenant_id', 'u.tenant_id')->whereColumn('refund.user_id', 'u.id')
+                ->where('refund.status', 'CHECKING')->whereNull('refund.cancel_requested_at')))
+            ->when($status && $status !== 'DEPOSIT_REFUNDING', fn ($q) => $q->where('u.status', $status))
             ->when($search, fn ($q) => $q->where(function ($q) use ($search): void {
                 $pattern = '%'.addcslashes($search, '%_').'%';
                 $q->where('u.account_id', 'like', $pattern)->orWhere('u.email', 'ilike', $pattern)
@@ -44,6 +48,7 @@ final class PlatformUserQuery
             }))
             ->select(['u.id', 'u.tenant_id', 't.name as company_name', 'u.account_id', 'p.display_name', 'u.email', 'u.phone', 'u.status', 'u.created_at', 'u.last_login_at', 'u.support_remark', 'u.support_remark_revision'])
             ->addSelect('sa.enabled as support_enabled', 'sa.revision as support_revision')
+            ->when($withRestrictions, fn ($q) => $q->addSelect(array_map(fn ($field) => 'u.'.$field, UserOperationRestrictions::FIELDS)))
             ->selectRaw('ordinary.user_id IS NOT NULL AS ordinary_member')
             ->when($financialAccess['balances'] ?? false, fn ($q) => $q
                 ->selectSub($this->balance('USER_AVAILABLE'), 'available_balance')
@@ -53,7 +58,7 @@ final class PlatformUserQuery
                 DB::table('withdrawal_orders as wo')->whereColumn('wo.tenant_id', 'u.tenant_id')->whereColumn('wo.user_id', 'u.id')
                     ->where('wo.asset_code', 'USDT')->where('wo.status', 'SUCCEEDED')
                     ->selectRaw('COALESCE(SUM(wo.amount), 0)::text'), 'total_withdrawn'))
-            ->orderByDesc('u.created_at')->orderBy('u.id')->paginate(20, ['*'], 'page', $userId ? 1 : null)->appends(request()->except(['kyc_company', 'kyc_user', 'kyc_application', 'kyc_page', 'funds_company', 'funds_user', 'funds_page', 'funds_asset', 'funds_event', 'funds_from', 'funds_to']));
+            ->orderByDesc('u.created_at')->orderBy('u.id')->paginate(20, ['*'], 'page', $userId ? 1 : null)->appends(request()->except(['partner', 'kyc_company', 'kyc_user', 'kyc_application', 'kyc_page', 'funds_company', 'funds_user', 'funds_page', 'funds_asset', 'funds_event', 'funds_from', 'funds_to']));
         $wallets = ($financialAccess['balances'] ?? false) ? app(PlatformWalletQuery::class)->forUsers($page->getCollection()->pluck('id')->all()) : [];
 
         $receipts = ($financialAccess['receipts'] ?? false) ? app(PlatformUserReceiptQuery::class)->forUsers($page->getCollection()->all()) : [];
@@ -72,7 +77,7 @@ final class PlatformUserQuery
             'remark' => $row->support_remark, 'remarkRevision' => (int) $row->support_remark_revision,
             'email' => $row->email, 'phone' => $row->phone, 'status' => $row->status,
             'createdAt' => $row->created_at, 'lastLoginAt' => $row->last_login_at,
-        ] + ($identities[$row->tenant_id.':'.$row->id] ?? []) + ['financialSummary' => $summaries[$row->tenant_id.':'.$row->id] ?? []] + (($financialAccess['receipts'] ?? false) ? ['receiptTotals' => $receipts[$row->tenant_id.':'.$row->id] ?? []] : []) + (($financialAccess['balances'] ?? false) ? [
+        ] + ($withRestrictions ? ['operationRestrictions' => array_combine(UserOperationRestrictions::FIELDS, array_map(fn ($field): bool => (bool) $row->{$field}, UserOperationRestrictions::FIELDS))] : []) + ($identities[$row->tenant_id.':'.$row->id] ?? []) + ['financialSummary' => $summaries[$row->tenant_id.':'.$row->id] ?? []] + (($financialAccess['receipts'] ?? false) ? ['receiptTotals' => $receipts[$row->tenant_id.':'.$row->id] ?? []] : []) + (($financialAccess['balances'] ?? false) ? [
             'wallets' => $wallets[$row->id] ?? [],
             'availableBalance' => $this->decimal($row->available_balance), 'securityDeposit' => $this->decimal($row->security_deposit),
         ] : []) + (($financialAccess['commission'] ?? false) ? ['commission' => $this->decimal($row->commission)] : [])

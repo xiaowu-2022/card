@@ -4,17 +4,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { supportRequest, SupportRequestError } from '@/components/support/supportRequest';
 import { t } from '@/i18n/admin';
-
-const fields = {
-    withdrawal_blocked: 'Block withdrawals',
-    deposit_refund_blocked: 'Block deposit refund requests',
-    card_transfer_blocked: 'Block card transfers',
-    wallet_transfer_blocked: 'Block account transfers',
-} as const;
-type Settings = Record<keyof typeof fields, boolean> & { revision: number };
+import { userRestrictionLabels, type OperationRestrictions } from './user-operation-restrictions';
+type Settings = OperationRestrictions & { revision: number };
 export function UserRestrictionsDialog({
     user,
     onClose,
+    onSaved,
 }: {
     user: {
         id: string;
@@ -24,6 +19,7 @@ export function UserRestrictionsDialog({
         email: string | null;
     };
     onClose: () => void;
+    onSaved?: () => void;
 }) {
     const [original, setOriginal] = useState<Settings | null>(null);
     const [value, setValue] = useState<Settings | null>(null);
@@ -76,30 +72,37 @@ export function UserRestrictionsDialog({
                 ) : (
                     <form
                         className="space-y-4"
-                        onSubmit={async (event) => {
+                        onSubmit={(event) => {
                             event.preventDefault();
                             if (!confirmed || !dirty || busy) return;
                             setBusy(true);
                             setError('');
-                            try {
-                                await supportRequest<Settings>(url, {
-                                    ...value,
-                                    confirmed,
-                                    request_id: requestId,
-                                });
-                                onClose();
-                            } catch (error) {
-                                setError(
-                                    error instanceof SupportRequestError && error.status === 409
-                                        ? 'These settings have changed. Close and reopen to load the latest settings.'
-                                        : 'Unable to save. Refresh and try again.',
-                                );
-                            } finally {
-                                setBusy(false);
-                            }
+                            void (async () => {
+                                try {
+                                    await supportRequest<Settings>(url, {
+                                        ...value,
+                                        confirmed,
+                                        request_id: requestId,
+                                    });
+                                    onClose();
+                                    onSaved?.();
+                                } catch (error) {
+                                    setError(
+                                        error instanceof SupportRequestError && error.status === 409
+                                            ? 'These settings have changed. Close and reopen to load the latest settings.'
+                                            : 'Unable to save. Refresh and try again.',
+                                    );
+                                } finally {
+                                    setBusy(false);
+                                }
+                            })();
                         }}
                     >
-                        {(Object.keys(fields) as (keyof typeof fields)[]).map((field) => (
+                        {(
+                            Object.keys(
+                                userRestrictionLabels,
+                            ) as (keyof typeof userRestrictionLabels)[]
+                        ).map((field) => (
                             <label key={field} className="flex items-center gap-3">
                                 <input
                                     type="checkbox"
@@ -111,7 +114,7 @@ export function UserRestrictionsDialog({
                                         setRequestId(crypto.randomUUID());
                                     }}
                                 />
-                                {t(fields[field])}
+                                {t(userRestrictionLabels[field])}
                             </label>
                         ))}
                         <p className="text-sm text-muted-foreground">

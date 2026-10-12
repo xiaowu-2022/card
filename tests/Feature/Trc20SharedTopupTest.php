@@ -107,6 +107,19 @@ function createTrc20Topup($test, string $amount = '100', ?string $requestId = nu
     )->order;
 }
 
+it('platform operating overview uses immutable actual received amounts instead of original matching amounts', function (): void {
+    app()->instance(BlockchainGatewayInterface::class, new MockBlockchainGateway('CONFIRMED'));
+    $order = createTrc20Topup($this, '100');
+    $owner = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    app(ConfirmPlatformTopupAction::class)->execute($this->tenant->id, $order->id, (string) Str::uuid(), $owner, true, 'ACTUAL', '73.123456');
+    $access = array_fill_keys(['inflow', 'outflow', 'partners', 'cards', 'providers', 'assets'], true);
+    $before = LedgerEntry::count();
+    $overview = app(\App\Application\Tenant\PlatformOverviewQuery::class)->execute($access);
+    expect($overview['inflow']['totals']['today'])->toBe('73.12345600')->and($overview['inflow']['totals']['total'])->toBe('73.12345600');
+    expect($order->fresh()->amount)->not->toBe('73.12345600')->and(LedgerEntry::count())->toBe($before);
+    Http::assertNothingSent();
+});
+
 function trc20Transfer(WalletTopupOrder $order, int $confirmations = 20, ?string $txHash = null, array $overrides = []): IncomingBlockchainTransfer
 {
     return new IncomingBlockchainTransfer(

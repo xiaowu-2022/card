@@ -18,6 +18,12 @@ the seeder includes it for fresh installations. Company administrators and
 consumers cannot modify these flags. The scoped settings GET is lazy/read-only;
 consumer DTOs do not disclose internal restriction flags.
 
+2026-10-11: User list/detail status displays enabled restrictions as black text,
+one per line beneath the account status. The current-page query selects all four
+flags together and includes `operationRestrictions` only for actors with the same
+users.read + users.restrictions.manage access as the settings GET. Saving refreshes
+the list and open details; reads do not modify flags or load per-row settings.
+
 Saving all four values requires explicit confirmation, a revision and request UUID.
 Tenant then User locks serialize updates with operation acceptance. Each successful
 save increments the revision and appends actor, request, before/after evidence to

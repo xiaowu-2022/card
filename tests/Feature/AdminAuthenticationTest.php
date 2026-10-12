@@ -13,7 +13,7 @@ beforeEach(fn () => $this->seed());
 
 it('authenticates a platform administrator only through the platform guard', function (): void {
     $this->post('http://admin.localhost/platform/login', ['email' => 'owner@platform.local', 'password' => 'local-password'])
-        ->assertRedirect('/platform/tenants');
+        ->assertRedirect('/platform/demo');
 
     $this->assertAuthenticated('platform_admin')->assertGuest('tenant_admin');
     expect(AdminUser::query()->where('email', 'owner@platform.local')->firstOrFail()->last_login_at)->not->toBeNull()
@@ -57,7 +57,7 @@ it('regenerates the session identifier after login', function (): void {
     $this->app['session']->start();
     $before = $this->app['session']->getId();
     $this->post('http://admin.localhost/platform/login', ['email' => 'owner@platform.local', 'password' => 'local-password'])
-        ->assertRedirect('/platform/tenants');
+        ->assertRedirect('/platform/demo');
 
     expect($this->app['session']->getId())->not->toBe($before);
 });

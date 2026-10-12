@@ -165,9 +165,11 @@ it('reads exact owned balances and successful gross withdrawal totals without mu
     $this->get('http://admin.localhost/platform/demo?start=2026-09-13&end=2026-09-15')->assertOk()->assertInertia(fn ($p) => $p
         ->has('days', 3)->where('days.0.outflow', '100.01000000')->where('days.0.net', '-100.01000000')
         ->where('days.1.outflow', '20.02000000')->where('days.1.net', '-20.02000000')
-        ->where('days.2.outflow', '0.00000000')->where('totals.net', '-120.03000000'));
+        ->where('days.2.outflow', '0.00000000')->where('totals.net', '-120.03000000')
+        ->where('overview.outflow.totals.today', '19.81980000')->where('overview.outflow.totals.total', '118.82970000'));
     $this->get('http://admin.localhost/platform/demo?start=2026-09-13&end=2026-09-15&'.http_build_query(['scope' => 'selected', 'companies' => [$otherTenant->id]]))
-        ->assertOk()->assertInertia(fn ($p) => $p->where('totals.outflow', '0.00000000')->where('totals.net', '0.00000000'));
+        ->assertOk()->assertInertia(fn ($p) => $p->where('totals.outflow', '0.00000000')->where('totals.net', '0.00000000')
+            ->where('overview.outflow.totals.total', '118.82970000'));
     expect(LedgerAccount::query()->orderBy('id')->pluck('balance', 'id')->all())->toBe($balances)
         ->and(DB::table('ledger_entries')->count())->toBe($entries);
     Http::assertNothingSent();

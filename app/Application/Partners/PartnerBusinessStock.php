@@ -53,7 +53,14 @@ final class PartnerBusinessStock
 
     public function activity(string $tenant, string $user): Builder
     {
-        $team = app(PartnerStockTeam::class)->members($tenant, $user)->select('user_id');
+        return $this->activityForMembers($tenant, app(PartnerStockTeam::class)->members($tenant, $user),
+            app(PartnerStockTeam::class)->members($tenant, $user, false), $user);
+    }
+
+    /** Explicit Platform scope also reuses the existing evidence without overlapping teams. */
+    public function activityForMembers(string $tenant, Builder $members, Builder $all, ?string $owner = null, ?Builder $depositMembers = null): Builder
+    {
+        $team = (clone ($depositMembers ?? $members))->select('user_id');
         $firstDeposits = DB::table('account_activations as x')
             ->join('ledger_postings as p', fn ($j) => $j->on('p.ledger_entry_id', '=', 'x.ledger_entry_id')->on('p.tenant_id', '=', 'x.tenant_id'))
             ->join('ledger_accounts as a', fn ($j) => $j->on('a.id', '=', 'p.ledger_account_id')->on('a.tenant_id', '=', 'p.tenant_id')->on('a.user_id', '=', 'x.user_id'))
@@ -61,7 +68,7 @@ final class PartnerBusinessStock
             ->where('a.account_type', 'USER_SECURITY_DEPOSIT')->where('a.asset_code', 'USDT')->where('p.delta', '>', 0)
             ->selectRaw("'deposits'::text AS category, p.delta AS amount, x.activated_at AS posted_at");
 
-        return DB::query()->fromSub($this->entries($tenant, $user), 'entries')
+        return DB::query()->fromSub($this->entriesForMembers($tenant, $members, $all, $owner), 'entries')
             ->where('category', '<>', 'deposits')->select('category', 'amount', 'posted_at')->unionAll($firstDeposits)->unionAll(
                 DB::table('security_deposit_refund_requests')->where('tenant_id', $tenant)->whereIn('user_id', clone $team)
                     ->where('status', 'COMPLETED')->whereNotNull('ledger_entry_id')
@@ -89,7 +96,12 @@ final class PartnerBusinessStock
 
     public function entries(string $tenant, string $user): Builder
     {
-        $team = app(PartnerStockTeam::class)->members($tenant, $user);
+        return $this->entriesForMembers($tenant, app(PartnerStockTeam::class)->members($tenant, $user),
+            app(PartnerStockTeam::class)->members($tenant, $user, false), $user);
+    }
+
+    public function entriesForMembers(string $tenant, Builder $team, Builder $all, ?string $owner = null): Builder
+    {
         // The remaining guarantee balance, not lifetime positive funding: conversion to
         // annual fees and completed refunds already leave this account. Never count twice.
         $deposits = DB::table('ledger_accounts as a')->joinSub(clone $team, 'team', 'team.user_id', '=', 'a.user_id')
@@ -113,12 +125,11 @@ final class PartnerBusinessStock
             ->selectRaw("r.id, r.user_id, team.direct_user_id, r.amount, l.posted_at, 'rebates'::text AS category, 'outflow'::text AS direction");
         // Cooperation reimbursements belong to partner journals, including the owner.
         // Do not filter them with the non-partner contribution scope.
-        $all = app(PartnerStockTeam::class)->members($tenant, $user, false);
         $journal = DB::table('partner_journal_entries as j')
             ->join('partner_configurations as p', fn ($j) => $j->on('p.id', '=', 'j.partner_id')->on('p.tenant_id', '=', 'j.tenant_id'))
             ->leftJoinSub($all, 'team', 'team.user_id', '=', 'p.user_id')
             ->where('j.tenant_id', $tenant)->where('j.kind', 'REIMBURSEMENT')
-            ->where(fn ($q) => $q->where('p.user_id', $user)->orWhereNotNull('team.user_id'))
+            ->where(fn ($q) => $q->when($owner !== null, fn ($q) => $q->where('p.user_id', $owner))->orWhereNotNull('team.user_id'))
             ->selectRaw("j.id, p.user_id, team.direct_user_id, CASE WHEN j.reverses_id IS NULL THEN j.amount ELSE -j.amount END AS amount,
                 j.created_at AS posted_at, 'reimbursements'::text AS category, 'outflow'::text AS direction");
 

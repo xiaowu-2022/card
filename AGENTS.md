@@ -1,6 +1,23 @@
+On 2026-10-12 the user approved a full-platform operating homepage. Sum currently
+enabled partner reports for stock/theoretical/actual/difference; actual remains the
+report's own USDT available balance. Recharge uses actual settled receipts; successful
+outgoing payouts exclude fees; reimbursements are net of reversals. Sum all issued
+cards' saved balances including overflow and unique successful issue/load funding; third-party
+balance is the manually entered provider-reference total. Split shared asset estimates
+by current enabled partner status; bubble stays blank. Recent 3/7/15/30-day amounts
+are sums including today in UTC+8, never the partner-list averages. Global operating
+events/alerts are deduplicated; only ordinary deposit streams exclude enabled partners.
+Preserve read-only snapshots, decimal strings, scoped permissions and saved-rate/null
+rules. Keep historical filters in a collapsed independent section. No migration or
+production financial/cleanup test. See docs/architecture/PLATFORM_OVERVIEW.md.
+
 On 2026-10-11 the user approved separate Platform user/partner summary layouts.
-Users still include partners. Share consumer/Platform AssetValuation: four native
-wallet available/held balances, USDT guarantee, wealth principal and unarchived
+Users exclude currently enabled partners and omit the partner-status filter.
+Disabled partner configurations remain ordinary user rows.
+User status filtering includes DEPOSIT_REFUNDING for same-company CHECKING deposit
+refund requests without cancellation intent; never change user status on reads.
+Share consumer/Platform AssetValuation: four native wallet available/held balances,
+USDT guarantee, wealth principal and unarchived
 cached card/overflow balances using fresh saved rates; unknown evidence is null.
 Scoped funds-summary/cards-summary GETs require users/wallet/ledger/cards reads,
 remain read-only and never query providers, refresh rates or provision accounts.

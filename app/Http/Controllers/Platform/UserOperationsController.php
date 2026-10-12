@@ -19,12 +19,12 @@ final class UserOperationsController extends Controller
 {
     public function __invoke(Request $request, PlatformListFilters $lists, PlatformUserQuery $query, AuthorizationService $authorization): Response
     {
-        $filters = $lists->validated($request, ['status' => ['nullable', 'in:ACTIVE,SUSPENDED,DISABLED'], 'support' => ['nullable', 'in:Enabled,Disabled'], 'partner' => ['nullable', 'in:Enabled,Disabled'], 'referrer' => ['nullable', 'string', 'max:120']]);
+        $filters = $lists->validated($request, ['status' => ['nullable', 'in:ACTIVE,SUSPENDED,DISABLED,DEPOSIT_REFUNDING'], 'support' => ['nullable', 'in:Enabled,Disabled'], 'referrer' => ['nullable', 'string', 'max:120']]);
         $access = $this->access($request, $authorization);
         $financialAccess = $access['financialAccess'];
 
         return Inertia::render('platform/Users', [
-            'users' => $query->paginate($filters['company'] ?? null, $filters['search'] ?? null, $filters['status'] ?? null, $financialAccess, $filters['support'] ?? null, null, $filters['partner'] ?? null, $filters['referrer'] ?? null),
+            'users' => $query->paginate($filters['company'] ?? null, $filters['search'] ?? null, $filters['status'] ?? null, $financialAccess, $filters['support'] ?? null, null, 'Disabled', $filters['referrer'] ?? null, withRestrictions: $access['canManageRestrictions']),
             ...$access,
             'companies' => $lists->companies(), 'filters' => $filters,
         ]);
@@ -53,7 +53,7 @@ final class UserOperationsController extends Controller
     public function show(Request $request, string $tenant, string $user, PlatformUserQuery $query, AuthorizationService $authorization): JsonResponse
     {
         $access = $this->access($request, $authorization);
-        $record = $query->paginate($tenant, null, null, $access['financialAccess'], null, $user)->items()[0] ?? null;
+        $record = $query->paginate($tenant, null, null, $access['financialAccess'], null, $user, withRestrictions: $access['canManageRestrictions'])->items()[0] ?? null;
         abort_if($record === null, 404);
         $record['invitationCode'] = DB::table('promotion_members')->where('tenant_id', $tenant)->where('user_id', $user)->value('invitation_code');
         $record['promotionTeamCount'] = app(LegacyStockReport::class)->team($tenant, $user)->where('user_id', '<>', $user)->count();

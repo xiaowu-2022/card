@@ -17,6 +17,7 @@ use App\Application\Promotion\PaidPromotionQuery;
 use App\Application\Promotion\PaidPromotionRebate;
 use App\Application\Promotion\PromotionMembershipAction;
 use App\Application\SecurityDeposit\FundSecurityDepositAction;
+use App\Application\Tenant\PlatformOverviewQuery;
 use App\Application\Wallet\ActivateUserWalletAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Assets\AssetRail;
@@ -387,6 +388,7 @@ it('uses weighted first activation snapshots at the 70 percent boundary and keep
     expect($r['risks']['activeCount'])->toBe(1)->and((string) $r['risks']['active']['items'][0]->weighted)->toBe('7.0')->and($r['risks']['remaining'])->toBe($level->fee);
     $partner = DB::table('partner_configurations')->where('user_id',$this->user->id)->first();
     expect(app(\App\Application\Partners\PartnerListSummary::class)->forRows([$partner])[$partner->id]['summary']['alerts']['remaining'])->toBe($r['risks']['remaining']);
+    expect(operatingOverview()['alerts']['remaining'])->toBe($r['risks']['remaining']);
     DB::unprepared("CREATE OR REPLACE FUNCTION test_stock_rebate_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='PROMOTION_REBATE_AUTO_COMPLETED' THEN RAISE EXCEPTION 'offline test failure'; END IF; RETURN NEW; END $$; CREATE TRIGGER test_stock_rebate_failure BEFORE INSERT ON audit_logs FOR EACH ROW EXECUTE FUNCTION test_stock_rebate_failure()");
     for ($i = 0; $i < 3; $i++) {
         $c = stockChild($this->user);
@@ -1144,4 +1146,154 @@ it('retains standard stock for disabled partners and rejects foreign company sum
     $this->withoutVite(); $this->actingAs($this->admin,'platform_admin');
     $other = Tenant::where('slug','tenant-b')->firstOrFail();
     $this->get('http://admin.localhost/platform/partners?company='.$other->id)->assertOk()->assertInertia(fn ($page) => $page->has('partners.data',0));
+});
+
+function operatingOverview(array $overrides = []): array
+{
+    return app(PlatformOverviewQuery::class)->execute(array_replace(array_fill_keys(['inflow', 'outflow', 'partners', 'cards', 'providers', 'assets'], true), $overrides));
+}
+
+it('platform operating overview sums enabled reports across companies including signed differences', function () {
+    $root = stockPartner($this, $this->user);
+    $nested = stockChild($this->user);
+    $second = stockPartner($this, $nested);
+    $ordinary = stockChild($nested);
+    $disabled = stockChild($this->user);
+    stockPartner($this, $disabled, false);
+    stockGuarantee($ordinary, '50');
+    stockGuarantee($disabled, '25');
+    stockExternal($this->user, 'USDT', '10', legacy: true);
+    stockExternal($nested, 'USDT', '20', legacy: true);
+    stockExternal($disabled, 'USDT', '100', legacy: true);
+    $foreign = User::where('tenant_id', '<>', $this->tenant->id)->firstOrFail();
+    $third = stockPartner($this, $foreign);
+    stockExternal($foreign, 'USDT', '30', legacy: true);
+    $this->management->journal($this->admin, $this->tenant->id, $root->id, stockEntry('ADVANCE', '40'));
+    $this->management->journal($this->admin, $this->tenant->id, $root->id, stockEntry('ADJUSTMENT_DECREASE', '2') + ['confirmed' => true]);
+    $expense = $this->management->journal($this->admin, $this->tenant->id, $root->id, stockEntry('REIMBURSEMENT', '5'));
+    $this->management->journal($this->admin, $this->tenant->id, $root->id, stockEntry('REIMBURSEMENT', '5') + ['reverses_id' => $expense->id]);
+    $this->management->journal($this->admin, $this->tenant->id, $second->id, stockEntry('REIMBURSEMENT', '3'));
+    $expected = array_fill_keys(['stock', 'theoretical', 'actual', 'difference'], '0');
+    foreach ([$root, $second, $third] as $partner) {
+        $report = app(PartnerReport::class)->read($partner->tenant_id, $partner->user_id, false);
+        foreach (array_keys($expected) as $key) {
+            $expected[$key] = (string) BigDecimal::of($expected[$key])->plus($key === 'stock' ? $report['stock'] : $report['accountBalance'][$key]);
+        }
+    }
+    $before = collect(['ledger_accounts', 'ledger_entries', 'ledger_postings', 'wallets', 'user_cards', 'audit_logs'])->mapWithKeys(fn ($t) => [$t => DB::table($t)->orderBy('id')->get()->toJson()]);
+    $overview = operatingOverview();
+    foreach ($expected as $key => $amount) {
+        expect($overview['partners'][$key])->toBe((string) BigDecimal::of($amount)->toScale(8));
+    }
+    expect($overview['partners']['actual'])->toBe('60.00000000')->and($overview['reimbursement'])->toBe('3.00000000')->and($overview['bubble'])->toBeNull();
+    $this->withoutVite();
+    $this->actingAs($this->admin, 'platform_admin')->get('http://admin.localhost/platform/demo?scope=selected&companies[]='.$foreign->tenant_id)
+        ->assertOk()->assertHeader('Cache-Control', 'no-store, private')->assertInertia(fn ($p) => $p->where('overview.partners', $overview['partners']));
+    foreach ($before as $table => $json) {
+        expect(DB::table($table)->orderBy('id')->get()->toJson())->toBe($json);
+    }
+    Http::assertNothingSent();
+});
+
+it('platform operating overview includes today in totals and deduplicates nested partner activity and refunds', function () {
+    $now = CarbonImmutable::parse('2026-10-12T04:00:00Z');
+    $this->travelTo($now);
+    stockPartner($this, $this->user);
+    $nested = stockChild($this->user);
+    stockPartner($this, $nested);
+    foreach (['2026-10-09T15:59:59Z', '2026-10-09T16:00:00Z', '2026-10-11T16:00:00Z'] as $time) {
+        $this->travelTo(CarbonImmutable::parse($time));
+        $child = stockChild($nested);
+        stockFundWallet($this, $child);
+        app(FundSecurityDepositAction::class)->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
+    }
+    $this->travelTo($now);
+    $disabled = stockChild($nested);
+    stockPartner($this, $disabled, false);
+    stockFundWallet($this, $disabled);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $disabled->id, (string) Str::uuid(), '50');
+    $this->tenant->businessSettings()->update(['security_deposit_refund_wait_days' => 3]);
+    $refund = app(\App\Application\SecurityDeposit\RefundSecurityDepositAction::class);
+    $request = $refund->request($this->tenant->id, $disabled->id, (string) Str::uuid());
+    $this->tenant->businessSettings()->update(['security_deposit_refund_wait_days' => 10]);
+    $refund->request($this->tenant->id, $child->id, (string) Str::uuid());
+    $overview = operatingOverview();
+    expect($overview['daily']['deposits'])->toBe(['today' => '100.00000000', 'd3' => '150.00000000', 'd7' => '200.00000000', 'd15' => '200.00000000', 'd30' => '200.00000000']);
+    expect($overview['alerts']['refund3'])->toBe('50.00000000')->and($overview['alerts']['refund10'])->toBe('100.00000000');
+    $refund->cancel($this->tenant->id, $disabled->id, $request->id);
+    expect(operatingOverview()['alerts']['refund3'])->toBe('0.00000000');
+    Http::assertNothingSent();
+});
+
+it('platform operating overview values native completed receipts and net payouts with inclusive calendar boundaries', function () {
+    $now = CarbonImmutable::parse('2026-10-12T04:00:00Z');
+    $this->travelTo(CarbonImmutable::parse('2026-10-05T15:59:59Z'));
+    stockExternal($this->user, 'USDT', '100', legacy: true);
+    $this->travelTo(CarbonImmutable::parse('2026-10-05T16:00:00Z'));
+    stockExternal($this->user, 'USDT', '10', legacy: true);
+    $this->travelTo($now);
+    stockExternal($this->user, 'USDT', '20', legacy: true);
+    stockExternal($this->user, 'USDC', '5');
+    stockExternal($this->user, 'USDC', '2', false);
+    stockExternal($this->user, 'USDC', '500', complete: false);
+    stockExternal($this->user, 'USDC', '100', false, false);
+    \App\Domain\Assets\MarketSnapshot::create(['provider' => 'OKX', 'usd_prices' => [], 'usdt_rates' => ['USDC' => '1.01', 'ETH' => '2000', 'BTC' => '60000'], 'observed_at' => now()]);
+    $overview = operatingOverview();
+    expect($overview['inflow']['totals']['today'])->toBe('25.05000000')->and($overview['inflow']['totals']['d7'])->toBe('35.05000000')
+        ->and($overview['inflow']['totals']['total'])->toBe('135.05000000')->and($overview['outflow']['totals']['today'])->toBe('1.91900000');
+    expect($overview['outflow']['native']['USDC']['today'])->toBe('1.900000000000000000');
+    $this->travelTo($now->addSeconds(121));
+    $overview = operatingOverview();
+    expect($overview['inflow']['totals']['today'])->toBeNull()->and($overview['outflow']['totals']['total'])->toBeNull();
+    expect($overview['inflow']['native']['USDT']['total'])->toBe('130.00000000');
+    Http::assertNothingSent();
+});
+
+it('platform operating overview splits asset valuations by current enabled status and reads stored provider references only', function () {
+    $partner = stockPartner($this, $this->user);
+    stockExternal($this->user, 'USDT', '10', legacy: true);
+    stockExternal($this->user, 'ETH', '0.123456789012345678');
+    stockGuarantee($this->user, '5');
+    $disabled = stockChild($this->user);
+    stockPartner($this, $disabled, false);
+    stockExternal($disabled, 'USDT', '20', legacy: true);
+    $reference = app(\App\Application\CardProviderDirectory\SaveCardProviderReferenceAction::class)->execute(null,
+        ['name' => 'Synthetic reference', 'reference_balance' => '123456789012.34', 'request_id' => (string) Str::uuid()], $this->admin);
+    $reference->forceFill(['photonpay_reporting_encrypted' => \Illuminate\Support\Facades\Crypt::encryptString('must-never-be-read')])->save();
+    \App\Domain\Assets\MarketSnapshot::create(['provider' => 'OKX', 'usd_prices' => [], 'usdt_rates' => ['USDC' => '1.01', 'ETH' => '2000', 'BTC' => '60000'], 'observed_at' => now()]);
+    $overview = operatingOverview();
+    expect($overview['assets'])->toBe(['partner' => '261.91357802', 'ordinary' => '20.00000000'])
+        ->and($overview['partners']['actual'])->toBe('10.00000000')->and($overview['providerBalance'])->toBe('123456789012.34000000');
+    stockPartner($this, $this->user, false);
+    expect(operatingOverview()['assets'])->toBe(['partner' => '0.00000000', 'ordinary' => '281.91357802']);
+    Http::assertNothingSent();
+});
+
+it('platform operating overview omits gated sections server side and forbids company administrators', function () {
+    $this->withoutVite();
+    $this->actingAs($this->admin, 'platform_admin');
+    $this->get('http://admin.localhost/platform')->assertRedirect('/platform/demo');
+    $this->get('http://admin.localhost/platform/login')->assertRedirect('/platform/demo');
+    $permission = DB::table('permissions')->where('name', 'ledger.read')->value('id');
+    DB::table('role_permissions')->where('permission_id', $permission)->delete();
+    DB::table('permissions')->where('id', $permission)->delete();
+    $this->get('http://admin.localhost/platform/demo?partners=1&assets=1')->assertOk()->assertInertia(fn ($p) => $p
+        ->missing('overview.partners')->missing('overview.reimbursement')->missing('overview.daily')->missing('overview.alerts')->missing('overview.assets')->missing('overview.cards'));
+    $this->actingAs(AdminUser::where('email', 'owner@a.localhost')->firstOrFail(), 'platform_admin')->get('http://admin.localhost/platform/demo')->assertForbidden();
+    Http::assertNothingSent();
+});
+
+it('platform operating overview counts partner annual payments and commissions but excludes their personal guarantee activity', function () {
+    stockPartner($this, $this->user);
+    stockFundWallet($this, $this->user);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $this->user->id, (string) Str::uuid(), '50');
+    stockBuy($this, $this->user, 1);
+    app(AdjustManualCommission::class)->execute($this->tenant->id, $this->user->id, $this->admin, [
+        'commission_type' => 'activation', 'direction' => 'INCREASE', 'amount' => '12.12345678', 'reason' => 'Offline overview fixture', 'request_id' => (string) Str::uuid(),
+    ]);
+    $annual = DB::table('paid_promotion_orders')->where('user_id', $this->user->id)->where('status', 'COMPLETED')->sum('settlement_total');
+    $overview = operatingOverview();
+    expect($overview['daily']['deposits']['today'])->toBe('0.00000000')->and($overview['daily']['annual']['today'])->toBe((string) BigDecimal::of($annual)->toScale(8))
+        ->and($overview['daily']['activation']['today'])->toBe('12.12345678');
+    Http::assertNothingSent();
 });

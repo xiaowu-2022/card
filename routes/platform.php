@@ -154,7 +154,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
 
     Route::get('/tenants', [TenantManagementController::class, 'index'])->middleware(CompanyDirectoryAccess::class)->name('tenants.index');
     Route::middleware('admin.scope:platform,tenant.read')->group(function (): void {
-        Route::get('/', fn () => redirect('/platform/tenants'))->name('home');
+        Route::get('/', fn () => redirect('/platform/demo'))->name('home');
         Route::get('/demo', DashboardController::class)->name('dashboard');
 
         Route::get('/tenants/{tenant}', [TenantManagementController::class, 'show'])->whereUuid('tenant')->name('tenants.show');

@@ -7,7 +7,7 @@ use App\Domain\User\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
-it('filters current enabled partners and keeps company search and pagination scope read only', function () {
+it('excludes enabled partners regardless of legacy filters and keeps company search and pagination scope read only', function () {
     $this->seed();
     $this->withoutVite();
     Http::preventStrayRequests();
@@ -28,18 +28,24 @@ it('filters current enabled partners and keeps company search and pagination sco
     $partners = DB::table('partner_configurations')->orderBy('id')->get()->toJson();
     $this->actingAs($owner, 'platform_admin');
     $url = 'http://admin.localhost/platform/users';
-    $this->get($url.'?company='.$tenant->id.'&partner=Enabled')->assertOk()->assertInertia(fn ($p) => $p
-        ->where('users.total', 1)->where('users.data.0.id', $active->id)->where('filters.partner', 'Enabled'));
-    $this->get($url.'?partner=Enabled')->assertOk()->assertInertia(fn ($p) => $p->where('users.total', 2));
+    $this->get($url.'?company='.$tenant->id)->assertOk()->assertInertia(fn ($p) => $p
+        ->where('users.total', 2)->missing('filters.partner'));
+    foreach (['', 'Enabled', 'Disabled', 'Invalid'] as $legacyFilter) {
+        $this->get($url.'?partner='.$legacyFilter.'&search='.$active->account_id)->assertOk()->assertInertia(fn ($p) => $p
+            ->where('users.total', 0)->missing('filters.partner'));
+        $this->get($url.'?partner='.$legacyFilter.'&search='.$other->account_id)->assertOk()->assertInertia(fn ($p) => $p
+            ->where('users.total', 0));
+    }
     foreach ([$disabled, $ordinary] as $user) {
         $this->get($url.'?company='.$tenant->id.'&partner=Disabled&search='.$user->account_id)->assertOk()->assertInertia(fn ($p) => $p
             ->where('users.total', 1)->where('users.data.0.id', $user->id));
     }
     $this->get($url.'?company='.$tenant->id.'&partner=Disabled&search='.$active->account_id)->assertOk()->assertInertia(fn ($p) => $p->where('users.total', 0));
     $this->get($url.'?company='.$tenant->id.'&partner=Enabled&page=2')->assertOk()->assertInertia(fn ($p) => $p
-        ->where('users.total', 1)->where('users.current_page', 2)->has('users.data', 0)
-        ->where('users.prev_page_url', fn ($value) => str_contains($value, 'partner=Enabled') && str_contains($value, 'company='.$tenant->id)));
-    $this->getJson($url.'?partner=Invalid')->assertUnprocessable();
+        ->where('users.total', 2)->where('users.current_page', 2)->has('users.data', 0)
+        ->where('users.prev_page_url', fn ($value) => ! str_contains($value, 'partner=') && str_contains($value, 'company='.$tenant->id)));
+    $this->getJson('http://admin.localhost/platform/tenants/'.$tenant->id.'/users/'.$active->id.'/details')
+        ->assertOk()->assertJsonPath('user.id', $active->id);
     expect(DB::table('ledger_accounts')->orderBy('id')->get()->toJson())->toBe($before)
         ->and(DB::table('partner_configurations')->orderBy('id')->get()->toJson())->toBe($partners);
     Http::assertNothingSent();

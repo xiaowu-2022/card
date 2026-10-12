@@ -6,6 +6,7 @@ use App\Application\Admin\AuthenticateAdminAction;
 use App\Application\Admin\LogoutAdminAction;
 use App\Domain\Admin\Enums\ScopeType;
 use App\Domain\Admin\Models\AdminUser;
+use App\Domain\Admin\Services\AuthorizationService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AdminLoginRequest;
 use Illuminate\Http\RedirectResponse;
@@ -20,7 +21,7 @@ final class PlatformAuthController extends Controller
     public function create(): Response|RedirectResponse
     {
         return Auth::guard('platform_admin')->check()
-            ? redirect('/platform/tenants')
+            ? redirect($this->landing(Auth::guard('platform_admin')->user()))
             : Inertia::render('platform/Login');
     }
 
@@ -46,7 +47,13 @@ final class PlatformAuthController extends Controller
         Auth::guard('platform_admin')->login($admin);
         $request->session()->regenerate();
 
-        return redirect('/platform/tenants');
+        return redirect($this->landing($admin));
+    }
+
+    private function landing(AdminUser $admin): string
+    {
+        return app(AuthorizationService::class)->allows($admin, ScopeType::Platform, null, 'tenant.read')
+            ? '/platform/demo' : '/platform/tenants';
     }
 
     public function destroy(Request $request, LogoutAdminAction $logout): RedirectResponse

@@ -66,11 +66,11 @@ export function t(key: string, values?: Record<string, string | number>): string
 export function useClientTranslation() {
     return useTranslation(undefined, { i18n: clientI18n });
 }
-export function dateTime(value: string): string {
+export function dateTime(value: string, timezone = displayTimezone): string {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '—';
     return new Intl.DateTimeFormat(clientI18n.language, {
-        timeZone: displayTimezone,
+        timeZone: timezone,
         dateStyle: 'medium',
         timeStyle: 'short',
     }).format(date);

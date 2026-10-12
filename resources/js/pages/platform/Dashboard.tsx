@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import { Building2, ChevronDown } from 'lucide-react';
 import { useAdminTranslation, t } from '@/i18n/admin';
 import { DailyFundsChart } from '@/components/admin/DailyFundsChart';
@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
+import { PlatformOverview, type PlatformOverviewData } from '@/components/admin/PlatformOverview';
 
 type ReportKey = FundsKey | 'overflow';
 const reportLabels = { ...fundsLabels, overflow: 'Card reload overflow' };
@@ -24,12 +25,14 @@ export default function Dashboard({
     days,
     totals,
     financialAccess,
+    overview,
 }: {
     filters: Filters;
     companies: Company[];
     days: (FundsDay & { overflow?: string })[];
     totals: Partial<Record<ReportKey, string>>;
     financialAccess: { inflow: boolean; outflow: boolean; overflow: boolean };
+    overview?: PlatformOverviewData;
 }) {
     useAdminTranslation();
     const form = useForm<Filters>(filters);
@@ -61,187 +64,201 @@ export default function Dashboard({
             ? t('All companies')
             : t('Selected companies: {{count}}', { count: form.data.companies.length });
     return (
-        <PlatformLayout title={t('Funds overview')}>
+        <PlatformLayout
+            title={t('Platform operating overview')}
+            actions={
+                <Button variant="secondary" onClick={() => router.reload()}>
+                    {t('Refresh')}
+                </Button>
+            }
+        >
             <Head title={t('Platform overview')} />
             <div className="min-w-0 space-y-4">
-                {displayedKeys.length > 0 && (
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                        {displayedKeys.map((key) => (
-                            <Card key={key}>
-                                <CardContent className="space-y-3 pt-6">
-                                    <p className="text-sm text-muted-foreground">
-                                        {t(
-                                            key === 'inflow'
-                                                ? 'Total inflow'
-                                                : key === 'outflow'
-                                                  ? 'Total outflow'
-                                                  : key === 'overflow'
-                                                    ? 'Card reload overflow'
-                                                    : 'Period retained funds',
-                                        )}
-                                    </p>
-                                    <div className="break-words text-2xl font-semibold">
-                                        <MoneyDisplay
-                                            amount={totals[key] ?? '0'}
-                                            asset={key === 'overflow' ? 'USD' : 'USDT'}
-                                        />
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
-                )}
-                <Card>
-                    <CardContent className="pt-6">
-                        <form
-                            onSubmit={(event) => {
-                                event.preventDefault();
-                                form.get('/platform/demo', {
-                                    preserveState: true,
-                                    preserveScroll: true,
-                                });
-                            }}
-                            className="grid items-end gap-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1.3fr_auto]"
-                        >
-                            <FormField
-                                id="funds-start"
-                                label={t('Start date')}
-                                error={form.errors.start && t(form.errors.start)}
-                            >
-                                <AdminDateInput
-                                    id="funds-start"
-                                    label={t('Start date')}
-                                    value={form.data.start}
-                                    onChange={(value) => form.setData('start', value)}
-                                />
-                            </FormField>
-                            <FormField
-                                id="funds-end"
-                                label={t('End date')}
-                                error={form.errors.end && t(form.errors.end)}
-                            >
-                                <AdminDateInput
-                                    id="funds-end"
-                                    label={t('End date')}
-                                    value={form.data.end}
-                                    onChange={(value) => form.setData('end', value)}
-                                />
-                            </FormField>
-                            <FormField
-                                id="funds-companies"
-                                label={t('Company')}
-                                error={form.errors.companies && t(form.errors.companies)}
-                            >
-                                <Button
-                                    id="funds-companies"
-                                    type="button"
-                                    variant="secondary"
-                                    className="w-full justify-between"
-                                    onClick={() => setCompanyDialog(true)}
-                                >
-                                    <span className="flex min-w-0 items-center gap-2">
-                                        <Building2 className="size-4 shrink-0" />
-                                        <span className="truncate">{companyLabel}</span>
-                                    </span>
-                                    <ChevronDown className="size-4" />
-                                </Button>
-                            </FormField>
-                            <Button
-                                type="submit"
-                                disabled={
-                                    form.processing ||
-                                    (form.data.scope === 'selected' &&
-                                        form.data.companies.length === 0)
-                                }
-                            >
-                                {t('Apply')}
-                            </Button>
-                        </form>
-                        <p className="mt-4 text-xs text-muted-foreground">
-                            {t('Daily totals use UTC+8. Select up to 366 days.')}
-                        </p>
-                    </CardContent>
-                </Card>
-                {displayedKeys.length === 0 ? (
-                    <p className="rounded-lg border bg-surface p-4 text-muted-foreground">
-                        {t(
-                            'Financial reporting requires top-up, withdrawal or card read permission.',
-                        )}
+                {overview && <PlatformOverview overview={overview} />}
+                <details className="min-w-0 rounded-xl border bg-surface p-4">
+                    <summary className="cursor-pointer text-sm font-semibold">
+                        {t('Historical funds analysis')}
+                    </summary>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                        {t('Historical withdrawals include fees.')}
                     </p>
-                ) : (
-                    <>
-                        <p className="text-sm text-muted-foreground">
-                            {t(
-                                'Completed top-ups and successful withdrawals only. Retained funds = daily inflow minus outflow; not wallet balance.',
-                            )}
-                        </p>
-                        {financialAccess.overflow && (
-                            <p className="text-sm text-muted-foreground">
+                    <div className="mt-4 min-w-0 space-y-4">
+                        {displayedKeys.length > 0 && (
+                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                                {displayedKeys.map((key) => (
+                                    <Card key={key}>
+                                        <CardContent className="space-y-3 pt-6">
+                                            <p className="text-sm text-muted-foreground">
+                                                {t(
+                                                    key === 'inflow'
+                                                        ? 'Total inflow'
+                                                        : key === 'outflow'
+                                                          ? 'Total outflow'
+                                                          : key === 'overflow'
+                                                            ? 'Card reload overflow'
+                                                            : 'Period retained funds',
+                                                )}
+                                            </p>
+                                            <div className="break-words text-2xl font-semibold">
+                                                <MoneyDisplay
+                                                    amount={totals[key] ?? '0'}
+                                                    asset={key === 'overflow' ? 'USD' : 'USDT'}
+                                                />
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        )}
+                        <Card>
+                            <CardContent className="pt-6">
+                                <form
+                                    onSubmit={(event) => {
+                                        event.preventDefault();
+                                        form.get('/platform/demo', {
+                                            preserveState: true,
+                                            preserveScroll: true,
+                                        });
+                                    }}
+                                    className="grid items-end gap-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1.3fr_auto]"
+                                >
+                                    <FormField
+                                        id="funds-start"
+                                        label={t('Start date')}
+                                        error={form.errors.start && t(form.errors.start)}
+                                    >
+                                        <AdminDateInput
+                                            id="funds-start"
+                                            label={t('Start date')}
+                                            value={form.data.start}
+                                            onChange={(value) => form.setData('start', value)}
+                                        />
+                                    </FormField>
+                                    <FormField
+                                        id="funds-end"
+                                        label={t('End date')}
+                                        error={form.errors.end && t(form.errors.end)}
+                                    >
+                                        <AdminDateInput
+                                            id="funds-end"
+                                            label={t('End date')}
+                                            value={form.data.end}
+                                            onChange={(value) => form.setData('end', value)}
+                                        />
+                                    </FormField>
+                                    <FormField
+                                        id="funds-companies"
+                                        label={t('Company')}
+                                        error={form.errors.companies && t(form.errors.companies)}
+                                    >
+                                        <Button
+                                            id="funds-companies"
+                                            type="button"
+                                            variant="secondary"
+                                            className="w-full justify-between"
+                                            onClick={() => setCompanyDialog(true)}
+                                        >
+                                            <span className="flex min-w-0 items-center gap-2">
+                                                <Building2 className="size-4 shrink-0" />
+                                                <span className="truncate">{companyLabel}</span>
+                                            </span>
+                                            <ChevronDown className="size-4" />
+                                        </Button>
+                                    </FormField>
+                                    <Button
+                                        type="submit"
+                                        disabled={
+                                            form.processing ||
+                                            (form.data.scope === 'selected' &&
+                                                form.data.companies.length === 0)
+                                        }
+                                    >
+                                        {t('Apply')}
+                                    </Button>
+                                </form>
+                                <p className="mt-4 text-xs text-muted-foreground">
+                                    {t('UTC+8 · Up to 366 days')}
+                                </p>
+                            </CardContent>
+                        </Card>
+                        {displayedKeys.length === 0 ? (
+                            <p className="rounded-lg border bg-surface p-4 text-muted-foreground">
                                 {t(
-                                    'Overflow counts successful card reloads by settlement date; it remains in wallets and is excluded from retained funds.',
+                                    'Financial reporting requires top-up, withdrawal or card read permission.',
                                 )}
                             </p>
-                        )}
-                        {series.length > 0 && (
-                            <DailyFundsChart
-                                key={'flows-' + chartKey}
-                                days={days}
-                                series={series}
-                            />
-                        )}
-                        {hasNet && (
-                            <DailyFundsChart
-                                key={'net-' + chartKey}
-                                days={days}
-                                series={['net']}
-                                bars
-                            />
-                        )}
-                        <details className="rounded-xl border bg-surface p-4">
-                            <summary className="cursor-pointer text-sm font-semibold">
-                                {t('Daily details')}
-                            </summary>
-                            <div className="mt-4 overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="border-b text-left text-muted-foreground">
-                                            <th className="p-3">{t('Date')}</th>
-                                            {displayedKeys.map((key) => (
-                                                <th
-                                                    key={key}
-                                                    className="whitespace-nowrap p-3 text-right"
-                                                >
-                                                    {t(reportLabels[key])}{' '}
-                                                    {key === 'overflow' ? '(USD)' : '(U)'}
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {days.map((day) => (
-                                            <tr key={day.date} className="border-b last:border-0">
-                                                <td className="whitespace-nowrap p-3">
-                                                    {day.date}
-                                                </td>
-                                                {displayedKeys.map((key) => (
-                                                    <td key={key} className="p-3 text-right">
-                                                        <MoneyDisplay
-                                                            amount={day[key] ?? '0'}
-                                                            asset={
-                                                                key === 'overflow' ? 'USD' : 'USDT'
-                                                            }
-                                                            hideSymbol
-                                                        />
-                                                    </td>
+                        ) : (
+                            <>
+                                {series.length > 0 && (
+                                    <DailyFundsChart
+                                        key={'flows-' + chartKey}
+                                        days={days}
+                                        series={series}
+                                    />
+                                )}
+                                {hasNet && (
+                                    <DailyFundsChart
+                                        key={'net-' + chartKey}
+                                        days={days}
+                                        series={['net']}
+                                        bars
+                                    />
+                                )}
+                                <details className="rounded-xl border bg-surface p-4">
+                                    <summary className="cursor-pointer text-sm font-semibold">
+                                        {t('Daily details')}
+                                    </summary>
+                                    <div className="mt-4 overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="border-b text-left text-muted-foreground">
+                                                    <th className="p-3">{t('Date')}</th>
+                                                    {displayedKeys.map((key) => (
+                                                        <th
+                                                            key={key}
+                                                            className="whitespace-nowrap p-3 text-right"
+                                                        >
+                                                            {t(reportLabels[key])}{' '}
+                                                            {key === 'overflow' ? '(USD)' : '(U)'}
+                                                        </th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {days.map((day) => (
+                                                    <tr
+                                                        key={day.date}
+                                                        className="border-b last:border-0"
+                                                    >
+                                                        <td className="whitespace-nowrap p-3">
+                                                            {day.date}
+                                                        </td>
+                                                        {displayedKeys.map((key) => (
+                                                            <td
+                                                                key={key}
+                                                                className="p-3 text-right"
+                                                            >
+                                                                <MoneyDisplay
+                                                                    amount={day[key] ?? '0'}
+                                                                    asset={
+                                                                        key === 'overflow'
+                                                                            ? 'USD'
+                                                                            : 'USDT'
+                                                                    }
+                                                                    hideSymbol
+                                                                />
+                                                            </td>
+                                                        ))}
+                                                    </tr>
                                                 ))}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </details>
-                    </>
-                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </details>
+                            </>
+                        )}
+                    </div>
+                </details>
             </div>
             <Dialog open={companyDialog} onOpenChange={setCompanyDialog}>
                 <DialogContent aria-describedby={undefined}>
