@@ -257,14 +257,18 @@ export default function Partners({
     const submitJournal = (e: FormEvent) => {
         e.preventDefault();
         const adjustment = journal.data.kind.startsWith('ADJUSTMENT_');
+        const offset = journal.data.amount.trim().startsWith('-');
         if (
-            adjustment &&
+            (adjustment || offset) &&
             !confirm(
-                `${journalAccount} · ${t(partnerJournalKind(journal.data.kind))} · ${journal.data.amount} U${journal.data.reverses_id ? ` · ${t('Reversal')}` : ''}\n${t('Confirm this theoretical balance adjustment?')}`,
+                `${journalAccount} · ${t(partnerJournalKind(journal.data.kind))} · ${journal.data.amount} U${journal.data.reverses_id ? ` · ${t('Reversal')}` : ''}\n${t(adjustment ? 'Confirm this theoretical balance adjustment?' : 'Confirm this negative cooperation entry?')}`,
             )
         )
             return;
-        journal.transform((data) => ({ ...data, ...(adjustment ? { confirmed: true } : {}) }));
+        journal.transform((data) => ({
+            ...data,
+            ...(adjustment || offset ? { confirmed: true } : {}),
+        }));
         if (targetCompany && (journalPartner || report?.partnerId))
             journal.post(
                 `/platform/tenants/${targetCompany}/partners/${journalPartner || report?.partnerId}/journal`,
@@ -746,13 +750,24 @@ export default function Partners({
                                         <input
                                             required
                                             readOnly={!!journal.data.reverses_id}
-                                            inputMode="decimal"
+                                            inputMode={
+                                                journal.data.kind.startsWith('ADJUSTMENT_')
+                                                    ? 'decimal'
+                                                    : 'text'
+                                            }
                                             value={journal.data.amount}
                                             onChange={(e) =>
                                                 journal.setData('amount', e.target.value)
                                             }
                                         />
                                     </label>
+                                    {!journal.data.kind.startsWith('ADJUSTMENT_') && (
+                                        <p className="stock-muted">
+                                            {t(
+                                                'Enter a negative amount to offset reimbursements or advances. Zero is not allowed.',
+                                            )}
+                                        </p>
+                                    )}
                                     <label>
                                         {t('Business date')}
                                         <input

@@ -182,11 +182,16 @@ it('platform operating overview totals unique successful card funding all cards 
     $overview = app(PlatformOverviewQuery::class)->execute($access);
     expect($overview['cards']['today'])->toBe('520.00000000')->and($overview['cards']['total'])->toBe('520.00000000');
     expect($overview['cards']['balance'])->toBe($card->fresh()->availableBalance());
+    $this->actingAs(AdminUser::where('email', 'owner@platform.local')->firstOrFail(), 'platform_admin');
+    $this->getJson('http://admin.localhost/platform/overview/sources?metric=cardFunding&period=total')->assertOk()->assertJsonPath('amount', '520.00000000')->assertJsonPath('rows.total', 2);
+    $this->getJson('http://admin.localhost/platform/overview/sources?metric=cardBalance')->assertOk()->assertJsonPath('amount', $card->fresh()->availableBalance())->assertJsonPath('rows.total', 1);
+    $this->getJson('http://admin.localhost/platform/overview/sources?metric=ordinaryAssets')->assertOk()->assertJsonPath('amount', $overview['assets']['ordinary']);
     expect($overview['assets']['ordinary'])->toBe(app(\App\Application\User\PlatformUserFinancialSummary::class)->funds($this->tenant->id, $this->user->id)['estimate']);
     expect(DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all())->toBe($before);
     $card->forceFill(['provider_balance' => null])->save();
     $overview = app(PlatformOverviewQuery::class)->execute($access);
     expect($overview['cards']['balance'])->toBeNull()->and($overview['assets']['ordinary'])->toBeNull()->and($overview['cards']['total'])->toBe('520.00000000');
+    $this->getJson('http://admin.localhost/platform/overview/sources?metric=cardBalance')->assertOk()->assertJsonPath('amount', null)->assertJsonPath('rows.items.0.amount', null);
     $card->forceFill(['provider_balance' => '21', 'archived_at' => now()])->save();
     $overview = app(PlatformOverviewQuery::class)->execute($access);
     expect($overview['cards']['balance'])->toBe('421.00000000')->and($overview['cards']['total'])->toBe('520.00000000');

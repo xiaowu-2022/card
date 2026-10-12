@@ -45,6 +45,7 @@ type PlatformNavItem = {
     icon: LucideIcon;
     permission?: string;
     anyPermissions?: string[];
+    allPermissions?: string[];
 };
 const groups: { label: string; items: PlatformNavItem[] }[] = [
     {
@@ -93,6 +94,12 @@ const groups: { label: string; items: PlatformNavItem[] }[] = [
     {
         label: 'Funds and cards',
         items: [
+            {
+                label: 'Fund flows',
+                href: '/platform/funds',
+                icon: Activity,
+                allPermissions: ['users.read', 'wallet.read', 'ledger.read'],
+            },
             {
                 label: 'Deposit orders',
                 href: '/platform/topups',
@@ -155,9 +162,11 @@ const PlatformNav = () => {
         .map((group) => ({
             ...group,
             items: group.items.filter((item) =>
-                item.anyPermissions
-                    ? item.anyPermissions.some((permission) => permissions.includes(permission))
-                    : !item.permission || permissions.includes(item.permission),
+                item.allPermissions
+                    ? item.allPermissions.every((permission) => permissions.includes(permission))
+                    : item.anyPermissions
+                      ? item.anyPermissions.some((permission) => permissions.includes(permission))
+                      : !item.permission || permissions.includes(item.permission),
             ),
         }))
         .filter((group) => group.items.length > 0);

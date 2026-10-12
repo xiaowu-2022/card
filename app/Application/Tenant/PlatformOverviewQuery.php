@@ -21,25 +21,19 @@ final class PlatformOverviewQuery
 {
     public const ACTIVITY = ['deposits', 'annual', 'depositRefunds', 'activation', 'rebates', 'annualCommission'];
 
-    public function execute(array $access): array
+    public function execute(array $access, ?CarbonImmutable $at = null): array
     {
-        $at = CarbonImmutable::now();
+        $at ??= CarbonImmutable::now();
         $today = $at->setTimezone(PlatformFundsFilters::TIMEZONE)->startOfDay();
         $snapshot = ($access['assets'] || $access['inflow'] || $access['outflow']) ? app(MarketPrices::class)->latest() : null;
         $overview = ['updatedAt' => $at->toIso8601String(), 'timezone' => PlatformFundsFilters::TIMEZONE,
             'rateAt' => $snapshot?->observed_at->toIso8601String(), 'bubble' => null];
         if ($access['inflow']) {
-            $receipts = DB::table('wallet_topup_orders')->where('status', 'CREDITED')
-                ->selectRaw('tenant_id, asset_code, COALESCE(actual_received_amount, amount) AS amount, credited_at AS posted_at')
-                ->unionAll(DB::table('asset_deposit_orders as o')->join('ledger_entries as l', fn ($j) => $j->on('l.id', '=', 'o.ledger_entry_id')->on('l.tenant_id', '=', 'o.tenant_id')->on('l.asset_code', '=', 'o.asset_code'))
-                    ->where('o.status', 'CREDITED')->selectRaw('o.tenant_id, o.asset_code, COALESCE(o.actual_received_amount,o.amount) AS amount, l.posted_at'));
+            $receipts = $this->cashSource(false);
             $overview['inflow'] = $this->cashPeriods($receipts, $today, $at, $snapshot);
         }
         if ($access['outflow']) {
-            $withdrawals = DB::table('withdrawal_orders')->where('status', 'SUCCEEDED')
-                ->selectRaw('tenant_id, asset_code, receive_amount AS amount, blockchain_confirmed_at AS posted_at')
-                ->unionAll(DB::table('asset_withdrawal_orders as o')->join('ledger_entries as l', fn ($j) => $j->on('l.id', '=', 'o.ledger_entry_id')->on('l.tenant_id', '=', 'o.tenant_id')->on('l.asset_code', '=', 'o.asset_code'))
-                    ->where('o.status', 'COMPLETED')->selectRaw('o.tenant_id, o.asset_code, o.amount-o.fee_amount AS amount, l.posted_at'));
+            $withdrawals = $this->cashSource(true);
             $overview['outflow'] = $this->cashPeriods($withdrawals, $today, $at, $snapshot);
         }
         if ($access['partners']) {
@@ -55,11 +49,7 @@ final class PlatformOverviewQuery
             $cards = DB::table('user_cards as c')->leftJoinSub($overflow, 'o', fn ($j) => $j->on('o.card_id', '=', 'c.id')->on('o.tenant_id', '=', 'c.tenant_id')->on('o.user_id', '=', 'c.user_id'))
                 ->selectRaw("COALESCE(SUM(c.provider_balance+COALESCE(o.balance,0)),0) AS amount, COUNT(*) FILTER(WHERE c.provider_balance IS NULL OR c.card_currency<>'USD') AS missing")->first();
             $overview['cards'] = ['balance' => $cards->missing ? null : $this->decimal($cards->amount)];
-            $funding = DB::table('card_issue_orders')->where('status', 'SUCCEEDED')
-                ->selectRaw('initial_load_amount AS amount, succeeded_at AS posted_at')
-                ->unionAll(DB::table('card_management_orders as o')->join('ledger_entries as l', fn ($j) => $j->on('l.id', '=', 'o.settlement_entry_id')->on('l.tenant_id', '=', 'o.tenant_id'))
-                    ->where('o.status', 'SUCCEEDED')->where('o.kind', 'LOAD')
-                    ->selectRaw('o.arrival_amount+o.manual_funding_amount AS amount, l.posted_at'));
+            $funding = $this->cardFundingSource();
             $row = DB::query()->fromSub($funding, 'funding')->where('posted_at', '<=', $at)
                 ->selectRaw('COALESCE(SUM(amount),0) AS total, COALESCE(SUM(amount) FILTER(WHERE posted_at>=?),0) AS today', [$today->utc()])->first();
             $overview['cards'] += ['today' => $this->decimal($row->today), 'total' => $this->decimal($row->total)];
@@ -74,11 +64,56 @@ final class PlatformOverviewQuery
         return $overview;
     }
 
+    /** Sources shared by overview totals and drill-downs; immutable settled receipts only. */
+    public function cashSource(bool $outflow): Builder
+    {
+        if (! $outflow) {
+            return DB::table('wallet_topup_orders')->where('status', 'CREDITED')
+                ->selectRaw("id, tenant_id, user_id, asset_code, COALESCE(actual_received_amount, amount) AS amount, credited_at AS posted_at, 'Actual receipt'::text AS source")
+                ->unionAll(DB::table('asset_deposit_orders as o')->join('ledger_entries as l', fn ($j) => $j->on('l.id', '=', 'o.ledger_entry_id')->on('l.tenant_id', '=', 'o.tenant_id')->on('l.asset_code', '=', 'o.asset_code'))
+                    ->where('o.status', 'CREDITED')->selectRaw("o.id, o.tenant_id, o.user_id, o.asset_code, COALESCE(o.actual_received_amount,o.amount) AS amount, l.posted_at, 'Actual receipt'::text AS source"));
+        }
+
+        return DB::table('withdrawal_orders')->where('status', 'SUCCEEDED')
+            ->selectRaw("id, tenant_id, user_id, asset_code, receive_amount AS amount, blockchain_confirmed_at AS posted_at, 'Withdrawal completed'::text AS source")
+            ->unionAll(DB::table('asset_withdrawal_orders as o')->join('ledger_entries as l', fn ($j) => $j->on('l.id', '=', 'o.ledger_entry_id')->on('l.tenant_id', '=', 'o.tenant_id')->on('l.asset_code', '=', 'o.asset_code'))
+                ->where('o.status', 'COMPLETED')->selectRaw("o.id, o.tenant_id, o.user_id, o.asset_code, o.amount-o.fee_amount AS amount, l.posted_at, 'Withdrawal completed'::text AS source"));
+    }
+
+    public function cardFundingSource(): Builder
+    {
+        return DB::table('card_issue_orders')->where('status', 'SUCCEEDED')
+            ->selectRaw("id, tenant_id, user_id, 'USDT'::text AS asset_code, initial_load_amount AS amount, succeeded_at AS posted_at, 'Initial card funding'::text AS source")
+            ->unionAll(DB::table('card_management_orders as o')->join('ledger_entries as l', fn ($j) => $j->on('l.id', '=', 'o.settlement_entry_id')->on('l.tenant_id', '=', 'o.tenant_id'))
+                ->where('o.status', 'SUCCEEDED')->where('o.kind', 'LOAD')
+                ->selectRaw("o.id, o.tenant_id, o.user_id, 'USDT'::text AS asset_code, o.arrival_amount+o.manual_funding_amount AS amount, l.posted_at, 'Card funding'::text AS source"));
+    }
+
+    /** Enabled partners without an enabled ancestor, traversing ordinary/disabled users. */
+    public function topLevelPartners(): Builder
+    {
+        return DB::table('partner_configurations as p')->where('p.enabled', true)
+            ->join('users as u', fn ($j) => $j->on('u.id', '=', 'p.user_id')->on('u.tenant_id', '=', 'p.tenant_id'))
+            ->whereRaw('NOT EXISTS (
+                WITH RECURSIVE ancestors AS (
+                    SELECT parent.id, parent.user_id, parent.inviter_id FROM promotion_members child
+                    JOIN promotion_members parent ON parent.id=child.inviter_id AND parent.tenant_id=child.tenant_id
+                    WHERE child.tenant_id=p.tenant_id AND child.user_id=p.user_id
+                    UNION
+                    SELECT parent.id, parent.user_id, parent.inviter_id FROM promotion_members parent
+                    JOIN ancestors a ON parent.id=a.inviter_id
+                    WHERE parent.tenant_id=p.tenant_id
+                ) SELECT 1 FROM ancestors a JOIN partner_configurations enabled
+                ON enabled.user_id=a.user_id AND enabled.tenant_id=p.tenant_id AND enabled.enabled
+                WHERE a.user_id<>p.user_id
+            )');
+    }
+
     private function partners(): array
     {
         $totals = array_fill_keys(['stock', 'theoretical', 'actual', 'difference'], '0.00000000');
         // Sum each enabled report's stock as requested, even when teams overlap.
-        foreach (DB::table('partner_configurations')->where('enabled', true)->get(['id', 'tenant_id', 'user_id'])->groupBy('tenant_id') as $tenant => $partners) {
+        foreach ($this->topLevelPartners()->get(['p.id', 'p.tenant_id', 'p.user_id'])->groupBy('tenant_id') as $tenant => $partners) {
             foreach ($partners->chunk(100) as $rows) {
                 $ids = $rows->pluck('id');
                 $users = $rows->map(fn ($p) => (object) ['id' => $p->user_id, 'tenant_id' => $tenant])->all();
@@ -109,7 +144,7 @@ final class PlatformOverviewQuery
         return $totals;
     }
 
-    private function members(string $tenant, bool $ordinary = false): Builder
+    public function members(string $tenant, bool $ordinary = false): Builder
     {
         $members = DB::table('users as u')->where('u.tenant_id', $tenant)->selectRaw('u.id AS user_id, NULL::uuid AS direct_user_id')
             ->when($ordinary, fn ($q) => $q->whereNotExists(fn ($p) => $p->selectRaw('1')->from('partner_configurations as p')

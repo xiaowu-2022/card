@@ -34,16 +34,16 @@ try {
             auth: { admin: { id: 'owner', name: 'Owner', email: 'owner@example.test', scope: 'PLATFORM', permissions: ['wallet_topups.read', 'wallet_topups.confirm', 'partners.manage'] }, user: null },
             i18n: { locale: 'zh-CN', enabledLocales: ['zh-CN', 'en'], timezone: 'UTC', surface: 'platform' },
             mode: 'deposit', companies: [{ id: company, name: 'Test company' }], filters: {}, statuses: ['CREDITED'], observations: [],
-            orders: { data: [{ id, legacy: source === 'primary', source, reference: 'TEST123', tenant_id: company, company: 'Test company', accountId: '123456', userEmail: 'member@example.test', asset: 'USDT', network: source === 'primary' ? 'TRON' : 'ETHEREUM', amount: '100.01000000', actualReceivedAmount: '89.12345678', status: 'CREDITED', created_at: '2026-10-11T00:00:00Z', arrival_at: '2026-10-11T00:01:00Z', operated_at: null, operator: null, fee: null, address: 'offline', tx_hash: '', canConfirm: false, canRecheck: false, manuallyConfirmed: !automatic, receiptType, receiptTypeRevision: revision, arrivalType: automatic ? 'AUTO' : receiptType === 'ADVANCE' ? 'ADVANCE' : 'MANUAL', canChangeReceiptType: !automatic, canAdvance }], current_page: 1, last_page: 1, total: 1, from: 1, to: 1, links: [] },
+            orders: { data: [{ id, legacy: source === 'primary', source, reference: 'TEST123', tenant_id: company, company: 'Test company', accountId: '123456', userEmail: 'member@example.test', asset: 'USDT', network: source === 'primary' ? 'TRON' : 'ETHEREUM', amount: '100.01000000', actualReceivedAmount: '89.12345678', status: 'CREDITED', created_at: '2026-10-11T00:00:00Z', arrival_at: '2026-10-11T00:01:00Z', operated_at: null, operator: null, fee: null, address: 'offline', tx_hash: '', canConfirm: false, canRecheck: false, manuallyConfirmed: !automatic, receiptType, receiptTypeRevision: revision, arrivalType: receiptType === 'ADVANCE' ? 'ADVANCE' : automatic ? 'AUTO' : 'MANUAL', canChangeReceiptType: true, canAdvance }], current_page: 1, last_page: 1, total: 1, from: 1, to: 1, links: [] },
         } };
         if (request.headers()['x-inertia']) return route.fulfill({ headers: { 'X-Inertia': 'true' }, json: state });
         return route.fulfill({ contentType: 'text/html', body: `<!doctype html><html><head>${(entry.css ?? []).map(file => `<link rel="stylesheet" href="/build/${file}">`).join('')}</head><body><script data-page="app" type="application/json">${JSON.stringify(state)}</script><div id="app"></div><script type="module" src="/build/${entry.file}"></script></body></html>` });
     });
-    for (source of ['primary', 'asset']) {
+    for (automatic of [false, true]) for (source of ['primary', 'asset']) {
         receiptType = 'ACTUAL'; revision = 0;
         await page.goto(origin + '/platform/topups');
         await page.getByRole('columnheader', { name: '到账类型', exact: true }).waitFor();
-        for (const target of ['切换为预支金额', '切换为手动确认']) {
+        for (const target of ['切换为预支金额', automatic ? '切换为自动到账' : '切换为手动确认']) {
             await page.getByRole('button', { name: target, exact: true }).click();
             const dialog = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: '更改到账类型' }) });
             await dialog.getByText('89.12345678', { exact: false }).waitFor();
@@ -57,16 +57,19 @@ try {
             assert.equal(receiptType, target === '切换为预支金额' ? 'ADVANCE' : 'ACTUAL');
         }
     }
-    assert.equal(writes.length, 4);
+    assert.equal(writes.length, 8);
     assert.notEqual(writes[0].request_id, writes[1].request_id);
     automatic = true;
     await page.goto(origin + '/platform/topups');
     await page.getByText('自动到账', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: '切换为预支金额' }).count(), 1);
+    canAdvance = false;
+    await page.goto(origin + '/platform/topups');
     assert.equal(await page.getByRole('button', { name: /切换为/ }).count(), 0);
     automatic = false; canAdvance = false;
     await page.goto(origin + '/platform/topups');
     await page.getByText('手动确认', { exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: /切换为/ }).count(), 0);
     assert.deepEqual(errors, []);
-    console.log('Deposit receipt type: both sources, confirmation, exact amount, refreshed classification and automatic protection passed.');
+    console.log('Deposit receipt type: both sources, confirmation, exact amount, refreshed classification and automatic origin preserved passed.');
 } finally { await browser.close(); }

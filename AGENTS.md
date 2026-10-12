@@ -1,3 +1,46 @@
+On 2026-10-12 the user allowed settled automatic recharge receipts to switch
+ACTUAL/ADVANCE through the existing scoped administrative correction workflow.
+Preserve original automatic chain/credit evidence and show AUTO after switching
+back to ACTUAL; effective ADVANCE shows Advance amount. Use immutable settled
+USDT amounts, enabled same-company partners for new advances, confirmation,
+revision/idempotency guards and append-only journal/reversal/audit evidence.
+Never credit again or call providers/chains; deploy the receipt-guard migration
+and matching PHP/admin assets, testing only isolated/offline fixtures. This
+supersedes the manual-only correction limitation. See PLATFORM_FUNDS_ORDERS.md.
+
+On 2026-10-12 the user approved negative reimbursement/advance amounts for
+cooperation offsets. Accept nonzero signed native-precision journal amounts with
+explicit negative-entry confirmation; theoretical adjustments remain positive.
+Append immutable evidence, preserve reversal sign/ownership, scoped authorization,
+idempotency and atomic audit; never move Wallet/Ledger funds or rewrite history.
+Deploy the signed-cooperation constraint migration with PHP/admin assets; validate
+only in isolated fixtures, no production financial tests. See PARTNER_STOCK.md.
+
+On 2026-10-12 the user revised homepage partner report totals to only currently
+enabled top-level partners (no enabled same-company invitation ancestor, traversing
+ordinary/disabled users). Stock/theoretical/actual/difference and source dialogs share
+this scope; retain each root report’s existing team scope and other operating metrics.
+This supersedes the all-enabled-partner report summation below. See PLATFORM_OVERVIEW.md.
+
+On 2026-10-12 the user requested every displayed operating-overview amount be
+clickable in its existing black style, opening a modal with paginated source records.
+Use the identical overview scopes/evidence and required metric permissions; include
+zero/unknown amounts, native receipts, enabled partner contributors, signed journals,
+all issued cards, asset components and deduplicated operating events/alerts. Preserve
+native decimals, company joins, safe customer names/remarks, read-only snapshots and
+parent filters/scroll. Only provider-balance reporting may use the previously approved
+cached merchant report. Never provision wallets, refresh rates, call financial provider
+operations or mutate evidence. No migration/production financial test. See PLATFORM_OVERVIEW.md.
+
+On 2026-10-12 the user added a global Platform Fund flows menu immediately above
+Deposit orders. Read all sealed Ledger entries across companies, one business entry
+with its scoped native-precision postings per row, including company-owned accounts.
+Require active Platform users/wallet/ledger reads; support company/customer/currency/
+event/UTC+8 date filters and exact numbered pagination. Preserve tenant joins, safe
+identity projection, immutable history and read-only snapshots; no wallet provisioning,
+provider requests, mutations, migration or production financial tests. This adds a
+global entry beside the existing company/user drawer. See PLATFORM_USER_FUNDS.md.
+
 On 2026-10-12 the user corrected homepage third-party balance to match the card-provider
 list: use the existing cached, read-only PhotonPay merchant report for API-connected
 providers and manual reference balances only for unconnected providers. Sum all active

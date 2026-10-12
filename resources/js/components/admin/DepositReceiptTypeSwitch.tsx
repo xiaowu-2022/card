@@ -31,8 +31,13 @@ export function DepositReceiptTypeSwitch({ order }: { order: Order }) {
     )
         return null;
     const target = order.receiptType === 'ADVANCE' ? 'ACTUAL' : 'ADVANCE';
+    const actualLabel = order.manuallyConfirmed ? 'Manual confirmation' : 'Automatic receipt';
     const targetLabel =
-        target === 'ADVANCE' ? 'Switch to advance amount' : 'Switch to manual confirmation';
+        target === 'ADVANCE'
+            ? 'Switch to advance amount'
+            : order.manuallyConfirmed
+              ? 'Switch to manual confirmation'
+              : 'Switch to automatic receipt';
     return (
         <>
             <Button
@@ -86,14 +91,14 @@ export function DepositReceiptTypeSwitch({ order }: { order: Order }) {
                             {t('Receipt type')}:{' '}
                             {t(
                                 form.data.receipt_type === 'ADVANCE'
-                                    ? 'Manual confirmation'
+                                    ? actualLabel
                                     : 'Advance amount',
                             )}{' '}
                             →{' '}
                             {t(
                                 form.data.receipt_type === 'ADVANCE'
                                     ? 'Advance amount'
-                                    : 'Manual confirmation',
+                                    : actualLabel,
                             )}
                         </p>
                         <p className="tabular-nums">

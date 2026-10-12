@@ -43,18 +43,27 @@ final class CardProviderReferenceQuery
     {
         $total = BigDecimal::zero();
         $missing = false;
-        foreach (CardProviderReference::query()->orderBy('id')->get() as $record) {
-            $report = $this->reportFor($record);
-            $balance = $report['balance'] ?? null;
-            if ($balance === null || ! in_array($report['asset'], ['USD', 'USDT'], true)) {
+        foreach ($this->balanceRows() as $row) {
+            if ($row['amount'] === null || ! in_array($row['asset'], ['USD', 'USDT'], true)) {
                 $missing = true;
 
                 continue;
             }
-            $total = $total->plus($balance);
+            $total = $total->plus($row['amount']);
         }
 
         return $missing ? null : (string) $total->toScale(8);
+    }
+
+    public function balanceRows(): array
+    {
+        return CardProviderReference::query()->orderBy('id')->get()->map(function ($record) {
+            $report = $this->reportFor($record);
+
+            return ['id' => $record->id, 'name' => $record->name, 'amount' => $report['balance'],
+                'asset' => $report['asset'], 'time' => $report['queriedAt'] ?? $record->updated_at->toIso8601String(),
+                'source' => $record->photonpay_reporting_encrypted !== null ? 'PhotonPay API' : 'Reference balance'];
+        })->all();
     }
 
     private function reportFor(CardProviderReference $record): array

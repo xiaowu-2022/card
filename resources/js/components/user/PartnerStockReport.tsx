@@ -11,6 +11,7 @@ import {
     partnerJournalNote,
     partnerJournalKind,
     partnerJournalSign,
+    partnerJournalAmount,
 } from '@/lib/partner-journal-note';
 
 export type StockPage<T> = { items: T[]; page: number; total: number; hasMore: boolean };
@@ -551,7 +552,10 @@ export function PartnerStockReport({
                             </strong>
                             <span>
                                 {partnerJournalSign(row.kind, row.reverses_id)}
-                                {value(row.amount)} · {row.business_date}
+                                {value(
+                                    partnerJournalAmount(row.kind, row.amount, row.reverses_id),
+                                )}{' '}
+                                · {row.business_date}
                             </span>
                             <p>{partnerJournalNote(row.note, t)}</p>
                             {onReverse && (

@@ -58,7 +58,7 @@ final class PartnerBusinessStock
     }
 
     /** Explicit Platform scope also reuses the existing evidence without overlapping teams. */
-    public function activityForMembers(string $tenant, Builder $members, Builder $all, ?string $owner = null, ?Builder $depositMembers = null): Builder
+    public function activityForMembers(string $tenant, Builder $members, Builder $all, ?string $owner = null, ?Builder $depositMembers = null, bool $withIdentity = false): Builder
     {
         $team = (clone ($depositMembers ?? $members))->select('user_id');
         $firstDeposits = DB::table('account_activations as x')
@@ -66,13 +66,13 @@ final class PartnerBusinessStock
             ->join('ledger_accounts as a', fn ($j) => $j->on('a.id', '=', 'p.ledger_account_id')->on('a.tenant_id', '=', 'p.tenant_id')->on('a.user_id', '=', 'x.user_id'))
             ->where('x.tenant_id', $tenant)->whereIn('x.user_id', $team)->where('x.source_type', 'DEPOSIT')
             ->where('a.account_type', 'USER_SECURITY_DEPOSIT')->where('a.asset_code', 'USDT')->where('p.delta', '>', 0)
-            ->selectRaw("'deposits'::text AS category, p.delta AS amount, x.activated_at AS posted_at");
+            ->selectRaw("'deposits'::text AS category, p.delta AS amount, x.activated_at AS posted_at".($withIdentity ? ', x.id, x.user_id' : ''));
 
         return DB::query()->fromSub($this->entriesForMembers($tenant, $members, $all, $owner), 'entries')
-            ->where('category', '<>', 'deposits')->select('category', 'amount', 'posted_at')->unionAll($firstDeposits)->unionAll(
+            ->where('category', '<>', 'deposits')->select(['category', 'amount', 'posted_at', ...($withIdentity ? ['id', 'user_id'] : [])])->unionAll($firstDeposits)->unionAll(
                 DB::table('security_deposit_refund_requests')->where('tenant_id', $tenant)->whereIn('user_id', clone $team)
                     ->where('status', 'COMPLETED')->whereNotNull('ledger_entry_id')
-                    ->selectRaw("'depositRefunds'::text AS category, amount, completed_at AS posted_at")
+                    ->selectRaw("'depositRefunds'::text AS category, amount, completed_at AS posted_at".($withIdentity ? ', id, user_id' : ''))
             );
     }
 

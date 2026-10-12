@@ -141,10 +141,10 @@ No historical replay or consumer rebuild is required.
 
 The recharge list and detail drawer show Receipt type: Automatic receipt, Manual
 confirmation or Advance amount. Pending/uncredited orders show no arrival type.
-Automatic receipts retain their verified chain origin and cannot be reclassified.
-Credited manual USDT receipts can switch ACTUAL/ADVANCE with explicit confirmation
+Update (2026-10-12): Automatic receipts retain their verified chain origin and
+may also be reclassified. Credited manual or automatic USDT receipts can switch ACTUAL/ADVANCE with explicit confirmation
 and a server-owned revision. A new advance still requires an enabled same-company
-partner; switching an existing advance back to manual also works after partner
+partner; switching an existing advance back to ACTUAL also works after partner
 status is disabled. The native settled amount, including actual_received_amount,
 is server-owned and cannot be edited by this operation.
 
@@ -163,10 +163,12 @@ ACTUAL -> ADVANCE appends one matching positive advance; ADVANCE -> ACTUAL appen
 a matching reversal, or references an already recorded reversal. Switching again
 creates a new advance rather than rewriting any journal. Journal/evidence/audit
 writes commit together. Database guards reject changes to history, wrong-company
-order/journal associations, uncredited/automatic receipts and stale revisions.
+order/journal associations, uncredited receipts and stale revisions.
 
 Order DTOs, user receipt totals and company USDT inflow splits use the latest
-classification; company inflow combines both deposit sources. Partner personal
+classification; company inflow combines both deposit sources. Effective ADVANCE
+shows Advance amount even for automatic receipts; switching back to ACTUAL restores
+Automatic receipt for originally automatic orders without fabricating manual confirmation. Partner personal
 reconciliation reads the same signed journal evidence. Successful changes refresh
 the order list and open details through Inertia, retaining filters, pagination and
 scroll; dependent read-only summaries re-read current data. Actual wallet balances,
@@ -179,3 +181,11 @@ Do not drop the new evidence after production corrections. Verify with isolated
 ManualDepositReceiptTest and the fully intercepted deposit-receipt-type.mjs browser
 fixture; never use production orders for financial tests. This supersedes the prior
 prohibition on post-credit classification changes only for this explicit workflow.
+
+
+Automatic receipt corrections require the forward migration
+`2026_10_12_200000_allow_automatic_deposit_receipt_type_changes.php` with matching
+PHP/admin assets. It replaces the classification guard without rewriting original
+orders, chain receipts or credit journals. Every existing revision, tenant/user,
+amount and journal/reversal invariant remains in force. Rollback refuses automatic
+classification history; no evidence is deleted. No production financial test.

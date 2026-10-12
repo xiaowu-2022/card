@@ -81,9 +81,9 @@ final class PlatformFundsQuery
             return [
                 'id' => $o->id, 'source' => $row->source, 'legacy' => $primary,
                 'receiptType' => $withdrawal ? null : $o->effective_receipt_type,
-                'arrivalType' => $withdrawal || $row->status !== 'CREDITED' ? null : ($o->manual_confirmed_at === null ? 'AUTO' : ($o->effective_receipt_type === 'ADVANCE' ? 'ADVANCE' : 'MANUAL')),
+                'arrivalType' => $withdrawal || $row->status !== 'CREDITED' ? null : ($o->effective_receipt_type === 'ADVANCE' ? 'ADVANCE' : ($o->manual_confirmed_at === null ? 'AUTO' : 'MANUAL')),
                 'receiptTypeRevision' => $withdrawal ? null : (int) $o->receipt_type_revision,
-                'canChangeReceiptType' => ! $withdrawal && $row->status === 'CREDITED' && $o->manual_confirmed_at !== null,
+                'canChangeReceiptType' => ! $withdrawal && $row->status === 'CREDITED' && $o->ledger_entry_id !== null && $o->asset_code === 'USDT',
                 'advanceJournalId' => $withdrawal ? null : $o->effective_journal_id,
                 'canAdvance' => ! $withdrawal && $o->asset_code === 'USDT' && DB::table('partner_configurations')->where('tenant_id', $o->tenant_id)->where('user_id', $o->user_id)->where('enabled', true)->exists(),
                 'manuallyConfirmed' => ! $withdrawal && $o->manual_confirmed_at !== null,

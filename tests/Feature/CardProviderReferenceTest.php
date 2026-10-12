@@ -257,8 +257,9 @@ it('uses the same cached API balance as the directory instead of manual values f
     Http::assertNothingSent();
     $overview = app(PlatformOverviewQuery::class)->execute([...$access, 'providers' => true]);
     expect($overview['providerBalance'])->toBe('1393.54000001');
-    $rows = app(CardProviderReferenceQuery::class)->list()['providers']->items();
-    expect(collect($rows)->firstWhere('id', $connected->id)['referenceBalance'])->toBe('1393.33000001');
+    $rows = app(CardProviderReferenceQuery::class)->balanceRows();
+    expect(collect($rows)->firstWhere('id', $connected->id)['amount'])->toBe('1393.33000001');
+    $this->getJson('http://admin.localhost/platform/overview/sources?metric=providerBalance')->assertOk()->assertJsonPath('amount', '1393.54000001')->assertJsonPath('rows.total', 22)->assertJsonMissingPath('rows.items.0.photonpay_reporting_encrypted');
     Http::assertSentCount(3);
     expect(LedgerAccount::query()->orderBy('id')->pluck('balance', 'id')->all())->toBe($before);
 });

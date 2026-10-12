@@ -21,6 +21,7 @@ use App\Application\Promotion\PromotionMembershipAction;
 use App\Application\SecurityDeposit\FundSecurityDepositAction;
 use App\Application\SecurityDeposit\RefundSecurityDepositAction;
 use App\Application\Tenant\PlatformOverviewQuery;
+use App\Application\Tenant\PlatformOverviewSources;
 use App\Application\User\UpdateUserOperationRestrictions;
 use App\Application\User\UserOperationRestrictions;
 use App\Application\Wallet\ActivateUserWalletAction;
@@ -220,6 +221,72 @@ it('rolls up nested journals once with immutable reversals independent advances 
     expect($this->report->read($this->tenant->id, $this->user->id)['journal']['hasMore'])->toBeTrue()->and(DB::table('ledger_entries')->count())->toBe($before);
     expect(DB::table('partner_journal_entries')->where('id', $entry->id)->value('actor_id'))->toBe($this->admin->id);
     expect(fn () => DB::transaction(fn () => DB::table('partner_journal_entries')->where('id', $entry->id)->update(['amount' => '40'])))->toThrow(QueryException::class);
+    Http::assertNothingSent();
+});
+
+it('records signed cooperation offsets with exact totals replay guards and reversible immutable history', function () {
+    $partner = stockPartner($this, $this->user);
+    $before = collect(['ledger_accounts', 'ledger_entries', 'ledger_postings', 'wallets'])
+        ->mapWithKeys(fn ($table) => [$table => DB::table($table)->orderBy('id')->get()->toJson()]);
+    $this->management->journal($this->admin, $this->tenant->id, $partner->id, stockEntry('ADVANCE', '100.12345678'));
+    $this->management->journal($this->admin, $this->tenant->id, $partner->id, stockEntry('REIMBURSEMENT', '10.12345678'));
+    $advanceData = stockEntry('ADVANCE', '-40.12345678') + ['confirmed' => true];
+    $advance = $this->management->journal($this->admin, $this->tenant->id, $partner->id, $advanceData);
+    $expense = $this->management->journal($this->admin, $this->tenant->id, $partner->id, stockEntry('REIMBURSEMENT', '-3.12345678') + ['confirmed' => true]);
+    expect($advance->amount)->toBe('-40.12345678')
+        ->and($this->management->journal($this->admin, $this->tenant->id, $partner->id, $advanceData)->id)->toBe($advance->id);
+    expect(fn () => $this->management->journal($this->admin, $this->tenant->id, $partner->id, array_replace($advanceData, ['amount' => '40.12345678'])))->toThrow(HttpException::class);
+    $report = app(PartnerReport::class)->read($this->tenant->id, $this->user->id, false);
+    expect($report['accountBalance']['advances'])->toBe('60.00000000')
+        ->and($report['accountBalance']['reimbursements'])->toBe('7.00000000')
+        ->and($report['accountBalance']['theoretical'])->toBe('53.00000000')
+        ->and($report['stock'])->toBe('-7.00000000');
+    $summary = app(PartnerListSummary::class)->forRows([$partner])[$partner->id]['summary'];
+    expect($summary['advance'])->toBe('60.00000000')->and($summary['reimbursement'])->toBe('7.00000000');
+    expect(operatingOverview()['reimbursement'])->toBe('7.00000000');
+    $this->actingAs($this->admin, 'platform_admin')->getJson('http://admin.localhost/platform/overview/sources?metric=reimbursement')
+        ->assertOk()->assertJsonPath('amount', '7.00000000')->assertJsonFragment(['amount' => '-3.12345678']);
+    foreach ([$advance, $expense] as $entry) {
+        $this->management->journal($this->admin, $this->tenant->id, $partner->id,
+            stockEntry($entry->kind, $entry->amount) + ['confirmed' => true, 'reverses_id' => $entry->id]);
+        expect(fn () => $this->management->journal($this->admin, $this->tenant->id, $partner->id,
+            stockEntry($entry->kind, $entry->amount) + ['confirmed' => true, 'reverses_id' => $entry->id]))->toThrow(HttpException::class);
+    }
+    $report = app(PartnerReport::class)->read($this->tenant->id, $this->user->id, false);
+    expect($report['accountBalance']['advances'])->toBe('100.12345678')
+        ->and($report['accountBalance']['reimbursements'])->toBe('10.12345678')
+        ->and($report['accountBalance']['theoretical'])->toBe('90.00000000');
+    expect(DB::table('audit_logs')->where('resource_id', $advance->id)->where('action', 'PARTNER_JOURNAL_RECORDED')->exists())->toBeTrue();
+    expect(fn () => DB::transaction(fn () => DB::table('partner_journal_entries')->where('id', $advance->id)->update(['amount' => '-1'])))->toThrow(QueryException::class);
+    foreach ($before as $table => $json) {
+        expect(DB::table($table)->orderBy('id')->get()->toJson())->toBe($json);
+    }
+    Http::assertNothingSent();
+});
+
+it('validates signed cooperation offsets without weakening adjustment magnitude or company scope', function () {
+    $partner = stockPartner($this, $this->user);
+    $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/partners/'.$partner->id.'/journal';
+    $this->actingAs($this->admin, 'platform_admin');
+    foreach (['ADVANCE', 'REIMBURSEMENT'] as $kind) {
+        $this->postJson($url, stockEntry($kind, '-1'))->assertUnprocessable()->assertJsonValidationErrors('confirmed');
+        foreach (['0', '-0.00000000', '-1.123456789', '1e2'] as $invalid) {
+            $this->postJson($url, stockEntry($kind, $invalid) + ['confirmed' => true])->assertUnprocessable()->assertJsonValidationErrors('amount');
+        }
+        $this->postJson($url, stockEntry($kind, '-1.12345678') + ['confirmed' => true])->assertRedirect();
+    }
+    foreach (['ADJUSTMENT_INCREASE', 'ADJUSTMENT_DECREASE'] as $kind) {
+        $this->postJson($url, stockEntry($kind, '-1') + ['confirmed' => true])->assertUnprocessable()->assertJsonValidationErrors('amount');
+    }
+    $foreign = Tenant::where('slug', 'tenant-b')->firstOrFail();
+    $this->postJson(str_replace($this->tenant->id, $foreign->id, $url), stockEntry('ADVANCE', '-1') + ['confirmed' => true])->assertNotFound();
+    expect(DB::table('partner_journal_entries')->count())->toBe(2);
+    // The database independently retains the nonzero/signed-kind invariant.
+    $entry = (array) DB::table('partner_journal_entries')->first();
+    foreach ([['ADVANCE', '0'], ['REIMBURSEMENT', '0'], ['ADJUSTMENT_INCREASE', '-1'], ['ADJUSTMENT_DECREASE', '-1']] as [$kind, $amount]) {
+        expect(fn () => DB::transaction(fn () => DB::table('partner_journal_entries')->insert(array_replace($entry,
+            ['id' => (string) Str::uuid(), 'request_id' => (string) Str::uuid(), 'kind' => $kind, 'amount' => $amount]))))->toThrow(QueryException::class);
+    }
     Http::assertNothingSent();
 });
 
@@ -1165,7 +1232,7 @@ function operatingOverview(array $overrides = []): array
     return app(PlatformOverviewQuery::class)->execute(array_replace(array_fill_keys(['inflow', 'outflow', 'partners', 'cards', 'providers', 'assets'], true), $overrides));
 }
 
-it('platform operating overview sums enabled reports across companies including signed differences', function () {
+it('platform operating overview sums top level enabled reports across companies including signed differences', function () {
     $root = stockPartner($this, $this->user);
     $nested = stockChild($this->user);
     $second = stockPartner($this, $nested);
@@ -1186,7 +1253,7 @@ it('platform operating overview sums enabled reports across companies including 
     $this->management->journal($this->admin, $this->tenant->id, $root->id, stockEntry('REIMBURSEMENT', '5') + ['reverses_id' => $expense->id]);
     $this->management->journal($this->admin, $this->tenant->id, $second->id, stockEntry('REIMBURSEMENT', '3'));
     $expected = array_fill_keys(['stock', 'theoretical', 'actual', 'difference'], '0');
-    foreach ([$root, $second, $third] as $partner) {
+    foreach ([$root, $third] as $partner) {
         $report = app(PartnerReport::class)->read($partner->tenant_id, $partner->user_id, false);
         foreach (array_keys($expected) as $key) {
             $expected[$key] = (string) BigDecimal::of($expected[$key])->plus($key === 'stock' ? $report['stock'] : $report['accountBalance'][$key]);
@@ -1197,14 +1264,33 @@ it('platform operating overview sums enabled reports across companies including 
     foreach ($expected as $key => $amount) {
         expect($overview['partners'][$key])->toBe((string) BigDecimal::of($amount)->toScale(8));
     }
-    expect($overview['partners']['actual'])->toBe('60.00000000')->and($overview['reimbursement'])->toBe('3.00000000')->and($overview['bubble'])->toBeNull();
+    expect($overview['partners']['actual'])->toBe('40.00000000')->and($overview['reimbursement'])->toBe('3.00000000')->and($overview['bubble'])->toBeNull();
     $this->withoutVite();
     $this->actingAs($this->admin, 'platform_admin')->get('http://admin.localhost/platform/demo?scope=selected&companies[]='.$foreign->tenant_id)
         ->assertOk()->assertHeader('Cache-Control', 'no-store, private')->assertInertia(fn ($p) => $p->where('overview.partners', $overview['partners']));
+    foreach (array_keys($expected) as $metric) {
+        $this->getJson('http://admin.localhost/platform/overview/sources?metric='.$metric)
+            ->assertOk()->assertJsonPath('amount', $overview['partners'][$metric])->assertJsonPath('rows.total', 2)
+            ->assertJsonMissing(['id' => $second->id]);
+    }
     foreach ($before as $table => $json) {
         expect(DB::table($table)->orderBy('id')->get()->toJson())->toBe($json);
     }
     Http::assertNothingSent();
+});
+
+it('overview top level partners traverse ordinary and disabled ancestors and follow current enabled state', function () {
+    $root = stockPartner($this, $this->user);
+    $ordinary = stockChild($this->user);
+    $disabled = stockChild($ordinary);
+    stockPartner($this, $disabled, false);
+    $nested = stockPartner($this, stockChild($disabled));
+    $unconfigured = stockChild($this->user);
+    $query = app(PlatformOverviewQuery::class);
+    expect($query->topLevelPartners()->where('p.tenant_id', $this->tenant->id)->pluck('p.id')->all())->toBe([$root->id]);
+    DB::table('partner_configurations')->where('id', $root->id)->update(['enabled' => false]);
+    expect($query->topLevelPartners()->where('p.tenant_id', $this->tenant->id)->pluck('p.id')->all())->toBe([$nested->id]);
+    expect($query->topLevelPartners()->where('p.user_id', $unconfigured->id)->exists())->toBeFalse();
 });
 
 it('platform operating overview includes today in totals and deduplicates nested partner activity and refunds', function () {
@@ -1232,6 +1318,9 @@ it('platform operating overview includes today in totals and deduplicates nested
     $overview = operatingOverview();
     expect($overview['daily']['deposits'])->toBe(['today' => '100.00000000', 'd3' => '150.00000000', 'd7' => '200.00000000', 'd15' => '200.00000000', 'd30' => '200.00000000']);
     expect($overview['alerts']['refund3'])->toBe('50.00000000')->and($overview['alerts']['refund10'])->toBe('100.00000000');
+    $this->actingAs($this->admin, 'platform_admin');
+    $this->getJson('http://admin.localhost/platform/overview/sources?metric=refund3')->assertOk()->assertJsonPath('amount', '50.00000000')->assertJsonPath('rows.total', 1);
+    $this->getJson('http://admin.localhost/platform/overview/sources?metric=refund10')->assertOk()->assertJsonPath('amount', '100.00000000')->assertJsonPath('rows.total', 2);
     $refund->cancel($this->tenant->id, $disabled->id, $request->id);
     expect(operatingOverview()['alerts']['refund3'])->toBe('0.00000000');
     Http::assertNothingSent();
@@ -1254,6 +1343,9 @@ it('platform operating overview values native completed receipts and net payouts
     expect($overview['inflow']['totals']['today'])->toBe('25.05000000')->and($overview['inflow']['totals']['d7'])->toBe('35.05000000')
         ->and($overview['inflow']['totals']['total'])->toBe('135.05000000')->and($overview['outflow']['totals']['today'])->toBe('1.91900000');
     expect($overview['outflow']['native']['USDC']['today'])->toBe('1.900000000000000000');
+    $this->actingAs($this->admin, 'platform_admin');
+    $this->getJson('http://admin.localhost/platform/overview/sources?metric=inflow&period=d7')->assertOk()->assertJsonPath('amount', '35.05000000')->assertJsonPath('rows.total', 3);
+    $this->getJson('http://admin.localhost/platform/overview/sources?metric=outflow&period=today')->assertOk()->assertJsonPath('amount', '1.91900000')->assertJsonPath('rows.total', 1)->assertJsonPath('rows.items.0.amount', '1.900000000000000000')->assertJsonPath('rows.items.0.usdt', fn ($value) => BigDecimal::of($value)->isEqualTo('1.919'));
     $this->travelTo($now->addSeconds(121));
     $overview = operatingOverview();
     expect($overview['inflow']['totals']['today'])->toBeNull()->and($overview['outflow']['totals']['total'])->toBeNull();
@@ -1306,5 +1398,67 @@ it('platform operating overview counts partner annual payments and commissions b
     $overview = operatingOverview();
     expect($overview['daily']['deposits']['today'])->toBe('0.00000000')->and($overview['daily']['annual']['today'])->toBe((string) BigDecimal::of($annual)->toScale(8))
         ->and($overview['daily']['activation']['today'])->toBe('12.12345678');
+    Http::assertNothingSent();
+});
+
+it('overview source dialogs support every metric with scoped read only empty and unknown evidence', function () {
+    $this->actingAs($this->admin, 'platform_admin');
+    $before = collect(['wallets', 'ledger_accounts', 'ledger_entries', 'ledger_postings', 'user_cards'])->mapWithKeys(fn ($table) => [$table => DB::table($table)->orderBy('id')->get()->toJson()]);
+    foreach (PlatformOverviewSources::METRICS as $metric) {
+        $period = in_array($metric, PlatformOverviewQuery::ACTIVITY, true) ? 'd7' : 'total';
+        $this->getJson('http://admin.localhost/platform/overview/sources?metric='.$metric.'&period='.$period)->assertOk()->assertJsonPath('metric', $metric)->assertJsonStructure(['amount', 'updatedAt', 'rows' => ['items', 'page', 'lastPage', 'total']])->assertHeader('Cache-Control', 'no-store, private');
+    }
+    foreach ($before as $table => $json) {
+        expect(DB::table($table)->orderBy('id')->get()->toJson())->toBe($json);
+    }
+    Http::assertNothingSent();
+});
+
+it('overview source dialogs match current partner cash and signed operating totals with identities and scoped pages', function () {
+    $this->actingAs($this->admin, 'platform_admin');
+    $this->travelTo(CarbonImmutable::parse('2026-10-12 04:00:00', 'UTC'));
+    $partner = stockPartner($this, $this->user);
+    stockExternal($this->user, 'USDT', '10', legacy: true);
+    stockGuarantee($this->user, '5');
+    $this->management->journal($this->admin, $this->tenant->id, $partner->id, stockEntry('REIMBURSEMENT', '3'));
+    $overview = operatingOverview();
+    $url = 'http://admin.localhost/platform/overview/sources?metric=';
+    foreach (['stock', 'theoretical', 'actual', 'difference'] as $metric) {
+        $this->getJson($url.$metric)->assertOk()->assertJsonPath('amount', $overview['partners'][$metric])->assertJsonPath('rows.total', 1)
+            ->assertJsonPath('rows.items.0.usdt', $overview['partners'][$metric])->assertJsonPath('rows.items.0.userInfo.id', $this->user->id);
+    }
+    $this->getJson($url.'inflow&period=today')->assertOk()->assertJsonPath('amount', '10.00000000')->assertJsonPath('rows.total', 1)->assertJsonPath('rows.items.0.usdt', '10.00000000');
+    $this->getJson($url.'reimbursement')->assertOk()->assertJsonPath('amount', '3.00000000')->assertJsonPath('rows.total', 1);
+    $this->getJson($url.'partnerAssets')->assertOk()->assertJsonPath('amount', $overview['assets']['partner']);
+    $this->getJson($url.'deposits&period=today')->assertOk()->assertJsonPath('amount', $overview['daily']['deposits']['today'])->assertJsonPath('rows.total', 0);
+    $child = stockChild($this->user);
+    stockFundWallet($this, $child);
+    app(FundSecurityDepositAction::class)->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
+    $this->getJson($url.'deposits&period=today')->assertOk()->assertJsonPath('amount', '50.00000000')->assertJsonPath('rows.total', 1)->assertJsonPath('rows.items.0.userInfo.id', $child->id);
+    for ($i = 0; $i < 26; $i++) {
+        stockExternal($child, 'USDT', '0.01', legacy: true);
+    }
+    $first = $this->getJson($url.'inflow&period=today')->assertOk()->assertJsonPath('rows.total', 27)->assertJsonPath('rows.lastPage', 2)->assertJsonCount(25, 'rows.items');
+    $second = $this->getJson($url.'inflow&period=today&page=2')->assertOk()->assertJsonCount(2, 'rows.items');
+    expect(array_intersect(array_column($first->json('rows.items'), 'id'), array_column($second->json('rows.items'), 'id')))->toBe([]);
+    $this->getJson($url.'inflow&period=today&asset=USDT')->assertOk()->assertJsonPath('rows.total', 27);
+    $this->getJson($url.'inflow&period=today&asset=ETH')->assertOk()->assertJsonPath('rows.total', 0);
+    Http::assertNothingSent();
+});
+
+it('overview source dialogs reject company administrators missing metric permissions and invalid selectors', function () {
+    $url = 'http://admin.localhost/platform/overview/sources?metric=';
+    $this->actingAs(AdminUser::where('email', 'owner@a.localhost')->firstOrFail(), 'platform_admin')->getJson($url.'inflow')->assertForbidden();
+    $this->actingAs($this->admin, 'platform_admin');
+    $this->getJson($url.'not-a-metric')->assertUnprocessable();
+    $this->getJson($url.'annual&period=total')->assertUnprocessable();
+    $this->getJson($url.'cardFunding&period=d7')->assertStatus(422);
+    $this->getJson($url.'stock&asset=ETH')->assertStatus(422);
+    $permission = DB::table('permissions')->where('name', 'ledger.read')->value('id');
+    DB::table('role_permissions')->where('permission_id', $permission)->delete();
+    $this->getJson($url.'stock')->assertForbidden();
+    $this->getJson($url.'cardBalance')->assertForbidden();
+    $this->getJson($url.'partnerAssets')->assertForbidden();
+    $this->getJson($url.'inflow')->assertOk();
     Http::assertNothingSent();
 });

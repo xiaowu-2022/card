@@ -43,8 +43,8 @@ final class ChangeDepositReceiptTypeAction
 
                 return;
             }
-            if ($order->getRawOriginal('status') !== 'CREDITED' || ! $order->manual_confirmed_at || ! $order->ledger_entry_id) {
-                throw new DomainException('RECEIPT_TYPE_CHANGE_NOT_ALLOWED', 'Only credited manually confirmed deposits can change receipt type.', 422);
+            if ($order->getRawOriginal('status') !== 'CREDITED' || ! $order->ledger_entry_id) {
+                throw new DomainException('RECEIPT_TYPE_CHANGE_NOT_ALLOWED', 'Only credited deposits can change receipt type.', 422);
             }
             $previous = DB::table('deposit_receipt_type_changes')->where('tenant_id', $tenant)->where('source', $source)->where('order_id', $id)->orderByDesc('revision')->first();
             if ($revision !== (int) ($previous?->revision ?? 0)) {
@@ -59,7 +59,7 @@ final class ChangeDepositReceiptTypeAction
             $journal = null;
             $reversal = null;
             if ($type === 'ADVANCE') {
-                $journal = app(ManualDepositReceipt::class)->attributes($order, $actor, 'ADVANCE', $amount)['advance_journal_id'];
+                $journal = app(ManualDepositReceipt::class)->attributes($order, $actor, 'ADVANCE', $amount, true)['advance_journal_id'];
             } else {
                 $originalJournal = DB::table('partner_journal_entries')->where('tenant_id', $tenant)->where('id', $beforeJournal)->firstOrFail();
                 if ($originalJournal->kind !== 'ADVANCE' || $originalJournal->reverses_id || ! BigDecimal::of($originalJournal->amount)->isEqualTo($amount)) {
@@ -70,7 +70,7 @@ final class ChangeDepositReceiptTypeAction
                 if (! $reversal) {
                     $reversal = app(PartnerManagement::class)->journal($actor, $tenant, $originalJournal->partner_id, [
                         'kind' => 'ADVANCE', 'amount' => $amount, 'business_date' => now()->setTimezone($company->timezone)->format('Y-m-d'),
-                        'note' => 'Deposit receipt type changed to manual: '.$order->getTable().'/'.$id,
+                        'note' => 'Deposit receipt type changed to actual: '.$order->getTable().'/'.$id,
                         'request_id' => (string) Str::uuid(), 'reverses_id' => $beforeJournal,
                     ])->id;
                 }

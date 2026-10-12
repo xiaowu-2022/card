@@ -90,3 +90,23 @@ No mixed-currency sums are shown except the explicitly valued funds estimate.
 
 Deploy changed PHP/routes together with rebuilt public/build. No migration,
 consumer rebuild or production financial/cleanup test is required.
+
+## Global fund flows (2026-10-12)
+
+Platform Funds and cards → Fund flows, immediately above Deposit orders, opens
+`GET /platform/funds`. This explicitly approved global entry supplements the user
+drawer. Active Platform users.read + wallet.read + ledger.read are all required,
+including menu visibility. Company administrators cannot read the global endpoint.
+
+`PlatformFundsQuery` reads all sealed Ledger entries (including company account
+postings) in a repeatable-read/read-only snapshot. Each business entry appears once
+with every same-company, same-currency posting; transfers show both customers and
+system accounts are labelled by account type. It does not sum unrelated movements
+or currencies. Customer names/remarks are primary; email/account IDs remain available.
+Raw metadata, idempotency keys, credentials and provider payloads are never serialized.
+
+Company, customer name/remark/account/email or reference search, currency, event and
+inclusive UTC+8 dates are database filters. Exact 25-entry numbered pagination retains
+filters and deterministic posted_at/id ordering. GET never provisions wallets, repairs
+history, calls providers, or mutates financial data. Card-provider transaction history
+remains separate. Deploy matching PHP/admin assets; no schema migration or H5 rebuild.

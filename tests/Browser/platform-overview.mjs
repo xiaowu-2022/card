@@ -10,7 +10,7 @@ const amounts = { today: '123456789012.12345678', d3: '200000000000.00000001', d
 const fixture = {
     updatedAt: '2026-10-12T04:00:00Z', timezone: 'Asia/Kuala_Lumpur', rateAt: '2026-10-12T04:00:00Z', bubble: null,
     partners: { stock: '123456789012.12345678', theoretical: '500000000000.00000001', actual: '600000000000', difference: '-100000000000.00000001' },
-    reimbursement: '-123456.00000001', inflow: { totals: amounts, native: { USDT: amounts } }, outflow: { totals: amounts, native: { USDT: amounts } },
+    reimbursement: '-123456.00000001', inflow: { totals: amounts, native: { USDT: amounts, ETH: amounts } }, outflow: { totals: amounts, native: { USDT: amounts, ETH: amounts } },
     cards: { balance: '123456789012.12345678', today: '20', total: '99999999999' }, providerBalance: '333333333333.33',
     assets: { partner: '123456789012.12345678', ordinary: '234567890123.12345678' },
     daily: Object.fromEntries(['deposits', 'annual', 'depositRefunds', 'activation', 'rebates', 'annualCommission'].map((key) => [key, amounts])),
@@ -26,6 +26,9 @@ for (const [name, browserType] of [['chromium', chromium], ['webkit', webkit]]) 
         page.on('pageerror', (error) => errors.push(error.message));
         let locale = 'zh-CN';
         let state = fixture;
+        const sourceRequests = [];
+        let failSource = false;
+        let emptySource = false;
         await page.route('**/*', async (route) => {
             const request = route.request();
             const url = new URL(request.url());
@@ -35,6 +38,16 @@ for (const [name, browserType] of [['chromium', chromium], ['webkit', webkit]]) 
             }
             if (url.pathname.startsWith('/build/')) {
                 return route.fulfill({ body: readFileSync('public' + url.pathname), contentType: url.pathname.endsWith('.css') ? 'text/css' : 'text/javascript' });
+            }
+            if (url.pathname === '/platform/overview/sources') {
+                sourceRequests.push(Object.fromEntries(url.searchParams));
+                if (failSource) { failSource = false; return route.fulfill({ status: 503, json: { error: { message: 'Fixture unavailable' } } }); }
+                const sourcePage = Number(url.searchParams.get('page') || 1);
+                return route.fulfill({ json: { amount: '123.00000001', asset: 'USDT', updatedAt: fixture.updatedAt, timezone: fixture.timezone,
+                    rows: { page: sourcePage, lastPage: emptySource ? 1 : 2, total: emptySource ? 0 : 26, items: emptySource ? [] : [{
+                        id: 'fixture-' + sourcePage, companyName: '示例公司', userInfo: { id: 'user', companyId: 'company', companyName: '示例公司', accountId: '123456', email: 'source@example.test', displayName: '来源客户', remark: '来源备注' },
+                        amount: '123.00000001', asset: 'USDT', usdt: '123.00000001', source: 'Actual receipt', time: fixture.updatedAt,
+                    }] } } });
             }
             if (url.pathname !== '/platform/demo') {
                 unexpected.push(url.pathname);
@@ -65,6 +78,39 @@ for (const [name, browserType] of [['chromium', chromium], ['webkit', webkit]]) 
                 assert.equal(await overview.getByLabel(locale === 'zh-CN' ? '泡沫' : 'Bubble', { exact: true }).innerText(), '');
                 assert.match(await overview.innerText(), /-100,000,000,000\.00000001/);
                 assert.equal(await page.locator('details').first().getAttribute('open'), null);
+                if (locale === 'zh-CN' && width === 1440) {
+                    for (const summary of await overview.getByText('各币种累计金额', { exact: true }).all()) await summary.click();
+                    const buttons = overview.getByRole('button');
+                    const count = await buttons.count();
+                    assert.ok(count >= 55, 'Every displayed amount has a source button');
+                    for (let index = 0; index < count; index++) {
+                        const button = buttons.nth(index);
+                        assert.equal(await button.evaluate(el => getComputedStyle(el).color), 'rgb(15, 23, 42)');
+                        await button.click();
+                        const dialog = page.getByRole('dialog');
+                        await dialog.getByText('来源客户', { exact: true }).waitFor();
+                        await page.keyboard.press('Escape');
+                        await dialog.waitFor({ state: 'hidden' });
+                        await page.waitForFunction(label => document.activeElement?.getAttribute('aria-label') === label, await button.getAttribute('aria-label'), { timeout: 3000 });
+                    }
+                    assert.equal(new Set(sourceRequests.map(r => r.metric)).size, 21);
+                    await buttons.first().click();
+                    const dialog = page.getByRole('dialog');
+                    await dialog.getByText('来源客户', { exact: true }).waitFor();
+                    await dialog.getByRole('button', { name: '2', exact: true }).click();
+                    await dialog.getByText('fixture-2', { exact: true }).waitFor();
+                    await page.keyboard.press('Escape');
+                    emptySource = true;
+                    await buttons.first().click();
+                    await page.getByRole('dialog').getByText('暂无来源记录。', { exact: true }).waitFor();
+                    await page.keyboard.press('Escape');
+                    emptySource = false; failSource = true;
+                    await buttons.first().click();
+                    await page.getByRole('dialog').getByRole('alert').waitFor();
+                    await page.getByRole('dialog').getByRole('button', { name: '重试', exact: true }).click();
+                    await page.getByRole('dialog').getByText('来源客户', { exact: true }).waitFor();
+                    await page.keyboard.press('Escape');
+                }
                 if (locale === 'zh-CN' && [375, 1440].includes(width)) await page.screenshot({ path: `${output}/${name}-${width}.png`, fullPage: true });
             }
         }

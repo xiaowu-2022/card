@@ -11,13 +11,14 @@ from the new net-payout overview.
 ## Confirmed amounts
 
 - Stock, theoretical balance, actual balance and difference sum **currently enabled
-  partner reports** across every company, including signed negative values. Disabled
+  top-level partner reports** across every company, including signed negative values. Disabled
   partners are excluded. Actual means the report's own USDT available-wallet amount,
   not all consumers' wallets or multi-asset valuation. Theoretical retains own annual
   expenses, classified/unclassified commissions, net advances/reimbursements and
   signed adjustments. Difference sums the existing report differences.
-- Stock intentionally sums individual partner stock totals, including overlapping
-  teams, as requested. Operational events and alerts are independently aggregated
+- Top-level means no currently enabled partner in the same-company invitation
+  ancestor chain, traversing ordinary users and disabled partners. Stock sums only
+  these root reports, retaining each report’s existing descendant scope. Operational events and alerts are independently aggregated
   once per company/business record rather than summing overlapping partner reports.
 - Reimbursements sum all existing reimbursement journals net of reversals.
 - Recharge counts successful credited primary/multi-asset orders and their immutable
@@ -95,3 +96,34 @@ and negative amounts, missing balances, a blank bubble, refresh and gated sectio
 Full i18n checks retain five pre-existing failures outside this feature (obsolete
 wallet/manual-receipt source assertions, a cleanup-dialog translation, a consumer
 breadcrumb and a KYC error translation); relevant funds/overview checks pass.
+
+## Source dialogs (2026-10-12)
+
+Every displayed metric amount, including zeros and unavailable values and native cash
+totals, is a semantic keyboard-focusable button in the existing foreground colour.
+Bubble stays blank. Clicking opens a modal, never replacing the dashboard or its
+historical filter state. Loading, retry, empty, exact numbered pagination, Escape and
+focus return are supported.
+
+`GET /platform/overview/sources` validates the metric/period/page/native-asset selector
+and requires active Platform scope plus the same metric permission conjunction as the
+homepage. Company accounts are rejected. Customer summaries require users.read.
+The response explicitly projects identities/source IDs, native amounts, saved-rate
+estimates and current read time; no raw metadata, credentials or provider payloads.
+
+Sources are successful immutable receipts/payouts, unique issue/load arrivals, all
+issued card cached balances plus matching overflow, enabled partner report contributors,
+signed reimbursement journals, eligible native asset accounts/unarchived cards, original
+activation/business events and annual-cycle/refund alerts. Shared source builders keep
+settlement, fee exclusion, partner exclusions, inclusive UTC+8 periods and deduplication
+aligned with totals. Asset components retain quote precision; the aggregate keeps the
+overview's round-once valuation. Partner totals and source pagination use the same current enabled top-level
+partner selector; nested partner reports are not added separately. Provider rows use the same
+cache as the directory and exclude deletion tombstones.
+
+Each modal read uses a repeatable-read/read-only database snapshot and returns private
+no-store JSON. Amounts/current balances are refreshed when opened or paged, and the
+modal shows its read time and aggregate; changes since the initial dashboard load are
+not fabricated as historical balances. Reads never provision, refresh market rates,
+replay payments or mutate financial evidence. Only the approved provider-balance
+merchant reporting exception may contact a provider. No migration or H5 rebuild.

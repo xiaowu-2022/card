@@ -325,3 +325,22 @@ relationships, all financial history and operation restrictions. Current enabled
 partner projections classify the account as ordinary and deny consumer partner
 reports. Existing edit/enable actions may restore partner status. No provider reads,
 wallet mutations, history deletion or migration is involved.
+
+
+## Signed cooperation offsets (2026-10-12)
+
+Platform Record entry accepts positive or negative nonzero REIMBURSEMENT and
+ADVANCE amounts, with up to eight decimal places and explicit confirmation for
+negative entries. Negative reimbursements reduce reimbursement cost; negative
+advances reduce advance totals. All existing personal/team/list/homepage/source
+aggregates retain signed amounts. ADJUSTMENT_INCREASE/ADJUSTMENT_DECREASE continue
+to require positive magnitudes. Zero, excess precision and exponent notation fail.
+
+Offsets append separate immutable journal/audit records with the existing company,
+partner, request hash and replay guards. Linked reversals keep the original signed
+amount and negate it in reports (reversing a negative entry increases the net total).
+They retain same-owner/kind/amount and single-reversal checks. No wallets, Ledger,
+provider operations or original receipts change. Deploy
+`2026_10_12_190000_allow_signed_partner_cooperation_amounts.php` with PHP/admin
+assets. Rollback refuses incompatible signed history rather than deleting it.
+Only isolated/offline financial fixtures are permitted for verification.

@@ -337,9 +337,14 @@ function changeReceiptType($test, object $order, string $type, int $revision, ?s
         $order instanceof WalletTopupOrder ? 'primary' : 'asset', $order->id, $type, $revision, $request ?? (string) Str::uuid(), true);
 }
 
-it('switches settled manual receipt types and refreshes all projections without another credit', function ($source): void {
+it('switches settled manual and automatic receipt types and refreshes all projections without another credit', function ($source, bool $automatic): void {
     $order = receiptOrder($this, $source);
-    confirmReceipt($this, $order, (string) Str::uuid(), 'ACTUAL', '89.12345678');
+    if ($automatic) {
+        confirmAutomaticReceipt($order);
+    } else {
+        confirmReceipt($this, $order, (string) Str::uuid(), 'ACTUAL', '89.12345678');
+    }
+    $settled = $automatic ? '100.01000000' : '89.12345678';
     $order->refresh();
     $original = $order->getAttributes();
     $balances = DB::table('ledger_accounts')->orderBy('id')->get()->toJson();
@@ -351,17 +356,24 @@ it('switches settled manual receipt types and refreshes all projections without 
             changeReceiptType($this, $order, $type, 0, $request);
         }
         $row = app(PlatformFundsQuery::class)->paginate('deposit', ['company' => $this->tenant->id])->items()[0];
-        expect($row['receiptType'])->toBe($type)->and($row['arrivalType'])->toBe($type === 'ADVANCE' ? 'ADVANCE' : 'MANUAL')
-            ->and($row['receiptTypeRevision'])->toBe($revision);
+        expect($row['receiptType'])->toBe($type)->and($row['arrivalType'])->toBe($type === 'ADVANCE' ? 'ADVANCE' : ($automatic ? 'AUTO' : 'MANUAL'))
+            ->and($row['receiptTypeRevision'])->toBe($revision)->and($row['canChangeReceiptType'])->toBeTrue()
+            ->and($row['manuallyConfirmed'])->toBe(! $automatic);
         $totals = app(ListTenantsQuery::class)->totals(null, null, ['inflow' => true], $this->tenant->id);
-        expect($totals['inflow'])->toBe('89.12345678')->and($totals['advanceInflow'])->toBe($type === 'ADVANCE' ? '89.12345678' : '0.00000000');
+        expect($totals['inflow'])->toBe($settled)->and($totals['advanceInflow'])->toBe($type === 'ADVANCE' ? $settled : '0.00000000');
         $companyRow = app(ListTenantsQuery::class)->execute(null, null, ['inflow' => true], $this->tenant->id)->items()[0];
         expect($companyRow['advanceInflow'])->toBe($totals['advanceInflow']);
         $userTotals = app(PlatformUserReceiptQuery::class)->forUsers([$this->user])[$this->tenant->id.':'.$this->user->id][0];
-        expect(BigDecimal::of($userTotals['advance'])->isEqualTo($type === 'ADVANCE' ? '89.12345678' : '0'))->toBeTrue()
-            ->and(BigDecimal::of($userTotals['actual'])->isEqualTo($type === 'ACTUAL' ? '89.12345678' : '0'))->toBeTrue();
+        expect(BigDecimal::of($userTotals['advance'])->isEqualTo($type === 'ADVANCE' ? $settled : '0'))->toBeTrue()
+            ->and(BigDecimal::of($userTotals['actual'])->isEqualTo($type === 'ACTUAL' ? $settled : '0'))->toBeTrue();
         $report = app(LegacyStockReport::class)->read($this->tenant->id, $this->user->id);
-        expect($report['accountBalance']['advances'])->toBe($type === 'ADVANCE' ? '89.12345678' : '0.00000000');
+        expect($report['accountBalance']['advances'])->toBe($type === 'ADVANCE' ? $settled : '0.00000000');
+    }
+    expect(DB::table('partner_journal_entries')->whereNull('reverses_id')->first()->note)
+        ->toBe('Deposit receipt: '.$order->getTable().'/'.$order->id);
+    if ($automatic) {
+        $migration = require database_path('migrations/2026_10_12_200000_allow_automatic_deposit_receipt_type_changes.php');
+        expect(fn () => $migration->down())->toThrow(RuntimeException::class);
     }
     // A successful request replay stays a no-op even after later changes.
     changeReceiptType($this, $order, 'ADVANCE', 0, $request);
@@ -373,7 +385,7 @@ it('switches settled manual receipt types and refreshes all projections without 
     $operations = app(FinancialOperationQuery::class)->forOrder($this->tenant->id, $source === 'primary' ? 'wallet_topup_order' : 'asset_deposit_order', $order->id);
     expect(collect($operations)->where('action', 'DEPOSIT_RECEIPT_TYPE_CHANGED')->count())->toBe(3);
     Http::assertNothingSent();
-})->with(['primary', 'asset']);
+})->with(['primary', 'asset'])->with([false, true]);
 
 it('reverses initial advances even for disabled partners and reuses an existing reversal', function ($source, bool $alreadyReversed): void {
     $order = receiptOrder($this, $source);
@@ -413,10 +425,9 @@ it('rejects stale revisions conflicting retries company overrides and unconfirme
     expect(DB::table('deposit_receipt_type_changes')->count())->toBe(2)->and(DB::table('partner_journal_entries')->count())->toBe(2);
 })->with(['primary', 'asset']);
 
-it('rejects changes to pending and automatic receipts and labels automatic arrival distinctly', function ($source): void {
-    $order = receiptOrder($this, $source);
-    expect(fn () => changeReceiptType($this, $order, 'ADVANCE', 0))->toThrow(DomainException::class);
-    if ($source === 'primary') {
+function confirmAutomaticReceipt(object $order): void
+{
+    if ($order instanceof WalletTopupOrder) {
         $order->status = WalletTopupStatus::Paid;
         $order->matched_tx_hash = str_repeat('a', 64);
         $order->matched_transfer_index = 0;
@@ -429,10 +440,17 @@ it('rejects changes to pending and automatic receipts and labels automatic arriv
         $observation = ChainObservation::create(['network' => 'ETHEREUM', 'event_id' => 'offline-classification', 'block_height' => 100, 'block_hash' => str_repeat('b', 64), 'rail_code' => 'USDT_ETHEREUM', 'address' => $order->address, 'amount' => $order->amount, 'status' => 'MATCHED', 'order_id' => $order->id, 'occurred_at' => now()]);
         app(DepositAssetsAction::class)->verified($observation);
     }
+}
+
+it('rejects pending classification and requires an enabled same company partner for automatic advances', function ($source): void {
+    $order = receiptOrder($this, $source);
     expect(fn () => changeReceiptType($this, $order, 'ADVANCE', 0))->toThrow(DomainException::class);
+    confirmAutomaticReceipt($order);
     $row = app(PlatformFundsQuery::class)->paginate('deposit', ['company' => $this->tenant->id])->items()[0];
-    expect($row['arrivalType'])->toBe('AUTO')->and($row['canChangeReceiptType'])->toBeFalse()
-        ->and(DB::table('deposit_receipt_type_changes')->count())->toBe(0)->and(DB::table('partner_journal_entries')->count())->toBe(0);
+    expect($row['arrivalType'])->toBe('AUTO')->and($row['canChangeReceiptType'])->toBeTrue();
+    DB::table('partner_configurations')->where('id', $this->partner->id)->update(['enabled' => false]);
+    expect(fn () => changeReceiptType($this, $order, 'ADVANCE', 0))->toThrow(DomainException::class);
+    expect(DB::table('deposit_receipt_type_changes')->count())->toBe(0)->and(DB::table('partner_journal_entries')->count())->toBe(0);
 })->with(['primary', 'asset']);
 
 it('keeps receipt changes immutable and rolls back classification when its audit fails', function ($source): void {

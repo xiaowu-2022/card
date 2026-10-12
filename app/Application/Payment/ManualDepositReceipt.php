@@ -49,7 +49,7 @@ final class ManualDepositReceipt
         }
     }
 
-    public function attributes(Model $order, AdminUser $actor, string $type, string $amount): array
+    public function attributes(Model $order, AdminUser $actor, string $type, string $amount, bool $classificationChange = false): array
     {
         $this->validateType($type);
         $journalId = null;
@@ -64,7 +64,7 @@ final class ManualDepositReceipt
             $journal = app(PartnerManagement::class)->journal($actor, $order->tenant_id, $partner->id, [
                 'kind' => 'ADVANCE', 'amount' => $amount,
                 'business_date' => now()->setTimezone(Tenant::findOrFail($order->tenant_id)->timezone)->format('Y-m-d'),
-                'note' => 'Manual deposit: '.$order->getTable().'/'.$order->id,
+                'note' => ($classificationChange ? 'Deposit receipt: ' : 'Manual deposit: ').$order->getTable().'/'.$order->id,
                 'request_id' => (string) Str::uuid(),
             ]);
             $journalId = $journal->id;

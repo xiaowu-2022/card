@@ -11,6 +11,7 @@ import {
     partnerJournalNote,
     partnerJournalKind,
     partnerJournalSign,
+    partnerJournalAmount,
 } from '../generated/partner-journal-note';
 import type { StockReport } from '../lib/stock';
 const props = defineProps<{ page: { report: StockReport } }>(),
@@ -249,7 +250,8 @@ const more = computed(() =>
                         {{ row.reverses_id ? '· ' + t('Reversal') : '' }}</text
                     ><text
                         >{{ partnerJournalSign(row.kind, row.reverses_id)
-                        }}{{ value(row.amount) }} · {{ row.business_date }}</text
+                        }}{{ value(partnerJournalAmount(row.kind, row.amount, row.reverses_id)) }} ·
+                        {{ row.business_date }}</text
                     ><text class="plain">{{ partnerJournalNote(row.note, t) }}</text
                     ><text v-if="row.reversed" class="small muted">{{ t('Reversed') }}</text></view
                 ></view

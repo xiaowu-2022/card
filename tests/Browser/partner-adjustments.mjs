@@ -8,7 +8,7 @@ const report = structuredClone(fixture.pages['/promotion/stock'].props.report);
 const company = '22222222-2222-4222-8222-222222222222', partner = '33333333-3333-4333-8333-333333333333';
 Object.assign(report, { partnerId: partner, version:'partner', cashFlow:null, flowDetails:null,
  accountBalance:{advances:'0',activationCommission:'0',annualCommission:'0',unclassifiedCommission:'0',reimbursements:'0',adjustments:'-19.87654322',hasAdjustments:true,theoretical:'-19.87654322',actual:'0',difference:'-19.87654322'},
- journal:{items:[{id:'adjustment',partner_id:partner,kind:'ADJUSTMENT_DECREASE',amount:'19.87654322',business_date:'2026-10-08',note:'Offline fixture',reverses_id:null,reversed:false,actor_id:'admin',created_at:'2026-10-08T00:00:00Z',account_id:'123456'}],page:1,total:1,hasMore:false}
+ journal:{items:[{id:'negative-expense',partner_id:partner,kind:'REIMBURSEMENT',amount:'-7.12345678',business_date:'2026-10-12',note:'Offline negative expense',reverses_id:null,reversed:true,actor_id:'admin',created_at:'2026-10-12T00:00:00Z',account_id:'123456'},{id:'negative-reversal',partner_id:partner,kind:'REIMBURSEMENT',amount:'-7.12345678',business_date:'2026-10-12',note:'Offline negative reversal',reverses_id:'negative-expense',reversed:false,actor_id:'admin',created_at:'2026-10-12T00:00:00Z',account_id:'123456'},{id:'adjustment',partner_id:partner,kind:'ADJUSTMENT_DECREASE',amount:'19.87654322',business_date:'2026-10-08',note:'Offline fixture',reverses_id:null,reversed:false,actor_id:'admin',created_at:'2026-10-08T00:00:00Z',account_id:'123456'}],page:1,total:1,hasMore:false}
 });
 const browser = await chromium.launch({channel:'chrome',headless:true});
 try {
@@ -30,6 +30,10 @@ try {
  await page.goto(origin+'/platform/partners?partner='+partner);
  await page.getByText('Adjustment amount',{exact:true}).waitFor();
  await page.locator('.stock-detail strong').filter({hasText:'Decrease theoretical balance'}).waitFor();
+ assert.match(await page.locator('.stock-detail').filter({hasText:'Offline negative expense'}).innerText(), /-7\.12345678/);
+ const reversedText=await page.locator('.stock-detail').filter({hasText:'Offline negative reversal'}).innerText();
+ assert.match(reversedText, /7\.12345678/);
+ assert.doesNotMatch(reversedText, /[−-]7\.12345678/);
  // Close the report drawer, then use the existing row's Record entry action.
  await page.keyboard.press('Escape');
  await page.getByRole('button',{name:'Record entry',exact:true}).click();
@@ -43,6 +47,28 @@ try {
  await form.getByRole('button',{name:'Record entry',exact:true}).click();
  await form.waitFor({state:'hidden'});
  assert.equal(writes.length,1);assert.equal(writes[0].kind,'ADJUSTMENT_INCREASE');assert.equal(writes[0].amount,'12.12345678');assert.equal(writes[0].confirmed,true);
+ // Signed cooperation offsets require confirmation and preserve the exact input.
+ for (const kind of ['REIMBURSEMENT', 'ADVANCE']) {
+  await page.goto(origin+'/platform/partners?partner='+partner);
+  await page.getByText('Adjustment amount',{exact:true}).waitFor();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:'Record entry',exact:true}).click();
+  await form.locator('select').selectOption(kind);
+  await form.getByText('Enter a negative amount to offset reimbursements or advances. Zero is not allowed.',{exact:true}).waitFor();
+  await form.locator('input[inputmode="text"]').fill('-7.12345678');
+  await form.locator('textarea').fill('Offline signed offset');
+  const before=writes.length;
+  accept=false;
+  await form.getByRole('button',{name:'Record entry',exact:true}).click();
+  assert.equal(writes.length,before);
+  accept=true;
+  await form.getByRole('button',{name:'Record entry',exact:true}).click();
+  await form.waitFor({state:'hidden'});
+  assert.equal(writes.length,before+1);
+  assert.equal(writes.at(-1).kind,kind);
+  assert.equal(writes.at(-1).amount,'-7.12345678');
+  assert.equal(writes.at(-1).confirmed,true);
+ }
  assert.deepEqual(errors,[]); await page.close();
  const mobile=await browser.newPage({viewport:{width:390,height:844}});
  const mobileErrors=[]; mobile.on('pageerror',e=>mobileErrors.push(e.message));
@@ -72,5 +98,5 @@ try {
   await mobile.goto('about:blank');
  }
  assert.deepEqual(mobileErrors,[]);
- console.log('PASS: Platform adjustment confirmation and exact payload; journal labels; H5 adjustment row including zero history and no-history hiding. Offline only.');
+ console.log('PASS: Platform adjustment and negative offset confirmation and exact payload; journal labels; H5 adjustment row including zero history and no-history hiding. Offline only.');
 } finally {await browser.close();}
