@@ -178,3 +178,9 @@ identity, without awaiting/replied/bot/handoff status labels. Badges align to th
 of the identity block rather than stretching to its height. Existing status filters,
 unread accounting, polling and conversation modes remain unchanged. Frontend only;
 no schema change, message send or live customer test.
+
+Platform inbox sorting prioritizes conversations with unread customer messages for
+the current administrator before updated_at descending and stable conversation ID.
+Apply this in SQL before pagination, retaining company/search/status filters. It uses
+the same per-administrator unread projection as badges; read acknowledgements remain
+explicit and listing never changes them. Backend-only, no schema migration.

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Platform;
 
 use App\Application\Support\SendSupportMessageAction;
 use App\Application\Support\SupportAccess;
+use App\Application\Support\SupportAdminUnread;
 use App\Application\Support\SupportBot;
 use App\Application\Support\SupportChatQuery;
 use App\Application\Support\SupportImageStorage;
@@ -20,12 +21,12 @@ use Inertia\Inertia;
 
 final class SupportController extends Controller
 {
-    public function unread(Request $r, \App\Application\Support\SupportAdminUnread $unread)
+    public function unread(Request $r, SupportAdminUnread $unread)
     {
         return response()->json(['count' => $unread->count($r->user('platform_admin')->id)])->header('Cache-Control', 'private, no-store');
     }
 
-    public function read(Request $r, Tenant $tenant, string $user, \App\Application\Support\SupportAdminUnread $unread)
+    public function read(Request $r, Tenant $tenant, string $user, SupportAdminUnread $unread)
     {
         $data = $r->validate(['through' => 'required|integer|min:0|max:2147483647']);
         $row = SupportConversation::where('tenant_id', $tenant->id)->where('user_id', $user)->firstOrFail();
@@ -49,6 +50,8 @@ final class SupportController extends Controller
     private function page(Request $r, PlatformListFilters $lists, ?array $chat = null)
     {
         $filters = $lists->validated($r, ['status' => ['nullable', 'in:awaiting,replied,BOT,WAITING,HUMAN']]);
+        $unread = app(SupportAdminUnread::class)->rowCount($r->user('platform_admin')->id);
+        $unreadFirst = '('.$unread->toSql().') > 0';
         $rows = SupportConversation::query()->join('users as u', fn ($j) => $j->on('u.id', '=', 'support_conversations.user_id')->on('u.tenant_id', '=', 'support_conversations.tenant_id'))
             ->join('tenants as t', 't.id', '=', 'support_conversations.tenant_id')
             ->when($filters['company'] ?? null, fn ($q, $v) => $q->where('support_conversations.tenant_id', $v))
@@ -63,7 +66,8 @@ final class SupportController extends Controller
             })
             ->when($filters['search'] ?? null, fn ($q, $v) => $q->where(fn ($q) => $q->where('u.account_id', 'like', '%'.addcslashes($v, '%_').'%')->orWhere('u.email', 'ilike', '%'.addcslashes($v, '%_').'%')))
             ->select('support_conversations.*', 'u.account_id', 'u.email', 't.name as company_name')
-            ->selectSub(app(\App\Application\Support\SupportAdminUnread::class)->rowCount($r->user('platform_admin')->id), 'unread_count')
+            ->selectSub($unread, 'unread_count')
+            ->orderByRaw($unreadFirst.' DESC', $unread->getBindings())
             ->orderByDesc('support_conversations.updated_at')->orderBy('support_conversations.id')->paginate(30)->withQueryString()
             ->through(fn ($o) => ['id' => $o->id, 'tenantId' => $o->tenant_id, 'userId' => $o->user_id, 'company' => $o->company_name, 'accountId' => $o->account_id,
                 'unreadCount' => (int) $o->unread_count, 'email' => $o->email, 'mode' => $o->mode, 'awaitingReply' => $o->mode === 'WAITING' || ($o->mode === 'HUMAN' && $o->last_sender === 'USER'), 'updatedAt' => $o->updated_at->toIso8601String()]);
