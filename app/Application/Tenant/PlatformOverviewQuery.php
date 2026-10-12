@@ -4,19 +4,19 @@ namespace App\Application\Tenant;
 
 use App\Application\Assets\AssetValuation;
 use App\Application\Assets\MarketPrices;
+use App\Application\CardProviderDirectory\CardProviderReferenceQuery;
 use App\Application\Partners\LegacyStockReport;
 use App\Application\Partners\PartnerAccountBalance;
 use App\Application\Partners\PartnerBusinessStock;
 use App\Application\User\PlatformUserFinancialSummary;
 use App\Domain\Assets\MarketSnapshot;
-use App\Domain\CardProviderDirectory\Models\CardProviderReference;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
-/** Full-platform read model. No page limits, remote reads or financial writes. */
+/** Full-platform read model. Only directory reporting may read providers; no financial writes. */
 final class PlatformOverviewQuery
 {
     public const ACTIVITY = ['deposits', 'annual', 'depositRefunds', 'activation', 'rebates', 'annualCommission'];
@@ -65,8 +65,7 @@ final class PlatformOverviewQuery
             $overview['cards'] += ['today' => $this->decimal($row->today), 'total' => $this->decimal($row->total)];
         }
         if ($access['providers']) {
-            // Deliberately bypass CardProviderReferenceQuery, which can contact providers.
-            $overview['providerBalance'] = $this->decimal(CardProviderReference::query()->sum('reference_balance'));
+            $overview['providerBalance'] = app(CardProviderReferenceQuery::class)->balanceTotal();
         }
         if ($access['assets']) {
             $overview['assets'] = $this->assets($snapshot);

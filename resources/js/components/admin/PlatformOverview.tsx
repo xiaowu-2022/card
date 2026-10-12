@@ -16,7 +16,7 @@ export type PlatformOverviewData = {
     inflow?: Cash;
     outflow?: Cash;
     cards?: { balance: string | null; today: string; total: string };
-    providerBalance?: string;
+    providerBalance?: string | null;
     assets?: { partner: string | null; ordinary: string | null };
     daily?: Record<string, Periods>;
     alerts?: Record<'remaining' | 'refund10' | 'refund3', string>;
@@ -173,7 +173,14 @@ export function PlatformOverview({ overview }: { overview: PlatformOverviewData 
                                     >
                                         <dt className="text-muted-foreground">{t(label)}</dt>
                                         <dd className="min-w-0 break-all text-right font-medium">
-                                            <Amount value={value!} />
+                                            {label === 'Third-party reference balance' &&
+                                            value === null ? (
+                                                <span className="font-normal text-muted-foreground">
+                                                    {t('Unavailable')}
+                                                </span>
+                                            ) : (
+                                                <Amount value={value!} />
+                                            )}
                                         </dd>
                                     </div>
                                 ))}

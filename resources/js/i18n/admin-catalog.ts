@@ -50,7 +50,7 @@ export const adminCatalog: Record<string, string> = {
         '该卡商已被更新，请刷新后再删除。',
     'All companies · USDT · UTC+8': '全平台 · USDT · UTC+8',
     'Successful withdrawals (excluding fees)': '成功出金（不含手续费）',
-    'Third-party reference balance': '三方余额（参考）',
+    'Third-party reference balance': '三方余额',
     'Historical withdrawals include fees.': '历史出金含手续费。',
     'UTC+8 · Up to 366 days': 'UTC+8 · 最多366天',
     'Platform operating overview': '平台经营概览',

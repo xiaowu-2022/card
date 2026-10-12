@@ -69,10 +69,11 @@ for (const [name, browserType] of [['chromium', chromium], ['webkit', webkit]]) 
             }
         }
         locale = 'zh-CN';
-        state = { ...fixture, assets: { partner: null, ordinary: '0' }, cards: { ...fixture.cards, balance: null } };
+        state = { ...fixture, assets: { partner: null, ordinary: '0' }, cards: { ...fixture.cards, balance: null }, providerBalance: null };
         await page.goto(origin + '/platform/demo');
         await page.getByText('暂不可估算', { exact: true }).first().waitFor();
         assert.equal(await page.getByText('暂不可估算', { exact: true }).count(), 2);
+        assert.equal(await page.getByText('暂不可用', { exact: true }).count(), 1);
         await page.getByRole('button', { name: '刷新', exact: true }).click();
         await page.locator('[data-platform-overview]').waitFor();
         state = { updatedAt: fixture.updatedAt, timezone: fixture.timezone, rateAt: null, bubble: null };

@@ -1,8 +1,10 @@
 <?php
 
 use App\Application\Card\CardProductProviderRouter;
+use App\Application\CardProviderDirectory\CardProviderReferenceQuery;
 use App\Application\CardProviderDirectory\DeleteCardProviderReferenceAction;
 use App\Application\CardProviderDirectory\SaveCardProviderReferenceAction;
+use App\Application\Tenant\PlatformOverviewQuery;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\CardProvider\Contracts\CardProviderInterface;
 use App\Domain\CardProviderDirectory\Models\CardProviderReference;
@@ -229,5 +231,45 @@ it('rolls back deletion and its audit together and returns emptied pagination to
     $this->delete($this->url.'/'.$record->id, $input)->assertRedirect();
     $this->get($this->url.'?page=2')->assertRedirect('http://admin.localhost/platform/card-providers?page=1');
     $this->get($this->url.'?page=1')->assertOk()->assertInertia(fn ($p) => $p->where('providers.total', 20));
+    Http::assertNothingSent();
+});
+
+it('uses the same cached API balance as the directory instead of manual values for the homepage', function (): void {
+    $action = app(SaveCardProviderReferenceAction::class);
+    $connected = $action->execute(null, [...$this->data, 'name' => 'Connected', 'reference_balance' => '999'], $this->owner);
+    $connected->forceFill(['photonpay_reporting_encrypted' => Crypt::encryptString(json_encode([
+        'base_url' => 'https://x-api.photonpay.com', 'app_id' => 'fixture', 'app_secret' => 'fixture-secret',
+        'member_id' => 'fixture-member',
+    ]))])->save();
+    for ($i = 0; $i < 21; $i++) {
+        $action->execute(null, [...$this->data, 'request_id' => (string) Str::uuid(), 'name' => 'Manual '.$i, 'reference_balance' => '0.01'], $this->owner);
+    }
+    $removed = $action->execute(null, [...$this->data, 'request_id' => (string) Str::uuid(), 'name' => 'Removed', 'reference_balance' => '500'], $this->owner);
+    app(DeleteCardProviderReferenceAction::class)->execute($removed->id, ['version' => 1, 'confirmed' => true, 'request_id' => (string) Str::uuid()], $this->owner);
+    Http::fake([
+        'https://x-api.photonpay.com/oauth2/token/accessToken' => Http::response(['code' => '0000', 'data' => ['token' => 'fixture-token', 'expiresIn' => (string) ((time() + 3600) * 1000)]]),
+        'https://x-api.photonpay.com/wallet/openApi/v4/account/single*' => Http::response(['code' => '0000', 'data' => ['realTimeBalance' => '1393.33000001', 'currency' => 'USD', 'accountType' => 'FT10001', 'memberId' => 'fixture-member']]),
+        'https://x-api.photonpay.com/vcc/openApi/v4/pagingVccCard*' => Http::response(['code' => '0000', 'total' => '0', 'pageIndex' => '1', 'pageSize' => '1', 'data' => []]),
+    ]);
+    $before = LedgerAccount::query()->orderBy('id')->pluck('balance', 'id')->all();
+    $access = array_fill_keys(['inflow', 'outflow', 'partners', 'cards', 'providers', 'assets'], false);
+    expect(app(PlatformOverviewQuery::class)->execute($access))->not->toHaveKey('providerBalance');
+    Http::assertNothingSent();
+    $overview = app(PlatformOverviewQuery::class)->execute([...$access, 'providers' => true]);
+    expect($overview['providerBalance'])->toBe('1393.54000001');
+    $rows = app(CardProviderReferenceQuery::class)->list()['providers']->items();
+    expect(collect($rows)->firstWhere('id', $connected->id)['referenceBalance'])->toBe('1393.33000001');
+    Http::assertSentCount(3);
+    expect(LedgerAccount::query()->orderBy('id')->pluck('balance', 'id')->all())->toBe($before);
+});
+
+it('makes the entire third party total unavailable when an API report fails without falling back to manual money', function (): void {
+    $record = app(SaveCardProviderReferenceAction::class)->execute(null, $this->data, $this->owner);
+    $query = app(CardProviderReferenceQuery::class);
+    expect($query->balanceTotal())->toBe('123456789012.34000000');
+    $record->forceFill(['photonpay_reporting_encrypted' => Crypt::encryptString('invalid-reporting-connection')])->save();
+    expect($query->balanceTotal())->toBeNull();
+    app(DeleteCardProviderReferenceAction::class)->execute($record->id, ['version' => 1, 'confirmed' => true, 'request_id' => (string) Str::uuid()], $this->owner);
+    expect($query->balanceTotal())->toBe('0.00000000');
     Http::assertNothingSent();
 });

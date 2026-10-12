@@ -28,8 +28,12 @@ from the new net-payout overview.
   including archived cards. Funding sums unique successful initial issue arrivals
   and LOAD arrivals plus locally funded overflow, excluding opening/load fees. Returns
   are not deducted from cumulative funding. Provider transaction copies never count.
-- Third-party balance sums the manually entered `reference_balance` in the provider
-  directory, even for API-connected references. Never call its remote list reader.
+- Third-party balance uses the same source as the provider directory: API-connected
+  entries use the existing 60-second cached, verified PhotonPay merchant report;
+  unconnected entries use manual `reference_balance`. Sum all active directory entries
+  across pages, excluding deletion audit tombstones. USD/USDT follow the existing U
+  presentation; no market conversion is introduced. Any missing or unsupported balance
+  makes the entire total null (Unavailable), with no manual fallback or partial total.
 - Partner/non-partner asset estimates partition all users by current enabled partner
   state; disabled partners are non-partners. Reuse AssetValuation with four native
   wallets/holds, USDT deposit, wealth principal and unarchived card/overflow funds.
@@ -74,7 +78,8 @@ global endpoint.
 
 Controller reads run in one repeatable-read/read-only snapshot and return private,
 no-store responses. Never provision wallets/members, change user status, refresh
-prices, contact providers/chains or replay financial operations from this page.
+prices, contact chains or replay financial operations from this page. The only remote
+read exception is the existing provider-directory merchant report for third-party balance.
 All financial values remain decimal strings, formatted with insignificant zeros
 removed; null is never rendered as a fabricated zero.
 

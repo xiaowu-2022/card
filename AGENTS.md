@@ -1,3 +1,12 @@
+On 2026-10-12 the user corrected homepage third-party balance to match the card-provider
+list: use the existing cached, read-only PhotonPay merchant report for API-connected
+providers and manual reference balances only for unconnected providers. Sum all active
+directory entries, excluding deletion tombstones; any unavailable/unsupported balance
+makes the aggregate unavailable, never zero or a partial/manual fallback. This narrowly
+supersedes the homepage manual-only/no-provider-report-read rule below. Preserve scoped
+provider reads, decimal precision, report credential/merchant validation and no financial
+writes. Deploy matching PHP/admin assets, no migration or production financial test.
+
 On 2026-10-12 the user revised card-provider deletion: only currently unarchived,
 not-cancelled local cards block removal. Product/order/recipient/event/BIN history
 alone does not block removal. Use immutable deletion audit as the directory tombstone;
