@@ -17,7 +17,7 @@ final class PhotonPayWebhookAccount
     public function resolve(#[\SensitiveParameter] string $body, ?string $accountId): CardProviderReference
     {
         if ($accountId !== null) {
-            $account = CardProviderReference::find($accountId);
+            $account = CardProviderReference::includingDeleted()->find($accountId);
         } else {
             $json = strlen($body) <= 2097152 ? json_decode($body, true, 32) : null;
             if (! is_array($json)) {
@@ -47,7 +47,7 @@ final class PhotonPayWebhookAccount
             if (count($accounts) !== 1 || ! $accounts[0]) {
                 $this->reject();
             }
-            $account = CardProviderReference::find($accounts[0]);
+            $account = CardProviderReference::includingDeleted()->find($accounts[0]);
         }
         if (! $account || ! $account->photonpay_webhook_key_encrypted || $account->photonpay_migration_error) {
             $this->reject();

@@ -1,16 +1,19 @@
 <?php
 
 use App\Application\Card\CardProductProviderRouter;
-use App\Application\CardProviderDirectory\SaveCardProviderReferenceAction;
 use App\Application\CardProviderDirectory\DeleteCardProviderReferenceAction;
+use App\Application\CardProviderDirectory\SaveCardProviderReferenceAction;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\CardProvider\Contracts\CardProviderInterface;
 use App\Domain\CardProviderDirectory\Models\CardProviderReference;
 use App\Domain\Ledger\Models\LedgerAccount;
 use App\Domain\Ledger\Models\LedgerEntry;
+use App\Support\Errors\DomainException;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 beforeEach(function (): void {
     $this->seed();
@@ -134,7 +137,7 @@ it('deletes only unused provider configuration once with immutable safe audit an
     $this->post($this->url, $this->data)->assertRedirect();
     $record = CardProviderReference::sole();
     $this->get($this->url)->assertOk()->assertInertia(fn ($p) => $p->where('providers.data.0.canDelete', true));
-    $record->forceFill(['photonpay_reporting_encrypted' => \Illuminate\Support\Facades\Crypt::encryptString('private-delete-key')])->save();
+    $record->forceFill(['photonpay_reporting_encrypted' => Crypt::encryptString('private-delete-key')])->save();
     $before = collect(['ledger_accounts', 'ledger_entries', 'ledger_postings', 'wallets', 'user_cards', 'card_products'])->mapWithKeys(fn ($table) => [$table => DB::table($table)->orderBy('id')->get()->toJson()]);
     $input = ['version' => $record->version, 'confirmed' => true, 'request_id' => (string) Str::uuid()];
     $this->from($this->url)->delete($this->url.'/'.$record->id, $input)->assertRedirect($this->url)->assertSessionHas('success', 'Card provider deleted.');
@@ -143,7 +146,9 @@ it('deletes only unused provider configuration once with immutable safe audit an
     $audit = DB::table('audit_logs')->where('action', 'CARD_PROVIDER_REFERENCE_DELETED')->sole();
     expect($audit->resource_id)->toBe($record->id)->and($audit->actor_id)->toBe($this->owner->id)->and($audit->request_id)->toBe($input['request_id'])
         ->and($audit->before_data)->not->toContain('private-delete-key', 'photonpay_reporting_encrypted');
-    foreach ($before as $table => $json) expect(DB::table($table)->orderBy('id')->get()->toJson())->toBe($json);
+    foreach ($before as $table => $json) {
+        expect(DB::table($table)->orderBy('id')->get()->toJson())->toBe($json);
+    }
     $this->postJson($this->url, $this->data)->assertStatus(409)->assertJsonPath('error.code', 'CARD_PROVIDER_REFERENCE_DELETED');
     $this->deleteJson($this->url.'/'.Str::uuid(), $input)->assertStatus(409);
     $this->deleteJson($this->url.'/'.$record->id, [...$input, 'version' => 99])->assertStatus(409);
@@ -163,17 +168,20 @@ it('requires explicit confirmation a fresh version and an existing provider to d
     expect(CardProviderReference::find($id))->not->toBeNull()->and(DB::table('audit_logs')->where('action', 'CARD_PROVIDER_REFERENCE_DELETED')->count())->toBe(0);
 });
 
-it('retains providers referenced by active or archived products and refuses deletion retries after a dependency appears', function (bool $archived): void {
+it('removes providers with only product history while retaining their FK identities and preventing new business', function (bool $archived): void {
     $this->post($this->url, $this->data)->assertRedirect();
     $id = $this->data['request_id'];
     $input = ['version' => 1, 'confirmed' => true, 'request_id' => (string) Str::uuid()];
     $this->get($this->url)->assertOk()->assertInertia(fn ($p) => $p->where('providers.data.0.canDelete', true));
     $product = legacyCardProductFixture(['name' => 'Dependency', 'card_provider_reference_id' => $id,
         'status' => $archived ? 'INACTIVE' : 'ACTIVE', 'archived_at' => $archived ? now() : null]);
-    $this->get($this->url)->assertOk()->assertInertia(fn ($p) => $p->where('providers.data.0.canDelete', false));
-    $this->deleteJson($this->url.'/'.$id, $input)->assertStatus(409)->assertJsonPath('error.code', 'CARD_PROVIDER_REFERENCE_IN_USE');
-    expect(CardProviderReference::find($id))->not->toBeNull()->and($product->fresh())->not->toBeNull()
-        ->and(DB::table('audit_logs')->where('action', 'CARD_PROVIDER_REFERENCE_DELETED')->count())->toBe(0);
+    $this->get($this->url)->assertOk()->assertInertia(fn ($p) => $p->where('providers.data.0.canDelete', true));
+    $this->deleteJson($this->url.'/'.$id, $input)->assertRedirect();
+    expect(CardProviderReference::find($id))->toBeNull()->and(CardProviderReference::includingDeleted()->find($id))->not->toBeNull()
+        ->and($product->fresh()->card_provider_reference_id)->toBe($id)->and($product->fresh()->cardProviderReference->id)->toBe($id)
+        ->and(DB::table('audit_logs')->where('action', 'CARD_PROVIDER_REFERENCE_DELETED')->count())->toBe(1);
+    expect(fn () => app(CardProductProviderRouter::class)->assertNewBusiness($product->fresh()))->toThrow(DomainException::class);
+    $this->get($this->url)->assertOk()->assertInertia(fn ($p) => $p->where('providers.total', 0));
     Http::assertNothingSent();
 })->with([false, true]);
 
@@ -182,7 +190,7 @@ it('requires active scoped management access for deletion including direct actio
     $input = ['version' => 1, 'confirmed' => true, 'request_id' => (string) Str::uuid()];
     $company = AdminUser::where('email', 'owner@a.localhost')->firstOrFail();
     $this->actingAs($company, 'platform_admin')->deleteJson($this->url.'/'.$this->data['request_id'], $input)->assertForbidden();
-    expect(fn () => app(DeleteCardProviderReferenceAction::class)->execute($this->data['request_id'], $input, $company))->toThrow(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+    expect(fn () => app(DeleteCardProviderReferenceAction::class)->execute($this->data['request_id'], $input, $company))->toThrow(HttpException::class);
     $this->owner->update(['status' => 'SUSPENDED']);
     $this->actingAs($this->owner, 'platform_admin')->deleteJson($this->url.'/'.$this->data['request_id'], $input)->assertForbidden();
     $this->owner->update(['status' => 'ACTIVE']);
@@ -192,19 +200,14 @@ it('requires active scoped management access for deletion including direct actio
     expect(CardProviderReference::count())->toBe(1);
 });
 
-it('keeps foreign keys authoritative when a dependency arrives after the deletion check', function (): void {
+it('keeps historical FK dependencies when removing a provider with no current cards', function (): void {
     $this->post($this->url, $this->data)->assertRedirect();
     $id = $this->data['request_id'];
-    $event = 'eloquent.deleting: '.CardProviderReference::class;
-    \Illuminate\Support\Facades\Event::listen($event, fn ($record) => legacyCardProductFixture(['name' => 'Late dependency', 'card_provider_reference_id' => $record->id]));
-    try {
-        $this->deleteJson($this->url.'/'.$id, ['version' => 1, 'confirmed' => true, 'request_id' => (string) Str::uuid()])
-            ->assertStatus(409)->assertJsonPath('error.code', 'CARD_PROVIDER_REFERENCE_IN_USE');
-    } finally {
-        \Illuminate\Support\Facades\Event::forget($event);
-    }
-    expect(CardProviderReference::find($id))->not->toBeNull()->and(DB::table('card_products')->where('name', 'Late dependency')->count())->toBe(0)
-        ->and(DB::table('audit_logs')->where('action', 'CARD_PROVIDER_REFERENCE_DELETED')->count())->toBe(0);
+    $product = legacyCardProductFixture(['name' => 'Retained dependency', 'card_provider_reference_id' => $id]);
+    $this->deleteJson($this->url.'/'.$id, ['version' => 1, 'confirmed' => true, 'request_id' => (string) Str::uuid()])->assertRedirect();
+    expect(DB::table('platform_card_provider_references')->where('id', $id)->exists())->toBeTrue()
+        ->and($product->fresh()->card_provider_reference_id)->toBe($id)
+        ->and(DB::table('audit_logs')->where('action', 'CARD_PROVIDER_REFERENCE_DELETED')->count())->toBe(1);
     Http::assertNothingSent();
 });
 
@@ -219,7 +222,9 @@ it('rolls back deletion and its audit together and returns emptied pagination to
             app(DeleteCardProviderReferenceAction::class)->execute($record->id, $input, $this->owner);
             throw new RuntimeException('delete rollback');
         });
-    } catch (RuntimeException $error) { expect($error->getMessage())->toBe('delete rollback'); }
+    } catch (RuntimeException $error) {
+        expect($error->getMessage())->toBe('delete rollback');
+    }
     expect(CardProviderReference::find($record->id))->not->toBeNull()->and(DB::table('audit_logs')->where('action', 'CARD_PROVIDER_REFERENCE_DELETED')->count())->toBe(0);
     $this->delete($this->url.'/'.$record->id, $input)->assertRedirect();
     $this->get($this->url.'?page=2')->assertRedirect('http://admin.localhost/platform/card-providers?page=1');

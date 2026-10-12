@@ -1,3 +1,13 @@
+On 2026-10-12 the user revised card-provider deletion: only currently unarchived,
+not-cancelled local cards block removal. Product/order/recipient/event/BIN history
+alone does not block removal. Use immutable deletion audit as the directory tombstone;
+retain provider rows/FKs and historical credentials for verified recovery/callbacks.
+Hide removed providers from management/new product selection and manual balance totals;
+reject new business on their bindings. Preserve confirmation, active Platform scope,
+version/request replay guards and atomic audit. No provider calls, financial changes,
+history deletion or production deletion test. This supersedes the earlier unused-only
+provider deletion rule below. See docs/architecture/PHOTONPAY_ACCOUNTS.md.
+
 On 2026-10-12 the user requested ordinary numbered pagination across backend
 lists and detail drawers, replacing previous/next-only controls. Use the shared
 AdminPagination with exact scoped page totals, current-page highlighting and direct

@@ -43,7 +43,7 @@ export const adminCatalog: Record<string, string> = {
     'Delete {{name}}? This cannot be undone.': '确认删除卡商“{{name}}”？删除后无法恢复。',
     'Confirm deletion': '确认删除',
     'Card provider deleted.': '卡商已删除。',
-    'This card provider is in use and cannot be deleted.': '该卡商已关联产品或业务记录，不能删除。',
+    'This card provider is in use and cannot be deleted.': '该卡商当前有卡片，不能删除。',
     'This card provider was deleted. Start a new creation request.':
         '该卡商已删除，请重新发起新增。',
     'This card provider was updated elsewhere. Refresh before deleting.':

@@ -6,6 +6,7 @@ use App\Application\Card\AdminCardLoadsQuery;
 use App\Application\Card\ApplyCardIssueResultAction;
 use App\Application\Card\ArchiveClearedUserCardAction;
 use App\Application\Card\BatchCardTransactionSync;
+use App\Application\Card\CardProductProviderRouter;
 use App\Application\Card\CardVoidBatch;
 use App\Application\Card\CreateCardIssueAction;
 use App\Application\Card\CreateCardRecipientAction;
@@ -3351,3 +3352,29 @@ it('card void refuses non-cent provider balances without truncation or cancellat
     expect($result['counts']['FAILED'])->toBe(1)->and($result['items'][0]->error_code)->toBe('CARD_VOID_PRECISION')
         ->and(LedgerEntry::count())->toBe($before)->and($card->fresh()->archived_at)->toBeNull();
 });
+
+
+it('provider removal blocks only current cards and retains archived card recovery bindings', function (string $status, bool $archived, bool $blocked): void {
+    $card = localSimulationReadyCard($this, merchant: true);
+    $card->forceFill(['provider_status' => $status, 'archived_at' => $archived ? now() : null])->save();
+    $product = $card->product;
+    $reference = $product->card_provider_reference_id;
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $before = DB::table('ledger_entries')->count();
+    $this->actingAs($actor, 'platform_admin')->get('http://admin.localhost/platform/card-providers')->assertOk()
+        ->assertInertia(fn ($p) => $p->where('providers.data.0.canDelete', ! $blocked));
+    $url = 'http://admin.localhost/platform/card-providers/'.$reference;
+    $this->withSession(['_token' => 'provider-deletion-test']);
+    $input = ['_token' => 'provider-deletion-test', 'version' => $product->cardProviderReference->version, 'confirmed' => true, 'request_id' => (string) Str::uuid()];
+    if ($blocked) {
+        $this->deleteJson($url, $input)->assertConflict()->assertJsonPath('error.code', 'CARD_PROVIDER_REFERENCE_IN_USE');
+    } else {
+        $this->deleteJson($url, $input)->assertRedirect();
+        expect($product->fresh()->cardProviderReference->id)->toBe($reference)
+            ->and(\App\Domain\CardProviderDirectory\Models\CardProviderReference::find($reference))->toBeNull()
+            ->and(app(CardProductProviderRouter::class)->forCard($card->fresh())->available())->toBeTrue();
+        expect(fn () => app(CardProductProviderRouter::class)->assertNewBusiness($product->fresh()))->toThrow(DomainException::class);
+    }
+    expect(DB::table('ledger_entries')->count())->toBe($before)->and($card->fresh()->card_product_id)->toBe($product->id);
+    Http::assertNothingSent();
+})->with([['normal', false, true], ['frozen', false, true], ['expired', false, true], ['unknown', false, true], ['cancelled', false, false], ['cancelled', true, false], ['normal', true, false]]);

@@ -39,13 +39,13 @@ final readonly class DeleteCardProviderReferenceAction
                 if ($record->version !== (int) $data['version']) {
                     throw new DomainException('CARD_PROVIDER_REFERENCE_VERSION_CONFLICT', 'This card provider was updated elsewhere. Refresh before deleting.', 409);
                 }
-                foreach (CardProviderReference::DEPENDENCIES as $table) {
-                    if (DB::table($table)->where('card_provider_reference_id', $id)->exists()) {
-                        throw $this->used();
-                    }
+                // Freeze related product bindings while checking the current local cards.
+                DB::table('card_products')->where('card_provider_reference_id', $id)->orderBy('id')->lockForUpdate()->get(['id']);
+                if (CardProviderReference::currentCards($id)->exists()) {
+                    throw $this->used();
                 }
                 $before = ['name' => $record->name, 'reference_balance' => $record->reference_balance, 'version' => $record->version];
-                $record->delete();
+                // Audit-backed removal preserves every historical FK and recovery identity.
                 $this->audit->record(null, 'ADMIN', $actor->id, 'CARD_PROVIDER_REFERENCE_DELETED', 'card_provider_reference', $id, $before, null, $data['request_id']);
             });
         } catch (QueryException $error) {

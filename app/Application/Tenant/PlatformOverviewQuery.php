@@ -9,6 +9,7 @@ use App\Application\Partners\PartnerAccountBalance;
 use App\Application\Partners\PartnerBusinessStock;
 use App\Application\User\PlatformUserFinancialSummary;
 use App\Domain\Assets\MarketSnapshot;
+use App\Domain\CardProviderDirectory\Models\CardProviderReference;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
@@ -65,7 +66,7 @@ final class PlatformOverviewQuery
         }
         if ($access['providers']) {
             // Deliberately bypass CardProviderReferenceQuery, which can contact providers.
-            $overview['providerBalance'] = $this->decimal(DB::table('platform_card_provider_references')->sum('reference_balance'));
+            $overview['providerBalance'] = $this->decimal(CardProviderReference::query()->sum('reference_balance'));
         }
         if ($access['assets']) {
             $overview['assets'] = $this->assets($snapshot);

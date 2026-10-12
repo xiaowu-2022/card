@@ -35,6 +35,6 @@ final class CardProduct extends Model
 
     public function cardProviderReference(): BelongsTo
     {
-        return $this->belongsTo(CardProviderReference::class);
+        return $this->belongsTo(CardProviderReference::class)->withoutGlobalScope('deleted_reference');
     }
 }

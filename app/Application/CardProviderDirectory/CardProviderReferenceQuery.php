@@ -13,7 +13,7 @@ final class CardProviderReferenceQuery
 
     public function list(): array
     {
-        $usage = implode(' OR ', array_map(fn ($table) => "EXISTS (SELECT 1 FROM {$table} WHERE {$table}.card_provider_reference_id=platform_card_provider_references.id)", CardProviderReference::DEPENDENCIES));
+        $usage = "EXISTS (SELECT 1 FROM user_cards c JOIN card_products p ON p.id=c.card_product_id WHERE p.card_provider_reference_id=platform_card_provider_references.id AND c.archived_at IS NULL AND (c.provider_status IS NULL OR c.provider_status<>'cancelled'))";
 
         return ['providers' => CardProviderReference::query()->select('platform_card_provider_references.*')->selectRaw('('.$usage.') AS deletion_blocked')->withCasts(['deletion_blocked' => 'boolean'])->latest('created_at')->orderBy('id')->paginate(20)
             ->through(function (CardProviderReference $record): array {

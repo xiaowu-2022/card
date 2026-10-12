@@ -92,6 +92,9 @@ final readonly class CardProductProviderRouter
     {
         $query = CardProviderReference::whereKey($product->card_provider_reference_id);
         $account = DB::transactionLevel() > 0 ? $query->lockForUpdate()->first() : $query->first();
+        if ($product->card_provider_reference_id !== null && ! $account) {
+            throw new DomainException('CARD_ACCOUNT_PAUSED', 'This PhotonPay account is not accepting new business.', 409);
+        }
         if ($account?->photonpay_issuing_encrypted && (! $account->photonpay_enabled || $account->photonpay_migration_error)) {
             throw new DomainException('CARD_ACCOUNT_PAUSED', 'This PhotonPay account is not accepting new business.', 409);
         }
