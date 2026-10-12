@@ -57,6 +57,7 @@ type Partner = {
     tenant_id: string;
     company_name: string;
     enabled: boolean;
+    updated_at: string;
     share_percent: string;
     account_id: string;
     display_name: string | null;
@@ -89,6 +90,8 @@ export default function Partners({
     pendingFees: Page<Fee> | null;
 }) {
     useAdminTranslation();
+    const [revokeTarget, setRevokeTarget] = useState<Partner | null>(null);
+    const revocation = useForm({ confirmed: true, updated_at: '' });
     const configuration = useForm({ account_id: '', enabled: true, share_percent: '40' });
     const journal = useForm({
         kind: 'REIMBURSEMENT',
@@ -286,6 +289,56 @@ export default function Partners({
             }
         >
             <Head title={t('Partners')} />
+            <Dialog
+                open={Boolean(revokeTarget)}
+                onOpenChange={(open) => {
+                    if (!open && !revocation.processing) setRevokeTarget(null);
+                }}
+            >
+                <DialogContent closeDisabled={revocation.processing} closeLabel={t('Close')}>
+                    <DialogHeader>
+                        <DialogTitle>{t('Revoke partner')}</DialogTitle>
+                    </DialogHeader>
+                    <p>
+                        {revokeTarget?.company_name} · {revokeTarget?.account_id}
+                    </p>
+                    <p>
+                        {t(
+                            'Confirm revoking this partner? The account becomes an ordinary user. Share settings, cooperation history, funds and account restrictions are preserved.',
+                        )}
+                    </p>
+                    {Object.keys(revocation.errors).length > 0 && (
+                        <OperationFeedback role="alert">
+                            {t('Unable to save. Refresh and try again.')}
+                        </OperationFeedback>
+                    )}
+                    <div className="flex justify-end gap-2">
+                        <button
+                            type="button"
+                            disabled={revocation.processing}
+                            onClick={() => setRevokeTarget(null)}
+                        >
+                            {t('Cancel')}
+                        </button>
+                        <button
+                            type="button"
+                            disabled={revocation.processing}
+                            onClick={() => {
+                                if (revokeTarget)
+                                    revocation.post(
+                                        `/platform/tenants/${revokeTarget.tenant_id}/partners/${revokeTarget.id}/revoke`,
+                                        {
+                                            preserveScroll: true,
+                                            onSuccess: () => setRevokeTarget(null),
+                                        },
+                                    );
+                            }}
+                        >
+                            {t(revocation.processing ? 'Saving…' : 'Confirm')}
+                        </button>
+                    </div>
+                </DialogContent>
+            </Dialog>
             <div className="partner-admin partner-admin-platform">
                 <div className="partner-form partner-summary-filters">
                     <label>
@@ -476,6 +529,21 @@ export default function Partners({
                                                             >
                                                                 {t('Edit')}
                                                             </button>
+                                                            {p.enabled && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        revocation.clearErrors();
+                                                                        revocation.setData(
+                                                                            'updated_at',
+                                                                            p.updated_at,
+                                                                        );
+                                                                        setRevokeTarget(p);
+                                                                    }}
+                                                                >
+                                                                    {t('Revoke partner')}
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>

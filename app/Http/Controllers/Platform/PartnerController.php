@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Platform;
 
 use App\Application\Partners\FeeValuation;
+use App\Application\Partners\PartnerBalanceHierarchy;
 use App\Application\Partners\PartnerHierarchy;
 use App\Application\Partners\PartnerInvitationReport;
 use App\Application\Partners\PartnerListSummary;
@@ -20,6 +21,18 @@ use Inertia\Inertia;
 
 final class PartnerController extends Controller
 {
+    public function balances(Request $request, PartnerBalanceHierarchy $query)
+    {
+        $data = $request->validate(['company' => 'nullable|uuid|exists:tenants,id', 'parent' => 'nullable|uuid', 'page' => 'nullable|integer|min:1|max:100000', 'tenant_id' => 'prohibited', 'user_id' => 'prohibited']);
+
+        return Inertia::render('platform/PartnerBalances', [
+            'companies' => Tenant::orderBy('name')->get(['id', 'name']),
+            'companyId' => $data['company'] ?? null,
+            'parentId' => $data['parent'] ?? null,
+            'listing' => $query->read($data['company'] ?? null, $data['parent'] ?? null, $request->integer('page', 1)),
+        ])->toResponse($request)->header('Cache-Control', 'private, no-store');
+    }
+
     public function hierarchy(Request $request, string $partner, PartnerHierarchy $query)
     {
         $data = $request->validate(['company' => 'nullable|uuid|exists:tenants,id', 'page' => 'nullable|integer|min:1|max:100000', 'flow' => 'nullable|in:inflow,outflow', 'flow_page' => 'nullable|integer|min:1|max:100000', 'user_id' => 'prohibited', 'tenant_id' => 'prohibited']);
@@ -60,7 +73,7 @@ final class PartnerController extends Controller
             $report = app(PlatformPartnerIdentity::class)->stock($selected->tenant_id, $report);
         }
 
-        $partnerPage = DB::table('partner_configurations as p')->join('users as u', fn ($j) => $j->on('u.id', '=', 'p.user_id')->on('u.tenant_id', '=', 'p.tenant_id'))->leftJoin('user_profiles as profile', fn ($j) => $j->on('profile.user_id', '=', 'u.id')->on('profile.tenant_id', '=', 'u.tenant_id'))->join('tenants as t', 't.id', '=', 'p.tenant_id')->when($tenant, fn ($q) => $q->where('p.tenant_id', $tenant))->when($request->filled('referrer'), fn ($q) => $q->whereExists(fn ($m) => $m->selectRaw('1')->from('promotion_members as m')->join('promotion_members as parent', fn ($j) => $j->on('parent.id', '=', 'm.inviter_id')->on('parent.tenant_id', '=', 'm.tenant_id'))->join('users as referrer', fn ($j) => $j->on('referrer.id', '=', 'parent.user_id')->on('referrer.tenant_id', '=', 'parent.tenant_id'))->whereColumn('m.tenant_id', 'p.tenant_id')->whereColumn('m.user_id', 'p.user_id')->where('referrer.account_id', $request->query('referrer'))))->orderBy('u.account_id')->paginate(20, ['p.id', 'p.tenant_id', 'p.user_id', 't.name as company_name', 'p.enabled', 'p.share_percent', 'u.account_id', 'profile.display_name', 'u.email'])->withQueryString();
+        $partnerPage = DB::table('partner_configurations as p')->join('users as u', fn ($j) => $j->on('u.id', '=', 'p.user_id')->on('u.tenant_id', '=', 'p.tenant_id'))->leftJoin('user_profiles as profile', fn ($j) => $j->on('profile.user_id', '=', 'u.id')->on('profile.tenant_id', '=', 'u.tenant_id'))->join('tenants as t', 't.id', '=', 'p.tenant_id')->when($tenant, fn ($q) => $q->where('p.tenant_id', $tenant))->when($request->filled('referrer'), fn ($q) => $q->whereExists(fn ($m) => $m->selectRaw('1')->from('promotion_members as m')->join('promotion_members as parent', fn ($j) => $j->on('parent.id', '=', 'm.inviter_id')->on('parent.tenant_id', '=', 'm.tenant_id'))->join('users as referrer', fn ($j) => $j->on('referrer.id', '=', 'parent.user_id')->on('referrer.tenant_id', '=', 'parent.tenant_id'))->whereColumn('m.tenant_id', 'p.tenant_id')->whereColumn('m.user_id', 'p.user_id')->where('referrer.account_id', $request->query('referrer'))))->orderBy('u.account_id')->paginate(20, ['p.id', 'p.tenant_id', 'p.user_id', 't.name as company_name', 'p.enabled', 'p.updated_at', 'p.share_percent', 'u.account_id', 'profile.display_name', 'u.email'])->withQueryString();
         $authorization = app(AuthorizationService::class);
         $canReadAmounts = $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'wallet.read') && $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'ledger.read');
         $summaries = $canReadAmounts ? app(PartnerListSummary::class)->forRows($partnerPage->items()) : [];
@@ -93,6 +106,13 @@ final class PartnerController extends Controller
         $partner = $action->enableUser($request->user('platform_admin'), $tenant->id, $user, $request->all());
 
         return response()->json(['partnerId' => $partner->id])->header('Cache-Control', 'private, no-store');
+    }
+
+    public function revoke(Request $request, Tenant $tenant, string $partner, PartnerManagement $action)
+    {
+        $action->revoke($request->user('platform_admin'), $tenant->id, $partner, $request->all());
+
+        return back();
     }
 
     public function configure(Request $request, Tenant $tenant, PartnerManagement $action)

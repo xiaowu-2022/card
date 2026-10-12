@@ -294,3 +294,34 @@ refund_eligible_at between now and the next 3/10 days inclusive. Completed,
 cancelled, cancellation-requested, undated and already-overdue requests are excluded;
 the three-day amount is a subset of ten days. No request/deadline is fabricated or
 recomputed. Summary reads do not synchronize services or alter accounting.
+
+## Platform partner balance hierarchy (2026-10-12)
+
+Overview → Partner balances (`/platform/partner-balances`) lists the nearest enabled
+partners at each invitation level, traversing ordinary/disabled members. Top-level
+partners have no currently enabled partner ancestor in their company. Company filter,
+parent and numbered page are retained in the URL; breadcrumbs allow upward navigation.
+Personal theoretical/actual/difference reuse the report's personal account balance
+projection, including signed adjustments and annual purchase deductions. Actual is
+own USDT USER_AVAILABLE; difference is theoretical minus actual. Team columns sum
+these three personal projections for self and every currently enabled descendant
+partner, including branches below nested partners, irrespective of displayed page.
+Ordinary/disabled accounts are not included in the balance sum. Team partner count
+includes self. Amounts remain signed eight-place decimal strings.
+
+Platform partners.manage, users.read, wallet.read and ledger.read are required.
+Reads use one repeatable-read read-only snapshot with company-scoped edges and
+existing evidence; no provider requests, account provisioning or financial mutations.
+Deploy PHP/routes and rebuilt admin assets together; no migration or H5 changes.
+
+### Platform partner revocation (2026-10-12)
+
+Partner list rows provide an explicit confirmed Revoke partner action. The scoped
+POST requires active Platform partners.manage, locks the company and configuration,
+and rejects stale updated_at evidence before disabling an enabled configuration.
+Repeated revocation of a disabled configuration is a no-op. Revocation records an
+atomic PARTNER_REVOKED audit and retains the configuration, share, journals,
+relationships, all financial history and operation restrictions. Current enabled
+partner projections classify the account as ordinary and deny consumer partner
+reports. Existing edit/enable actions may restore partner status. No provider reads,
+wallet mutations, history deletion or migration is involved.

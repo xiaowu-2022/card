@@ -15,17 +15,33 @@ final readonly class PartnerInvitationReport
 {
     public function read(string $partner, ?string $company, ?string $kind, ?int $rank, int $page): array
     {
+        return $this->snapshot($partner, $company, $kind, $rank, $page, false);
+    }
+
+    public function readUser(string $user, string $company, ?string $kind = null, ?int $rank = null, int $page = 1): array
+    {
+        return $this->snapshot($user, $company, $kind, $rank, $page, true);
+    }
+
+    private function snapshot(string $partner, ?string $company, ?string $kind, ?int $rank, int $page, bool $userSubject): array
+    {
         $outer = DB::transactionLevel();
 
-        return DB::transaction(function () use ($partner, $company, $kind, $rank, $page, $outer) {
+        return DB::transaction(function () use ($partner, $company, $kind, $rank, $page, $outer, $userSubject) {
             if ($outer === 0) {
                 DB::statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
             }
-            $record = DB::table('partner_configurations')->where('id', $partner)
-                ->when($company, fn ($q) => $q->where('tenant_id', $company))->first();
-            abort_unless($record, 404);
-            $tenant = Tenant::findOrFail($record->tenant_id);
-            $user = User::where('tenant_id', $tenant->id)->findOrFail($record->user_id);
+            if ($userSubject) {
+                $user = User::where('tenant_id', $company)->findOrFail($partner);
+                $tenant = Tenant::findOrFail($company);
+                $record = DB::table('partner_configurations')->where('tenant_id', $company)->where('user_id', $user->id)->first();
+            } else {
+                $record = DB::table('partner_configurations')->where('id', $partner)
+                    ->when($company, fn ($q) => $q->where('tenant_id', $company))->first();
+                abort_unless($record, 404);
+                $tenant = Tenant::findOrFail($record->tenant_id);
+                $user = User::where('tenant_id', $tenant->id)->findOrFail($record->user_id);
+            }
             abort_if($rank !== null && ! in_array($rank, PromotionRanks::forTenant($tenant->id), true), 422);
             $query = app(PaidPromotionQuery::class);
             // Use the consumer's projection, never PromotionQuery::execute (which ensures membership).
@@ -43,7 +59,7 @@ final readonly class PartnerInvitationReport
             }
 
             return [
-                'account' => ['partnerId' => $record->id, 'companyId' => $tenant->id, 'companyName' => $tenant->name, 'accountId' => $user->account_id, 'email' => $user->email, 'displayName' => $identities->get($user->account_id)?->display_name],
+                'account' => ['userId' => $user->id, 'partnerId' => $record?->id, 'companyId' => $tenant->id, 'companyName' => $tenant->name, 'accountId' => $user->account_id, 'email' => $user->email, 'displayName' => $identities->get($user->account_id)?->display_name],
                 'timezone' => $tenant->timezone,
                 'commission' => app(PromotionReportQuery::class)->cumulative($tenant->id, $user->id),
                 'summary' => Arr::only($paid, ['tables', 'totals', 'legacy', 'teamByLevel', 'registeredMembers', 'directPeople', 'indirectPeople']),

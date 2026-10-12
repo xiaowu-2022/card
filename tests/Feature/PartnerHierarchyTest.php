@@ -1,13 +1,16 @@
 <?php
 
+use App\Application\Partners\PartnerBalanceHierarchy;
 use App\Application\Partners\PartnerHierarchy;
 use App\Application\Partners\PartnerManagement;
 use App\Application\Partners\PartnerReport;
 use App\Application\Promotion\ChangeReferrer;
 use App\Application\Promotion\PromotionMembershipAction;
+use App\Application\Wallet\AdjustWalletBalance;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
+use App\Domain\Wallet\Services\WalletProvisioner;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -131,4 +134,55 @@ it('serves consumer pages and rechecks scope on detail pagination without writes
     $this->actingAs($this->owner, 'tenant_user');
     DB::table('partner_configurations')->where('id', $p->id)->update(['enabled' => false]);
     $this->getJson($url.'/'.$p->id.'/report?flow=inflow&flow_page=3')->assertNotFound();
+});
+
+it('shows personal and complete enabled partner team balances by nearest recommendation level', function () {
+    $ordinary = hierarchyChild($this->owner);
+    $child = hierarchyChild($ordinary);
+    $childPartner = hierarchyPartner($this, $child);
+    $grandchild = hierarchyChild($child);
+    $grandPartner = hierarchyPartner($this, $grandchild);
+    foreach ([[$this->root, '10.00000001'], [$childPartner, '2.00000002'], [$grandPartner, '3.00000003']] as [$partner, $amount]) {
+        app(PartnerManagement::class)->journal($this->admin, $this->tenant->id, $partner->id, ['kind' => 'ADVANCE', 'amount' => $amount, 'business_date' => now()->format('Y-m-d'), 'note' => 'Offline balance hierarchy fixture', 'request_id' => (string) Str::uuid()]);
+    }
+    DB::transaction(fn () => app(WalletProvisioner::class)->provision($this->tenant, $child, 'USDT'));
+    app(AdjustWalletBalance::class)->execute($this->tenant->id, $child->id, $this->admin, ['asset' => 'USDT', 'direction' => 'INCREASE', 'amount' => '20', 'reason' => 'Offline hierarchy actual balance fixture', 'request_id' => (string) Str::uuid(), 'confirmed' => true]);
+    $before = [DB::table('wallets')->count(), DB::table('ledger_entries')->count(), DB::table('promotion_members')->count(), DB::table('partner_journal_entries')->count()];
+    $query = app(PartnerBalanceHierarchy::class);
+    $root = $query->read($this->tenant->id, null, 1);
+    expect(array_column($root['items'], 'id'))->toBe([$this->root->id])
+        ->and($root['items'][0]['personal']['theoretical'])->toBe('10.00000001')
+        ->and($root['items'][0]['team']['theoretical'])->toBe('15.00000006')
+        ->and($root['items'][0]['team']['actual'])->toBe('20.00000000')
+        ->and($root['items'][0]['team']['difference'])->toBe('-4.99999994')
+        ->and($root['items'][0]['teamPartners'])->toBe(3);
+    $level = $query->read($this->tenant->id, $this->root->id, 1);
+    expect(array_column($level['items'], 'id'))->toBe([$childPartner->id])
+        ->and($level['items'][0]['personal'])->toBe(array_intersect_key(app(PartnerReport::class)->read($this->tenant->id, $child->id)['accountBalance'], array_flip(['theoretical', 'actual', 'difference'])))
+        ->and($level['items'][0]['team']['theoretical'])->toBe('5.00000005');
+    $other = User::where('tenant_id', Tenant::where('slug', 'tenant-b')->value('id'))->firstOrFail();
+    $outside = hierarchyPartner($this, $other);
+    expect(fn () => $query->read($this->tenant->id, $outside->id, 1))->toThrow(HttpException::class);
+    DB::table('partner_configurations')->where('id', $childPartner->id)->update(['enabled' => false]);
+    expect(array_column($query->read($this->tenant->id, $this->root->id, 1)['items'], 'id'))->toBe([$grandPartner->id])
+        ->and($query->read($this->tenant->id, null, 1)['items'][0]['team']['theoretical'])->toBe('13.00000004');
+    expect(fn () => $query->read($this->tenant->id, $childPartner->id, 1))->toThrow(HttpException::class);
+    $this->actingAs($this->admin, 'platform_admin')->get('http://admin.localhost/platform/partner-balances?company='.$this->tenant->id)->assertOk();
+    expect([DB::table('wallets')->count(), DB::table('ledger_entries')->count(), DB::table('promotion_members')->count(), DB::table('partner_journal_entries')->count()])->toBe($before);
+    DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'wallet.read')->value('id'))->delete();
+    $this->get('http://admin.localhost/platform/partner-balances')->assertForbidden();
+    $this->app['auth']->guard('platform_admin')->logout();
+    $this->get('http://admin.localhost/platform/partner-balances')->assertRedirect();
+});
+
+it('counts exact hierarchy pages and sums teams beyond the visible page', function () {
+    for ($i = 0; $i < 21; $i++) {
+        hierarchyPartner($this, hierarchyChild($this->owner));
+    }
+    $query = app(PartnerBalanceHierarchy::class);
+    $first = $query->read($this->tenant->id, $this->root->id, 1);
+    $second = $query->read($this->tenant->id, $this->root->id, 2);
+    expect($first['total'])->toBe(21)->and($first['pages'])->toBe(2)->and($first['items'])->toHaveCount(20)
+        ->and($second['items'])->toHaveCount(1)
+        ->and($query->read($this->tenant->id, null, 1)['items'][0]['teamPartners'])->toBe(22);
 });

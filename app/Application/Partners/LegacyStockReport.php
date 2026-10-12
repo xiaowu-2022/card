@@ -74,7 +74,7 @@ final class LegacyStockReport
         });
     }
 
-    private function accountBalance(string $tenant, string $user, ?string $partner): array
+    public function accountBalance(string $tenant, string $user, ?string $partner): array
     {
         $journal = DB::table('partner_journal_entries')->where('tenant_id', $tenant)->where('partner_id', $partner)
             ->selectRaw("COALESCE(SUM(CASE WHEN reverses_id IS NULL THEN amount ELSE -amount END) FILTER(WHERE kind='ADVANCE'),0) AS advances,

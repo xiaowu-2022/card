@@ -12,6 +12,7 @@ use Brick\Math\BigDecimal;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 final class PartnerManagement
 {
@@ -26,11 +27,44 @@ final class PartnerManagement
             $old = DB::table('partner_configurations')->where('tenant_id', $tenant)->where('user_id', $user->id)->first();
             if ($old?->enabled) {
                 app(AssetAccess::class)->platform($actor, 'partners.manage');
+
                 return $old;
             }
 
             return $this->configure($actor, $tenant, ['account_id' => $user->account_id, 'enabled' => true,
                 'share_percent' => $old?->share_percent ?? '40']);
+        });
+    }
+
+    public function revoke(AdminUser $actor, string $tenant, string $partner, array $input): void
+    {
+        app(AssetAccess::class)->platform($actor, 'partners.manage');
+        $data = Validator::make($input, [
+            'confirmed' => 'required|accepted',
+            'updated_at' => 'required|string|max:80',
+        ])->validate();
+
+        DB::transaction(function () use ($actor, $tenant, $partner, $data) {
+            Tenant::whereKey($tenant)->lockForUpdate()->firstOrFail();
+            app(AssetAccess::class)->platform($actor, 'partners.manage');
+            $old = DB::table('partner_configurations')->where('tenant_id', $tenant)
+                ->where('id', $partner)->lockForUpdate()->firstOrFail();
+            // Repeated confirmation of an already revoked partner makes no new changes.
+            if (! $old->enabled) {
+                return;
+            }
+            if ($old->updated_at !== $data['updated_at']) {
+                throw ValidationException::withMessages([
+                    'updated_at' => 'Partner configuration changed. Refresh and try again.',
+                ]);
+            }
+            User::where('tenant_id', $tenant)->whereKey($old->user_id)->lockForUpdate()->firstOrFail();
+            DB::table('partner_configurations')->where('id', $old->id)->update([
+                'enabled' => false, 'updated_by' => $actor->id, 'updated_at' => now(),
+            ]);
+            app(AuditLogger::class)->record($tenant, 'ADMIN', $actor->id, 'PARTNER_REVOKED',
+                'partner', $old->id, ['enabled' => true, 'share_percent' => $old->share_percent],
+                ['enabled' => false, 'share_percent' => $old->share_percent]);
         });
     }
 

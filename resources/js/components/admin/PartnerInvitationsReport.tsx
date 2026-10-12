@@ -68,9 +68,13 @@ const kindName = (kind: Kind) =>
 export function PartnerInvitationsReport({
     partner,
     company,
+    endpoint,
+    onSelection,
 }: {
     partner: string;
     company: string | null;
+    endpoint?: string;
+    onSelection?: (selection: Selection) => void;
 }) {
     const [selection, setSelection] = useState<Selection>(initialSelection);
     const [report, setReport] = useState<Report | null>(null);
@@ -90,17 +94,21 @@ export function PartnerInvitationsReport({
         setError('');
         setReport(null);
         const query = new URLSearchParams(company ? { company } : {});
+        if (endpoint) query.delete('company');
         if (selection) {
             query.set('kind', selection.kind);
             query.set('rank', String(selection.rank));
             query.set('page', String(selection.page));
         }
-        void fetch(`/platform/partners/${encodeURIComponent(partner)}/invitations?${query}`, {
-            credentials: 'same-origin',
-            cache: 'no-store',
-            signal: controller.signal,
-            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        })
+        void fetch(
+            `${endpoint ?? `/platform/partners/${encodeURIComponent(partner)}/invitations`}?${query}`,
+            {
+                credentials: 'same-origin',
+                cache: 'no-store',
+                signal: controller.signal,
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            },
+        )
             .then(async (response) => {
                 const data = await readEditorResponse(response);
                 if (!response.ok || !data.account || !data.summary)
@@ -117,9 +125,10 @@ export function PartnerInvitationsReport({
                 if (!controller.signal.aborted) setLoading(false);
             });
         return () => controller.abort();
-    }, [partner, company, selection, retry]);
+    }, [partner, company, endpoint, selection, retry]);
     const visit = (next: Selection) => {
-        invitationLocation(partner, next);
+        if (onSelection) onSelection(next);
+        else invitationLocation(partner, next);
         setSelection(next);
     };
     return (

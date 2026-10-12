@@ -47,7 +47,24 @@ type PlatformNavItem = {
     anyPermissions?: string[];
 };
 const groups: { label: string; items: PlatformNavItem[] }[] = [
-    { label: 'Workspace', items: [{ label: 'Dashboard', href: '/platform/demo', icon: Activity }] },
+    {
+        label: 'Workspace',
+        items: [
+            { label: 'Dashboard', href: '/platform/demo', icon: Activity },
+            {
+                label: 'Partner balances',
+                href: '/platform/partner-balances',
+                icon: Users,
+                permission: 'partners.manage',
+            },
+            {
+                label: 'Invitation data',
+                href: '/platform/invitation-data',
+                icon: Users,
+                permission: 'users.read',
+            },
+        ],
+    },
     {
         label: 'Customer operations',
         items: [

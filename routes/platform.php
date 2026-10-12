@@ -27,6 +27,7 @@ use App\Http\Controllers\Platform\DomainManagementController;
 use App\Http\Controllers\Platform\FinancialOperationsController;
 use App\Http\Controllers\Platform\FundsOrdersController;
 use App\Http\Controllers\Platform\InboxController;
+use App\Http\Controllers\Platform\InvitationDataController;
 use App\Http\Controllers\Platform\KycDetailController;
 use App\Http\Controllers\Platform\KycSettingsController;
 use App\Http\Controllers\Platform\ManualCommissionController;
@@ -127,13 +128,22 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::post('/tenants/{tenant}/notifications', [InboxController::class, 'send'])->whereUuid('tenant')->middleware('throttle:20,1');
     });
 
+    Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,ledger.read'])->group(function (): void {
+        Route::get('/invitation-data', [InvitationDataController::class, 'index'])->name('invitation-data');
+        Route::get('/invitation-data/{tenant}/{user}/report', [InvitationDataController::class, 'report'])
+            ->whereUuid(['tenant', 'user'])->middleware('throttle:240,1');
+    });
+
     Route::middleware('admin.scope:platform,partners.manage')->group(function (): void {
         Route::get('/tenants/{tenant}/partner-candidates', [PartnerController::class, 'candidates'])->whereUuid('tenant')->middleware('throttle:240,1');
         Route::get('/partners', [PartnerController::class, 'index'])->name('partners');
+        Route::get('/partner-balances', [PartnerController::class, 'balances'])
+            ->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,ledger.read', 'throttle:240,1'])->name('partner-balances');
         Route::get('/partners/{partner}/invitations', [PartnerController::class, 'invitations'])->whereUuid('partner')->middleware('throttle:240,1');
         Route::get('/partners/{partner}/children', [PartnerController::class, 'hierarchy'])->whereUuid('partner')->middleware('throttle:240,1');
         Route::get('/partners/{partner}/stock', [PartnerController::class, 'hierarchy'])->whereUuid('partner')->middleware('throttle:240,1');
         Route::post('/tenants/{tenant}/users/{user}/partner', [PartnerController::class, 'enableUser'])->whereUuid(['tenant', 'user'])->middleware('admin.scope:platform,users.read');
+        Route::post('/tenants/{tenant}/partners/{partner}/revoke', [PartnerController::class, 'revoke'])->whereUuid(['tenant', 'partner']);
         Route::post('/tenants/{tenant}/partners', [PartnerController::class, 'configure'])->whereUuid('tenant');
         Route::post('/tenants/{tenant}/partners/{partner}/journal', [PartnerController::class, 'journal'])->whereUuid(['tenant', 'partner']);
         Route::post('/tenants/{tenant}/fee-valuations/{valuation}', [PartnerController::class, 'valueFee'])->whereUuid(['tenant', 'valuation']);

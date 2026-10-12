@@ -2,6 +2,19 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Account category': '账号类型',
+    'Account / name / email': '账号 / 姓名 / 邮箱',
+    'Invitation directory basis':
+        '筛选账号：全部、用户（非启用合伙人）、合伙人（当前启用）。每个账号的邀请数据均沿用前端完整团队口径，点击详情查看各等级佣金、直推/间推明细和奖励标准。',
+    'Invitation report detail description': '注册用户、普通用户及各代理等级的邀请人数与佣金数据',
+    Difference: '差额',
+    'Partner balances': '合伙人余额',
+    'Entire team': '整个团队',
+    'Team partners': '团队合伙人数',
+    'Partner hierarchy': '合伙人推荐层级',
+    'Top-level partners': '顶级合伙人',
+    'Partner balance hierarchy basis':
+        '个人数据沿用合伙人报表口径；实际余额为个人 USDT 可用余额，差额为理论余额减实际余额。团队包含本人及所有下级中当前启用的合伙人，跨过普通用户及停用合伙人查找下一级。',
     'Go to page': '跳转页码',
     Go: '跳转',
     'Void cards': '卡片作废',
@@ -219,6 +232,9 @@ export const adminCatalog: Record<string, string> = {
     'Platform management': '平台管理',
     'More filters': '更多筛选',
     'Subordinates ({{count}})': '下级（{{count}}）',
+    'Revoke partner': '撤销合伙人',
+    'Confirm revoking this partner? The account becomes an ordinary user. Share settings, cooperation history, funds and account restrictions are preserved.':
+        '确认撤销该合伙人？账号恢复为普通用户，分成配置、合作历史、资金及账户限制均保留。',
     'Set as partner': '设为合伙人',
     'Confirm setting this account as a partner? New partners use the default 40% share; existing disabled partners keep their share. Card funding will be blocked by default.':
         '确认将此账号设为合伙人？新合伙人使用默认 40% 分成；已停用合伙人保留原分成比例。默认禁止向卡片充值。',
@@ -2324,6 +2340,12 @@ export const adminCatalog: Record<string, string> = {
 };
 
 export const adminEnglish: Record<string, string> = {
+    'Invitation directory basis':
+        'Filter accounts by all, users (not enabled partners), or currently enabled partners. Each account retains its complete consumer invitation report scope. Open details for commissions, direct/indirect records and reward rates at each level.',
+    'Invitation report detail description':
+        'Invitation counts and commissions for registered, ordinary and agent members',
+    'Partner balance hierarchy basis':
+        'Personal figures follow the partner report. Actual balance is available USDT; difference is theoretical minus actual. Team totals include self and all currently enabled descendant partners. Ordinary and disabled members are traversed to find the next partner level.',
     ASSET_DEPOSIT_MANUALLY_CONFIRMED: 'Multi-currency deposit manually confirmed',
     ASSET_DEPOSIT_VERIFICATION_REQUESTED: 'Multi-currency deposit verification requested',
     ASSET_DEPOSIT_UNCONFIRMED: 'Multi-currency deposit unconfirmed',
