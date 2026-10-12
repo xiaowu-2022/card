@@ -30,7 +30,6 @@ services:
       REVERB_HOST: support-realtime
       REVERB_PORT: "8080"
       REVERB_SCHEME: http
-      REVERB_ALLOWED_ORIGINS: "a.localhost,b.localhost,admin.localhost,localhost"
       CARD_PROVIDER_DRIVER: mock
       MOCK_CARD_PROVIDER_MODE: ${MOCK_CARD_PROVIDER_MODE:-SUCCESS}
       MOCK_CARDHOLDER_MODE: ${MOCK_CARDHOLDER_MODE:-READY}

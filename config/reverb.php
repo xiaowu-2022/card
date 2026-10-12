@@ -18,8 +18,9 @@ return [
         'secret' => env('REVERB_APP_SECRET'),
         'app_id' => env('REVERB_APP_ID'),
         'options' => ['host' => env('REVERB_HOST', '127.0.0.1'), 'port' => env('REVERB_PORT', 8080), 'scheme' => env('REVERB_SCHEME', 'http'), 'useTLS' => env('REVERB_SCHEME', 'http') === 'https'],
-        // Private channels carry invalidation only. Company hosts authenticate via their own HTTP origin.
-        'allowed_origins' => array_filter(explode(',', env('REVERB_ALLOWED_ORIGINS', 'localhost'))),
+        // Origin checks are performed by CompanySupportSocketServer against current domain ownership.
+        // The package's static list is not used; arbitrary origins remain rejected.
+        'allowed_origins' => [],
         'ping_interval' => 20,
         'activity_timeout' => 30,
         'max_connections' => env('REVERB_APP_MAX_CONNECTIONS', 10000),

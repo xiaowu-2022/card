@@ -2,17 +2,26 @@
 
 use App\Application\Support\SendSupportMessageAction;
 use App\Application\Support\SupportRealtime;
+use App\Application\Support\SupportSocketOrigins;
 use App\Application\Support\SupportUserAgents;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Support\Models\SupportConversation;
 use App\Domain\Tenant\Models\Tenant;
+use App\Domain\Tenant\Models\TenantDomain;
 use App\Domain\User\Models\User;
 use App\Infrastructure\Auth\ConsumerDeviceToken;
+use App\Infrastructure\Support\CompanySupportSocketServer;
 use Illuminate\Contracts\Broadcasting\Broadcaster;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Laravel\Reverb\Application;
+use Laravel\Reverb\Connection;
+use Laravel\Reverb\Contracts\WebSocketConnection;
+use Laravel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
+use Laravel\Reverb\Protocols\Pusher\Exceptions\InvalidOrigin;
+use Laravel\Reverb\Protocols\Pusher\Server;
 
 beforeEach(function () {
     $this->seed();
@@ -112,4 +121,48 @@ it('authenticates native device tokens on the resolved company and rejects revok
     $this->withToken($token)->getJson('http://b.localhost/api/mobile/v1/support/realtime')->assertUnauthorized();
     ConsumerDeviceToken::query()->delete();
     $this->withToken($token)->postJson($url.'/auth', ['socket_id' => '1.2', 'channel_name' => SupportRealtime::userChannel($this->company->id, $this->customer->id)])->assertUnauthorized();
+});
+
+it('accepts current assigned active domains without a manual origin list and reflects live changes', function () {
+    $origins = app(SupportSocketOrigins::class);
+    $before = [DB::table('ledger_entries')->count(), DB::table('support_messages')->count()];
+    expect($origins->allows('https://admin.localhost'))->toBeTrue()
+        ->and($origins->allows('http://a.localhost:8000'))->toBeTrue();
+    $domain = TenantDomain::create([
+        'hostname' => 'new-socket.example.test', 'tenant_id' => $this->company->id,
+        'domain_type' => 'CUSTOM_DOMAIN', 'status' => 'ACTIVE', 'is_primary' => false,
+    ]);
+    expect($origins->allows('https://NEW-SOCKET.example.test'))->toBeTrue();
+    $domain->update(['status' => 'DISABLED']);
+    expect($origins->allows('https://new-socket.example.test'))->toBeFalse();
+    $domain->update(['status' => 'ACTIVE', 'tenant_id' => null]);
+    expect($origins->allows('https://new-socket.example.test'))->toBeFalse();
+    $domain->update(['tenant_id' => $this->other->id]);
+    expect($origins->allows('https://new-socket.example.test'))->toBeTrue();
+    $this->other->update(['status' => 'SUSPENDED']);
+    expect($origins->allows('https://new-socket.example.test'))->toBeFalse();
+    foreach ([null, 'null', '*', 'https://unknown.example.test', 'https://evil.example/a.localhost', 'https://a.localhost/path', 'https://a.localhost?x=1', 'https://user:secret@a.localhost', 'https://a.localhost:0', 'https://a.localhost:65536', 'https://a.localhost.evil.example', 'wss://a.localhost'] as $origin) {
+        expect($origins->allows($origin))->toBeFalse();
+    }
+    expect([DB::table('ledger_entries')->count(), DB::table('support_messages')->count()])->toBe($before);
+});
+
+it('uses the dynamic Reverb origin guard and fails closed on origin lookup errors', function () {
+    // Protocol bindings are installed by reverb:start; provide its channel manager in this HTTP test.
+    app()->instance(ChannelManager::class, Mockery::mock(ChannelManager::class));
+    $server = app(Server::class);
+    expect($server)->toBeInstanceOf(CompanySupportSocketServer::class);
+    $transport = Mockery::mock(WebSocketConnection::class);
+    $application = new Application('offline-app', 'offline-key', 'offline-secret', 20, 30, [], 10000);
+    $connection = new Connection($transport, $application, 'https://admin.localhost');
+    $guard = new ReflectionMethod($server, 'verifyOrigin');
+    $guard->invoke($server, $connection);
+    $denied = new class($transport, $application, null) extends Connection
+    {
+        public function origin(): ?string
+        {
+            throw new RuntimeException('Synthetic unavailable origin lookup');
+        }
+    };
+    expect(fn () => $guard->invoke($server, $denied))->toThrow(InvalidOrigin::class);
 });

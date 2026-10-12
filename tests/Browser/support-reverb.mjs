@@ -20,8 +20,8 @@ vm.runInNewContext(ts.transpileModule(readFileSync('shared/support-realtime.ts',
     exports, Date, Math, setTimeout, clearTimeout, setInterval, clearInterval,
 });
 const connections = [];
-function rawSocket() {
-    const socket = new WebSocket(endpoint.replace('http:', 'ws:') + '/app/' + key + '?protocol=7&client=offline-test&version=1.0', { origin: 'http://localhost' });
+function rawSocket(origin = 'http://localhost') {
+    const socket = new WebSocket(endpoint.replace('http:', 'ws:') + '/app/' + key + '?protocol=7&client=offline-test&version=1.0', { origin });
     const frames = [];
     socket.on('message', bytes => frames.push(JSON.parse(bytes.toString())));
     connections.push({ stop: () => socket.close() });
@@ -44,7 +44,7 @@ try {
     execFileSync(docker, ['run', '--rm', '-d', '--name', name, '--network', 'card_browser', '-p', `127.0.0.1:${port}:8080`,
         '-v', resolve('.') + ':/var/www/html', '-w', '/var/www/html',
         '-e', 'APP_ENV=testing', '-e', 'DB_DATABASE=card_ui_test', '-e', 'REVERB_APP_ID=' + appId,
-        '-e', 'REVERB_APP_KEY=' + key, '-e', 'REVERB_APP_SECRET=' + secret, '-e', 'REVERB_ALLOWED_ORIGINS=localhost',
+        '-e', 'REVERB_APP_KEY=' + key, '-e', 'REVERB_APP_SECRET=' + secret, '-e', 'PLATFORM_ADMIN_HOST=localhost',
         '--entrypoint', 'php', 'card-app', 'artisan', 'reverb:start', '--host=0.0.0.0', '--port=8080'], { stdio: 'pipe' });
     let ready = false;
     for (let i = 0; i < 50; i++) {
@@ -86,6 +86,9 @@ try {
     forged.socket.send(JSON.stringify({ event: 'client-support.changed', channel, data: { refresh: true } }));
     await until(() => forged.frames.some(f => f.event === 'pusher:error'), 'client publication rejected');
     assert.equal(changes, 2);
+    const invalidOrigin = rawSocket('http://localhost/invalid-origin-path');
+    await until(() => invalidOrigin.frames.some(f => f.event === 'pusher:error'), 'malformed origin rejected by dynamic guard');
+    assert.equal(invalidOrigin.frames.some(f => f.event === 'pusher:connection_established'), false);
     console.log(`Offline Reverb check passed: scoped push ${latency}ms, catch-up, channel isolation, signature rejection, client-event rejection.`);
 } finally {
     for (const connection of connections) connection.stop();

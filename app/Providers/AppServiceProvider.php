@@ -44,6 +44,7 @@ use App\Infrastructure\Providers\Payment\MockPaymentProvider;
 use App\Infrastructure\Providers\Payment\UnavailablePaymentProvider;
 use App\Infrastructure\Sms\AliyunSmsVerificationSender;
 use App\Infrastructure\Sms\FakeSmsVerificationSender;
+use App\Infrastructure\Support\CompanySupportSocketServer;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -51,6 +52,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Reverb\Protocols\Pusher\Server;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -59,6 +61,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->bind(Server::class, CompanySupportSocketServer::class);
         $this->app->scoped(TenantContext::class);
         $this->app->bind(DomainVerificationService::class, fn () => app()->environment('local', 'testing')
             ? new LocalDomainVerificationService : new DnsDomainVerificationService);

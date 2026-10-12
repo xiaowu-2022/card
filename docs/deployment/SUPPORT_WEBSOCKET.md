@@ -17,8 +17,9 @@
 3. `REVERB_HOST=127.0.0.1`、`REVERB_PORT=8080`、`REVERB_SCHEME=http` 指定 PHP
    内部发布目标。`REVERB_SERVER_HOST=127.0.0.1`、`REVERB_SERVER_PORT=8080` 保持
    服务只监听回环；生产 `SUPPORT_SOCKET_PORT` 留空，浏览器/App 使用当前公司的
-   HTTPS 域名对应 WSS。`REVERB_ALLOWED_ORIGINS` 列出当前平台及所有公司 API/H5
-   主机名，以逗号分隔，不带协议/端口；新增或改换域名时同步更新并重启服务。
+   HTTPS 域名对应 WSS。无需配置 `REVERB_ALLOWED_ORIGINS`：服务每次握手自动校验
+   `PLATFORM_ADMIN_HOST` 和数据库中当前已分配、ACTIVE 且所属公司 ACTIVE 的域名。
+   新增/停用/解除分配公司域名立即影响新连接，无需更新列表或重启 Reverb。
 4. 按现有站点的 PHP 路径与运行用户安装
    [Supervisor 示例](snippets/support-reverb.supervisor.conf)，加载并启动
    `card-support-reverb`。不要加 `--debug`，不要暴露内部 `/apps` 发布接口。
@@ -69,3 +70,18 @@ WebSocket、未读计数补拉和提示音；首次交互启用同一个播放�
 新消息立即触发声音、切回仍可提醒、后台未提交已读。对应前端 reminder 测试覆盖
 未读重复提醒、离线失败、播放失败、用户交互预热和清理。浏览器完全挂起/关闭标签、
 禁用本站声音或自动播放时不能保证响铃；页面存活的普通标签切换不再主动暂停提醒。
+
+
+## 当前访问域名自动识别（2026-10-13）
+
+前端已始终使用当前浏览器域名或原生已验证公司域名连接。Reverb 现在直接读取当前
+域名归属来校验来源，不再使用手填 `REVERB_ALLOWED_ORIGINS`；旧变量可以删除，留在
+.env 也不会生效。不是将 Origin 原样放行：未知、未启用、未分配或公司停用的域名
+拒绝连接，来源格式必须是有效 HTTP(S) origin，目录读取失败也拒绝。
+
+本次须上传 PHP 的 SupportSocketOrigins、CompanySupportSocketServer、
+AppServiceProvider 和 config/reverb.php，然后执行 `php artisan config:cache` 并
+重启 Reverb 守护进程一次。没有数据库迁移和前端资源变更。之后公司域名变更无需
+重启；后台主机名属于私有部署配置，修改 PLATFORM_ADMIN_HOST 仍需刷新配置/重启。
+各网站仍须有现有 `/app/` Nginx 代理和 TLS。私有频道仍经当前公司 HTTP 登录/权限
+鉴权，握手通过不授予聊天访问权限。

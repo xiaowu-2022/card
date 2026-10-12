@@ -477,3 +477,21 @@ hidden conversation pages retain their foreground-only DTO refresh/read gates.
 Consumer H5/native App lifecycle is unchanged by this backend-only request. Browser
 suspension, a closed tab, muted site audio or denied autoplay can still prevent sound;
 this is not OS/mobile background push. No desktop notification permission is requested.
+
+
+### Dynamic current-domain socket origins (2026-10-13)
+
+The current browser origin / native verified company origin already owns the socket URL.
+Reverb's server binding now uses CompanySupportSocketServer to validate each handshake
+against PLATFORM_ADMIN_HOST or the current ACTIVE assigned tenant domain joined to an
+ACTIVE tenant. No caller-supplied allowlist, wildcard pass-through or cached domain
+ownership is used. Unassignment, disabling, reallocation and company suspension apply
+to new connections immediately; directory failure rejects safely without exposing SQL
+or credentials. Existing private HTTP channel authorization remains authoritative for
+each company/user/admin and for content reads. A live old invalidation-only connection
+cannot authorize fresh private subscriptions/reads on a removed company host.
+
+REVERB_ALLOWED_ORIGINS is retired and ignored; config reverb's static origin list is
+unused by the bound origin guard. No migrations, evidence writes or provider reads.
+Deploy the new server/service binding and configuration and restart Reverb once;
+subsequent company domain changes need no list maintenance or process restart.

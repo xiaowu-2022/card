@@ -1,3 +1,14 @@
+On 2026-10-13 the user replaced manual REVERB_ALLOWED_ORIGINS maintenance with
+current-domain WebSocket routing/validation. Frontends retain current browser or
+verified native company origins; Reverb handshakes allow PLATFORM_ADMIN_HOST and
+currently ACTIVE assigned domains of ACTIVE companies via fresh scoped directory reads.
+Reject unknown, unassigned, disabled or malformed origins and fail closed on lookup
+errors. Preserve private HTTP identity/company channel authorization and read gates;
+never blindly trust/echo arbitrary Origin or mutate domain/evidence on reads. Retire
+and ignore the old origin list. Deploy PHP/config and restart Reverb once, no migration,
+provider/financial operations or real-customer test messages. See SUPPORT_CHAT.md and
+SUPPORT_WEBSOCKET.md in docs/architecture and docs/deployment respectively.
+
 On 2026-10-12 the user required Platform/company backend support reminders on every
 administrative page and while its browser tab is hidden. Keep one persistent scoped
 administration reminder/socket across Inertia navigation, including background reads,
