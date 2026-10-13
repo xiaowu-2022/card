@@ -352,10 +352,15 @@ async function copy(part: 'pan' | 'cvv' | 'all') {
                 fail: reject,
             }),
         );
-        if (runId === generation && visible) copyNotice.value = t('Card information copied');
+        if (runId === generation && visible) {
+            copyNotice.value = t('Card information copied');
+            uni.showToast({ title: copyNotice.value, icon: 'success', duration: 2000 });
+        }
     } catch {
-        if (runId === generation && visible)
+        if (runId === generation && visible) {
             copyNotice.value = t('Copy failed. Please select and copy manually.');
+            uni.showToast({ title: copyNotice.value, icon: 'none', duration: 3000 });
+        }
     }
 }
 </script>

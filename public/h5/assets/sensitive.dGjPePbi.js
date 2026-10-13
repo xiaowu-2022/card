@@ -1,0 +1,1 @@
+import{g as n,X as e}from"./index-Drg5Medi.js";function i(i,t={}){function o(){!document.hidden||t.retainOnBackground||t.retainUntilUnmount||i()}n(()=>{t.retainUntilUnmount||t.retainOnBackground&&document.hidden||i()}),e(()=>{i(),document.removeEventListener("visibilitychange",o)}),document.addEventListener("visibilitychange",o)}export{i as u};

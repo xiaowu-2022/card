@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { systemMoney } from '@/lib/system-money';
 import {
     DropdownMenu,
@@ -512,11 +513,17 @@ export function CardManagementActions({
                     ? `${t('Card number')}: ${cardDetails.pan}\nCVV: ${cardDetails.cvv}`
                     : cardDetails[part],
             );
-            if (current === generation.current && visible.current)
-                setCopyNotice(t('Card information copied'));
+            if (current === generation.current && visible.current) {
+                const message = t('Card information copied');
+                setCopyNotice(message);
+                toast.success(message, { duration: 2000 });
+            }
         } catch {
-            if (current === generation.current && visible.current)
-                setCopyNotice(t('Copy failed. Please select and copy manually.'));
+            if (current === generation.current && visible.current) {
+                const message = t('Copy failed. Please select and copy manually.');
+                setCopyNotice(message);
+                toast.error(message, { duration: 3000 });
+            }
         }
     }
     const capabilities = card.management ?? [];

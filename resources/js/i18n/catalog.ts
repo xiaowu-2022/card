@@ -348,7 +348,7 @@ export const catalog = {
     'Copy card number': ['复制卡号', 'Salin nombor kad', 'Copiar número de tarjeta'],
     'Copy CVV': ['复制 CVV', 'Salin CVV', 'Copiar CVV'],
     'Copy all card information': ['全部复制', 'Salin semua', 'Copiar todo'],
-    'Card information copied': ['已复制', 'Disalin', 'Copiado'],
+    'Card information copied': ['卡片信息复制成功', 'Disalin', 'Copiado'],
     'Copy failed. Please select and copy manually.': [
         '复制失败，请选中文字手动复制。',
         'Gagal menyalin. Sila pilih dan salin secara manual.',
