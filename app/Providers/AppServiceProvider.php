@@ -6,6 +6,7 @@ use App\Application\Cleanup\DiscardCleanedJobs;
 use App\Application\Inbox\CaptureInboxEvent;
 use App\Application\Media\PublicAssets;
 use App\Application\Support\SupportRealtime;
+use App\Application\User\Snapshots\UserSnapshotReader;
 use App\Domain\Audit\Models\AuditLog;
 use App\Domain\Card\Models\CardManagementOrder;
 use App\Domain\CardProvider\Contracts\CardProviderInterface;
@@ -63,6 +64,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(Server::class, CompanySupportSocketServer::class);
         $this->app->scoped(TenantContext::class);
+        $this->app->scoped(UserSnapshotReader::class);
         $this->app->bind(DomainVerificationService::class, fn () => app()->environment('local', 'testing')
             ? new LocalDomainVerificationService : new DnsDomainVerificationService);
         $this->app->bind(CompanyEmailTransport::class, ProtonSmtpTransport::class);

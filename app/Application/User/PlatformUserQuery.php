@@ -3,6 +3,7 @@
 namespace App\Application\User;
 
 use App\Application\Promotion\OrdinaryMemberQuery;
+use App\Application\User\Snapshots\UserSnapshotReader;
 use App\Application\Wallet\PlatformWalletQuery;
 use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\DB;
 
 final class PlatformUserQuery
 {
-    public function paginate(?string $company, ?string $search, ?string $status, array $financialAccess = [], ?string $support = null, ?string $userId = null, ?string $partner = null, ?string $referrer = null, bool $withRestrictions = false): LengthAwarePaginator
+    public function paginate(?string $company, ?string $search, ?string $status, array $financialAccess = [], ?string $support = null, ?string $userId = null, ?string $partner = null, ?string $referrer = null, bool $withRestrictions = false, int $perPage = 20, ?int $pageNumber = null): LengthAwarePaginator
     {
         $at = CarbonImmutable::now();
         // Platform-only aggregate. Profile ownership matches both company and user.
@@ -23,6 +24,7 @@ final class PlatformUserQuery
             ->when($support === 'Disabled', fn ($q) => $q->where(fn ($q) => $q->whereNull('sa.user_id')->orWhere('sa.enabled', false)))
             ->leftJoin('user_profiles as p', fn ($join) => $join->on('p.user_id', '=', 'u.id')->on('p.tenant_id', '=', 'u.tenant_id'))
             ->when($company, fn ($q) => $q->where('u.tenant_id', $company))
+            ->when(app(UserSnapshotReader::class)->active(), fn ($q) => $q->where('u.created_at', '<=', $at->toIso8601String()))
             ->when($userId, fn ($q) => $q->where('u.id', $userId))
             ->when(in_array($partner, ['Enabled', 'Disabled'], true), fn ($q) => $q->whereExists(
                 fn ($p) => $p->selectRaw('1')->from('partner_configurations as pc')
@@ -58,7 +60,7 @@ final class PlatformUserQuery
                 DB::table('withdrawal_orders as wo')->whereColumn('wo.tenant_id', 'u.tenant_id')->whereColumn('wo.user_id', 'u.id')
                     ->where('wo.asset_code', 'USDT')->where('wo.status', 'SUCCEEDED')
                     ->selectRaw('COALESCE(SUM(wo.amount), 0)::text'), 'total_withdrawn'))
-            ->orderByDesc('u.created_at')->orderBy('u.id')->paginate(20, ['*'], 'page', $userId ? 1 : null)->appends(request()->except(['partner', 'kyc_company', 'kyc_user', 'kyc_application', 'kyc_page', 'funds_company', 'funds_user', 'funds_page', 'funds_asset', 'funds_event', 'funds_from', 'funds_to']));
+            ->orderByDesc('u.created_at')->orderBy('u.id')->paginate($perPage, ['*'], 'page', $userId ? 1 : $pageNumber)->appends(request()->except(['partner', 'kyc_company', 'kyc_user', 'kyc_application', 'kyc_page', 'funds_company', 'funds_user', 'funds_page', 'funds_asset', 'funds_event', 'funds_from', 'funds_to']));
         $wallets = ($financialAccess['balances'] ?? false) ? app(PlatformWalletQuery::class)->forUsers($page->getCollection()->pluck('id')->all()) : [];
 
         $receipts = ($financialAccess['receipts'] ?? false) ? app(PlatformUserReceiptQuery::class)->forUsers($page->getCollection()->all()) : [];

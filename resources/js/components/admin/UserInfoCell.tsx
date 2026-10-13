@@ -23,10 +23,12 @@ export function UserInfoCell({
     user,
     interactive = true,
     action = false,
+    asOf = null,
 }: {
     user: UserInfo;
     interactive?: boolean;
     action?: boolean;
+    asOf?: string | null;
 }) {
     const [open, setOpen] = useState(false);
     const trigger = useRef<HTMLButtonElement | null>(null);
@@ -88,7 +90,14 @@ export function UserInfoCell({
             ) : (
                 <div className="w-44 max-w-full space-y-1.5">{content}</div>
             )}
-            {open && <UserDetails user={user} onClose={() => setOpen(false)} trigger={trigger} />}
+            {open && (
+                <UserDetails
+                    asOf={asOf}
+                    user={user}
+                    onClose={() => setOpen(false)}
+                    trigger={trigger}
+                />
+            )}
         </>
     );
 }
@@ -97,10 +106,12 @@ type Detail = Omit<ComponentProps<typeof UserManagement>, 'users' | 'companies' 
     user: PlatformUser;
 };
 function UserDetails({
+    asOf,
     user,
     onClose,
     trigger,
 }: {
+    asOf: string | null;
     user: UserInfo;
     onClose: () => void;
     trigger: React.RefObject<HTMLButtonElement | null>;
@@ -112,8 +123,9 @@ function UserDetails({
     useEffect(() => {
         const controller = new AbortController();
         setError(false);
+        setData(null);
         void fetch(
-            `/platform/tenants/${encodeURIComponent(user.companyId)}/users/${encodeURIComponent(user.id)}/details`,
+            `/platform/tenants/${encodeURIComponent(user.companyId)}/users/${encodeURIComponent(user.id)}/details${asOf ? `?as_of=${encodeURIComponent(asOf)}` : ''}`,
             {
                 credentials: 'same-origin',
                 cache: 'no-store',
@@ -130,7 +142,7 @@ function UserDetails({
                 if (!controller.signal.aborted) setError(true);
             });
         return () => controller.abort();
-    }, [user.companyId, user.id, revision]);
+    }, [user.companyId, user.id, revision, asOf]);
     return (
         <Dialog
             open
@@ -172,7 +184,7 @@ function UserDetails({
                                 {...data}
                                 detail
                                 companies={[]}
-                                filters={{}}
+                                filters={{ as_of: asOf ?? undefined }}
                                 users={{
                                     data: [data.user],
                                     total: 1,

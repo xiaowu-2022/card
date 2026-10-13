@@ -2,6 +2,7 @@
 
 namespace App\Application\User;
 
+use App\Application\User\Snapshots\UserSnapshotReader;
 use Illuminate\Support\Facades\DB;
 
 final class PlatformUserDescendantCounts
@@ -14,7 +15,7 @@ final class PlatformUserDescendantCounts
         }
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         // UNION deduplicates descendants and terminates even if a historical cycle exists.
-        $rows = DB::select(<<<SQL
+        $rows = DB::select(app(UserSnapshotReader::class)->sql(<<<SQL
             WITH RECURSIVE descendants AS (
                 SELECT user_id AS root_user_id, tenant_id, id, user_id
                 FROM promotion_members WHERE user_id IN ($placeholders)
@@ -26,7 +27,7 @@ final class PlatformUserDescendantCounts
             SELECT d.root_user_id, COUNT(*) AS total
             FROM descendants d JOIN users u ON u.id = d.user_id AND u.tenant_id = d.tenant_id
             WHERE d.user_id <> d.root_user_id GROUP BY d.root_user_id
-            SQL, $ids);
+            SQL), $ids);
 
         return collect($rows)->mapWithKeys(fn ($row) => [$row->root_user_id => (int) $row->total])->all();
     }

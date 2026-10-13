@@ -4,6 +4,7 @@ namespace App\Application\User;
 
 use App\Application\Promotion\ManualPromotion;
 use App\Application\Promotion\OrdinaryMemberQuery;
+use App\Application\User\Snapshots\UserSnapshotReader;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -11,7 +12,7 @@ final class PlatformUserAncestors
 {
     public function read(string $tenant, string $user): array
     {
-        $rows = DB::select(<<<'SQL'
+        $rows = DB::select(app(UserSnapshotReader::class)->sql(<<<'SQL'
             WITH RECURSIVE ancestors AS (
                 SELECT id, tenant_id, user_id, inviter_id, 0 AS distance, ARRAY[id] AS visited
                 FROM promotion_members WHERE tenant_id = ? AND user_id = ?
@@ -25,7 +26,7 @@ final class PlatformUserAncestors
             JOIN users u ON u.id = a.user_id AND u.tenant_id = a.tenant_id
             LEFT JOIN user_profiles p ON p.user_id = u.id AND p.tenant_id = u.tenant_id
             WHERE a.distance > 0 ORDER BY a.distance
-            SQL, [$tenant, $user]);
+            SQL), [$tenant, $user]);
         if ($rows === []) {
             return [];
         }

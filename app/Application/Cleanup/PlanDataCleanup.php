@@ -303,6 +303,22 @@ final class PlanDataCleanup
                 'asset' => $ledgerAccount['asset_code'], 'accountType' => $ledgerAccount['account_type'],
                 'before' => $ledgerAccount['balance'], 'after' => (string) $after, 'removed' => isset($selected['ledger_accounts'][$key])];
         }
+        // Temporal copies belong to the exact reviewed source rows too. Include them
+        // in preview fingerprints, encrypted backups and the guarded delete manifest.
+        foreach ($data['platform_user_history'] ?? [] as $key => $history) {
+            $source = $history['table_name'];
+            $identity = json_decode($history['source_key'], true, flags: JSON_THROW_ON_ERROR);
+            foreach ($selected[$source] ?? [] as $sourceKey => $operation) {
+                if ($operation !== 'DELETE') {
+                    continue;
+                }
+                $sourceIdentity = json_decode($sourceKey, true, flags: JSON_THROW_ON_ERROR);
+                if ($identity == $sourceIdentity) {
+                    $selected['platform_user_history'][$key] = 'DELETE';
+                    break;
+                }
+            }
+        }
         $items = [];
         $counts = [];
         $images = [];

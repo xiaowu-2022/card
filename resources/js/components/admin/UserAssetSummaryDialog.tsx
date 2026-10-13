@@ -66,9 +66,11 @@ export function AssetAmounts({ items }: { items?: { asset: string; amount: strin
 }
 export function UserAssetSummaryDialog({
     target,
+    asOf = null,
     onClose,
 }: {
     target: Target | null;
+    asOf?: string | null;
     onClose: () => void;
 }) {
     const [view, setView] = useState<'funds' | 'cards'>(target?.view ?? 'funds');
@@ -98,7 +100,7 @@ export function UserAssetSummaryDialog({
                 ? `cards-summary?archived=${archived ? 1 : 0}&page=${page}`
                 : 'funds-summary';
         supportRequest<Funds | Cards>(
-            `/platform/tenants/${target.companyId}/users/${target.id}/${query}`,
+            `/platform/tenants/${target.companyId}/users/${target.id}/${query}${asOf ? `${query.includes('?') ? '&' : '?'}as_of=${encodeURIComponent(asOf)}` : ''}`,
         )
             .then((data) => {
                 if (active) {
@@ -115,7 +117,7 @@ export function UserAssetSummaryDialog({
         return () => {
             active = false;
         };
-    }, [target, view, archived, page, retry]);
+    }, [target, view, archived, page, retry, asOf]);
     const cardsView = () => {
         setPage(1);
         setView('cards');

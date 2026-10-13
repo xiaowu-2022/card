@@ -211,6 +211,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::post('/tenants/{tenant}/users/{user}/restrictions', [UserRestrictionsController::class, 'update'])->whereUuid(['tenant', 'user'])->middleware('throttle:40,1');
     });
     Route::middleware(['admin.scope:platform,users.read', 'throttle:240,1'])->get('/users/referrer-candidates', [UserOperationsController::class, 'referrerCandidates']);
+    Route::middleware('admin.scope:platform,users.read')->get('/users/export', [UserOperationsController::class, 'export'])->name('users.export');
     Route::middleware('admin.scope:platform,users.read')->get('/users', UserOperationsController::class)->name('users.index');
     foreach (['deposit' => 'wallet_topups.read', 'withdrawal' => 'withdrawals.read'] as $mode => $permission) {
         Route::get('/tenants/{tenant}/users/{user}/'.$mode.'-orders', [FundsOrdersController::class, 'userOrders'])

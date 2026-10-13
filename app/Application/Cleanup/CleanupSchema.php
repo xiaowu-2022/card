@@ -9,7 +9,7 @@ use LogicException;
 final class CleanupSchema
 {
     public const TABLES = [
-        'users', 'user_profiles', 'user_preferences', 'user_contact_changes', 'user_password_resets',
+        'platform_user_history', 'users', 'user_profiles', 'user_preferences', 'user_contact_changes', 'user_password_resets',
         'consumer_device_tokens', 'consumer_presence', 'platform_user_creations', 'registration_challenges',
         'wallets', 'ledger_accounts', 'ledger_entries', 'ledger_postings', 'wallet_adjustments',
         'wallet_topup_orders', 'payment_provider_transactions', 'payment_provider_events',
@@ -65,6 +65,7 @@ final class CleanupSchema
     public static function category(string $table): string
     {
         return match (true) {
+            $table === 'platform_user_history' => 'User snapshot history',
             str_starts_with($table, 'ledger_'), $table === 'wallets' => 'Funds and ledger data',
             in_array($table, self::CARDS, true), str_starts_with($table, 'card_transaction_sync_') => 'Cards',
             in_array($table, self::ORDERS, true), $table === 'wealth_installments' => 'Orders',

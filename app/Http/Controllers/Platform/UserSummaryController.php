@@ -4,34 +4,25 @@ namespace App\Http\Controllers\Platform;
 
 use App\Application\User\PlatformUserCardsSummary;
 use App\Application\User\PlatformUserFinancialSummary;
+use App\Application\User\Snapshots\UserSnapshotReader;
 use App\Domain\Tenant\Models\Tenant;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 final class UserSummaryController
 {
-    private function snapshot(callable $read)
+    public function funds(Tenant $tenant, string $user, Request $request, PlatformUserFinancialSummary $query, UserSnapshotReader $snapshots)
     {
-        $outer = DB::transactionLevel();
+        $data = $snapshots->read($snapshots->cutoff($request), fn () => $query->funds($tenant->id, $user), $tenant->id);
 
-        return DB::transaction(function () use ($read, $outer) {
-            if ($outer === 0) {
-                DB::statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
-            }
-
-            return response()->json($read())->header('Cache-Control', 'private, no-store');
-        });
+        return response()->json($data)->header('Cache-Control', 'private, no-store');
     }
 
-    public function funds(Tenant $tenant, string $user, PlatformUserFinancialSummary $query)
-    {
-        return $this->snapshot(fn () => $query->funds($tenant->id, $user));
-    }
-
-    public function cards(Tenant $tenant, string $user, Request $request, PlatformUserCardsSummary $query)
+    public function cards(Tenant $tenant, string $user, Request $request, PlatformUserCardsSummary $query, UserSnapshotReader $snapshots)
     {
         $data = $request->validate(['archived' => 'nullable|boolean', 'page' => 'nullable|integer|min:1|max:100000']);
 
-        return $this->snapshot(fn () => $query->read($tenant->id, $user, $request->boolean('archived'), (int) ($data['page'] ?? 1)));
+        $result = $snapshots->read($snapshots->cutoff($request), fn () => $query->read($tenant->id, $user, $request->boolean('archived'), (int) ($data['page'] ?? 1)), $tenant->id);
+
+        return response()->json($result)->header('Cache-Control', 'private, no-store');
     }
 }

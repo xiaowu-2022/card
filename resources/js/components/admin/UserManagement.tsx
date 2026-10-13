@@ -1,3 +1,6 @@
+import { UserSnapshotExport } from './UserSnapshotExport';
+import { Input } from '@/components/ui/input';
+import { errorMessage } from '@/i18n/admin';
 import { UserAssetSummaryDialog, SummaryAmount, AssetAmounts } from './UserAssetSummaryDialog';
 import { Pencil } from 'lucide-react';
 import { EnablePartnerDialog } from './EnablePartnerDialog';
@@ -90,6 +93,9 @@ export type PlatformUser = {
 
 export default function UserManagement({
     detail = false,
+    readOnly = false,
+    snapshotAt = null,
+    snapshotEarliest = null,
     users,
     companies,
     filters,
@@ -109,6 +115,9 @@ export default function UserManagement({
     canManageRestrictions,
 }: {
     detail?: boolean;
+    readOnly?: boolean;
+    snapshotAt?: string | null;
+    snapshotEarliest?: string | null;
     canManageRestrictions: boolean;
     canRemark: boolean;
     canManagePartners?: boolean;
@@ -130,6 +139,7 @@ export default function UserManagement({
         status?: string;
         support?: string;
         referrer?: string;
+        as_of?: string;
     };
     financialAccess: {
         receipts: boolean;
@@ -152,7 +162,8 @@ export default function UserManagement({
     const [cleanup, setCleanup] = useState<{ user?: PlatformUser } | null>(null);
     const [supportBusy, setSupportBusy] = useState(false);
     const [supportError, setSupportError] = useState('');
-    const { url } = usePage();
+    const { url, props } = usePage();
+    const cutoffError = props.errors?.as_of;
     const [kycTarget, setKycTarget] = useState(initialKycTarget);
     const [fundsTarget, setFundsTarget] = useState(initialFundsTarget);
     const kycTrigger = useRef<HTMLElement | null>(null);
@@ -171,12 +182,13 @@ export default function UserManagement({
             title={t('Users')}
             actions={
                 <>
-                    {canCleanup && !detail && (
+                    {!detail && <UserSnapshotExport filters={filters} />}
+                    {!readOnly && canCleanup && !detail && (
                         <Button variant="secondary" onClick={() => setCleanup({})}>
                             {t('Cleanup data')}
                         </Button>
                     )}
-                    {canCreateUser && (
+                    {!readOnly && canCreateUser && (
                         <Button onClick={() => setCreateOpen(true)}>{t('Add account')}</Button>
                     )}
                 </>
@@ -185,10 +197,11 @@ export default function UserManagement({
             <UserAssetSummaryDialog
                 key={assetTarget ? `${assetTarget.id}-${assetTarget.view}` : 'closed'}
                 target={assetTarget}
+                asOf={snapshotAt}
                 onClose={() => setAssetTarget(null)}
             />
             {!detail && <Head title={t('Users')} />}
-            {cleanup && (
+            {!readOnly && cleanup && (
                 <DataCleanupDialog
                     companies={companies}
                     company={filters.company}
@@ -196,7 +209,7 @@ export default function UserManagement({
                     onClose={() => setCleanup(null)}
                 />
             )}
-            {partnerUser && (
+            {!readOnly && partnerUser && (
                 <EnablePartnerDialog
                     user={partnerUser}
                     onClose={() => setPartnerUser(null)}
@@ -206,7 +219,7 @@ export default function UserManagement({
                     }}
                 />
             )}
-            {restrictionsUser && (
+            {!readOnly && restrictionsUser && (
                 <UserRestrictionsDialog
                     key={restrictionsUser.id}
                     user={restrictionsUser}
@@ -236,7 +249,7 @@ export default function UserManagement({
                             >
                                 {t('Basic information')}
                             </TabsTrigger>
-                            {canViewFunds && (
+                            {!readOnly && canViewFunds && (
                                 <TabsTrigger
                                     value="funds"
                                     id={`${detailTabsId}-funds`}
@@ -245,7 +258,7 @@ export default function UserManagement({
                                     {t('User fund flows')}
                                 </TabsTrigger>
                             )}
-                            {canViewKyc && (
+                            {!readOnly && canViewKyc && (
                                 <TabsTrigger
                                     value="kyc"
                                     id={`${detailTabsId}-kyc`}
@@ -254,7 +267,7 @@ export default function UserManagement({
                                     {t('Verification')}
                                 </TabsTrigger>
                             )}
-                            {canViewTopups && (
+                            {!readOnly && canViewTopups && (
                                 <TabsTrigger
                                     value="deposit"
                                     id={`${detailTabsId}-deposit`}
@@ -263,7 +276,7 @@ export default function UserManagement({
                                     {t('Deposit orders')}
                                 </TabsTrigger>
                             )}
-                            {financialAccess.withdrawals && (
+                            {!readOnly && financialAccess.withdrawals && (
                                 <TabsTrigger
                                     value="withdrawal"
                                     id={`${detailTabsId}-withdrawal`}
@@ -283,6 +296,27 @@ export default function UserManagement({
                             )}
                         </TabsList>
                     </Tabs>
+                )}
+                {(!detail || snapshotAt) && (
+                    <div className="space-y-1 text-sm text-muted-foreground" role="status">
+                        <p>
+                            {snapshotAt
+                                ? t('Read-only snapshot at {{time}} (UTC+8)', {
+                                      time: snapshotAt.replace('T', ' '),
+                                  })
+                                : t('Current user data')}
+                        </p>
+                        {snapshotEarliest && (
+                            <p>
+                                {t('Historical snapshots available from {{time}} (UTC+8)', {
+                                    time: snapshotEarliest.replace('T', ' '),
+                                })}
+                            </p>
+                        )}
+                    </div>
+                )}
+                {cutoffError && (
+                    <OperationFeedback role="alert">{errorMessage(cutoffError)}</OperationFeedback>
                 )}
                 {supportError && <OperationFeedback role="alert">{supportError}</OperationFeedback>}
                 <UserRecordsView
@@ -343,10 +377,33 @@ export default function UserManagement({
                     statuses={['ACTIVE', 'SUSPENDED', 'DISABLED', 'DEPOSIT_REFUNDING']}
                     textFilters={[
                         {
+                            key: 'as_of',
+                            label: 'Cutoff time (UTC+8)',
+                            placeholder: 'Cutoff time (UTC+8)',
+                            render: ({ value, onChange }) => (
+                                <Input
+                                    type="datetime-local"
+                                    step={1}
+                                    min={snapshotEarliest ?? undefined}
+                                    aria-label={t('Cutoff time (UTC+8)')}
+                                    value={value}
+                                    onChange={(event) =>
+                                        onChange(
+                                            event.target.value.length === 16
+                                                ? `${event.target.value}:00`
+                                                : event.target.value,
+                                        )
+                                    }
+                                />
+                            ),
+                        },
+                        {
                             key: 'referrer',
                             label: 'Filter by referrer',
                             placeholder: 'Referrer account ID or email',
-                            render: (props) => <ReferrerFilterSelect {...props} />,
+                            render: (props) => (
+                                <ReferrerFilterSelect {...props} asOf={snapshotAt} />
+                            ),
                         },
                     ]}
                     selectFilters={[
@@ -372,13 +429,13 @@ export default function UserManagement({
                                 detail ? (
                                     <span className="break-all">{row.email || '—'}</span>
                                 ) : (
-                                    <UserInfoCell user={row} />
+                                    <UserInfoCell user={row} asOf={snapshotAt} />
                                 ),
                         },
                         {
                             label: 'Agent level',
                             render: (row) =>
-                                detail ? (
+                                detail && !readOnly ? (
                                     <Link
                                         className="text-primary underline underline-offset-4"
                                         href={`/platform/tenants/${row.companyId}/users/${row.id}/promotion`}
@@ -663,7 +720,7 @@ export default function UserManagement({
                                               <span className="min-w-0 whitespace-pre-wrap break-words">
                                                   {row.remark || '—'}
                                               </span>
-                                              {canRemark && (
+                                              {!readOnly && canRemark && (
                                                   <Button
                                                       variant="ghost"
                                                       size="icon"
@@ -692,26 +749,28 @@ export default function UserManagement({
                                               <span className="tabular-nums">
                                                   {row.invitationCode || '—'}
                                               </span>
-                                              {canChangeInvitation && row.invitationCode && (
-                                                  <Button
-                                                      variant="ghost"
-                                                      size="icon"
-                                                      className="size-6 min-h-6 shrink-0 text-muted-foreground"
-                                                      aria-label={t('Change invitation code')}
-                                                      title={t('Change invitation code')}
-                                                      onClick={(event) =>
-                                                          openAdminEditor(
-                                                              `/platform/tenants/${row.companyId}/users/${row.id}/invitation-code`,
-                                                              event.currentTarget,
-                                                          )
-                                                      }
-                                                  >
-                                                      <Pencil
-                                                          className="size-3.5"
-                                                          aria-hidden="true"
-                                                      />
-                                                  </Button>
-                                              )}
+                                              {!readOnly &&
+                                                  canChangeInvitation &&
+                                                  row.invitationCode && (
+                                                      <Button
+                                                          variant="ghost"
+                                                          size="icon"
+                                                          className="size-6 min-h-6 shrink-0 text-muted-foreground"
+                                                          aria-label={t('Change invitation code')}
+                                                          title={t('Change invitation code')}
+                                                          onClick={(event) =>
+                                                              openAdminEditor(
+                                                                  `/platform/tenants/${row.companyId}/users/${row.id}/invitation-code`,
+                                                                  event.currentTarget,
+                                                              )
+                                                          }
+                                                      >
+                                                          <Pencil
+                                                              className="size-3.5"
+                                                              aria-hidden="true"
+                                                          />
+                                                      </Button>
+                                                  )}
                                           </div>
                                       ),
                                   },
@@ -726,7 +785,7 @@ export default function UserManagement({
                                           'sticky right-0 z-10 bg-surface shadow-[-1px_0_0_var(--color-border)]',
                                       render: (row: PlatformUser) => (
                                           <div className="flex items-center gap-2 whitespace-nowrap">
-                                              <UserInfoCell user={row} action />
+                                              <UserInfoCell user={row} action asOf={snapshotAt} />
                                               <Button
                                                   variant="secondary"
                                                   size="sm"
@@ -736,6 +795,7 @@ export default function UserManagement({
                                                           {
                                                               company: row.companyId,
                                                               referrer: row.accountId,
+                                                              as_of: snapshotAt ?? undefined,
                                                           },
                                                           { preserveState: true },
                                                       )
@@ -767,116 +827,122 @@ export default function UserManagement({
                                                     canManageSupport ||
                                                     canAdjustWallet ||
                                                     canChangeReferrer ||
-                                                    canAdjustCommission) && (
-                                                    <div
-                                                        className="flex flex-wrap gap-2"
-                                                        onFocus={(event) => {
-                                                            kycTrigger.current = event.target;
-                                                        }}
-                                                    >
-                                                        {canManagePartners && !row.partnerId && (
-                                                            <Button
-                                                                variant="secondary"
-                                                                onClick={() => setPartnerUser(row)}
-                                                            >
-                                                                {t('Set as partner')}
-                                                            </Button>
-                                                        )}
-                                                        {canCleanup && (
-                                                            <Button
-                                                                variant="secondary"
-                                                                onClick={() =>
-                                                                    setCleanup({ user: row })
-                                                                }
-                                                            >
-                                                                {t('Cleanup data')}
-                                                            </Button>
-                                                        )}
-                                                        {canManageRestrictions && (
-                                                            <Button
-                                                                variant="secondary"
-                                                                onClick={() =>
-                                                                    setRestrictionsUser(row)
-                                                                }
-                                                            >
-                                                                {t('Operation restrictions')}
-                                                            </Button>
-                                                        )}
-                                                        {canManageSupport && (
-                                                            <Button
-                                                                variant="secondary"
-                                                                disabled={
-                                                                    supportBusy ||
-                                                                    (!row.supportAgent &&
-                                                                        row.status !== 'ACTIVE')
-                                                                }
-                                                                onClick={() => {
-                                                                    setSupportBusy(true);
-                                                                    setSupportError('');
-                                                                    void (async () => {
-                                                                        try {
-                                                                            await supportRequest(
-                                                                                `/platform/tenants/${row.companyId}/users/${row.id}/support-agent`,
-                                                                                {
-                                                                                    enabled:
-                                                                                        !row.supportAgent,
-                                                                                    revision:
-                                                                                        row.supportRevision,
-                                                                                },
-                                                                            );
-                                                                            router.reload({
-                                                                                onFinish: () =>
-                                                                                    setSupportBusy(
-                                                                                        false,
-                                                                                    ),
-                                                                            });
-                                                                        } catch {
-                                                                            setSupportError(
-                                                                                t(
-                                                                                    'Unable to save. Refresh and try again.',
-                                                                                ),
-                                                                            );
-                                                                            setSupportBusy(false);
+                                                    canAdjustCommission) &&
+                                                    !readOnly && (
+                                                        <div
+                                                            className="flex flex-wrap gap-2"
+                                                            onFocus={(event) => {
+                                                                kycTrigger.current = event.target;
+                                                            }}
+                                                        >
+                                                            {canManagePartners &&
+                                                                !row.partnerId && (
+                                                                    <Button
+                                                                        variant="secondary"
+                                                                        onClick={() =>
+                                                                            setPartnerUser(row)
                                                                         }
-                                                                    })();
-                                                                }}
-                                                            >
-                                                                {t(
-                                                                    row.supportAgent
-                                                                        ? 'Remove support access'
-                                                                        : 'Make support agent',
+                                                                    >
+                                                                        {t('Set as partner')}
+                                                                    </Button>
                                                                 )}
-                                                            </Button>
-                                                        )}
-                                                        {canAdjustWallet && (
-                                                            <Button variant="secondary" asChild>
-                                                                <Link
-                                                                    href={`/platform/tenants/${row.companyId}/users/${row.id}/wallet-adjustments`}
+                                                            {canCleanup && (
+                                                                <Button
+                                                                    variant="secondary"
+                                                                    onClick={() =>
+                                                                        setCleanup({ user: row })
+                                                                    }
                                                                 >
-                                                                    {t('Wallet adjustment')}
-                                                                </Link>
-                                                            </Button>
-                                                        )}
-                                                        {canChangeReferrer && (
-                                                            <Button variant="secondary" asChild>
-                                                                <Link
-                                                                    href={`/platform/tenants/${row.companyId}/users/${row.id}/referrer`}
+                                                                    {t('Cleanup data')}
+                                                                </Button>
+                                                            )}
+                                                            {!readOnly && canManageRestrictions && (
+                                                                <Button
+                                                                    variant="secondary"
+                                                                    onClick={() =>
+                                                                        setRestrictionsUser(row)
+                                                                    }
                                                                 >
-                                                                    {t('Change referrer')}
-                                                                </Link>
-                                                            </Button>
-                                                        )}
-                                                        {canAdjustCommission && (
-                                                            <Button variant="secondary" asChild>
-                                                                <Link
-                                                                    href={`/platform/tenants/${row.companyId}/users/${row.id}/manual-commissions`}
+                                                                    {t('Operation restrictions')}
+                                                                </Button>
+                                                            )}
+                                                            {canManageSupport && (
+                                                                <Button
+                                                                    variant="secondary"
+                                                                    disabled={
+                                                                        supportBusy ||
+                                                                        (!row.supportAgent &&
+                                                                            row.status !== 'ACTIVE')
+                                                                    }
+                                                                    onClick={() => {
+                                                                        setSupportBusy(true);
+                                                                        setSupportError('');
+                                                                        void (async () => {
+                                                                            try {
+                                                                                await supportRequest(
+                                                                                    `/platform/tenants/${row.companyId}/users/${row.id}/support-agent`,
+                                                                                    {
+                                                                                        enabled:
+                                                                                            !row.supportAgent,
+                                                                                        revision:
+                                                                                            row.supportRevision,
+                                                                                    },
+                                                                                );
+                                                                                router.reload({
+                                                                                    onFinish: () =>
+                                                                                        setSupportBusy(
+                                                                                            false,
+                                                                                        ),
+                                                                                });
+                                                                            } catch {
+                                                                                setSupportError(
+                                                                                    t(
+                                                                                        'Unable to save. Refresh and try again.',
+                                                                                    ),
+                                                                                );
+                                                                                setSupportBusy(
+                                                                                    false,
+                                                                                );
+                                                                            }
+                                                                        })();
+                                                                    }}
                                                                 >
-                                                                    {t('Adjust commission')}
-                                                                </Link>
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                )}
+                                                                    {t(
+                                                                        row.supportAgent
+                                                                            ? 'Remove support access'
+                                                                            : 'Make support agent',
+                                                                    )}
+                                                                </Button>
+                                                            )}
+                                                            {canAdjustWallet && (
+                                                                <Button variant="secondary" asChild>
+                                                                    <Link
+                                                                        href={`/platform/tenants/${row.companyId}/users/${row.id}/wallet-adjustments`}
+                                                                    >
+                                                                        {t('Wallet adjustment')}
+                                                                    </Link>
+                                                                </Button>
+                                                            )}
+                                                            {canChangeReferrer && (
+                                                                <Button variant="secondary" asChild>
+                                                                    <Link
+                                                                        href={`/platform/tenants/${row.companyId}/users/${row.id}/referrer`}
+                                                                    >
+                                                                        {t('Change referrer')}
+                                                                    </Link>
+                                                                </Button>
+                                                            )}
+                                                            {canAdjustCommission && (
+                                                                <Button variant="secondary" asChild>
+                                                                    <Link
+                                                                        href={`/platform/tenants/${row.companyId}/users/${row.id}/manual-commissions`}
+                                                                    >
+                                                                        {t('Adjust commission')}
+                                                                    </Link>
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    )}
                                             </div>
                                         ),
                                     },
@@ -907,7 +973,7 @@ export default function UserManagement({
                     }}
                 />
             )}
-            {remarkUser && (
+            {!readOnly && remarkUser && (
                 <CustomerRemarkDialog
                     onSaved={() => router.reload()}
                     user={remarkUser}

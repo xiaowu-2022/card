@@ -2,6 +2,22 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Export table': '导出表格',
+    'Unable to export. Please retry.': '导出失败，请重试。',
+    'Cutoff time (UTC+8)': '截止时间（北京时间）',
+    'Current user data': '当前用户数据',
+    'Read-only snapshot at {{time}} (UTC+8)': '截至 {{time}} 的只读快照（北京时间）',
+    'Historical snapshots available from {{time}} (UTC+8)':
+        '可查询 {{time}} 起的历史快照（北京时间）',
+    'Historical snapshots are only available after the snapshot baseline.':
+        '仅支持历史记录建立之后的截止时间。',
+    'Historical snapshot schema is incomplete. Apply the matching migration.':
+        '历史快照记录配置不完整，请先完成配套迁移。',
+    'The cutoff time cannot be in the future.': '截止时间不能晚于当前时间。',
+    'Too many users. Narrow the filters to 10,000 records or fewer.':
+        '最多导出 10,000 个用户，请缩小筛选范围。',
+    'User snapshot history': '用户快照历史',
+
     'Account category': '账号类型',
     'Account / name / email': '账号 / 姓名 / 邮箱',
     'Invitation directory basis':

@@ -4,10 +4,12 @@ import { t } from '@/i18n/admin';
 type Candidate = { account_id: string; display_name: string | null; email: string | null };
 export function ReferrerFilterSelect({
     company,
+    asOf = null,
     value,
     onChange,
 }: {
     company: string;
+    asOf?: string | null;
     value: string;
     onChange: (value: string) => void;
 }) {
@@ -43,6 +45,7 @@ export function ReferrerFilterSelect({
                             search,
                             page: String(page),
                             ...(company ? { company } : {}),
+                            ...(asOf ? { as_of: asOf } : {}),
                             ...(value ? { selected: value } : {}),
                         });
                         const response = await fetch(
@@ -79,7 +82,7 @@ export function ReferrerFilterSelect({
             clearTimeout(timer);
             controller.abort();
         };
-    }, [open, company, search, page, retry, value]);
+    }, [open, company, search, page, retry, value, asOf]);
     const options = [
         ...(selected && !items.some((i) => i.account_id === selected.account_id) && !open
             ? [selected]
