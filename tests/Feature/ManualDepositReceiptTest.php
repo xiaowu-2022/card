@@ -428,6 +428,28 @@ it('rejects stale revisions conflicting retries company overrides and unconfirme
     expect(DB::table('deposit_receipt_type_changes')->count())->toBe(2)->and(DB::table('partner_journal_entries')->count())->toBe(2);
 })->with(['primary', 'asset']);
 
+it('logs safe correlation for a rejected receipt correction without logging submitted financial data', function (): void {
+    $order = receiptOrder($this, 'primary');
+    confirmAutomaticReceipt($order);
+    \Illuminate\Support\Facades\Log::spy();
+    $url = "http://admin.localhost/platform/tenants/{$this->tenant->id}/deposit-orders/primary/{$order->id}/receipt-type";
+    $this->actingAs($this->actor, 'platform_admin')->post($url, [
+        'receipt_type' => 'ADVANCE', 'revision' => 0,
+        'request_id' => (string) Str::uuid(), 'confirmed' => false,
+        'actual_received_amount' => '987.654321',
+    ])->assertSessionHasErrors(['confirmed', 'actual_received_amount']);
+    \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->once()->with(
+        'Deposit receipt type change failed.',
+        Mockery::on(fn (array $context): bool => $context['order_id'] === $order->id
+            && $context['tenant_id'] === $this->tenant->id
+            && is_string($context['request_id'])
+            && in_array('confirmed', $context['validation_fields'], true)
+            && ! str_contains(json_encode($context), '987.654321')),
+    );
+    expect(DB::table('deposit_receipt_type_changes')->count())->toBe(0)
+        ->and(DB::table('partner_journal_entries')->count())->toBe(0);
+});
+
 function confirmAutomaticReceipt(object $order): void
 {
     if ($order instanceof WalletTopupOrder) {
