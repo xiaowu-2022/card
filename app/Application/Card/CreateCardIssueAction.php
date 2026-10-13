@@ -73,12 +73,14 @@ final readonly class CreateCardIssueAction
             return $this->sameRequest($existing, $requestHash);
         }
         $provider = $this->router->forProduct(CardProduct::query()->findOrFail($productId), $formFactor);
-        if (! $provider->available() || $provider->name() !== 'PHOTONPAY') {
+        if (! $provider->available() || ! in_array($provider->name(), ['PHOTONPAY', 'U1'], true)) {
             throw new DomainException('CARD_PROVIDER_UNAVAILABLE', 'New Card setup is currently unavailable.', 503);
         }
 
+        $providerName = $provider->name();
+
         /** @var array{order:CardIssueOrder,created:bool,cardholderReference:string} $prepared */
-        $prepared = DB::transaction(function () use ($tenantId, $userId, $requestId, $productId, $initial, $requestHash, $cardholderApplicationId, $auditRequestId, $formFactor, $recipientApplicationId): array {
+        $prepared = DB::transaction(function () use ($tenantId, $userId, $requestId, $productId, $initial, $requestHash, $cardholderApplicationId, $auditRequestId, $formFactor, $recipientApplicationId, $providerName): array {
             DB::statement('SELECT pg_advisory_xact_lock(?)', [$this->lockKey($tenantId, $userId, $requestId)]);
             $existing = CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('request_id', $requestId)->lockForUpdate()->first();
             if ($existing) {
@@ -96,7 +98,7 @@ final readonly class CreateCardIssueAction
             }
             $cardholder = ProviderCardholder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)
                 ->whereKey($cardholderApplicationId)->where('card_product_id', $productId)
-                ->whereNotNull('request_id')->where('provider', 'PHOTONPAY')->lockForUpdate()->first();
+                ->whereNotNull('request_id')->where('provider', $providerName)->lockForUpdate()->first();
             if ($tenant->status !== TenantStatus::Active || $user->status !== UserStatus::Active) {
                 throw new DomainException('CARD_ISSUE_UNAVAILABLE', 'Opening a Card requires an active account.', 403);
             }
@@ -108,10 +110,12 @@ final readonly class CreateCardIssueAction
                 throw new DomainException('CARD_WALLET_UNAVAILABLE', 'An active USDT Wallet is required.', 409);
             }
             if (! $product || ! $config || $product->status !== CardProductStatus::Active || $config->status !== TenantCardProductStatus::Active
-                || ($product->provider !== 'PHOTONPAY' && ! $this->router->isLocalMock($product) && ! $this->router->isPhotonPayAccount($product)) || $product->card_currency !== 'USD' || $product->card_type !== 'REGULAR') {
+                || ($product->provider !== 'PHOTONPAY' && ! $this->router->isLocalMock($product) && ! $this->router->isPhotonPayAccount($product) && ! $this->router->isU1Account($product)) || $product->card_currency !== 'USD' || $product->card_type !== 'REGULAR') {
                 throw new DomainException('CARD_PRODUCT_UNAVAILABLE', 'This Card product is not available.', 409);
             }
-            if (! $cardholder || $cardholder->status !== ProviderCardholderStatus::Ready || ! $cardholder->provider_cardholder_id) {
+            if (! $cardholder || ($providerName === 'U1'
+                ? $cardholder->status !== ProviderCardholderStatus::LocalReady || $cardholder->provider_cardholder_id !== null
+                : $cardholder->status !== ProviderCardholderStatus::Ready || ! $cardholder->provider_cardholder_id)) {
                 throw new DomainException('CARDHOLDER_NOT_READY', 'The cardholder must be added successfully before opening a card.', 409);
             }
             if ($cardholder->form_factor !== $formFactor || ! in_array($formFactor, $product->supported_form_factors, true)) {
@@ -184,7 +188,7 @@ final readonly class CreateCardIssueAction
                 'initial_load_amount' => $initial->amount(),
                 'wallet_asset' => 'USDT',
                 'card_currency' => 'USD',
-                'provider' => 'PHOTONPAY',
+                'provider' => $providerName,
                 'provider_product_ref' => $this->router->productReference($product),
                 'provider_request_id' => $orderId,
                 'status' => CardIssueStatus::Processing,
@@ -230,7 +234,7 @@ final readonly class CreateCardIssueAction
                 'funding_hold_ledger_entry_id' => $fundingEntry->id,
             ], $auditRequestId);
 
-            return ['order' => $order, 'created' => true, 'cardholderReference' => $cardholder->provider_cardholder_id];
+            return ['order' => $order, 'created' => true, 'cardholderReference' => $cardholder->provider_cardholder_id ?? ''];
         }, 3);
 
         if (! $prepared['created']) {

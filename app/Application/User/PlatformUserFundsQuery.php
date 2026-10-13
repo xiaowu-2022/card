@@ -4,6 +4,7 @@ namespace App\Application\User;
 
 use App\Application\Assets\AssetActivityDetails;
 use App\Application\Assets\AssetActivityLabel;
+use App\Application\Tenant\PlatformFundsFilters;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
@@ -41,10 +42,10 @@ final class PlatformUserFundsQuery
                 $query->where('e.event_type', $filters['event']);
             }
             if (! empty($filters['from'])) {
-                $query->where('e.posted_at', '>=', CarbonImmutable::parse($filters['from'], $tenant->timezone)->startOfDay()->toIso8601String());
+                $query->where('e.posted_at', '>=', CarbonImmutable::parse($filters['from'], PlatformFundsFilters::TIMEZONE)->startOfDay()->toIso8601String());
             }
             if (! empty($filters['to'])) {
-                $query->where('e.posted_at', '<', CarbonImmutable::parse($filters['to'], $tenant->timezone)->addDay()->startOfDay()->toIso8601String());
+                $query->where('e.posted_at', '<', CarbonImmutable::parse($filters['to'], PlatformFundsFilters::TIMEZONE)->addDay()->startOfDay()->toIso8601String());
             }
             $page = $query->orderByDesc('e.posted_at')->orderByDesc('e.id')
                 ->paginate(25, ['e.id', 'e.asset_code', 'e.event_type', 'e.reference_type', 'e.reference_id', 'e.posted_at'], 'page', $filters['page'] ?? 1);
@@ -66,7 +67,7 @@ final class PlatformUserFundsQuery
             return [
                 'company' => ['id' => $tenant->id, 'name' => $tenant->name],
                 'user' => ['id' => $member->id, 'displayName' => $member->profile?->display_name, 'email' => $member->email],
-                'timezone' => $tenant->timezone,
+                'timezone' => PlatformFundsFilters::TIMEZONE,
                 'accounts' => $accounts->map(fn ($a) => ['asset' => $a->asset_code, 'type' => $a->account_type, 'balance' => Money::of($a->balance, $a->asset_code)->amount()])->all(),
                 'events' => array_map(fn ($event) => ['value' => $event, 'label' => AssetActivityLabel::for($event, '0')], $events),
                 'rows' => ['page' => $page->currentPage(), 'lastPage' => $page->lastPage(), 'total' => $page->total(),

@@ -1,0 +1,37 @@
+{
+  "screens": [
+    {
+      "width": 375,
+      "height": 640
+    },
+    {
+      "width": 375,
+      "height": 812
+    },
+    {
+      "width": 768,
+      "height": 812
+    },
+    {
+      "width": 1036,
+      "height": 812
+    }
+  ],
+  "browsers": [
+    "Chrome",
+    "WebKit"
+  ],
+  "scenarios": [
+    "single-click completion",
+    "lost material response: inspect then issue without resubmission",
+    "changed fees: no issue"
+  ],
+  "money": "exact decimal strings and BigInt; eight-place fee verified",
+  "checks": [
+    "vue-tsc",
+    "H5 build"
+  ],
+  "realProviderCalls": 0,
+  "realFinancialOperations": 0,
+  "deployment": "local H5 assets; native requires rebuild"
+}

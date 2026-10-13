@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useFormFeedback } from '../lib/form-feedback';
 import { useSensitiveScreen } from '../lib/sensitive';
 import { computed, reactive, ref } from 'vue';
 import Modal from '../components/Modal.vue';
@@ -138,6 +139,7 @@ function edit() {
     form.request_id = requestId();
 }
 async function submit() {
+    feedback.begin();
     if (action.pending.value || loadingRecipient.value) return;
     if (!reviewing.value) {
         if (!validAmount(form.amount, form.asset)) {
@@ -204,6 +206,7 @@ async function submit() {
     form.current_password = '';
     form.confirmed = false;
 }
+const feedback = useFormFeedback(action.errors);
 </script>
 <template>
     <PageShell :title="t('Transfer')" back="/dashboard" active="assets"
@@ -246,7 +249,7 @@ async function submit() {
                 ><text class="balance-amount"
                     >{{ exactAmount(selected?.amount ?? '0') }} {{ form.asset }}</text
                 ></view
-            ><FormErrors :errors="action.errors.value" /><template v-if="!reviewing"
+            ><FormErrors v-if="!reviewing" :errors="action.errors.value" /><template v-if="!reviewing"
                 ><SelectField
                     v-model="form.asset"
                     :disabled="loadingRecipient || attempted"
@@ -259,6 +262,7 @@ async function submit() {
                         }
                     "
                 /><FormField
+                    name="recipient_account_id"
                     v-model="form.recipient_account_id"
                     :disabled="loadingRecipient || attempted"
                     :label="t('Recipient account ID')"
@@ -266,6 +270,7 @@ async function submit() {
                     :maxlength="12"
                     @update:model-value="changed"
                 /><FormField
+                    name="amount"
                     v-model="form.amount"
                     :disabled="loadingRecipient || attempted"
                     :label="t('Transfer quantity')"
@@ -306,6 +311,7 @@ async function submit() {
                         )
                     }}</text></view
                 ><FormField
+                    name="current_password"
                     v-model="form.current_password"
                     :label="t('Current password')"
                     password

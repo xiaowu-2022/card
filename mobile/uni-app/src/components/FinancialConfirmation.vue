@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useFormFeedback } from '../lib/form-feedback';
 import { ref } from 'vue';
 import { useSensitiveScreen } from '../lib/sensitive';
 import Modal from './Modal.vue';
@@ -32,6 +33,7 @@ useSensitiveScreen(() => {
     open.value = false;
 });
 async function submit() {
+    feedback.begin();
     if (props.disabled || !confirmed.value || !password.value) return;
     await action.submit(
         props.url,
@@ -47,6 +49,7 @@ async function submit() {
     );
     password.value = '';
 }
+const feedback = useFormFeedback(action.errors);
 </script>
 <template>
     <button class="primary" :disabled="disabled" @click="open = true">{{ title }}</button
@@ -60,6 +63,7 @@ async function submit() {
         >
         <form @submit="submit">
             <FormField
+                name="current_password"
                 v-model="password"
                 :label="t('Current password')"
                 password

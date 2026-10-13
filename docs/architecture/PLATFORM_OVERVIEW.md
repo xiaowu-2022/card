@@ -139,3 +139,14 @@ once. Amounts remain actual_received_amount with original amount fallback for le
 settlements. This does not alter wallets, original receipts, advance journals, global
 fund flows or the independent historical section. No schema migration or frontend
 change is required.
+
+
+## 2026-10-13 后台北京时间
+
+后台日期显示、今日/近 N 日统计、合作方每日统计及资金日期筛选统一使用
+Asia/Shanghai（北京时间 UTC+8），不跟随浏览器、公司或服务器时区。今日从北京
+时间 00:00 开始，次日 00:00 不包含；实时汇总及来源明细共同截止当前读取时间。
+绑定 PostgreSQL timestamptz 查询边界必须保留 ISO 8601 时区偏移，不能把 UTC Carbon
+对象直接绑定成无时区字符串，否则 UTC+8 会把起点误读为前一天 16:00。
+历史时间戳、公司配置、业务结算及消费者时区规则不重写，无需迁移。部署 PHP 与
+匹配后台构建；仅在隔离数据库验证 UTC / UTC+8 会话下的零点前后和次日边界。

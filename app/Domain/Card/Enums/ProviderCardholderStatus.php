@@ -7,6 +7,7 @@ enum ProviderCardholderStatus: string
     case Submitting = 'SUBMITTING';
     case Pending = 'PENDING';
     case Ready = 'READY';
+    case LocalReady = 'LOCAL_READY';
     case ActionRequired = 'ACTION_REQUIRED';
     case Rejected = 'REJECTED';
     case Disabled = 'DISABLED';

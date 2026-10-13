@@ -1,132 +1,163 @@
 <script setup lang="ts">
+import { useFormFeedback } from '../lib/form-feedback';
+import { computed, ref, watch, onMounted } from 'vue';
 import CardProductInfo from './CardProductInfo.vue';
-import { computed, ref } from 'vue';
 import ProcessingOverlay from './ProcessingOverlay.vue';
 import Modal from './Modal.vue';
-import CardholderMaterials from './CardholderMaterials.vue';
+import CardholderFields from './CardholderFields.vue';
 import CardRecipient from './CardRecipient.vue';
-import CardVisual from './CardVisual.vue';
 import FormField from './FormField.vue';
 import FormErrors from './FormErrors.vue';
-import StatusBanner from './StatusBanner.vue';
+import ConfirmCheck from './ConfirmCheck.vue';
 import { t } from '../lib/i18n';
-import { request } from '../lib/api';
-import { useAction, requestId, explainError } from '../lib/client';
+import { ApiError, request } from '../lib/api';
+import { getPage, useAction, requestId, explainError } from '../lib/client';
+import { session } from '../lib/session';
 import { useSensitiveScreen } from '../lib/sensitive';
 import { go } from '../lib/navigation';
 import { displayMoney, exactAmount } from '../generated/exact-amount';
-import { minorUnits, moneyFromMinor, type Product, type Cardholder } from '../lib/card-types';
+import {
+    minorUnits,
+    moneyFromMinor,
+    type Product,
+    type Cardholder,
+    type CardsPage,
+} from '../lib/card-types';
 const props = defineProps<{
-        product: Product;
-        selectedFormFactor: string;
-        availableBalance: string | null;
-        application?: Cardholder;
-        open: boolean;
-        birthDateRequired?: boolean;
-    }>(),
-    emit = defineEmits<{ close: []; reload: [] }>();
-const action = useAction(),
-    materialsBusy = ref(false),
-    recipientBusy = ref(false),
-    reviewing = ref(false),
-    editing = ref(false),
+    product: Product;
+    selectedFormFactor: string;
+    availableBalance: string | null;
+    application?: Cardholder;
+    open: boolean;
+    birthDateRequired?: boolean;
+}>();
+const emit = defineEmits<{ close: []; reload: [] }>();
+const action = useAction();
+const holder = ref(props.application),
+    working = ref(false),
     loading = ref(false),
-    fields = ref<Record<string, string>>({}),
-    readErrors = ref<Record<string, string>>({}),
-    recipientId = ref(''),
-    recipientSummary = ref(''),
-    amount = ref(exactAmount(props.product.minimumInitialLoad)),
-    id = ref(requestId()),
-    uncertain = ref(false);
-const factor = computed(
+    confirmed = ref(false);
+const fields = ref<Record<string, string>>({
+    legal_first_name: '',
+    legal_last_name: '',
+    email: session.value?.user?.email ?? '',
+    mobile: '',
+    mobile_country_code: 'CN',
+});
+const original = ref<Record<string, string> | null>(null),
+    errors = ref<Record<string, string>>({});
+const amount = ref(exactAmount(props.product.minimumInitialLoad)),
+    balance = ref(props.availableBalance);
+const materialId = ref(props.application?.requestId ?? requestId()),
+    issueId = ref(requestId());
+const materialUncertain = ref(false),
+    issueUncertain = ref(false);
+const recipient = ref<InstanceType<typeof CardRecipient> | null>(null);
+const factor = computed(() => holder.value?.formFactor ?? props.selectedFormFactor);
+const ready = computed(() => holder.value?.state === 'ready');
+const pending = computed(
     () =>
-        props.application?.formFactor ??
-        ((props.product.supportedFormFactors ?? ['virtual_card']).includes(props.selectedFormFactor)
-            ? props.selectedFormFactor
-            : (props.product.supportedFormFactors?.[0] ?? 'virtual_card')),
+        materialUncertain.value ||
+        (holder.value && !['ready', 'action_required', 'setup'].includes(holder.value.state)),
 );
-const ready = computed(() => props.application?.state === 'ready' && !editing.value),
-    needsMaterials = computed(
-        () =>
-            !props.application ||
-            props.application.state === 'action_required' ||
-            (editing.value && props.application.state === 'ready'),
-    ),
-    busy = computed(
-        () => action.pending.value || materialsBusy.value || recipientBusy.value || loading.value,
-    );
+const busy = computed(() => working.value || loading.value || action.pending.value);
 const calculation = computed(() => {
-    const opening = minorUnits(props.product.openingFee),
+    const fee = minorUnits(props.product.openingFee),
         initial = minorUnits(amount.value),
         minimum = minorUnits(props.product.minimumInitialLoad),
-        available = props.availableBalance === null ? null : minorUnits(props.availableBalance);
-    if (opening === null || initial === null || minimum === null) return null;
+        available = balance.value === null ? null : minorUnits(balance.value);
+    if (
+        !/^(?:0|[1-9]\d{0,9})(?:\.\d{1,2})?$/.test(amount.value) ||
+        fee === null ||
+        initial === null ||
+        minimum === null
+    )
+        return null;
     return {
-        total: moneyFromMinor(opening + initial),
-        enough: available !== null && available >= opening + initial,
+        total: moneyFromMinor(fee + initial),
+        enough: available !== null && available >= fee + initial,
         meetsMinimum: initial >= minimum,
     };
 });
+const validFields = computed(
+    () =>
+        ['legal_first_name', 'legal_last_name', 'email', 'mobile', 'mobile_country_code'].every(
+            (key) => fields.value[key]?.trim(),
+        ) &&
+        (!props.birthDateRequired || !!fields.value.date_of_birth),
+);
 const canSubmit = computed(
     () =>
-        ready.value &&
         props.product.readyForSetup &&
-        (factor.value !== 'physical_card' || !!recipientId.value) &&
+        !pending.value &&
+        validFields.value &&
+        confirmed.value &&
         !!calculation.value?.enough &&
-        !!calculation.value?.meetsMinimum,
+        !!calculation.value?.meetsMinimum &&
+        (factor.value !== 'physical_card' || !!recipient.value?.valid),
+);
+const minimumHint = computed(() =>
+    t('Initial balance must be at least ${{amount}}.', {
+        amount: exactAmount(props.product.minimumInitialLoad),
+    }),
+);
+const needed = computed(() =>
+    t('You need ${{value1}} to open this card.', {
+        value1: exactAmount(calculation.value?.total ?? '0'),
+    }),
 );
 const receiptHint = computed(() =>
-        t('The card receives the same amount in {{value1}}.', {
-            value1: props.product.cardCurrency,
-        }),
+    t('The card receives the same amount in {{value1}}.', { value1: props.product.cardCurrency }),
+);
+const warning = computed(() =>
+    t(
+        'An opening fee of ${{fee}} and initial balance of ${{amount}} will be reserved separately while your card is created. Do not create another request while it is pending.',
+        { fee: exactAmount(props.product.openingFee), amount: displayMoney(amount.value) },
     ),
-    minimumHint = computed(() =>
-        t('Initial balance must be at least ${{amount}}.', {
-            amount: displayMoney(props.product.minimumInitialLoad),
-        }),
-    ),
-    needed = computed(() =>
-        t('You need ${{value1}} to open this card.', {
-            value1: displayMoney(calculation.value?.total ?? '0'),
-        }),
-    ),
-    availableHint = computed(() =>
-        t('Available: ${{value1}}', { value1: displayMoney(props.availableBalance ?? '0') }),
-    ),
-    warning = computed(() =>
-        t(
-            'An opening fee of ${{fee}} and initial balance of ${{amount}} will be reserved separately while your card is created. Do not create another request while it is pending.',
-            { fee: displayMoney(props.product.openingFee), amount: displayMoney(amount.value) },
-        ),
-    );
+);
 let generation = 0;
+watch(
+    () => props.application,
+    (value) => {
+        if (!busy.value && value?.requestId === materialId.value) holder.value = value;
+    },
+);
+watch(amount, () => {
+    confirmed.value = false;
+    if (!issueUncertain.value) issueId.value = requestId();
+});
+watch(
+    fields,
+    () => {
+        confirmed.value = false;
+    },
+    { deep: true },
+);
 function close() {
-    if (busy.value || reviewing.value) return;
+    if (busy.value) return;
     generation++;
     fields.value = {};
-    editing.value = false;
+    original.value = null;
+    emit('reload');
     emit('close');
 }
 useSensitiveScreen(
     () => {
         generation++;
+        confirmed.value = false;
         fields.value = {};
-        editing.value = false;
-        reviewing.value = false;
-        recipientSummary.value = '';
+        original.value = null;
         emit('close');
     },
     { retainUntilUnmount: true },
 );
-async function edit() {
-    if (!props.application?.id || busy.value) return;
-    const run = ++generation;
-    editing.value = true;
+async function loadSavedFields() {
+    if (!ready.value || !holder.value?.id) return;
+    const run = generation;
     loading.value = true;
-    readErrors.value = {};
     try {
-        const result = await request<{ fields: Record<string, unknown> }>(
-            '/client/cards/cardholder/' + props.application.id + '/details',
+        const data = await request<{ fields: Record<string, unknown> }>(
+            '/client/cards/cardholder/' + holder.value.id + '/details',
             'POST',
         );
         if (run !== generation) return;
@@ -137,302 +168,317 @@ async function edit() {
             'mobile',
             'mobile_country_code',
         ];
-        if (typeof result.fields.date_of_birth === 'string') keys.push('date_of_birth');
-        fields.value = Object.fromEntries(
+        if (typeof data.fields.date_of_birth === 'string') keys.push('date_of_birth');
+        const saved = Object.fromEntries(
             keys.map((key) => {
-                if (typeof result.fields[key] !== 'string') throw new Error('Invalid fields');
-                return [key, result.fields[key]];
+                if (typeof data.fields[key] !== 'string') throw new Error();
+                return [key, data.fields[key]];
             }),
         ) as Record<string, string>;
+        fields.value = saved;
+        original.value = { ...saved };
     } catch {
-        if (run === generation) {
-            editing.value = false;
-            readErrors.value = {
+        if (run === generation)
+            errors.value = {
                 form: t('Cardholder information could not be loaded. Please close and try again.'),
             };
-        }
     } finally {
         loading.value = false;
     }
 }
-async function sync() {
-    if (!props.application?.id || busy.value) return;
-    await action.submit(
-        '/cards/cardholder/' + props.application.id + '/sync',
-        {},
-        { navigate: false, success: () => emit('reload') },
-    );
+onMounted(loadSavedFields);
+async function readHolder(run: number) {
+    const page = await getPage<CardsPage>('/cards');
+    if (run !== generation) return null;
+    const current = page.props.cardholder;
+    if (
+        current.requestId !== materialId.value ||
+        current.productId !== props.product.id ||
+        !current.id
+    )
+        throw new Error('Application could not be confirmed');
+    holder.value = current;
+    balance.value = page.props.availableBalance;
+    const product = page.props.products.find((item) => item.id === props.product.id);
+    if (
+        !product ||
+        product.openingFee !== props.product.openingFee ||
+        product.cardCurrency !== props.product.cardCurrency ||
+        product.minimumInitialLoad !== props.product.minimumInitialLoad
+    ) {
+        errors.value = {
+            form: t(
+                'Card fees changed. Close and reopen the application to confirm the current fees.',
+            ),
+        };
+        return null;
+    }
+    materialUncertain.value = false;
+    return current;
 }
-function added() {
-    editing.value = false;
-    fields.value = {};
-    emit('reload');
-}
-async function issue() {
-    if (!canSubmit.value || busy.value) return;
-    uncertain.value = true;
-    const result = await action.submit(
-        '/cards/issues',
-        {
-            request_id: id.value,
-            card_product_id: props.product.id,
-            initial_load_amount: amount.value,
-            cardholder_application_id: props.application?.id,
-            form_factor: factor.value,
-            recipient_application_id: factor.value === 'physical_card' ? recipientId.value : null,
-        },
-        { navigate: false },
-    );
-    if (result) {
-        reviewing.value = false;
-        uncertain.value = false;
+async function refreshStatus() {
+    if (busy.value) return;
+    const run = generation;
+    working.value = true;
+    errors.value = {};
+    try {
+        if (holder.value?.id && holder.value.canSync)
+            await request('/client/cards/cardholder/' + holder.value.id + '/sync', 'POST', {});
+        const current = await readHolder(run);
+        if (current?.state === 'ready') await loadSavedFields();
         emit('reload');
-        emit('close');
-    } else if (action.failureStatus.value === 422) {
-        uncertain.value = false;
-        reviewing.value = false;
+    } catch (error) {
+        if (run === generation) errors.value = explainError(error);
+    } finally {
+        working.value = false;
     }
 }
-function changeAmount() {
-    if (!uncertain.value) id.value = requestId();
+async function submit() {
+    feedback.begin();
+    if ((!canSubmit.value && !issueUncertain.value) || busy.value) return;
+    const run = generation;
+    working.value = true;
+    errors.value = {};
+    try {
+        if (
+            !issueUncertain.value &&
+            (!ready.value ||
+                !original.value ||
+                JSON.stringify(fields.value) !== JSON.stringify(original.value))
+        ) {
+            materialUncertain.value = true;
+            await request('/client/cards/cardholder', 'POST', {
+                ...fields.value,
+                card_product_id: props.product.id,
+                form_factor: factor.value,
+                request_id: materialId.value,
+            });
+            if (run !== generation) return;
+            const current = await readHolder(run);
+            if (!current || current.state !== 'ready') {
+                emit('reload');
+                return;
+            }
+            original.value = { ...fields.value };
+        }
+        if (run !== generation || !ready.value || !holder.value?.id) return;
+        let recipientId: string | null = null;
+        if (factor.value === 'physical_card') {
+            recipientId = (await recipient.value?.save(holder.value.id)) ?? null;
+            if (run !== generation || !recipientId) return;
+        }
+        if (
+            !issueUncertain.value &&
+            (!calculation.value?.enough || !calculation.value?.meetsMinimum || !confirmed.value)
+        )
+            return;
+        issueUncertain.value = true;
+        const result = await action.submit(
+            '/cards/issues',
+            {
+                request_id: issueId.value,
+                card_product_id: props.product.id,
+                initial_load_amount: amount.value,
+                cardholder_application_id: holder.value.id,
+                form_factor: factor.value,
+                recipient_application_id: recipientId,
+            },
+            { navigate: false },
+        );
+        if (run !== generation) return;
+        if (result) {
+            issueUncertain.value = false;
+            emit('reload');
+            emit('close');
+        } else if (action.failureStatus.value === 422) issueUncertain.value = false;
+    } catch (error) {
+        if (run !== generation) return;
+        errors.value = explainError(error);
+        if (error instanceof ApiError && error.status === 422) {
+            materialUncertain.value = false;
+            const raw = error.payload?.errors?.form,
+                reason = Array.isArray(raw) ? raw[0] : raw;
+            if (reason === 'The cardholder could not be added. Check the details and try again.')
+                materialId.value = requestId();
+        }
+    } finally {
+        working.value = false;
+    }
 }
+const combinedErrors = computed(() => ({ ...errors.value, ...action.errors.value }));
+const feedback = useFormFeedback(combinedErrors);
 </script>
 <template>
     <ProcessingOverlay
         :open="open && busy"
-        :message="
-            t(
-                materialsBusy
-                    ? 'Submitting cardholder details…'
-                    : recipientBusy
-                      ? 'Submitting recipient details…'
-                      : loading
-                        ? 'Loading cardholder information…'
-                        : reviewing
-                          ? 'Processing card opening…'
-                          : 'Checking processing result…',
-            )
-        "
+        :message="t(loading ? 'Loading cardholder information…' : 'Processing card opening…')"
     />
     <Modal
         wide
+        compact
         :open="open"
-        :title="t(ready ? 'Confirm card opening' : 'Apply for a card')"
-        :busy="busy || reviewing"
+        :title="t('Apply for a card') + ' · ' + product.name"
+        :busy="busy"
         @close="close"
-        ><view class="application"
-            ><view class="steps"
-                ><text :class="{ current: !ready }">{{ t('1. Cardholder materials') }}</text
-                ><text :class="{ current: ready }">{{ t('2. Review and open') }}</text></view
-            ><FormErrors :errors="readErrors" /><template v-if="needsMaterials"
-                ><text v-if="loading">{{ t('Loading cardholder information…') }}</text
-                ><template v-else
-                    ><text v-if="editing" class="intro muted">{{
-                        t(
-                            'Update your details and select the identity documents again. Continue opening after the update is completed.',
-                        )
+    >
+        <view class="application">
+            <CardholderFields
+                compact
+                v-model="fields"
+                :birth-date-required="birthDateRequired"
+                :disabled="busy || pending || issueUncertain"
+                :errors="combinedErrors"
+            />
+            <CardRecipient
+                v-if="factor === 'physical_card'"
+                ref="recipient"
+                embedded
+                :application-id="holder?.id ?? undefined"
+                :saved="holder?.recipient"
+            />
+            <FormField
+                name="initial_load_amount" :aliases="['amount']"
+                v-model="amount"
+                :label="t('Initial card balance') + ' (USDT)'"
+                type="digit"
+                :disabled="busy || issueUncertain"
+            />
+            <view class="fees">
+                <view
+                    ><text>{{ t('Opening fee') }}</text
+                    ><text>{{ exactAmount(product.openingFee) }} USDT</text></view
+                >
+                <view
+                    ><text>{{ t('Initial card balance') }}</text
+                    ><text>{{ exactAmount(amount) }} {{ product.cardCurrency }}</text></view
+                >
+                <view class="total"
+                    ><text>{{ t('Total from Wallet') }}</text
+                    ><text
+                        >{{ calculation ? exactAmount(calculation.total) : '—' }} USDT</text
+                    ></view
+                >
+            </view>
+            <ConfirmCheck
+                v-model="confirmed"
+                :disabled="busy || pending || issueUncertain"
+                :label="t('I confirm the opening fee and initial card balance shown above.')"
+            />
+            <FormErrors :errors="combinedErrors" />
+            <text v-if="!calculation?.meetsMinimum" class="error">{{ minimumHint }}</text>
+            <text v-if="calculation && !calculation.enough" class="error">{{ needed }}</text>
+            <view class="notes">
+                <text
+                    >{{ t('Available Wallet balance') }}:
+                    {{
+                        balance === null ? t('Unavailable') : displayMoney(balance) + ' USDT'
                     }}</text
-                    ><CardholderMaterials
-                        :birth-date-required="birthDateRequired"
-                        :key="editing ? 'edit' : 'new'"
-                        :product-id="product.id"
-                        :form-factor="factor"
-                        :update-request-id="application?.requestId ?? undefined"
-                        :initial="fields"
-                        @busy="materialsBusy = $event"
-                        @added="added" /></template></template
-            ><view v-else-if="!ready" class="pending"
-                ><text class="heading">{{ t('Confirming cardholder addition') }}</text
-                ><text class="muted">{{
-                    t('The cardholder addition could not be confirmed. Do not submit it again.')
-                }}</text
-                ><button class="secondary" :disabled="!application?.canSync || busy" @click="sync">
-                    {{ t('Refresh status') }}
-                </button></view
-            ><template v-else
-                ><button class="secondary" :disabled="busy || reviewing || uncertain" @click="edit">
-                    {{ t('Edit card application information') }}</button
-                ><text class="success intro">{{
-                    t('Cardholder added. Confirm the amount to continue opening this card.')
-                }}</text
-                ><text>{{ t(factor === 'physical_card' ? 'Physical card' : 'Virtual card') }}</text
-                ><CardRecipient
-                    v-if="factor === 'physical_card' && application?.id"
-                    :application-id="application.id"
-                    :saved="application.recipient"
-                    @ready="
-                        (id, summary) => {
-                            recipientId = id;
-                            recipientSummary = summary;
-                        }
-                    "
-                    @busy="recipientBusy = $event"
-                /><CardVisual
-                    :name="product.name"
-                    :currency="product.cardCurrency"
-                    :bin="product.bin"
-                    preview
-                /><CardProductInfo
+                >
+                <text>{{ receiptHint }}</text>
+                <text>{{
+                    t(
+                        'Your email receives purchase verification codes. Please ensure you can receive these emails.',
+                    )
+                }}</text>
+                <text>{{
+                    t(
+                        'Your mobile number receives purchase verification codes. Please ensure it can receive SMS.',
+                    )
+                }}</text>
+                <text>{{ warning }}</text>
+                <CardProductInfo
                     :monthly-fee-text="product.monthlyFeeText"
                     :notes="product.notes"
-                /><view class="fee-details"
-                    ><view
-                        ><text class="muted">{{ t('Opening fee') }}</text
-                        ><text class="strong">$ {{ displayMoney(product.openingFee) }}</text></view
-                    ><view
-                        ><text class="muted">{{ t('Minimum initial balance') }}</text
-                        ><text class="strong"
-                            >{{ displayMoney(product.minimumInitialLoad) }} USDT</text
-                        ></view
-                    ><view
-                        ><text class="muted">{{ t('Available Wallet balance') }}</text
-                        ><text class="strong">{{
-                            availableBalance
-                                ? displayMoney(availableBalance) + ' USDT'
-                                : t('Unavailable')
-                        }}</text></view
-                    ></view
-                ><FormField
-                    v-model="amount"
-                    :label="t('Initial card balance')"
-                    type="digit"
-                    :description="receiptHint"
-                    :disabled="busy || uncertain || reviewing"
-                    @update:model-value="changeAmount"
-                /><view v-if="calculation" class="total"
-                    ><text>{{ t('Total from Wallet') }}</text
-                    ><text class="strong">{{ displayMoney(calculation.total) }} USDT</text></view
-                ><text v-if="!calculation?.meetsMinimum" class="error">{{ minimumHint }}</text
-                ><StatusBanner
-                    v-if="calculation && !calculation.enough"
-                    tone="warning"
-                    :title="needed"
-                    :description="availableHint"
-                /><button
-                    v-if="calculation && !calculation.enough"
-                    class="primary wide"
-                    @click="go('/wallet/top-up')"
-                >
-                    {{ t('Top up wallet') }}</button
-                ><button
-                    v-else
-                    class="primary wide"
-                    :disabled="!canSubmit || busy"
-                    @click="reviewing = true"
-                >
-                    {{ t(busy ? 'Submitting…' : 'Open card') }}
-                </button></template
-            ><FormErrors :errors="action.errors.value" /></view></Modal
-    ><Modal
-        :open="reviewing"
-        :title="
-            t('Confirm card opening') +
-            ' — ' +
-            t(factor === 'physical_card' ? 'Physical card' : 'Virtual card')
-        "
-        :description="warning"
-        :busy="action.pending.value"
-        @close="reviewing = false"
-        ><text v-if="factor === 'physical_card'" class="intro">{{
-            recipientSummary || t('Recipient saved for this application.')
-        }}</text
-        ><FormErrors :errors="action.errors.value" /><view class="review-buttons"
-            ><button
-                class="secondary"
-                :disabled="action.pending.value || uncertain"
-                @click="reviewing = false"
+                />
+            </view>
+        </view>
+        <template #footer>
+            <button
+                v-if="pending"
+                class="primary open-button"
+                :disabled="busy || (!materialUncertain && !holder?.canSync)"
+                @click="refreshStatus"
             >
-                {{ t('Cancel') }}</button
-            ><button class="primary" :disabled="!canSubmit || busy" @click="issue">
-                {{ t('Confirm and open') }}
-            </button></view
-        ></Modal
-    >
+                {{ t('Refresh status') }}
+            </button>
+            <button
+                v-else-if="calculation && !calculation.enough && !issueUncertain"
+                class="primary open-button"
+                :disabled="busy"
+                @click="go('/wallet/top-up')"
+            >
+                {{ t('Top up wallet') }}
+            </button>
+            <button
+                v-else
+                class="primary open-button"
+                :disabled="busy || (!canSubmit && !issueUncertain)"
+                @click="submit"
+            >
+                {{ t(busy ? 'Submitting…' : issueUncertain ? 'Check result' : 'Confirm and open') }}
+            </button>
+        </template>
+    </Modal>
 </template>
 <style scoped>
 .application {
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    font-size: 14px;
-    line-height: 22px;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 20px;
 }
-.steps {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    font-size: 14px;
-    line-height: 22px;
-    color: #68736e;
+.application :deep(.form-field) {
+    margin-bottom: 0;
+}
+.application :deep(.form-label) {
     margin-bottom: 4px;
+    font-size: 13px;
 }
-.steps .current {
-    color: #171c19;
-    font-weight: 600;
+.application :deep(.form-input) {
+    height: 40px;
+    min-height: 40px;
+    padding: 8px 10px;
+    border-radius: 8px;
 }
-.intro {
-    display: block;
-    font-size: 14px;
-    line-height: 22px;
+.application :deep(.confirm-check) {
+    margin: 4px 0;
+    font-size: 13px;
+    line-height: 20px;
+    gap: 8px;
 }
-.heading {
-    display: block;
-    font-size: 20px;
-    line-height: 28px;
-    font-weight: 600;
-    margin-bottom: 12px;
+.fees {
+    border: 1px solid #e2e7e4;
+    border-radius: 8px;
+    padding: 6px 10px;
 }
-.pending > text {
-    display: block;
-    margin-bottom: 16px;
-}
-.application button,
-.review-buttons button {
-    font-size: 14px;
-    min-height: 44px;
-    line-height: 24px;
-    padding: 10px 16px;
-}
-.success {
-    color: #047857;
-}
-.fee-details {
-    border-block: 1px solid #e2e7e4;
-}
-.fee-details > view {
+.fees > view {
     display: flex;
     justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 8px 16px;
-    border-bottom: 1px solid #e2e7e4;
-    padding: 12px 0;
-}
-.fee-details > view:last-child {
-    border: 0;
-}
-.strong {
-    font-weight: 600;
-    overflow-wrap: anywhere;
+    gap: 8px;
+    padding: 3px 0;
 }
 .total {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    background: #f0f3f1;
-    border-radius: 12px;
-    padding: 16px;
+    font-weight: 700;
+    border-top: 1px solid #e2e7e4;
 }
-.wide {
+.notes {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    color: #68736e;
+    border-top: 1px solid #e2e7e4;
+    padding-top: 12px;
+}
+.error {
+    color: #b42318;
+}
+.open-button {
     width: 100%;
-}
-.review-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    justify-content: flex-end;
-}
-.review-buttons button {
-    margin: 0;
+    min-height: 48px;
+    padding: 12px;
+    line-height: 24px;
+    font-size: 16px;
+    font-weight: 600;
 }
 </style>

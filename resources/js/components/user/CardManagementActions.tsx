@@ -60,6 +60,7 @@ type ManagedCard = {
     syncedAt?: string | null;
 };
 const labels: Record<string, string> = {
+    otp: 'Card verification code',
     reveal: 'View card information',
     transactions: 'Card transactions',
     holder: 'Edit cardholder',
@@ -80,6 +81,7 @@ const shortLabels: Record<string, string> = {
     unfreeze: 'Unfreeze',
 };
 const icons = {
+    otp: Eye,
     reveal: Eye,
     transactions: List,
     holder: UserRound,
@@ -316,6 +318,7 @@ export function CardManagementActions({
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [cardDetails, setCardDetails] = useState<{ pan: string; cvv: string } | null>(null);
+    const [otp, setOtp] = useState<{ code: string; expiresAt: string } | null>(null);
     const [copyNotice, setCopyNotice] = useState('');
     const [order, setOrder] = useState<Order | null>(null);
     const [history, setHistory] = useState<Order[]>([]);
@@ -329,6 +332,7 @@ export function CardManagementActions({
                 visible.current = false;
                 generation.current++;
                 setCardDetails(null);
+                setOtp(null);
                 setCopyNotice('');
                 setPassword('');
                 setFields({});
@@ -337,18 +341,25 @@ export function CardManagementActions({
                 setActive((value) => (value === 'holder' ? null : value));
             }
         };
-        const timer = cardDetails
-            ? window.setTimeout(() => {
-                  setCardDetails(null);
-                  setCopyNotice('');
-              }, 30000)
-            : undefined;
+        const timer =
+            cardDetails || otp
+                ? window.setTimeout(
+                      () => {
+                          setCardDetails(null);
+                          setOtp(null);
+                          setCopyNotice('');
+                      },
+                      otp
+                          ? Math.max(0, Math.min(30000, Date.parse(otp.expiresAt) - Date.now()))
+                          : 30000,
+                  )
+                : undefined;
         document.addEventListener('visibilitychange', hide);
         return () => {
             window.clearTimeout(timer);
             document.removeEventListener('visibilitychange', hide);
         };
-    }, [cardDetails]);
+    }, [cardDetails, otp]);
     useEffect(
         () => () => {
             generation.current++;
@@ -362,6 +373,7 @@ export function CardManagementActions({
         setActive(null);
         setPassword('');
         setCardDetails(null);
+        setOtp(null);
         setCopyNotice('');
         setFields({});
         setOriginalFields({});
@@ -377,6 +389,7 @@ export function CardManagementActions({
         setActive(action);
         setPassword('');
         setCardDetails(null);
+        setOtp(null);
         setCopyNotice('');
         setOrder(null);
         setError('');
@@ -448,7 +461,15 @@ export function CardManagementActions({
                 result = await post(card.id, { action: 'confirm', order_id: quoted.id });
                 if (current !== generation.current || !visible.current) return;
             }
-            if (action === 'reveal') {
+            if (action === 'otp') {
+                if (
+                    typeof result.code !== 'string' ||
+                    !/^\d{4,8}$/.test(result.code) ||
+                    typeof result.expiresAt !== 'string'
+                )
+                    throw new Error('Awaiting confirmation');
+                setOtp({ code: result.code, expiresAt: result.expiresAt });
+            } else if (action === 'reveal') {
                 if (
                     typeof result.pan !== 'string' ||
                     !/^[0-9]{12,19}$/.test(result.pan) ||
@@ -525,7 +546,7 @@ export function CardManagementActions({
         'return',
         'transactions',
     ];
-    const moreActions = ['unfreeze', 'holder'].filter(
+    const moreActions = ['otp', 'unfreeze', 'holder'].filter(
         (action) => capabilities.includes(action) && !actions.includes(action),
     );
     const visibleActions = card.refundLocked
@@ -538,7 +559,7 @@ export function CardManagementActions({
         !(active === 'load' && !order) &&
         !terminal &&
         order?.state !== 'confirming';
-    const needsConfirmation = needsPassword && active !== 'reveal';
+    const needsConfirmation = needsPassword && !['reveal', 'otp'].includes(active ?? '');
     return (
         <div className="user-card-controls w-full space-y-2">
             <div
@@ -582,10 +603,7 @@ export function CardManagementActions({
                                 {t('Card operation history')}
                             </DropdownMenuItem>
                             {moreActions.map((action) => (
-                                <DropdownMenuItem
-                                    key={action}
-                                    onSelect={() => open(action)}
-                                >
+                                <DropdownMenuItem key={action} onSelect={() => open(action)}>
                                     {t(labels[action] ?? 'Card management')}
                                 </DropdownMenuItem>
                             ))}
@@ -840,6 +858,15 @@ export function CardManagementActions({
                                             )}
                                         </div>
                                     )}
+                                    {otp && (
+                                        <div className="space-y-2 rounded-xl border p-4">
+                                            <p>{t('Card verification code')}</p>
+                                            <p className="font-mono text-2xl">{otp.code}</p>
+                                            <p>
+                                                {t('Expires at')}: {otp.expiresAt}
+                                            </p>
+                                        </div>
+                                    )}
                                     {cardDetails && (
                                         <div className="space-y-4 rounded-xl border p-4 sm:p-5">
                                             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -904,7 +931,7 @@ export function CardManagementActions({
                                             </p>
                                         </div>
                                     )}
-                                    {needsPassword && !cardDetails && (
+                                    {needsPassword && !cardDetails && !otp && (
                                         <FormField
                                             id="card-current-password"
                                             label={t('Current password')}
@@ -935,23 +962,26 @@ export function CardManagementActions({
                                             {t('I understand and confirm this card operation.')}
                                         </label>
                                     )}
-                                    {!terminal && order?.state !== 'confirming' && !cardDetails && (
-                                        <Button
-                                            className="w-full"
-                                            disabled={
-                                                busy ||
-                                                (active === 'holder' && !holderLoaded) ||
-                                                (!order &&
-                                                    ['load', 'return'].includes(active ?? '') &&
-                                                    !amountValid)
-                                            }
-                                        >
-                                            {busy && (
-                                                <LoaderCircle className="size-4 animate-spin" />
-                                            )}
-                                            {t(active === 'load' ? 'Reload' : 'Confirm')}
-                                        </Button>
-                                    )}
+                                    {!terminal &&
+                                        order?.state !== 'confirming' &&
+                                        !cardDetails &&
+                                        !otp && (
+                                            <Button
+                                                className="w-full"
+                                                disabled={
+                                                    busy ||
+                                                    (active === 'holder' && !holderLoaded) ||
+                                                    (!order &&
+                                                        ['load', 'return'].includes(active ?? '') &&
+                                                        !amountValid)
+                                                }
+                                            >
+                                                {busy && (
+                                                    <LoaderCircle className="size-4 animate-spin" />
+                                                )}
+                                                {t(active === 'load' ? 'Reload' : 'Confirm')}
+                                            </Button>
+                                        )}
                                 </>
                             )}
                             {error && (

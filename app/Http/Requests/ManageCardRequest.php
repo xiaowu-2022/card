@@ -14,11 +14,11 @@ final class ManageCardRequest extends FormRequest
         $action = $this->input('action');
         $mutates = in_array($action, ['return', 'freeze', 'unfreeze', 'cancel', 'holder'], true);
         $rules = [
-            'action' => ['required', Rule::in(['quote', 'confirm', 'return', 'freeze', 'unfreeze', 'cancel', 'holder', 'holder_details', 'reveal', 'sync', 'refresh', 'history'])],
+            'action' => ['required', Rule::in(['quote', 'confirm', 'return', 'freeze', 'unfreeze', 'cancel', 'holder', 'holder_details', 'otp', 'reveal', 'sync', 'refresh', 'history'])],
             'request_id' => [Rule::requiredIf(in_array($action, ['quote', 'return', 'freeze', 'unfreeze', 'cancel', 'holder'], true)), 'nullable', 'uuid'],
             'order_id' => [Rule::requiredIf(in_array($action, ['confirm', 'sync'], true)), 'nullable', 'uuid'],
             'amount' => [Rule::requiredIf(in_array($action, ['quote', 'return'], true)), 'nullable', 'string', 'regex:/^(?:0|[1-9][0-9]{0,9})(?:\.[0-9]{1,2})?$/'],
-            'current_password' => [Rule::requiredIf($mutates || $action === 'reveal'), 'nullable', 'string', 'current_password:tenant_user'],
+            'current_password' => [Rule::requiredIf($mutates || in_array($action, ['reveal', 'otp'], true)), 'nullable', 'string', 'current_password:tenant_user'],
             'confirmed' => [Rule::requiredIf($mutates), ...($mutates ? ['accepted'] : [])],
             'email' => ['sometimes', 'required', 'email:rfc', 'max:40'],
             'mobile' => ['sometimes', 'required', 'string', 'max:24', 'regex:/^[0-9 ()-]{4,24}$/'],

@@ -56,10 +56,6 @@ export default function Kyc({
                             render: (row) => <RecordUserCell row={row} />,
                         },
                         {
-                            label: 'Reference',
-                            render: (row) => <span className="font-mono text-xs">{row.id}</span>,
-                        },
-                        {
                             label: 'Document country',
                             render: (row) => countryName(row.documentCountry),
                         },

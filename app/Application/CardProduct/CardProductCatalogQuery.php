@@ -39,7 +39,7 @@ final readonly class CardProductCatalogQuery
                 'cardProviderName' => $product->cardProviderReference?->name,
                 'routingLocked' => (bool) $product->routing_locked,
                 'localMock' => $this->router->isLocalMock($product),
-                'accountApiConfigured' => $this->router->isPhotonPayAccount($product) && $this->router->forProduct($product)->available(),
+                'accountApiConfigured' => ($this->router->isPhotonPayAccount($product) || $this->router->isU1Account($product)) && $this->router->forProduct($product)->available(),
                 'sandboxApiConfigured' => $this->router->isSandbox($product) && $this->router->forProduct($product)->available(),
             ]);
         $usedBins = DB::table('card_bin_claims as b')->leftJoin('platform_card_provider_references as m', 'm.id', '=', 'b.card_provider_reference_id')
@@ -48,13 +48,18 @@ final readonly class CardProductCatalogQuery
         return ['products' => $products->items(),
             'pagination' => ['previous' => $products->previousPageUrl(), 'next' => $products->nextPageUrl(), 'total' => $products->total(), 'currentPage' => $products->currentPage(), 'lastPage' => $products->lastPage(), 'first' => $products->url(1)],
             'cardProviders' => CardProviderReference::query()->orderBy('name')->get()
-                ->map(fn ($provider): array => ['id' => $provider->id, 'name' => $provider->name,
-                    'apiBins' => $provider->photonpay_reporting_encrypted !== null,
-                    'bins' => $provider->photonpay_reporting_encrypted !== null
-                        ? $provider->bin_catalog : null,
-                    'selectable' => $provider->photonpay_enabled && $provider->photonpay_check_status === 'VERIFIED' && ! $provider->photonpay_migration_error,
-                    'usedBins' => $usedBins,
-                ])->all(),
+                ->map(function ($provider) use ($usedBins): array {
+                    $u1 = DB::table('u1_connections')->where('reference_id', $provider->id)->first();
+
+                    return ['id' => $provider->id, 'name' => $provider->name, 'kind' => $u1 ? 'U1' : 'PhotonPay',
+                        'apiBins' => $u1 !== null || $provider->photonpay_reporting_encrypted !== null,
+                        'bins' => $u1 ? collect(json_decode($u1->group_catalog ?? '[]', true))->filter(fn ($group) => $group['currency'] === 'USD')
+                            ->map(fn ($group) => ['bin' => $group['groupNo'], 'displayBin' => $group['bin'], 'scheme' => $group['model'], 'formFactors' => ['virtual_card']])->values()->all()
+                            : ($provider->photonpay_reporting_encrypted !== null ? $provider->bin_catalog : null),
+                        'selectable' => $u1 ? (bool) $u1->enabled && $u1->check_status === 'VERIFIED'
+                            : $provider->photonpay_enabled && $provider->photonpay_check_status === 'VERIFIED' && ! $provider->photonpay_migration_error,
+                        'usedBins' => $usedBins];
+                })->all(),
         ];
     }
 

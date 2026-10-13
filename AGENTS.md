@@ -1,3 +1,11 @@
+On 2026-10-13 the user required all administrative date display, date filters and
+daily reporting to use Beijing time (Asia/Shanghai, UTC+8), independently of company,
+browser and server timezones. Today starts at Beijing midnight; source dialogs share
+the exact summary window and current read cutoff. Bind timestamptz boundaries with
+explicit ISO offsets, never stripped UTC DateTime values. Preserve stored timestamps,
+company settings, consumer business schedules and immutable financial evidence. No
+migration, provider operations or production financial tests. See PLATFORM_OVERVIEW.md.
+
 On 2026-10-13 the user replaced manual REVERB_ALLOWED_ORIGINS maintenance with
 current-domain WebSocket routing/validation. Frontends retain current browser or
 verified native company origins; Reverb handshakes allow PLATFORM_ADMIN_HOST and

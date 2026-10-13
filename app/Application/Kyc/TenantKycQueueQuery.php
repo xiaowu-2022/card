@@ -2,9 +2,11 @@
 
 namespace App\Application\Kyc;
 
+use App\Application\Tenant\PlatformFundsFilters;
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Kyc\Services\IdentityNumberProtector;
 use App\Domain\Kyc\Services\KycDataCipher;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Str;
 
@@ -28,7 +30,9 @@ final readonly class TenantKycQueueQuery
             $query->where('review_status', $status);
         }
         if ($date) {
-            $query->whereDate('submitted_at', $date);
+            $day = CarbonImmutable::parse($date, PlatformFundsFilters::TIMEZONE)->startOfDay();
+            $query->where('submitted_at', '>=', $day->toIso8601String())
+                ->where('submitted_at', '<', $day->addDay()->toIso8601String());
         }
 
         return $query->latest('submitted_at')->paginate(20)->through(fn (KycApplication $application) => [

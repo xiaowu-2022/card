@@ -34,6 +34,7 @@ final readonly class CreateCardProductAction
                 'provider' => 'UNCONFIGURED',
                 'card_provider_reference_id' => $data['card_provider_reference_id'] ?? null,
                 'provider_product_ref' => trim($data['provider_product_ref'] ?? ''),
+                'source_bin' => $this->bins->sourceBin($data['card_provider_reference_id'] ?? null, trim($data['provider_product_ref'] ?? '')),
                 'name' => trim($data['name']),
                 'monthly_fee_text' => (trim($data['monthly_fee_text'] ?? '') === '' ? null : trim($data['monthly_fee_text'])),
                 'notes' => (trim($data['notes'] ?? '') === '' ? null : trim($data['notes'])),

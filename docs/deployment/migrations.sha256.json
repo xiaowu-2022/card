@@ -58,5 +58,10 @@
   "database/migrations/2026_09_14_001300_allow_unassigned_platform_domains.php": "6ce9b3f7987f8ee88da9dda2f2e0302bfdbd4204d974d8e1fe04f4cccba7687d",
   "database/migrations/2026_09_15_120000_preserve_card_transaction_observation_precision.php": "fd2d37cd4f3248fa69342cf206725d386892766a269ef8d00d074ef714d3fe2b",
   "database/migrations/2026_09_15_140000_preserve_merchant_routing_on_unified_deployment.php": "f963c11fc3580122a22062a34eb831dd6b8dce9adf65b42f3a689eb3499c13b7",
-  "database/migrations/2026_10_05_200000_allow_failed_kyc_resubmission.php": "49c5e69a98466039356b103bf5022aa44e2cfea0fa25c97bd5f56ce54e43f229"
+  "database/migrations/2026_10_05_200000_allow_failed_kyc_resubmission.php": "49c5e69a98466039356b103bf5022aa44e2cfea0fa25c97bd5f56ce54e43f229",
+  "database/migrations/2026_10_13_210000_create_u1_notification_testing.php": "0d3b402e061288e76ac6e8d564f4dc5cc558f42093a0abf868c0d4b062e11f95",
+  "database/migrations/2026_10_13_220000_enable_standard_u1_card_provider.php": "512c839f520fb805135c72d0851bdd444f47a071035f9ad32a0b62f718d135f5",
+  "database/migrations/2026_10_13_230000_add_u1_callback_processing.php": "3faf57bb5f140aa125862736331d9d129ed5ebc4ec54ebc49a90c9ff632144f8",
+  "database/migrations/2026_10_13_240000_preserve_u1_resource_evidence.php": "31187d0641125b3841c6320e60dac6a60d8acad0a725e46a12937e140af4d412",
+  "database/migrations/2026_10_13_250000_serialize_u1_bin_claim_updates.php": "6fdc8b13ebcbaf5bc7c4e7a7a337b4abe8cefa836f2d13a3af1f41cf30c0f1a4"
 }

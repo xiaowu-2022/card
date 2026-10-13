@@ -129,6 +129,7 @@ export default function Partners({
         window.addEventListener('popstate', sync);
         return () => window.removeEventListener('popstate', sync);
     }, [url]);
+    const detailPartner = partners?.data.find((partner) => partner.id === report?.partnerId);
     const [reportOpen, setReportOpen] = useState(Boolean(report));
     const [hierarchyPartner, setHierarchyPartner] = useState<string | null>(null);
     const hierarchyScroll = useRef(0);
@@ -333,7 +334,10 @@ export default function Partners({
                                         `/platform/tenants/${revokeTarget.tenant_id}/partners/${revokeTarget.id}/revoke`,
                                         {
                                             preserveScroll: true,
-                                            onSuccess: () => setRevokeTarget(null),
+                                            onSuccess: () => {
+                                                setRevokeTarget(null);
+                                                visit(undefined, partners?.current_page ?? 1);
+                                            },
                                         },
                                     );
                             }}
@@ -519,35 +523,8 @@ export default function Partners({
                                                                     visit(p.id);
                                                                 }}
                                                             >
-                                                                {t('View report')}
+                                                                {t('Details')}
                                                             </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => record(p)}
-                                                            >
-                                                                {t('Record entry')}
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => edit(p)}
-                                                            >
-                                                                {t('Edit')}
-                                                            </button>
-                                                            {p.enabled && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        revocation.clearErrors();
-                                                                        revocation.setData(
-                                                                            'updated_at',
-                                                                            p.updated_at,
-                                                                        );
-                                                                        setRevokeTarget(p);
-                                                                    }}
-                                                                >
-                                                                    {t('Revoke partner')}
-                                                                </button>
-                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -937,14 +914,14 @@ export default function Partners({
                             </Dialog>
                         </details>
                         <Dialog
-                            open={reportOpen && !journalOpen}
+                            open={reportOpen && !journalOpen && !configurationOpen && !revokeTarget}
                             onOpenChange={(open) => {
                                 if (!open) visit(undefined, partners?.current_page ?? 1);
                             }}
                         >
                             <DetailDrawerContent
                                 className="p-0"
-                                closeLabel={t('Close report')}
+                                closeLabel={t('Close')}
                                 onCloseAutoFocus={(event) => {
                                     if (reportTrigger.current?.isConnected) {
                                         event.preventDefault();
@@ -966,11 +943,7 @@ export default function Partners({
                                 >
                                     <DialogHeader className="mb-0 shrink-0 border-b px-4 py-4 pr-14">
                                         <DialogTitle>
-                                            {t(
-                                                invitationPartner
-                                                    ? 'Invitation data'
-                                                    : 'Stock data',
-                                            )}
+                                            {t('Partner details')}
                                             {report && !reportLoading && !reportError
                                                 ? ` · ${report.displayName || '—'} · ${t(report.version === 'partner' ? 'Partner version' : 'Standard version')}`
                                                 : ''}
@@ -983,11 +956,42 @@ export default function Partners({
                                                   : t('Loading…')}
                                         </DialogDescription>
                                     </DialogHeader>
+                                    {detailPartner && !reportLoading && !reportError && (
+                                        <div className="partner-row-actions shrink-0 border-b px-4 py-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => record(detailPartner)}
+                                            >
+                                                {t('Record entry')}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => edit(detailPartner)}
+                                            >
+                                                {t('Edit')}
+                                            </button>
+                                            {detailPartner.enabled && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        revocation.clearErrors();
+                                                        revocation.setData(
+                                                            'updated_at',
+                                                            detailPartner.updated_at,
+                                                        );
+                                                        setRevokeTarget(detailPartner);
+                                                    }}
+                                                >
+                                                    {t('Revoke partner')}
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                                     <TabsList
                                         className="mx-4 my-3 shrink-0 self-start"
                                         aria-label={t('View report')}
                                     >
-                                        <TabsTrigger value="stock">{t('Stock data')}</TabsTrigger>
+                                        <TabsTrigger value="stock">{t('View report')}</TabsTrigger>
                                         <TabsTrigger
                                             value="invitations"
                                             disabled={reportLoading || !report}

@@ -1,9 +1,11 @@
 <script setup lang="ts">
-defineProps<{ errors: Record<string, string> }>();
+import { useFeedbackSummary } from '../lib/form-feedback';
+const props = defineProps<{ errors: Record<string, string> }>();
+const summary = useFeedbackSummary(() => props.errors);
 </script>
 <template>
-    <view v-if="Object.keys(errors).length" class="form-errors" role="alert"
-        ><text v-for="(value, key) in errors" :key="key" class="block">{{ value }}</text></view
+    <view v-if="Object.keys(summary).length" class="form-errors" role="alert"
+        ><text v-for="(value, key) in summary" :key="key" class="block">{{ value }}</text></view
     >
 </template>
 <style scoped>

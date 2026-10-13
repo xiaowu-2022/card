@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { onLoad, onShow } from '@dcloudio/uni-app';
+import { usePagePosition } from '../../lib/page-position';
+import { ref, watch } from 'vue';
+import { onLoad, onShow, onHide } from '@dcloudio/uni-app';
 import PageShell from '../../components/PageShell.vue';
 import LoadState from '../../components/LoadState.vue';
 import { request } from '../../lib/api';
-import { refreshUnread } from '../../lib/session';
+import { refreshUnread, consumerSessionScope } from '../../lib/session';
 import { useScreen } from '../../lib/screen';
 import { t, dateTime } from '../../lib/i18n';
 import { messageCopy, type Message } from '../../lib/inbox';
@@ -17,8 +18,10 @@ const filters = [
 const filter = ref('all');
 const page = ref(1);
 const items = ref<Message[]>([]);
-const hasMore = ref(false);
+const hasMore = ref(false), hasLoaded = ref(false);
+watch(consumerSessionScope, () => { generation++; items.value = []; hasLoaded.value = false; }, { flush: 'sync' });
 let generation = 0;
+onHide(() => { generation++; });
 let markOnEntry = true;
 onShow(() => {
     markOnEntry = true;
@@ -29,35 +32,41 @@ onLoad((query) => {
     if (Number.isInteger(number) && number > 0) page.value = number;
 });
 async function load() {
-    const run = ++generation;
+    const run = ++generation, scope = consumerSessionScope();
     if (markOnEntry) {
         await request('/messages/read-all', 'POST', {});
-        if (run !== generation) return;
+        if (run !== generation || scope !== consumerSessionScope()) return;
         markOnEntry = false;
         await refreshUnread();
-        if (run !== generation) return;
+        if (run !== generation || scope !== consumerSessionScope()) return;
     }
     const data = await request<{ items: Message[]; hasMore: boolean }>(
         `/messages?filter=${filter.value}&page=${page.value}`,
     );
-    if (run !== generation) return;
+    if (run !== generation || scope !== consumerSessionScope()) return;
     items.value = data.items;
     hasMore.value = data.hasMore;
+    hasLoaded.value = true;
     await refreshUnread();
 }
-const { loading, failed, refresh } = useScreen(load);
+const { loading, failed, refresh } = useScreen(load, { onAccessDenied: () => { items.value = []; hasLoaded.value = false; } });
 function select(key: string) {
+    hasLoaded.value = false;
+    items.value = [];
     filter.value = key;
     page.value = 1;
     void refresh();
 }
 function paginate(delta: number) {
+    hasLoaded.value = false;
+    items.value = [];
     page.value += delta;
     void refresh();
 }
 function openMessage(id: string) {
     uni.navigateTo({ url: '/pages/messages/detail?id=' + id });
 }
+usePagePosition(() => '/messages?filter=' + filter.value + '&page=' + page.value, () => hasLoaded.value);
 </script>
 <template>
     <PageShell :title="t('Messages')" back="/account" active="account" hide-messages>
@@ -73,7 +82,7 @@ function openMessage(id: string) {
                 {{ t(item.title) }}
             </button></view
         >
-        <LoadState :loading="loading" :failed="failed" @retry="refresh">
+        <LoadState :loading="loading" :failed="failed" :has-content="hasLoaded" @retry="refresh">
             <view v-if="!items.length" class="empty">{{ t('No messages yet') }}</view>
             <view
                 v-for="message in items"

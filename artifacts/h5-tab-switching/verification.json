@@ -1,0 +1,38 @@
+{
+  "browsers": [
+    "Chrome",
+    "WebKit"
+  ],
+  "checks": [
+    "blocked initial JS: previous shell stays visible",
+    "blocked API: cached roots remain visible",
+    "six alternating switches",
+    "repeat switches do not fetch page chunks",
+    "idle warmup does not mount pages or read financial/account APIs",
+    "no financial writes",
+    "vue-tsc",
+    "H5 release build",
+    "APP preprocessing excludes tabBar"
+  ],
+  "localWarmSwitchMs": [
+    [
+      65,
+      53,
+      37,
+      49,
+      57,
+      31
+    ],
+    [
+      43,
+      43,
+      35,
+      46,
+      44,
+      33
+    ]
+  ],
+  "deployment": "local H5, old hashes retained",
+  "migrationRequired": false,
+  "nativeNavigationChanged": false
+}

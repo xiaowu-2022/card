@@ -21,6 +21,7 @@ export type ManagedCard = {
     syncedAt?: string | null;
 };
 export const cardActionLabels: Record<string, string> = {
+    otp: 'Card verification code',
     reveal: 'View card information',
     transactions: 'Card transactions',
     holder: 'Edit cardholder',

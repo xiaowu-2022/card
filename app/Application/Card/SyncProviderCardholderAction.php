@@ -18,11 +18,14 @@ final readonly class SyncProviderCardholderAction
     public function execute(string $tenantId, string $userId, string $applicationId, ?string $requestId = null): ProviderCardholder
     {
         $snapshot = ProviderCardholder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)
-            ->whereKey($applicationId)->where('provider', 'PHOTONPAY')->firstOrFail();
+            ->whereKey($applicationId)->whereIn('provider', ['PHOTONPAY', 'U1'])->firstOrFail();
         if ($snapshot->card_product_id !== null) {
             LiveCardReferenceGuard::forProduct(CardProduct::findOrFail($snapshot->card_product_id), $snapshot->provider_cardholder_id);
         } else {
             LiveCardReferenceGuard::check($snapshot->provider_cardholder_id);
+        }
+        if ($snapshot->provider === 'U1' && $snapshot->status === ProviderCardholderStatus::LocalReady) {
+            return $snapshot;
         }
         $provider = $snapshot->card_product_id === null ? $this->provider : app(CardProductProviderRouter::class)->forProduct(CardProduct::findOrFail($snapshot->card_product_id));
         if (! $provider->available() || $snapshot->provider_cardholder_id === null || $snapshot->status === ProviderCardholderStatus::Submitting) {

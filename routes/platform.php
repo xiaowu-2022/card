@@ -47,6 +47,7 @@ use App\Http\Controllers\Platform\TenantLifecycleController;
 use App\Http\Controllers\Platform\TenantManagementController;
 use App\Http\Controllers\Platform\TopupVerificationController;
 use App\Http\Controllers\Platform\TronWithdrawalsController;
+use App\Http\Controllers\Platform\U1AccountsController;
 use App\Http\Controllers\Platform\UserCreationController;
 use App\Http\Controllers\Platform\UserFundsController;
 use App\Http\Controllers\Platform\UserInvitationCodeController;
@@ -247,6 +248,12 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware('admin.scope:platform,users.read')->get('/tenants/{tenant}/users/{user}/promotion', [UserPromotionController::class, 'show'])->whereUuid(['tenant', 'user']);
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,promotion_members.manage', 'throttle:40,1'])->post('/tenants/{tenant}/users/{user}/promotion', [UserPromotionController::class, 'update'])->whereUuid(['tenant', 'user']);
     Route::middleware('admin.scope:platform,provider_operation.read')->get('/card-providers', CardProviderController::class)->name('card-providers.index');
+    Route::middleware(['admin.scope:platform,provider_operation.read', 'admin.scope:platform,card_provider_reference.manage'])->group(function (): void {
+        Route::get('/card-providers/{reference}/u1/notifications', [U1AccountsController::class, 'index'])->whereUuid('reference');
+        Route::get('/card-providers/{reference}/u1/notifications/{notification}', [U1AccountsController::class, 'show'])->whereUuid(['reference', 'notification']);
+        Route::post('/card-providers/{reference}/u1/notifications/{notification}/retry', [U1AccountsController::class, 'retry'])->whereUuid(['reference', 'notification'])->middleware('throttle:30,1');
+        Route::post('/card-providers/{reference}/u1/tests', [U1AccountsController::class, 'send'])->whereUuid('reference')->middleware('throttle:30,1');
+    });
     Route::middleware(['admin.scope:platform,card_provider_reference.manage', 'throttle:60,1'])->group(function (): void {
         Route::post('/card-providers/{reference}/check', [CardProviderController::class, 'check'])->whereUuid('reference')->name('card-providers.check');
         Route::post('/card-providers', [CardProviderController::class, 'store'])->name('card-providers.store');

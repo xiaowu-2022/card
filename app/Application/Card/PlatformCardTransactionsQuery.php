@@ -2,6 +2,7 @@
 
 namespace App\Application\Card;
 
+use App\Application\Tenant\PlatformFundsFilters;
 use App\Domain\Card\Models\UserCard;
 use App\Domain\Tenant\Models\Tenant;
 
@@ -16,7 +17,7 @@ final readonly class PlatformCardTransactionsQuery
 
         return [
             ...$this->transactions->get($tenantId, $card->user_id, $card->id, $page, admin: true),
-            'timezone' => $tenant->timezone,
+            'timezone' => PlatformFundsFilters::TIMEZONE,
         ];
     }
 }

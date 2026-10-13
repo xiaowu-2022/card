@@ -39,6 +39,7 @@ const active = ref<string | null>(null),
     holderLoaded = ref(false),
     busy = ref(false),
     errors = ref<Record<string, string>>({}),
+    otp = ref<{ code: string; expiresAt: string } | null>(null),
     details = ref<{ pan: string; cvv: string } | null>(null),
     copyNotice = ref(''),
     order = ref<CardOperation | null>(null),
@@ -61,11 +62,12 @@ const capabilities = computed(() => props.card.management ?? []),
               ],
     ),
     moreActions = computed(() =>
-        ['unfreeze', 'holder'].filter(
+        ['otp', 'unfreeze', 'holder'].filter(
             (a) => capabilities.value.includes(a) && !actions.value.includes(a),
         ),
     );
 const icons: Record<string, string> = {
+    otp: 'eye',
     reveal: 'eye',
     transactions: 'list',
     holder: 'user-round',
@@ -85,7 +87,9 @@ const terminal = computed(
             !terminal.value &&
             order.value?.state !== 'confirming',
     ),
-    needsConfirmation = computed(() => needsPassword.value && active.value !== 'reveal');
+    needsConfirmation = computed(
+        () => needsPassword.value && !['reveal', 'otp'].includes(active.value ?? ''),
+    );
 const insufficientReloadBalance = computed(() => {
     if (active.value !== 'load' || order.value || props.availableBalance === null) return false;
     const available = minorUnits(props.availableBalance);
@@ -106,7 +110,11 @@ const amountError = computed(() => {
         return t('Enter a positive amount with at most 2 decimal places.');
     if (active.value === 'load' && parsed < (minorUnits(props.card.minimumReload ?? '0') ?? 0n))
         return t('The amount is below this card’s minimum reload.');
-    if (active.value === 'return' && props.card.balance !== null && parsed > (minorUnits(props.card.balance) ?? 0n))
+    if (
+        active.value === 'return' &&
+        props.card.balance !== null &&
+        parsed > (minorUnits(props.card.balance) ?? 0n)
+    )
         return t('The return amount exceeds the available card balance.');
     return '';
 });
@@ -135,6 +143,7 @@ function clearSensitive() {
     generation++;
     visible = false;
     details.value = null;
+    otp.value = null;
     password.value = '';
     fields.value = {};
     original.value = {};
@@ -161,6 +170,7 @@ function open(action: string) {
     more.value = false;
     password.value = '';
     details.value = null;
+    otp.value = null;
     copyNotice.value = '';
     order.value = null;
     errors.value = {};
@@ -244,7 +254,22 @@ async function run(action: string, target?: CardOperation) {
             if (runId !== generation || !visible) return;
         }
         uncertain.value = false;
-        if (action === 'reveal') {
+        if (action === 'otp') {
+            if (
+                typeof result.code !== 'string' ||
+                !/^\d{4,8}$/.test(result.code) ||
+                typeof result.expiresAt !== 'string'
+            )
+                throw new Error('Awaiting confirmation');
+            otp.value = { code: result.code, expiresAt: result.expiresAt };
+            clearTimeout(revealTimer);
+            revealTimer = setTimeout(
+                () => {
+                    otp.value = null;
+                },
+                Math.max(0, Math.min(30000, Date.parse(result.expiresAt) - Date.now())),
+            );
+        } else if (action === 'reveal') {
             if (
                 typeof result.pan !== 'string' ||
                 !/^\d{12,19}$/.test(result.pan) ||
@@ -256,6 +281,7 @@ async function run(action: string, target?: CardOperation) {
             clearTimeout(revealTimer);
             revealTimer = setTimeout(() => {
                 details.value = null;
+                otp.value = null;
                 copyNotice.value = '';
             }, 30000);
         } else if (action === 'history') {
@@ -278,7 +304,8 @@ async function run(action: string, target?: CardOperation) {
             if (e instanceof ApiError && e.status === 422) uncertain.value = false;
             if (e instanceof ApiError && e.payload?.error?.code === 'USER_OPERATION_RESTRICTED') {
                 uncertain.value = false;
-                if (order.value?.state === 'confirming') order.value = { ...order.value, state: 'quoted' };
+                if (order.value?.state === 'confirming')
+                    order.value = { ...order.value, state: 'quoted' };
             }
         }
     } finally {
@@ -306,7 +333,15 @@ async function copy(part: 'pan' | 'cvv' | 'all') {
     copyNotice.value = '';
     const data =
         part === 'all'
-            ? t('Card number') + ': ' + details.value.pan + '\n' + t('Expiry') + ': ' + (props.card.expiry || '—') + '\nCVV: ' + details.value.cvv
+            ? t('Card number') +
+              ': ' +
+              details.value.pan +
+              '\n' +
+              t('Expiry') +
+              ': ' +
+              (props.card.expiry || '—') +
+              '\nCVV: ' +
+              details.value.cvv
             : details.value[part];
     try {
         await new Promise<void>((resolve, reject) =>
@@ -478,7 +513,12 @@ async function copy(part: 'pan' | 'cvv' | 'all') {
                         >
                             {{ t('Check result') }}
                         </button></view
-                    ><view v-if="details" class="card-details"
+                    ><view v-if="otp" class="space-y-2"
+                        ><text>{{ t('Card verification code') }}</text
+                        ><text class="block text-2xl">{{ otp.code }}</text
+                        ><text>{{ t('Expires at') }}: {{ otp.expiresAt }}</text></view
+                    >
+                    <view v-if="details" class="card-details"
                         ><view class="detail-line"
                             ><view
                                 ><text class="muted">{{ t('Card number') }}</text
@@ -489,9 +529,10 @@ async function copy(part: 'pan' | 'cvv' | 'all') {
                                 {{ t('Copy card number') }}
                             </button></view
                         ><view class="detail-line">
-                            <view><text class="muted">{{ t('Expiry') }}</text>
-                            <text class="cvv" selectable>{{ card.expiry || '—' }}</text></view>
-                        </view
+                            <view
+                                ><text class="muted">{{ t('Expiry') }}</text>
+                                <text class="cvv" selectable>{{ card.expiry || '—' }}</text></view
+                            > </view
                         ><view class="detail-line"
                             ><view
                                 ><text class="muted">CVV</text
@@ -508,7 +549,7 @@ async function copy(part: 'pan' | 'cvv' | 'all') {
                             )
                         }}</text></view
                     ><FormField
-                        v-if="needsPassword && !details"
+                        v-if="needsPassword && !details && !otp"
                         v-model="password"
                         :label="t('Current password')"
                         password
@@ -519,7 +560,7 @@ async function copy(part: 'pan' | 'cvv' | 'all') {
                         :label="t('I understand and confirm this card operation.')"
                         :disabled="busy"
                     /><button
-                        v-if="!terminal && order?.state !== 'confirming' && !details"
+                        v-if="!terminal && order?.state !== 'confirming' && !details && !otp"
                         class="primary wide"
                         form-type="submit"
                         :disabled="

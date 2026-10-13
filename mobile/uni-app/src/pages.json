@@ -35,6 +35,15 @@
     {"path":"pages/support-workspace/replies"},
     {"path":"pages/support-workspace/customer"}
   ],
+  // #ifdef H5
+  "tabBar": {
+    "list": [
+      { "pagePath": "pages/assets/index", "text": "Assets" },
+      { "pagePath": "pages/cards/index", "text": "Cards" },
+      { "pagePath": "pages/account/index", "text": "Me" }
+    ]
+  },
+  // #endif
   "globalStyle": {
     "navigationStyle": "custom",
     "backgroundColor": "#f7f6f0",

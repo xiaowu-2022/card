@@ -93,3 +93,11 @@
 ## 统一部署新增项
 
 第 59 项仅替换三个触发器函数，解除数据库名字限制，保留商户绑定、连接身份和持卡人归属保护。无数据行、余额或历史时间修改。当前旧备份仍为 58 项，恢复程序随后执行新增项。
+
+## 2026-10-13 U1 标准卡商接入
+
+按顺序部署 210000_create_u1_notification_testing、220000_enable_standard_u1_card_provider、
+230000_add_u1_callback_processing、240000_preserve_u1_resource_evidence、250000_serialize_u1_bin_claim_updates。
+迁移保留原通知记录并原位升级正常连接，新增独立上游意图、异步处理索引、交易分页进度和真实 BIN/历史密钥证据。
+不调用卡商、不改变现有钱包资金。匹配部署 PHP、后台/H5 资源，重载 PHP-FPM 并重启现有 Redis queue worker。
+完整使用、能力限制及上线参数见 [U1 标准卡商接入](../architecture/U1_CARD_PROVIDER.md)。

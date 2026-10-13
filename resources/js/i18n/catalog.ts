@@ -15,6 +15,13 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    'Updating…': ['正在更新…', 'Sedang mengemas kini…', 'Actualizando…'],
+    'Update failed. Please retry.': ['更新失败，请重试。', 'Kemas kini gagal. Cuba semula.', 'No se pudo actualizar. Reinténtalo.'],
+    'I confirm the opening fee and initial card balance shown above.': ['我确认以上开卡费用和首次充值金额。', 'Saya mengesahkan fi pembukaan dan baki awal yang dipaparkan.', 'Confirmo la comisión de apertura y el saldo inicial indicados.'],
+    'Card fees changed. Close and reopen the application to confirm the current fees.': ['卡片费用已变化，请关闭后重新打开申请并确认当前费用。', 'Fi kad berubah. Buka semula permohonan untuk mengesahkan fi semasa.', 'Las comisiones han cambiado. Vuelve a abrir la solicitud para confirmar las actuales.'],
+    'Card verification code': ['卡片验证码', 'Kod pengesahan kad', 'Código de verificación de tarjeta'],
+    'No current card verification code is available.': ['暂无有效的卡片验证码。', 'Tiada kod pengesahan kad semasa.', 'No hay ningún código de verificación vigente.'],
+    'Expires at': ['有效期至', 'Tamat pada', 'Válido hasta'],
     "The app could not finish processing the response. Refresh or sign in again. [CLIENT_RESPONSE_ERROR]": ["客户端处理响应失败，请刷新页面或重新登录。[CLIENT_RESPONSE_ERROR]", "Aplikasi gagal memproses respons. Muat semula atau log masuk semula. [CLIENT_RESPONSE_ERROR]", "La aplicación no pudo procesar la respuesta. Actualiza o inicia sesión otra vez. [CLIENT_RESPONSE_ERROR]"],
     "The request timed out. Its result is unknown; check your account status before retrying.": ["请求超时，结果尚未确认。请先检查账户状态，再决定是否重试。", "Permintaan tamat masa. Semak status akaun sebelum mencuba lagi.", "La solicitud agotó el tiempo. Comprueba el estado de la cuenta antes de reintentar."],
     "Cannot connect to the server. Check your network connection.": ["无法连接服务器，请检查网络连接。", "Tidak dapat menyambung ke pelayan. Semak rangkaian anda.", "No se puede conectar al servidor. Comprueba tu conexión."],

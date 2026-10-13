@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useFormFeedback } from '../lib/form-feedback';
 import { ref, computed } from 'vue';
 import PageShell from '../components/PageShell.vue';
 import StatusBanner from '../components/StatusBanner.vue';
@@ -34,11 +35,13 @@ const amountError = computed(() => {
         : 'Enter a positive amount with at most 2 decimal places.');
 });
 async function submit() {
+    feedback.begin();
     await action.submit('/wallet/top-ups', {
         request_id: intent.value,
         requested_amount: amount.value,
     });
 }
+const feedback = useFormFeedback(action.errors);
 </script>
 <template>
     <PageShell :title="t('Top up')" back="/dashboard" active="assets"
@@ -55,6 +58,7 @@ async function submit() {
         />
         <form v-else class="topup-card" @submit="submit">
             <FormField
+                name="requested_amount"
                 v-model="amount"
                 :label="t('Amount') + ' · USDT'"
                 placeholder="100.00"

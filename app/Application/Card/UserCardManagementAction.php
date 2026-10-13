@@ -36,6 +36,18 @@ final readonly class UserCardManagementAction
 
                 return self::order($action === 'confirm' ? $this->manage->confirmLoad($tenantId, $userId, $cardId, $order->id) : $this->manage->sync($tenantId, $order->id));
             }
+            if ($action === 'otp') {
+                if ($card->provider !== 'U1' || $card->provider_status !== 'normal') {
+                    throw new DomainException('CARD_STATUS_UNAVAILABLE', 'This operation is not available for the current card status.', 409);
+                }
+                $otp = app(U1Callbacks::class)->otp($tenantId, $userId, $cardId);
+                if (! $otp) {
+                    throw new DomainException('CARD_OTP_UNAVAILABLE', 'No current card verification code is available.', 404);
+                }
+                $this->audit->record($tenantId, 'USER', $userId, 'CARD_OTP_VIEWED', 'user_card', $cardId);
+
+                return $otp;
+            }
             if ($action === 'reveal') {
                 if (! in_array($card->provider_status, ['normal', 'frozen'], true)) {
                     throw new DomainException('CARD_STATUS_UNAVAILABLE', 'This operation is not available for the current card status.', 409);

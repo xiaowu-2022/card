@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import { useFeedbackField } from '../lib/form-feedback';
 import FormField from './FormField.vue';
 import SelectField from './SelectField.vue';
 import { countryOptions } from '../lib/card-geography';
@@ -8,10 +9,13 @@ const props = defineProps<{
         modelValue: Record<string, string>;
         disabled?: boolean;
         editing?: boolean;
+        compact?: boolean;
         birthDateRequired?: boolean;
         errors?: Record<string, string>;
     }>(),
     emit = defineEmits<{ 'update:modelValue': [value: Record<string, string>] }>();
+const birthElement = ref();
+useFeedbackField(() => ['date_of_birth'], () => birthElement.value);
 const phones = computed(() => countryOptions(locale.value, true));
 function changeBirthDate(event: { detail: { value: string } }) {
     set('date_of_birth', event.detail.value);
@@ -21,10 +25,11 @@ function set(key: string, value: string) {
 }
 </script>
 <template>
-    <view class="holder-fields"
+    <view class="holder-fields" :class="{ compact }"
         ><text class="section-title">{{ t('Card user') }}</text
         ><view class="grid"
             ><FormField
+                name="legal_last_name"
                 :model-value="modelValue.legal_last_name ?? ''"
                 :label="t('Last name')"
                 :maxlength="40"
@@ -32,28 +37,39 @@ function set(key: string, value: string) {
                 :error="errors?.legal_last_name"
                 @update:model-value="(v) => set('legal_last_name', v)"
             /><FormField
+                name="legal_first_name"
                 :model-value="modelValue.legal_first_name ?? ''"
                 :label="t('First name')"
                 :maxlength="40"
                 :disabled="disabled"
                 :error="errors?.legal_first_name"
                 @update:model-value="(v) => set('legal_first_name', v)"
-            /><view v-if="birthDateRequired || errors?.date_of_birth || modelValue.date_of_birth" class="birth">
+            /><view
+                v-if="birthDateRequired || errors?.date_of_birth || modelValue.date_of_birth"
+                ref="birthElement" class="birth" data-field="date_of_birth"
+            >
                 <text class="label">{{ t('Date of birth') }}</text>
-                <picker mode="date" :value="modelValue.date_of_birth || '1990-01-01'" :disabled="disabled"
-                    @change="changeBirthDate">
+                <picker
+                    mode="date"
+                    :value="modelValue.date_of_birth || '1990-01-01'"
+                    :disabled="disabled"
+                    @change="changeBirthDate"
+                >
                     <view class="date">{{ modelValue.date_of_birth || t('Date of birth') }}</view>
                 </picker>
-                <text v-if="errors?.date_of_birth" class="error">{{ errors.date_of_birth }}</text>
-            </view><view
+                <text v-if="errors?.date_of_birth" class="error">{{
+                    errors.date_of_birth
+                }}</text> </view
+            ><view
                 ><FormField
-                    :model-value="modelValue.email ?? ''"
+                    name="email"
+                :model-value="modelValue.email ?? ''"
                     :label="t('Email')"
                     :maxlength="40"
                     :disabled="disabled"
                     :error="errors?.email"
                     @update:model-value="(v) => set('email', v)"
-                /><text class="hint verification-notice">{{
+                /><text v-if="!compact" class="hint verification-notice">{{
                     t(
                         'Your email receives purchase verification codes. Please ensure you can receive these emails.',
                     )
@@ -68,13 +84,14 @@ function set(key: string, value: string) {
                         searchable
                         :disabled="disabled"
                         @update:model-value="(v) => set('mobile_country_code', v)" /><FormField
+                        name="mobile" :aliases="['mobile_country_code']"
                         :model-value="modelValue.mobile ?? ''"
                         :label="t('Phone number')"
                         :maxlength="24"
                         :disabled="disabled"
                         :error="errors?.mobile || errors?.mobile_country_code"
                         @update:model-value="(v) => set('mobile', v)" /></view
-                ><text class="hint verification-notice">{{
+                ><text v-if="!compact" class="hint verification-notice">{{
                     t(
                         'Your mobile number receives purchase verification codes. Please ensure it can receive SMS.',
                     )
@@ -173,5 +190,39 @@ function set(key: string, value: string) {
     .grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+}
+</style>
+
+<style scoped>
+.compact .section-title {
+    font-size: 14px;
+    line-height: 20px;
+    margin-bottom: 6px;
+}
+.compact .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+}
+.compact .grid > view:not(.form-field) {
+    grid-column: 1 / -1;
+}
+.compact :deep(.form-field),
+.compact :deep(.select-field),
+.compact .birth {
+    margin-bottom: 0;
+}
+.compact :deep(.form-label),
+.compact .label {
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+.compact :deep(.form-input),
+.compact .date,
+.compact :deep(.select-trigger) {
+    height: 40px;
+    min-height: 40px;
+    border-radius: 8px;
+    padding: 8px 10px;
+    box-sizing: border-box;
 }
 </style>

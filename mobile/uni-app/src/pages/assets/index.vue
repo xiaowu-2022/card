@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
-import { requireUser, session } from '../../lib/session';
+import { usePagePosition } from '../../lib/page-position';
+import { computed, ref, watch, onBeforeUnmount } from 'vue';
+import { onShow, onHide } from '@dcloudio/uni-app';
+import { requireUser, session, consumerSessionScope } from '../../lib/session';
 import { getPage, explainError } from '../../lib/client';
-import { setCurrentPage } from '../../lib/api';
+import { setCurrentPage, ApiError } from '../../lib/api';
 import { go } from '../../lib/navigation';
 import { t } from '../../lib/i18n';
 import type { AssetOverview } from '../../lib/assets';
 import AssetSkeleton from '../../components/AssetSkeleton.vue';
 import PageShell from '../../components/PageShell.vue';
 import AssetCenter from '../../components/AssetCenter.vue';
+import RefreshStatus from '../../components/RefreshStatus.vue';
 import FormErrors from '../../components/FormErrors.vue';
 import StatusBanner from '../../components/StatusBanner.vue';
 const data = ref<{
@@ -18,21 +20,68 @@ const data = ref<{
         wallet: { status: string } | null;
     } | null>(null),
     errors = ref<Record<string, string>>({});
+const updating = ref(false);
+let generation = 0,
+    visible = true;
+// #ifdef H5
+watch(
+    consumerSessionScope,
+    () => {
+        generation++;
+        data.value = null;
+        errors.value = {};
+    },
+    { flush: 'sync' },
+);
+onHide(() => {
+    visible = false;
+    generation++;
+});
+onBeforeUnmount(() => {
+    generation++;
+});
+// #endif
 async function load() {
+    let run: number | undefined;
+    updating.value = true;
+    errors.value = {};
     setCurrentPage('/dashboard');
     try {
         if (!(await requireUser())) return;
+        // #ifdef H5
+        if (!visible) return;
+        // #endif
         if (session.value?.restricted) {
             go('/account/restricted', true);
             return;
         }
-        data.value = (await getPage<typeof data.value>('/dashboard')).props;
+        run = ++generation;
+        const scope = consumerSessionScope();
+        const response = await getPage<typeof data.value>('/dashboard');
+        // #ifdef H5
+        if (run !== generation || scope !== consumerSessionScope() || !visible) return;
+        // #endif
+        data.value = response.props;
         errors.value = {};
     } catch (e) {
+        // #ifdef H5
+        if (run !== undefined && run !== generation) return;
+        if (e instanceof ApiError && [401, 403, 419].includes(e.status)) data.value = null;
+        // #endif
         errors.value = explainError(e);
+    } finally {
+        if (run === undefined || run === generation) updating.value = false;
     }
 }
+// #ifdef H5
+onShow(() => {
+    visible = true;
+    void load();
+});
+// #endif
+// #ifndef H5
 onShow(load);
+// #endif
 const next = computed(
     () =>
         ({
@@ -62,11 +111,15 @@ const next = computed(
             },
         })[data.value?.kycStatus ?? ''],
 );
+usePagePosition(() => '/dashboard', () => !!data.value);
 </script>
 <template>
     <PageShell active="assets" overview
-        ><FormErrors :errors="errors" /><button
-            v-if="Object.keys(errors).length"
+        ><!-- #ifdef H5 -->
+        <RefreshStatus v-if="data" :loading="updating" :failed="!!Object.keys(errors).length" @retry="load" />
+        <!-- #endif -->
+        <FormErrors :errors="data ? {} : errors" /><button
+            v-if="!data && Object.keys(errors).length"
             class="secondary"
             @click="load"
         >
@@ -82,15 +135,14 @@ const next = computed(
                       : data.wallet.status !== 'ACTIVE'
                         ? '/wallet'
                         : undefined
-            "
-        /><view v-if="next" class="next-step"
+            " /><view v-if="next" class="next-step"
             ><StatusBanner
                 :title="t(next.title)"
                 :description="t(next.description)"
                 :tone="next.tone"
                 :action="next.action" /></view
-        ><AssetSkeleton v-if="!data && !Object.keys(errors).length" /></PageShell
-    >
+        ><AssetSkeleton v-if="!data && !Object.keys(errors).length"
+    /></PageShell>
 </template>
 <style scoped>
 .next-step {

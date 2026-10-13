@@ -513,3 +513,61 @@ Deploy rebuilt H5 assets and reload already-open pages to adopt this behavior.
 不再强制切回中文。已有用户或 Cookie 偏好仍由 bootstrap 按公司启用语言规则解析。
 部署匹配的 `public/h5/index.html` 与全部新增哈希资源，保留旧资源供已打开页面使用。
 网页壳 APK 读取线上 H5，无需为此重新打包；本次不改变旧原生业务 App 的中文规则。
+
+
+## 2026-10-13 H5 bottom navigation responsiveness
+
+Only H5 declares the assets/cards/account root pages as framework tabs. The existing
+translated PageShell navigation stays visible; the framework bar is hidden. Root tab
+switches reuse page instances, avoiding reLaunch disposal on every click. Code is warmed
+on idle after sign-in without mounting pages or reading hidden account/financial data.
+Before a first switch, the target module is awaited while the current page stays painted;
+this is necessary because uni.switchTab itself hides the old page immediately. Pending
+navigation is cancelled by newer navigation, changed scope or changed route. Deep links
+with onLoad parameters retain their previous reLaunch behavior. Native tab routing is
+unchanged and APP preprocessing excludes the new tabBar definition.
+
+Cached page displays remain scoped to the current sign-in and are revalidated by the
+existing authenticated HTTP reads. H5 asset responses have scope/generation/visibility
+checks and clear on identity changes or authorization failures. Existing card/OTP/draft
+clearing, logout and consumer foreground socket/reminder behavior are preserved. Code
+warmup makes no page API requests, provisions no wallets and calls no card providers.
+
+Chrome/WebKit synthetic checks delay both the first card JS chunk and all page data
+responses, verify that the current shell remains visible, and switch six times without
+refetching page chunks on the repeat pass. Measured local warm-switch times were 27–56 ms;
+these are fixture measurements, not a guarantee of production network latency.
+Verification and screenshots: artifacts/h5-tab-switching. Publish matching H5 index and
+new hashed resources, retaining old hashes for already-open tabs. No migration or native
+App rebuild is needed for this H5-only optimization.
+
+## 2026-10-13 H5 return, refresh and field feedback
+
+H5 keeps list positions in mounted page instances, scoped to the current company,
+identity/session and full filter/page path; no personal data or form drafts are written
+to persistent storage. Detail back buttons pop the original matching list when present,
+retaining its query and pagination. Changed filters reset position; logout and scope
+changes discard saved positions. Stock reports still clear content before fresh partner
+eligibility checks.
+
+Same-path financial history and message lists keep previously loaded content during
+refresh and temporary failures, with Updating / Retry feedback. Account/assets refresh
+uses the same lightweight feedback. Authorization/session/record errors discard old
+content; redirects and stale or hidden responses cannot revive a previous user's data.
+First loads retain existing skeleton/error screens.
+
+H5 login, top-up, withdrawal, transfer, card application, financial password confirmation
+and recipient inputs register their server field names. Errors appear inline with
+aria-invalid/aria-describedby; unmatched errors remain in the summary. Explicit submits
+locate the first visible invalid field, scrolling only the dialog body for teleported
+modals. Late errors do not steal focus after another edit, and disabled fields are never
+focused. Financial confirmation, stable request IDs, UNKNOWN recovery and provider rules
+are unchanged.
+
+Verification uses fully intercepted Chrome/WebKit fixtures only: filtered/paginated
+message and withdrawal detail returns, delayed/failed refresh, 403 invalidation, logout,
+login Enter, transfer validation, withdrawal 422 and card dialog errors. Existing tab
+switching and compact card-opening browser checks also run. Evidence lives in
+artifacts/h5-experience. Publish matching H5 index/new hashes and retain old assets for
+open tabs; no backend API/schema changes or native installation is required for this
+H5 publication.

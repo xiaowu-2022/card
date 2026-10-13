@@ -1462,3 +1462,42 @@ it('overview source dialogs reject company administrators missing metric permiss
     $this->getJson($url.'inflow')->assertOk();
     Http::assertNothingSent();
 });
+
+
+it('uses Beijing midnight for today totals and source rows regardless of database timezone', function (string $databaseTimezone) {
+    foreach (['2026-10-12T08:24:00Z', '2026-10-12T15:59:59Z', '2026-10-12T16:00:00Z', '2026-10-13T14:00:00Z', '2026-10-13T16:00:00Z'] as $time) {
+        $this->travelTo(CarbonImmutable::parse($time));
+        stockExternal($this->user, 'USDT', '20', legacy: true);
+    }
+    $this->travelTo(CarbonImmutable::parse('2026-10-13T14:28:00Z'));
+    DB::statement("SET LOCAL TIME ZONE '$databaseTimezone'");
+    $overview = operatingOverview();
+    expect($overview['timezone'])->toBe('Asia/Shanghai')
+        ->and($overview['inflow']['totals']['today'])->toBe('40.00000000')
+        ->and($overview['inflow']['totals']['total'])->toBe('80.00000000');
+    $this->actingAs($this->admin, 'platform_admin');
+    $this->getJson('http://admin.localhost/platform/overview/sources?metric=inflow&period=today')
+        ->assertOk()->assertJsonPath('amount', '40.00000000')->assertJsonPath('rows.total', 2)
+        ->assertJsonPath('timezone', 'Asia/Shanghai');
+})->with(['UTC', 'Asia/Shanghai']);
+
+
+it('uses Beijing days for administrative partner statistics even when company time differs', function () {
+    $this->tenant->update(['timezone' => 'America/New_York']);
+    $partner = stockPartner($this, $this->user);
+    foreach (['2026-10-12T15:59:59Z', '2026-10-12T16:00:00Z'] as $time) {
+        $this->travelTo(CarbonImmutable::parse($time));
+        $child = stockChild($this->user);
+        stockFundWallet($this, $child);
+        app(FundSecurityDepositAction::class)->execute($this->tenant->id, $child->id, (string) Str::uuid(), '50');
+    }
+    $this->travelTo(CarbonImmutable::parse('2026-10-13T02:00:00Z'));
+    DB::statement("SET LOCAL TIME ZONE 'Asia/Shanghai'");
+    $summary = app(PartnerListSummary::class)->forRows([$partner])[$partner->id]['summary'];
+    $report = app(PartnerReport::class)->read($this->tenant->id, $this->user->id, false);
+    expect($summary['timezone'])->toBe('Asia/Shanghai')->and($summary['daily']['deposits']['today'])->toBe('50.00000000')
+        ->and($report['timezone'])->toBe('Asia/Shanghai')->and($report['trends']['deposits']['today'])->toBe('50.00000000');
+    $this->actingAs($this->admin, 'platform_admin');
+    $this->getJson('http://admin.localhost/platform/overview/sources?metric=deposits&period=today')
+        ->assertOk()->assertJsonPath('amount', '50.00000000')->assertJsonPath('rows.total', 1);
+});

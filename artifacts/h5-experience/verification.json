@@ -1,0 +1,34 @@
+{
+  "status": "passed",
+  "browsers": [
+    "Chrome",
+    "WebKit"
+  ],
+  "checks": [
+    "filtered message page and scroll restoration",
+    "withdrawal history page and scroll restoration",
+    "delayed refresh keeps records",
+    "failed refresh keeps records and allows retry",
+    "403 clears retained records",
+    "logout clears old user views",
+    "inline field errors and accessibility state",
+    "first invalid editable field focus",
+    "teleported dialog scroll does not move parent",
+    "transfer validation prevents submission",
+    "withdrawal 422 remount focuses address",
+    "login Enter submits and focuses first invalid field"
+  ],
+  "related_regressions": {
+    "h5-tab-switching": "passed Chrome/WebKit",
+    "card-application-compact": "passed Chrome/WebKit: success, lost material response, changed fee"
+  },
+  "typecheck": "passed",
+  "h5_build": "passed",
+  "network": "fully intercepted fixture APIs; no live supplier/financial/customer tests",
+  "local_publication": {
+    "path": "/Users/eaxyqminuo/www/card/public/h5",
+    "index_sha256": "815592aae14f468b834390417f4174877a029e7e1527fc4fbd30c415b01cc129",
+    "copied_assets": 239,
+    "old_hashes_retained": true
+  }
+}

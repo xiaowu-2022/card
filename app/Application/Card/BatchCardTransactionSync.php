@@ -34,12 +34,15 @@ final class BatchCardTransactionSync
 
     public function eligible(UserCard $card): bool
     {
-        return $card->provider === 'PHOTONPAY' && trim((string) $card->provider_card_id) !== ''
+        return in_array($card->provider, ['PHOTONPAY', 'U1'], true) && trim((string) $card->provider_card_id) !== ''
             && ! ProviderReference::isTest($card->provider_card_id);
     }
 
     private function accountKey(UserCard $card): string
     {
+        if ($card->provider === 'U1') {
+            return hash('sha256', 'U1:'.$card->product->card_provider_reference_id);
+        }
         $identity = $card->product?->cardProviderReference?->photonpay_identity;
         if (is_array($identity)) {
             ksort($identity);
@@ -242,7 +245,7 @@ final class BatchCardTransactionSync
             $startedAt = CarbonImmutable::now();
             try {
                 $provider = app(CardProductProviderRouter::class)->forCard($card);
-                if (! $provider->available() || $provider->name() !== 'PHOTONPAY') {
+                if (! $provider->available() || ! in_array($provider->name(), ['PHOTONPAY', 'U1'], true)) {
                     $this->failed($item, 'provider_unavailable', $context);
 
                     return;

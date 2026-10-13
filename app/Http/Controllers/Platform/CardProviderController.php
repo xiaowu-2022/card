@@ -6,6 +6,7 @@ use App\Application\CardProviderDirectory\CardProviderReferenceQuery;
 use App\Application\CardProviderDirectory\DeleteCardProviderReferenceAction;
 use App\Application\CardProviderDirectory\PhotonPayAccounts;
 use App\Application\CardProviderDirectory\SaveCardProviderReferenceAction;
+use App\Application\CardProviderDirectory\U1Accounts;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,6 +30,12 @@ final class CardProviderController extends Controller
 
     public function check(string $reference, Request $request, PhotonPayAccounts $accounts)
     {
+        if (DB::table('u1_connections')->where('reference_id', $reference)->exists()) {
+            app(U1Accounts::class)->check($reference, $request->user('platform_admin'));
+
+            return $request->expectsJson() ? response()->json(['checked' => true])->header('Cache-Control', 'private, no-store')
+                : back()->with('success', 'U1 account and card groups verified.');
+        }
         $accounts->check($reference, $request->user('platform_admin'));
 
         return back()->with('success', 'Connection and BIN catalog verified. Issuing and request signing have not been tested.');
@@ -43,6 +50,11 @@ final class CardProviderController extends Controller
 
     public function store(Request $request, SaveCardProviderReferenceAction $save)
     {
+        if ($request->input('provider_type') === 'U1') {
+            app(U1Accounts::class)->save(null, $request->all(), $request->user('platform_admin'));
+
+            return back()->with('success', 'U1 account saved.');
+        }
         if ($request->has('environment')) {
             DB::transaction(function () use ($request, $save): void {
                 $row = $save->execute(null, $request->only(['name', 'request_id']) + ['reference_balance' => '0.00'], $request->user('platform_admin'));
@@ -58,6 +70,11 @@ final class CardProviderController extends Controller
 
     public function update(string $reference, Request $request, SaveCardProviderReferenceAction $save)
     {
+        if ($request->input('provider_type') === 'U1') {
+            app(U1Accounts::class)->save($reference, $request->all(), $request->user('platform_admin'));
+
+            return back()->with('success', 'U1 account saved.');
+        }
         if ($request->has('environment')) {
             app(PhotonPayAccounts::class)->save($reference, $request->all(), $request->user('platform_admin'));
             if ($request->boolean('check_connection')) {

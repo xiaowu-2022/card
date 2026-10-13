@@ -63,10 +63,10 @@ final class PlatformOverviewSources
             } else {
                 $query = $this->source($metric, $at);
                 if (in_array($metric, ['inflow', 'outflow', 'cardFunding', ...PlatformOverviewQuery::ACTIVITY], true)) {
-                    $query->where('s.posted_at', '<=', $at);
+                    $query->where('s.posted_at', '<=', $at->toIso8601String());
                     if ($period !== 'total') {
                         $days = $period === 'today' ? 1 : (int) substr($period, 1);
-                        $query->where('s.posted_at', '>=', $today->subDays($days - 1)->utc());
+                        $query->where('s.posted_at', '>=', $today->subDays($days - 1)->utc()->toIso8601String());
                     }
                 }
                 if ($asset !== null) {
@@ -125,7 +125,7 @@ final class PlatformOverviewSources
                 } else {
                     $days = $metric === 'refund3' ? 3 : 10;
                     $part = DB::table('security_deposit_refund_requests')->where('tenant_id', $tenant)->where('status', 'CHECKING')->whereNull('cancel_requested_at')
-                        ->where('refund_eligible_at', '>=', $at)->where('refund_eligible_at', '<=', $at->addDays($days))
+                        ->where('refund_eligible_at', '>=', $at->toIso8601String())->where('refund_eligible_at', '<=', $at->addDays($days)->toIso8601String())
                         ->selectRaw("id, tenant_id, user_id, 'USDT'::text AS asset_code, amount, refund_eligible_at AS posted_at, 'Security deposit refund'::text AS source");
                 }
                 $source === null ? $source = $part : $source->unionAll($part);

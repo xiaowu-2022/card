@@ -19,7 +19,7 @@ final readonly class SaveCardProviderReferenceAction
 {
     public function __construct(private AuthorizationService $authorization, private AuditLogger $audit) {}
 
-    public function execute(?string $id, array $data, AdminUser $actor, ?string $auditRequestId = null): CardProviderReference
+    public function execute(?string $id, array $data, AdminUser $actor, ?string $auditRequestId = null, bool $apiConnection = false): CardProviderReference
     {
         $data['name'] = is_string($data['name'] ?? null) ? trim($data['name']) : null;
         $data = Validator::make($data, [
@@ -32,7 +32,7 @@ final readonly class SaveCardProviderReferenceAction
         ])->validate();
         $amount = isset($data['reference_balance']) ? (string) BigDecimal::of($data['reference_balance'])->toScale(8) : null;
 
-        return DB::transaction(function () use ($id, $data, $amount, $actor, $auditRequestId): CardProviderReference {
+        return DB::transaction(function () use ($id, $data, $amount, $actor, $auditRequestId, $apiConnection): CardProviderReference {
             $actor = $actor->fresh();
             abort_unless($actor && $actor->status === AdminUserStatus::Active && $this->authorization->allows($actor, ScopeType::Platform, null, 'card_provider_reference.manage'), 403);
             $recordId = $id ?? $data['request_id'];
@@ -44,6 +44,9 @@ final readonly class SaveCardProviderReferenceAction
             }
             $query = CardProviderReference::query()->whereKey($recordId)->lockForUpdate();
             $record = $id === null ? $query->first() : $query->firstOrFail();
+            if ($record && DB::table('u1_connections')->where('reference_id', $record->id)->exists()) {
+                throw ValidationException::withMessages(['provider_type' => 'Use the U1 notification test configuration for this connection.']);
+            }
             if ($record?->photonpay_reporting_encrypted !== null) {
                 if (array_key_exists('reference_balance', $data)) {
                     throw ValidationException::withMessages(['reference_balance' => 'API balances are read-only.']);
@@ -70,7 +73,7 @@ final readonly class SaveCardProviderReferenceAction
             $record ??= new CardProviderReference;
             if (! $record->exists) {
                 $record->forceFill(['id' => $recordId, 'creation_hash' => $hash, 'created_by' => $actor->id, 'asset_code' => 'USDT', 'version' => 0]);
-                $record->forceFill(['runtime_driver' => strtolower($data['name']) === 'test' && app()->environment('local') && LocalCardSimulation::enabled() ? 'LOCAL_MOCK' : 'UNCONFIGURED']);
+                $record->forceFill(['runtime_driver' => ! $apiConnection && strtolower($data['name']) === 'test' && app()->environment('local') && LocalCardSimulation::enabled() ? 'LOCAL_MOCK' : 'UNCONFIGURED']);
             }
             $record->forceFill(['name' => $data['name'], 'reference_balance' => $amount, 'updated_by' => $actor->id, 'version' => $record->version + 1])->save();
             $this->audit->record(null, 'ADMIN', $actor->id, $id === null ? 'CARD_PROVIDER_REFERENCE_CREATED' : 'CARD_PROVIDER_REFERENCE_UPDATED', 'card_provider_reference', $record->id, $before, [

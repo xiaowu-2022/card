@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import TextInput from '../../components/TextInput.vue';
+import FormField from '../../components/FormField.vue';
+import { useFormFeedback } from '../../lib/form-feedback';
 import { useSensitiveScreen } from '../../lib/sensitive';
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
@@ -34,6 +36,7 @@ useSensitiveScreen(() => {
     show.value = false;
 });
 async function submit() {
+    feedback.begin();
     if (pending.value || !email.value || !password.value) return;
     pending.value = true;
     errors.value = {};
@@ -47,29 +50,46 @@ async function submit() {
         pending.value = false;
     }
 }
+const feedback = useFormFeedback(errors);
 </script>
 <template>
     <AuthLayout login
         ><FormErrors :errors="errors" />
         <form @submit="submit">
             <view class="login-fields"
-                ><TextInput
+                >
+                <!-- #ifdef H5 -->
+                <FormField
+                    name="email" :aliases="['identifier']"
                     v-model="email"
-                    class="login-input"
+                    class="login-feedback"
                     :placeholder="t('Email')"
                     :aria-label="t('Email address')"
                     :disabled="pending"
                     :maxlength="255"
-                /><view class="password-field"
-                    ><TextInput
+                />
+                <!-- #endif -->
+                <!-- #ifndef H5 -->
+                <TextInput v-model="email" class="login-input" :placeholder="t('Email')" :aria-label="t('Email address')" :disabled="pending" :maxlength="255" />
+                <!-- #endif -->
+                <view class="password-field"
+                    >
+                    <!-- #ifdef H5 -->
+                    <FormField
+                        name="password"
                         v-model="password"
-                        class="login-input"
+                        class="login-feedback"
                         :password="!show"
                         :placeholder="t('Password')"
                         :aria-label="t('Password')"
                         :disabled="pending"
                         :maxlength="1024"
-                        @confirm="submit" /><button
+                        @confirm="submit" />
+                    <!-- #endif -->
+                    <!-- #ifndef H5 -->
+                    <TextInput v-model="password" class="login-input" :password="!show" :placeholder="t('Password')" :aria-label="t('Password')" :disabled="pending" :maxlength="1024" @confirm="submit" />
+                    <!-- #endif -->
+                    <button
                         class="password-toggle"
                         :aria-label="t(show ? 'Hide password' : 'Show password')"
                         @click="show = !show"
@@ -92,12 +112,14 @@ async function submit() {
     >
 </template>
 <style scoped>
+.login-feedback { margin-bottom: 0; }
 .login-fields {
     display: flex;
     flex-direction: column;
     gap: 12px;
 }
-.login-input {
+.login-input,
+.login-feedback :deep(.form-input) {
     box-sizing: border-box;
     width: 100%;
     height: 54px;
@@ -112,7 +134,8 @@ async function submit() {
 .password-field {
     position: relative;
 }
-.password-field .login-input {
+.password-field .login-input,
+.password-field :deep(.form-input) {
     padding-right: 56px;
 }
 .password-toggle {

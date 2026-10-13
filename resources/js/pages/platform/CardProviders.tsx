@@ -31,8 +31,10 @@ import {
     TableCell,
 } from '@/components/ui/table';
 import type { SharedProps } from '@/types/global';
+import { U1AccountForm, type U1Configuration } from '@/components/shared/U1AccountForm';
 
 type Reference = {
+    u1: U1Configuration | null;
     photonpay: PhotonPayConfiguration | null;
     id: string;
     name: string;
@@ -46,6 +48,31 @@ type Reference = {
     issuedCardCount: string | null;
     canDelete: boolean;
 };
+
+function ProviderAccountForm({ record, close }: { record: Reference | null; close: () => void }) {
+    const [type, setType] = useState(record?.u1 ? 'U1' : 'PhotonPay');
+    return (
+        <div className="space-y-4">
+            <label className="block text-sm">
+                {t('Card provider type')}
+                <select
+                    className="w-full rounded border p-2"
+                    value={type}
+                    disabled={!!record?.u1 || !!record?.photonpay}
+                    onChange={(event) => setType(event.target.value)}
+                >
+                    <option value="PhotonPay">PhotonPay</option>
+                    <option value="U1">U1</option>
+                </select>
+            </label>
+            {type === 'U1' ? (
+                <U1AccountForm record={record} close={close} />
+            ) : (
+                <PhotonPayAccountForm record={record} close={close} />
+            )}
+        </div>
+    );
+}
 
 function ReferenceForm({ record, close }: { record: Reference | null; close: () => void }) {
     const form = useForm({
@@ -173,6 +200,9 @@ export default function CardProviders({ providers }: { providers: AccountPage<Re
                                     <TableRow key={record.id}>
                                         <TableCell className="max-w-64 whitespace-normal break-words">
                                             {record.name}
+                                            {record.u1 && (
+                                                <p className="text-xs text-muted-foreground">U1</p>
+                                            )}
                                             {record.localMock && (
                                                 <p className="text-xs text-muted-foreground">
                                                     {t('Mock (local only)')}
@@ -190,11 +220,13 @@ export default function CardProviders({ providers }: { providers: AccountPage<Re
                                             )}
                                             <p className="text-xs text-muted-foreground">
                                                 {t(
-                                                    record.apiConnected
-                                                        ? record.sandbox
-                                                            ? 'PhotonPay API · Sandbox'
-                                                            : 'PhotonPay API · Production'
-                                                        : 'Manual reference',
+                                                    record.u1
+                                                        ? 'U1 API'
+                                                        : record.apiConnected
+                                                          ? record.sandbox
+                                                              ? 'PhotonPay API · Sandbox'
+                                                              : 'PhotonPay API · Production'
+                                                          : 'Manual reference',
                                                 )}
                                             </p>
                                         </TableCell>
@@ -283,7 +315,7 @@ export default function CardProviders({ providers }: { providers: AccountPage<Re
                         <ReferenceForm record={editing} close={() => setEditing(null)} />
                     ) : (
                         editing !== null && (
-                            <PhotonPayAccountForm
+                            <ProviderAccountForm
                                 key={editing === 'new' ? 'new' : editing.id}
                                 record={
                                     editing === 'new'

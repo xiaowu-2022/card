@@ -94,7 +94,7 @@ final readonly class ApplyCardIssueResultAction
                     'card_product_id' => $order->card_product_id,
                     'card_issue_order_id' => $order->id,
                     'provider_cardholder_id' => $order->provider_cardholder_id,
-                    'provider' => 'PHOTONPAY',
+                    'provider' => $order->provider,
                     'provider_card_id' => $card->providerCardId,
                     'card_currency' => 'USD',
                     'form_factor' => $order->form_factor,

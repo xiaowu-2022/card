@@ -11,6 +11,7 @@ const props = defineProps<{
     busy?: boolean;
     sheet?: boolean;
     wide?: boolean;
+    compact?: boolean;
 }>();
 const emit = defineEmits<{ close: [] }>();
 const pageVisible = ref(true);
@@ -46,7 +47,7 @@ onBeforeUnmount(() => stop?.());
     <view v-if="visible" class="modal-backdrop" :style="viewportStyle" :class="{ sheet }" @click.self="!busy && emit('close')"
         ><view
             class="modal-panel"
-            :class="{ wide }"
+            :class="{ wide, compact }"
             role="dialog"
             aria-modal="true"
             :aria-label="title"
@@ -65,7 +66,7 @@ onBeforeUnmount(() => stop?.());
             <!-- #endif -->
             <!-- #ifndef H5 -->
             <scroll-view scroll-y class="modal-scroll"><slot /></scroll-view>
-            <!-- #endif --></view
+            <!-- #endif --><view v-if="$slots.footer" class="modal-footer"><slot name="footer" /></view></view
     ></view>
     <!-- #ifdef H5 -->
     </Teleport>
@@ -151,4 +152,9 @@ onBeforeUnmount(() => stop?.());
     max-width: 512px;
     padding-bottom: calc(24px + env(safe-area-inset-bottom));
 }
+</style>
+
+<style scoped>
+.modal-panel.compact { padding: 16px; }
+.modal-footer { flex-shrink: 0; padding-top: 10px; padding-bottom: env(safe-area-inset-bottom); border-top: 1px solid #e2e7e4; margin-top: 8px; }
 </style>

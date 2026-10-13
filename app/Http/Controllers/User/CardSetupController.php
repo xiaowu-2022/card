@@ -46,6 +46,9 @@ final class CardSetupController extends Controller
 
     private function submissionResponse(ProviderCardholder $holder): RedirectResponse
     {
+        if ($holder->provider === 'U1' && $holder->status === ProviderCardholderStatus::LocalReady && $holder->provider_cardholder_id === null) {
+            return back();
+        }
         if ($holder->status === ProviderCardholderStatus::Ready && $holder->provider_cardholder_id !== null) {
             return back();
         }

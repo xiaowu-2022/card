@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-13",
+  "providerMode": "STANDARD",
+  "upstreamRequestId": "OMITTED_PER_USER_INSTRUCTION",
+  "realProviderCalls": 0,
+  "realFinancialTests": 0,
+  "u1Tests": {
+    "passed": 65,
+    "assertions": 533
+  },
+  "relatedRegression": {
+    "passed": 52,
+    "assertions": 521
+  },
+  "broadRegression": {
+    "passed": 281,
+    "existingFailures": 19,
+    "baselineSameFailures": true
+  },
+  "browser": [
+    "Chromium",
+    "WebKit"
+  ],
+  "checks": [
+    "TypeScript",
+    "ESLint",
+    "PHP Pint",
+    "mobile vue-tsc",
+    "admin build",
+    "H5 release build"
+  ],
+  "localMigrations": [
+    "210000",
+    "220000",
+    "230000",
+    "240000",
+    "250000"
+  ],
+  "remoteDeployment": "not performed",
+  "liveCallbackCoverage": "requires public HTTPS callback and user configuration",
+  "assetManifestMissingReferences": 0,
+  "migrationHashesVerified": 5
+}

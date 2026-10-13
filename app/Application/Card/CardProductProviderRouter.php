@@ -11,6 +11,7 @@ use App\Infrastructure\Providers\Card\LocalCardSimulation;
 use App\Infrastructure\Providers\Card\LocalMockCardProvider;
 use App\Infrastructure\Providers\Card\PhotonPayCardProvider;
 use App\Infrastructure\Providers\Card\PhotonPayCardResponseNormalizer;
+use App\Infrastructure\Providers\Card\U1CardProvider;
 use App\Infrastructure\Providers\Card\UnavailableCardProvider;
 use App\Support\Errors\DomainException;
 use App\Support\Logging\PhotonPayLog;
@@ -23,6 +24,12 @@ final readonly class CardProductProviderRouter
 
     public function forProduct(CardProduct $product, string $formFactor = 'virtual_card'): CardProviderInterface
     {
+        if ($product->card_provider_reference_id && CardProviderReference::includingDeleted()->whereKey($product->card_provider_reference_id)->exists()) {
+            $u1 = DB::table('u1_connections')->where('reference_id', $product->card_provider_reference_id)->first();
+            if ($u1) {
+                return $formFactor === 'virtual_card' ? new U1CardProvider($u1) : new UnavailableCardProvider;
+            }
+        }
         if ($product->cardProviderReference?->photonpay_issuing_encrypted && ! $product->cardProviderReference?->photonpay_migration_error) {
             try {
                 if (! $product->cardProviderReference->photonpay_identity || $product->cardProviderReference->photonpay_check_status !== 'VERIFIED') {
@@ -63,6 +70,30 @@ final readonly class CardProductProviderRouter
             && ($product->cardProviderReference->photonpay_identity['base_url'] ?? '') === PhotonPayAccounts::BASES['sandbox'];
     }
 
+    public function isU1Account(CardProduct $product): bool
+    {
+        return $product->card_provider_reference_id !== null && $product->cardProviderReference !== null
+            && DB::table('u1_connections')->where('reference_id', $product->card_provider_reference_id)->exists();
+    }
+
+    public function managementCapabilities(UserCard $card, array $existing): array
+    {
+        if (! $this->isU1Account($card->product)) {
+            return $existing;
+        }
+        $c = DB::table('u1_connections')->where('reference_id', $card->product->card_provider_reference_id)->firstOrFail();
+        $allowed = ['reveal', 'transactions'];
+        if ($c->enabled && $c->zero_fees_confirmed && $card->provider_status === 'normal') {
+            $allowed[] = 'load';
+            $group = collect(json_decode($c->group_catalog ?? '[]', true))->firstWhere('groupNo', $card->product->provider_product_ref);
+            if (($group['model'] ?? null) === 'SHARE') {
+                $allowed[] = 'return';
+            }
+        }
+
+        return array_values(array_unique([...array_intersect($existing, $allowed), ...($card->provider_status === 'normal' && in_array('reveal', $existing, true) ? ['otp'] : [])]));
+    }
+
     public function isPhotonPayAccount(CardProduct $product): bool
     {
         return $product->card_provider_reference_id !== null
@@ -94,6 +125,13 @@ final readonly class CardProductProviderRouter
         $account = DB::transactionLevel() > 0 ? $query->lockForUpdate()->first() : $query->first();
         if ($product->card_provider_reference_id !== null && ! $account) {
             throw new DomainException('CARD_ACCOUNT_PAUSED', 'This PhotonPay account is not accepting new business.', 409);
+        }
+        if ($account && $this->isU1Account($product)) {
+            $c = DB::table('u1_connections')->where('reference_id', $account->id)->firstOrFail();
+            $group = collect(json_decode($c->group_catalog ?? '[]', true))->firstWhere('groupNo', $product->provider_product_ref);
+            if (($group['bin'] ?? null) !== $product->source_bin || ! $c->enabled || $c->check_status !== 'VERIFIED' || ! $this->forProduct($product)->productAvailable($product->provider_product_ref, $product->card_currency)) {
+                throw new DomainException('CARD_ACCOUNT_PAUSED', 'This U1 account is not accepting new business.', 409);
+            }
         }
         if ($account?->photonpay_issuing_encrypted && (! $account->photonpay_enabled || $account->photonpay_migration_error)) {
             throw new DomainException('CARD_ACCOUNT_PAUSED', 'This PhotonPay account is not accepting new business.', 409);

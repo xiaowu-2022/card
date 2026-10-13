@@ -25,7 +25,7 @@ final class PlatformDailyFundsQuery
             $amountColumn = $key === 'inflow' ? 'COALESCE(actual_received_amount, amount)' : 'amount';
             $daily[$key] = DB::table($table)->whereIn('tenant_id', $companies)
                 ->where('asset_code', 'USDT')->where('status', $state)
-                ->where($timestamp, '>=', $start->utc())->where($timestamp, '<', $end->addDay()->utc())
+                ->where($timestamp, '>=', $start->utc()->toIso8601String())->where($timestamp, '<', $end->addDay()->utc()->toIso8601String())
                 ->selectRaw("({$timestamp} AT TIME ZONE ?)::date::text AS day, SUM({$amountColumn})::text AS amount", [PlatformFundsFilters::TIMEZONE])
                 ->groupByRaw('1')->pluck('amount', 'day');
             $totals[$key] = BigDecimal::zero()->toScale(8);
@@ -37,7 +37,7 @@ final class PlatformDailyFundsQuery
             $daily['overflow'] = DB::table('card_management_orders as o')
                 ->join('ledger_entries as e', fn ($j) => $j->on('e.id', '=', 'o.settlement_entry_id')->on('e.tenant_id', '=', 'o.tenant_id'))
                 ->whereIn('o.tenant_id', $companies)->where('o.kind', 'LOAD')->where('o.status', 'SUCCEEDED')
-                ->where('e.created_at', '>=', $start->utc())->where('e.created_at', '<', $end->addDay()->utc())
+                ->where('e.created_at', '>=', $start->utc()->toIso8601String())->where('e.created_at', '<', $end->addDay()->utc()->toIso8601String())
                 ->selectRaw('(e.created_at AT TIME ZONE ?)::date::text AS day, SUM(COALESCE(o.overflow_amount, 0))::text AS amount', [PlatformFundsFilters::TIMEZONE])
                 ->groupByRaw('1')->pluck('amount', 'day');
             $totals['overflow'] = BigDecimal::zero()->toScale(8);

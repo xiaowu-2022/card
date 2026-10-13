@@ -2,6 +2,7 @@
 
 namespace App\Application\Promotion;
 
+use App\Application\Tenant\PlatformFundsFilters;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Tenant\Models\Tenant;
 use Carbon\CarbonImmutable;
@@ -12,7 +13,7 @@ final class CompanyFundBookQuery
     public function execute(string $tenantId, ?string $date, int $page): array
     {
         $tenant = Tenant::query()->whereKey($tenantId)->firstOrFail();
-        $day = $date ? CarbonImmutable::createFromFormat('!Y-m-d', $date, $tenant->timezone) : CarbonImmutable::now($tenant->timezone)->startOfDay();
+        $day = $date ? CarbonImmutable::createFromFormat('!Y-m-d', $date, PlatformFundsFilters::TIMEZONE) : CarbonImmutable::now(PlatformFundsFilters::TIMEZONE)->startOfDay();
         $base = DB::table('ledger_entries as e')->join('ledger_postings as p', fn ($join) => $join->on('p.ledger_entry_id', '=', 'e.id')->on('p.tenant_id', '=', 'e.tenant_id'))
             ->join('ledger_accounts as a', fn ($join) => $join->on('a.id', '=', 'p.ledger_account_id')->on('a.tenant_id', '=', 'e.tenant_id'))
             ->leftJoin('manual_commission_adjustments as m', fn ($j) => $j->on('m.ledger_entry_id', '=', 'e.id')->on('m.tenant_id', '=', 'e.tenant_id'))
@@ -31,7 +32,7 @@ final class CompanyFundBookQuery
             'CARD_ISSUE_FEE_SETTLE', 'CARD_INITIAL_LOAD_SETTLE', 'CARD_LOAD_SETTLE', 'CARD_RETURN_SETTLE', 'CARD_CANCEL_RETURN_SETTLE',
         ])->orderByDesc('e.posted_at')->orderBy('e.id')->orderBy('p.id')->paginate(30, ['p.id', 'c.kind', 'e.event_type', 'e.posted_at', 'p.delta', 'a.account_type'], 'page', $page);
 
-        return ['date' => $day->format('Y-m-d'), 'timezone' => $tenant->timezone,
+        return ['date' => $day->format('Y-m-d'), 'timezone' => PlatformFundsFilters::TIMEZONE,
             'totals' => $totals($daily), 'lifetimeTotals' => $totals($base),
             'rows' => $rows->take(30)->map(fn ($row) => ['id' => $row->id,
                 'type' => $row->event_type === 'MANUAL_COMMISSION' ? (['activation' => 'COMMISSION_EARN', 'annual' => 'PROMOTION_ANNUAL_COMMISSION', 'legacy' => 'LEGACY_COMMISSION'][$row->kind] ?? 'COMMISSION') : (in_array($row->event_type, ['WITHDRAWAL_SETTLE', 'ASSET_WITHDRAWAL_SETTLE'], true) && $row->account_type === 'TENANT_FEE_REVENUE' ? 'WITHDRAWAL_FEE_INCOME' : $row->event_type),

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useFormFeedback } from '../lib/form-feedback';
 import { computed, ref } from 'vue';
 import FormField from './FormField.vue';
 import FormErrors from './FormErrors.vue';
@@ -7,7 +8,8 @@ import { ApiError, request } from '../lib/api';
 import { requestId, explainError } from '../lib/client';
 import { useSensitiveScreen } from '../lib/sensitive';
 const props = defineProps<{
-        applicationId: string;
+        applicationId?: string;
+        embedded?: boolean;
         saved?: { id: string; status: string } | null;
     }>(),
     emit = defineEmits<{ ready: [id: string, summary: string]; busy: [value: boolean] }>();
@@ -30,7 +32,8 @@ const fields = ref<Record<string, string>>({}),
     busy = ref(false),
     uncertain = ref(false),
     errors = ref<Record<string, string>>({}),
-    key = ref(requestId());
+    key = ref(requestId()),
+    optionalOpen = ref(false);
 const summary = computed(() =>
         labels
             .map(([name]) => fields.value[name])
@@ -39,11 +42,15 @@ const summary = computed(() =>
     ),
     locked = computed(() => ['READY', 'UNKNOWN', 'SUBMITTING'].includes(state.value));
 let generation = 0;
-useSensitiveScreen(() => {
-    generation++;
-    fields.value = {};
-}, { retainUntilUnmount: true });
-async function send(inspect = false) {
+useSensitiveScreen(
+    () => {
+        generation++;
+        fields.value = {};
+    },
+    { retainUntilUnmount: true },
+);
+async function send(inspect = false, applicationId = props.applicationId) {
+    feedback.begin();
     if (busy.value) return;
     const run = generation;
     busy.value = true;
@@ -65,7 +72,7 @@ async function send(inspect = false) {
                 : {
                       ...fields.value,
                       request_id: key.value,
-                      cardholder_application_id: props.applicationId,
+                      cardholder_application_id: applicationId,
                   },
         );
         if (run !== generation) return;
@@ -88,14 +95,31 @@ async function send(inspect = false) {
         emit('busy', false);
     }
 }
+const valid = computed(
+    () =>
+        state.value === 'READY' ||
+        labels
+            .filter(([name]) => !['addressLine2', 'addressLine3'].includes(name))
+            .every(([name]) => fields.value[name]?.trim()),
+);
+defineExpose({
+    valid,
+    async save(applicationId: string) {
+        if (state.value === 'READY') return id.value;
+        if (locked.value || uncertain.value || state.value === 'FAILED') return null;
+        await send(false, applicationId);
+        return state.value === 'READY' ? id.value : null;
+    },
+});
 function correct() {
     state.value = '';
     key.value = requestId();
     errors.value = {};
 }
+const feedback = useFormFeedback(errors);
 </script>
 <template>
-    <view class="recipient"
+    <view class="recipient" :class="{ embedded }"
         ><template v-if="locked"
             ><text>{{
                 t(
@@ -112,15 +136,37 @@ function correct() {
             ><text class="heading">{{ t('Physical card recipient') }}</text
             ><view class="grid"
                 ><FormField
-                    v-for="[name, label, max] in labels"
+                    v-for="[name, label, max] in embedded
+                        ? labels.filter(
+                              ([name]) => !['addressLine2', 'addressLine3'].includes(name),
+                          )
+                        : labels"
+                    :name="name"
                     :key="name"
                     v-model="fields[name]"
                     :label="t(label)"
                     :maxlength="max"
                     :disabled="busy || uncertain || state === 'FAILED'" /></view
+            ><template v-if="embedded"
+                ><button class="secondary" @click="optionalOpen = !optionalOpen">
+                    {{ t('Address line 2') }} / {{ t('Address line 3') }}</button
+                ><view v-if="optionalOpen" class="grid"
+                    ><FormField
+                        :name="name"
+                        v-for="name in ['addressLine2', 'addressLine3']"
+                        :key="name"
+                        v-model="fields[name]"
+                        :label="t(name === 'addressLine2' ? 'Address line 2' : 'Address line 3')"
+                        :maxlength="50"
+                        :disabled="busy || uncertain || state === 'FAILED'" /></view></template
             ><button v-if="state === 'FAILED'" class="secondary" @click="correct">
                 {{ t('Correct recipient details') }}</button
-            ><button class="primary" :disabled="busy || state === 'FAILED'" @click="send()">
+            ><button
+                v-if="!embedded"
+                class="primary"
+                :disabled="busy || state === 'FAILED'"
+                @click="send()"
+            >
                 {{ t('Save recipient') }}
             </button></template
         ><FormErrors :errors="errors"
@@ -159,6 +205,37 @@ function correct() {
 @media (min-width: 640px) {
     .grid {
         grid-template-columns: 1fr 1fr;
+    }
+}
+</style>
+
+<style scoped>
+.embedded {
+    padding: 10px;
+}
+.embedded .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 10px;
+}
+.embedded :deep(.form-field) {
+    margin-bottom: 0;
+}
+.embedded :deep(.form-input) {
+    height: 40px;
+    min-height: 40px;
+    padding: 8px;
+    border-radius: 8px;
+}
+.embedded :deep(.form-label) {
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+</style>
+
+<style scoped>
+@media (min-width: 640px) {
+    .embedded .grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 </style>

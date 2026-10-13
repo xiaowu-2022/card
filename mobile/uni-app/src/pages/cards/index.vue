@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePagePosition } from '../../lib/page-position';
 import CardProductInfo from '../../components/CardProductInfo.vue';
 import { staticAsset } from '../../lib/origin';
 import { computed, ref, nextTick, watch, onBeforeUnmount } from 'vue';
@@ -59,7 +60,7 @@ const { loading, failed, refresh } = useScreen(
             data = await getPage<CardsPage>('/cards');
         } catch (error) {
             if (run !== generation || scope !== consumerSessionScope()) return;
-            if (error instanceof ApiError && [401, 403].includes(error.status)) {
+            if (error instanceof ApiError && [401, 403, 419].includes(error.status)) {
                 clearCardsPreview();
                 page.value = null;
                 choosing.value = verification.value = false;
@@ -145,6 +146,7 @@ const pendingDescription = computed(() =>
 function requirements() {
     uni.pageScrollTo({ selector: '#card-setup', duration: 250 });
 }
+usePagePosition(() => '/cards', () => !!page.value);
 </script>
 <template>
     <PageShell :title="t('Cards')" active="cards"
@@ -292,10 +294,7 @@ function requirements() {
                                 >{{ displayMoney(product.minimumInitialLoad) }}
                                 {{ product.cardCurrency }}</text
                             ></view
-                        ><CardProductInfo
-                            :monthly-fee-text="product.monthlyFeeText"
-                            :notes="product.notes"
-                        /><button
+                        ><button
                             class="primary wide"
                             :disabled="
                                 !product.readyForSetup ||
@@ -304,7 +303,7 @@ function requirements() {
                             @click="choose(product)"
                         >
                             {{ t('Open this card') }}</button
-                        ><text v-if="!product.readyForSetup" class="application-note muted">{{
+                        ><CardProductInfo :monthly-fee-text="product.monthlyFeeText" :notes="product.notes" /><text v-if="!product.readyForSetup" class="application-note muted">{{
                             t(product.guidance)
                         }}</text></view
                     ><view v-if="!page.products.length" class="empty-card"

@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import { computed, ref, getCurrentInstance } from 'vue';
+import { useFeedbackField } from '../lib/form-feedback';
 import TextInput from './TextInput.vue';
 const props = withDefaults(
     defineProps<{
+        name?: string;
+        aliases?: string[];
         modelValue: string;
         label?: string;
         placeholder?: string;
@@ -15,7 +19,12 @@ const props = withDefaults(
     }>(),
     { type: 'text', maxlength: 255 },
 );
-const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
+const element = ref();
+const errorId = `field-error-${getCurrentInstance()?.uid}`;
+const feedbackError = useFeedbackField(() => [props.name ?? '', ...(props.aliases ?? [])].filter(Boolean), () => element.value);
+const fieldError = computed(() => feedbackError.value || props.error);
+const emit = defineEmits<{ 'update:modelValue': [value: string]; confirm: [] }>();
+const confirmEvents = getCurrentInstance()?.vnode.props?.onConfirm ? { confirm: () => emit('confirm') } : {};
 function input(event: { detail: { value: string } }) {
     const value = event.detail.value;
     emit(
@@ -25,7 +34,7 @@ function input(event: { detail: { value: string } }) {
 }
 </script>
 <template>
-    <view class="form-field"
+    <view ref="element" class="form-field" :data-field="name"
         ><text v-if="label" class="form-label">{{ label }}</text
         ><TextInput
             class="form-input"
@@ -37,11 +46,13 @@ function input(event: { detail: { value: string } }) {
             :disabled="disabled"
             :maxlength="maxlength"
             :aria-label="label || placeholder"
-            :aria-invalid="!!error"
-            @input="input" /><text v-if="description" class="form-description">{{
+            :aria-invalid="!!fieldError"
+            :aria-describedby="fieldError ? errorId : undefined"
+            :name="name"
+            @input="input" v-on="confirmEvents" /><text v-if="description" class="form-description">{{
             description
         }}</text
-        ><text v-if="error" class="field-error">{{ error }}</text
+        ><text v-if="fieldError" class="field-error" :id="errorId" role="alert">{{ fieldError }}</text
         ><slot
     /></view>
 </template>

@@ -26,11 +26,11 @@ final class LegacyStockReport
         ) SELECT user_id FROM team UNION SELECT id AS user_id FROM users WHERE tenant_id=? AND id=?) AS team', [$tenant, $user, $tenant, $tenant, $user])->select('user_id');
     }
 
-    public function read(string $tenant, string $user, bool $requireEnabled = true, int $page = 1): array
+    public function read(string $tenant, string $user, bool $requireEnabled = true, int $page = 1, ?string $timezone = null): array
     {
         $outer = DB::transactionLevel();
 
-        return DB::transaction(function () use ($tenant, $user, $requireEnabled, $page, $outer) {
+        return DB::transaction(function () use ($tenant, $user, $requireEnabled, $page, $outer, $timezone) {
             if ($outer === 0) {
                 DB::statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
             }
@@ -40,14 +40,15 @@ final class LegacyStockReport
             $partner ??= (object) ['id' => null, 'share_percent' => '0'];
             $company = Tenant::findOrFail($tenant);
             $at = CarbonImmutable::now();
-            $today = $at->setTimezone($company->timezone)->startOfDay();
+            $timezone ??= $company->timezone;
+            $today = $at->setTimezone($timezone)->startOfDay();
             $team = $this->team($tenant, $user);
             $annual = DB::table('paid_promotion_orders')->where('tenant_id', $tenant)->whereIn('user_id', clone $team)->where('status', 'COMPLETED')->whereNotNull('ledger_entry_id');
             $commissions = app(PromotionReportQuery::class)->income($tenant, null)->whereIn('source_user_id', clone $team);
             $costs = (clone $commissions)->whereIn('kind', ['activation', 'legacy']);
             $annualCommissions = (clone $commissions)->where('kind', 'annual');
             $deposits = DB::table('ledger_accounts as a')->where('a.tenant_id', $tenant)->whereIn('a.user_id', clone $team)->where('a.asset_code', 'USDT')->where('a.account_type', 'USER_SECURITY_DEPOSIT')
-                ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('paid_promotion_cycles as c')->whereColumn('c.tenant_id', 'a.tenant_id')->whereColumn('c.user_id', 'a.user_id')->where('c.starts_at', '<=', $at)->where('c.ends_at', '>', $at));
+                ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('paid_promotion_cycles as c')->whereColumn('c.tenant_id', 'a.tenant_id')->whereColumn('c.user_id', 'a.user_id')->where('c.starts_at', '<=', $at->toIso8601String())->where('c.ends_at', '>', $at->toIso8601String()));
             $rebates = DB::table('paid_promotion_rebates')->where('tenant_id', $tenant)->whereIn('user_id', clone $team)->where('status', 'APPROVED')->whereNotNull('ledger_entry_id');
             $journal = DB::table('partner_journal_entries as j')->join('partner_configurations as p', fn ($j) => $j->on('p.id', '=', 'j.partner_id')->on('p.tenant_id', '=', 'j.tenant_id'))->where('j.tenant_id', $tenant)->whereIn('p.user_id', clone $team);
             $journalTotals = (clone $journal)->selectRaw("COALESCE(SUM(CASE WHEN j.reverses_id IS NULL THEN j.amount ELSE -j.amount END) FILTER(WHERE j.kind='REIMBURSEMENT'),0) AS reimbursements, COALESCE(SUM(CASE WHEN j.reverses_id IS NULL THEN j.amount ELSE -j.amount END) FILTER(WHERE j.kind='ADVANCE'),0) AS advances")->first();
@@ -67,7 +68,7 @@ final class LegacyStockReport
             $journalPage = (clone $journal)->join('users as u', fn ($j) => $j->on('u.id', '=', 'p.user_id')->on('u.tenant_id', '=', 'p.tenant_id'))->orderByDesc('j.created_at')->orderBy('j.id')->paginate(20, ['j.id', 'j.partner_id', 'j.kind', 'j.amount', 'j.business_date', 'j.note', 'j.reverses_id', 'j.actor_id', 'j.created_at', 'u.account_id', DB::raw('EXISTS(SELECT 1 FROM partner_journal_entries reversal WHERE reversal.tenant_id=j.tenant_id AND reversal.reverses_id=j.id) AS reversed')], 'page', $page);
             $missing = (clone $fees)->where('w.asset_code', '<>', 'USDT')->where('w.fee_amount', '>', 0)->whereNull('v.usdt_amount')->orderBy('w.id')->paginate(20, ['w.id', 'w.asset_code', 'w.fee_amount', 'v.id as valuation_id'], 'page', $page);
 
-            return ['updatedAt' => $at->toIso8601String(), 'timezone' => $company->timezone, 'partnerId' => $partner->id ?? '', 'accountId' => DB::table('users')->where('id', $user)->value('account_id'), 'sharePercent' => $partner->share_percent, 'totals' => $totals,
+            return ['updatedAt' => $at->toIso8601String(), 'timezone' => $timezone, 'partnerId' => $partner->id ?? '', 'accountId' => DB::table('users')->where('id', $user)->value('account_id'), 'sharePercent' => $partner->share_percent, 'totals' => $totals,
                 'stock' => $feeTotals->missing ? null : $this->decimal($stock), 'share' => $feeTotals->missing ? null : $this->decimal($stock->multipliedBy($partner->share_percent)->dividedBy(100, 8, RoundingMode::HalfUp)), 'negative' => ! $feeTotals->missing && $stock->isNegative(), 'missingRates' => (int) $feeTotals->missing,
                 'accountBalance' => $this->accountBalance($tenant, $user, $partner->id),
                 'trends' => $trends, 'risks' => $risks, 'journal' => $this->page($journalPage), 'unvalued' => $this->page($missing)];
@@ -95,12 +96,12 @@ final class LegacyStockReport
 
     private function trend(Builder $query, string $time, string $amount, CarbonImmutable $today, CarbonImmutable $at): array
     {
-        $query->where($time, '>=', $today->subDays(30)->utc())->where($time, '<=', $at);
+        $query->where($time, '>=', $today->subDays(30)->utc()->toIso8601String())->where($time, '<=', $at->toIso8601String());
         $sql = "COALESCE(SUM($amount) FILTER(WHERE $time>=?),0) AS today";
-        $bindings = [$today->utc()];
+        $bindings = [$today->utc()->toIso8601String()];
         foreach ([3, 7, 15, 30] as $days) {
             $sql .= ", COALESCE(SUM($amount) FILTER(WHERE $time>=? AND $time<?),0) AS d$days";
-            array_push($bindings, $today->subDays($days)->utc(), $today->utc());
+            array_push($bindings, $today->subDays($days)->utc()->toIso8601String(), $today->utc()->toIso8601String());
         }
         $row = $query->selectRaw($sql, $bindings)->first();
         $result = ['today' => $this->decimal($row->today)];
@@ -127,14 +128,14 @@ final class LegacyStockReport
 
     public function activeRisks(string $tenant, Builder $team, CarbonImmutable $at): Builder
     {
-        return $this->riskBase($tenant, $team, $at)->where('c.starts_at', '<=', $at)->where('c.ends_at', '>', $at)->whereRaw('COALESCE(n.weighted,0)*10 >= c.target*7')->whereRaw('COALESCE(p.paid,0)>COALESCE(r.returned,0)');
+        return $this->riskBase($tenant, $team, $at)->where('c.starts_at', '<=', $at->toIso8601String())->where('c.ends_at', '>', $at->toIso8601String())->whereRaw('COALESCE(n.weighted,0)*10 >= c.target*7')->whereRaw('COALESCE(p.paid,0)>COALESCE(r.returned,0)');
     }
 
     private function risks(string $tenant, Builder $team, CarbonImmutable $at, int $page): array
     {
         $base = $this->riskBase($tenant, $team, $at);
         $active = $this->activeRisks($tenant, $team, $at);
-        $expired = (clone $base)->where('c.ends_at', '<=', $at)->whereRaw('COALESCE(r.pending,0)>0');
+        $expired = (clone $base)->where('c.ends_at', '<=', $at->toIso8601String())->whereRaw('COALESCE(r.pending,0)>0');
         $sum = (clone $active)->selectRaw('COUNT(*) AS count, COALESCE(SUM(p.paid-COALESCE(r.returned,0)),0) AS remaining')->first();
         $pending = (clone $expired)->selectRaw('COUNT(*) AS count, COALESCE(SUM(r.pending),0) AS amount')->first();
         $columns = ['c.id', 'u.account_id', 'c.rank', 'c.target', 'c.ends_at', DB::raw('COALESCE(n.weighted,0) AS weighted'), DB::raw('COALESCE(p.paid,0)-COALESCE(r.returned,0) AS remaining'), DB::raw('COALESCE(r.pending,0) AS pending')];

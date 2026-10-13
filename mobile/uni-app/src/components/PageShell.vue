@@ -2,11 +2,11 @@
 import ViewportLayer from './ViewportLayer.vue';
 import PreviewImage from './PreviewImage.vue';
 import AppUpdateGate from './AppUpdateGate.vue';
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import { t } from '../lib/i18n';
 import { unread, session } from '../lib/session';
 import { photoUrl } from '../lib/api';
-import { go, home, back as navigateBack } from '../lib/navigation';
+import { go, home, back as navigateBack, warmH5Tabs } from '../lib/navigation';
 import UiIcon from './UiIcon.vue';
 import LanguagePicker from './LanguagePicker.vue';
 const props = withDefaults(
@@ -26,6 +26,7 @@ const props = withDefaults(
     }>(),
     { title: '' },
 );
+watch(() => session.value?.user, (user) => { if (user) warmH5Tabs(); }, { immediate: true });
 const brand = computed(() => session.value?.tenant.name ?? '');
 const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
 const isHome = computed(() => !!props.active && !props.back);
@@ -72,6 +73,20 @@ const navigationStyle = computed(() => ({
 const badge = (n: number) => (n > 99 ? '99+' : String(n));
 function historyBackTo(path: string) {
     navigateBack(path);
+}
+function returnTo(path: string) {
+    if (props.historyBack) return historyBackTo(path);
+    // #ifdef H5
+    const pages = getCurrentPages(), previous = pages[pages.length - 2] as any;
+    if (!props.replaceBack && previous) {
+        const options = previous.options ?? previous.$page?.options ?? {};
+        const routes: Record<string, string> = { 'pages/assets/index': '/dashboard', 'pages/cards/index': '/cards', 'pages/account/index': '/account', 'pages/messages/index': '/messages' };
+        const rawPath = previous.route === 'pages/screen/index' ? options.path : routes[previous.route];
+        const previousPath = typeof rawPath === 'string' && !rawPath.startsWith('/') ? decodeURIComponent(rawPath) : rawPath;
+        if (previousPath?.split('?')[0] === path.split('?')[0]) return navigateBack(path);
+    }
+    // #endif
+    open(path, props.replaceBack);
 }
 function open(path: string, replace = false) {
     if (path.startsWith('/pages/')) uni.navigateTo({ url: path });
@@ -130,7 +145,7 @@ function open(path: string, replace = false) {
                             v-if="back"
                             class="icon"
                             :aria-label="t('Back')"
-                            @click="historyBack ? historyBackTo(back) : open(back, replaceBack)"
+                            @click="returnTo(back)"
                         >
                             <UiIcon name="arrow-left" :size="20" /></button
                         ><view v-else /><slot name="header-title"

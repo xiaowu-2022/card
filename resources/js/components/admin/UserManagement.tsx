@@ -306,13 +306,6 @@ export default function UserManagement({
                                   })
                                 : t('Current user data')}
                         </p>
-                        {snapshotEarliest && (
-                            <p>
-                                {t('Historical snapshots available from {{time}} (UTC+8)', {
-                                    time: snapshotEarliest.replace('T', ' '),
-                                })}
-                            </p>
-                        )}
                     </div>
                 )}
                 {cutoffError && (

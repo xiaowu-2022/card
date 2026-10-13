@@ -46,6 +46,9 @@ final class CardVoidBatch
                 $cards = UserCard::whereIn('id', $ids)->when($data['tenant_id'] ?? null, fn ($q, $tenant) => $q->where('tenant_id', $tenant))
                     ->orderBy('tenant_id')->orderBy('user_id')->orderBy('id')->get();
                 abort_unless($cards->count() === count($ids), 404);
+                if ($cards->contains('provider', 'U1')) {
+                    throw new DomainException('CARD_VOID_UNSUPPORTED', 'U1 does not support card cancellation.', 422);
+                }
                 $id = (string) Str::uuid();
                 $at = now();
                 DB::table('card_void_batches')->insert(['id' => $id, 'actor_id' => $actor->id, 'request_id' => $data['request_id'],

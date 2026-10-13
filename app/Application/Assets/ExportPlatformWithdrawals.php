@@ -3,6 +3,7 @@
 namespace App\Application\Assets;
 
 use App\Application\Promotion\ManualPromotion;
+use App\Application\Tenant\PlatformFundsFilters;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Withdrawal\Services\WithdrawalAddressProtector;
@@ -70,9 +71,9 @@ final class ExportPlatformWithdrawals
                         $row->asset_code, $row->network, $this->decimal($row->amount), $this->decimal($row->fee),
                         $this->decimal((string) BigDecimal::of($row->amount)->minus($row->fee)),
                         app(WithdrawalAddressProtector::class)->decrypt($row->address_ciphertext), $row->status,
-                        CarbonImmutable::parse($row->ordered_at)->setTimezone($row->timezone)->toIso8601String(),
-                        $row->completed_at ? CarbonImmutable::parse($row->completed_at)->setTimezone($row->timezone)->toIso8601String() : '',
-                        $row->timezone, $row->tx_hash ?? '', $this->decimal($total?->gross ?? '0'), $this->decimal($total?->net ?? '0'),
+                        CarbonImmutable::parse($row->ordered_at)->setTimezone(PlatformFundsFilters::TIMEZONE)->toIso8601String(),
+                        $row->completed_at ? CarbonImmutable::parse($row->completed_at)->setTimezone(PlatformFundsFilters::TIMEZONE)->toIso8601String() : '',
+                        PlatformFundsFilters::TIMEZONE, $row->tx_hash ?? '', $this->decimal($total?->gross ?? '0'), $this->decimal($total?->net ?? '0'),
                         (string) ($total?->count ?? 0), (string) ($ranks->get($row->user_id)?->rank ?? 0), $partners->has($row->user_id) ? '是' : '否', $at->toIso8601String(),
                     ]);
                 }

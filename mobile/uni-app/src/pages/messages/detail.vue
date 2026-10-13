@@ -5,19 +5,23 @@ import PageShell from '../../components/PageShell.vue';
 import LoadState from '../../components/LoadState.vue';
 import { go } from '../../lib/navigation';
 import { request } from '../../lib/api';
-import { refreshUnread } from '../../lib/session';
+import { refreshUnread, consumerSessionScope } from '../../lib/session';
 import { useScreen } from '../../lib/screen';
 import { t, dateTime } from '../../lib/i18n';
 import { messageCopy, type Message } from '../../lib/inbox';
 const id = ref('');
 const message = ref<Message>();
 const readFailed = ref(false);
-let visible = false;
+let visible = false, generation = 0;
+// #ifdef H5
+watch(consumerSessionScope, () => { generation++; message.value = undefined; readFailed.value = false; }, { flush: 'sync' });
+// #endif
 onShow(() => {
     visible = true;
 });
 onHide(() => {
     visible = false;
+    generation++;
 });
 onLoad((query) => {
     id.value = query?.id ?? '';
@@ -37,8 +41,10 @@ async function read() {
     }
 }
 const { loading, failed, refresh } = useScreen(async () => {
-    message.value = await request<Message>(`/messages/${id.value}`);
-});
+    const run = ++generation, scope = consumerSessionScope();
+    const result = await request<Message>(`/messages/${id.value}`);
+    if (run === generation && scope === consumerSessionScope() && visible) message.value = result;
+}, { onAccessDenied: () => { message.value = undefined; } });
 watch(loading, async (value) => {
     if (!value && !failed.value && message.value && !message.value.readAt) {
         await nextTick();
@@ -55,7 +61,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', foregroun
 </script>
 <template>
     <PageShell :title="t('Messages')" back="/messages" active="account" hide-messages>
-        <LoadState :loading="loading" :failed="failed" @retry="refresh">
+        <LoadState :loading="loading" :failed="failed" :has-content="!!message" @retry="refresh">
             <view v-if="message" class="message-detail"
                 ><text class="muted">{{ dateTime(message.time) }}</text
                 ><text class="title">{{ messageCopy(message).title }}</text

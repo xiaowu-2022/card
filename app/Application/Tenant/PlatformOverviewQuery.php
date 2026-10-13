@@ -51,8 +51,8 @@ final class PlatformOverviewQuery
                 ->selectRaw("COALESCE(SUM(c.provider_balance+COALESCE(o.balance,0)),0) AS amount, COUNT(*) FILTER(WHERE c.provider_balance IS NULL OR c.card_currency<>'USD') AS missing")->first();
             $overview['cards'] = ['balance' => $cards->missing ? null : $this->decimal($cards->amount)];
             $funding = $this->cardFundingSource();
-            $row = DB::query()->fromSub($funding, 'funding')->where('posted_at', '<=', $at)
-                ->selectRaw('COALESCE(SUM(amount),0) AS total, COALESCE(SUM(amount) FILTER(WHERE posted_at>=?),0) AS today', [$today->utc()])->first();
+            $row = DB::query()->fromSub($funding, 'funding')->where('posted_at', '<=', $at->toIso8601String())
+                ->selectRaw('COALESCE(SUM(amount),0) AS total, COALESCE(SUM(amount) FILTER(WHERE posted_at>=?),0) AS today', [$today->utc()->toIso8601String()])->first();
             $overview['cards'] += ['today' => $this->decimal($row->today), 'total' => $this->decimal($row->total)];
         }
         if ($access['providers']) {
@@ -162,7 +162,7 @@ final class PlatformOverviewQuery
         foreach (DB::table('tenants')->pluck('id') as $tenant) {
             $all = $this->members($tenant);
             $activity = app(PartnerBusinessStock::class)->activityForMembers($tenant, $all, $all, depositMembers: $this->members($tenant, true));
-            $rows = DB::query()->fromSub($activity, 'activity')->where('posted_at', '>=', $today->subDays(29)->utc())->where('posted_at', '<=', $at)
+            $rows = DB::query()->fromSub($activity, 'activity')->where('posted_at', '>=', $today->subDays(29)->utc()->toIso8601String())->where('posted_at', '<=', $at->toIso8601String())
                 ->whereIn('category', self::ACTIVITY)->select('category')->selectRaw($this->periodSql($today, false)[0], $this->periodSql($today, false)[1])->groupBy('category')->get();
             foreach ($rows as $row) {
                 foreach (array_keys($daily[$row->category]) as $key) {
@@ -173,8 +173,8 @@ final class PlatformOverviewQuery
                 ->selectRaw('COALESCE(SUM(p.paid-COALESCE(r.returned,0)),0) AS amount')->value('amount');
             $alerts['remaining'] = $this->decimal(BigDecimal::of($alerts['remaining'])->plus($risk));
             $refund = DB::table('security_deposit_refund_requests')->where('tenant_id', $tenant)->where('status', 'CHECKING')->whereNull('cancel_requested_at')
-                ->where('refund_eligible_at', '>=', $at)->where('refund_eligible_at', '<=', $at->addDays(10))
-                ->selectRaw('COALESCE(SUM(amount),0) AS d10, COALESCE(SUM(amount) FILTER(WHERE refund_eligible_at<=?),0) AS d3', [$at->addDays(3)])->first();
+                ->where('refund_eligible_at', '>=', $at->toIso8601String())->where('refund_eligible_at', '<=', $at->addDays(10)->toIso8601String())
+                ->selectRaw('COALESCE(SUM(amount),0) AS d10, COALESCE(SUM(amount) FILTER(WHERE refund_eligible_at<=?),0) AS d3', [$at->addDays(3)->toIso8601String()])->first();
             foreach ([10, 3] as $d) {
                 $alerts['refund'.$d] = $this->decimal(BigDecimal::of($alerts['refund'.$d])->plus($refund->{'d'.$d}));
             }
@@ -208,7 +208,7 @@ final class PlatformOverviewQuery
     private function cashPeriods(Builder $query, CarbonImmutable $today, CarbonImmutable $at, ?MarketSnapshot $snapshot): array
     {
         [$sql, $bindings] = $this->periodSql($today, true);
-        $rows = DB::query()->fromSub($query, 'cash')->join('tenants as t', 't.id', '=', 'cash.tenant_id')->where('posted_at', '<=', $at)
+        $rows = DB::query()->fromSub($query, 'cash')->join('tenants as t', 't.id', '=', 'cash.tenant_id')->where('posted_at', '<=', $at->toIso8601String())
             ->select('asset_code')->selectRaw($sql, $bindings)->groupBy('asset_code')->get();
         $totals = $this->emptyPeriods(true);
         $native = [];
@@ -236,10 +236,10 @@ final class PlatformOverviewQuery
     private function periodSql(CarbonImmutable $today, bool $lifetime): array
     {
         $sql = 'COALESCE(SUM(amount) FILTER(WHERE posted_at>=?),0)::text AS today';
-        $bindings = [$today->utc()];
+        $bindings = [$today->utc()->toIso8601String()];
         foreach ([3, 7, 15, 30] as $d) {
             $sql .= ", COALESCE(SUM(amount) FILTER(WHERE posted_at>=?),0)::text AS d$d";
-            $bindings[] = $today->subDays($d - 1)->utc();
+            $bindings[] = $today->subDays($d - 1)->utc()->toIso8601String();
         }
         if ($lifetime) {
             $sql .= ', COALESCE(SUM(amount),0)::text AS total';

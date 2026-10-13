@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useFormFeedback } from '../lib/form-feedback';
 import { computed, reactive, ref } from 'vue';
 import PageShell from '../components/PageShell.vue';
 import FormField from '../components/FormField.vue';
@@ -62,6 +63,7 @@ function openReview() {
     }
 }
 async function submit() {
+    feedback.begin();
     if (!canReview.value) return;
     uncertain.value = true;
     const result = await action.submit('/wallet/withdrawals', {
@@ -79,6 +81,7 @@ async function submit() {
         review.value = false;
     }
 }
+const feedback = useFormFeedback(action.errors);
 </script>
 <template>
     <PageShell :title="t('Withdraw')" back="/dashboard" active="assets"
@@ -94,6 +97,7 @@ async function submit() {
                 >
                 <form @submit="openReview">
                     <FormField
+                        name="address"
                         v-model="form.address"
                         :label="t('Withdrawal address')"
                         :placeholder="t('T...')"
@@ -101,6 +105,7 @@ async function submit() {
                         :disabled="action.pending.value || uncertain"
                         @update:model-value="changed"
                     /><FormField
+                        name="amount"
                         v-model="form.amount"
                         :label="t('Amount')"
                         type="digit"

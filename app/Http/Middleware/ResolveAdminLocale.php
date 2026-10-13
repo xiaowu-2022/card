@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Application\Tenant\PlatformFundsFilters;
 use App\Domain\Tenant\Models\Tenant;
 use Closure;
 use Illuminate\Http\Request;
@@ -24,7 +25,7 @@ final class ResolveAdminLocale
         $tenant = $request->attributes->get('tenant');
         $request->attributes->set('client_locale', in_array($locale, self::LOCALES, true) ? $locale : 'zh-CN');
         $request->attributes->set('client_locales', self::LOCALES);
-        $request->attributes->set('client_timezone', $tenant instanceof Tenant ? $tenant->timezone : config('app.timezone'));
+        $request->attributes->set('client_timezone', PlatformFundsFilters::TIMEZONE);
         $request->attributes->set('locale_surface', $tenant instanceof Tenant ? 'tenant-admin' : 'platform');
 
         // Keep backend business/error keys stable; translate their safe presentation in the Admin namespace.

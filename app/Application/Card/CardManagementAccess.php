@@ -25,7 +25,7 @@ final readonly class CardManagementAccess
         if ($requireActive && ($tenant->status->value !== 'ACTIVE' || $user->status->value !== 'ACTIVE')) {
             throw new DomainException('CARD_MANAGEMENT_RESTRICTED', 'Card management requires an active account.', 403);
         }
-        if ($requireProvider && ($card->provider !== 'PHOTONPAY' || $card->card_currency !== 'USD' || ! app(CardProductProviderRouter::class)->forCard($card)->available())) {
+        if ($requireProvider && (! in_array($card->provider, ['PHOTONPAY', 'U1'], true) || $card->card_currency !== 'USD' || ! app(CardProductProviderRouter::class)->forCard($card)->available())) {
             throw new DomainException('CARD_MANAGEMENT_UNAVAILABLE', 'Card management is currently unavailable.', 503);
         }
 

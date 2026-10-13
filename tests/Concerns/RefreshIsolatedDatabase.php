@@ -20,7 +20,8 @@ trait RefreshIsolatedDatabase
         // known functions only in the isolated local test database, never card_platform.
         if (! RefreshDatabaseState::$migrated && app()->environment('testing')
             && DB::getDriverName() === 'pgsql' && DB::connection()->getDatabaseName() === 'card_ui_test') {
-            DB::unprepared('DROP FUNCTION IF EXISTS protect_user_account_id() CASCADE;
+            DB::unprepared('DROP FUNCTION IF EXISTS guard_card_source_bin() CASCADE;
+                DROP FUNCTION IF EXISTS protect_user_account_id() CASCADE;
                 DROP FUNCTION IF EXISTS assign_user_account_id() CASCADE;
                 DROP FUNCTION IF EXISTS allocate_user_account_id(uuid, timestamptz) CASCADE;');
         }

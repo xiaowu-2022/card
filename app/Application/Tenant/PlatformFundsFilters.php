@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Validator;
 
 final class PlatformFundsFilters
 {
-    public const TIMEZONE = 'Asia/Kuala_Lumpur';
+    public const TIMEZONE = 'Asia/Shanghai';
 
     public function validated(Request $request): array
     {

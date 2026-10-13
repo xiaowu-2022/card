@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, nextTick, onErrorCaptured, type Component } from 'vue';
+import { ref, nextTick, watch, computed, onErrorCaptured, type Component } from 'vue';
 // #ifdef H5
 import { lazyScreen } from '../../lib/lazy-screen';
 // #endif
 import { onLoad, onShow, onHide, onPageScroll } from '@dcloudio/uni-app';
 import { getPage, ensureBootstrap, explainError, type ClientPage } from '../../lib/client';
-import { clearSession } from '../../lib/session';
+import { clearSession, consumerSessionScope } from '../../lib/session';
 import { ApiError, setCurrentPage } from '../../lib/api';
 import { t } from '../../lib/i18n';
 import { go } from '../../lib/navigation';
@@ -139,6 +139,7 @@ Wallet = NativeWallet;
 PartnerChildren = NativePartnerChildren;
 PartnerStock = NativePartnerStock;
 // #endif
+import { usePagePosition } from '../../lib/page-position';
 import FormErrors from '../../components/FormErrors.vue';
 import PageSkeleton from '../../components/PageSkeleton.vue';
 const path = ref(''),
@@ -157,6 +158,13 @@ onErrorCaptured(() => {
 let generation = 0;
 let returningToKycDraft = false;
 const anchor = ref('');
+const retainedList = computed(() => ['/funds', '/wallet/withdrawals', '/security-deposit/history'].includes(path.value.split('?')[0]));
+// #ifdef H5
+watch(consumerSessionScope, (value, previous) => {
+    if (previous && value !== previous) { generation++; data.value = null; errors.value = {}; }
+}, { flush: 'sync' });
+usePagePosition(() => path.value, () => !!data.value);
+// #endif
 let stockScroll = 0;
 onPageScroll((event) => {
     stockScroll = event.scrollTop;
@@ -211,15 +219,18 @@ function retryLoad() {
 }
 async function load() {
     const run = ++generation;
+    let scope = consumerSessionScope();
     loading.value = true;
     if (path.value.startsWith('/promotion/stock')) data.value = null;
     errors.value = {};
     try {
         await ensureBootstrap();
+        scope = consumerSessionScope();
         setCurrentPage(path.value);
         const response = await getPage<any>(path.value);
-        if (run !== generation) return;
+        if (run !== generation || scope !== consumerSessionScope()) return;
         if ('redirect' in response) {
+            data.value = null;
             go(String(response.redirect), true);
             return;
         }
@@ -229,7 +240,12 @@ async function load() {
             uni.pageScrollTo({ selector: '#' + anchor.value, duration: 0 });
     } catch (e) {
         if (run === generation) {
+            // #ifdef H5
+            if (!retainedList.value || (e instanceof ApiError && [401,403,404,419].includes(e.status))) data.value = null;
+            // #endif
+            // #ifndef H5
             data.value = null;
+            // #endif
             errors.value = explainError(e);
             if (e instanceof ApiError && e.status === 401) {
                 clearSession();
@@ -242,6 +258,9 @@ async function load() {
 }
 </script>
 <template>
+    <!-- #ifdef H5 -->
+    <view v-if="data && retainedList && (loading || Object.keys(errors).length)" class="list-refresh" role="status"><text>{{ t(loading ? 'Updating…' : 'Update failed. Please retry.') }}</text><button v-if="!loading" @click="retryLoad">{{ t('Retry') }}</button></view>
+    <!-- #endif -->
     <view v-if="!data"
         ><PageSkeleton v-if="loading" full /><view v-else class="screen-loading"
             ><FormErrors :errors="errors" /><button @click="retryLoad">{{ t('Try again') }}</button
@@ -373,4 +392,9 @@ async function load() {
     margin: auto;
     text-align: center;
 }
+</style>
+
+<style scoped>
+.list-refresh {position:fixed; top:env(safe-area-inset-top); left:50%; transform:translateX(-50%); z-index:30; display:flex; align-items:center; gap:12px; padding:6px 12px; border-radius:10px; background:#f7f6f0; color:#68736e; font-size:13px; box-shadow:0 2px 8px #0001;}
+.list-refresh button {font-size:13px; padding:4px 8px; min-height:32px;}
 </style>

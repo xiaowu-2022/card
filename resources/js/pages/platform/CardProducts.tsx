@@ -81,7 +81,7 @@ type CardProvider = {
     id: string;
     name: string;
     apiBins: boolean;
-    bins: { bin: string; scheme: string }[] | null;
+    bins: { bin: string; displayBin?: string; scheme: string }[] | null;
     selectable: boolean;
     usedBins: {
         productId: string | null;
@@ -339,7 +339,13 @@ function ProductEditor({
             !selectedProvider.bins?.some(
                 (option) => option.bin === form.data.provider_product_ref,
             ) ||
-            selectedProvider.usedBins.some((item) => item.bin === form.data.provider_product_ref));
+            selectedProvider.usedBins.some(
+                (item) =>
+                    item.bin ===
+                    (selectedProvider.bins?.find(
+                        (candidate) => candidate.bin === form.data.provider_product_ref,
+                    )?.displayBin ?? form.data.provider_product_ref),
+            ));
     return (
         <Dialog
             open
@@ -495,18 +501,19 @@ function ProductFields({
                             onValueChange={(value) => form.setData('provider_product_ref', value)}
                         >
                             <SelectTrigger id={`${prefix}-ref`}>
-                                <SelectValue placeholder={t('Select a PhotonPay BIN')} />
+                                <SelectValue placeholder={t('Select a card BIN or group')} />
                             </SelectTrigger>
                             <SelectContent>
-                                {(selected.bins ?? []).map(({ bin, scheme }) => {
+                                {(selected.bins ?? []).map(({ bin, scheme, displayBin }) => {
                                     const used = selected.usedBins.some(
-                                        (item) => item.bin === bin && bin !== originalBin,
+                                        (item) =>
+                                            item.bin === (displayBin ?? bin) && bin !== originalBin,
                                     );
                                     return (
                                         <SelectItem key={bin} value={bin} disabled={used}>
-                                            {bin} · {scheme}
+                                            {displayBin ? `${displayBin} · ${bin}` : bin} · {scheme}
                                             {used
-                                                ? ` · ${t('Already used')} · ${selected.usedBins.find((item) => item.bin === bin)?.merchantName ?? '—'}`
+                                                ? ` · ${t('Already used')} · ${selected.usedBins.find((item) => item.bin === (displayBin ?? bin))?.merchantName ?? '—'}`
                                                 : ''}
                                         </SelectItem>
                                     );

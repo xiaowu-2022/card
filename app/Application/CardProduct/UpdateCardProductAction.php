@@ -65,6 +65,7 @@ final readonly class UpdateCardProductAction
                 'provider' => $binding !== $product->card_provider_reference_id ? 'UNCONFIGURED' : $product->provider,
                 'card_provider_reference_id' => $binding,
                 'provider_product_ref' => $reference,
+                'source_bin' => $changed ? $this->bins->sourceBin($binding, $reference) : $product->source_bin,
                 'supported_form_factors' => $changed ? (collect(CardProviderReference::find($binding)?->bin_catalog ?? [])->firstWhere('bin', $reference)['formFactors'] ?? ['virtual_card']) : $product->supported_form_factors,
                 'form_factors_synced_at' => $changed ? null : $product->form_factors_synced_at,
                 'name' => trim($data['name']),

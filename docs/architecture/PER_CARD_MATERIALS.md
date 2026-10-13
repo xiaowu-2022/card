@@ -220,3 +220,30 @@ explicit issue/payment confirmation and Ledger behavior remain unchanged.
 
 Deploy matching PHP and rebuilt H5 assets; native users missing a stored birthday
 need the updated app form. No new migration or historical recognition is required.
+
+
+## 2026-10-13 single-screen consumer application
+
+App/H5 now collect required cardholder fields, initial card balance, opening fee and
+explicit fee confirmation in one compact modal. Required virtual-card fields and the
+confirmation fit the checked 375×640/812, 768 and 1036 viewports. Supplemental product,
+email/SMS and reservation guidance scroll below. A separate non-scrolling Modal footer
+keeps Confirm and open visible. Product selection also places its action before long notes.
+Only this application uses the compact layout; existing modal bodies and sensitive-screen
+lifecycle remain unchanged. Physical recipient inputs are embedded in the same form,
+with optional address lines collapsed; very short screens may scroll their larger form.
+
+The explicit button submits the existing material API, re-reads the scoped application
+and current product fees, and issues only after READY and unchanged fees. There is no
+extra fee-confirmation modal or fabricated upstream approval. Pending/UNKNOWN material
+states require status inspection; accepted material is read back on recovery rather than
+blindly resubmitted. Issue response uncertainty keeps the same UUID and freezes inputs;
+Check result replays the original intent, relying on the existing backend idempotency and
+UNKNOWN protections. Exact decimal-string fee/total presentation and BigInt comparisons
+are retained; unsupported initial-load precision is blocked before material submission.
+No migrations, real provider calls or real funding tests were performed.
+
+Verification: synthetic browser flow checks on Chrome/WebKit cover one-click completion,
+material-response loss without a second material submission, changed-fee stop before
+issue, exact eight-place opening fees, first-screen required fields and a visible footer.
+H5 assets are deployed locally; installed native apps need rebuilding to adopt the UI.

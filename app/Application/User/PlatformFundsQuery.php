@@ -53,10 +53,10 @@ final class PlatformFundsQuery
                 }
             }
             if (! empty($filters['from'])) {
-                $query->where('e.posted_at', '>=', CarbonImmutable::parse($filters['from'], PlatformFundsFilters::TIMEZONE)->startOfDay()->utc());
+                $query->where('e.posted_at', '>=', CarbonImmutable::parse($filters['from'], PlatformFundsFilters::TIMEZONE)->startOfDay()->utc()->toIso8601String());
             }
             if (! empty($filters['to'])) {
-                $query->where('e.posted_at', '<', CarbonImmutable::parse($filters['to'], PlatformFundsFilters::TIMEZONE)->addDay()->startOfDay()->utc());
+                $query->where('e.posted_at', '<', CarbonImmutable::parse($filters['to'], PlatformFundsFilters::TIMEZONE)->addDay()->startOfDay()->utc()->toIso8601String());
             }
             $page = $query->orderByDesc('e.posted_at')->orderByDesc('e.id')->paginate(25,
                 ['e.id', 'e.tenant_id', 'e.asset_code', 'e.event_type', 'e.reference_type', 'e.reference_id', 'e.posted_at', 't.name as company_name'], 'page', $filters['page'] ?? 1)->withQueryString();

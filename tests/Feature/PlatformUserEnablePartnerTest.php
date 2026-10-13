@@ -41,6 +41,9 @@ it('revokes only a confirmed current scoped partner and retains configuration an
     $owner = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $this->actingAs($owner, 'platform_admin');
     $partner = app(PartnerManagement::class)->enableUser($owner, $tenant->id, $user->id, ['confirmed' => true]);
+    $this->withoutVite();
+    $this->get('http://admin.localhost/platform/partners?company='.$tenant->id)->assertOk()->assertInertia(fn ($page) => $page
+        ->where('partners.total', 1)->where('partners.data.0.id', $partner->id));
     $before = DB::table('ledger_accounts')->orderBy('id')->get()->toJson();
     $url = 'http://admin.localhost/platform/tenants/'.$tenant->id.'/partners/'.$partner->id.'/revoke';
     $this->postJson($url, ['updated_at' => $partner->updated_at])->assertUnprocessable();
@@ -52,6 +55,8 @@ it('revokes only a confirmed current scoped partner and retains configuration an
     $revoked = DB::table('partner_configurations')->where('id', $partner->id)->first();
     expect((bool) $revoked->enabled)->toBeFalse()->and($revoked->share_percent)->toBe($partner->share_percent);
     expect($user->fresh()->card_transfer_blocked)->toBeTrue();
+    $this->get('http://admin.localhost/platform/partners?company='.$tenant->id)->assertOk()->assertInertia(fn ($page) => $page
+        ->where('partners.total', 0)->has('partners.data', 0));
     $this->postJson($url, ['confirmed' => true, 'updated_at' => $partner->updated_at])->assertRedirect();
     expect(DB::table('ledger_accounts')->orderBy('id')->get()->toJson())->toBe($before);
     Http::assertNothingSent();

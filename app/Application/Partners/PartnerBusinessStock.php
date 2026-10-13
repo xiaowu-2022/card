@@ -32,13 +32,13 @@ final class PartnerBusinessStock
         $today = $at->setTimezone($timezone)->startOfDay();
         $activity = $this->activity($tenant, $user);
         $sql = 'COALESCE(SUM(amount) FILTER(WHERE posted_at>=?),0) AS today';
-        $bindings = [$today->utc()];
+        $bindings = [$today->utc()->toIso8601String()];
         foreach ([3, 7, 15, 30] as $days) {
             $sql .= ", COALESCE(SUM(amount) FILTER(WHERE posted_at>=? AND posted_at<?),0) AS d$days";
-            array_push($bindings, $today->subDays($days)->utc(), $today->utc());
+            array_push($bindings, $today->subDays($days)->utc()->toIso8601String(), $today->utc()->toIso8601String());
         }
-        $rows = DB::query()->fromSub($activity, 'activity')->where('posted_at', '>=', $today->subDays(30)->utc())
-            ->where('posted_at', '<=', $at)->select('category')->selectRaw($sql, $bindings)->groupBy('category')->get()->keyBy('category');
+        $rows = DB::query()->fromSub($activity, 'activity')->where('posted_at', '>=', $today->subDays(30)->utc()->toIso8601String())
+            ->where('posted_at', '<=', $at->toIso8601String())->select('category')->selectRaw($sql, $bindings)->groupBy('category')->get()->keyBy('category');
         $trends = [];
         foreach (['deposits', 'depositRefunds', 'annual', 'activation', 'annualCommission', 'otherCommission', 'rebates', 'reimbursements'] as $category) {
             $row = $rows->get($category);

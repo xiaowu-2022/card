@@ -63,6 +63,10 @@ function resume() {
     // #ifdef H5
     if (document.hidden) return;
     // #endif
+    // #ifdef H5
+    // Keep the existing translated PageShell navigation; the framework tab bar is routing only.
+    uni.hideTabBar({ animation: false, fail: () => {} });
+    // #endif
     foreground = true;
     if (session.value?.user) resumeSupportRealtime();
     resumeSupportReminder();
@@ -97,6 +101,8 @@ uni-app .uni-picker-container {
 }
 /* Paint the document canvas too: page backgrounds do not cover exposed areas
    around body portals when an embedded WebView changes its visible viewport. */
+uni-tabbar { display: none !important; }
+uni-app { --window-bottom: 0px !important; }
 html,
 body {
     background: #fff;

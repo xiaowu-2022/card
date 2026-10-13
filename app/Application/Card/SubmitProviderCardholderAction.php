@@ -104,7 +104,7 @@ final readonly class SubmitProviderCardholderAction
         $keys = $account['keys'];
 
         $encrypted = $this->materials->encrypt(json_encode(['fields' => $fields, 'documents' => $keys, 'document_disk' => config('kyc.document_disk', 'private'), 'document_codec' => 'plain'], JSON_THROW_ON_ERROR));
-        $prepared = DB::transaction(function () use ($tenantId, $userId, $data, $fingerprint, $encrypted, $formFactor): array {
+        $prepared = DB::transaction(function () use ($tenantId, $userId, $data, $fingerprint, $encrypted, $formFactor, $provider): array {
             Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
             User::query()->where('tenant_id', $tenantId)->whereKey($userId)->lockForUpdate()->firstOrFail();
             RefundCardPolicy::assertAllowed($tenantId, $userId);
@@ -123,7 +123,8 @@ final readonly class SubmitProviderCardholderAction
                 if (hash_equals($holder->request_hash, $fingerprint)) {
                     return ['holder' => $holder, 'send' => false, 'update' => false];
                 }
-                if (! in_array($holder->status, [ProviderCardholderStatus::Ready, ProviderCardholderStatus::ActionRequired], true) || ! $holder->provider_cardholder_id
+                if ((! in_array($holder->status, [ProviderCardholderStatus::Ready, ProviderCardholderStatus::ActionRequired, ProviderCardholderStatus::LocalReady], true))
+                    || (! $holder->provider_cardholder_id && $holder->status !== ProviderCardholderStatus::LocalReady)
                     || CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('provider_cardholder_id', $holder->id)->exists()) {
                     throw new DomainException('IDEMPOTENCY_CONFLICT', 'This request was already used with different details.', 409);
                 }
@@ -152,18 +153,22 @@ final readonly class SubmitProviderCardholderAction
                     throw new DomainException('CARD_LIMIT_REACHED', 'You have reached the maximum number of Cards for this product.', 409);
                 }
                 $holder = new ProviderCardholder;
-                $holder->forceFill(['form_factor' => $formFactor, 'tenant_id' => $tenantId, 'user_id' => $userId, 'provider' => 'PHOTONPAY',
+                $holder->forceFill(['form_factor' => $formFactor, 'tenant_id' => $tenantId, 'user_id' => $userId, 'provider' => $provider->name(),
                     'request_id' => $data['request_id'], 'card_product_id' => $data['card_product_id']]);
             }
             $update = $holder->exists;
             $holder->forceFill([
-                'status' => ProviderCardholderStatus::Submitting, 'safe_reason' => null,
+                'status' => $provider->name() === 'U1' ? ProviderCardholderStatus::LocalReady : ProviderCardholderStatus::Submitting, 'safe_reason' => null,
                 'request_hash' => $fingerprint, 'materials_encrypted' => $encrypted,
                 'submission_version' => ($holder->submission_version ?? 0) + 1,
                 'submitted_at' => now(), 'synced_at' => null,
             ])->save();
 
-            return ['holder' => $holder, 'send' => true, 'update' => $update];
+            if ($provider->name() === 'U1') {
+                $this->audit->record($tenantId, 'USER', $userId, 'U1_CARD_MATERIALS_VALIDATED', 'provider_cardholder', $holder->id, null, ['status' => 'LOCAL_READY', 'upstream_holder_created' => false]);
+            }
+
+            return ['holder' => $holder, 'send' => $provider->name() !== 'U1', 'update' => $update];
         }, 3);
 
         $holder = $prepared['holder'];

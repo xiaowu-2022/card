@@ -2,6 +2,7 @@
 
 namespace App\Application\CardProduct;
 
+use App\Application\CardProviderDirectory\U1Accounts;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\CardProduct\Models\CardProduct;
@@ -15,6 +16,11 @@ final class RefreshCardFormFactors
     public function merchant(string $id, AdminUser $actor): void
     {
         $snapshot = CardProviderReference::findOrFail($id);
+        if (DB::table('u1_connections')->where('reference_id', $id)->exists()) {
+            app(U1Accounts::class)->check($id, $actor);
+
+            return;
+        }
         $connection = $snapshot->photonpay_reporting_encrypted;
         if (! $connection) {
             throw new DomainException('CARD_CATALOG_UNAVAILABLE', 'Configure the merchant reporting connection first.', 409);
@@ -40,6 +46,11 @@ final class RefreshCardFormFactors
     public function execute(string $id, AdminUser $actor): void
     {
         $snapshot = CardProduct::with('cardProviderReference')->findOrFail($id);
+        if (DB::table('u1_connections')->where('reference_id', $snapshot->card_provider_reference_id)->exists()) {
+            $this->merchant($snapshot->card_provider_reference_id, $actor);
+
+            return;
+        }
         $connection = $snapshot->cardProviderReference?->photonpay_reporting_encrypted;
         if (! $connection) {
             throw new DomainException('CARD_CATALOG_UNAVAILABLE', 'Configure the merchant reporting connection first.', 409);

@@ -2,6 +2,7 @@
 
 namespace App\Application\Partners;
 
+use App\Application\Tenant\PlatformFundsFilters;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
@@ -25,7 +26,7 @@ final class PartnerReport
             }
             $partner = $this->enabled($tenant, $user);
             abort_if($consumer && ! $partner, 403);
-            $report = app(LegacyStockReport::class)->read($tenant, $user, false, $page);
+            $report = app(LegacyStockReport::class)->read($tenant, $user, false, $page, $consumer ? null : PlatformFundsFilters::TIMEZONE);
             $report['version'] = $partner ? 'partner' : 'standard';
             $report['cashFlow'] = null;
             $report['flowDetails'] = null;

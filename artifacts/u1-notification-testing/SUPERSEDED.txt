@@ -1,0 +1,1 @@
+Superseded by artifacts/u1-standard-provider. Notification-only release is obsolete; deploy the standard package instead.

@@ -17,7 +17,7 @@ it('defaults both admin login surfaces to Chinese independently of consumer loca
         ->withCookie(ResolveUserLocale::cookieName($this->adminLocaleTenant->id), 'en')
         ->get($url)->assertOk()->assertSee('lang="zh-CN"', false)->assertInertia(fn (Assert $page) => $page
         ->where('i18n.locale', 'zh-CN')->where('i18n.surface', $surface)
-        ->where('i18n.enabledLocales', ['zh-CN', 'en']));
+        ->where('i18n.enabledLocales', ['zh-CN', 'en'])->where('i18n.timezone', 'Asia/Shanghai'));
     expect(app()->getLocale())->toBe('en');
 })->with([
     ['http://admin.localhost/platform/login', 'platform'],

@@ -2,7 +2,11 @@
 
 use App\Http\Controllers\Webhooks\PaymentWebhookController;
 use App\Http\Controllers\Webhooks\PhotonPayWebhookController;
+use App\Http\Controllers\Webhooks\U1WebhookController;
 use Illuminate\Support\Facades\Route;
+
+Route::post('/u1/{connection}', U1WebhookController::class)
+    ->whereUuid('connection')->middleware('throttle:300,1')->name('webhooks.u1');
 
 Route::post('/payments/{provider}', PaymentWebhookController::class)
     ->where('provider', '[a-z0-9_-]{2,64}')

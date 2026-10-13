@@ -2,9 +2,9 @@
 
 namespace App\Application\Partners;
 
+use App\Application\Tenant\PlatformFundsFilters;
 use App\Application\User\PlatformUserFinancialSummary;
 use App\Application\User\PlatformUserListIdentity;
-use App\Domain\Tenant\Models\Tenant;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
@@ -19,7 +19,7 @@ final class PartnerListSummary
         $at = CarbonImmutable::now();
         $result = [];
         foreach (collect($partners)->groupBy('tenant_id') as $tenant => $rows) {
-            $timezone = Tenant::findOrFail($tenant)->timezone;
+            $timezone = PlatformFundsFilters::TIMEZONE;
             $today = $at->setTimezone($timezone)->startOfDay();
             $users = $rows->map(fn ($p) => (object) ['id' => $p->user_id, 'tenant_id' => $tenant])->all();
             $identity = app(PlatformUserListIdentity::class)->forUsers($users);
@@ -36,7 +36,7 @@ final class PartnerListSummary
                 $this->append($activity, DB::query()->fromSub(app(PartnerBusinessStock::class)->activity($tenant, $p->user_id), 'a')->select('category', 'amount', 'posted_at')->selectRaw('?::uuid AS root', [$p->id]));
                 $team = app(LegacyStockReport::class)->team($tenant, $p->user_id);
                 $this->append($risks, app(LegacyStockReport::class)->activeRisks($tenant, clone $team, $at)->selectRaw('?::uuid AS root, (p.paid-COALESCE(r.returned,0)) AS amount', [$p->id]));
-                $this->append($refunds, DB::table('security_deposit_refund_requests')->where('tenant_id', $tenant)->whereIn('user_id', $team)->where('status', 'CHECKING')->whereNull('cancel_requested_at')->where('refund_eligible_at', '>=', $at)->where('refund_eligible_at', '<=', $at->addDays(10))
+                $this->append($refunds, DB::table('security_deposit_refund_requests')->where('tenant_id', $tenant)->whereIn('user_id', $team)->where('status', 'CHECKING')->whereNull('cancel_requested_at')->where('refund_eligible_at', '>=', $at->toIso8601String())->where('refund_eligible_at', '<=', $at->addDays(10)->toIso8601String())
                     ->selectRaw('?::uuid AS root, amount, refund_eligible_at', [$p->id]));
             }
             if (! $entries) {
@@ -45,14 +45,14 @@ final class PartnerListSummary
             $totals = DB::query()->fromSub($entries, 'entries')->select('root')->selectRaw("COALESCE(SUM(CASE WHEN category IN ('deposits','annual') THEN amount ELSE -amount END),0)::text AS stock")->groupBy('root')->pluck('stock', 'root');
             $legacyTotals = $legacy ? DB::query()->fromSub($legacy, 'legacy')->select('root')->selectRaw('COALESCE(SUM(amount),0)::text AS stock, COUNT(*) FILTER(WHERE missing) AS missing')->groupBy('root')->get()->keyBy('root') : collect();
             $sql = 'COALESCE(SUM(amount) FILTER(WHERE posted_at>=?),0)::text AS today';
-            $bindings = [$today->utc()];
+            $bindings = [$today->utc()->toIso8601String()];
             foreach ([3, 7, 15, 30] as $days) {
                 $sql .= ", COALESCE(SUM(amount) FILTER(WHERE posted_at>=? AND posted_at<?),0)::text AS d$days";
-                array_push($bindings, $today->subDays($days)->utc(), $today->utc());
+                array_push($bindings, $today->subDays($days)->utc()->toIso8601String(), $today->utc()->toIso8601String());
             }
-            $trends = DB::query()->fromSub($activity, 'activity')->where('posted_at', '>=', $today->subDays(30)->utc())->where('posted_at', '<=', $at)->select('root', 'category')->selectRaw($sql, $bindings)->groupBy('root', 'category')->get()->groupBy('root');
+            $trends = DB::query()->fromSub($activity, 'activity')->where('posted_at', '>=', $today->subDays(30)->utc()->toIso8601String())->where('posted_at', '<=', $at->toIso8601String())->select('root', 'category')->selectRaw($sql, $bindings)->groupBy('root', 'category')->get()->groupBy('root');
             $remaining = DB::query()->fromSub($risks, 'risks')->select('root')->selectRaw('COALESCE(SUM(amount),0)::text AS amount')->groupBy('root')->pluck('amount', 'root');
-            $pending = DB::query()->fromSub($refunds, 'refunds')->select('root')->selectRaw('COALESCE(SUM(amount),0)::text AS d10, COALESCE(SUM(amount) FILTER(WHERE refund_eligible_at<=?),0)::text AS d3', [$at->addDays(3)])->groupBy('root')->get()->keyBy('root');
+            $pending = DB::query()->fromSub($refunds, 'refunds')->select('root')->selectRaw('COALESCE(SUM(amount),0)::text AS d10, COALESCE(SUM(amount) FILTER(WHERE refund_eligible_at<=?),0)::text AS d3', [$at->addDays(3)->toIso8601String()])->groupBy('root')->get()->keyBy('root');
             foreach ($rows as $p) {
                 $j = $journals->get($p->id);
                 $f = $financial[$tenant.':'.$p->user_id];

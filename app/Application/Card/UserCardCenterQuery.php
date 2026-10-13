@@ -33,7 +33,7 @@ final readonly class UserCardCenterQuery
     public function get(string $tenantId, string $userId): array
     {
         $cardholder = ProviderCardholder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)
-            ->where('provider', 'PHOTONPAY')->whereNotNull('request_id')
+            ->whereIn('provider', ['PHOTONPAY', 'U1'])->whereNotNull('request_id')
             ->when(! app()->environment('testing') && ! LocalCardSimulation::active(), fn ($query) => $query->withoutTestReferences())
             ->whereNotIn('id', CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->select('provider_cardholder_id'))
             ->latest('created_at')->first();
@@ -79,7 +79,7 @@ final readonly class UserCardCenterQuery
                 'state' => match ($cardholder->status->value) {
                     'SUBMITTING' => 'submitting',
                     'PENDING' => 'submitting',
-                    'READY' => 'ready',
+                    'READY', 'LOCAL_READY' => 'ready',
                     'ACTION_REQUIRED' => 'action_required',
                     'REJECTED', 'DISABLED' => 'not_available',
                     default => 'unknown',
@@ -121,14 +121,14 @@ final readonly class UserCardCenterQuery
                     'syncedAt' => $card->provider_balance_synced_at?->toIso8601String(),
                     'minimumReload' => $card->product->minimum_reload,
                     'refundLocked' => RefundCardPolicy::blocked($tenantId, $userId, $card->id),
-                    'management' => app(CardProductProviderRouter::class)->forCard($card)->available()
+                    'management' => app(CardProductProviderRouter::class)->managementCapabilities($card, app(CardProductProviderRouter::class)->forCard($card)->available()
                         && (! ProviderReference::isTest($card->provider_card_id) || LocalCardSimulation::allowsCard($card->provider_card_id))
                         ? (RefundCardPolicy::blocked($tenantId, $userId, $card->id) ? ['transactions'] : match ($card->provider_status) {
                             'normal' => ['reveal', 'transactions', 'holder', 'load', 'return', 'freeze', 'cancel'],
                             'frozen' => ['reveal', 'transactions', 'holder', 'return', 'unfreeze', 'cancel'],
                             'unactivated' => $card->form_factor === 'physical_card' ? ['transactions', 'activate'] : ['transactions'],
                             'expired' => ['transactions', 'cancel'], default => ['transactions'],
-                        }) : [],
+                        }) : []),
                 ])->all(),
         ];
     }

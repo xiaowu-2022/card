@@ -24,7 +24,7 @@ final readonly class SyncUserCardTransactionsAction
         $card = UserCard::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->whereKey($cardId)->firstOrFail();
         $provider = app(CardProductProviderRouter::class)->forCard($card);
         $context = ['request_id' => request()->attributes->get('request_id'), 'tenant_id' => $tenantId, 'user_id' => $userId, 'card_id' => $cardId, 'page' => $page];
-        if (! $provider->available() || $provider->name() !== 'PHOTONPAY' || $card->provider !== 'PHOTONPAY'
+        if (! $provider->available() || ! in_array($provider->name(), ['PHOTONPAY', 'U1'], true) || $card->provider !== $provider->name()
             || (ProviderReference::isTest($card->provider_card_id) && ! LocalCardSimulation::allowsCard($card->provider_card_id))) {
             Log::warning('Card transaction sync failed', $context + ['failure' => 'provider_or_card_unavailable']);
             throw new DomainException('CARD_TRANSACTIONS_UNAVAILABLE', 'Card transactions could not be updated. Please try again later.', 503);

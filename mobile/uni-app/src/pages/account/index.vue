@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePagePosition } from '../../lib/page-position';
 import { computed, ref, watch } from 'vue';
 import { onShow, onHide } from '@dcloudio/uni-app';
 import {
@@ -18,6 +19,7 @@ import { explainError } from '../../lib/client';
 import PageSkeleton from '../../components/PageSkeleton.vue';
 import PageShell from '../../components/PageShell.vue';
 import UiIcon from '../../components/UiIcon.vue';
+import RefreshStatus from '../../components/RefreshStatus.vue';
 import FormErrors from '../../components/FormErrors.vue';
 const account = ref<{
         supportAgent?: boolean;
@@ -26,6 +28,7 @@ const account = ref<{
         accountQualified: boolean;
     } | null>(null),
     errors = ref<Record<string, string>>({});
+const updating = ref(false);
 let generation = 0;
 watch(
     consumerSessionScope,
@@ -40,8 +43,9 @@ onHide(() => {
     generation++;
 });
 async function load() {
-    setCurrentPage('/account');
+    updating.value = true;
     errors.value = {};
+    setCurrentPage('/account');
     // Bootstrap can establish a new scope, so capture the request generation afterwards.
     let run: number | undefined;
     try {
@@ -58,12 +62,19 @@ async function load() {
         account.value = response;
     } catch (e) {
         if (run !== undefined && run !== generation) return;
+        // #ifdef H5
+        if (e instanceof ApiError && [401,403,419].includes(e.status)) account.value = null;
+        // #endif
+        // #ifndef H5
         account.value = null;
+        // #endif
         errors.value = explainError(e);
         if (e instanceof ApiError && e.status === 401) {
             clearSession();
             go('/login', true);
         }
+    } finally {
+        if (run === undefined || run === generation) updating.value = false;
     }
 }
 onShow(load);
@@ -147,11 +158,15 @@ function copy() {
                 }),
         });
 }
+usePagePosition(() => '/account', () => !!account.value);
 </script>
 <template>
     <PageShell active="account"
-        ><FormErrors :errors="errors" /><button
-            v-if="Object.keys(errors).length"
+        ><!-- #ifdef H5 -->
+        <RefreshStatus v-if="account" :loading="updating" :failed="!!Object.keys(errors).length" @retry="load" />
+        <!-- #endif -->
+        <FormErrors :errors="account ? {} : errors" /><button
+            v-if="!account && Object.keys(errors).length"
             class="secondary"
             @click="load"
         >

@@ -41,7 +41,7 @@ final class PhotonPayAccounts
         DB::transaction(function () use ($id, $data, $actor): void {
             $this->authorize($actor);
             $row = CardProviderReference::whereKey($id)->lockForUpdate()->firstOrFail();
-            if ($row->runtime_driver !== 'UNCONFIGURED') {
+            if ($row->runtime_driver !== 'UNCONFIGURED' || DB::table('u1_connections')->where('reference_id', $id)->exists()) {
                 throw ValidationException::withMessages(['environment' => 'This merchant cannot be converted to PhotonPay.']);
             }
             if ($row->version !== (int) $data['version']) {

@@ -2,7 +2,13 @@ import { adminAssetLabel } from '@/lib/admin-asset-label';
 import { useTranslation } from 'react-i18next';
 import { clientI18n, errorMessage as commonErrorMessage } from './index';
 
-export { dateTime } from './index';
+import { dateTime as formatDateTime } from './index';
+
+// Administrative dates always use Beijing time, independently of company/client settings.
+export function dateTime(value: string, _timezone?: string): string {
+    void _timezone;
+    return formatDateTime(value, 'Asia/Shanghai');
+}
 
 export function t(key: string, values?: Record<string, string | number>): string {
     return adminAssetLabel(clientI18n.t(key, { ...values, ns: 'admin' }));
@@ -22,7 +28,10 @@ export function errorMessage(message?: string): string | undefined {
     if (clientI18n.exists(message, { ns: 'admin' })) return t(message);
     // Feedback components may pass already translated copy to the result dialog.
     // Accept only our catalog values, never arbitrary server/provider text.
-    const catalog = clientI18n.getResourceBundle(clientI18n.language, 'admin') ?? {};
+    const catalog = (clientI18n.getResourceBundle(clientI18n.language, 'admin') ?? {}) as Record<
+        string,
+        unknown
+    >;
     if (Object.values(catalog).includes(message)) return message;
     for (const [pattern, key] of adminValidationMessages) {
         if (pattern.test(message)) return t(key);
