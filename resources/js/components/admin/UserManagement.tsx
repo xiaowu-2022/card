@@ -380,6 +380,12 @@ export default function UserManagement({
                             key: 'as_of',
                             label: 'Cutoff time (UTC+8)',
                             placeholder: 'Cutoff time (UTC+8)',
+                            defaultValue: `${new Intl.DateTimeFormat('en-CA', {
+                                timeZone: 'Asia/Shanghai',
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                            }).format(new Date())}T00:00:00`,
                             render: ({ value, onChange }) => (
                                 <Input
                                     type="datetime-local"

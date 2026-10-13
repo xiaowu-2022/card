@@ -79,6 +79,7 @@ export function PlatformAccountTable<T extends { id: string }>({
         key: string;
         label: string;
         placeholder: string;
+        defaultValue?: string;
         render?: (props: {
             company: string;
             value: string;
@@ -134,7 +135,9 @@ export function PlatformAccountTable<T extends { id: string }>({
         Object.fromEntries(selectFilters.map((item) => [item.key, filters[item.key] ?? 'ALL'])),
     );
     const [textValues, setTextValues] = useState<Record<string, string>>(() =>
-        Object.fromEntries(textFilters.map((item) => [item.key, filters[item.key] ?? ''])),
+        Object.fromEntries(
+            textFilters.map((item) => [item.key, filters[item.key] ?? item.defaultValue ?? '']),
+        ),
     );
     const [search, setSearch] = useState(filters.search ?? '');
     const [status, setStatus] = useState(filters.status ?? 'ALL');
