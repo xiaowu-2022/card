@@ -277,3 +277,19 @@ TRUNCATE 绕过捕获。迁移不调用外部服务，不改余额、订单分�
 迁移保留证据。不要在部署时运行测试账号清理、生产资金测试、供应商调用或真实客户
 消息。新集成测试仅接受 `APP_ENV=testing` 与隔离 `card_ui_test` 数据库，使用真实事务
 提交验证捕获、回滚、跨连接并发、截止过滤、导出和权限。
+
+### 2026-10-14 后台任务错误修复
+
+线上 `laravel-2026-10-14.log` 共 132 条 ERROR：24 条清理表缺少 `backup_deleted_at`，24 条相应定时任务失败，56 条 U1 证据待确认异常，28 条失败队列表缺失。此日志没有域名分配保存错误。
+
+发布匹配 PHP 与 `2026_10_14_170000_repair_background_job_schema.php` 后，在部署目录执行 `php artisan migrate --force`，再按现有流程重载 PHP-FPM、执行 `php artisan queue:restart` 并确认受管 worker 恢复。该迁移仅补齐缺失列、恢复当前清理批次约束函数、创建缺失的 `failed_jobs`；已有字段、历史备份指针及失败任务保留。无数据清理、卡商请求或财务操作，不要为了验证而运行生产清理命令、重放 failed jobs 或触发开卡/充值。
+
+`queryapiid.data` 兼容通知 JSON 对象和字符串，两者都必须验签并匹配现有意图。U1 正常待确认以队列 release 做最多三次处理，耗尽后通知保留 RETRY，供已有显式管理恢复；不再将正常待确认伪装成未捕获异常。实际处理异常仍产生失败任务，安全日志记录异常类型及通知 ID，禁止记录异常原始消息、OTP、密钥及回调明文。此前缺少 failed_jobs 导致失败任务无法入表，新增表不会自动找回已经丢失的队列失败记录；既有通知证据仍在 u1_notifications，可通过既有授权界面查看。
+
+发布后只读检查：迁移记录包含本次迁移、information_schema 显示 backup_deleted_at 和 failed_jobs 存在、worker 已重启、新日志不再出现上述缺失关系错误。若仍出现 `U1 notification processing deferred`，按 notification_id/reason/exception_class 排查；待确认不得当作成功或释放资金。日志本身不足以证明全部 U1 失败的原始原因，新增诊断用于区分上游待确认和本地处理异常。
+
+### 全局 HTTP 失败日志（2026-10-14）
+
+统一异常渲染与请求结束中间件将失败写入现有 Laravel 日志，事件名 `HTTP request failed`。包含原先不报告的 DomainException、ValidationException、认证/授权、CSRF、404，以及直接返回的 4xx/5xx 和带校验错误的重定向。同一请求的结构化失败记录按请求属性去重；5xx 为 ERROR，其余为 WARNING，生产 LOG_LEVEL 需要允许 warning。未处理异常原有堆栈日志仍保留。
+
+记录 request_id、方法、路由名/模板、HTTP 状态、安全错误码、异常类型、校验字段和失败规则名、可用的操作人 ID/guard、路由中的公司/域名 UUID，以及域名分配请求中合法的 domain_ids/original_ids（最多 100）。不记录原始 URL/查询、请求正文、错误消息、验证参数或提交值，避免凭据/OTP/证件和用户内容泄漏。请求级日志不能观测已经被业务代码吞掉并返回 200 的内部错误；这些仍须由对应业务诊断记录。部署 PHP 后重载 PHP-FPM 即生效，无新增迁移。排查时按页面/响应的 X-Request-ID 检索日志，或搜索域名分配路由及公司 UUID。

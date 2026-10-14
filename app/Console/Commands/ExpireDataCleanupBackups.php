@@ -10,6 +10,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Schema;
 
 final class ExpireDataCleanupBackups extends Command
 {
@@ -19,6 +20,11 @@ final class ExpireDataCleanupBackups extends Command
 
     public function handle(ImageReferences $references, ImageStorage $images): int
     {
+        if (! Schema::hasColumn('data_cleanup_batches', 'backup_deleted_at')) {
+            $this->error('Cleanup schema is incomplete. Apply 2026_10_14_170000_repair_background_job_schema before expiring backups.');
+
+            return self::FAILURE;
+        }
         try {
             app(RemoveCleanedPendingJobs::class)->run();
         } catch (\Throwable) {

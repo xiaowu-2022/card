@@ -55,3 +55,5 @@ U1ApiClient 实现文档 17 个接口：queryaccount、querygroupno、vccadd、v
 补充：Webhooks 控制器在业务验签和数据库操作前对每次请求写 `U1 webhook arrived`，九种通知（包括 OTP）、无效签名、重复、未知类型和无效 JSON 均覆盖；使用 receipt_id 关联后续验签/拒绝/失败结果。不存在连接、解密或数据库失败也记录固定原因，不输出异常原文。超过 256 KiB 的请求仅记录大小及拒绝状态，不复制超限正文。入口正文仍仅以 APP_KEY 密文写入；增加小写 cardno 等固定字段格式诊断。不改变既有回调 HTTP 状态、授权或验签条件。
 
 2026-10-14 OTP 文档更正：签名顺序为 `MD5(cardNo+type+otp+timestamp+key)`，替代原先 timestamp 在 otp 前的顺序。已使用用户提供的失败通知在本地解密重算，修正顺序与上游签名匹配。仅更新验签字段顺序，不接受旧顺序回退、不改写历史通知、不自动重新处理既有记录；发布 PHP 后重载 PHP-FPM/队列 worker。
+
+2026-10-14 生产错误修复：queryapiid.data 同时接受 JSON 对象与通知 JSON 字符串，仍严格验证内层签名、apiId、操作类型。正常待确认通过队列 release 有界重试，最终仍保留 RETRY，不改资金结果。非预期异常保留失败队列记录，独立日志记录安全异常类型及通知 ID，详见部署文档的 2026-10-14 后台任务错误修复。

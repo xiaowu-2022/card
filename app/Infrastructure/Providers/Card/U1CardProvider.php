@@ -213,6 +213,9 @@ final class U1CardProvider implements CardProviderInterface
         }
         $response = $client->operation($intent->api_id);
         $body = $response['data'] ?? null;
+        if (is_array($body) && ! array_is_list($body)) {
+            $body = json_encode($body, JSON_THROW_ON_ERROR);
+        }
         if (! is_string($body)) {
             throw new ProviderUnknownResultException('U1 operation evidence is unavailable.');
         }

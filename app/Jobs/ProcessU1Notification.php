@@ -23,6 +23,10 @@ final class ProcessU1Notification implements ShouldQueue
 
     public function handle(U1Callbacks $callbacks): void
     {
-        $callbacks->process($this->connectionId, $this->notificationId);
+        $status = $callbacks->process($this->connectionId, $this->notificationId);
+        if ($status === 'RETRY' && $this->job && $this->attempts() < $this->tries) {
+            $this->release($this->backoff()[$this->attempts() - 1] ?? 60);
+        }
+        // Exhausted pending evidence stays RETRY for explicit scoped recovery; never resend funds.
     }
 }

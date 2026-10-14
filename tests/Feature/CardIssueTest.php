@@ -3429,14 +3429,15 @@ function u1StandardFake(string $terminal = 'openvcc.success', bool $loseResponse
                 $event = ['apiId' => $request['apiId'], 'type' => $terminal, 'cardNo' => 'U1-CARD-001', 'timestamp' => (string) now()->getTimestampMs()];
                 $event['sign'] = md5(implode('', array_map(fn ($name) => $event[$name], U1NotificationVerifier::FIELDS[$terminal])).$innerKey);
 
-                return json_encode($event, JSON_THROW_ON_ERROR);
+                return $event;
             })(),
+            'queryrequestid' => '',
             'vcctrade' => [],
             'vccopen','vccrechage','vccwithdraw' => [],
             default => throw new RuntimeException('Unexpected U1 endpoint: '.$endpoint),
         };
         if (in_array($endpoint, ['vccopen', 'vccrechage', 'vccwithdraw'], true)) {
-            expect($request->data())->not->toHaveKey('requestId');
+            expect($request['requestId'])->toBeString()->not->toBeEmpty();
             if ($loseResponse) {
                 throw new ConnectionException('offline lost response');
             }
@@ -3477,7 +3478,7 @@ it('keeps uncertain U1 openings reserved without blindly resending or querying u
     app(SyncCardIssueAction::class)->execute($this->tenant->id, $order->id, $this->user->id);
     expect(DB::table('u1_operations')->sole()->api_id)->toBeNull();
     expect(DB::table('u1_operations')->count())->toBe(1);
-    Http::assertNothingSent();
+    Http::assertSent(fn ($request) => str_ends_with($request->url(), '/queryrequestid'));
     expect(UserCard::where('provider', 'U1')->count())->toBe(0);
 });
 
@@ -3492,7 +3493,7 @@ it('processes U1 callbacks by existing scoped intents, masks OTPs and permits on
     expect($order->fresh()->status->value)->toBe('SUCCEEDED')->and(DB::table('u1_notifications')->value('processing_status'))->toBe('PROCESSED');
     $card = UserCard::where('provider', 'U1')->sole();
     $otp = ['type' => 'otp', 'cardNo' => $card->provider_card_id, 'timestamp' => (string) now()->getTimestampMs(), 'otp' => '876543'];
-    $otp['sign'] = md5($otp['cardNo'].$otp['type'].$otp['timestamp'].$otp['otp'].'offline-u1-key');
+    $otp['sign'] = md5($otp['cardNo'].$otp['type'].$otp['otp'].$otp['timestamp'].'offline-u1-key');
     $event = $accounts->receive($connection->id, json_encode($otp));
     expect(app(U1Callbacks::class)->otp($card->tenant_id, $card->user_id, $card->id)['code'])->toBe('876543');
     expect(json_encode($accounts->notification($connection->reference_id, $event['id'])))->not->toContain('876543');
@@ -3545,14 +3546,14 @@ it('settles U1 recharge and SHARE withdrawal once through existing wallet ledger
     expect(phaseTenAccount($this, LedgerAccountType::UserAvailable)->balance)->toBe(Money::of($before, 'USDT')->add(Money::of('20', 'USDT'))->amount());
 });
 
-it('blocks U1 funding without confirmed terms and voiding without a cancellation API before funds move', function (): void {
+it('quotes U1 funding without legacy confirmation flags and blocks voiding without a cancellation API', function (): void {
     u1StandardFixture($this, fees: false);
     $issue = phaseTenIssue($this, '100.00');
     app(SyncCardIssueAction::class)->execute($this->tenant->id, $issue->id, $this->user->id);
     $card = UserCard::where('provider', 'U1')->sole();
     $entries = LedgerEntry::count();
     $quote = app(ManageCardAction::class)->quote($card->tenant_id, $card->user_id, $card->id, (string) Str::uuid(), '20.00');
-    expect($quote->status)->toBe('FAILED')->and(LedgerEntry::count())->toBe($entries);
+    expect($quote->status)->toBe('QUOTED')->and(LedgerEntry::count())->toBe($entries);
     $admin = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     expect(fn () => app(CardVoidBatch::class)->create($admin, ['card_ids' => [$card->id], 'request_id' => (string) Str::uuid(), 'confirmed' => true]))
         ->toThrow(DomainException::class, 'cancellation');
@@ -3604,7 +3605,7 @@ it('requires card owner scope and the current password before disclosing a U1 OT
     app(SyncCardIssueAction::class)->execute($this->tenant->id,$issue->id,$this->user->id);
     $card=UserCard::where('provider','U1')->sole();
     $event=['type'=>'otp','cardNo'=>$card->provider_card_id,'timestamp'=>(string) now()->getTimestampMs(),'otp'=>'876543'];
-    $event['sign']=md5($event['cardNo'].$event['type'].$event['timestamp'].$event['otp'].'offline-u1-key');
+    $event['sign']=md5($event['cardNo'].$event['type'].$event['otp'].$event['timestamp'].'offline-u1-key');
     app(\App\Application\CardProviderDirectory\U1Accounts::class)->receive($connection->id,json_encode($event));
     $url='http://a.localhost/cards/'.$card->id.'/management';
     $this->actingAs($this->user,'tenant_user')->postJson($url,['action'=>'otp','current_password'=>'incorrect'])->assertUnprocessable();
@@ -3615,4 +3616,32 @@ it('requires card owner scope and the current password before disclosing a U1 OT
     $denied=$this->actingAs($other,'tenant_user')->postJson($url,['action'=>'otp','current_password'=>'local-password'])->assertRedirect();
     expect($denied->getContent())->not->toContain('876543');
     expect(fn()=>app(U1Callbacks::class)->otp($card->tenant_id,$other->id,$card->id))->toThrow(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+});
+
+it('retains U1 pending evidence and schedules bounded retries without reporting a failed job', function (): void {
+    $connection = u1StandardFixture($this);
+    $order = phaseTenIssue($this, '100.00');
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(fn ($request) => Http::response(['resultCode' => '0001', 'timestamp' => $request['timestamp'],
+        'sign' => md5('0001'.$request['timestamp'].'offline-u1-key'), 'data' => null]));
+    $payload = ['apiId' => 'API-vccopen', 'type' => 'openvcc.success', 'cardNo' => 'U1-CARD-001', 'timestamp' => (string) now()->getTimestampMs()];
+    $payload['sign'] = md5($payload['apiId'].$payload['type'].$payload['cardNo'].$payload['timestamp'].'offline-u1-key');
+    $event = app(U1Accounts::class)->receive($connection->id, json_encode($payload));
+    $job = new \App\Jobs\ProcessU1Notification($connection->id, $event['id']);
+    $queueJob = Mockery::mock(\Illuminate\Contracts\Queue\Job::class);
+    $queueJob->shouldReceive('attempts')->andReturn(1);
+    $queueJob->shouldReceive('release')->once()->with(10);
+    $job->setJob($queueJob);
+    $job->handle(app(U1Callbacks::class));
+    expect(DB::table('u1_notifications')->where('id', $event['id'])->value('processing_status'))->toBe('RETRY')
+        ->and($order->fresh()->status->value)->toBe('UNKNOWN')
+        ->and(UserCard::where('provider', 'U1')->count())->toBe(0);
+    $last = new \App\Jobs\ProcessU1Notification($connection->id, $event['id']);
+    $lastQueueJob = Mockery::mock(\Illuminate\Contracts\Queue\Job::class);
+    $lastQueueJob->shouldReceive('attempts')->andReturn(3);
+    $lastQueueJob->shouldNotReceive('release');
+    $last->setJob($lastQueueJob);
+    $last->handle(app(U1Callbacks::class));
+    expect(DB::table('failed_jobs')->count())->toBe(0);
 });

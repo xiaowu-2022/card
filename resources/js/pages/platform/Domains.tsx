@@ -1,4 +1,3 @@
-import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEditorRouter } from '@/components/admin/useEditorRouter';
 import { useForm } from '@/components/admin/editor-context';
 import { useAdminTranslation, t, errorMessage } from '@/i18n/admin';
@@ -478,9 +477,9 @@ export default function Domains({
                         </ul>
                     </div>
                     {Object.values(assignment.errors).map((message, index) => (
-                        <OperationFeedback key={index} className="text-sm text-destructive">
+                        <p key={index} role="alert" className="text-sm text-destructive">
                             {errorMessage(message)}
-                        </OperationFeedback>
+                        </p>
                     ))}
                     <div className="flex justify-end gap-2">
                         <Button

@@ -41,6 +41,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(RequestIdMiddleware::class);
+        $middleware->append(\App\Http\Middleware\LogFailedRequests::class);
         $middleware->alias([
             'inertia' => HandleInertiaRequests::class,
             'tenant' => ResolveTenantFromHost::class,
@@ -73,6 +74,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+        $exceptions->render(function (\Throwable $exception, Request $request): ?Response {
+            app(\App\Support\Logging\RequestFailureLogger::class)->exception($request, $exception);
+
+            return null;
+        });
         $exceptions->render(function (DomainException $exception, Request $request): ?Response {
             if (! ($request->expectsJson() || $request->is('api/*'))) {
                 if (! $request->isMethod('GET')) {

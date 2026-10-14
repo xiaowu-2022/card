@@ -12,6 +12,7 @@ use App\Jobs\ProcessU1Notification;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 final class U1Callbacks
 {
@@ -23,7 +24,7 @@ final class U1Callbacks
         }
     }
 
-    public function process(string $connectionId, string $notificationId): void
+    public function process(string $connectionId, string $notificationId): string
     {
         $event = DB::transaction(function () use ($connectionId, $notificationId) {
             $row = DB::table('u1_notifications')->where('connection_id', $connectionId)->where('id', $notificationId)->lockForUpdate()->firstOrFail();
@@ -36,8 +37,9 @@ final class U1Callbacks
             return $row;
         });
         if (! $event) {
-            return;
+            return 'SKIPPED';
         }
+        $failure = null;
         $status = 'UNMAPPED';
         try {
             $connection = DB::table('u1_connections')->where('id', $connectionId)->firstOrFail();
@@ -72,14 +74,26 @@ final class U1Callbacks
                     }
                 }
             }
-        } catch (\Throwable) {
+        } catch (\Throwable $error) {
             $status = 'RETRY';
+            $failure = $error;
         }
         DB::table('u1_notifications')->where('id', $notificationId)->where('connection_id', $connectionId)->where('processing_attempts', $event->processing_attempts + 1)
             ->update(['processing_status' => $status, 'processed_at' => $status === 'PROCESSED' ? now() : null]);
         if ($status === 'RETRY') {
-            throw new \RuntimeException('U1 notification awaits verified provider evidence.');
+            Log::channel('u1_notifications')->warning('U1 notification processing deferred', [
+                'connection_id' => $connectionId, 'notification_id' => $notificationId,
+                'notification_type' => $event->notification_type, 'attempt' => $event->processing_attempts + 1,
+                'reason' => $failure ? 'PROCESSING_EXCEPTION' : 'PROVIDER_EVIDENCE_PENDING',
+                'exception_class' => $failure ? get_class($failure) : null,
+            ]);
+            if ($failure && ! $failure instanceof \App\Domain\CardProvider\Exceptions\ProviderUnknownResultException
+                && ! $failure instanceof \App\Domain\CardProvider\Exceptions\ProviderUnavailableException) {
+                throw new \RuntimeException('U1 notification processing failed: '.get_class($failure));
+            }
         }
+
+        return $status;
     }
 
     private function syncTransactions(UserCard $card, U1CardProvider $provider): bool
