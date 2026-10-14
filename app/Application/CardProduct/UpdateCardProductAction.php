@@ -86,8 +86,8 @@ final readonly class UpdateCardProductAction
     private function minimum(string $amount, string $label): Money
     {
         $money = Money::of($amount, 'USD');
-        if ($money->compare(Money::of('20', 'USD')) < 0) {
-            throw new DomainException('CARD_PRODUCT_MINIMUM_INVALID', "The {$label} cannot be below 20 USD.");
+        if ($money->compare(Money::of('0', 'USD')) <= 0) {
+            throw new DomainException('CARD_PRODUCT_MINIMUM_INVALID', "The {$label} must be greater than zero.");
         }
 
         return $money;

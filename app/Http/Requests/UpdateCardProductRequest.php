@@ -28,8 +28,8 @@ final class UpdateCardProductRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:5000'],
             'card_provider_reference_id' => ['nullable', 'uuid', 'exists:platform_card_provider_references,id'],
             'provider_product_ref' => ['required', 'string', 'max:64'],
-            'minimum_initial_load' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,8})?$/', 'numeric', 'min:20'],
-            'minimum_reload' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,8})?$/', 'numeric', 'min:20'],
+            'minimum_initial_load' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,8})?$/', 'numeric', 'gt:0'],
+            'minimum_reload' => ['required', 'string', 'regex:/^\d{1,12}(?:\.\d{1,8})?$/', 'numeric', 'gt:0'],
             'status' => ['required', Rule::in(['DRAFT', 'ACTIVE', 'INACTIVE'])],
         ];
     }

@@ -92,8 +92,8 @@ it('lets platform create and edit account-bound products with fixed USD regular 
     $this->actingAs($this->platformOwner, 'platform_admin')->post('http://admin.localhost/platform/card-products', [
         'name' => 'Mille Card Plus', 'monthly_fee_text' => 'USD 2 per month', 'notes' => "Online only.\nNo ATM withdrawals.", 'card_provider_reference_id' => $account->id,
         'provider_product_ref' => 'DEMO-MILLE-PLUS-0001',
-        'minimum_initial_load' => '20.00000000',
-        'opening_fee' => '5.00000000', 'minimum_reload' => '25.50000000',
+        'minimum_initial_load' => '1.00000000',
+        'opening_fee' => '5.00000000', 'minimum_reload' => '2.50000000',
         'status' => 'ACTIVE',
         'provider' => 'OTHER',
         'card_currency' => 'EUR',
@@ -106,18 +106,20 @@ it('lets platform create and edit account-bound products with fixed USD regular 
         ->and($created->provider)->toBe('UNCONFIGURED')
         ->and($created->card_currency)->toBe('USD')
         ->and($created->card_type)->toBe('REGULAR')
-        ->and($created->minimum_initial_load)->toBe('20.00000000')
-        ->and($created->minimum_reload)->toBe('25.50000000')
+        ->and($created->minimum_initial_load)->toBe('1.00000000')
+        ->and($created->minimum_reload)->toBe('2.50000000')
         ->and(DB::table('ledger_entries')->count())->toBe($beforeEntries);
 
     $this->actingAs($this->platformOwner, 'platform_admin')->put("http://admin.localhost/platform/card-products/{$created->id}", [
         'name' => 'Mille Card Plus Updated',
         'provider_product_ref' => 'DEMO-MILLE-PLUS-0002',
-        'minimum_initial_load' => '30',
-        'opening_fee' => '5.00000000', 'minimum_reload' => '20',
+        'minimum_initial_load' => '0.01',
+        'opening_fee' => '5.00000000', 'minimum_reload' => '3',
         'status' => 'INACTIVE',
     ])->assertRedirect();
-    expect($created->fresh()->name)->toBe('Mille Card Plus Updated')
+    expect($created->fresh()->minimum_initial_load)->toBe('0.01000000')
+        ->and($created->fresh()->minimum_reload)->toBe('3.00000000')
+        ->and($created->fresh()->name)->toBe('Mille Card Plus Updated')
         ->and($created->fresh()->provider_product_ref)->toBe('DEMO-MILLE-PLUS-0002')
         ->and($created->fresh()->status)->toBe(CardProductStatus::Inactive);
 });
@@ -144,7 +146,7 @@ it('rejects imprecise non-string or below-provider-minimum amounts', function (a
 })->with([
     'float' => [['minimum_initial_load' => 20.0], 'minimum_initial_load'],
     'overprecision' => [['opening_fee' => '5.00000000', 'minimum_reload' => '20.000000001'], 'minimum_reload'],
-    'below minimum' => [['minimum_initial_load' => '19.99999999'], 'minimum_initial_load'],
+    'zero minimum' => [['minimum_initial_load' => '0'], 'minimum_initial_load'],
 ]);
 
 it('lets SaaS configure company presentation without changing platform pricing or money', function (): void {

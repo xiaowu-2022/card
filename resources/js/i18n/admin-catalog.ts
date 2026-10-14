@@ -1816,6 +1816,8 @@ export const adminCatalog: Record<string, string> = {
     'Withdrawal accounts are unavailable.': '提现账户暂不可用。',
     'Opening fee cannot be negative.': '开卡费不能为负数。',
     'Only an active platform product can be offered.': '只能销售已启用的平台产品。',
+    'The minimum initial load must be greater than zero.': '最低首次入卡金额必须大于零。',
+    'The minimum reload must be greater than zero.': '最低续充金额必须大于零。',
     'The minimum initial load cannot be below 20 USD.': '最低首次入卡金额不能低于 20 USD。',
     'The minimum reload cannot be below 20 USD.': '最低续充金额不能低于 20 USD。',
     PLATFORM_AUDITOR: '平台审计员',

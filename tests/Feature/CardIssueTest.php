@@ -3645,3 +3645,13 @@ it('retains U1 pending evidence and schedules bounded retries without reporting 
     $last->handle(app(U1Callbacks::class));
     expect(DB::table('failed_jobs')->count())->toBe(0);
 });
+
+it('uses each U1 product minimum below twenty and preserves the accepted order snapshot', function (): void {
+    u1StandardFixture($this);
+    $this->product->forceFill(['minimum_initial_load' => '1', 'minimum_reload' => '2'])->save();
+    expect(fn () => phaseTenIssue($this, '0.99'))->toThrow(DomainException::class, 'product minimum');
+    $order = phaseTenIssue($this, '1.00');
+    expect($order->minimum_initial_load)->toBe('1.00000000')->and($order->initial_load_amount)->toBe('1.00000000');
+    $this->product->forceFill(['minimum_initial_load' => '10'])->save();
+    expect($order->fresh()->minimum_initial_load)->toBe('1.00000000');
+});

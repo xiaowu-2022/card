@@ -58,3 +58,7 @@ when unavailable. `cardType=recharge` remains mandatory in the request and the
 response capability filter excludes share-only BINs, even if the provider ignores
 the query filter. A BIN supporting both share and recharge is available only as
 our existing REGULAR/recharge product; shared-card issuance is not enabled.
+
+2026-10-15：首充最低金额和续充最低金额由每个卡产品分别设置，取消请求校验、保存动作及数据库约束中历史固定的 20 USD 下限。配置必须为大于零、最多八位小数的十进制字符串；既有产品值不自动改变。开卡与充值继续校验各产品自己的最低金额，原生卡商的精度/金额要求仍独立生效，不能声称低配置金额一定获卡商接受。开卡订单沿用创建时不可变最低金额快照，不因以后修改产品而重算。
+
+部署 `2026_10_15_010000_use_product_specific_card_minimums` 迁移及 PHP，再发布匹配的后台资源。迁移只调整两个金额 CHECK 中的固定 20，保留其他约束，不修改产品/订单数据，不调用卡商或执行生产资金测试。
