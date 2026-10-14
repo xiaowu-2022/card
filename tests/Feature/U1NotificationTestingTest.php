@@ -285,9 +285,10 @@ it('checks U1 account and group catalogs explicitly and reserves the real BIN wi
     $this->service->check($this->reference->id, $this->owner);
     $public=$this->service->publicConfiguration($this->reference->id);
     expect($public['checkStatus'])->toBe('VERIFIED')->and(json_encode($public))->not->toContain('do-not-project');
-    $this->service->save($this->reference->id,['name'=>'U1 standard','customer_no'=>'CUSTOMER-TEST','base_url'=>U1Accounts::BASE_URL,'api_key'=>'','version'=>1,'enabled'=>true],$this->owner);
+    $this->service->save($this->reference->id,['name'=>'U1 standard','customer_no'=>'CUSTOMER-TEST','base_url'=>U1Accounts::BASE_URL,'api_key'=>'','version'=>1],$this->owner);
     $product=app(\App\Application\CardProduct\CreateCardProductAction::class)->execute(['name'=>'U1 BIN','card_provider_reference_id'=>$this->reference->id,
         'provider_product_ref'=>'GROUP-ORIGINAL','opening_fee'=>'0','minimum_initial_load'=>'20','minimum_reload'=>'20','status'=>'ACTIVE'], $this->owner);
+    app(\App\Application\Card\CardProductProviderRouter::class)->assertNewBusiness($product);
     DB::table('card_products')->where('id',$product->id)->update(['source_bin'=>'412346','provider_product_ref'=>'GROUP-ORIGINAL']);
     expect(DB::table('card_bin_claims')->where('bin','412345')->exists())->toBeFalse()
         ->and(DB::table('card_bin_claims')->where('bin','412346')->value('card_product_id'))->toBe($product->id);
@@ -338,7 +339,7 @@ it('recovers only a unique v2 request match and verifies its operation evidence'
 ]);
 
 it('persists a unique upstream operation ID before sending and never resends an ambiguous write', function (): void {
-    DB::table('u1_connections')->where('id', $this->connection->id)->update(['enabled' => true, 'check_status' => 'VERIFIED', 'zero_fees_confirmed' => true]);
+    DB::table('u1_connections')->where('id', $this->connection->id)->update(['enabled' => false, 'check_status' => 'VERIFIED', 'zero_fees_confirmed' => false]);
     $connection = DB::table('u1_connections')->where('id', $this->connection->id)->first();
     $requestId = (string) Str::uuid();
     $sent = [];

@@ -7,10 +7,10 @@ U1 是现有卡商列表中的普通连接；PhotonPay 保留。通知联调按�
 ## 配置及上线
 
 1. 在平台「卡商」新增/编辑 U1，填写名称、customerNo、apiKey。密钥加密保存，编辑不回显，留空保留；客户号不能更换，有历史的连接不能转换供应商。相同客户号不能重复配置到活跃连接。
-2. 保存后点击「检查 U1 账户并同步卡组」，显式读取 queryaccount/querygroupno。只有检查通过且启用「接受新开卡业务」才能用于新产品及开卡。保存/列表/打开/刷新通知记录不发送卡商请求。
+2. 保存后点击「检查 U1 账户并同步卡组」，显式读取 queryaccount/querygroupno。检查通过后即可用于新产品及开卡，不再设置「接受新开卡业务」勾选项。保存/列表/打开/刷新通知记录不发送卡商请求。
 3. 线上配置 APP_URL 为实际公网 HTTPS 后台入口；复制连接专属 `/webhooks/u1/{UUID}` 到 U1 后台。不要使用 localhost；反向代理必须保留原始 POST 正文。回调不依赖管理员登录，也不接受请求中的任意公司标识。
 4. 创建产品时选择 U1 账户及 USD 卡组，记录实际 BIN 和 groupNo。实际 BIN 参与既有全球占用约束；历史绑定不能改路由。组 BIN 改变时阻止旧产品新开卡，必须显式建新产品。
-5. 充值/提现未有文档费率接口。只有卡商已确认无额外费用后，管理员勾选对应确认项，才能启用零额外费用的资金流程。如果有费用，先扩展资金规则再启用。现有资金表单最多两位小数，拒绝不能精确表达的请求，不四舍五入；接收金额保留八位小数。
+5. 充值/提现沿用现有零额外费用报价，不再设置无额外手续费确认勾选项。历史 enabled/zero_fees_confirmed 字段保留，但不再作为 U1 业务门槛；账户检查、卡组模式及原有权限/资金保护继续生效。现有资金表单最多两位小数，拒绝不能精确表达的请求，不四舍五入；接收金额保留八位小数。
 6. 线上使用 CARD_PROVIDER_DRIVER=directory，并使用既有 Redis 队列（QUEUE_CONNECTION=redis）和受管 queue worker。U1 通知持久化后交由 ProcessU1Notification 核实；单任务 timeout=60 秒，Redis retry_after 必须大于 60（默认 90），失败重试三次。更新 PHP 后重载 PHP-FPM 并 queue:restart。不要使用没有 jobs 表的 database 队列。通知详情可显式重新处理待处理/未关联/等待重试的有效记录。随机通知未找到已有卡/订单就保留 UNMAPPED。
 7. 部署匹配 PHP、后台资源、H5 和以下新迁移；保留 APP_KEY（丢失会导致密钥及通知无法解密）。原生 App 的验证码入口需要重新编译安装。
 
@@ -45,3 +45,9 @@ U1ApiClient 实现文档 17 个接口：queryaccount、querygroupno、vccadd、v
 本地测试使用隔离 card_ui_test、Http fake、Queue fake 和全拦截浏览器数据，未调用真实供应商、未开真实卡/充值/提现。真实回调和字段覆盖需要用户上线填写参数及回调后执行。发布记录见 artifacts/u1-standard-provider/verification.json。
 
 2026-10-14 v2 更新仅需 PHP 发布及重载 PHP-FPM/队列 worker，无新增迁移、前端构建或存量资金意图修改。验证仅使用隔离数据库及 HTTP fake。
+
+## 通知诊断文件（2026-10-14）
+
+回调数据库事务提交后，追加到私有 `storage/logs/u1-notifications-YYYY-MM-DD.log`，每天轮转，保留七天，文件权限 0600。包括通知 ID、连接 ID、北京接收时间、通知类型、验签结果/原因、重复次数、固定签名字段的存在性/类型，以及用 APP_KEY 加密的 `body_encrypted` 原文。OTP、签名、密钥、卡号和任意未知字段不会以明文写入文件。日志时间前缀遵循运行环境，核查使用 `received_at_beijing`。文件失败不影响已提交的通知接收，数据库仍为权威证据；没有历史自动回填。部署 PHP/config 后刷新配置缓存并重启工作进程，保留 APP_KEY，日志不得放入公开目录或上传至外部日志服务。
+
+可按后台通知记录 ID 查询：`rg '记录ID' storage/logs/u1-notifications-*.log`。加密正文仅在服务器内使用 `Crypt::decryptString()` 做验签核查，不要输出或转发 OTP 原文。

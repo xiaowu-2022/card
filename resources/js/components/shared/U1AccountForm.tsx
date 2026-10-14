@@ -465,8 +465,6 @@ export function U1AccountForm({
         name: record?.name ?? '',
         customer_no: record?.u1?.customerNo ?? '',
         api_key: '',
-        enabled: record?.u1?.enabled ?? false,
-        zero_fees_confirmed: record?.u1?.zeroFeesConfirmed ?? false,
         base_url: record?.u1?.baseUrl ?? 'https://api.uucard.cyou/v1',
         version: record?.version ?? 1,
         request_id: crypto.randomUUID(),
@@ -479,9 +477,7 @@ export function U1AccountForm({
     const dirty =
         form.data.api_key !== '' ||
         form.data.name !== (record?.name ?? '') ||
-        form.data.customer_no !== (record?.u1?.customerNo ?? '') ||
-        form.data.enabled !== (record?.u1?.enabled ?? false) ||
-        form.data.zero_fees_confirmed !== (record?.u1?.zeroFeesConfirmed ?? false);
+        form.data.customer_no !== (record?.u1?.customerNo ?? '');
     return (
         <div className="max-h-[75vh] space-y-4 overflow-y-auto">
             <p className="text-sm font-medium">U1</p>
@@ -547,31 +543,6 @@ export function U1AccountForm({
                     {t('API URL')}
                     <Input readOnly value={form.data.base_url} />
                 </label>
-                <label className="flex items-center gap-2 text-sm">
-                    <input
-                        type="checkbox"
-                        checked={form.data.enabled}
-                        disabled={form.processing}
-                        onChange={(event) => form.setData('enabled', event.target.checked)}
-                    />
-                    {t('Accept new card business')}
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                    <input
-                        type="checkbox"
-                        checked={form.data.zero_fees_confirmed}
-                        disabled={form.processing}
-                        onChange={(event) =>
-                            form.setData('zero_fees_confirmed', event.target.checked)
-                        }
-                    />
-                    {t('U1 has confirmed no additional recharge or withdrawal fees')}
-                </label>
-                <p className="text-xs text-muted-foreground">
-                    {t(
-                        'Recharge and return remain unavailable until funding fees are confirmed. No upstream requestId is sent; uncertain requests are never automatically resent.',
-                    )}
-                </p>
                 {Object.entries(form.errors).map(([key, message]) => (
                     <OperationFeedback key={key} role="alert">
                         {errorMessage(message)}

@@ -53,6 +53,15 @@ return [
     */
 
     'channels' => [
+        'u1_notifications' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/u1-notifications.log'),
+            'level' => 'info',
+            'days' => 7,
+            'permission' => 0600,
+            'locking' => true,
+        ],
+
 
         'photonpay_requests' => [
             'driver' => 'daily',

@@ -56,7 +56,7 @@ final readonly class CardProductCatalogQuery
                         'bins' => $u1 ? collect(json_decode($u1->group_catalog ?? '[]', true))->filter(fn ($group) => $group['currency'] === 'USD')
                             ->map(fn ($group) => ['bin' => $group['groupNo'], 'displayBin' => $group['bin'], 'scheme' => $group['model'], 'formFactors' => ['virtual_card']])->values()->all()
                             : ($provider->photonpay_reporting_encrypted !== null ? $provider->bin_catalog : null),
-                        'selectable' => $u1 ? (bool) $u1->enabled && $u1->check_status === 'VERIFIED'
+                        'selectable' => $u1 ? $u1->check_status === 'VERIFIED'
                             : $provider->photonpay_enabled && $provider->photonpay_check_status === 'VERIFIED' && ! $provider->photonpay_migration_error,
                         'usedBins' => $usedBins];
                 })->all(),

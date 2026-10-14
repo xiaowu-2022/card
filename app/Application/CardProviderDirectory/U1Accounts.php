@@ -12,6 +12,7 @@ use App\Infrastructure\Providers\Card\U1NotificationVerifier;
 use Brick\Math\BigDecimal;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -334,7 +335,33 @@ final class U1Accounts
                 ]);
             }
 
-            return $facts + ['id' => $old?->id ?? $eventId];
+            $notificationId = $old?->id ?? $eventId;
+            try {
+                $raw = ExactJson::decode($body);
+            } catch (\Throwable) {
+                $raw = [];
+            }
+            // Only fixed field names and metadata enter plaintext logs. Keep the original encrypted.
+            $fieldFormats = [];
+            foreach (['cardNo', 'type', 'timestamp', 'otp', 'sign'] as $field) {
+                $value = $raw[$field] ?? null;
+                $fieldFormats[$field] = ['present' => array_key_exists($field, $raw), 'type' => gettype($value)];
+            }
+            $diagnostic = ['notification_id' => $notificationId, 'connection_id' => $connectionId,
+                'notification_type' => $facts['type'], 'verified' => $facts['verified'], 'reason' => $facts['reason'],
+                'received_at_beijing' => now()->timezone('Asia/Shanghai')->toIso8601String(),
+                'delivery_count' => $old ? $old->delivery_count + 1 : 1,
+                'signed_fields' => U1NotificationVerifier::FIELDS[$facts['type']] ?? [],
+                'field_formats' => $fieldFormats, 'body_encrypted' => Crypt::encryptString($body)];
+            DB::afterCommit(static function () use ($diagnostic): void {
+                try {
+                    Log::channel('u1_notifications')->info('U1 notification received', $diagnostic);
+                } catch (\Throwable) {
+                    // A file error must not invalidate an already persisted callback or leak its body.
+                }
+            });
+
+            return $facts + ['id' => $notificationId];
         });
     }
 

@@ -61,8 +61,8 @@ final readonly class CardProductBinPolicy
         $u1 = DB::table('u1_connections')->where('reference_id', $record->id)->first();
         if ($u1) {
             $group = collect(json_decode($u1->group_catalog ?? '[]', true))->firstWhere('groupNo', $bin);
-            if (! $u1->enabled || $u1->check_status !== 'VERIFIED' || ($group['currency'] ?? null) !== 'USD') {
-                throw ValidationException::withMessages(['provider_product_ref' => 'Select an enabled and verified U1 card group.']);
+            if ($u1->check_status !== 'VERIFIED' || ($group['currency'] ?? null) !== 'USD') {
+                throw ValidationException::withMessages(['provider_product_ref' => 'Select a verified U1 card group.']);
             }
 
             return;

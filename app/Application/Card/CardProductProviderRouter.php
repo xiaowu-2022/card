@@ -83,7 +83,7 @@ final readonly class CardProductProviderRouter
         }
         $c = DB::table('u1_connections')->where('reference_id', $card->product->card_provider_reference_id)->firstOrFail();
         $allowed = ['reveal', 'transactions'];
-        if ($c->enabled && $c->zero_fees_confirmed && $card->provider_status === 'normal') {
+        if ($c->check_status === 'VERIFIED' && $card->provider_status === 'normal') {
             $allowed[] = 'load';
             $group = collect(json_decode($c->group_catalog ?? '[]', true))->firstWhere('groupNo', $card->product->provider_product_ref);
             if (($group['model'] ?? null) === 'SHARE') {
@@ -129,7 +129,7 @@ final readonly class CardProductProviderRouter
         if ($account && $this->isU1Account($product)) {
             $c = DB::table('u1_connections')->where('reference_id', $account->id)->firstOrFail();
             $group = collect(json_decode($c->group_catalog ?? '[]', true))->firstWhere('groupNo', $product->provider_product_ref);
-            if (($group['bin'] ?? null) !== $product->source_bin || ! $c->enabled || $c->check_status !== 'VERIFIED' || ! $this->forProduct($product)->productAvailable($product->provider_product_ref, $product->card_currency)) {
+            if (($group['bin'] ?? null) !== $product->source_bin || $c->check_status !== 'VERIFIED' || ! $this->forProduct($product)->productAvailable($product->provider_product_ref, $product->card_currency)) {
                 throw new DomainException('CARD_ACCOUNT_PAUSED', 'This U1 account is not accepting new business.', 409);
             }
         }

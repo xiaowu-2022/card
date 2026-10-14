@@ -123,7 +123,7 @@ final class U1CardProvider implements CardProviderInterface
 
                 return [$old, false];
             }
-            if (($kind !== 'OPEN' && ! $connection->zero_fees_confirmed) || ! $connection->enabled || $connection->check_status !== 'VERIFIED' || $connection->api_key_encrypted !== $this->connection->api_key_encrypted) {
+            if ($connection->check_status !== 'VERIFIED' || $connection->api_key_encrypted !== $this->connection->api_key_encrypted) {
                 throw new ProviderRejectedException('U1 is not accepting new business.');
             }
             $id = (string) Str::uuid();
@@ -319,18 +319,10 @@ final class U1CardProvider implements CardProviderInterface
         return new ProviderSensitiveCardDTO($data['cardNo'], $data['cvv'], false, $data['expiry']);
     }
 
-    private function requireFundingTerms(): void
-    {
-        if (! $this->connection->zero_fees_confirmed) {
-            throw new ProviderRejectedException('Confirm U1 funding and return fees before enabling these operations.');
-        }
-    }
-
     public function quoteCardLoad(string $cardId, string $arrivalAmount, string $requestId): ProviderCardQuoteDTO
     {
-        $this->requireFundingTerms();
         $this->wireAmount($arrivalAmount);
-        if (! $this->connection->enabled) {
+        if (! $this->available()) {
             throw new ProviderRejectedException('U1 is not accepting new business.');
         }
 
@@ -339,7 +331,6 @@ final class U1CardProvider implements CardProviderInterface
 
     public function confirmCardLoad(string $cardId, string $requestId): ProviderCardFundsDTO
     {
-        $this->requireFundingTerms();
         $order = DB::table('card_management_orders')->where('provider_request_id', $requestId)->where('provider_card_id', $cardId)->where('kind', 'LOAD')->firstOrFail();
         $intent = $this->sendOperation('LOAD', $requestId, $order->amount, $cardId);
 
@@ -348,7 +339,6 @@ final class U1CardProvider implements CardProviderInterface
 
     public function loadCard(string $providerCardId, string $amount, string $assetCode, string $idempotencyKey): ProviderOperationDTO
     {
-        $this->requireFundingTerms();
         if ($assetCode !== 'USD') {
             throw new ProviderUnavailableException('U1 currency is unavailable.');
         }
@@ -360,7 +350,6 @@ final class U1CardProvider implements CardProviderInterface
 
     public function returnCardFunds(string $cardId, string $amount, string $requestId): ProviderCardFundsDTO
     {
-        $this->requireFundingTerms();
         $card = UserCard::where('provider', 'U1')->where('provider_card_id', $cardId)
             ->whereIn('card_product_id', DB::table('card_products')->where('card_provider_reference_id', $this->connection->reference_id)->select('id'))->firstOrFail();
         if (($this->group($card->product->provider_product_ref)['model'] ?? null) !== 'SHARE') {
