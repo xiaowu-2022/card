@@ -129,7 +129,7 @@ final class U1CardProvider implements CardProviderInterface
             $id = (string) Str::uuid();
             DB::table('u1_operations')->insert(['id' => $id, 'connection_id' => $connection->id, 'request_id' => $requestId,
                 'intent_hash' => $hash, 'kind' => $kind, 'card_id' => $cardId, 'group_no' => $groupNo, 'currency' => 'USD',
-                'api_key_snapshot_encrypted' => $connection->api_key_encrypted, 'amount' => $amount, 'status' => 'PROCESSING', 'request_ids_confirmed' => false, 'requested_at' => now()]);
+                'api_key_snapshot_encrypted' => $connection->api_key_encrypted, 'amount' => $amount, 'status' => 'PROCESSING', 'request_ids_confirmed' => true, 'requested_at' => now()]);
 
             return [DB::table('u1_operations')->where('id', $id)->firstOrFail(), true];
         });
@@ -145,9 +145,9 @@ final class U1CardProvider implements CardProviderInterface
         try {
             $wire = $this->wireAmount($amount);
             $response = match ($kind) {
-                'OPEN' => $this->client()->openCard('USD', $wire, $groupNo),
-                'LOAD' => $this->client()->recharge('USD', $wire, $cardId),
-                'RETURN' => $this->client()->withdraw($wire, $cardId),
+                'OPEN' => $this->client()->openCard('USD', $wire, $groupNo, requestId: $intent->id),
+                'LOAD' => $this->client()->recharge('USD', $wire, $cardId, $intent->id),
+                'RETURN' => $this->client()->withdraw($wire, $cardId, $intent->id),
                 default => throw new ProviderUnavailableException('Unsupported U1 operation.'),
             };
             $apiId = $response['apiId'] ?? null;
@@ -184,10 +184,34 @@ final class U1CardProvider implements CardProviderInterface
 
     private function query(object $intent): object
     {
-        if (in_array($intent->status, ['SUCCEEDED', 'FAILED'], true) || ! $intent->api_id) {
+        if (in_array($intent->status, ['SUCCEEDED', 'FAILED'], true)) {
             return $intent;
         }
-        $response = $this->client()->operation($intent->api_id);
+        $client = new U1ApiClient($this->connection->customer_no, Crypt::decryptString($this->connection->api_key_encrypted), $this->connection->base_url, v2: (bool) $intent->request_ids_confirmed);
+        if (! $intent->api_id) {
+            // Legacy requests never sent an upstream ID and cannot be recovered this way.
+            if (! $intent->request_ids_confirmed) {
+                return $intent;
+            }
+            $lookup = $client->requestIds($intent->id);
+            $ids = $lookup['data'] ?? null;
+            // More than one candidate is ambiguous: never choose one or resend the write.
+            if (($lookup['resultCode'] ?? null) !== '0000' || ! is_string($ids) || ! preg_match('/^[a-zA-Z0-9._-]{1,120}$/D', $ids)) {
+                throw new ProviderUnknownResultException('U1 request could not be uniquely located.');
+            }
+            $intent = DB::transaction(function () use ($intent, $ids): object {
+                $current = DB::table('u1_operations')->where('id', $intent->id)->lockForUpdate()->firstOrFail();
+                if ($current->api_id && $current->api_id !== $ids) {
+                    throw new ProviderUnknownResultException('U1 request identity does not match.');
+                }
+                if (! $current->api_id) {
+                    DB::table('u1_operations')->where('id', $intent->id)->update(['api_id' => $ids]);
+                }
+
+                return DB::table('u1_operations')->where('id', $intent->id)->firstOrFail();
+            });
+        }
+        $response = $client->operation($intent->api_id);
         $body = $response['data'] ?? null;
         if (! is_string($body)) {
             throw new ProviderUnknownResultException('U1 operation evidence is unavailable.');

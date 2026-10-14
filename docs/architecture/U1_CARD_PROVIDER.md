@@ -1,8 +1,8 @@
 # U1 标准卡商接入
 
-2026-10-13：用户将通知测试阶段调整为标准卡商接入，并决定暂不向 U1 资金请求传 requestId。
+2026-10-14：按用户提供的最新文档升级到 v2，所有新请求携带 requestId；取代 2026-10-13 暂不发送 requestId 的接入约定。
 U1 是现有卡商列表中的普通连接；PhotonPay 保留。通知联调按钮是正常连接的诊断操作，没有测试模式或模拟资金。
-协议来源：https://doc.u1card.com/#api-17，API 固定为 https://api.uucard.cyou/v1。
+协议来源：https://doc.u1card.com/（V2），新请求固定使用 https://api.uucard.cyou/v2/api。已有目录 base_url 的 /v1 值保留为兼容配置标识，不需要改写连接；只有历史 v1 资金意图的结果查询仍走 /v1/api。
 
 ## 配置及上线
 
@@ -20,9 +20,9 @@ U1 是现有卡商列表中的普通连接；PhotonPay 保留。通知联调按�
 
 虚拟开卡按 groupNo 调用 vccopen。沿用本地 KYC/卡片材料、用户限制、公司授权、钱包预留、账本、开卡订单及审计规则。U1 没有持卡人接口，材料通过本地验证时记为 LOCAL_READY，外部持卡人 ID 保持 NULL，不伪造上游审核或 ID。
 
-开卡/充值(vccrechage，文档原拼写)/卡内提现(vccwithdraw)通过原订单流程发起，创建连接内唯一 UUID 意图后才发送。暂不传上游 requestId，只保存返回 apiId。受理码 0000/0001/0003 不代表完成。通知只唤醒已有范围内的订单，queryapiid 通过固定 HTTPS 查询，并再次验签返回的通知 JSON、核对 apiId/操作类型，才交由既有结算动作。成功结算仍通过原金额/币种/账本保护；管理订单的未确认状态沿用 UNKNOWN 展示。失败按原流程释放资金，重复通知/查询不重复结算。
+开卡/充值(vccrechage，文档原拼写)/卡内提现(vccwithdraw)通过原订单流程发起，创建连接内唯一 UUID 意图后才发送。资金请求发送已持久化的 u1_operations.id 作为上游 requestId（独立 UUID 避免同客户号下不同连接/操作复用本地业务 ID），同时保存返回 apiId；request_ids_confirmed 标记该意图使用 v2。普通读取及诊断每次生成新 UUID。受理码 0000/0001/0003 不代表完成。通知只唤醒已有范围内的订单，queryapiid 通过固定 HTTPS 查询，并再次验签返回的通知 JSON、核对 apiId/操作类型，才交由既有结算动作。成功结算仍通过原金额/币种/账本保护；管理订单的未确认状态沿用 UNKNOWN 展示。失败按原流程释放资金，重复通知/查询不重复结算。
 
-响应丢失且未拿到 apiId 时，保留 UNKNOWN 和原预留，不自动重发，也不猜测 queryrequestid 可以恢复未传的 ID。需要后续确认 U1 幂等协议再扩展。已有资金意图保存当时的加密密钥快照，密钥替换后仅可用于核验该连接、该 apiId 和该类资金结果；不能用旧密钥提交新的 OTP/交易通知。
+v2 响应丢失且未拿到 apiId 时，保留 UNKNOWN 和原预留；既有恢复流程通过 queryrequestid 查询已发送的意图 UUID。仅接受单一有效 apiId，再通过 queryapiid 验签并核对操作类型后处理结果；空列表、多 ID、无效或不匹配结果仍待确认。不推断 requestId 提供资金幂等保证，不自动重发。历史 request_ids_confirmed=false 的意图没有发送 requestId，未取得 apiId 时保持 UNKNOWN，不进行反查或改写历史。已有资金意图保存当时的加密密钥快照，密钥替换后仅可用于核验该连接、该 apiId 和该类资金结果；不能用旧密钥提交新的 OTP/交易通知。
 
 正常卡余额/状态刷新使用 vccquery；敏感卡面使用 querycvv，只有密码验证后的卡主可短暂查看，PAN/CVV 不持久化。SHARE 组允许卡内提现，SINGLE 不允许。vcctrade 按正序分页读取真实交易 UUID，保存原 tradeType（不猜测数字类型含义）、原币种和精确金额；异步交易通知只触发对应卡余额/交易读模型刷新，不以未被签名覆盖的通知金额记账。
 
@@ -32,7 +32,7 @@ OTP 以签名中 cardNo 绑定已有卡，只有同公司活跃卡主经密码�
 
 ## 接口覆盖
 
-U1ApiClient 实现文档 17 个接口：queryaccount、querygroupno、vccadd、vccpin、vccquery、vccopen、vccrechage、vccwithdraw、vccemail、vcctrade、vccquerylist、vccrechargelist、vccquerycvv、queryapiid、querycvv、queryrequestid、notifytest。所有值均字符串，按每个接口约定字段顺序 MD5；固定 HTTPS、禁止重定向、无自动重试，错误不记录原始响应/密钥。卡 iframe 返回 URL 只允许固定供应商 HTTPS；未文档化的 token 放置方式不猜测。充值列表结构有文档歧义，不作为自动入账依据。
+U1ApiClient 实现文档 17 个接口：queryaccount、querygroupno、vccadd、vccpin、vccquery、vccopen、vccrechage、vccwithdraw、vccemail、vcctrade、vccquerylist、vccrechargelist、vccquerycvv、queryapiid、querycvv、queryrequestid、notifytest。所有值均字符串，按每个接口约定字段顺序 MD5（v2 的 requestId 不额外加入签名，queryrequestid 除外；notifytest 为 customerNo+timestamp+key，不再包含 editType）；固定 HTTPS、禁止重定向、无自动重试，错误不记录原始响应/密钥。卡 iframe 返回 URL 只允许固定供应商 HTTPS；未文档化的 token 放置方式不猜测。充值列表结构有文档歧义，不作为自动入账依据。
 
 ## 通知诊断及留存
 
@@ -43,3 +43,5 @@ U1ApiClient 实现文档 17 个接口：queryaccount、querygroupno、vccadd、v
 ## 验证边界
 
 本地测试使用隔离 card_ui_test、Http fake、Queue fake 和全拦截浏览器数据，未调用真实供应商、未开真实卡/充值/提现。真实回调和字段覆盖需要用户上线填写参数及回调后执行。发布记录见 artifacts/u1-standard-provider/verification.json。
+
+2026-10-14 v2 更新仅需 PHP 发布及重载 PHP-FPM/队列 worker，无新增迁移、前端构建或存量资金意图修改。验证仅使用隔离数据库及 HTTP fake。

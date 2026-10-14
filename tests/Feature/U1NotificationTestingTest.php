@@ -181,10 +181,10 @@ it('returns exact numbered pagination without provider reads', function (): void
 
 it('signs only notifytest requests, verifies responses and distinguishes acceptance from callback delivery', function (): void {
     Http::fake(function ($request) {
-        expect($request->url())->toBe(U1Accounts::BASE_URL.'/api/notifytest')
+        expect($request->url())->toBe(\App\Infrastructure\Providers\Card\U1ApiClient::V2_BASE_URL.'/api/notifytest')
             ->and($request['customerNo'])->toBe('CUSTOMER-TEST')->and($request['editType'])->toBe('transaction')
             ->and($request['timestamp'])->toBeString()
-            ->and($request['sign'])->toBe(md5($request['customerNo'].$request['editType'].$request['timestamp'].'offline-u1-key'));
+            ->and($request['sign'])->toBe(md5($request['customerNo'].$request['timestamp'].'offline-u1-key'));
 
         return Http::response(['resultCode' => '0000', 'timestamp' => $request['timestamp'], 'apiId' => 'notify-test-request',
             'sign' => md5('0000'.$request['timestamp'].'offline-u1-key')]);
@@ -298,4 +298,58 @@ it('redacts a signed OTP even if duplicated inside unknown raw fields', function
     $body=json_encode(u1SignedNotification('otp', extra:['comment'=>'Verification code is 876543','unknown'=>['value'=>'876543']]));
     $event=$this->service->receive($this->connection->id,$body);
     expect(json_encode($this->service->notification($this->reference->id,$event['id'])))->not->toContain('876543');
+});
+
+it('recovers only a unique v2 request match and verifies its operation evidence', function (string $ids, string $eventId, bool $legacy): void {
+    $id = (string) Str::uuid();
+    $requestId = (string) Str::uuid();
+    DB::table('u1_operations')->insert(['id' => $id, 'connection_id' => $this->connection->id,
+        'request_id' => $requestId, 'intent_hash' => str_repeat('a', 64), 'kind' => 'LOAD',
+        'card_id' => 'OFFLINE-CARD', 'currency' => 'USD', 'amount' => '20.00000000',
+        'status' => 'UNKNOWN', 'request_ids_confirmed' => ! $legacy, 'requested_at' => now()]);
+    Http::fake(function ($request) use ($id, $ids, $eventId) {
+        expect($request->url())->toStartWith(\App\Infrastructure\Providers\Card\U1ApiClient::V2_BASE_URL.'/api/');
+        if (str_ends_with($request->url(), '/queryrequestid')) {
+            expect($request['requestId'])->toBe($id);
+            $data = $ids;
+        } else {
+            expect($request->url())->toEndWith('/queryapiid')->and($request['apiId'])->toBe('OFFLINE-API');
+            $data = json_encode(u1SignedNotification('rechargevcc.success', extra: ['apiId' => $eventId]));
+        }
+
+        return Http::response(['resultCode' => '0000', 'timestamp' => $request['timestamp'],
+            'sign' => md5('0000'.$request['timestamp'].'offline-u1-key'), 'data' => $data]);
+    });
+    $provider = new \App\Infrastructure\Providers\Card\U1CardProvider($this->connection);
+    $success = $ids === 'OFFLINE-API' && $eventId === 'OFFLINE-API' && ! $legacy;
+    if ($legacy || $success) {
+        $result = $provider->queryCardFunds('OFFLINE-CARD', $requestId, 'LOAD');
+        expect($result->status->value)->toBe($success ? 'SUCCEEDED' : 'UNKNOWN');
+    } else {
+        expect(fn () => $provider->queryCardFunds('OFFLINE-CARD', $requestId, 'LOAD'))
+            ->toThrow(\App\Domain\CardProvider\Exceptions\ProviderUnknownResultException::class);
+    }
+    expect(DB::table('u1_operations')->where('id', $id)->value('status'))->toBe($success ? 'SUCCEEDED' : 'UNKNOWN');
+    Http::assertSentCount($legacy ? 0 : ($ids === 'OFFLINE-API' ? 2 : 1));
+})->with([
+    ['OFFLINE-API', 'OFFLINE-API', false], ['', 'OFFLINE-API', false],
+    ['OFFLINE-API,OTHER', 'OFFLINE-API', false], ['OFFLINE-API', 'OTHER', false],
+    ['OFFLINE-API', 'OFFLINE-API', true],
+]);
+
+it('persists a unique upstream operation ID before sending and never resends an ambiguous write', function (): void {
+    DB::table('u1_connections')->where('id', $this->connection->id)->update(['enabled' => true, 'check_status' => 'VERIFIED', 'zero_fees_confirmed' => true]);
+    $connection = DB::table('u1_connections')->where('id', $this->connection->id)->first();
+    $requestId = (string) Str::uuid();
+    $sent = [];
+    Http::fake(function ($request) use ($connection, $requestId, &$sent) {
+        $intent = DB::table('u1_operations')->where('connection_id', $connection->id)->where('request_id', $requestId)->firstOrFail();
+        $sent[] = [$request['requestId'], $intent->id, $intent->request_ids_confirmed];
+        throw new ConnectionException('offline timeout');
+    });
+    $provider = new \App\Infrastructure\Providers\Card\U1CardProvider($connection);
+    $provider->loadCard('OFFLINE-CARD', '20.00', 'USD', $requestId);
+    $provider->loadCard('OFFLINE-CARD', '20.00', 'USD', $requestId);
+    expect($sent)->toHaveCount(1)->and($sent[0][0])->toBe($sent[0][1])->and($sent[0][2])->toBeTrue();
+    expect(DB::table('u1_operations')->where('request_id', $requestId)->value('status'))->toBe('UNKNOWN');
 });

@@ -7,11 +7,15 @@ use App\Domain\CardProvider\Exceptions\ProviderUnavailableException;
 use App\Domain\CardProvider\Exceptions\ProviderUnknownResultException;
 use App\Infrastructure\Assets\ExactJson;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 /** U1's documented protocol. Transport only: no application balance or business writes. */
 final readonly class U1ApiClient
 {
+    // Existing directory configuration remains valid; wire protocol selection is explicit.
     public const BASE_URL = 'https://api.uucard.cyou/v1';
+
+    public const V2_BASE_URL = 'https://api.uucard.cyou/v2';
 
     private const ENDPOINTS = [
         'queryaccount' => [], 'querygroupno' => [],
@@ -24,7 +28,7 @@ final readonly class U1ApiClient
         'queryrequestid' => ['requestId'], 'notifytest' => ['editType'],
     ];
 
-    public function __construct(private string $customerNo, #[\SensitiveParameter] private string $apiKey, private string $baseUrl = self::BASE_URL) {}
+    public function __construct(private string $customerNo, #[\SensitiveParameter] private string $apiKey, private string $baseUrl = self::BASE_URL, private bool $v2 = true) {}
 
     public function call(string $endpoint, #[\SensitiveParameter] array $fields = []): array
     {
@@ -41,15 +45,22 @@ final readonly class U1ApiClient
                 throw new ProviderUnavailableException('U1 request fields must be strings.');
             }
         }
+        if ($this->v2) {
+            $fields['requestId'] ??= (string) Str::uuid();
+            if (! preg_match('/^[a-zA-Z0-9._-]{1,120}$/D', $fields['requestId'])) {
+                throw new ProviderUnavailableException('U1 request ID is invalid.');
+            }
+        }
         $timestamp = (string) now()->getTimestampMs();
-        $parts = array_map(fn ($field) => $fields[$field], self::ENDPOINTS[$endpoint]);
+        $order = $this->v2 && $endpoint === 'notifytest' ? [] : self::ENDPOINTS[$endpoint];
+        $parts = array_map(fn ($field) => $fields[$field], $order);
         $body = $fields + ['customerNo' => $this->customerNo, 'timestamp' => $timestamp];
         // Callers cannot override authentication or time fields.
         $body['customerNo'] = $this->customerNo;
         $body['timestamp'] = $timestamp;
         $body['sign'] = md5($this->customerNo.implode('', $parts).$timestamp.$this->apiKey);
         try {
-            $response = Http::connectTimeout(5)->timeout(20)->withoutRedirecting()->post(self::BASE_URL.'/api/'.$endpoint, $body);
+            $response = Http::connectTimeout(5)->timeout(20)->withoutRedirecting()->post(($this->v2 ? self::V2_BASE_URL : self::BASE_URL).'/api/'.$endpoint, $body);
             if (! $response->successful() || strlen($response->body()) > 1048576) {
                 throw new \RuntimeException;
             }
