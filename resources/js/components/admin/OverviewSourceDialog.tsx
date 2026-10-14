@@ -41,15 +41,6 @@ type Report = {
         }[];
     };
 };
-const sourceLabels: Record<string, string> = {
-    deposits: 'Ordinary member activation deposits',
-    annual: 'Annual fee income',
-    depositRefunds: 'Ordinary member deposit refunds',
-    activation: 'Activation commission',
-    rebates: 'Annual fee returns',
-    annualCommission: 'Annual commission',
-    reimbursement: 'Reimbursements',
-};
 function SourceMoney({ amount, asset }: { amount: string | null; asset: string }) {
     return amount === null ? (
         <span>{t('Unavailable')}</span>
@@ -110,7 +101,9 @@ export function OverviewSourceDialog({
                     <DialogTitle>
                         {target.label} · {t('Data sources')}
                     </DialogTitle>
-                    <DialogDescription>{t('Source records')}</DialogDescription>
+                    <DialogDescription className="sr-only">
+                        {t('Source records')}
+                    </DialogDescription>
                 </DialogHeader>
                 {loading && (
                     <p className="mt-4 text-sm text-muted-foreground" role="status">
@@ -142,12 +135,10 @@ export function OverviewSourceDialog({
                                     <tr className="border-b bg-muted/40 text-left text-muted-foreground">
                                         {[
                                             'Customer',
-                                            'Source',
                                             'Time',
                                             'Currency',
                                             'Amount',
                                             'USDT estimate',
-                                            'Reference',
                                         ].map((label) => (
                                             <th key={label} className="px-3 py-2.5 font-medium">
                                                 {t(label)}
@@ -159,7 +150,7 @@ export function OverviewSourceDialog({
                                     {report.rows.items.length === 0 ? (
                                         <tr>
                                             <td
-                                                colSpan={7}
+                                                colSpan={5}
                                                 className="p-6 text-center text-muted-foreground"
                                             >
                                                 {t('No source records.')}
@@ -181,9 +172,6 @@ export function OverviewSourceDialog({
                                                         row.name || row.companyName || '—'
                                                     )}
                                                 </td>
-                                                <td className="px-3 py-2.5">
-                                                    {t(sourceLabels[row.source] ?? row.source)}
-                                                </td>
                                                 <td className="whitespace-nowrap px-3 py-2.5">
                                                     {row.time
                                                         ? dateTime(row.time, report.timezone)
@@ -198,9 +186,6 @@ export function OverviewSourceDialog({
                                                 </td>
                                                 <td className="whitespace-nowrap px-3 py-2.5 text-right">
                                                     <SourceMoney amount={row.usdt} asset="USDT" />
-                                                </td>
-                                                <td className="max-w-48 break-all px-3 py-2.5 text-xs text-muted-foreground">
-                                                    {row.id}
                                                 </td>
                                             </tr>
                                         ))

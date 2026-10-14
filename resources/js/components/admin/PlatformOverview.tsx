@@ -183,17 +183,8 @@ export function PlatformOverview({ overview }: { overview: PlatformOverviewData 
     return (
         <SourceContext.Provider value={setTarget}>
             <div data-platform-overview className="min-w-0 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <p>{t('All companies · USDT · UTC+8')}</p>
-                    <p>
-                        {t('Updated at')}: {dateTime(overview.updatedAt, overview.timezone)}
-                    </p>
-                </div>
                 {overview.partners && (
                     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                        <p className="text-xs text-muted-foreground sm:col-span-2 xl:col-span-5">
-                            {t('Top-level partners')}
-                        </p>
                         <Metric label="Stock" metric="stock" value={overview.partners.stock} />
                         <Metric
                             label="Theoretical balance"
