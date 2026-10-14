@@ -51,3 +51,5 @@ U1ApiClient 实现文档 17 个接口：queryaccount、querygroupno、vccadd、v
 回调数据库事务提交后，追加到私有 `storage/logs/u1-notifications-YYYY-MM-DD.log`，每天轮转，保留七天，文件权限 0600。包括通知 ID、连接 ID、北京接收时间、通知类型、验签结果/原因、重复次数、固定签名字段的存在性/类型，以及用 APP_KEY 加密的 `body_encrypted` 原文。OTP、签名、密钥、卡号和任意未知字段不会以明文写入文件。日志时间前缀遵循运行环境，核查使用 `received_at_beijing`。文件失败不影响已提交的通知接收，数据库仍为权威证据；没有历史自动回填。部署 PHP/config 后刷新配置缓存并重启工作进程，保留 APP_KEY，日志不得放入公开目录或上传至外部日志服务。
 
 可按后台通知记录 ID 查询：`rg '记录ID' storage/logs/u1-notifications-*.log`。加密正文仅在服务器内使用 `Crypt::decryptString()` 做验签核查，不要输出或转发 OTP 原文。
+
+补充：Webhooks 控制器在业务验签和数据库操作前对每次请求写 `U1 webhook arrived`，九种通知（包括 OTP）、无效签名、重复、未知类型和无效 JSON 均覆盖；使用 receipt_id 关联后续验签/拒绝/失败结果。不存在连接、解密或数据库失败也记录固定原因，不输出异常原文。超过 256 KiB 的请求仅记录大小及拒绝状态，不复制超限正文。入口正文仍仅以 APP_KEY 密文写入；增加小写 cardno 等固定字段格式诊断。不改变既有回调 HTTP 状态、授权或验签条件。

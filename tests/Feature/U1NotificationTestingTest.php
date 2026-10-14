@@ -354,3 +354,25 @@ it('persists a unique upstream operation ID before sending and never resends an 
     expect($sent)->toHaveCount(1)->and($sent[0][0])->toBe($sent[0][1])->and($sent[0][2])->toBeTrue();
     expect(DB::table('u1_operations')->where('request_id', $requestId)->value('status'))->toBe('UNKNOWN');
 });
+
+it('logs every callback type at arrival including invalid signatures without exposing plaintext', function (string $type): void {
+    $entries = [];
+    $logger = Mockery::mock(\Psr\Log\LoggerInterface::class);
+    $logger->shouldReceive('info')->andReturnUsing(function ($message, $context) use (&$entries) {
+        $entries[] = [$message, $context];
+    });
+    $manager = Mockery::mock(\Illuminate\Log\LogManager::class, [app()])->makePartial();
+    $manager->shouldReceive('channel')->with('u1_notifications')->andReturn($logger);
+    \Illuminate\Support\Facades\Log::swap($manager);
+    $body = u1SignedNotification($type, extra: ['sign' => 'unused']);
+    $body['sign'] = str_repeat('0', 32);
+    $this->postJson($this->callback, $body)->assertStatus(400);
+    $arrival = collect($entries)->first(fn ($entry) => $entry[0] === 'U1 webhook arrived');
+    $result = collect($entries)->first(fn ($entry) => $entry[0] === 'U1 webhook verified');
+    expect($arrival)->not->toBeNull()->and($arrival[1]['notification_type'])->toBe($type)
+        ->and(Crypt::decryptString($arrival[1]['body_encrypted']))->toBe(json_encode($body))
+        ->and($result[1]['reason'])->toBe('INVALID_SIGNATURE')
+        ->and($result[1]['receipt_id'])->toBe($arrival[1]['receipt_id']);
+    unset($arrival[1]['body_encrypted']);
+    expect(json_encode($arrival))->not->toContain('876543', 'offline-u1-key', str_repeat('0', 32));
+})->with(array_keys(U1NotificationVerifier::FIELDS));
