@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useForm as useInertiaForm, usePage as useInertiaPage } from '@inertiajs/react';
 import { companyEditor } from './company-settings';
 import { readEditorResponse } from './editor-response';
+import { editorRequestBody } from './editor-request-body';
 import type {
     FormDataType,
     FormDataErrors,
@@ -27,25 +28,6 @@ export const useEditor = () => useContext(EditorContext);
 export function usePage<T extends PageProps = PageProps>() {
     const page = useInertiaPage<T>();
     return (useEditor()?.page ?? page) as Page<T>;
-}
-function append(data: FormData, value: unknown, key: string) {
-    if (value instanceof Blob) data.append(key, value);
-    else if (Array.isArray(value)) value.forEach((v, i) => append(data, v, `${key}[${i}]`));
-    else if (value && typeof value === 'object')
-        Object.entries(value).forEach(([k, v]) => append(data, v, key ? `${key}[${k}]` : k));
-    else
-        data.append(
-            key,
-            value === true
-                ? '1'
-                : value === false
-                  ? '0'
-                  : typeof value === 'string'
-                    ? value
-                    : typeof value === 'number'
-                      ? value.toString()
-                      : '',
-        );
 }
 export function useForm<T extends FormDataType<T>>(data: T | (() => T)) {
     const form = useInertiaForm<T>(data);
@@ -87,14 +69,13 @@ export function useForm<T extends FormDataType<T>>(data: T | (() => T)) {
             const target = new URL(url, location.origin);
             if (target.origin !== location.origin || !target.pathname.startsWith('/platform/'))
                 throw new Error('Invalid operation.');
-            const body = new FormData();
-            append(body, transform.current(form.data), '');
-            if (method !== 'post') body.append('_method', method.toUpperCase());
+            const { body, headers } = editorRequestBody(transform.current(form.data), method);
             const response = await fetch(target, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
                     Accept: 'application/json',
+                    ...headers,
                     'X-Admin-Dialog': '1',
                     ...(companyEditor(editor.page.url)
                         ? { 'X-Admin-Company': companyEditor(editor.page.url)!.company }

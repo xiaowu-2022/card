@@ -240,3 +240,13 @@ it('lists all assigned domains and generates invitations from active company dom
     $this->tenant->domains()->update(['status' => 'DISABLED']);
     expect(fn () => $generator->invitation($this->tenant, 'synthetic-token'))->toThrow(LogicException::class);
 });
+
+it('accepts an explicitly empty original domain list but rejects an omitted snapshot', function (): void {
+    $this->actingAs($this->owner, 'platform_admin');
+    $url = 'http://admin.localhost/platform/tenants/'.$this->other->id.'/configuration/domains';
+    $this->postJson($url, ['domain_ids' => [], 'original_ids' => [$this->otherSystemId], 'confirmed' => true])->assertRedirect();
+    $payload = ['domain_ids' => [$this->otherSystemId], 'confirmed' => true];
+    $this->postJson($url, $payload)->assertUnprocessable()->assertJsonValidationErrors('original_ids');
+    $this->postJson($url, $payload + ['original_ids' => []])->assertRedirect();
+    expect(TenantDomain::findOrFail($this->otherSystemId)->tenant_id)->toBe($this->other->id);
+});

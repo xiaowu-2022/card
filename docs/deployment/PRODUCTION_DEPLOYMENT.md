@@ -293,3 +293,5 @@ TRUNCATE 绕过捕获。迁移不调用外部服务，不改余额、订单分�
 统一异常渲染与请求结束中间件将失败写入现有 Laravel 日志，事件名 `HTTP request failed`。包含原先不报告的 DomainException、ValidationException、认证/授权、CSRF、404，以及直接返回的 4xx/5xx 和带校验错误的重定向。同一请求的结构化失败记录按请求属性去重；5xx 为 ERROR，其余为 WARNING，生产 LOG_LEVEL 需要允许 warning。未处理异常原有堆栈日志仍保留。
 
 记录 request_id、方法、路由名/模板、HTTP 状态、安全错误码、异常类型、校验字段和失败规则名、可用的操作人 ID/guard、路由中的公司/域名 UUID，以及域名分配请求中合法的 domain_ids/original_ids（最多 100）。不记录原始 URL/查询、请求正文、错误消息、验证参数或提交值，避免凭据/OTP/证件和用户内容泄漏。请求级日志不能观测已经被业务代码吞掉并返回 200 的内部错误；这些仍须由对应业务诊断记录。部署 PHP 后重载 PHP-FPM 即生效，无新增迁移。排查时按页面/响应的 X-Request-ID 检索日志，或搜索域名分配路由及公司 UUID。
+
+2026-10-14 域名首次分配 422 修复：公司配置抽屉原来将所有表单编码为 multipart，空数组没有表单条目，导致 `original_ids: []` 或 `domain_ids: []` 在 PHP 端缺失。现在无文件表单使用 JSON，保留显式空数组；文件上传继续 multipart。保留服务器 present/array 校验及原分配列表的并发保护，不将缺失字段默认为空。发布后台前端构建后刷新页面，无新增迁移；与后端版本匹配上线。
