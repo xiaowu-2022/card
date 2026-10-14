@@ -10,7 +10,7 @@ final class U1NotificationVerifier
         'openvcc.success' => ['apiId', 'type', 'cardNo', 'timestamp'],
         'openvcc.failed' => ['apiId', 'type', 'timestamp'],
         'updatevcc.success' => ['cardNo', 'type', 'timestamp'],
-        'otp' => ['cardNo', 'type', 'timestamp', 'otp'],
+        'otp' => ['cardNo', 'type', 'otp', 'timestamp'],
         'rechargevcc.success' => ['apiId', 'type', 'timestamp'],
         'rechargevcc.failed' => ['apiId', 'type', 'timestamp'],
         'withdrawvcc.success' => ['apiId', 'type', 'timestamp'],

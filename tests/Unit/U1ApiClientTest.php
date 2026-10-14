@@ -78,3 +78,12 @@ it('keeps legacy result queries on v1 without inventing request IDs', function (
     (new U1ApiClient('CUSTOMER', 'offline-key', v2: false))->operation('LEGACY-API');
     Http::assertSentCount(1);
 });
+
+it('verifies OTP with the corrected documented order and rejects the previous order', function (): void {
+    $data = ['cardNo' => 'OFFLINE-CARD', 'type' => 'otp', 'otp' => '001234', 'timestamp' => '1791965165254'];
+    $verifier = new \App\Infrastructure\Providers\Card\U1NotificationVerifier;
+    $data['sign'] = md5('OFFLINE-CARDotp0012341791965165254offline-key');
+    expect($verifier->verify(json_encode($data), 'offline-key')['verified'])->toBeTrue();
+    $data['sign'] = md5('OFFLINE-CARDotp1791965165254001234offline-key');
+    expect($verifier->verify(json_encode($data), 'offline-key')['reason'])->toBe('INVALID_SIGNATURE');
+});
