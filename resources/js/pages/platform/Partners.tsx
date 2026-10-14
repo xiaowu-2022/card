@@ -13,7 +13,8 @@ import { partnerJournalKind } from '@/lib/partner-journal-note';
 import { PartnerHierarchyPanel } from '@/components/admin/PartnerHierarchyPanel';
 import { DetailDrawerContent } from '@/components/admin/DetailDrawer';
 import { PartnerInvitationsReport } from '@/components/admin/PartnerInvitationsReport';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { PartnerUserDetails } from '@/components/admin/PartnerUserDetails';
+import { Button } from '@/components/ui/button';
 import { invitationLocation } from '@/components/admin/partner-invitations-state';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -53,6 +54,7 @@ type Partner = {
     };
     userInfo?: UserInfo;
     userId?: string;
+    user_id?: string;
     id: string;
     tenant_id: string;
     company_name: string;
@@ -73,7 +75,7 @@ type Fee = {
     created_at: string;
 };
 const requestId = () => crypto.randomUUID();
-const date = () => new Date().toISOString().slice(0, 10);
+const date = () => new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
 export default function Partners({
     companies,
     companyId,
@@ -81,12 +83,14 @@ export default function Partners({
     partners,
     report,
     pendingFees,
+    selectedPartner = null,
 }: {
     companies: { id: string; name: string }[];
     companyId: string | null;
     reportCompanyId: string | null;
     partners: Page<Partner> | null;
     report: StockReport | null;
+    selectedPartner?: Partner | null;
     pendingFees: Page<Fee> | null;
 }) {
     useAdminTranslation();
@@ -129,7 +133,26 @@ export default function Partners({
         window.addEventListener('popstate', sync);
         return () => window.removeEventListener('popstate', sync);
     }, [url]);
-    const detailPartner = partners?.data.find((partner) => partner.id === report?.partnerId);
+    const detailPartner =
+        selectedPartner?.id === report?.partnerId
+            ? selectedPartner
+            : partners?.data.find((partner) => partner.id === report?.partnerId);
+    const [detailTab, setDetailTab] = useState(() =>
+        new URL(location.href).searchParams.has('invitation_partner')
+            ? 'invitations'
+            : new URL(location.href).searchParams.has('flow')
+              ? 'stock'
+              : 'basic',
+    );
+    useEffect(() => {
+        const query = new URL(location.href).searchParams;
+        setDetailTab(
+            query.has('invitation_partner') ? 'invitations' : query.has('flow') ? 'stock' : 'basic',
+        );
+    }, [report?.partnerId]);
+    useEffect(() => {
+        if (invitationPartner) setDetailTab('invitations');
+    }, [invitationPartner]);
     const [reportOpen, setReportOpen] = useState(Boolean(report));
     const [hierarchyPartner, setHierarchyPartner] = useState<string | null>(null);
     const hierarchyScroll = useRef(0);
@@ -180,7 +203,7 @@ export default function Partners({
         router.get('/platform/partners', Object.fromEntries(query), {
             preserveScroll: true,
             preserveState: true,
-            ...(partner ? { only: ['report', 'reportCompanyId'] } : {}),
+            ...(partner ? { only: ['report', 'reportCompanyId', 'selectedPartner'] } : {}),
             onCancelToken: (token) => {
                 reportRequest.current = () => token.cancel();
             },
@@ -929,24 +952,14 @@ export default function Partners({
                                     }
                                 }}
                             >
-                                <Tabs
-                                    value={invitationPartner ? 'invitations' : 'stock'}
-                                    onValueChange={(value) => {
-                                        const partner =
-                                            value === 'invitations'
-                                                ? (report?.partnerId ?? null)
-                                                : null;
-                                        invitationLocation(partner, null, report?.partnerId);
-                                        setInvitationPartner(partner);
-                                    }}
-                                    className="flex min-h-0 flex-1 flex-col"
-                                >
+                                <div className="flex min-h-0 flex-1 flex-col">
                                     <DialogHeader className="mb-0 shrink-0 border-b px-4 py-4 pr-14">
                                         <DialogTitle>
-                                            {t('Partner details')}
-                                            {report && !reportLoading && !reportError
-                                                ? ` · ${report.displayName || '—'} · ${t(report.version === 'partner' ? 'Partner version' : 'Standard version')}`
-                                                : ''}
+                                            {reportLoading
+                                                ? t('Loading…')
+                                                : report && !reportError
+                                                  ? report.displayName || '—'
+                                                  : '—'}
                                         </DialogTitle>
                                         <DialogDescription>
                                             {reportError
@@ -956,148 +969,246 @@ export default function Partners({
                                                   : t('Loading…')}
                                         </DialogDescription>
                                     </DialogHeader>
-                                    {detailPartner && !reportLoading && !reportError && (
-                                        <div className="partner-row-actions shrink-0 border-b px-4 py-3">
-                                            <button
-                                                type="button"
-                                                onClick={() => record(detailPartner)}
+                                    {reportLoading ? (
+                                        <p className="p-5" role="status">
+                                            {t('Loading…')}
+                                        </p>
+                                    ) : reportError ? (
+                                        <div className="space-y-4 p-5" role="alert">
+                                            <OperationFeedback>
+                                                {t('Unable to load. Please retry.')}
+                                            </OperationFeedback>
+                                            <Button
+                                                variant="secondary"
+                                                onClick={() => visit(...reportTarget.current)}
                                             >
-                                                {t('Record entry')}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => edit(detailPartner)}
+                                                {t('Retry')}
+                                            </Button>
+                                        </div>
+                                    ) : detailPartner ? (
+                                        <PartnerUserDetails
+                                            key={`${detailPartner.tenant_id}:${detailPartner.userInfo?.id ?? detailPartner.user_id}`}
+                                            user={
+                                                detailPartner.userInfo ?? {
+                                                    id:
+                                                        detailPartner.user_id ??
+                                                        detailPartner.userId ??
+                                                        '',
+                                                    companyId: detailPartner.tenant_id,
+                                                    companyName: detailPartner.company_name,
+                                                    accountId: detailPartner.account_id,
+                                                    displayName: detailPartner.display_name,
+                                                    email: detailPartner.email,
+                                                }
+                                            }
+                                            selectedDetailTab={detailTab}
+                                            onDetailTabChange={(value) => {
+                                                const partner =
+                                                    value === 'invitations'
+                                                        ? (report?.partnerId ?? null)
+                                                        : null;
+                                                invitationLocation(
+                                                    partner,
+                                                    null,
+                                                    report?.partnerId,
+                                                );
+                                                setInvitationPartner(partner);
+                                                setDetailTab(value);
+                                            }}
+                                            extraDetailActions={
+                                                detailPartner &&
+                                                !reportLoading &&
+                                                !reportError && (
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <Button
+                                                            variant="secondary"
+                                                            type="button"
+                                                            onClick={() => record(detailPartner)}
+                                                        >
+                                                            {t('Record entry')}
+                                                        </Button>
+                                                        <Button
+                                                            variant="secondary"
+                                                            type="button"
+                                                            onClick={() => edit(detailPartner)}
+                                                        >
+                                                            {t('Edit')}
+                                                        </Button>
+                                                        {detailPartner.enabled && (
+                                                            <Button
+                                                                variant="secondary"
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    revocation.clearErrors();
+                                                                    revocation.setData(
+                                                                        'updated_at',
+                                                                        detailPartner.updated_at,
+                                                                    );
+                                                                    setRevokeTarget(detailPartner);
+                                                                }}
+                                                            >
+                                                                {t('Revoke partner')}
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                )
+                                            }
+                                            extraDetailTabs={[
+                                                {
+                                                    value: 'stock',
+                                                    label: 'View report',
+                                                    content: (
+                                                        <div
+                                                            className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4"
+                                                            data-detail-body
+                                                            scroll-region="true"
+                                                            aria-busy={reportLoading}
+                                                        >
+                                                            {reportLoading ? (
+                                                                <p className="py-10" role="status">
+                                                                    {t('Loading…')}
+                                                                </p>
+                                                            ) : reportError ? (
+                                                                <div
+                                                                    className="space-y-4 py-10"
+                                                                    role="alert"
+                                                                >
+                                                                    <OperationFeedback>
+                                                                        {t(
+                                                                            'Unable to load. Please retry.',
+                                                                        )}
+                                                                    </OperationFeedback>
+                                                                    <button
+                                                                        className="partner-admin-action"
+                                                                        onClick={() =>
+                                                                            visit(
+                                                                                ...reportTarget.current,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        {t('Retry')}
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                report && (
+                                                                    <div>
+                                                                        {hierarchyPartner && (
+                                                                            <PartnerHierarchyPanel
+                                                                                partner={
+                                                                                    hierarchyPartner
+                                                                                }
+                                                                                company={
+                                                                                    reportCompanyId
+                                                                                }
+                                                                                onClose={() => {
+                                                                                    setHierarchyPartner(
+                                                                                        null,
+                                                                                    );
+                                                                                    requestAnimationFrame(
+                                                                                        () => {
+                                                                                            const el =
+                                                                                                hierarchyTrigger.current?.closest(
+                                                                                                    '[data-detail-body]',
+                                                                                                );
+                                                                                            if (el)
+                                                                                                el.scrollTop =
+                                                                                                    hierarchyScroll.current;
+                                                                                            hierarchyTrigger.current?.focus(
+                                                                                                {
+                                                                                                    preventScroll: true,
+                                                                                                },
+                                                                                            );
+                                                                                        },
+                                                                                    );
+                                                                                }}
+                                                                            />
+                                                                        )}
+                                                                        <div
+                                                                            hidden={
+                                                                                !!hierarchyPartner
+                                                                            }
+                                                                        >
+                                                                            <PartnerStockReport
+                                                                                renderUser={(
+                                                                                    user,
+                                                                                ) => (
+                                                                                    <UserInfoCell
+                                                                                        user={user}
+                                                                                    />
+                                                                                )}
+                                                                                onPartners={() => {
+                                                                                    const el =
+                                                                                        document.querySelector(
+                                                                                            '[data-detail-body][scroll-region]',
+                                                                                        );
+                                                                                    hierarchyScroll.current =
+                                                                                        el?.scrollTop ??
+                                                                                        0;
+                                                                                    hierarchyTrigger.current =
+                                                                                        document.activeElement as HTMLButtonElement;
+                                                                                    setHierarchyPartner(
+                                                                                        report.partnerId,
+                                                                                    );
+                                                                                }}
+                                                                                compactDecimals
+                                                                                compactHeader
+                                                                                showUserIdentity
+                                                                                report={report}
+                                                                                onPage={(page) =>
+                                                                                    visit(
+                                                                                        report.partnerId,
+                                                                                        page,
+                                                                                    )
+                                                                                }
+                                                                                onReverse={reverse}
+                                                                                onFlow={(
+                                                                                    flow,
+                                                                                    page,
+                                                                                ) =>
+                                                                                    visit(
+                                                                                        report.partnerId,
+                                                                                        report
+                                                                                            .journal
+                                                                                            .page,
+                                                                                        flow,
+                                                                                        page,
+                                                                                    )
+                                                                                }
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+                                                                )
+                                                            )}
+                                                        </div>
+                                                    ),
+                                                },
+                                                {
+                                                    value: 'invitations',
+                                                    label: 'Invitation data',
+                                                    content: report ? (
+                                                        <PartnerInvitationsReport
+                                                            key={report.partnerId}
+                                                            partner={report.partnerId}
+                                                            company={reportCompanyId}
+                                                        />
+                                                    ) : null,
+                                                },
+                                            ]}
+                                        />
+                                    ) : (
+                                        <div className="space-y-4 p-5" role="alert">
+                                            <OperationFeedback>
+                                                {t('Unable to load. Please retry.')}
+                                            </OperationFeedback>
+                                            <Button
+                                                variant="secondary"
+                                                onClick={() => visit(...reportTarget.current)}
                                             >
-                                                {t('Edit')}
-                                            </button>
-                                            {detailPartner.enabled && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        revocation.clearErrors();
-                                                        revocation.setData(
-                                                            'updated_at',
-                                                            detailPartner.updated_at,
-                                                        );
-                                                        setRevokeTarget(detailPartner);
-                                                    }}
-                                                >
-                                                    {t('Revoke partner')}
-                                                </button>
-                                            )}
+                                                {t('Retry')}
+                                            </Button>
                                         </div>
                                     )}
-                                    <TabsList
-                                        className="mx-4 my-3 shrink-0 self-start"
-                                        aria-label={t('View report')}
-                                    >
-                                        <TabsTrigger value="stock">{t('View report')}</TabsTrigger>
-                                        <TabsTrigger
-                                            value="invitations"
-                                            disabled={reportLoading || !report}
-                                        >
-                                            {t('Invitation data')}
-                                        </TabsTrigger>
-                                    </TabsList>
-                                    <TabsContent
-                                        value="stock"
-                                        className="mt-0 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4"
-                                        data-detail-body
-                                        scroll-region="true"
-                                        aria-busy={reportLoading}
-                                    >
-                                        {reportLoading ? (
-                                            <p className="py-10" role="status">
-                                                {t('Loading…')}
-                                            </p>
-                                        ) : reportError ? (
-                                            <div className="space-y-4 py-10" role="alert">
-                                                <OperationFeedback>
-                                                    {t('Unable to load. Please retry.')}
-                                                </OperationFeedback>
-                                                <button
-                                                    className="partner-admin-action"
-                                                    onClick={() => visit(...reportTarget.current)}
-                                                >
-                                                    {t('Retry')}
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            report && (
-                                                <div>
-                                                    {hierarchyPartner && (
-                                                        <PartnerHierarchyPanel
-                                                            partner={hierarchyPartner}
-                                                            company={reportCompanyId}
-                                                            onClose={() => {
-                                                                setHierarchyPartner(null);
-                                                                requestAnimationFrame(() => {
-                                                                    const el =
-                                                                        hierarchyTrigger.current?.closest(
-                                                                            '[data-detail-body]',
-                                                                        );
-                                                                    if (el)
-                                                                        el.scrollTop =
-                                                                            hierarchyScroll.current;
-                                                                    hierarchyTrigger.current?.focus(
-                                                                        { preventScroll: true },
-                                                                    );
-                                                                });
-                                                            }}
-                                                        />
-                                                    )}
-                                                    <div hidden={!!hierarchyPartner}>
-                                                        <PartnerStockReport
-                                                            renderUser={(user) => (
-                                                                <UserInfoCell user={user} />
-                                                            )}
-                                                            onPartners={() => {
-                                                                const el = document.querySelector(
-                                                                    '[data-detail-body][scroll-region]',
-                                                                );
-                                                                hierarchyScroll.current =
-                                                                    el?.scrollTop ?? 0;
-                                                                hierarchyTrigger.current =
-                                                                    document.activeElement as HTMLButtonElement;
-                                                                setHierarchyPartner(
-                                                                    report.partnerId,
-                                                                );
-                                                            }}
-                                                            compactDecimals
-                                                            compactHeader
-                                                            showUserIdentity
-                                                            report={report}
-                                                            onPage={(page) =>
-                                                                visit(report.partnerId, page)
-                                                            }
-                                                            onReverse={reverse}
-                                                            onFlow={(flow, page) =>
-                                                                visit(
-                                                                    report.partnerId,
-                                                                    report.journal.page,
-                                                                    flow,
-                                                                    page,
-                                                                )
-                                                            }
-                                                        />
-                                                    </div>
-                                                </div>
-                                            )
-                                        )}
-                                    </TabsContent>
-                                    <TabsContent
-                                        value="invitations"
-                                        className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
-                                    >
-                                        {invitationPartner && report && (
-                                            <PartnerInvitationsReport
-                                                key={report.partnerId}
-                                                partner={report.partnerId}
-                                                company={reportCompanyId}
-                                            />
-                                        )}
-                                    </TabsContent>
-                                </Tabs>
+                                </div>
                             </DetailDrawerContent>
                         </Dialog>
                     </>

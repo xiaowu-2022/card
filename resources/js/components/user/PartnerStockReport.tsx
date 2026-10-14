@@ -139,6 +139,7 @@ const stockEntryLabels: Record<string, string> = {
 const trendNames: Record<string, string> = {
     activation: 'Activation commissions paid',
     deposits: 'First deposit activations',
+    depositRefunds: 'Security deposit refunds',
     annual: 'Annual fee income',
     annualCommission: 'Annual fee commissions paid',
     otherCommission: 'Other commissions paid',
@@ -499,7 +500,9 @@ export function PartnerStockReport({
                     <h2>{t('Daily trends')}</h2>
                     <p className="stock-muted">
                         {t(
-                            'Averages cover complete calendar days before today, including zero-activity days, in the company timezone.',
+                            platform
+                                ? 'Averages cover complete days before today in Beijing time, including days with no activity.'
+                                : 'Averages cover complete calendar days before today, including zero-activity days, in the company timezone.',
                         )}
                     </p>
                     {r.version === 'partner' && (
@@ -509,23 +512,54 @@ export function PartnerStockReport({
                             )}
                         </p>
                     )}
-                    {Object.entries(r.trends).map(([key, trend]) => (
-                        <div className="stock-trend" key={key}>
-                            <h3>{t(trendNames[key] ?? key)}</h3>
-                            <dl>
-                                {['today', '3', '7', '15', '30'].map((n) => (
-                                    <div key={n}>
-                                        <dt>
-                                            {n === 'today'
-                                                ? t('Today')
-                                                : t('Previous {{days}} days average', { days: n })}
-                                        </dt>
-                                        <dd>{value(trend[n])}</dd>
-                                    </div>
-                                ))}
-                            </dl>
+                    {platform ? (
+                        <div className="stock-trend-table-scroll">
+                            <table className="stock-trend-table" aria-label={t('Daily trends')}>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">{t('Item')}</th>
+                                        {['today', '3', '7', '15', '30'].map((period) => (
+                                            <th scope="col" key={period}>
+                                                {period === 'today'
+                                                    ? t('Today')
+                                                    : t('{{days}}-day average', { days: period })}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {Object.entries(r.trends).map(([key, trend]) => (
+                                        <tr key={key}>
+                                            <th scope="row">{t(trendNames[key] ?? key)}</th>
+                                            {['today', '3', '7', '15', '30'].map((period) => (
+                                                <td key={period}>{value(trend[period])}</td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
-                    ))}
+                    ) : (
+                        Object.entries(r.trends).map(([key, trend]) => (
+                            <div className="stock-trend" key={key}>
+                                <h3>{t(trendNames[key] ?? key)}</h3>
+                                <dl>
+                                    {['today', '3', '7', '15', '30'].map((n) => (
+                                        <div key={n}>
+                                            <dt>
+                                                {n === 'today'
+                                                    ? t('Today')
+                                                    : t('Previous {{days}} days average', {
+                                                          days: n,
+                                                      })}
+                                            </dt>
+                                            <dd>{value(trend[n])}</dd>
+                                        </div>
+                                    ))}
+                                </dl>
+                            </div>
+                        ))
+                    )}
                 </section>
             )}
             {(r.version === 'partner' || onReverse) && (
@@ -533,11 +567,13 @@ export function PartnerStockReport({
                     <h2>
                         {t('Cooperation journal')} ({r.journal.total})
                     </h2>
-                    <p className="stock-muted">
-                        {t(
-                            'Offline cooperation records only; these entries do not represent system payments.',
-                        )}
-                    </p>
+                    {!platform && (
+                        <p className="stock-muted">
+                            {t(
+                                'Offline cooperation records only; these entries do not represent system payments.',
+                            )}
+                        </p>
+                    )}
                     {r.journal.items.map((row) => (
                         <div className="stock-detail" key={row.id}>
                             {renderUser && row.userInfo && renderUser(row.userInfo)}
@@ -617,13 +653,15 @@ export function PartnerStockReport({
                         </button>
                     </nav>
                 ))}
-            <p className="stock-muted">
-                {t(
-                    r.version === 'partner'
-                        ? 'Contributions and annual returns include only non-partner descendants. Commissions are deducted by those users’ business source, regardless of recipient. Reimbursements include this partner and descendant partners, net of reversals. Current team relationships apply; overlapping reports must not be added together.'
-                        : 'Includes this account and all descendants. Historical totals use current team relationships.',
-                )}
-            </p>
+            {(!platform || r.version !== 'partner') && (
+                <p className="stock-muted">
+                    {t(
+                        r.version === 'partner'
+                            ? 'Contributions and annual returns include only non-partner descendants. Commissions are deducted by those users’ business source, regardless of recipient. Reimbursements include this partner and descendant partners, net of reversals. Current team relationships apply; overlapping reports must not be added together.'
+                            : 'Includes this account and all descendants. Historical totals use current team relationships.',
+                    )}
+                </p>
+            )}
         </div>
     );
 }

@@ -344,3 +344,19 @@ provider operations or original receipts change. Deploy
 `2026_10_12_190000_allow_signed_partner_cooperation_amounts.php` with PHP/admin
 assets. Rollback refuses incompatible signed history rather than deleting it.
 Only isolated/offline financial fixtures are permitted for verification.
+
+## 2026-10-14 Platform partner detail workspace
+
+Partner Details now reuses the scoped UserManagement detail content and ordinary
+user detail tabs, with View report and Invitation data as additional tabs. Account,
+funds, verification and order reads continue through their existing company/user
+permission gates. The selected partner identity is returned independently of list
+pagination, joining the user/profile on the same company; mismatched or failed detail
+responses clear the workspace. No provider reads, evidence writes or migrations are
+introduced by opening a detail.
+
+Record entry, Edit and Revoke partner share the fixed bottom user action area. Partner
+views omit the Make support agent and Set as partner controls, while retaining existing
+operation restrictions, adjustments and confirmation workflows. Ledger journal dates
+start from Beijing's current date. Report and invitation filters/pagination and the
+underlying partner-list state remain independent of the user content tabs.

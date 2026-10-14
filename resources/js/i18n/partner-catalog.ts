@@ -1,4 +1,5 @@
 export const partnerCatalog = {
+    'Security deposit refunds': ['保证金退回金额', 'Bayaran balik deposit keselamatan', 'Reembolsos de garantía'],
     'Increase theoretical balance': ['增加理论余额', 'Tambah baki teori', 'Aumentar saldo teórico'],
     'Decrease theoretical balance': [
         '减少理论余额',

@@ -457,15 +457,16 @@
     z-index: 2;
     background: var(--color-surface);
     box-shadow: -1px 0 0 var(--color-border);
-    width: 220px;
-    min-width: 220px;
+    width: 80px;
+    min-width: 80px;
+    max-width: 80px;
 }
 .partner-admin-platform .partner-summary-table thead th {
     background: var(--color-muted);
 }
 .partner-admin-platform .partner-summary-actions .partner-row-actions {
-    flex-wrap: wrap;
-    width: 190px;
+    flex-wrap: nowrap;
+    width: auto;
 }
 .partner-admin-platform .partner-summary-filters {
     display: flex;
@@ -481,4 +482,44 @@
 .partner-admin-platform .partner-summary-filters > button {
     width: 240px;
     max-width: 100%;
+}
+
+
+/* Compact administration trends keep all five periods on one metric row. */
+.stock-trend-table-scroll {
+    margin-top: 16px;
+    max-width: 100%;
+    overflow-x: auto;
+}
+.stock-trend-table {
+    width: 100%;
+    min-width: 680px;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+}
+.stock-trend-table th,
+.stock-trend-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-border);
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.stock-trend-table thead th {
+    background: var(--color-muted);
+    font-weight: 500;
+}
+.stock-trend-table th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    min-width: 180px;
+    background: var(--color-surface);
+    text-align: left;
+    font-weight: 500;
+}
+.stock-trend-table thead th:first-child {
+    z-index: 2;
+    background: var(--color-muted);
 }

@@ -2,6 +2,9 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    '{{days}}-day average': '前{{days}}天日均',
+    'Averages cover complete days before today in Beijing time, including days with no activity.': '日均按北京时间统计今天之前的完整自然日，包含零流水日期，不含今天。',
+    'Security deposit refunds': '保证金退回金额',
     'Partner details': '合伙人详情',
     'U1 uses card groups and asynchronous order results. Check the account and card groups before accepting new business.': 'U1 按卡组开卡，订单结果通过异步通知核实。接受新业务前请检查账户并同步卡组。',
     'Accept new card business': '接受新开卡业务',

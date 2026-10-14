@@ -1,0 +1,25 @@
+{
+  "status": "passed",
+  "browsers": [
+    "Chrome",
+    "WebKit"
+  ],
+  "checks": [
+    "shared user basic/funds/verification/order tabs",
+    "additional report and invitation tabs",
+    "fixed bottom user and partner actions",
+    "no Make support agent or Set as partner grant buttons",
+    "off-page selected partner identity",
+    "375px drawer layout",
+    "mismatched user/company response fails closed",
+    "journal adjustment and signed-offset confirmation regression"
+  ],
+  "feature_tests": {
+    "passed": 3,
+    "assertions": 69
+  },
+  "typescript": "passed",
+  "eslint": "passed",
+  "admin_build": "passed",
+  "testing": "isolated card_ui_test and fully intercepted browser fixtures; no live provider or financial tests"
+}

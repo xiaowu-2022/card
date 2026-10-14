@@ -10,6 +10,8 @@ Object.assign(report, { partnerId: partner, version:'partner', cashFlow:null, fl
  accountBalance:{advances:'0',activationCommission:'0',annualCommission:'0',unclassifiedCommission:'0',reimbursements:'0',adjustments:'-19.87654322',hasAdjustments:true,theoretical:'-19.87654322',actual:'0',difference:'-19.87654322'},
  journal:{items:[{id:'negative-expense',partner_id:partner,kind:'REIMBURSEMENT',amount:'-7.12345678',business_date:'2026-10-12',note:'Offline negative expense',reverses_id:null,reversed:true,actor_id:'admin',created_at:'2026-10-12T00:00:00Z',account_id:'123456'},{id:'negative-reversal',partner_id:partner,kind:'REIMBURSEMENT',amount:'-7.12345678',business_date:'2026-10-12',note:'Offline negative reversal',reverses_id:'negative-expense',reversed:false,actor_id:'admin',created_at:'2026-10-12T00:00:00Z',account_id:'123456'},{id:'adjustment',partner_id:partner,kind:'ADJUSTMENT_DECREASE',amount:'19.87654322',business_date:'2026-10-08',note:'Offline fixture',reverses_id:null,reversed:false,actor_id:'admin',created_at:'2026-10-08T00:00:00Z',account_id:'123456'}],page:1,total:1,hasMore:false}
 });
+const userId = '44444444-4444-4444-8444-444444444444';
+const userDetails = {user:{id:userId,companyId:company,companyName:'Fixture company',accountId:'123456',displayName:'Fixture partner',email:'partner@example.test',status:'ACTIVE',createdAt:'2026-10-14T00:00:00Z',lastLoginAt:null,partnerId:partner,promotionRank:7,ordinaryMember:false,remark:null,remarkRevision:0,supportAgent:false,supportRevision:0,ancestors:[]},financialAccess:{balances:false,receipts:false,commission:false,withdrawals:false},canAdjustWallet:false,canChangeInvitation:false,canChangeReferrer:false,canAdjustCommission:false,canViewKyc:false,canViewFunds:false,canViewTopups:false,canManageSupport:false,canManagePartners:true,canCreateUser:false,canCleanup:false,canRemark:false,canManageRestrictions:false};
 const browser = await chromium.launch({channel:'chrome',headless:true});
 try {
  const page = await browser.newPage({viewport:{width:1440,height:1000}});
@@ -22,20 +24,21 @@ try {
   const req=route.request(),url=new URL(req.url());
   if(url.origin!==origin) return route.abort();
   if(url.pathname.startsWith('/build/')) return route.fulfill({body:readFileSync('public'+url.pathname),contentType:url.pathname.endsWith('.css')?'text/css':'text/javascript'});
+  if(url.pathname===`/platform/tenants/${company}/users/${userId}/details`) return route.fulfill({json:userDetails});
   if(req.method()==='POST') {assert.equal(url.pathname,`/platform/tenants/${company}/partners/${partner}/journal`);writes.push(req.postDataJSON());}
-  const state={component:'platform/Partners',url:'/platform/partners?partner='+partner,version:'fixture',props:{errors:{},tenant:null,flash:{},publicAssets:[],auth:{admin:{id:'admin',name:'Owner',scope:'PLATFORM',permissions:['partners.manage']},user:null},i18n:{locale:'en',enabledLocales:['en'],timezone:'UTC',surface:'platform'},companies:[{id:company,name:'Fixture company'}],companyId:company,reportCompanyId:company,report:structuredClone(report),partners:{data:[{id:partner,tenant_id:company,company_name:'Fixture company',enabled:true,share_percent:'40',account_id:'123456',display_name:'Fixture partner',email:'partner@example.test'}],current_page:1,last_page:1,total:1},pendingFees:{data:[],current_page:1,last_page:1,total:0}}};
+  const state={component:'platform/Partners',url:'/platform/partners?partner='+partner,version:'fixture',props:{errors:{},tenant:null,flash:{},publicAssets:[],auth:{admin:{id:'admin',name:'Owner',scope:'PLATFORM',permissions:['partners.manage','users.read']},user:null},i18n:{locale:'en',enabledLocales:['en'],timezone:'UTC',surface:'platform'},companies:[{id:company,name:'Fixture company'}],companyId:company,reportCompanyId:company,report:structuredClone(report),partners:{data:[{id:partner,user_id:userId,tenant_id:company,company_name:'Fixture company',enabled:true,share_percent:'40',account_id:'123456',display_name:'Fixture partner',email:'partner@example.test'}],current_page:1,last_page:1,total:1},pendingFees:{data:[],current_page:1,last_page:1,total:0}}};
   if(req.headers()['x-inertia']) return route.fulfill({headers:{'X-Inertia':'true'},json:state});
   return route.fulfill({contentType:'text/html',body:`<html><head>${(entry.css??[]).map(f=>`<link rel="stylesheet" href="/build/${f}">`).join('')}</head><body><script data-page="app" type="application/json">${JSON.stringify(state)}</script><div id="app"></div><script type="module" src="/build/${entry.file}"></script></body></html>`});
  });
  await page.goto(origin+'/platform/partners?partner='+partner);
+ await page.getByRole('tab',{name:'View report',exact:true}).click();
  await page.getByText('Adjustment amount',{exact:true}).waitFor();
  await page.locator('.stock-detail strong').filter({hasText:'Decrease theoretical balance'}).waitFor();
  assert.match(await page.locator('.stock-detail').filter({hasText:'Offline negative expense'}).innerText(), /-7\.12345678/);
  const reversedText=await page.locator('.stock-detail').filter({hasText:'Offline negative reversal'}).innerText();
  assert.match(reversedText, /7\.12345678/);
  assert.doesNotMatch(reversedText, /[−-]7\.12345678/);
- // Close the report drawer, then use the existing row's Record entry action.
- await page.keyboard.press('Escape');
+ // Record entry remains accessible in the fixed partner detail footer.
  await page.getByRole('button',{name:'Record entry',exact:true}).click();
  const form=page.locator('#partner-journal-form');
  await form.locator('select').selectOption('ADJUSTMENT_INCREASE');
@@ -50,8 +53,8 @@ try {
  // Signed cooperation offsets require confirmation and preserve the exact input.
  for (const kind of ['REIMBURSEMENT', 'ADVANCE']) {
   await page.goto(origin+'/platform/partners?partner='+partner);
-  await page.getByText('Adjustment amount',{exact:true}).waitFor();
-  await page.keyboard.press('Escape');
+  await page.getByRole('tab',{name:'View report',exact:true}).click();
+ await page.getByText('Adjustment amount',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Record entry',exact:true}).click();
   await form.locator('select').selectOption(kind);
   await form.getByText('Enter a negative amount to offset reimbursements or advances. Zero is not allowed.',{exact:true}).waitFor();

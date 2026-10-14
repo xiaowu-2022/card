@@ -61,3 +61,28 @@ it('revokes only a confirmed current scoped partner and retains configuration an
     expect(DB::table('ledger_accounts')->orderBy('id')->get()->toJson())->toBe($before);
     Http::assertNothingSent();
 });
+
+
+it('binds partner details to the selected company and user independently of the list page', function () {
+    $this->seed();
+    Http::preventStrayRequests();
+    $this->withoutVite();
+    $tenant = Tenant::where('slug', 'tenant-a')->firstOrFail();
+    $user = User::where('tenant_id', $tenant->id)->firstOrFail();
+    $owner = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $this->actingAs($owner, 'platform_admin');
+    $partner = app(PartnerManagement::class)->enableUser($owner, $tenant->id, $user->id, ['confirmed' => true]);
+    $before = DB::table('ledger_accounts')->orderBy('id')->get()->toJson();
+    $this->get('http://admin.localhost/platform/partners?company='.$tenant->id.'&partner='.$partner->id.'&page=2')
+        ->assertOk()->assertInertia(fn ($page) => $page
+            ->has('partners.data', 0)
+            ->where('selectedPartner.id', $partner->id)
+            ->where('selectedPartner.tenant_id', $tenant->id)
+            ->where('selectedPartner.user_id', $user->id)
+            ->where('selectedPartner.userInfo.id', $user->id)
+            ->where('selectedPartner.userInfo.companyId', $tenant->id));
+    $other = Tenant::where('id', '<>', $tenant->id)->firstOrFail();
+    $this->get('http://admin.localhost/platform/partners?company='.$other->id.'&partner='.$partner->id)->assertNotFound();
+    expect(DB::table('ledger_accounts')->orderBy('id')->get()->toJson())->toBe($before);
+    Http::assertNothingSent();
+});

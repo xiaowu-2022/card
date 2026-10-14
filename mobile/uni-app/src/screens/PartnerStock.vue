@@ -45,6 +45,7 @@ const lines = computed(() =>
 const trends: Record<string, string> = {
     activation: 'Activation commissions paid',
     deposits: 'First deposit activations',
+    depositRefunds: 'Security deposit refunds',
     annual: 'Annual fee income',
     annualCommission: 'Annual fee commissions paid',
     otherCommission: 'Other commissions paid',

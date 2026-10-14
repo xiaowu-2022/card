@@ -79,10 +79,18 @@ final class PartnerController extends Controller
         $summaries = $canReadAmounts ? app(PartnerListSummary::class)->forRows($partnerPage->items()) : [];
         $partnerPage->through(fn ($p) => (array) $p + ($summaries[$p->id] ?? []));
 
+        $selectedPartner = $selected ? DB::table('partner_configurations as p')
+            ->join('users as u', fn ($j) => $j->on('u.id', '=', 'p.user_id')->on('u.tenant_id', '=', 'p.tenant_id'))
+            ->leftJoin('user_profiles as profile', fn ($j) => $j->on('profile.user_id', '=', 'u.id')->on('profile.tenant_id', '=', 'u.tenant_id'))
+            ->join('tenants as t', 't.id', '=', 'p.tenant_id')
+            ->where('p.tenant_id', $selected->tenant_id)->where('p.id', $selected->id)
+            ->first(['p.id', 'p.tenant_id', 'p.user_id', 't.name as company_name', 'p.enabled', 'p.updated_at', 'p.share_percent', 'u.account_id', 'profile.display_name', 'u.email']) : null;
+        $selectedPartner = $selectedPartner ? PlatformUserSummary::rows($selected->tenant_id, [(array) $selectedPartner])[0] : null;
+
         return Inertia::render('platform/Partners', [
             'companies' => Tenant::orderBy('name')->get(['id', 'name']), 'companyId' => $tenant,
             'partners' => PlatformUserSummary::page($partnerPage),
-            'reportCompanyId' => $selected?->tenant_id, 'report' => $report,
+            'reportCompanyId' => $selected?->tenant_id, 'report' => $report, 'selectedPartner' => $selectedPartner,
             'pendingFees' => DB::table('withdrawal_fee_valuations as f')->join('tenants as t', 't.id', '=', 'f.tenant_id')->when($tenant, fn ($q) => $q->where('f.tenant_id', $tenant))->where('f.source', 'PENDING')->orderBy('f.created_at')->orderBy('f.id')->paginate(20, ['f.id', 'f.tenant_id', 't.name as company_name', 'f.withdrawal_id', 'f.asset_code', 'f.original_amount', 'f.created_at'], 'fees_page')->withQueryString(),
         ])->toResponse($request)->header('Cache-Control', 'private, no-store');
     }

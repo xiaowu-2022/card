@@ -13,7 +13,6 @@ import { UserOrdersPanel } from './UserOrdersPanel';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { UserRestrictionsDialog } from '@/components/admin/UserRestrictionsDialog';
 import { userRestrictionLabels, type OperationRestrictions } from './user-operation-restrictions';
-import { DataCleanupDialog } from '@/components/admin/DataCleanupDialog';
 import { CustomerRemarkDialog } from '@/components/admin/CustomerRemarkDialog';
 import { openAdminEditor } from '@/components/admin/editor-navigation';
 import { CreateUserDialog } from '@/components/admin/CreateUserDialog';
@@ -94,6 +93,10 @@ export type PlatformUser = {
 export default function UserManagement({
     detail = false,
     readOnly = false,
+    extraDetailTabs = [],
+    extraDetailActions,
+    selectedDetailTab,
+    onDetailTabChange,
     snapshotAt = null,
     snapshotEarliest = null,
     users,
@@ -110,10 +113,13 @@ export default function UserManagement({
     canManageSupport,
     canManagePartners,
     canCreateUser,
-    canCleanup = false,
     canRemark,
     canManageRestrictions,
 }: {
+    extraDetailTabs?: { value: string; label: string; content: ReactNode }[];
+    extraDetailActions?: ReactNode;
+    selectedDetailTab?: string;
+    onDetailTabChange?: (value: string) => void;
     detail?: boolean;
     readOnly?: boolean;
     snapshotAt?: string | null;
@@ -154,12 +160,13 @@ export default function UserManagement({
         (PlatformUser & { view: 'funds' | 'cards' }) | null
     >(null);
     const [partnerUser, setPartnerUser] = useState<PlatformUser | null>(null);
-    const [detailTab, setDetailTab] = useState('basic');
+    const [localDetailTab, setLocalDetailTab] = useState('basic');
+    const detailTab = selectedDetailTab ?? localDetailTab;
+    const setDetailTab = onDetailTabChange ?? setLocalDetailTab;
     const detailTabsId = useId();
     const [restrictionsUser, setRestrictionsUser] = useState<PlatformUser | null>(null);
     const [remarkUser, setRemarkUser] = useState<PlatformUser | null>(null);
     const [createOpen, setCreateOpen] = useState(false);
-    const [cleanup, setCleanup] = useState<{ user?: PlatformUser } | null>(null);
     const [supportBusy, setSupportBusy] = useState(false);
     const [supportError, setSupportError] = useState('');
     const { url, props } = usePage();
@@ -183,11 +190,6 @@ export default function UserManagement({
             actions={
                 <>
                     {!detail && <UserSnapshotExport filters={filters} />}
-                    {!readOnly && canCleanup && !detail && (
-                        <Button variant="secondary" onClick={() => setCleanup({})}>
-                            {t('Cleanup data')}
-                        </Button>
-                    )}
                     {!readOnly && canCreateUser && (
                         <Button onClick={() => setCreateOpen(true)}>{t('Add account')}</Button>
                     )}
@@ -201,14 +203,6 @@ export default function UserManagement({
                 onClose={() => setAssetTarget(null)}
             />
             {!detail && <Head title={t('Users')} />}
-            {!readOnly && cleanup && (
-                <DataCleanupDialog
-                    companies={companies}
-                    company={filters.company}
-                    initialUser={cleanup.user}
-                    onClose={() => setCleanup(null)}
-                />
-            )}
             {!readOnly && partnerUser && (
                 <EnablePartnerDialog
                     user={partnerUser}
@@ -285,26 +279,35 @@ export default function UserManagement({
                                     {t('Withdrawal orders')}
                                 </TabsTrigger>
                             )}
-                            {users.data[0]?.partnerId && (
+                            {users.data[0]?.partnerId &&
+                                !extraDetailTabs.some((tab) => tab.value === 'stock') && (
+                                    <TabsTrigger
+                                        value="stock"
+                                        id={`${detailTabsId}-stock`}
+                                        aria-controls={`${detailTabsId}-panel`}
+                                    >
+                                        {t('Partner stock')}
+                                    </TabsTrigger>
+                                )}
+                            {extraDetailTabs.map((tab) => (
                                 <TabsTrigger
-                                    value="stock"
-                                    id={`${detailTabsId}-stock`}
+                                    key={tab.value}
+                                    value={tab.value}
+                                    id={`${detailTabsId}-${tab.value}`}
                                     aria-controls={`${detailTabsId}-panel`}
                                 >
-                                    {t('Partner stock')}
+                                    {t(tab.label)}
                                 </TabsTrigger>
-                            )}
+                            ))}
                         </TabsList>
                     </Tabs>
                 )}
-                {(!detail || snapshotAt) && (
+                {snapshotAt && (
                     <div className="space-y-1 text-sm text-muted-foreground" role="status">
                         <p>
-                            {snapshotAt
-                                ? t('Read-only snapshot at {{time}} (UTC+8)', {
-                                      time: snapshotAt.replace('T', ' '),
-                                  })
-                                : t('Current user data')}
+                            {t('Read-only snapshot at {{time}} (UTC+8)', {
+                                time: snapshotAt.replace('T', ' '),
+                            })}
                         </p>
                     </div>
                 )}
@@ -317,49 +320,50 @@ export default function UserManagement({
                     detailTabsId={detailTabsId}
                     detailTab={detailTab}
                     detailContent={
-                        detail && users.data[0] ? (
-                            detailTab === 'stock' && users.data[0].partnerId ? (
-                                <div
-                                    className="min-h-0 flex-1 overflow-y-auto p-4"
-                                    data-detail-body
-                                >
-                                    <PartnerHierarchyPanel
-                                        key={users.data[0].partnerId}
-                                        initialView="stock"
-                                        partner={users.data[0].partnerId}
-                                        company={users.data[0].companyId}
-                                        onClose={() => setDetailTab('basic')}
-                                    />
-                                </div>
-                            ) : detailTab === 'funds' && canViewFunds ? (
-                                <UserFundsDrawer
-                                    embedded
-                                    target={{
-                                        company: users.data[0].companyId,
-                                        user: users.data[0].id,
-                                    }}
-                                    trigger={kycTrigger}
-                                    onClose={() => setDetailTab('basic')}
-                                />
-                            ) : detailTab === 'kyc' && canViewKyc ? (
-                                <UserKycDrawer
-                                    embedded
-                                    target={{
-                                        company: users.data[0].companyId,
-                                        user: users.data[0].id,
-                                    }}
-                                    trigger={kycTrigger}
-                                    onClose={() => setDetailTab('basic')}
-                                />
-                            ) : (detailTab === 'deposit' && canViewTopups) ||
-                              (detailTab === 'withdrawal' && financialAccess.withdrawals) ? (
-                                <UserOrdersPanel
-                                    key={detailTab}
-                                    user={users.data[0]}
-                                    mode={detailTab === 'deposit' ? 'deposit' : 'withdrawal'}
-                                />
-                            ) : null
-                        ) : null
+                        detail && users.data[0]
+                            ? (extraDetailTabs.find((tab) => tab.value === detailTab)?.content ??
+                              (detailTab === 'stock' && users.data[0].partnerId ? (
+                                  <div
+                                      className="min-h-0 flex-1 overflow-y-auto p-4"
+                                      data-detail-body
+                                  >
+                                      <PartnerHierarchyPanel
+                                          key={users.data[0].partnerId}
+                                          initialView="stock"
+                                          partner={users.data[0].partnerId}
+                                          company={users.data[0].companyId}
+                                          onClose={() => setDetailTab('basic')}
+                                      />
+                                  </div>
+                              ) : detailTab === 'funds' && canViewFunds ? (
+                                  <UserFundsDrawer
+                                      embedded
+                                      target={{
+                                          company: users.data[0].companyId,
+                                          user: users.data[0].id,
+                                      }}
+                                      trigger={kycTrigger}
+                                      onClose={() => setDetailTab('basic')}
+                                  />
+                              ) : detailTab === 'kyc' && canViewKyc ? (
+                                  <UserKycDrawer
+                                      embedded
+                                      target={{
+                                          company: users.data[0].companyId,
+                                          user: users.data[0].id,
+                                      }}
+                                      trigger={kycTrigger}
+                                      onClose={() => setDetailTab('basic')}
+                                  />
+                              ) : (detailTab === 'deposit' && canViewTopups) ||
+                                (detailTab === 'withdrawal' && financialAccess.withdrawals) ? (
+                                  <UserOrdersPanel
+                                      key={detailTab}
+                                      user={users.data[0]}
+                                      mode={detailTab === 'deposit' ? 'deposit' : 'withdrawal'}
+                                  />
+                              ) : null))
+                            : null
                     }
                     key={JSON.stringify(filters)}
                     companies={companies}
@@ -783,7 +787,7 @@ export default function UserManagement({
                                       className:
                                           'sticky right-0 z-10 bg-surface shadow-[-1px_0_0_var(--color-border)]',
                                       render: (row: PlatformUser) => (
-                                          <div className="flex items-center gap-2 whitespace-nowrap">
+                                          <div className="inline-flex flex-col items-stretch gap-1.5 whitespace-nowrap">
                                               <UserInfoCell user={row} action asOf={snapshotAt} />
                                               <Button
                                                   variant="secondary"
@@ -808,20 +812,19 @@ export default function UserManagement({
                                       ),
                                   },
                               ]
-                            : canCleanup ||
-                                canManagePartners ||
+                            : canManagePartners ||
                                 canManageRestrictions ||
                                 canManageSupport ||
                                 canAdjustWallet ||
                                 canChangeReferrer ||
-                                canAdjustCommission
+                                canAdjustCommission ||
+                                extraDetailActions
                               ? [
                                     {
                                         label: 'Actions',
                                         render: (row: PlatformUser) => (
-                                            <div className="flex items-center gap-2">
-                                                {(canCleanup ||
-                                                    canManagePartners ||
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                {(canManagePartners ||
                                                     canManageRestrictions ||
                                                     canManageSupport ||
                                                     canAdjustWallet ||
@@ -845,16 +848,6 @@ export default function UserManagement({
                                                                         {t('Set as partner')}
                                                                     </Button>
                                                                 )}
-                                                            {canCleanup && (
-                                                                <Button
-                                                                    variant="secondary"
-                                                                    onClick={() =>
-                                                                        setCleanup({ user: row })
-                                                                    }
-                                                                >
-                                                                    {t('Cleanup data')}
-                                                                </Button>
-                                                            )}
                                                             {!readOnly && canManageRestrictions && (
                                                                 <Button
                                                                     variant="secondary"
@@ -865,54 +858,58 @@ export default function UserManagement({
                                                                     {t('Operation restrictions')}
                                                                 </Button>
                                                             )}
-                                                            {canManageSupport && (
-                                                                <Button
-                                                                    variant="secondary"
-                                                                    disabled={
-                                                                        supportBusy ||
-                                                                        (!row.supportAgent &&
-                                                                            row.status !== 'ACTIVE')
-                                                                    }
-                                                                    onClick={() => {
-                                                                        setSupportBusy(true);
-                                                                        setSupportError('');
-                                                                        void (async () => {
-                                                                            try {
-                                                                                await supportRequest(
-                                                                                    `/platform/tenants/${row.companyId}/users/${row.id}/support-agent`,
-                                                                                    {
-                                                                                        enabled:
-                                                                                            !row.supportAgent,
-                                                                                        revision:
-                                                                                            row.supportRevision,
-                                                                                    },
-                                                                                );
-                                                                                router.reload({
-                                                                                    onFinish: () =>
-                                                                                        setSupportBusy(
-                                                                                            false,
+                                                            {canManageSupport &&
+                                                                (!row.partnerId ||
+                                                                    row.supportAgent) && (
+                                                                    <Button
+                                                                        variant="secondary"
+                                                                        disabled={
+                                                                            supportBusy ||
+                                                                            (!row.supportAgent &&
+                                                                                row.status !==
+                                                                                    'ACTIVE')
+                                                                        }
+                                                                        onClick={() => {
+                                                                            setSupportBusy(true);
+                                                                            setSupportError('');
+                                                                            void (async () => {
+                                                                                try {
+                                                                                    await supportRequest(
+                                                                                        `/platform/tenants/${row.companyId}/users/${row.id}/support-agent`,
+                                                                                        {
+                                                                                            enabled:
+                                                                                                !row.supportAgent,
+                                                                                            revision:
+                                                                                                row.supportRevision,
+                                                                                        },
+                                                                                    );
+                                                                                    router.reload({
+                                                                                        onFinish:
+                                                                                            () =>
+                                                                                                setSupportBusy(
+                                                                                                    false,
+                                                                                                ),
+                                                                                    });
+                                                                                } catch {
+                                                                                    setSupportError(
+                                                                                        t(
+                                                                                            'Unable to save. Refresh and try again.',
                                                                                         ),
-                                                                                });
-                                                                            } catch {
-                                                                                setSupportError(
-                                                                                    t(
-                                                                                        'Unable to save. Refresh and try again.',
-                                                                                    ),
-                                                                                );
-                                                                                setSupportBusy(
-                                                                                    false,
-                                                                                );
-                                                                            }
-                                                                        })();
-                                                                    }}
-                                                                >
-                                                                    {t(
-                                                                        row.supportAgent
-                                                                            ? 'Remove support access'
-                                                                            : 'Make support agent',
-                                                                    )}
-                                                                </Button>
-                                                            )}
+                                                                                    );
+                                                                                    setSupportBusy(
+                                                                                        false,
+                                                                                    );
+                                                                                }
+                                                                            })();
+                                                                        }}
+                                                                    >
+                                                                        {t(
+                                                                            row.supportAgent
+                                                                                ? 'Remove support access'
+                                                                                : 'Make support agent',
+                                                                        )}
+                                                                    </Button>
+                                                                )}
                                                             {canAdjustWallet && (
                                                                 <Button variant="secondary" asChild>
                                                                     <Link
@@ -942,6 +939,7 @@ export default function UserManagement({
                                                             )}
                                                         </div>
                                                     )}
+                                                {extraDetailActions}
                                             </div>
                                         ),
                                     },
