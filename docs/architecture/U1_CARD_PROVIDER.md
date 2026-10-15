@@ -99,3 +99,39 @@ operation identity, balance consistency and once-only Ledger guards remain intac
 Deploy both 160000 and 170000 migrations, PHP and frontend together; restart queue
 workers. Reconcile existing pending orders through the existing sync workflow, then
 use cards:sync-saved-details for issued cards missing saved details.
+
+### 2026-10-15: automatic recovery of existing pending openings
+The scheduler now runs `cards:sync-pending-issues` every minute. It queues all
+PROCESSING/UNKNOWN U1 and PhotonPay issue orders older than 30 seconds, including
+historical orders without an age cutoff. Jobs are unique per company/order while
+queued and query the original provider operation through SyncCardIssueAction; they
+never submit a new opening or resend funding. Terminal orders are skipped on both
+scan and execution. Confirmed success follows the same locked, idempotent settlement
+and independent sensitive-details acquisition as notifications. Query failures remain
+unresolved for later scheduled checks, with safe order/status logs.
+This supersedes notification/manual-only recovery for card issuance; the legacy
+`cards:recover` stub remains disabled for other card operations. Deploy PHP and restart
+queue workers; the existing once-per-minute Laravel scheduler must be running.
+No frontend rebuild or new migration is needed for this recovery addition.
+
+### 2026-10-15: authorized reveal acquires missing saved details
+Consumer and Platform password-authorized reveal now use readOrAcquire: a missing
+encrypted value triggers a read-only provider detail request through the card's bound
+provider, validates and encrypts the result, then returns the saved database value.
+Subsequent reveals use the saved copy without provider calls. This applies to U1 and
+PhotonPay and supersedes the database-only reveal restriction for cache misses.
+Invalid existing ciphertext fails closed; no fallback overwrites mismatched identity.
+Provider failure remains a genuine unavailable response and never changes issue or
+funding status. No new migration or frontend rebuild is needed for this addition.
+
+### 2026-10-15: scheduled backfill of existing card details
+The scheduler runs `cards:sync-saved-details` every minute for existing unarchived
+normal/frozen U1 and PhotonPay cards with missing encrypted details and a provider
+card reference, without an age cutoff. Each card's acquisition job is unique while
+queued/retrying (ten-minute lock expiry), with overlap protection and bounded retries.
+Later scans enqueue still-missing cards again after failed jobs finish. Saved cards
+are excluded; stale jobs recheck the saved state before any provider request. Success
+and final failure logs contain company/card/provider identifiers, never card secrets.
+This supplements new-card after-commit acquisition and authorized reveal cache misses.
+Deploy PHP and restart workers; ensure the existing Laravel scheduler runs every minute.
+No additional migration or H5 rebuild is required for scheduled backfill.

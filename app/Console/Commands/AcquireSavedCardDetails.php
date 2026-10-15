@@ -11,6 +11,7 @@ final class AcquireSavedCardDetails extends Command
     {
         $count = 0;
         foreach (UserCard::whereNull('sensitive_details_encrypted')->whereNull('archived_at')
+            ->whereNotNull('provider_card_id')->where('provider_card_id', '<>', '')
             ->whereIn('provider', ['U1', 'PHOTONPAY'])->whereIn('provider_status', ['normal', 'frozen'])->cursor() as $card) {
             AcquireCardSensitiveDetails::dispatch($card->tenant_id, $card->id)->afterCommit();
             $count++;

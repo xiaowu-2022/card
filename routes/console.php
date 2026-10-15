@@ -26,3 +26,6 @@ Schedule::command('data-cleanup:expire-backups')->hourly()->withoutOverlapping(3
 Schedule::command('images:replicate --limit=20')->everyMinute()->withoutOverlapping(10)->onOneServer();
 
 Schedule::command('kyc:process-pending --limit=20')->everyMinute()->withoutOverlapping(30)->onOneServer();
+
+Schedule::command('cards:sync-pending-issues')->everyMinute()->withoutOverlapping(5)->onOneServer();
+Schedule::command('cards:sync-saved-details')->everyMinute()->withoutOverlapping(5)->onOneServer();

@@ -3919,3 +3919,85 @@ it('acquires missing card details once in background and rejects ciphertext copi
     $forged->user_id = (string) Str::uuid();
     expect(fn () => $service->read($forged))->toThrow(\RuntimeException::class);
 });
+
+it('automatically queues old pending issues without provider calls and respects company scope', function (): void {
+    u1StandardFixture($this);
+    $order = phaseTenIssue($this, '100.00');
+    DB::table('card_issue_orders')->where('id', $order->id)->update(['created_at' => now()->subDays(3)]);
+    Queue::fake([\App\Jobs\SyncPendingCardIssue::class]);
+    Http::fake();
+    $this->artisan('cards:sync-pending-issues', ['--tenant' => (string) Str::uuid()])->assertSuccessful();
+    Queue::assertNothingPushed();
+    $this->artisan('cards:sync-pending-issues')->assertSuccessful();
+    Queue::assertPushed(\App\Jobs\SyncPendingCardIssue::class, fn ($job) => $job->tenantId === $order->tenant_id && $job->orderId === $order->id);
+    Http::assertNothingSent();
+});
+
+it('automatically completes existing U1 openings once and excludes completed orders from later scans', function (): void {
+    u1StandardFixture($this);
+    $order = phaseTenIssue($this, '100.00');
+    DB::table('card_issue_orders')->where('id', $order->id)->update(['created_at' => now()->subDays(3), 'status' => 'UNKNOWN']);
+    u1StandardFake(sensitiveData: ['status' => '0', 'url' => 'https://embedded.uqpay.com/iframe/card']);
+    $job = new \App\Jobs\SyncPendingCardIssue($order->tenant_id, $order->id);
+    $job->handle(app(SyncCardIssueAction::class));
+    expect($order->fresh()->status)->toBe(CardIssueStatus::Succeeded)
+        ->and(UserCard::where('card_issue_order_id', $order->id)->count())->toBe(1);
+    $entryCount = DB::table('ledger_entries')->count();
+    $job->handle(app(SyncCardIssueAction::class));
+    expect(DB::table('ledger_entries')->count())->toBe($entryCount);
+    Http::assertNotSent(fn ($request) => str_ends_with($request->url(), '/vccopen') || str_ends_with($request->url(), '/querycvv'));
+    Queue::fake([\App\Jobs\SyncPendingCardIssue::class]);
+    $this->artisan('cards:sync-pending-issues')->assertSuccessful();
+    Queue::assertNothingPushed();
+});
+
+it('fetches and saves missing details on authorized card reveal then serves the saved copy', function (bool $admin): void {
+    [$card, $provider] = managedCardFixture($this);
+    $pan = '411111111111'.$card->last4;
+    $provider->shouldReceive('revealCard')->once()->with($card->provider_card_id)
+        ->andReturn(new ProviderSensitiveCardDTO($pan, '263', false, '10/31'));
+    // New cards may not yet have a PAN tail when issuance has already completed.
+    DB::table('user_cards')->where('id', $card->id)->update(['last4' => null, 'expiry' => null]);
+    if ($admin) {
+        $actor = AdminUser::where('email', 'owner@platform.local')->sole();
+        $this->actingAs($actor, 'platform_admin');
+        $url = 'http://admin.localhost/platform/tenants/'.$card->tenant_id.'/cards/'.$card->id.'/reveal';
+        $payload = ['password' => 'local-password'];
+        $this->postJson($url, ['password' => 'incorrect'])->assertForbidden();
+    } else {
+        $this->actingAs($this->user, 'tenant_user');
+        $url = 'http://a.localhost/cards/'.$card->id.'/management';
+        $payload = ['action' => 'reveal', 'current_password' => 'local-password'];
+        $this->postJson($url, ['action' => 'reveal', 'current_password' => 'incorrect'])->assertUnprocessable();
+    }
+    expect($card->fresh()->sensitive_details_encrypted)->toBeNull();
+    $this->postJson($url, $payload)->assertOk()->assertJsonPath('pan', $pan)
+        ->assertJsonPath('cvv', '263')->assertJsonPath('expiry', '10/31');
+    expect($card->fresh()->last4)->toBe(substr($pan, -4))
+        ->and($card->fresh()->sensitive_details_encrypted)->not->toBeNull()->not->toContain($pan);
+    $this->postJson($url, $payload)->assertOk()->assertJsonPath('pan', $pan);
+})->with([true, false]);
+
+it('automatically backfills old missing card details for both providers without a user reveal', function (bool $u1): void {
+    if ($u1) {
+        u1StandardFixture($this);
+        $issue = phaseTenIssue($this, '100.00');
+        app(SyncCardIssueAction::class)->execute($this->tenant->id, $issue->id, $this->user->id);
+        $card = UserCard::where('card_issue_order_id', $issue->id)->sole();
+        $pan = '4111111111114242';
+    } else {
+        [$card] = managedCardFixture($this);
+        $pan = '411111111111'.$card->last4;
+    }
+    DB::table('user_cards')->where('id', $card->id)->update(['created_at' => now()->subMonths(2)]);
+    Queue::fake([\App\Jobs\AcquireCardSensitiveDetails::class]);
+    Http::fake();
+    $this->artisan('cards:sync-saved-details')->assertSuccessful();
+    Queue::assertPushed(\App\Jobs\AcquireCardSensitiveDetails::class, 1);
+    Queue::assertPushed(\App\Jobs\AcquireCardSensitiveDetails::class, fn ($job) => $job->cardId === $card->id && $job->tenantId === $card->tenant_id);
+    Http::assertNothingSent();
+    app(\App\Application\Card\CardSensitiveDetails::class)->store($card, new ProviderSensitiveCardDTO($pan, '263', false, '10/31'));
+    Queue::fake([\App\Jobs\AcquireCardSensitiveDetails::class]);
+    $this->artisan('cards:sync-saved-details')->assertSuccessful();
+    Queue::assertNothingPushed();
+})->with([true, false]);

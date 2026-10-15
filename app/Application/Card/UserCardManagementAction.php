@@ -23,7 +23,7 @@ final readonly class UserCardManagementAction
         return PhotonPayLog::run('management', ['tenant_id' => $tenantId, 'resource_id' => $cardId, 'card_action' => $request->fields()['action']], function () use ($tenantId, $userId, $cardId, $request): array {
             $input = $request->fields();
             RefundCardPolicy::assertAllowed($tenantId, $userId, $cardId);
-            $card = $this->access->card($tenantId, $userId, $cardId, requireProvider: $input['action'] !== 'history');
+            $card = $this->access->card($tenantId, $userId, $cardId, requireProvider: ! in_array($input['action'], ['history', 'reveal'], true));
             $action = $input['action'];
             if ($action === 'holder_details') {
                 return ['fields' => $this->holderDetails->execute($tenantId, $userId, $cardId)];
@@ -53,7 +53,7 @@ final readonly class UserCardManagementAction
                     throw new DomainException('CARD_STATUS_UNAVAILABLE', 'This operation is not available for the current card status.', 409);
                 }
                 try {
-                    $sensitive = app(CardSensitiveDetails::class)->read($card);
+                    $sensitive = app(CardSensitiveDetails::class)->readOrAcquire($card);
                 } catch (\Throwable) {
                     throw new DomainException('CARD_REVEAL_UNAVAILABLE', 'Card details could not be loaded. Please try again later.', 503);
                 }

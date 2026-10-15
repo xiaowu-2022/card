@@ -70,3 +70,15 @@ At the user's request, complete PAN/CVV/expiry are encrypted together in user_ca
 U1 issuance carries already-fetched sensitive details to the successful local card save. Other newly issued cards enqueue AcquireCardSensitiveDetails after commit. The job fetches missing details only, keeps all remote failures separate from financial settlement and retries boundedly. Existing cards can be queued with php artisan cards:sync-saved-details; no financial write or repeated opening is involved. Consumer and Platform reveal operations read only this encrypted database field, retaining current-password checks, company/owner/status authorization, no-store responses, audit and 30-second client hiding. Missing details remain unavailable until background acquisition succeeds; reveal does not call providers.
 
 Deploy migration 2026_10_15_160000_add_encrypted_card_details with PHP and matching H5 (copied to public/h5), restart workers, then queue existing-card acquisition. No production financial tests or provider calls are needed to verify deployment. Never export decrypted values to general logs, audit or listings.
+
+2026-10-15 follow-up: password-authorized consumer/Platform reveals acquire and
+save missing details through CardSensitiveDetails::readOrAcquire, shared with U1.
+A saved valid value is read locally; only an absent value calls the bound provider.
+This supersedes missing-details-unavailable/database-only reveals above. Provider
+failure or invalid stored identity never fabricates details or changes financial state.
+
+2026-10-15 scheduled backfill: `cards:sync-saved-details` runs every minute for
+existing unarchived normal/frozen PhotonPay and U1 cards missing encrypted details.
+There is no card-age cutoff. Unique per-card jobs acquire, validate and save details;
+saved cards are skipped and temporary failures are retried independently of issue or
+funding settlement. Deploy PHP/restart workers with the existing scheduler enabled.

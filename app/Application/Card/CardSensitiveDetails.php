@@ -42,9 +42,20 @@ final class CardSensitiveDetails
         $this->validate($card, $details);
         return $details;
     }
+    public function readOrAcquire(UserCard $card): ProviderSensitiveCardDTO
+    {
+        $card->refresh();
+        if (! $card->sensitive_details_encrypted) {
+            $this->acquire($card);
+            $card->refresh();
+        }
+        return $this->read($card);
+    }
+
     public function acquire(UserCard $card): void
     {
         if ($card->sensitive_details_encrypted || $card->archived_at || ! in_array($card->provider_status, ['normal', 'frozen'], true)) return;
+        LiveCardReferenceGuard::forProduct($card->product, $card->provider_card_id);
         $this->store($card, app(CardProductProviderRouter::class)->forCard($card)->revealCard($card->provider_card_id));
     }
 }
