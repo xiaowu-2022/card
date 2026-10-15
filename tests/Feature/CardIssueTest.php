@@ -4077,3 +4077,19 @@ it('keeps database transactions visible when optional fee evidence is incomplete
     expect(CardTransaction::where('provider_transaction_id', 'FEE-PARTIAL')->sole()->getRawOriginal())->toBe($before);
     Http::assertNothingSent();
 });
+
+it('projects raw U1 transaction types and terminal states into the consumer history contract without rewriting evidence', function (): void {
+    [$card] = transactionReadFixture($this);
+    app(RecordCardTransactionsAction::class)->execute($card, [
+        new ProviderCardTransactionDTO('U1-RAW-SUCCESS', '-1.00000000', 'USD', '1', 'SUCCEEDED', '2026-10-15T09:00:00', null, '0.00000000', ''),
+        new ProviderCardTransactionDTO('U1-RAW-FAILED', '-2.00000000', 'USD', '2', 'FAILED', '2026-10-15T09:01:00', null),
+    ], CarbonImmutable::now());
+    Http::preventStrayRequests();
+    $this->actingAs($this->user, 'tenant_user')->getJson("http://a.localhost/cards/{$card->id}/transactions")
+        ->assertOk()->assertJsonPath('items.0.type', 'other')->assertJsonPath('items.0.state', 'completed')
+        ->assertJsonPath('items.0.feeAmount', null)->assertJsonPath('items.0.feeCurrency', null)
+        ->assertJsonPath('items.1.type', 'other')->assertJsonPath('items.1.state', 'declined');
+    expect(CardTransaction::where('provider_transaction_id', 'U1-RAW-SUCCESS')->sole()->type)->toBe('1')
+        ->and(CardTransaction::where('provider_transaction_id', 'U1-RAW-SUCCESS')->sole()->state)->toBe('SUCCEEDED');
+    Http::assertNothingSent();
+});

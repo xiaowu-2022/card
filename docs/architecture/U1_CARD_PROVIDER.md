@@ -174,3 +174,12 @@ Complete pairs retain exact eight-place amounts and independently normalized cur
 Client validation diagnostics additionally report feeAmount/feeReturnAmount and a
 fixed missing/invalid amount/currency reason; no values are sent in diagnostics.
 Deploy matching PHP and rebuilt H5; no migration or provider synchronization is needed.
+
+2026-10-15 raw transaction read contract: U1 vcctrade persists numeric tradeType
+and SUCCEEDED/FAILED unchanged as provider evidence. UserCardTransactionsQuery now
+projects SUCCEEDED to completed and FAILED to declined; unknown type codes project
+to other rather than inventing a purchase/refund interpretation. Canonical PhotonPay
+and local fallback types/states are preserved. Unrecognized states remain confirming.
+This applies to existing saved rows on read, without a migration, historical rewrite,
+provider request or H5 rebuild. It fixes the invalid_item frontend rejection that
+remained after optional fee-pair normalization. Deploy the updated PHP query class.

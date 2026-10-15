@@ -122,11 +122,17 @@ final readonly class UserCardTransactionsQuery
     {
         [$fee, $feeCurrency] = $this->fee($row, 'fee_amount', 'fee_currency');
         [$returnedFee, $returnedCurrency] = $this->fee($row, 'fee_return_amount', 'fee_return_currency');
+        $type = in_array($row->type, ['purchase', 'verification', 'reversal', 'refund', 'transfer_in', 'transfer_out', 'fee', 'cash_withdrawal', 'balance_inquiry', 'adjustment', 'other'], true) ? $row->type : 'other';
+        $state = match ($row->state) {
+            'SUCCEEDED' => 'completed', 'FAILED' => 'declined',
+            'completed', 'authorized', 'declined', 'reversed', 'pending', 'confirming' => $row->state,
+            default => 'confirming',
+        };
         return ['id' => hash('sha256', $row->card_id."\0".$row->provider_transaction_id), 'cardId' => $row->card_id,
-            'last4' => $row->last4, 'amount' => Money::of((string) $row->amount, 'USD')->amount(), 'currency' => $row->currency, 'type' => $row->type,
+            'last4' => $row->last4, 'amount' => Money::of((string) $row->amount, 'USD')->amount(), 'currency' => $row->currency, 'type' => $type,
             'feeAmount' => $fee, 'feeCurrency' => $feeCurrency,
             'feeReturnAmount' => $returnedFee, 'feeReturnCurrency' => $returnedCurrency,
-            'state' => $row->state, 'displayAt' => CarbonImmutable::parse($row->display_at)->utc()->toIso8601String(),
+            'state' => $state, 'displayAt' => CarbonImmutable::parse($row->display_at)->utc()->toIso8601String(),
             'timeKind' => $row->completed_entry_id ? 'completed' : 'recorded', 'merchant' => $row->merchant];
     }
 }
