@@ -3414,21 +3414,22 @@ function u1StandardFixture($test, bool $fees = true): object
     return DB::table('u1_connections')->where('reference_id', $ref->id)->firstOrFail();
 }
 
-function u1StandardFake(string $terminal = 'openvcc.success', bool $loseResponse = false, string $key = 'offline-u1-key', string $innerKey = 'offline-u1-key'): void
+function u1StandardFake(string $terminal = 'openvcc.success', bool $loseResponse = false, string $key = 'offline-u1-key', string $innerKey = 'offline-u1-key', bool $unsignedResult = false): void
 {
     Http::swap(new Factory);
     Http::preventStrayRequests();
-    Http::fake(function ($request) use ($terminal, $loseResponse, $key, $innerKey) {
+    Http::fake(function ($request) use ($terminal, $loseResponse, $key, $innerKey, $unsignedResult) {
         $endpoint = basename($request->url());
         $data = match ($endpoint) {
             'queryaccount' => ['amount' => [['currency' => 'USD', 'freeAmt' => '999.12345678', 'unfreeAmt' => '0']], 'cardCount' => '0'],
             'querygroupno' => ['group' => [['currency' => 'USD', 'groupNo' => 'GROUP-SHARE', 'bin' => '412345', 'model' => 'SHARE'], ['currency' => 'USD', 'groupNo' => 'GROUP-SINGLE', 'bin' => '412346', 'model' => 'SINGLE']]],
             'vccquery' => ['cardNo' => 'U1-CARD-001', 'amount' => '100.00000000', 'status' => '1'],
             'querycvv' => ['status' => '1', 'cardNo' => '4111111111114242', 'cvv' => '123', 'expiry' => '12/29'],
-            'queryapiid' => (function () use ($request, $terminal, $innerKey) {
+            'queryapiid' => (function () use ($request, $terminal, $innerKey, $unsignedResult) {
                 $event = ['apiId' => $request['apiId'], 'type' => $terminal, 'cardNo' => 'U1-CARD-001', 'timestamp' => (string) now()->getTimestampMs()];
                 $event['sign'] = md5(implode('', array_map(fn ($name) => $event[$name], U1NotificationVerifier::FIELDS[$terminal])).$innerKey);
 
+                if ($unsignedResult) unset($event['sign'], $event['timestamp']);
                 return $event;
             })(),
             'queryrequestid' => '',
@@ -3704,3 +3705,16 @@ it('refreshes Platform U1 issue status through scoped provider queries without r
     $this->post($url)->assertRedirect()->assertSessionHasNoErrors();
     expect(UserCard::where('card_issue_order_id', $order->id)->count())->toBe(1);
 });
+
+it('requires matching signed callback evidence for unsigned U1 query facts', function (bool $matches): void {
+    $connection = u1StandardFixture($this);
+    $order = phaseTenIssue($this, '100.00');
+    $payload = ['apiId' => 'API-vccopen', 'type' => 'openvcc.success', 'cardNo' => $matches ? 'U1-CARD-001' : 'OTHER-CARD', 'timestamp' => (string) now()->getTimestampMs()];
+    $payload['sign'] = md5($payload['apiId'].$payload['type'].$payload['cardNo'].$payload['timestamp'].'offline-u1-key');
+    app(U1Accounts::class)->receive($connection->id, json_encode($payload));
+    u1StandardFake(unsignedResult: true);
+    $result = app(SyncCardIssueAction::class)->execute($this->tenant->id, $order->id, $this->user->id);
+    expect($result->status->value)->toBe($matches ? 'SUCCEEDED' : 'UNKNOWN')
+        ->and(UserCard::where('card_issue_order_id', $order->id)->count())->toBe($matches ? 1 : 0);
+    Http::assertNotSent(fn ($request) => str_ends_with($request->url(), '/vccopen'));
+})->with([true, false]);
