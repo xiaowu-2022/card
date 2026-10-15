@@ -194,6 +194,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware('admin.scope:platform,card_product.manage')->put('/tenants/{tenant}/cards/{card}/balance-limit', [CardOperationsController::class, 'updateLimit'])->whereUuid(['tenant', 'card'])->name('cards.balance-limit');
     Route::middleware(['admin.scope:platform,card_product.manage', 'throttle:20,1'])->post('/tenants/{tenant}/cards/{card}/reveal', [CardOperationsController::class, 'reveal'])->whereUuid(['tenant', 'card'])->name('cards.reveal');
     Route::middleware('admin.scope:platform,cards.read')->get('/cards', CardOperationsController::class)->name('cards.index');
+    Route::middleware(['admin.scope:platform,cards.read', 'admin.scope:platform,card_product.manage', 'throttle:20,1'])->post('/tenants/{tenant}/card-issues/{issue}/sync', [CardOperationsController::class, 'syncIssue'])->whereUuid(['tenant', 'issue'])->name('card-issues.sync');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.cleanup', 'throttle:20,1'])->group(function (): void {
         Route::get('/tenants/{tenant}/data-cleanup/accounts', [DataCleanupController::class, 'accounts'])->whereUuid('tenant')->name('data-cleanup.accounts');
         Route::post('/tenants/{tenant}/data-cleanup/preview', [DataCleanupController::class, 'preview'])->whereUuid('tenant')->name('data-cleanup.preview');

@@ -3686,3 +3686,21 @@ it('requires a valid verification email for U1 applications', function (): void 
         ])->assertSessionHasErrors('email');
     }
 });
+
+it('refreshes Platform U1 issue status through scoped provider queries without reopening cards', function (): void {
+    u1StandardFixture($this);
+    $order = phaseTenIssue($this, '100.00');
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $otherTenant = Tenant::where('id', '!=', $this->tenant->id)->firstOrFail();
+    $this->actingAs($actor, 'platform_admin')
+        ->post('http://admin.localhost/platform/tenants/'.$otherTenant->id.'/card-issues/'.$order->id.'/sync')->assertNotFound();
+    u1StandardFake();
+    $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/card-issues/'.$order->id.'/sync';
+    $this->post($url)->assertRedirect()->assertSessionHasNoErrors();
+    expect($order->fresh()->status->value)->toBe('SUCCEEDED')
+        ->and(UserCard::where('card_issue_order_id', $order->id)->count())->toBe(1);
+    Http::assertSent(fn ($request) => str_ends_with($request->url(), '/queryapiid'));
+    Http::assertNotSent(fn ($request) => str_ends_with($request->url(), '/vccopen'));
+    $this->post($url)->assertRedirect()->assertSessionHasNoErrors();
+    expect(UserCard::where('card_issue_order_id', $order->id)->count())->toBe(1);
+});

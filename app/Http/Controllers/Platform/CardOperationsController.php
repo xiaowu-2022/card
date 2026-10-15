@@ -30,6 +30,17 @@ use Inertia\Response;
 
 final class CardOperationsController extends Controller
 {
+    public function syncIssue(Request $request, Tenant $tenant, string $issue, \App\Application\Card\SyncCardIssueAction $sync): RedirectResponse
+    {
+        $order = \App\Domain\Card\Models\CardIssueOrder::query()->where('tenant_id', $tenant->id)->whereKey($issue)->firstOrFail();
+        $result = $sync->execute($tenant->id, $order->id, $order->user_id);
+        app(AuditLogger::class)->record($tenant->id, 'ADMIN', $request->user('platform_admin')->id,
+            'CARD_ISSUE_STATUS_REFRESHED', 'card_issue_order', $order->id);
+
+        return back()->with('success', in_array($result->status->value, ['SUCCEEDED', 'FAILED'], true)
+            ? 'Card request status refreshed.' : 'Card status is still pending.');
+    }
+
     public function reveal(Request $request, Tenant $tenant, string $card): JsonResponse
     {
         $data = $request->validate(['password' => ['required', 'string']]);

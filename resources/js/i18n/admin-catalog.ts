@@ -2,6 +2,8 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Card status is still pending.': '三方结果尚未确认，请稍后再次刷新。',
+    'Card request status refreshed.': '开卡订单状态已刷新。',
     '{{days}}-day average': '前{{days}}天日均',
     'Averages cover complete days before today in Beijing time, including days with no activity.': '日均按北京时间统计今天之前的完整自然日，包含零流水日期，不含今天。',
     'Security deposit refunds': '保证金退回金额',

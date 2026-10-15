@@ -37,6 +37,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 
 type Order = {
+    tenantId: string;
     userInfo?: UserInfo;
     userId?: string;
     id: string;
@@ -106,6 +107,8 @@ export default function Cards({
         usePage<SharedProps>().props.auth.admin?.permissions.includes('card_product.manage');
     const tab = filters.tab ?? 'cards';
     const [selected, setSelected] = useState<Record<string, UserCard>>({});
+    const [refreshingIssue, setRefreshingIssue] = useState<string | null>(null);
+    const [issueError, setIssueError] = useState<string | null>(null);
     const [syncScope, setSyncScope] = useState<SyncScope | null>(null);
     const [syncOpen, setSyncOpen] = useState(false);
     function openSync(scope: SyncScope) {
@@ -205,6 +208,7 @@ export default function Cards({
                         <TabsTrigger value="cards">{t('Cards')}</TabsTrigger>
                     </TabsList>
                     <TabsContent value="orders">
+                        {issueError && <p role="alert" className="mb-3 text-sm text-destructive">{issueError}</p>}
                         <PlatformAccountTable
                             key={JSON.stringify(filters)}
                             page={orders}
@@ -219,6 +223,23 @@ export default function Cards({
                                     render: (row) => <RecordUserCell row={row} />,
                                 },
                                 { label: 'Product', render: (row) => row.productName },
+                                {
+                                    label: 'Actions',
+                                    render: (row) => canManage && ['PENDING', 'PROCESSING', 'UNKNOWN'].includes(row.status) ? (
+                                        <Button variant="secondary" size="sm" disabled={refreshingIssue !== null}
+                                            onClick={() => {
+                                                setRefreshingIssue(row.id);
+                                                setIssueError(null);
+                                                router.post(`/platform/tenants/${row.tenantId}/card-issues/${row.id}/sync`, {}, {
+                                                    preserveScroll: true,
+                                                    onError: (errors) => setIssueError(Object.values(errors).join(' ')),
+                                                    onFinish: () => setRefreshingIssue(null),
+                                                });
+                                            }}>
+                                            {t(refreshingIssue === row.id ? 'Refreshing…' : 'Refresh status')}
+                                        </Button>
+                                    ) : '—',
+                                },
                                 {
                                     label: 'Amounts',
                                     render: (row) =>
