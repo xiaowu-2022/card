@@ -103,7 +103,7 @@ async function run(failedOnly: boolean) {
     }
 }
 function ending(item: CardTransaction) {
-    return t('Card ending in {{last4}}', { last4: item.last4 });
+    return item.last4 ? t('Card ending in {{last4}}', { last4: item.last4 }) : t('Card');
 }
 function title(item: CardTransaction) {
     return item.merchant === 'TEST / LOCAL MOCK'

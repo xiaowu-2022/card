@@ -107,6 +107,7 @@ final readonly class UserCardCenterQuery
                 ->with('product')->latest('created_at')->get()->map(fn (UserCard $card): array => [
                     'id' => $card->id,
                     'provider' => $card->provider,
+                    'detailsPending' => $card->sensitive_details_encrypted === null,
                     'productName' => $displayNames->get($card->card_product_id) ?: $card->product->name,
                     'maskedPan' => $card->masked_pan,
                     'activationStatus' => DB::table('card_activation_attempts')->where('card_id', $card->id)->latest('created_at')->value('status'),

@@ -183,6 +183,7 @@ usePagePosition(() => '/cards', () => !!page.value);
                             ><CardVisual
                                 :name="card.productName"
                                 :provider="card.provider"
+                                :details-pending="card.detailsPending"
                                 :currency="card.currency"
                                 :masked-pan="card.maskedPan"
                                 :balance="card.balance"

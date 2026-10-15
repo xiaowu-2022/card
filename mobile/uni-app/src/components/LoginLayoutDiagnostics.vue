@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import LightTip from './LightTip.vue';
+import { useLightTip } from '../lib/light-tip';
+const { message: copyTip, show: showCopyTip } = useLightTip();
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 const emit = defineEmits<{ close: [] }>();
 const report = ref('');
-const copied = ref(false);
+
 const viewportMeta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
 const originalViewport = viewportMeta?.content ?? '';
 let changedViewport = false;
@@ -42,10 +45,9 @@ function refresh() {
         login: rect ? [number(rect.top), number(rect.height), number(rect.bottom)] : null,
         backgrounds: [getComputedStyle(document.documentElement).backgroundColor, getComputedStyle(document.body).backgroundColor, root ? getComputedStyle(root).backgroundColor : null],
     }, null, 2);
-    copied.value = false;
 }
 function copy() {
-    uni.setClipboardData({ data: report.value, success: () => { copied.value = true; } });
+    uni.setClipboardData({ data: report.value, showToast: false, success: () => showCopyTip('已复制'), fail: () => showCopyTip('复制失败，请重试', 3000) });
 }
 function reloadLogin() { window.location.reload(); }
 function openPlainPage() {
@@ -61,11 +63,12 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
+    <LightTip :message="copyTip" />
     <Teleport to="body">
         <view class="layout-diagnostics" role="dialog" aria-label="登录页布局诊断">
             <view class="diagnostic-actions">
                 <button @click="refresh">刷新尺寸</button>
-                <button @click="copy">{{ copied ? '已复制' : '复制尺寸' }}</button>
+                <button @click="copy">复制尺寸</button>
                 <button @click="emit('close')">关闭</button>
             </view>
             <view class="diagnostic-actions">

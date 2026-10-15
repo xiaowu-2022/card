@@ -8,6 +8,7 @@ import { systemMoney } from '../generated/system-money';
 const props = defineProps<{
     name: string;
     provider?: string;
+    detailsPending?: boolean;
     currency: string;
     bin?: string;
     maskedPan?: string;
@@ -49,7 +50,7 @@ const name = computed(() =>
                 ><U1CardNetworks v-if="provider === 'U1'" />
                 <image v-else class="user-card-preview-network" :src="staticAsset('images/cards/mastercard.svg')" mode="widthFix" /></view
             ><template v-else
-                ><text class="user-card-number">{{ maskedPan }}</text
+                ><text class="user-card-number" :class="{ 'details-pending': detailsPending }">{{ detailsPending ? t('Card details are synchronizing') : maskedPan }}</text
                 ><view class="user-card-face-footer"
                     ><view
                         ><text class="user-card-label">{{ t('Balance') }}</text
@@ -280,4 +281,8 @@ const name = computed(() =>
     color: #303b43;
     box-shadow: 0 0 0 1px #87929a;
 }
+</style>
+
+<style scoped>
+.user-card-number.details-pending { font-size: 14px; letter-spacing: 0; line-height: 24px; }
 </style>

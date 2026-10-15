@@ -36,6 +36,7 @@ export type IssueOrder = {
     requestedAt: string;
 };
 export type UserCard = {
+    detailsPending?: boolean;
     provider?: 'U1' | 'PHOTONPAY';
     activationStatus?: string | null;
     formFactor?: string;
@@ -47,7 +48,7 @@ export type UserCard = {
     id: string;
     productName: string;
     maskedPan: string;
-    last4: string;
+    last4: string | null;
     expiry: string | null;
     currency: string;
     balance: string | null;

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, onBeforeUnmount } from 'vue';
 import Modal from './Modal.vue';
+import LightTip from './LightTip.vue';
+import { useLightTip } from '../lib/light-tip';
 import UiIcon from './UiIcon.vue';
 import FormField from './FormField.vue';
 import FormErrors from './FormErrors.vue';
@@ -40,7 +42,7 @@ const active = ref<string | null>(null),
     busy = ref(false),
     errors = ref<Record<string, string>>({}),
     otp = ref<{ code: string; expiresAt: string } | null>(null),
-    details = ref<{ pan: string; cvv: string } | null>(null),
+    details = ref<{ pan: string; cvv: string; expiry?: string } | null>(null),
     order = ref<CardOperation | null>(null),
     history = ref<CardOperation[]>([]),
     confirmed = ref(false),
@@ -139,6 +141,7 @@ const pendingCopy = computed(() =>
         t('Minimum reload: {{amount}}', { amount: systemMoney(props.card.minimumReload ?? '0') }),
     );
 function clearSensitive() {
+    clearCopyTip();
     generation++;
     visible = false;
     details.value = null;
@@ -274,7 +277,7 @@ async function run(action: string, target?: CardOperation) {
                 !/^\d{3,4}$/.test(result.cvv)
             )
                 throw new Error('Invalid card details');
-            details.value = { pan: result.pan, cvv: result.cvv };
+            details.value = { pan: result.pan, cvv: result.cvv, expiry: typeof result.expiry === 'string' ? result.expiry : undefined };
             clearTimeout(revealTimer);
             revealTimer = setTimeout(() => {
                 details.value = null;
@@ -323,6 +326,7 @@ function submit() {
             : active.value,
     );
 }
+const { message: copyTip, show: showCopyTip, clear: clearCopyTip } = useLightTip();
 async function copy(part: 'pan' | 'cvv' | 'all') {
     if (!details.value) return;
     const runId = generation;
@@ -334,7 +338,7 @@ async function copy(part: 'pan' | 'cvv' | 'all') {
               '\n' +
               t('Expiry') +
               ': ' +
-              (props.card.expiry || '—') +
+              (details.value.expiry || props.card.expiry || '—') +
               '\nCVV: ' +
               details.value.cvv
             : details.value[part];
@@ -348,16 +352,17 @@ async function copy(part: 'pan' | 'cvv' | 'all') {
             }),
         );
         if (runId === generation && visible) {
-            uni.showToast({ title: t('Card information copied'), icon: 'none', duration: 1800 });
+            showCopyTip(t('Card information copied'));
         }
     } catch {
         if (runId === generation && visible) {
-            uni.showToast({ title: t('Copy failed. Please select and copy manually.'), icon: 'none', duration: 3000 });
+            showCopyTip(t('Copy failed. Please select and copy manually.'), 3000);
         }
     }
 }
 </script>
 <template>
+    <LightTip :message="copyTip" />
     <view class="card-controls"
         ><view class="actions" :class="{ locked: card.refundLocked }"
             ><button
@@ -517,7 +522,7 @@ async function copy(part: 'pan' | 'cvv' | 'all') {
                         ><view class="detail-line">
                             <view
                                 ><text class="muted">{{ t('Expiry') }}</text>
-                                <text class="cvv" selectable>{{ card.expiry || '—' }}</text></view
+                                <text class="cvv" selectable>{{ details.expiry || card.expiry || '—' }}</text></view
                             > </view
                         ><view class="detail-line"
                             ><view

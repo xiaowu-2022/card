@@ -49,7 +49,7 @@ final class CardOperationsController extends Controller
         $owned = UserCard::query()->where('tenant_id', $tenant->id)->whereKey($card)->firstOrFail();
         abort_unless(in_array($owned->provider_status, ['normal', 'frozen'], true), 409);
         try {
-            $details = app(CardProductProviderRouter::class)->forCard($owned)->revealCard($owned->provider_card_id);
+            $details = app(\App\Application\Card\CardSensitiveDetails::class)->read($owned);
         } catch (\Throwable) {
             return response()->json(['message' => 'Card details could not be loaded. Please try again later.'], 503, ['Cache-Control' => 'no-store, private']);
         }

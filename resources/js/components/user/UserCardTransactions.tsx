@@ -48,7 +48,7 @@ export function UserCardTransactions({
                     <div className="divide-y rounded-2xl bg-surface px-4 sm:px-6">
                         {history.items.map((item) => {
                             const localMock = item.merchant === 'TEST / LOCAL MOCK';
-                            const cardTitle = `${t('Card ending in {{last4}}', { last4: item.last4 })} · ${t(transactionTitles[item.type] ?? 'Card transaction')}`;
+                            const cardTitle = `${t('Card ending in {{last4}}', { last4: item.last4 ?? '—' })} · ${t(transactionTitles[item.type] ?? 'Card transaction')}`;
                             return (
                                 <div key={item.id} className="flex min-w-0 gap-3 py-5">
                                     <span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted">
@@ -69,7 +69,7 @@ export function UserCardTransactions({
                                                 {!localMock && (
                                                     <p className="mt-1 text-xs text-muted-foreground">
                                                         {t('Card ending in {{last4}}', {
-                                                            last4: item.last4,
+                                                            last4: item.last4 ?? '—',
                                                         })}
                                                         {item.merchant
                                                             ? ` · ${t(transactionTitles[item.type] ?? 'Card transaction')}`

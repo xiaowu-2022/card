@@ -87,7 +87,7 @@ type UserCard = {
     id: string;
     productName: string;
     maskedPan: string;
-    last4: string;
+    last4: string | null;
     expiry: string | null;
     currency: string;
     balance: string | null;

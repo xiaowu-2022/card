@@ -10,6 +10,6 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
         // Report refreshes are background work, never external calls from test fixtures.
-        \Illuminate\Support\Facades\Queue::fake([\App\Jobs\RefreshPhotonPayAccountReport::class]);
+        \Illuminate\Support\Facades\Queue::fake([\App\Jobs\RefreshPhotonPayAccountReport::class, \App\Jobs\AcquireCardSensitiveDetails::class]);
     }
 }

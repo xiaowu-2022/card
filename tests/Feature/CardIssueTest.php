@@ -394,18 +394,20 @@ it('releases a reload hold only on a definitive rejection', function (): void {
 
 it('requires owner scope and password before revealing ephemeral card number and CVV', function (): void {
     [$card,$provider] = managedCardFixture($this);
-    $provider->shouldReceive('revealCard')->once()->andReturn(new ProviderSensitiveCardDTO('411111111111'.$card->last4, '987', false, '08/29'));
+    app(\App\Application\Card\CardSensitiveDetails::class)->store($card, new ProviderSensitiveCardDTO('411111111111'.$card->last4, '987', false, '08/29'));
+    $provider->shouldNotReceive('revealCard');
     $this->actingAs($this->user, 'tenant_user');
     $url = 'http://a.localhost/cards/'.$card->id.'/management';
     $this->postJson($url, ['action' => 'reveal', 'current_password' => 'incorrect'])->assertUnprocessable();
-    $this->postJson($url, ['action' => 'reveal', 'current_password' => 'local-password'])->assertOk()->assertExactJson(['pan' => '411111111111'.$card->last4, 'cvv' => '987'])->assertHeader('Cache-Control', 'max-age=0, no-store, private');
+    $this->postJson($url, ['action' => 'reveal', 'current_password' => 'local-password'])->assertOk()->assertExactJson(['pan' => '411111111111'.$card->last4, 'cvv' => '987', 'expiry' => '08/29'])->assertHeader('Cache-Control', 'no-store, private');
     $this->postJson('http://b.localhost/cards/'.$card->id.'/management', ['action' => 'reveal', 'current_password' => 'local-password'])->assertRedirect();
     expect(json_encode($card->fresh()))->not->toContain('987', '411111111111');
 });
 
 it('rejects malformed or mismatched card numbers before revealing sensitive information', function (string $pan): void {
     [$card, $provider] = managedCardFixture($this);
-    $provider->shouldReceive('revealCard')->once()->andReturn(new ProviderSensitiveCardDTO($pan, '987', false));
+    expect(fn () => app(\App\Application\Card\CardSensitiveDetails::class)->store($card, new ProviderSensitiveCardDTO($pan, '987', false, '08/29')))->toThrow(\RuntimeException::class);
+    $provider->shouldNotReceive('revealCard');
     $this->actingAs($this->user, 'tenant_user')->postJson('http://a.localhost/cards/'.$card->id.'/management', [
         'action' => 'reveal', 'current_password' => 'local-password',
     ])->assertStatus(503)->assertJsonMissingPath('pan')->assertJsonMissingPath('cvv');
@@ -2703,7 +2705,8 @@ it('reads platform operation history without provider availability and preserves
 
 it('allows password verified platform card reveal with scoped no store and safe audit', function (): void {
     [$card, $provider] = managedCardFixture($this);
-    $provider->shouldReceive('revealCard')->once()->andReturn(new ProviderSensitiveCardDTO('411111111111'.$card->last4, '987', false, '08/29'));
+    app(\App\Application\Card\CardSensitiveDetails::class)->store($card, new ProviderSensitiveCardDTO('411111111111'.$card->last4, '987', false, '08/29'));
+    $provider->shouldNotReceive('revealCard');
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $this->actingAs($actor, 'platform_admin');
     $url = 'http://admin.localhost/platform/tenants/'.$card->tenant_id.'/cards/'.$card->id.'/reveal';
@@ -3464,6 +3467,10 @@ it('settles U1 issuance only after authoritative asynchronous evidence and never
     $completed = app(SyncCardIssueAction::class)->execute($this->tenant->id, $order->id, $this->user->id);
     expect($completed->status->value)->toBe('SUCCEEDED');
     $card = UserCard::where('provider', 'U1')->sole();
+    expect($card->last4)->toBeNull();
+    Http::assertNotSent(fn ($request) => str_ends_with($request->url(), '/querycvv'));
+    (new \App\Jobs\AcquireCardSensitiveDetails($card->tenant_id, $card->id))->handle(app(\App\Application\Card\CardSensitiveDetails::class));
+    $card->refresh();
     expect($card->last4)->toBe('4242')->and($card->provider)->toBe('U1')->and($card->provider_balance)->toBe('100.00000000');
     app(SyncCardIssueAction::class)->execute($this->tenant->id, $order->id, $this->user->id);
     Http::assertSent(fn ($request) => str_ends_with($request->url(), '/vccopen') && $request['groupNo'] === 'GROUP-SHARE');
@@ -3720,7 +3727,7 @@ it('synchronizes U1 query results without callback records or inner signatures',
     Http::assertNotSent(fn ($request) => str_ends_with($request->url(), '/vccopen'));
 });
 
-it('synchronizes U1 openings with valid status-zero sensitive fields and rejects incomplete fields', function (bool $complete): void {
+it('completes U1 openings independently of sensitive detail availability', function (bool $complete): void {
     u1StandardFixture($this);
     $order = phaseTenIssue($this, '100.00');
     u1StandardFake(sensitiveData: $complete
@@ -3729,14 +3736,23 @@ it('synchronizes U1 openings with valid status-zero sensitive fields and rejects
     $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/card-issues/'.$order->id.'/sync';
     $this->actingAs($actor, 'platform_admin')->post($url)->assertRedirect()->assertSessionHasNoErrors();
-    expect($order->fresh()->status->value)->toBe($complete ? 'SUCCEEDED' : 'UNKNOWN')
-        ->and(UserCard::where('card_issue_order_id', $order->id)->count())->toBe($complete ? 1 : 0);
+    expect($order->fresh()->status->value)->toBe('SUCCEEDED')
+        ->and(UserCard::where('card_issue_order_id', $order->id)->count())->toBe(1);
+    Http::assertNotSent(fn ($request) => str_ends_with($request->url(), '/querycvv'));
+    $card = UserCard::where('card_issue_order_id', $order->id)->sole();
+    expect($card->last4)->toBeNull();
+    $job = new \App\Jobs\AcquireCardSensitiveDetails($card->tenant_id, $card->id);
     if ($complete) {
-        $card = UserCard::where('card_issue_order_id', $order->id)->sole();
-        expect($card->last4)->toBe('4242')->and($card->expiry)->toBe('10/31');
-        $this->post($url)->assertRedirect()->assertSessionHasNoErrors();
-        expect(UserCard::where('card_issue_order_id', $order->id)->count())->toBe(1);
+        $job->handle(app(\App\Application\Card\CardSensitiveDetails::class));
+        expect($card->fresh()->last4)->toBe('4242')->and($card->fresh()->expiry)->toBe('10/31');
+    } else {
+        expect(fn () => $job->handle(app(\App\Application\Card\CardSensitiveDetails::class)))
+            ->toThrow(\App\Domain\CardProvider\Exceptions\ProviderUnknownResultException::class);
+        expect($card->fresh()->last4)->toBeNull();
     }
+    $this->post($url)->assertRedirect()->assertSessionHasNoErrors();
+    expect($order->fresh()->status->value)->toBe('SUCCEEDED')
+        ->and(UserCard::where('card_issue_order_id', $order->id)->count())->toBe(1);
     Http::assertNotSent(fn ($request) => str_ends_with($request->url(), '/vccopen'));
 })->with([true, false]);
 
@@ -3823,7 +3839,7 @@ it('reports an incorrect card-operation password explicitly without invoking pro
 });
 
 it('queues U1 merchant report refresh once after successful operations and refreshes only the database snapshot', function (): void {
-    \Illuminate\Support\Facades\Queue::fake([\App\Jobs\RefreshU1AccountReport::class]);
+    \Illuminate\Support\Facades\Queue::fake([\App\Jobs\RefreshU1AccountReport::class, \App\Jobs\AcquireCardSensitiveDetails::class]);
     $connection = u1StandardFixture($this);
     $issue = phaseTenIssue($this, '100.00');
     \Illuminate\Support\Facades\Queue::assertNotPushed(\App\Jobs\RefreshU1AccountReport::class);
@@ -3846,7 +3862,7 @@ it('queues U1 merchant report refresh once after successful operations and refre
 });
 
 it('preserves the U1 report snapshot when a background refresh fails', function (): void {
-    \Illuminate\Support\Facades\Queue::fake([\App\Jobs\RefreshU1AccountReport::class]);
+    \Illuminate\Support\Facades\Queue::fake([\App\Jobs\RefreshU1AccountReport::class, \App\Jobs\AcquireCardSensitiveDetails::class]);
     $connection = u1StandardFixture($this);
     $before = DB::table('u1_connections')->where('id', $connection->id)->first();
     Http::swap(new Factory);
@@ -3868,4 +3884,38 @@ it('reads cards with issue history and exposes the actual card provider without 
         ->and(collect($view['cards'])->firstWhere('id', UserCard::where('card_issue_order_id', $issue->id)->sole()->id)['provider'])->toBe('U1');
     $this->actingAs($this->user, 'tenant_user')->getJson('http://a.localhost/api/v1/client/cards')->assertOk();
     Http::assertNothingSent();
+});
+
+it('stores encrypted card details and serves authorized user and admin views without provider calls', function (): void {
+    [$card, $provider] = managedCardFixture($this);
+    $store = app(\App\Application\Card\CardSensitiveDetails::class);
+    $pan = '411111111111'.$card->last4;
+    $store->store($card, new \App\Domain\CardProvider\DTOs\ProviderSensitiveCardDTO($pan, '263', false, '10/31'));
+    $card->refresh();
+    expect($card->sensitive_details_encrypted)->not->toContain($pan, '"cvv":"263"')
+        ->and($card->toArray())->not->toHaveKey('sensitive_details_encrypted');
+    $provider->shouldNotReceive('revealCard');
+    Http::preventStrayRequests();
+    $this->actingAs($this->user, 'tenant_user')->postJson('http://a.localhost/cards/'.$card->id.'/management', [
+        'action' => 'reveal', 'current_password' => 'local-password',
+    ])->assertOk()->assertJsonPath('pan', $pan)->assertJsonPath('cvv', '263')->assertJsonPath('expiry', '10/31');
+    $actor = AdminUser::where('email', 'owner@platform.local')->sole();
+    $this->actingAs($actor, 'platform_admin')->postJson('http://admin.localhost/platform/tenants/'.$card->tenant_id.'/cards/'.$card->id.'/reveal', [
+        'password' => 'local-password',
+    ])->assertOk()->assertJsonPath('pan', $pan)->assertJsonPath('expiry', '10/31');
+    expect(fn () => $store->store($card, new \App\Domain\CardProvider\DTOs\ProviderSensitiveCardDTO('4111111111119999', '263', false, '10/31')))->toThrow(\RuntimeException::class);
+    Http::assertNothingSent();
+});
+
+it('acquires missing card details once in background and rejects ciphertext copied across cards', function (): void {
+    [$card, $provider] = managedCardFixture($this);
+    $provider->shouldReceive('revealCard')->once()->andReturn(new ProviderSensitiveCardDTO('411111111111'.$card->last4, '987', false, '08/29'));
+    $service = app(\App\Application\Card\CardSensitiveDetails::class);
+    $job = new \App\Jobs\AcquireCardSensitiveDetails($card->tenant_id, $card->id);
+    $job->handle($service);
+    $job->handle($service);
+    expect($service->read($card->fresh())->expiry)->toBe('08/29');
+    $forged = $card->fresh();
+    $forged->user_id = (string) Str::uuid();
+    expect(fn () => $service->read($forged))->toThrow(\RuntimeException::class);
 });

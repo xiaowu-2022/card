@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import LightTip from '../components/LightTip.vue';
+import { useLightTip } from '../lib/light-tip';
+const { message: copyTip, show: showCopyTip } = useLightTip();
 import { computed, ref, nextTick, watch, onMounted, getCurrentInstance } from 'vue';
 import { onResize } from '@dcloudio/uni-app';
 import PageShell from '../components/PageShell.vue';
@@ -125,9 +128,11 @@ async function copy() {
                 fail: reject,
             }),
         );
-        shareState.value = 'copied';
+        shareState.value = '';
+        showCopyTip(t('Copied'));
     } catch {
         shareState.value = 'failed';
+        showCopyTip(t('Could not copy. Copy the link below manually.'), 3000);
     }
 }
 async function share() {
@@ -163,6 +168,7 @@ async function share() {
 }
 </script>
 <template>
+    <LightTip :message="copyTip" />
     <PageShell :title="t('Promotion center')" back="/account" active="account" white
         ><view class="hub"
             ><FormErrors :errors="action.errors.value" /><view

@@ -305,18 +305,18 @@ final class U1CardProvider implements CardProviderInterface
         $saved = UserCard::where('provider', 'U1')->where('provider_card_id', $providerCardId)
             ->whereIn('card_product_id', DB::table('card_products')->where('card_provider_reference_id', $this->connection->reference_id)->select('id'))->first();
         if ($saved) {
-            $last4 = $saved->last4;
+            $last4 = $saved->last4 ?? '';
             $expiry = $saved->expiry;
         } else {
-            $sensitive = $this->revealCard($providerCardId);
-            $last4 = substr($sensitive->displayPan, -4);
-            $expiry = $sensitive->expiry;
+            // Issuance completion must not depend on the separate sensitive-data endpoint.
+            $last4 = '';
+            $expiry = null;
         }
         $status = match ($data['status']) {
             '1' => 'normal', '2', '-1' => 'inactive', '3', '4' => 'cancelled', '8' => 'frozen', '5', '6', '7' => 'disabled', default => throw new ProviderUnknownResultException('Unknown U1 card status.')
         };
 
-        return new ProviderCardDTO($providerCardId, $providerCardId, '•••• '.$last4, $last4,
+        return new ProviderCardDTO($providerCardId, $providerCardId, ($last4 === '' ? '••••' : '•••• '.$last4), $last4,
             $expiry ? (int) substr($expiry, 0, 2) : null, $expiry ? 2000 + (int) substr($expiry, 3, 2) : null, 'USD', $status, false, $data['amount']);
     }
 

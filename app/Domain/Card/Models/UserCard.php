@@ -19,6 +19,8 @@ final class UserCard extends Model
 
     protected $guarded = ['*'];
 
+    protected $hidden = ['sensitive_details_encrypted'];
+
     protected static function booted(): void
     {
         self::updating(function (self $card): void {

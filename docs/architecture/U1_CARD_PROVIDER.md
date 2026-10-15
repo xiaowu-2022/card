@@ -79,3 +79,23 @@ Webhook signatures are validated only on notification receipt; callbacks wake th
 2026-10-15 transaction display fallback: all settled positive LOAD orders with sealed same-company/order Ledger evidence are visible immediately, even without provider transaction records. Existing settled RETURN/CANCEL_RETURN fallback remains. Ordinary loads use the exact provider transaction identity (or local-load order ID if absent), replaced by a later same-company/user/card/transaction record; mixed local-overflow loads retain their combined local-load representation. No amount/time-only deduplication, financial mutation, migration or provider call on reads. Shared consumer/admin reads apply across providers.
 
 2026-10-15 automatic merchant report refresh: the first confirmed SUCCEEDED transition of each OPEN/LOAD/RETURN intent dispatches RefreshU1AccountReport after commit. The queued job reads queryaccount only, updates the saved USD available balance/cardCount/queriedAt, serializes per connection and rejects stale credential or report writes. It does not alter check status, card groups, eligibility or financial evidence. Failures retain the previous report and retry with bounded backoff, eventually logging a safe failure. Directory/homepage continue reading database snapshots; GETs never trigger provider calls. Deploy PHP and restart queue workers; no migration or frontend rebuild.
+
+## 2026-10-15 Encrypted saved card details (supersedes transient-only reveals)
+
+At the user's request, complete PAN/CVV/expiry are encrypted together in user_cards.sensitive_details_encrypted, bound inside authenticated ciphertext to card/company/user/provider/provider-card identity. The field is hidden from model serialization and normal page/list DTOs. Valid details must match the saved card last4; malformed, placeholder or mismatched data is never stored. Existing cleanup/backups include the encrypted column as part of the same card row.
+
+U1 issuance carries already-fetched sensitive details to the successful local card save. Other newly issued cards enqueue AcquireCardSensitiveDetails after commit. The job fetches missing details only, keeps all remote failures separate from financial settlement and retries boundedly. Existing cards can be queued with php artisan cards:sync-saved-details; no financial write or repeated opening is involved. Consumer and Platform reveal operations read only this encrypted database field, retaining current-password checks, company/owner/status authorization, no-store responses, audit and 30-second client hiding. Missing details remain unavailable until background acquisition succeeds; reveal does not call providers.
+
+Deploy migration 2026_10_15_160000_add_encrypted_card_details with PHP and matching H5 (copied to public/h5), restart workers, then queue existing-card acquisition. No production financial tests or provider calls are needed to verify deployment. Never export decrypted values to general logs, audit or listings.
+
+### 2026-10-15: issuance completion independent of sensitive details
+A verified successful OPEN result with its matched provider card identity completes the
+issue order and creates the local card without calling querycvv in settlement.
+Unknown last4/expiry remain null; the client labels the details as synchronizing.
+AcquireCardSensitiveDetails runs after commit, retries independently, and fills the
+same card's encrypted details, actual last4, mask and expiry. A missing/iframe-only
+sensitive response never reverses issuance or resends opening/funding. Existing
+operation identity, balance consistency and once-only Ledger guards remain intact.
+Deploy both 160000 and 170000 migrations, PHP and frontend together; restart queue
+workers. Reconcile existing pending orders through the existing sync workflow, then
+use cards:sync-saved-details for issued cards missing saved details.

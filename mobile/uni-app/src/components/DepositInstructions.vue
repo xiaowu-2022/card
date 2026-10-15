@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import LightTip from './LightTip.vue';
+import { useLightTip } from '../lib/light-tip';
+const { message: copyTip, show: showCopyTip } = useLightTip();
 import { ref, computed, onBeforeUnmount } from 'vue';
 import { t, dateTime } from '../lib/i18n';
 import { go } from '../lib/navigation';
@@ -45,16 +48,14 @@ function copy(value: string, label: string) {
         data: value,
         showToast: false,
         success: () =>
-            uni.showToast({ title: t('{{label}} copied', { label: t(label) }), icon: 'none' }),
+            showCopyTip(t('{{label}} copied', { label: t(label) })),
         fail: () =>
-            uni.showToast({
-                title: t('Could not copy. Please select and copy the value manually.'),
-                icon: 'none',
-            }),
+            showCopyTip(t('Could not copy. Please select and copy the value manually.'), 3000),
     });
 }
 </script>
 <template>
+    <LightTip :message="copyTip" />
     <view class="deposit-card"
         ><text class="bold">{{ t(state === 'Completed' ? 'Actual receipt' : state) }}</text
         ><text>{{ exactAmount(amount) }} {{ asset }} · {{ networkLabel }}</text

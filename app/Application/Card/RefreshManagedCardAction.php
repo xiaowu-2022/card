@@ -40,7 +40,7 @@ final readonly class RefreshManagedCardAction
             'previous_balance' => $snapshot->provider_balance, 'refresh_generation' => (int) $snapshot->refresh_generation]);
         $result = app(CardProductProviderRouter::class)->forCard($snapshot)->getCard($snapshot->provider_card_id);
         PhotonPayLog::write('card_refresh.stage', ['stage' => 'card_validation', 'provider_balance' => $result->providerBalance]);
-        if (($result->isTest && ! LocalCardSimulation::allowsCard($result->providerCardId)) || $result->providerCardId !== $snapshot->provider_card_id || $result->assetCode !== 'USD' || $result->providerBalance === null || $result->last4 !== $snapshot->last4 || $result->formFactor !== $snapshot->form_factor) {
+        if (($result->isTest && ! LocalCardSimulation::allowsCard($result->providerCardId)) || $result->providerCardId !== $snapshot->provider_card_id || $result->assetCode !== 'USD' || $result->providerBalance === null || $result->last4 !== ($snapshot->last4 ?? '') || $result->formFactor !== $snapshot->form_factor) {
             throw new DomainException('CARD_REFRESH_UNCONFIRMED', 'The latest card information could not be confirmed.', 503);
         }
 

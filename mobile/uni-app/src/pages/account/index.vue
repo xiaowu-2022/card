@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import LightTip from '../../components/LightTip.vue';
+import { useLightTip } from '../../lib/light-tip';
+const { message: copyTip, show: showCopyTip } = useLightTip();
 import { usePagePosition } from '../../lib/page-position';
 import { computed, ref, watch } from 'vue';
 import { onShow, onHide } from '@dcloudio/uni-app';
@@ -150,17 +153,15 @@ function copy() {
         uni.setClipboardData({
             data: session.value.user.accountId,
             showToast: false,
-            success: () => uni.showToast({ title: t('Account ID copied.'), icon: 'none' }),
+            success: () => showCopyTip(t('Account ID copied.')),
             fail: () =>
-                uni.showToast({
-                    title: t('Could not copy. Select the account ID and copy it manually.'),
-                    icon: 'none',
-                }),
+                showCopyTip(t('Could not copy. Select the account ID and copy it manually.'), 3000),
         });
 }
 usePagePosition(() => '/account', () => !!account.value);
 </script>
 <template>
+    <LightTip :message="copyTip" />
     <PageShell active="account"
         ><!-- #ifdef H5 -->
         <RefreshStatus v-if="account" :loading="updating" :failed="!!Object.keys(errors).length" @retry="load" />

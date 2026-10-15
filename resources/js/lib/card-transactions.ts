@@ -31,7 +31,7 @@ export const transactionStates: Record<string, string> = {
 export type CardTransaction = {
     id: string;
     cardId: string;
-    last4: string;
+    last4: string | null;
     amount: string;
     currency: string;
     feeAmount?: string | null;
@@ -77,8 +77,7 @@ export function transactionPage(value: unknown, cardId: string, page: number): C
             item.cardId !== cardId ||
             typeof item.id !== 'string' ||
             !/^[a-f0-9]{64}$/.test(item.id) ||
-            typeof item.last4 !== 'string' ||
-            !/^\d{4}$/.test(item.last4) ||
+            (item.last4 !== null && (typeof item.last4 !== 'string' || !/^\d{4}$/.test(item.last4))) ||
             typeof item.amount !== 'string' ||
             !/^-?\d{1,12}\.\d{8}$/.test(item.amount) ||
             typeof item.currency !== 'string' ||
@@ -87,8 +86,8 @@ export function transactionPage(value: unknown, cardId: string, page: number): C
             !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$/.test(item.displayAt) ||
             !Number.isFinite(Date.parse(item.displayAt)) ||
             !['completed', 'recorded'].includes(item.timeKind) ||
-            !Object.hasOwn(transactionTitles, item.type) ||
-            !Object.hasOwn(transactionStates, item.state) ||
+            !Object.prototype.hasOwnProperty.call(transactionTitles, item.type) ||
+            !Object.prototype.hasOwnProperty.call(transactionStates, item.state) ||
             (item.merchant !== null && typeof item.merchant !== 'string')
         )
             throw new Error('Invalid transaction item');

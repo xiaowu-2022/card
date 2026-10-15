@@ -18,7 +18,7 @@ final class PhotonPayCardResponseNormalizer
         $rawPan = $this->string($data['cardNo'] ?? null);
         $providerMask = $this->string($data['maskCardNo'] ?? null);
         $last4 = $this->last4($providerMask ?: $rawPan);
-        if (($expectedFormFactor === 'physical_card' && $this->string($data['cardStatus'] ?? null) === null) || $cardId === null || $last4 === null || $currency !== 'USD' || $cardType !== 'recharge'
+        if (($expectedFormFactor === 'physical_card' && $this->string($data['cardStatus'] ?? null) === null) || $cardId === null || $currency !== 'USD' || $cardType !== 'recharge'
             || (! in_array($expectedFormFactor, ['virtual_card', 'physical_card'], true) || ($formFactor !== $expectedFormFactor && ! ($formFactor === '' && $expectedFormFactor === 'virtual_card')))) {
             return null;
         }
@@ -38,8 +38,8 @@ final class PhotonPayCardResponseNormalizer
         return new ProviderCardDTO(
             $cardId,
             '',
-            ($isTest ? 'TEST ' : '').'•••• '.$last4,
-            $last4,
+            ($isTest ? 'TEST ' : '').($last4 === null ? '••••' : '•••• '.$last4),
+            $last4 ?? '',
             $month,
             $year,
             $currency,

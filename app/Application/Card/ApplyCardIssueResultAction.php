@@ -24,7 +24,7 @@ final readonly class ApplyCardIssueResultAction
     public function succeed(string $tenantId, string $orderId, ProviderOperationDTO $result): CardIssueOrder
     {
         $card = $result->card;
-        if (! $card || $card->assetCode !== 'USD' || $card->last4 === '' || $card->providerCardId === '') {
+        if (! $card || $card->assetCode !== 'USD' || $card->providerCardId === '') {
             return $this->markUnknown($tenantId, $orderId);
         }
 
@@ -101,12 +101,17 @@ final readonly class ApplyCardIssueResultAction
                     'produce_status' => $card->produceStatus,
                     'tracking_number' => $card->trackingNumber,
                     'masked_pan' => $card->maskedPan,
-                    'last4' => $card->last4,
+                    'last4' => $card->last4 === '' ? null : $card->last4,
                     'expiry' => $expiry,
                     'provider_status' => $card->status,
                     'provider_balance' => $card->providerBalance,
                     'provider_balance_synced_at' => $card->providerBalance === null ? null : now(),
                 ])->save();
+            }
+            if ($card->sensitiveDetails) {
+                app(CardSensitiveDetails::class)->store($userCard, $card->sensitiveDetails);
+            } else {
+                \App\Jobs\AcquireCardSensitiveDetails::dispatch($tenantId, $userCard->id)->afterCommit();
             }
             $order->forceFill([
                 'provider_card_id' => $card->providerCardId,

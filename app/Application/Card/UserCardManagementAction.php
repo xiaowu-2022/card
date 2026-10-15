@@ -53,7 +53,7 @@ final readonly class UserCardManagementAction
                     throw new DomainException('CARD_STATUS_UNAVAILABLE', 'This operation is not available for the current card status.', 409);
                 }
                 try {
-                    $sensitive = app(CardProductProviderRouter::class)->forCard($card)->revealCard($card->provider_card_id);
+                    $sensitive = app(CardSensitiveDetails::class)->read($card);
                 } catch (\Throwable) {
                     throw new DomainException('CARD_REVEAL_UNAVAILABLE', 'Card details could not be loaded. Please try again later.', 503);
                 }
@@ -62,8 +62,8 @@ final readonly class UserCardManagementAction
                 }
                 $this->audit->record($tenantId, 'USER', $userId, 'CARD_CVV_VIEWED', 'user_card', $cardId);
 
-                // Explicit transient allowlist only; never persist or serialize the provider DTO.
-                return ['pan' => $sensitive->displayPan, 'cvv' => $sensitive->displayCvv];
+                // Only explicit authorized detail responses disclose decrypted values.
+                return ['pan' => $sensitive->displayPan, 'cvv' => $sensitive->displayCvv, 'expiry' => $sensitive->expiry];
             }
             if ($action === 'refresh') {
                 try {
