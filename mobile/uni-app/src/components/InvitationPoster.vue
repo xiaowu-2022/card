@@ -51,6 +51,8 @@ async function generate() {
         const size = cell * total;
         const x = Math.floor((width.value - size) / 2);
         const y = height.value - size - Math.round(height.value * 0.04);
+        const labelSize = Math.max(18, Math.round(width.value * 0.03));
+        const labelWidth = Math.min(width.value - 24, Math.max(size, labelSize * 12));
         function drawQr(fill: (color: string) => void, rect: (x: number, y: number, w: number, h: number) => void) {
             fill('#ffffff');
             rect(x, y, size, size);
@@ -86,6 +88,12 @@ async function generate() {
                 context.font = '32px sans-serif';
                 context.fillText(t('Share your invitation link with a friend.'), 450, 500, 780);
             }
+            context.fillStyle = '#ffffff';
+            context.fillRect((width.value - labelWidth) / 2, y - labelSize - 24, labelWidth, labelSize + 16);
+            context.fillStyle = '#171915';
+            context.textAlign = 'center';
+            context.font = `${labelSize}px sans-serif`;
+            context.fillText(t('Scan with your browser'), width.value / 2, y - 14, labelWidth - 16);
             drawQr(color => { context.fillStyle = color; }, (x, y, w, h) => context.fillRect(x, y, w, h));
             if (run === generation && open.value) preview.value = canvas.toDataURL('image/png');
             return;
@@ -105,6 +113,12 @@ async function generate() {
             ctx.setFontSize(32);
             ctx.fillText(t('Share your invitation link with a friend.'), 450, 500, 780);
         }
+        ctx.setFillStyle('#ffffff');
+        ctx.fillRect((width.value - labelWidth) / 2, y - labelSize - 24, labelWidth, labelSize + 16);
+        ctx.setFillStyle('#171915');
+        ctx.setTextAlign('center');
+        ctx.setFontSize(labelSize);
+        ctx.fillText(t('Scan with your browser'), width.value / 2, y - 14, labelWidth - 16);
         drawQr(color => ctx.setFillStyle(color), (x, y, w, h) => ctx.fillRect(x, y, w, h));
         await new Promise<void>((resolve) => ctx.draw(false, () => resolve()));
         const output = await new Promise<string>((resolve, reject) =>

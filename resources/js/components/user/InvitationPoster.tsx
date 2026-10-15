@@ -76,7 +76,7 @@ export function InvitationPoster({
             ctx.textBaseline = 'middle';
             ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
             ctx.shadowBlur = 6;
-            ctx.fillText(t('Scan with your browser'), 450, height - 78, 600);
+            ctx.fillText(t('Scan with your browser'), 450, height - 350, 600);
             if (!cancelled) setPreview(canvas.toDataURL('image/png'));
         };
         void generate().catch(() => {

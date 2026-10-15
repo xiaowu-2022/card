@@ -1496,7 +1496,7 @@ export const catalog = {
     ],
     'Generating poster…': ['正在生成海报…', 'Menjana poster…', 'Generando cartel…'],
     'Scan with your browser': [
-        '用浏览器扫码',
+        '请使用浏览器扫码',
         'Imbas dengan pelayar anda',
         'Escanea con tu navegador',
     ],
