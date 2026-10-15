@@ -3429,7 +3429,10 @@ function u1StandardFake(string $terminal = 'openvcc.success', bool $loseResponse
                 $event = ['apiId' => $request['apiId'], 'type' => $terminal, 'cardNo' => 'U1-CARD-001', 'timestamp' => (string) now()->getTimestampMs()];
                 $event['sign'] = md5(implode('', array_map(fn ($name) => $event[$name], U1NotificationVerifier::FIELDS[$terminal])).$innerKey);
 
-                if ($unsignedResult) unset($event['sign'], $event['timestamp']);
+                if ($unsignedResult) {
+                    unset($event['sign'], $event['timestamp']);
+                    if (! str_starts_with($terminal, 'openvcc.')) unset($event['cardNo']);
+                }
                 return $event;
             })(),
             'queryrequestid' => '',
@@ -3706,18 +3709,16 @@ it('refreshes Platform U1 issue status through scoped provider queries without r
     expect(UserCard::where('card_issue_order_id', $order->id)->count())->toBe(1);
 });
 
-it('requires matching signed callback evidence for unsigned U1 query facts', function (bool $matches): void {
-    $connection = u1StandardFixture($this);
+it('synchronizes U1 query results without callback records or inner signatures', function (): void {
+    u1StandardFixture($this);
     $order = phaseTenIssue($this, '100.00');
-    $payload = ['apiId' => 'API-vccopen', 'type' => 'openvcc.success', 'cardNo' => $matches ? 'U1-CARD-001' : 'OTHER-CARD', 'timestamp' => (string) now()->getTimestampMs()];
-    $payload['sign'] = md5($payload['apiId'].$payload['type'].$payload['cardNo'].$payload['timestamp'].'offline-u1-key');
-    app(U1Accounts::class)->receive($connection->id, json_encode($payload));
+    expect(DB::table('u1_notifications')->count())->toBe(0);
     u1StandardFake(unsignedResult: true);
     $result = app(SyncCardIssueAction::class)->execute($this->tenant->id, $order->id, $this->user->id);
-    expect($result->status->value)->toBe($matches ? 'SUCCEEDED' : 'UNKNOWN')
-        ->and(UserCard::where('card_issue_order_id', $order->id)->count())->toBe($matches ? 1 : 0);
+    expect($result->status->value)->toBe('SUCCEEDED')
+        ->and(UserCard::where('card_issue_order_id', $order->id)->count())->toBe(1);
     Http::assertNotSent(fn ($request) => str_ends_with($request->url(), '/vccopen'));
-})->with([true, false]);
+});
 
 it('synchronizes U1 openings with valid status-zero sensitive fields and rejects incomplete fields', function (bool $complete): void {
     u1StandardFixture($this);
@@ -3737,4 +3738,53 @@ it('synchronizes U1 openings with valid status-zero sensitive fields and rejects
         expect(UserCard::where('card_issue_order_id', $order->id)->count())->toBe(1);
     }
     Http::assertNotSent(fn ($request) => str_ends_with($request->url(), '/vccopen'));
+})->with([true, false]);
+
+it('settles U1 funding from signed callbacks without cardNo and unsigned query facts once', function (string $kind, bool $callback): void {
+    $connection = u1StandardFixture($this);
+    $issue = phaseTenIssue($this, '100.00');
+    app(SyncCardIssueAction::class)->execute($this->tenant->id, $issue->id, $this->user->id);
+    $card = UserCard::where('provider', 'U1')->sole();
+    $manage = app(ManageCardAction::class);
+    if ($kind === 'LOAD') {
+        $quote = $manage->quote($card->tenant_id, $card->user_id, $card->id, (string) Str::uuid(), '20.00');
+        $pending = $manage->confirmLoad($card->tenant_id, $card->user_id, $card->id, $quote->id);
+        $type = 'rechargevcc.success';
+        $apiId = 'API-vccrechage';
+    } else {
+        $pending = $manage->operate($card->tenant_id, $card->user_id, $card->id, (string) Str::uuid(), 'RETURN', '20.00');
+        $type = 'withdrawvcc.success';
+        $apiId = 'API-vccwithdraw';
+    }
+    $payload = ['apiId' => $apiId, 'type' => $type, 'timestamp' => (string) now()->getTimestampMs()];
+    $payload['sign'] = md5($payload['apiId'].$payload['type'].$payload['timestamp'].'offline-u1-key');
+    u1StandardFake($type, unsignedResult: true);
+    if ($callback) {
+        $event = app(U1Accounts::class)->receive($connection->id, json_encode($payload));
+        app(U1Callbacks::class)->process($connection->id, $event['id']);
+        expect(DB::table('u1_notifications')->where('id', $event['id'])->value('processing_status'))->toBe('PROCESSED');
+    } else {
+        $manage->sync($card->tenant_id, $pending->id);
+    }
+    expect($pending->fresh()->status)->toBe('SUCCEEDED');
+    $entries = LedgerEntry::count();
+    $manage->sync($card->tenant_id, $pending->id);
+    expect(LedgerEntry::count())->toBe($entries);
+    Http::assertNotSent(fn ($request) => in_array(basename($request->url()), ['vccopen', 'vccrechage', 'vccwithdraw'], true));
+})->with([['LOAD', true], ['RETURN', true], ['LOAD', false], ['RETURN', false]]);
+
+it('retains U1 orders for mismatched query identities or invalid outer signatures', function (bool $validSignature): void {
+    u1StandardFixture($this);
+    $order = phaseTenIssue($this, '100.00');
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(fn ($request) => Http::response([
+        'resultCode' => '0000', 'timestamp' => $request['timestamp'],
+        'sign' => $validSignature ? md5('0000'.$request['timestamp'].'offline-u1-key') : str_repeat('0', 32),
+        'data' => ['apiId' => $validSignature ? 'OTHER-API' : $request['apiId'], 'type' => 'openvcc.success', 'cardNo' => 'U1-CARD-001'],
+    ]));
+    $result = app(SyncCardIssueAction::class)->execute($this->tenant->id, $order->id, $this->user->id);
+    expect($result->status->value)->toBe('UNKNOWN')
+        ->and(UserCard::where('card_issue_order_id', $order->id)->count())->toBe(0);
+    Http::assertSentCount(1);
 })->with([true, false]);

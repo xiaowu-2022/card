@@ -223,51 +223,18 @@ final class U1CardProvider implements CardProviderInterface
         if (! is_string($body)) {
             throw new ProviderUnknownResultException('U1 operation evidence is unavailable.');
         }
-        // queryapiid may return only unsigned facts. Require identical independently signed
-        // callback evidence from this connection; outer resultCode signing does not cover data.
-        $queryFacts = ExactJson::decode($body);
-        if (! isset($queryFacts['sign'], $queryFacts['timestamp'])) {
-            $callbacks = DB::table('u1_notifications')->where('connection_id', $this->connection->id)
-                ->where('api_id', $intent->api_id)->where('verified', true)->orderByDesc('received_at')->limit(10)->get();
-            foreach ($callbacks as $callback) {
-                $signedBody = Crypt::decryptString($callback->body_encrypted);
-                $signed = ExactJson::decode($signedBody);
-                $matches = true;
-                foreach (['apiId', 'type', 'cardNo'] as $field) {
-                    if (! is_string($queryFacts[$field] ?? null) || ($signed[$field] ?? null) !== $queryFacts[$field]) {
-                        $matches = false;
-                    }
-                }
-                if (! $matches) continue;
-                $verified = (new U1NotificationVerifier)->verify($signedBody, Crypt::decryptString($this->connection->api_key_encrypted));
-                if (! $verified['verified'] && $intent->api_key_snapshot_encrypted) {
-                    $verified = (new U1NotificationVerifier)->verify($signedBody, Crypt::decryptString($intent->api_key_snapshot_encrypted));
-                }
-                if ($verified['verified']) {
-                    $body = $signedBody;
-                    break;
-                }
-            }
-        }
-        $facts = (new U1NotificationVerifier)->verify($body, Crypt::decryptString($this->connection->api_key_encrypted));
-        if (! $facts['verified'] && $intent->api_key_snapshot_encrypted) {
-            $facts = (new U1NotificationVerifier)->verify($body, Crypt::decryptString($intent->api_key_snapshot_encrypted));
-        }
+        // U1ApiClient verifies the query envelope. Query data is an operation result,
+        // not a webhook: it need not contain an inner signature or timestamp.
         $event = ExactJson::decode($body);
-        \Illuminate\Support\Facades\Log::channel('u1_requests')->info('U1 operation evidence checked', [
+        $matches = ($event['apiId'] ?? null) === $intent->api_id;
+        \Illuminate\Support\Facades\Log::channel('u1_requests')->info('U1 operation result checked', [
             'connection_id' => $this->connection->id, 'operation_id' => $intent->id,
             'provider_request_id' => $intent->request_id, 'api_id' => $intent->api_id,
-            'kind' => $intent->kind, 'verified' => $facts['verified'],
-            'reason' => $facts['reason'] ?? null,
-            'api_id_matches' => ($event['apiId'] ?? null) === $intent->api_id,
-            'event_type_matches' => in_array($event['type'] ?? null, match ($intent->kind) {
-                'OPEN' => ['openvcc.success', 'openvcc.failed', 'openvcc.fail'],
-                'LOAD' => ['rechargevcc.success', 'rechargevcc.failed', 'rechargevcc.fail'],
-                'RETURN' => ['withdrawvcc.success', 'withdrawvcc.failed', 'withdrawvcc.fail'], default => [],
-            }, true),
+            'kind' => $intent->kind, 'result_code' => $response['resultCode'],
+            'api_id_matches' => $matches, 'verification' => 'QUERY_ENVELOPE',
         ]);
-        if (! $facts['verified'] || ($event['apiId'] ?? null) !== $intent->api_id) {
-            throw new ProviderUnknownResultException('U1 operation evidence does not match.');
+        if ($response['resultCode'] !== '0000' || ! $matches) {
+            throw new ProviderUnknownResultException('U1 operation result does not match or is still pending.');
         }
         $prefix = match ($intent->kind) {
             'OPEN' => 'openvcc', 'LOAD' => 'rechargevcc', 'RETURN' => 'withdrawvcc', default => ''

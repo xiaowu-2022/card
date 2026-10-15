@@ -41,7 +41,6 @@ const active = ref<string | null>(null),
     errors = ref<Record<string, string>>({}),
     otp = ref<{ code: string; expiresAt: string } | null>(null),
     details = ref<{ pan: string; cvv: string } | null>(null),
-    copyNotice = ref(''),
     order = ref<CardOperation | null>(null),
     history = ref<CardOperation[]>([]),
     confirmed = ref(false),
@@ -148,7 +147,6 @@ function clearSensitive() {
     fields.value = {};
     original.value = {};
     holderLoaded.value = false;
-    copyNotice.value = '';
     confirmed.value = false;
     clearTimeout(revealTimer);
     active.value = null;
@@ -171,7 +169,6 @@ function open(action: string) {
     password.value = '';
     details.value = null;
     otp.value = null;
-    copyNotice.value = '';
     order.value = null;
     errors.value = {};
     amount.value = '';
@@ -282,7 +279,6 @@ async function run(action: string, target?: CardOperation) {
             revealTimer = setTimeout(() => {
                 details.value = null;
                 otp.value = null;
-                copyNotice.value = '';
             }, 30000);
         } else if (action === 'history') {
             if (!Array.isArray(result.orders)) throw new Error('Invalid history');
@@ -330,7 +326,6 @@ function submit() {
 async function copy(part: 'pan' | 'cvv' | 'all') {
     if (!details.value) return;
     const runId = generation;
-    copyNotice.value = '';
     const data =
         part === 'all'
             ? t('Card number') +
@@ -353,13 +348,11 @@ async function copy(part: 'pan' | 'cvv' | 'all') {
             }),
         );
         if (runId === generation && visible) {
-            copyNotice.value = t('Card information copied');
-            uni.showToast({ title: copyNotice.value, icon: 'success', duration: 2000 });
+            uni.showToast({ title: t('Card information copied'), icon: 'none', duration: 1800 });
         }
     } catch {
         if (runId === generation && visible) {
-            copyNotice.value = t('Copy failed. Please select and copy manually.');
-            uni.showToast({ title: copyNotice.value, icon: 'none', duration: 3000 });
+            uni.showToast({ title: t('Copy failed. Please select and copy manually.'), icon: 'none', duration: 3000 });
         }
     }
 }
@@ -547,7 +540,6 @@ async function copy(part: 'pan' | 'cvv' | 'all') {
                             </button></view
                         ><button class="primary wide" @click="copy('all')">
                             {{ t('Copy all card information') }}</button
-                        ><text v-if="copyNotice">{{ copyNotice }}</text
                         ><text class="small muted">{{
                             t(
                                 'Card information hides after 30 seconds or when you leave this page. Copied information remains in your clipboard.',
