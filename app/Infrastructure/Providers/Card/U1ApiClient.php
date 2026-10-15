@@ -114,9 +114,9 @@ final readonly class U1ApiClient
         return $this->call('vccquery', compact('cardNo'));
     }
 
-    public function openCard(string $currency, string $amount, string $groupNo, string $cardName = '', ?string $requestId = null): array
+    public function openCard(string $currency, string $amount, string $groupNo, string $cardName = '', ?string $requestId = null, ?string $email = null): array
     {
-        return $this->call('vccopen', compact('currency', 'amount', 'groupNo', 'cardName') + ($requestId === null ? [] : ['requestId' => $requestId]));
+        return $this->call('vccopen', compact('currency', 'amount', 'groupNo', 'cardName') + ($email === null || $email === '' ? [] : ['email' => $email]) + ($requestId === null ? [] : ['requestId' => $requestId]));
     }
 
     public function recharge(string $currency, string $amount, string $cardNo, ?string $requestId = null): array

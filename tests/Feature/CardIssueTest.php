@@ -3655,3 +3655,24 @@ it('uses each U1 product minimum below twenty and preserves the accepted order s
     $this->product->forceFill(['minimum_initial_load' => '10'])->save();
     expect($order->fresh()->minimum_initial_load)->toBe('1.00000000');
 });
+
+it('uses U1 specific setup with optional email and no fabricated holder identity', function (?string $email): void {
+    $connection = u1StandardFixture($this);
+    $data = ['request_id' => $this->holder->request_id, 'card_product_id' => $this->product->id, 'form_factor' => 'virtual_card'];
+    if ($email !== null) $data['email'] = $email;
+    $this->actingAs($this->user, 'tenant_user')->post('http://a.localhost/cards/cardholder', $data)->assertRedirect()->assertSessionHasNoErrors();
+    $holder = ProviderCardholder::where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->where('request_id', $data['request_id'])->firstOrFail();
+    expect($holder->status)->toBe(ProviderCardholderStatus::LocalReady)->and($holder->provider_cardholder_id)->toBeNull();
+    $saved = json_decode(app(CardholderMaterials::class)->decrypt($holder->materials_encrypted), true);
+    expect($saved['fields']['legal_first_name'])->toBeNull()->and($saved['fields']['mobile'])->toBeNull()
+        ->and($saved['documents'])->toBe([])->and($saved['fields']['email'])->toBe($email);
+    $this->holder = $holder;
+    $restored = app(\App\Application\Card\ReadUnissuedCardholderMaterialsQuery::class)->execute($this->tenant->id, $this->user->id, $holder->id);
+    expect($restored)->toBe(['email' => $email ?? '']);
+    phaseTenIssue($this, '20.00');
+    Http::assertSent(function ($request) use ($email) {
+        if (! str_ends_with($request->url(), '/vccopen')) return false;
+        expect($request->data())->not->toHaveKeys(['mobile', 'legal_first_name', 'legal_last_name']);
+        return $email === null ? ! isset($request['email']) : $request['email'] === $email;
+    });
+})->with([null, 'offline-holder@example.test']);

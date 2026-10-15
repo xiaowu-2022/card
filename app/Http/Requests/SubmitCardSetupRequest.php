@@ -21,6 +21,15 @@ final class SubmitCardSetupRequest extends FormRequest
             'mobile' => ['required', 'string', 'max:24', 'regex:/^[0-9 ()-]{4,24}$/'],
             'mobile_country_code' => ['required', Rule::in(app(CardholderGeography::class)->countryCodes())],
         ];
+        $id = $this->input('card_product_id');
+        $product = is_string($id) && \Illuminate\Support\Str::isUuid($id)
+            ? \App\Domain\CardProduct\Models\CardProduct::find($id) : null;
+        if ($product && app(\App\Application\Card\CardProductProviderRouter::class)->isU1Account($product)) {
+            foreach (['legal_first_name', 'legal_last_name', 'date_of_birth', 'mobile', 'mobile_country_code'] as $field) {
+                $rules[$field] = ['nullable', 'string', 'max:254'];
+            }
+            $rules['email'] = ['nullable', 'email:rfc', 'max:254'];
+        }
         foreach (['tenant_id', 'user_id', 'provider', 'provider_cardholder_id', 'nationality_country_code',
             'residential_address', 'residential_city', 'residential_state', 'residential_country_code', 'residential_postal_code',
             'document_type', 'document_country', 'identity_number', 'front', 'back', 'front_upload_id', 'back_upload_id',
@@ -40,7 +49,7 @@ final class SubmitCardSetupRequest extends FormRequest
             'mobile.required' => 'This field is required.',
             'mobile_country_code.required' => 'Select a calling code and enter a valid mobile number.',
             'email.email' => 'Enter a valid email address.',
-            'email.max' => 'Email must be at most 40 characters.',
+            'email.max' => 'Email must be at most :max characters.',
             'mobile.regex' => 'Select a calling code and enter a valid mobile number.',
             'mobile.max' => 'Select a calling code and enter a valid mobile number.',
             'legal_first_name.regex' => 'Use letters and spaces only, up to 40 characters.',

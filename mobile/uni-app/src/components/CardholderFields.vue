@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useFeedbackField } from '../lib/form-feedback';
 import FormField from './FormField.vue';
 import SelectField from './SelectField.vue';
@@ -10,10 +10,15 @@ const props = defineProps<{
         disabled?: boolean;
         editing?: boolean;
         compact?: boolean;
+        fixedCallingCode?: boolean;
+        hideTitle?: boolean;
         birthDateRequired?: boolean;
         errors?: Record<string, string>;
     }>(),
     emit = defineEmits<{ 'update:modelValue': [value: Record<string, string>] }>();
+watch(() => props.modelValue.mobile_country_code, (value) => {
+    if (props.fixedCallingCode && value !== 'CN') set('mobile_country_code', 'CN');
+}, { immediate: true });
 const birthElement = ref();
 useFeedbackField(() => ['date_of_birth'], () => birthElement.value);
 const phones = computed(() => countryOptions(locale.value, true));
@@ -26,7 +31,7 @@ function set(key: string, value: string) {
 </script>
 <template>
     <view class="holder-fields" :class="{ compact }"
-        ><text class="section-title">{{ t('Card user') }}</text
+        ><text v-if="!hideTitle" class="section-title">{{ t('Card user') }}</text
         ><view class="grid"
             ><FormField
                 name="legal_last_name"
@@ -77,7 +82,9 @@ function set(key: string, value: string) {
             ><view
                 ><text class="label">{{ t('Mobile number') }}</text
                 ><view class="phone"
+                    ><view v-if="fixedCallingCode" class="fixed-code">{{ phones.find((option) => option.value === 'CN')?.label ?? '+86' }}</view
                     ><SelectField
+                        v-else
                         :model-value="modelValue.mobile_country_code ?? ''"
                         :label="t('Calling code')"
                         :options="phones"
@@ -112,6 +119,17 @@ function set(key: string, value: string) {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 0 20px;
+}
+.fixed-code {
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    min-height: 54px;
+    padding: 14px 12px;
+    border: 1px solid #e2e7e4;
+    border-radius: 12px;
+    background: white;
+    white-space: nowrap;
 }
 .phone {
     display: grid;
@@ -218,6 +236,7 @@ function set(key: string, value: string) {
 }
 .compact :deep(.form-input),
 .compact .date,
+.compact .fixed-code,
 .compact :deep(.select-trigger) {
     height: 40px;
     min-height: 40px;

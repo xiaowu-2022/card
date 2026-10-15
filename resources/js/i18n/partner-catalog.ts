@@ -1,4 +1,5 @@
 export const partnerCatalog = {
+    'Verification email (optional)': ['验证码接收邮箱（选填）', 'E-mel pengesahan (pilihan)', 'Correo de verificación (opcional)'],
     'Item': ['项目', 'Item', 'Concepto'],
     '{{days}}-day average': ['前{{days}}天日均', 'Purata {{days}} hari', 'Promedio de {{days}} días'],
     'Security deposit refunds': ['保证金退回金额', 'Bayaran balik deposit keselamatan', 'Reembolsos de garantía'],

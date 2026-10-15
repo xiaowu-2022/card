@@ -57,3 +57,7 @@ U1ApiClient 实现文档 17 个接口：queryaccount、querygroupno、vccadd、v
 2026-10-14 OTP 文档更正：签名顺序为 `MD5(cardNo+type+otp+timestamp+key)`，替代原先 timestamp 在 otp 前的顺序。已使用用户提供的失败通知在本地解密重算，修正顺序与上游签名匹配。仅更新验签字段顺序，不接受旧顺序回退、不改写历史通知、不自动重新处理既有记录；发布 PHP 后重载 PHP-FPM/队列 worker。
 
 2026-10-14 生产错误修复：queryapiid.data 同时接受 JSON 对象与通知 JSON 字符串，仍严格验证内层签名、apiId、操作类型。正常待确认通过队列 release 有界重试，最终仍保留 RETRY，不改资金结果。非预期异常保留失败队列记录，独立日志记录安全异常类型及通知 ID，详见部署文档的 2026-10-14 后台任务错误修复。
+
+## 2026-10-15 Provider-specific application materials
+
+The consumer catalog derives `applicationProfile` from the product's server-side provider binding. U1 applications collect the initial load and an optional verification email; names, phone, birth date and identity-document copies are not U1 opening parameters. Approved account KYC and existing owner/company/product, consent, wallet and idempotency gates still apply. Optional email is retained in encrypted application materials and forwarded to U1 vccopen; it is not included in the documented opening signature. Other providers retain their existing cardholder material requirements. Client-supplied provider selection cannot relax backend validation. Deploy matching PHP, web and rebuilt H5 assets (copied into public/h5); no migration or live financial test is required.

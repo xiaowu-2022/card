@@ -1,4 +1,5 @@
 export type Product = {
+    applicationProfile?: 'U1' | 'CARDHOLDER';
     supportedFormFactors?: string[];
     bin?: string;
     id: string;

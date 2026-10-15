@@ -12,5 +12,6 @@ final readonly class IssueCardRequestDTO
         public string $idempotencyKey,
         public string $formFactor = 'virtual_card',
         public ?string $recipientId = null,
+        public ?string $verificationEmail = null,
     ) {}
 }

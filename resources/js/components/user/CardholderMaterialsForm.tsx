@@ -31,10 +31,12 @@ export function CardholderMaterialsForm({
     form,
     updateRequestId,
     onAdded,
+    applicationProfile,
 }: {
     form: ReturnType<typeof useCardholderMaterialsForm>;
     updateRequestId?: string;
     onAdded: () => void;
+    applicationProfile?: 'U1' | 'CARDHOLDER';
 }) {
     useClientTranslation();
     const countries = useCardGeography<Country[]>('countries');
@@ -146,6 +148,22 @@ export function CardholderMaterialsForm({
                     }}
                 />
             </FormField>
+        );
+    }
+    if (applicationProfile === 'U1') {
+        return (
+            <form className="space-y-4" onSubmit={(event) => {
+                event.preventDefault();
+                form.transform((data) => ({ card_product_id: data.card_product_id, form_factor: data.form_factor, email: data.email, request_id: updateRequestId ?? data.request_id }));
+                form.post('/cards/cardholder', { preserveScroll: true, onSuccess: onAdded });
+            }}>
+                <FormField id="u1-email" label={t('Verification email (optional)')} error={errorMessage(errors.email)}>
+                    <Input id="u1-email" type="email" maxLength={254} value={form.data.email}
+                        disabled={form.processing} onChange={(event) => form.setData('email', event.target.value)} />
+                </FormField>
+                {errors.form && <p role="alert">{errorMessage(errors.form)}</p>}
+                <Button type="submit" disabled={form.processing}>{t('Continue')}</Button>
+            </form>
         );
     }
     return (

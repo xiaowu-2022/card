@@ -42,6 +42,7 @@ import { UserLayout } from '@/layouts/UserLayout';
 import type { SharedProps } from '@/types/global';
 
 type Product = {
+    applicationProfile?: 'U1' | 'CARDHOLDER';
     supportedFormFactors?: string[];
     bin?: string;
     id: string;
@@ -193,7 +194,7 @@ function ProductIssue({
         setLoadingMaterials(true);
         setMaterialReadError('');
         try {
-            const fields = await loadCardholderApplicationFields(application.id);
+            const fields = await loadCardholderApplicationFields(application.id, product.applicationProfile);
             if (generation !== materialReadGeneration.current) return;
             materialsForm.setData((data) => ({
                 ...data,
@@ -347,6 +348,7 @@ function ProductIssue({
                                     </p>
                                 )}
                                 <CardholderMaterialsForm
+                                    applicationProfile={product.applicationProfile}
                                     form={materialsForm}
                                     updateRequestId={application?.requestId ?? undefined}
                                     onAdded={() => {

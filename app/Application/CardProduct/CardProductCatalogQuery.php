@@ -160,6 +160,7 @@ final readonly class CardProductCatalogQuery
         return [
             'id' => $product->id,
             'name' => $config->display_name ?: $product->name,
+            'applicationProfile' => $this->router->isU1Account($product) ? 'U1' : 'CARDHOLDER',
             'cardType' => 'Mastercard U Card',
             'monthlyFeeText' => $product->monthly_fee_text,
             'notes' => $product->notes,

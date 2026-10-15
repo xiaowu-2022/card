@@ -1,21 +1,19 @@
 <script setup lang="ts">
 import { useFormFeedback } from '../lib/form-feedback';
 import { computed, ref, watch, onMounted } from 'vue';
-import CardProductInfo from './CardProductInfo.vue';
 import ProcessingOverlay from './ProcessingOverlay.vue';
 import Modal from './Modal.vue';
 import CardholderFields from './CardholderFields.vue';
 import CardRecipient from './CardRecipient.vue';
 import FormField from './FormField.vue';
 import FormErrors from './FormErrors.vue';
-import ConfirmCheck from './ConfirmCheck.vue';
 import { t } from '../lib/i18n';
 import { ApiError, request } from '../lib/api';
 import { getPage, useAction, requestId, explainError } from '../lib/client';
 import { session } from '../lib/session';
 import { useSensitiveScreen } from '../lib/sensitive';
 import { go } from '../lib/navigation';
-import { displayMoney, exactAmount } from '../generated/exact-amount';
+import { exactAmount } from '../generated/exact-amount';
 import {
     minorUnits,
     moneyFromMinor,
@@ -35,8 +33,7 @@ const emit = defineEmits<{ close: []; reload: [] }>();
 const action = useAction();
 const holder = ref(props.application),
     working = ref(false),
-    loading = ref(false),
-    confirmed = ref(false);
+    loading = ref(false);
 const fields = ref<Record<string, string>>({
     legal_first_name: '',
     legal_last_name: '',
@@ -54,6 +51,7 @@ const materialUncertain = ref(false),
     issueUncertain = ref(false);
 const recipient = ref<InstanceType<typeof CardRecipient> | null>(null);
 const factor = computed(() => holder.value?.formFactor ?? props.selectedFormFactor);
+const u1Profile = computed(() => props.product.applicationProfile === 'U1');
 const ready = computed(() => holder.value?.state === 'ready');
 const pending = computed(
     () =>
@@ -81,6 +79,7 @@ const calculation = computed(() => {
 });
 const validFields = computed(
     () =>
+        u1Profile.value ||
         ['legal_first_name', 'legal_last_name', 'email', 'mobile', 'mobile_country_code'].every(
             (key) => fields.value[key]?.trim(),
         ) &&
@@ -91,7 +90,6 @@ const canSubmit = computed(
         props.product.readyForSetup &&
         !pending.value &&
         validFields.value &&
-        confirmed.value &&
         !!calculation.value?.enough &&
         !!calculation.value?.meetsMinimum &&
         (factor.value !== 'physical_card' || !!recipient.value?.valid),
@@ -106,15 +104,6 @@ const needed = computed(() =>
         value1: exactAmount(calculation.value?.total ?? '0'),
     }),
 );
-const receiptHint = computed(() =>
-    t('The card receives the same amount in {{value1}}.', { value1: props.product.cardCurrency }),
-);
-const warning = computed(() =>
-    t(
-        'An opening fee of ${{fee}} and initial balance of ${{amount}} will be reserved separately while your card is created. Do not create another request while it is pending.',
-        { fee: exactAmount(props.product.openingFee), amount: displayMoney(amount.value) },
-    ),
-);
 let generation = 0;
 watch(
     () => props.application,
@@ -123,16 +112,8 @@ watch(
     },
 );
 watch(amount, () => {
-    confirmed.value = false;
     if (!issueUncertain.value) issueId.value = requestId();
 });
-watch(
-    fields,
-    () => {
-        confirmed.value = false;
-    },
-    { deep: true },
-);
 function close() {
     if (busy.value) return;
     generation++;
@@ -144,7 +125,6 @@ function close() {
 useSensitiveScreen(
     () => {
         generation++;
-        confirmed.value = false;
         fields.value = {};
         original.value = null;
         emit('close');
@@ -161,7 +141,7 @@ async function loadSavedFields() {
             'POST',
         );
         if (run !== generation) return;
-        const keys = [
+        const keys = u1Profile.value ? ['email'] : [
             'legal_first_name',
             'legal_last_name',
             'email',
@@ -269,7 +249,7 @@ async function submit() {
         }
         if (
             !issueUncertain.value &&
-            (!calculation.value?.enough || !calculation.value?.meetsMinimum || !confirmed.value)
+            (!calculation.value?.enough || !calculation.value?.meetsMinimum)
         )
             return;
         issueUncertain.value = true;
@@ -322,8 +302,18 @@ const feedback = useFormFeedback(combinedErrors);
         @close="close"
     >
         <view class="application">
+            <FormField
+                v-if="u1Profile"
+                name="email"
+                v-model="fields.email"
+                :label="t('Verification email (optional)')"
+                :disabled="busy || pending || issueUncertain"
+            />
             <CardholderFields
+                v-else
                 compact
+                fixed-calling-code
+                hide-title
                 v-model="fields"
                 :birth-date-required="birthDateRequired"
                 :disabled="busy || pending || issueUncertain"
@@ -359,37 +349,20 @@ const feedback = useFormFeedback(combinedErrors);
                     ></view
                 >
             </view>
-            <ConfirmCheck
-                v-model="confirmed"
-                :disabled="busy || pending || issueUncertain"
-                :label="t('I confirm the opening fee and initial card balance shown above.')"
-            />
             <FormErrors :errors="combinedErrors" />
             <text v-if="!calculation?.meetsMinimum" class="error">{{ minimumHint }}</text>
             <text v-if="calculation && !calculation.enough" class="error">{{ needed }}</text>
-            <view class="notes">
-                <text
-                    >{{ t('Available Wallet balance') }}:
-                    {{
-                        balance === null ? t('Unavailable') : displayMoney(balance) + ' USDT'
-                    }}</text
-                >
-                <text>{{ receiptHint }}</text>
-                <text>{{
+            <view v-if="!u1Profile" class="notes">
+                <text v-if="!u1Profile">{{
                     t(
                         'Your email receives purchase verification codes. Please ensure you can receive these emails.',
                     )
                 }}</text>
-                <text>{{
+                <text v-if="!u1Profile">{{
                     t(
                         'Your mobile number receives purchase verification codes. Please ensure it can receive SMS.',
                     )
                 }}</text>
-                <text>{{ warning }}</text>
-                <CardProductInfo
-                    :monthly-fee-text="product.monthlyFeeText"
-                    :notes="product.notes"
-                />
             </view>
         </view>
         <template #footer>
@@ -440,12 +413,6 @@ const feedback = useFormFeedback(combinedErrors);
     min-height: 40px;
     padding: 8px 10px;
     border-radius: 8px;
-}
-.application :deep(.confirm-check) {
-    margin: 4px 0;
-    font-size: 13px;
-    line-height: 20px;
-    gap: 8px;
 }
 .fees {
     border: 1px solid #e2e7e4;

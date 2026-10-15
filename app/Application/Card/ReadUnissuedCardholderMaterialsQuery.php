@@ -22,13 +22,16 @@ final readonly class ReadUnissuedCardholderMaterialsQuery
         $user = User::query()->where('tenant_id', $tenantId)->whereKey($userId)->firstOrFail();
         $holder = ProviderCardholder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->whereKey($applicationId)->firstOrFail();
         if ($tenant->status->value !== 'ACTIVE' || $user->status->value !== 'ACTIVE'
-            || ! in_array($holder->status->value, ['READY', 'ACTION_REQUIRED'], true)
-            || ! $holder->request_id || ! $holder->provider_cardholder_id
+            || ! in_array($holder->status->value, ['READY', 'ACTION_REQUIRED', 'LOCAL_READY'], true)
+            || ! $holder->request_id || ($holder->provider !== 'U1' && ! $holder->provider_cardholder_id)
             || CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('provider_cardholder_id', $holder->id)->exists()) {
             throw new DomainException('CARD_MATERIALS_LOCKED', 'Cardholder materials cannot be edited while an application is being processed.', 409);
         }
         try {
             $saved = json_decode($this->materials->decrypt($holder->materials_encrypted), true, flags: JSON_THROW_ON_ERROR)['fields'];
+            if ($holder->provider === 'U1') {
+                return ['email' => is_string($saved['email'] ?? null) ? $saved['email'] : ''];
+            }
             $fields = array_intersect_key($saved, array_flip(['legal_first_name', 'legal_last_name', 'email', 'mobile']));
             if (app(AccountCardholderMaterials::class)->requiresBirthDate($tenantId, $userId)) {
                 $fields['date_of_birth'] = $saved['date_of_birth'] ?? '';

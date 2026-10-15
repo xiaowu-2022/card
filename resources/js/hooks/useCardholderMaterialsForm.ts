@@ -17,7 +17,7 @@ const materialTextFields = [
     'cardholder_name_abbreviation',
 ] as const;
 
-export async function loadCardholderApplicationFields(applicationId: string) {
+export async function loadCardholderApplicationFields(applicationId: string, applicationProfile?: 'U1' | 'CARDHOLDER') {
     const token = document.cookie
         .split('; ')
         .find((value) => value.startsWith('XSRF-TOKEN='))
@@ -33,7 +33,7 @@ export async function loadCardholderApplicationFields(applicationId: string) {
     const result = (await response.json()) as { fields?: Record<string, unknown> };
     return Object.fromEntries(
         materialTextFields.map((key) => {
-            const value = result.fields?.[key];
+            const value = applicationProfile === 'U1' && key !== 'email' ? '' : result.fields?.[key];
             if (typeof value !== 'string')
                 throw new Error(
                     'Cardholder information could not be loaded. Please close and try again.',

@@ -104,13 +104,17 @@ final class U1CardProvider implements CardProviderInterface
         }
     }
 
-    private function prepare(string $kind, string $requestId, string $amount, ?string $cardId, ?string $groupNo): array
+    private function prepare(string $kind, string $requestId, string $amount, ?string $cardId, ?string $groupNo, ?string $email = null): array
     {
         if (! Str::isUuid($requestId) || ! $this->available()) {
             throw new ProviderUnavailableException('U1 connection is unavailable.');
         }
         $amount = $this->amount($amount);
-        $hash = hash('sha256', json_encode([$kind, $amount, $cardId, $groupNo, 'USD'], JSON_THROW_ON_ERROR));
+        $intentFields = [$kind, $amount, $cardId, $groupNo, 'USD'];
+        if ($email !== null && $email !== '') {
+            $intentFields[] = $email;
+        }
+        $hash = hash('sha256', json_encode($intentFields, JSON_THROW_ON_ERROR));
 
         return DB::transaction(function () use ($kind, $requestId, $amount, $cardId, $groupNo, $hash): array {
             CardProviderReference::whereKey($this->connection->reference_id)->lockForUpdate()->firstOrFail();
@@ -135,9 +139,9 @@ final class U1CardProvider implements CardProviderInterface
         });
     }
 
-    private function sendOperation(string $kind, string $id, string $amount, ?string $cardId = null, ?string $groupNo = null): object
+    private function sendOperation(string $kind, string $id, string $amount, ?string $cardId = null, ?string $groupNo = null, ?string $email = null): object
     {
-        [$intent, $send] = $this->prepare($kind, $id, $amount, $cardId, $groupNo);
+        [$intent, $send] = $this->prepare($kind, $id, $amount, $cardId, $groupNo, $email);
         if (! $send) {
             return $intent;
         } // Ambiguous writes are never blindly resent.
@@ -145,7 +149,7 @@ final class U1CardProvider implements CardProviderInterface
         try {
             $wire = $this->wireAmount($amount);
             $response = match ($kind) {
-                'OPEN' => $this->client()->openCard('USD', $wire, $groupNo, requestId: $intent->id),
+                'OPEN' => $this->client()->openCard('USD', $wire, $groupNo, requestId: $intent->id, email: $email),
                 'LOAD' => $this->client()->recharge('USD', $wire, $cardId, $intent->id),
                 'RETURN' => $this->client()->withdraw($wire, $cardId, $intent->id),
                 default => throw new ProviderUnavailableException('Unsupported U1 operation.'),
@@ -257,7 +261,7 @@ final class U1CardProvider implements CardProviderInterface
             throw new ProviderUnavailableException('This U1 card group is unavailable.');
         }
         $this->wireAmount($request->initialLoadAmount);
-        $intent = $this->sendOperation('OPEN', $request->idempotencyKey, $request->initialLoadAmount, groupNo: $request->providerProductReference);
+        $intent = $this->sendOperation('OPEN', $request->idempotencyKey, $request->initialLoadAmount, groupNo: $request->providerProductReference, email: $request->verificationEmail);
 
         return new ProviderOperationDTO($request->idempotencyKey, $this->status($intent));
     }

@@ -247,3 +247,7 @@ Verification: synthetic browser flow checks on Chrome/WebKit cover one-click com
 material-response loss without a second material submission, changed-fee stop before
 issue, exact eight-place opening fees, first-screen required fields and a visible footer.
 H5 assets are deployed locally; installed native apps need rebuilding to adopt the UI.
+
+## 2026-10-15 Provider-specific application materials
+
+The consumer catalog derives `applicationProfile` from the product's server-side provider binding. U1 applications collect the initial load and an optional verification email; names, phone, birth date and identity-document copies are not U1 opening parameters. Approved account KYC and existing owner/company/product, consent, wallet and idempotency gates still apply. Optional email is retained in encrypted application materials and forwarded to U1 vccopen; it is not included in the documented opening signature. Other providers retain their existing cardholder material requirements. Client-supplied provider selection cannot relax backend validation. Deploy matching PHP, web and rebuilt H5 assets (copied into public/h5); no migration or live financial test is required.

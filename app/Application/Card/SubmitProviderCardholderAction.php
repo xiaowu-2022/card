@@ -59,28 +59,39 @@ final readonly class SubmitProviderCardholderAction
         if (! in_array($formFactor, $product->supported_form_factors, true)) {
             throw new DomainException('CARD_FORM_UNAVAILABLE', 'This card type is not available.', 409);
         }
-        $account = app(AccountCardholderMaterials::class)->resolve($tenantId, $userId, is_string($data['date_of_birth'] ?? null) ? $data['date_of_birth'] : null);
-        // Fixed/identity-derived fields have one authoritative source. They are not
-        // merged with form values, including empty or outdated client fields.
-        $fields = $account['fields'];
-        foreach (['legal_first_name' => 'Enter the cardholder first name.',
-            'legal_last_name' => 'Enter the cardholder last name.',
-            'email' => 'Enter a valid email address.'] as $key => $message) {
-            $value = $data[$key] ?? null;
-            if (! is_string($value) || trim($value) === '') {
-                throw new DomainException('CARD_SETUP_INVALID', $message);
+        if ($provider->name() === 'U1') {
+            $email = $data['email'] ?? null;
+            $email = is_string($email) ? trim($email) : $email;
+            if ($email !== null && $email !== '' && (! is_string($email) || strlen($email) > 254 || ! filter_var($email, FILTER_VALIDATE_EMAIL))) {
+                throw new DomainException('CARD_SETUP_INVALID', 'Enter a valid email address.');
             }
-            $fields[$key] = trim($value);
+            // U1 has no holder API. KYC remains enforced by assertOwner; no fabricated identity materials.
+            $fields = ['email' => $email === '' ? null : $email];
+            $account = ['keys' => [], 'images' => ['front' => ['', null]]];
+        } else {
+            $account = app(AccountCardholderMaterials::class)->resolve($tenantId, $userId, is_string($data['date_of_birth'] ?? null) ? $data['date_of_birth'] : null);
+            // Fixed/identity-derived fields have one authoritative source. They are not
+            // merged with form values, including empty or outdated client fields.
+            $fields = $account['fields'];
+            foreach (['legal_first_name' => 'Enter the cardholder first name.',
+                'legal_last_name' => 'Enter the cardholder last name.',
+                'email' => 'Enter a valid email address.'] as $key => $message) {
+                $value = $data[$key] ?? null;
+                if (! is_string($value) || trim($value) === '') {
+                    throw new DomainException('CARD_SETUP_INVALID', $message);
+                }
+                $fields[$key] = trim($value);
+            }
+            $fields['cardholder_name_abbreviation'] = $formFactor === 'physical_card'
+                ? strtoupper($fields['legal_first_name'].'/'.$fields['legal_last_name']) : null;
+            if ($formFactor === 'physical_card' && (strlen($fields['cardholder_name_abbreviation']) > 26 || ! preg_match('/^[A-Z]+(?: [A-Z]+)*\/[A-Z]+(?: [A-Z]+)*$/D', $fields['cardholder_name_abbreviation']))) {
+                throw new DomainException('CARD_SETUP_INVALID', 'Enter the uppercase cardholder name as FIRST/LAST.');
+            }
+            // The simplified form never accepts or forwards a client identity number.
+            $fields['identity_number'] = null;
+            $this->geography->assertValid($fields);
+            $fields += $this->geography->phone($data['mobile'] ?? null, $data['mobile_country_code'] ?? null);
         }
-        $fields['cardholder_name_abbreviation'] = $formFactor === 'physical_card'
-            ? strtoupper($fields['legal_first_name'].'/'.$fields['legal_last_name']) : null;
-        if ($formFactor === 'physical_card' && (strlen($fields['cardholder_name_abbreviation']) > 26 || ! preg_match('/^[A-Z]+(?: [A-Z]+)*\/[A-Z]+(?: [A-Z]+)*$/D', $fields['cardholder_name_abbreviation']))) {
-            throw new DomainException('CARD_SETUP_INVALID', 'Enter the uppercase cardholder name as FIRST/LAST.');
-        }
-        // The simplified form never accepts or forwards a client identity number.
-        $fields['identity_number'] = null;
-        $this->geography->assertValid($fields);
-        $fields += $this->geography->phone($data['mobile'] ?? null, $data['mobile_country_code'] ?? null);
         // Preserve the established serialization order for immutable retry fingerprints.
         $fields = array_replace(array_fill_keys(['legal_first_name', 'legal_last_name', 'date_of_birth', 'email',
             'nationality_country_code', 'residential_address', 'residential_city', 'residential_state',

@@ -234,7 +234,7 @@ final readonly class CreateCardIssueAction
                 'funding_hold_ledger_entry_id' => $fundingEntry->id,
             ], $auditRequestId);
 
-            return ['order' => $order, 'created' => true, 'cardholderReference' => $cardholder->provider_cardholder_id ?? ''];
+            return ['order' => $order, 'created' => true, 'cardholderReference' => $cardholder->provider_cardholder_id ?? '', 'verificationEmail' => $providerName === 'U1' ? (json_decode(app(\App\Domain\Card\Services\CardholderMaterials::class)->decrypt($cardholder->materials_encrypted), true, flags: JSON_THROW_ON_ERROR)['fields']['email'] ?? null) : null];
         }, 3);
 
         if (! $prepared['created']) {
@@ -250,6 +250,7 @@ final readonly class CreateCardIssueAction
                 $order->provider_request_id,
                 $order->form_factor,
                 $order->provider_recipient_id,
+                $prepared['verificationEmail'] ?? null,
             ));
         } catch (ProviderRejectedException|ProviderAuthenticationException) {
             return $this->results->fail($tenantId, $order->id);
