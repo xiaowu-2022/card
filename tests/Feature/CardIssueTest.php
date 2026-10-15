@@ -4001,3 +4001,18 @@ it('automatically backfills old missing card details for both providers without 
     $this->artisan('cards:sync-saved-details')->assertSuccessful();
     Queue::assertNothingPushed();
 })->with([true, false]);
+
+it('logs specific U1 sensitive response validation failures without card secrets', function (): void {
+    u1StandardFixture($this);
+    $issue = phaseTenIssue($this, '100.00');
+    app(SyncCardIssueAction::class)->execute($this->tenant->id, $issue->id, $this->user->id);
+    $card = UserCard::where('card_issue_order_id', $issue->id)->sole();
+    u1StandardFake(sensitiveData: ['cardNo' => '4111111111114242', 'cvv' => '263', 'expiry' => 'NN/NN', 'url' => 'https://example.invalid/private']);
+    $logger = Mockery::mock(\Illuminate\Log\LogManager::class, [app()])->makePartial();
+    \Illuminate\Support\Facades\Log::swap($logger);
+    $logger->shouldReceive('warning')->with('U1 sensitive card response incomplete', Mockery::on(fn ($context) =>
+        $context['pan_valid'] === true && $context['cvv_valid'] === true && $context['expiry_valid'] === false
+        && $context['iframe_present'] === true && ! str_contains(json_encode($context), '4111111111114242')
+        && ! str_contains(json_encode($context), 'example.invalid')))->once();
+    expect(fn () => app(CardProductProviderRouter::class)->forCard($card)->revealCard($card->provider_card_id))->toThrow(\App\Domain\CardProvider\Exceptions\ProviderUnknownResultException::class);
+});

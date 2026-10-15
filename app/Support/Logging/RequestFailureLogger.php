@@ -33,6 +33,12 @@ final class RequestFailureLogger
             'host' => $request->getHost(),
             'path' => $this->safePath($request->getPathInfo()),
             'path_hash' => hash('sha256', $request->getPathInfo()),
+            'path_encrypted' => $this->encryptedPath($request->getPathInfo()),
+            'referer_path' => $this->safePath((string) parse_url((string) $request->header('Referer', ''), PHP_URL_PATH)),
+            'fetch_destination' => $this->knownHeader($request, 'Sec-Fetch-Dest', ['document', 'empty', 'image', 'script', 'style', 'font', 'iframe', 'manifest', 'worker']),
+            'fetch_mode' => $this->knownHeader($request, 'Sec-Fetch-Mode', ['navigate', 'cors', 'no-cors', 'same-origin', 'websocket']),
+            'expects_json' => $request->expectsJson(),
+            'is_inertia' => $request->header('X-Inertia') === 'true',
             'client_page' => $this->safePath((string) parse_url(substr((string) $request->header('X-Consumer-Page', ''), 0, 1024), PHP_URL_PATH)),
             'route' => is_object($route) ? $route->getName() : null,
             'route_template' => is_object($route) ? $route->uri() : null,
@@ -87,11 +93,26 @@ final class RequestFailureLogger
         }
     }
 
+    private function encryptedPath(string $path): ?string
+    {
+        try {
+            return \Illuminate\Support\Facades\Crypt::encryptString(substr($path, 0, 8192));
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function knownHeader(Request $request, string $header, array $allowed): ?string
+    {
+        $value = $request->header($header);
+        return in_array($value, $allowed, true) ? $value : null;
+    }
+
     /** Preserve routing vocabulary while excluding arbitrary identifiers and credentials. */
     private function safePath(string $path): ?string
     {
         if ($path === '') return null;
-        $known = ['api', 'v1', 'v2', 'mobile', 'client', 'h5', 'assets', 'static', 'storage', 'favicon.ico', 'robots.txt', 'pages', 'index'];
+        $known = ['api', 'v1', 'v2', 'mobile', 'client', 'h5', 'assets', 'static', 'storage', 'favicon.ico', 'robots.txt', 'pages', 'index', '.well-known', 'appspecific', 'com.chrome.devtools.json'];
         foreach (\Illuminate\Support\Facades\Route::getRoutes() as $route) {
             foreach (explode('/', $route->uri()) as $part) {
                 if ($part !== '' && ! str_contains($part, '{')) $known[] = $part;

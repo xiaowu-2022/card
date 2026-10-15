@@ -329,6 +329,16 @@ final class U1CardProvider implements CardProviderInterface
             || ! is_string($data['cardNo'] ?? null) || ! preg_match('/^\d{12,19}$/D', $data['cardNo'])
             || ! is_string($data['cvv'] ?? null) || ! preg_match('/^\d{3,4}$/D', $data['cvv'])
             || ! is_string($data['expiry'] ?? null) || ! preg_match('/^(0[1-9]|1[0-2])\/\d{2}$/D', $data['expiry'])) {
+            \Illuminate\Support\Facades\Log::warning('U1 sensitive card response incomplete', [
+                'connection_id' => $this->connection->id,
+                'provider_card_reference_hash' => hash('sha256', $providerCardId),
+                'result_success' => ($response['resultCode'] ?? null) === '0000',
+                'data_is_array' => is_array($data),
+                'pan_valid' => is_array($data) && is_string($data['cardNo'] ?? null) && preg_match('/^\\d{12,19}$/D', $data['cardNo']) === 1,
+                'cvv_valid' => is_array($data) && is_string($data['cvv'] ?? null) && preg_match('/^\\d{3,4}$/D', $data['cvv']) === 1,
+                'expiry_valid' => is_array($data) && is_string($data['expiry'] ?? null) && preg_match('/^(0[1-9]|1[0-2])\\/\\d{2}$/D', $data['expiry']) === 1,
+                'iframe_present' => is_array($data) && is_string($data['url'] ?? null) && $data['url'] !== '',
+            ]);
             throw new ProviderUnknownResultException('U1 sensitive card information is unavailable.');
         }
 

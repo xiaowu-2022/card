@@ -135,3 +135,9 @@ and final failure logs contain company/card/provider identifiers, never card sec
 This supplements new-card after-commit acquisition and authorized reveal cache misses.
 Deploy PHP and restart workers; ensure the existing Laravel scheduler runs every minute.
 No additional migration or H5 rebuild is required for scheduled backfill.
+
+2026-10-15 diagnostics: U1 sensitive response validation failures now emit
+`U1 sensitive card response incomplete` with connection ID, hashed card reference,
+result success, data shape and separate PAN/CVV/expiry validity/iframe-presence flags.
+These logs do not disclose card details or embedded URLs; full encrypted request and
+response evidence remains in the existing U1 request log.

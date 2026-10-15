@@ -78,3 +78,19 @@ it('logs safe missing-route paths and client context without query strings or pa
     expect($this->failureEntries[1]['path'])->toBe('/api/v1/:redacted')
         ->and(json_encode($this->failureEntries))->not->toContain('VERY-PRIVATE-TOKEN', 'PRIVATE-PASSWORD');
 });
+
+it('retains recoverable exact missing paths and safe browser request context', function (): void {
+    $path = '/unknown-resource/build-file.js';
+    $this->withHeaders([
+        'Referer' => 'https://admin.localhost/platform/cards?token=REFERRER-SECRET',
+        'Sec-Fetch-Dest' => 'script', 'Sec-Fetch-Mode' => 'no-cors',
+    ])->get($path.'?token=QUERY-SECRET')->assertNotFound();
+    $entry = $this->failureEntries[0];
+    expect(\Illuminate\Support\Facades\Crypt::decryptString($entry['path_encrypted']))->toBe($path)
+        ->and($entry['referer_path'])->toBe('/platform/cards')
+        ->and($entry['fetch_destination'])->toBe('script')
+        ->and($entry['fetch_mode'])->toBe('no-cors')
+        ->and(json_encode($entry))->not->toContain('REFERRER-SECRET', 'QUERY-SECRET');
+    $this->get('/.well-known/appspecific/com.chrome.devtools.json')->assertNotFound();
+    expect($this->failureEntries[1]['path'])->toBe('/.well-known/appspecific/com.chrome.devtools.json');
+});
