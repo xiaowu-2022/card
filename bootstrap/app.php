@@ -43,6 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(RequestIdMiddleware::class);
         $middleware->append(\App\Http\Middleware\LogFailedRequests::class);
         $middleware->alias([
+            'business-throttle' => \App\Http\Middleware\ThrottleBusinessRequests::class,
             'inertia' => HandleInertiaRequests::class,
             'tenant' => ResolveTenantFromHost::class,
             'cleanup.fence' => FenceDataCleanup::class,

@@ -151,3 +151,16 @@ followed by frontend parsing failure therefore gets a server diagnostic when rea
 The database query normalizes fee/fee-return decimals to the same eight-place contract
 as transaction amounts; provider calls are not introduced on history reads.
 Deploy PHP and rebuilt public/h5 together; native clients require a rebuild.
+
+2026-10-15 background throttle isolation: consumer presence (12/minute) and card
+history diagnostics (20/minute) now use independent company/user/feature keys after
+consumer identity restoration. They no longer share Laravel's unprefixed generic
+polling counter, which could reject a diagnostic before its payload was recorded.
+Limits and authentication remain enforced. These 429 logs include feature/limit/
+window/retry-after metadata. Deploy PHP; clear cached routes if used. No H5 rebuild
+or migration is needed for this change. Original transaction failures cannot be
+inferred from rejected diagnostic requests; use accepted client diagnostic records.
+
+The later platform-wide ordinary limiter revision supersedes the 12/20 background
+quotas above: presence and card-history diagnostics are each 60/minute. See
+BUSINESS_THROTTLING.md for current independent counters and security exceptions.

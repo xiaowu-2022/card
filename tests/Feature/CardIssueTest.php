@@ -4036,3 +4036,23 @@ it('records scoped frontend transaction failures even when the original API resp
     $this->postJson($url, ['page' => 1, 'stage' => 'response_validation', 'reason' => 'arbitrary private response'])
         ->assertUnprocessable();
 });
+
+it('isolates presence and card history diagnostics from generic polling throttle counters', function (): void {
+    [$card] = managedCardFixture($this);
+    $this->actingAs($this->user, 'tenant_user');
+    // Existing unprefixed framework throttle can have a high count from unread polling.
+    \Illuminate\Support\Facades\RateLimiter::hit(sha1($this->user->id), 60);
+    for ($i = 0; $i < 25; $i++) {
+        $this->getJson('http://a.localhost/api/v1/unread')->assertOk();
+    }
+    $this->postJson('http://a.localhost/api/v1/presence')->assertNoContent();
+    $url = 'http://a.localhost/api/v1/client/cards/'.$card->id.'/transactions/load-failure';
+    $data = ['page' => 1, 'stage' => 'response_validation', 'reason' => 'invalid_fee', 'http_status' => 200];
+    for ($i = 0; $i < 60; $i++) $this->postJson($url, $data)->assertOk();
+    $this->postJson($url, $data)->assertStatus(429);
+    // Exhausted diagnostics do not block heartbeats or database history reads.
+    $this->postJson('http://a.localhost/api/v1/presence')->assertNoContent();
+    $this->getJson('http://a.localhost/api/v1/client/cards/'.$card->id.'/transactions')->assertOk();
+    for ($i = 0; $i < 58; $i++) $this->postJson('http://a.localhost/api/v1/presence')->assertNoContent();
+    $this->postJson('http://a.localhost/api/v1/presence')->assertStatus(429);
+});

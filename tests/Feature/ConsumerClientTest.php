@@ -89,9 +89,9 @@ it('preserves actionable field validation and native multipart KYC validation wi
         'current_password' => 'incorrect', 'password' => 'new-password', 'password_confirmation' => 'different',
     ])->assertUnprocessable()->assertJsonValidationErrors('password');
     $this->post('http://a.localhost/api/mobile/v1/client/kyc/applications', [
-        'document_type' => 'NATIONAL_ID', 'document_country' => 'CN', 'identity_number' => '',
+        'document_type' => 'UNSUPPORTED', 'document_country' => 'CN', 'identity_number' => '',
         'front' => kycTestImage(), 'back' => kycTestImage(),
-    ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('identity_number');
+    ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('document_type');
     expect(DB::table('ledger_entries')->count())->toBe($before);
 });
 

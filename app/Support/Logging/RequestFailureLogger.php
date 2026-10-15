@@ -46,6 +46,9 @@ final class RequestFailureLogger
             'exception_class' => $exception ? get_class($exception) : null,
             'validation_fields' => array_slice(array_values(array_filter($fields,
                 fn ($field) => is_string($field) && preg_match('/^[a-zA-Z0-9_.-]{1,120}$/D', $field))), 0, 100)];
+        if ($request->attributes->has('failure_rate_limit')) {
+            $context['rate_limit'] = $request->attributes->get('failure_rate_limit');
+        }
         if ($exception instanceof ValidationException && $exception->validator) {
             $rules = [];
             foreach ($exception->validator->failed() as $field => $failed) {

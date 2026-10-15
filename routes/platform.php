@@ -67,89 +67,89 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware(['admin.scope:platform,cards.read', 'admin.scope:platform,card_product.manage', 'admin.scope:platform,wallet.read', 'admin.scope:platform,ledger.read'])->prefix('card-void-batches')->group(function (): void {
         Route::get('/', [CardVoidBatchController::class, 'index']);
-        Route::post('/', [CardVoidBatchController::class, 'store'])->middleware('throttle:10,1');
+        Route::post('/', [CardVoidBatchController::class, 'store'])->middleware('business-throttle:10,1');
         Route::get('/{batch}', [CardVoidBatchController::class, 'show'])->whereUuid('batch');
-        Route::post('/{batch}/advance', [CardVoidBatchController::class, 'advance'])->whereUuid('batch')->middleware('throttle:120,1');
-        Route::post('/{batch}/retry', [CardVoidBatchController::class, 'retry'])->whereUuid('batch')->middleware('throttle:10,1');
+        Route::post('/{batch}/advance', [CardVoidBatchController::class, 'advance'])->whereUuid('batch')->middleware('business-throttle:120,1');
+        Route::post('/{batch}/retry', [CardVoidBatchController::class, 'retry'])->whereUuid('batch')->middleware('business-throttle:10,1');
     });
 
     Route::middleware(['admin.scope:platform,cards.read', 'admin.scope:platform,card_product.manage'])->prefix('card-transaction-batches')->group(function (): void {
-        Route::get('/preview', [CardTransactionBatchController::class, 'preview'])->middleware('throttle:60,1');
-        Route::post('/preview', [CardTransactionBatchController::class, 'preview'])->middleware('throttle:60,1');
+        Route::get('/preview', [CardTransactionBatchController::class, 'preview'])->middleware('business-throttle:60,1');
+        Route::post('/preview', [CardTransactionBatchController::class, 'preview'])->middleware('business-throttle:60,1');
         Route::get('/', [CardTransactionBatchController::class, 'index']);
-        Route::post('/', [CardTransactionBatchController::class, 'store'])->middleware('throttle:10,1');
+        Route::post('/', [CardTransactionBatchController::class, 'store'])->middleware('business-throttle:10,1');
         Route::get('/{batch}', [CardTransactionBatchController::class, 'show'])->whereUuid('batch');
-        Route::post('/{batch}/advance', [CardTransactionBatchController::class, 'advance'])->whereUuid('batch')->middleware('throttle:120,1');
-        Route::post('/{batch}/retry', [CardTransactionBatchController::class, 'retry'])->whereUuid('batch')->middleware('throttle:10,1');
+        Route::post('/{batch}/advance', [CardTransactionBatchController::class, 'advance'])->whereUuid('batch')->middleware('business-throttle:120,1');
+        Route::post('/{batch}/retry', [CardTransactionBatchController::class, 'retry'])->whereUuid('batch')->middleware('business-throttle:10,1');
     });
 
     Route::middleware('admin.scope:platform,support.read')->group(function (): void {
-        Route::get('/support/realtime', [SupportRealtimeController::class, 'configuration'])->middleware('throttle:120,1');
-        Route::post('/support/realtime/auth', [SupportRealtimeController::class, 'authorize'])->middleware('throttle:240,1');
+        Route::get('/support/realtime', [SupportRealtimeController::class, 'configuration'])->middleware('business-throttle:120,1');
+        Route::post('/support/realtime/auth', [SupportRealtimeController::class, 'authorize'])->middleware('business-throttle:240,1');
         Route::middleware('admin.scope:platform,support.hours.manage')->group(function () {
             Route::get('/support/hours', [SupportWorkspaceController::class, 'hours']);
-            Route::post('/support/hours', [SupportWorkspaceController::class, 'saveHours'])->middleware('throttle:40,1');
+            Route::post('/support/hours', [SupportWorkspaceController::class, 'saveHours'])->middleware('business-throttle:40,1');
         });
         Route::middleware('admin.scope:platform,support.replies.manage')->group(function () {
             Route::get('/support/replies', [SupportWorkspaceController::class, 'replies']);
-            Route::post('/support/replies', [SupportWorkspaceController::class, 'saveReply'])->middleware('throttle:60,1');
+            Route::post('/support/replies', [SupportWorkspaceController::class, 'saveReply'])->middleware('business-throttle:60,1');
         });
 
-        Route::get('/support/unread', [SupportController::class, 'unread'])->middleware('throttle:120,1');
-        Route::post('/tenants/{tenant}/support/users/{user}/read', [SupportController::class, 'read'])->whereUuid(['tenant', 'user'])->middleware('throttle:240,1');
-        Route::get('/support', [SupportController::class, 'index'])->middleware('throttle:120,1');
-        Route::get('/tenants/{tenant}/support/users/{user}', [SupportController::class, 'show'])->whereUuid(['tenant', 'user'])->middleware('throttle:120,1');
-        Route::get('/tenants/{tenant}/support/images/{message}', [SupportController::class, 'image'])->whereUuid(['tenant', 'message'])->middleware('throttle:240,1');
+        Route::get('/support/unread', [SupportController::class, 'unread'])->middleware('business-throttle:120,1');
+        Route::post('/tenants/{tenant}/support/users/{user}/read', [SupportController::class, 'read'])->whereUuid(['tenant', 'user'])->middleware('business-throttle:240,1');
+        Route::get('/support', [SupportController::class, 'index'])->middleware('business-throttle:120,1');
+        Route::get('/tenants/{tenant}/support/users/{user}', [SupportController::class, 'show'])->whereUuid(['tenant', 'user'])->middleware('business-throttle:120,1');
+        Route::get('/tenants/{tenant}/support/images/{message}', [SupportController::class, 'image'])->whereUuid(['tenant', 'message'])->middleware('business-throttle:240,1');
         Route::middleware('admin.scope:platform,support.bot.manage')->group(function (): void {
             Route::get('/support/bot', [SupportBotController::class, 'index']);
             Route::get('/support/bot/faqs/{faq}', [SupportBotController::class, 'show'])->whereUuid('faq');
-            Route::post('/support/bot/faqs', [SupportBotController::class, 'save'])->middleware('throttle:60,1');
-            Route::post('/support/bot/settings', [SupportBotController::class, 'configure'])->middleware('throttle:40,1');
-            Route::post('/support/bot/preview', [SupportBotController::class, 'preview'])->middleware('throttle:60,1');
+            Route::post('/support/bot/faqs', [SupportBotController::class, 'save'])->middleware('business-throttle:60,1');
+            Route::post('/support/bot/settings', [SupportBotController::class, 'configure'])->middleware('business-throttle:40,1');
+            Route::post('/support/bot/preview', [SupportBotController::class, 'preview'])->middleware('business-throttle:60,1');
         });
         Route::middleware('admin.scope:platform,support.send')->group(function (): void {
             Route::get('/tenants/{tenant}/support/replies', [SupportWorkspaceController::class, 'quick'])->whereUuid('tenant');
-            Route::post('/tenants/{tenant}/support/users/{user}/finish', [SupportController::class, 'finish'])->whereUuid(['tenant', 'user'])->middleware('throttle:40,1');
-            Route::get('/tenants/{tenant}/support/candidates', [SupportController::class, 'candidates'])->whereUuid('tenant')->middleware('throttle:120,1');
-            Route::post('/tenants/{tenant}/support/users/{user}/messages', [SupportController::class, 'send'])->whereUuid(['tenant', 'user'])->middleware('throttle:60,1');
-            Route::post('/support/profile', [SupportController::class, 'profile'])->middleware('throttle:40,1');
+            Route::post('/tenants/{tenant}/support/users/{user}/finish', [SupportController::class, 'finish'])->whereUuid(['tenant', 'user'])->middleware('business-throttle:40,1');
+            Route::get('/tenants/{tenant}/support/candidates', [SupportController::class, 'candidates'])->whereUuid('tenant')->middleware('business-throttle:120,1');
+            Route::post('/tenants/{tenant}/support/users/{user}/messages', [SupportController::class, 'send'])->whereUuid(['tenant', 'user'])->middleware('business-throttle:60,1');
+            Route::post('/support/profile', [SupportController::class, 'profile'])->middleware('business-throttle:40,1');
         });
         Route::middleware('admin.scope:platform,support.agents.manage')->group(function (): void {
             Route::get('/support/agents', [SupportController::class, 'agents']);
-            Route::post('/support/agents/{agent}', [SupportController::class, 'updateAgent'])->whereUuid('agent')->middleware('throttle:40,1');
+            Route::post('/support/agents/{agent}', [SupportController::class, 'updateAgent'])->whereUuid('agent')->middleware('business-throttle:40,1');
         });
     });
     Route::get('/settings', SettingsController::class)->name('settings.index');
     Route::middleware(['admin.scope:platform,storage.manage'])->group(function (): void {
         Route::get('/settings/oss', [OssSettingsController::class, 'show']);
-        Route::post('/settings/oss/driver', [OssSettingsController::class, 'storageDriver'])->middleware('throttle:20,1');
-        Route::post('/settings/oss/test', [OssSettingsController::class, 'test'])->middleware('throttle:20,1');
-        Route::post('/settings/oss', [OssSettingsController::class, 'save'])->middleware('throttle:20,1');
-        Route::post('/settings/oss/{configuration}/check', [OssSettingsController::class, 'check'])->whereUuid('configuration')->middleware('throttle:20,1');
-        Route::post('/settings/oss/{configuration}/activate', [OssSettingsController::class, 'activate'])->whereUuid('configuration')->middleware('throttle:20,1');
+        Route::post('/settings/oss/driver', [OssSettingsController::class, 'storageDriver'])->middleware('business-throttle:20,1');
+        Route::post('/settings/oss/test', [OssSettingsController::class, 'test'])->middleware('business-throttle:20,1');
+        Route::post('/settings/oss', [OssSettingsController::class, 'save'])->middleware('business-throttle:20,1');
+        Route::post('/settings/oss/{configuration}/check', [OssSettingsController::class, 'check'])->whereUuid('configuration')->middleware('business-throttle:20,1');
+        Route::post('/settings/oss/{configuration}/activate', [OssSettingsController::class, 'activate'])->whereUuid('configuration')->middleware('business-throttle:20,1');
     });
 
     Route::get('/notifications', [InboxController::class, 'index'])->middleware('admin.scope:platform,notifications.read')->name('notifications');
     Route::middleware('admin.scope:platform,notifications.send')->group(function (): void {
-        Route::get('/tenants/{tenant}/notifications/candidates', [InboxController::class, 'candidates'])->whereUuid('tenant')->middleware('throttle:120,1');
-        Route::post('/tenants/{tenant}/notifications/preview', [InboxController::class, 'preview'])->whereUuid('tenant')->middleware('throttle:40,1');
-        Route::post('/tenants/{tenant}/notifications', [InboxController::class, 'send'])->whereUuid('tenant')->middleware('throttle:20,1');
+        Route::get('/tenants/{tenant}/notifications/candidates', [InboxController::class, 'candidates'])->whereUuid('tenant')->middleware('business-throttle:120,1');
+        Route::post('/tenants/{tenant}/notifications/preview', [InboxController::class, 'preview'])->whereUuid('tenant')->middleware('business-throttle:40,1');
+        Route::post('/tenants/{tenant}/notifications', [InboxController::class, 'send'])->whereUuid('tenant')->middleware('business-throttle:20,1');
     });
 
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,ledger.read'])->group(function (): void {
         Route::get('/invitation-data', [InvitationDataController::class, 'index'])->name('invitation-data');
         Route::get('/invitation-data/{tenant}/{user}/report', [InvitationDataController::class, 'report'])
-            ->whereUuid(['tenant', 'user'])->middleware('throttle:240,1');
+            ->whereUuid(['tenant', 'user'])->middleware('business-throttle:240,1');
     });
 
     Route::middleware('admin.scope:platform,partners.manage')->group(function (): void {
-        Route::get('/tenants/{tenant}/partner-candidates', [PartnerController::class, 'candidates'])->whereUuid('tenant')->middleware('throttle:240,1');
+        Route::get('/tenants/{tenant}/partner-candidates', [PartnerController::class, 'candidates'])->whereUuid('tenant')->middleware('business-throttle:240,1');
         Route::get('/partners', [PartnerController::class, 'index'])->name('partners');
         Route::get('/partner-balances', [PartnerController::class, 'balances'])
-            ->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,ledger.read', 'throttle:240,1'])->name('partner-balances');
-        Route::get('/partners/{partner}/invitations', [PartnerController::class, 'invitations'])->whereUuid('partner')->middleware('throttle:240,1');
-        Route::get('/partners/{partner}/children', [PartnerController::class, 'hierarchy'])->whereUuid('partner')->middleware('throttle:240,1');
-        Route::get('/partners/{partner}/stock', [PartnerController::class, 'hierarchy'])->whereUuid('partner')->middleware('throttle:240,1');
+            ->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,ledger.read', 'business-throttle:240,1'])->name('partner-balances');
+        Route::get('/partners/{partner}/invitations', [PartnerController::class, 'invitations'])->whereUuid('partner')->middleware('business-throttle:240,1');
+        Route::get('/partners/{partner}/children', [PartnerController::class, 'hierarchy'])->whereUuid('partner')->middleware('business-throttle:240,1');
+        Route::get('/partners/{partner}/stock', [PartnerController::class, 'hierarchy'])->whereUuid('partner')->middleware('business-throttle:240,1');
         Route::post('/tenants/{tenant}/users/{user}/partner', [PartnerController::class, 'enableUser'])->whereUuid(['tenant', 'user'])->middleware('admin.scope:platform,users.read');
         Route::post('/tenants/{tenant}/partners/{partner}/revoke', [PartnerController::class, 'revoke'])->whereUuid(['tenant', 'partner']);
         Route::post('/tenants/{tenant}/partners', [PartnerController::class, 'configure'])->whereUuid('tenant');
@@ -159,23 +159,23 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
 
     Route::middleware('admin.scope:platform,tenant.manage')->group(function (): void {
         Route::get('/settings/assets', [AssetsController::class, 'settings'])->name('assets.settings');
-        Route::post('/settings/assets', [AssetsController::class, 'save'])->middleware('throttle:20,1')->name('assets.settings.save');
-        Route::post('/tenants/{tenant}/assets/settings', [AssetsController::class, 'save'])->whereUuid('tenant')->middleware('throttle:20,1')->name('assets.company.save');
+        Route::post('/settings/assets', [AssetsController::class, 'save'])->middleware('business-throttle:20,1')->name('assets.settings.save');
+        Route::post('/tenants/{tenant}/assets/settings', [AssetsController::class, 'save'])->whereUuid('tenant')->middleware('business-throttle:20,1')->name('assets.company.save');
     });
     Route::get('/asset-deposits', fn (Request $request) => redirect()->route('platform.topups.all', $request->query()))->middleware('admin.scope:platform,wallet_topups.read')->name('assets.deposits');
     Route::post('/tenants/{tenant}/deposit-orders/{source}/{order}/receipt-type', DepositReceiptTypeController::class)
         ->whereUuid(['tenant', 'order'])->whereIn('source', ['primary', 'asset'])
-        ->middleware(['admin.scope:platform,wallet_topups.confirm', 'admin.scope:platform,partners.manage', 'throttle:10,1'])->name('deposits.receipt-type');
+        ->middleware(['admin.scope:platform,wallet_topups.confirm', 'admin.scope:platform,partners.manage', 'business-throttle:10,1'])->name('deposits.receipt-type');
     Route::get('/asset-withdrawals', [FundsOrdersController::class, 'withdrawals'])->middleware('admin.scope:platform,withdrawals.read')->name('assets.withdrawals');
-    Route::post('/asset-withdrawals/export', [FundsOrdersController::class, 'exportWithdrawals'])->middleware(['admin.scope:platform,withdrawals.read', 'admin.scope:platform,withdrawals.review', 'throttle:10,1'])->name('assets.withdrawals.export');
+    Route::post('/asset-withdrawals/export', [FundsOrdersController::class, 'exportWithdrawals'])->middleware(['admin.scope:platform,withdrawals.read', 'admin.scope:platform,withdrawals.review', 'business-throttle:10,1'])->name('assets.withdrawals.export');
     foreach (['confirm' => 'wallet_topups.confirm', 'recheck' => 'wallet_topups.verify', 'review' => 'withdrawals.review', 'verify' => 'withdrawals.review', 'reveal' => 'withdrawals.review'] as $action => $permission) {
-        Route::post('/tenants/{tenant}/asset-orders/{order}/'.$action, [AssetsController::class, $action])->whereUuid(['tenant', 'order'])->middleware(['admin.scope:platform,'.$permission, 'throttle:10,1'])->name('assets.'.$action);
+        Route::post('/tenants/{tenant}/asset-orders/{order}/'.$action, [AssetsController::class, $action])->whereUuid(['tenant', 'order'])->middleware(['admin.scope:platform,'.$permission, 'business-throttle:10,1'])->name('assets.'.$action);
     }
     Route::get('/asset-tron-withdrawals', fn (Request $request) => redirect()->route('platform.assets.withdrawals', array_merge($request->query(), ['network' => 'TRON'])))->middleware('admin.scope:platform,withdrawals.read')->name('assets.tron.withdrawals');
     foreach (['review', 'verify', 'reveal'] as $action) {
-        Route::post('/tenants/{tenant}/asset-tron-withdrawals/{order}/'.$action, [TronWithdrawalsController::class, $action])->whereUuid(['tenant', 'order'])->middleware(['admin.scope:platform,withdrawals.review', 'throttle:10,1'])->name('assets.tron.'.$action);
+        Route::post('/tenants/{tenant}/asset-tron-withdrawals/{order}/'.$action, [TronWithdrawalsController::class, $action])->whereUuid(['tenant', 'order'])->middleware(['admin.scope:platform,withdrawals.review', 'business-throttle:10,1'])->name('assets.tron.'.$action);
     }
-    Route::post('/locale', AdminLocaleController::class)->middleware('throttle:60,1')->name('locale.update');
+    Route::post('/locale', AdminLocaleController::class)->middleware('business-throttle:60,1')->name('locale.update');
     Route::get('/login', [PlatformAuthController::class, 'create'])->name('login');
     Route::post('/login', [PlatformAuthController::class, 'store'])->name('login.store');
 
@@ -194,25 +194,25 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware('admin.scope:platform,card_product.manage')->put('/tenants/{tenant}/cards/{card}/balance-limit', [CardOperationsController::class, 'updateLimit'])->whereUuid(['tenant', 'card'])->name('cards.balance-limit');
     Route::middleware(['admin.scope:platform,card_product.manage', 'throttle:20,1'])->post('/tenants/{tenant}/cards/{card}/reveal', [CardOperationsController::class, 'reveal'])->whereUuid(['tenant', 'card'])->name('cards.reveal');
     Route::middleware('admin.scope:platform,cards.read')->get('/cards', CardOperationsController::class)->name('cards.index');
-    Route::middleware(['admin.scope:platform,cards.read', 'admin.scope:platform,card_product.manage', 'throttle:20,1'])->post('/tenants/{tenant}/card-issues/{issue}/sync', [CardOperationsController::class, 'syncIssue'])->whereUuid(['tenant', 'issue'])->name('card-issues.sync');
-    Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.cleanup', 'throttle:20,1'])->group(function (): void {
+    Route::middleware(['admin.scope:platform,cards.read', 'admin.scope:platform,card_product.manage', 'business-throttle:20,1'])->post('/tenants/{tenant}/card-issues/{issue}/sync', [CardOperationsController::class, 'syncIssue'])->whereUuid(['tenant', 'issue'])->name('card-issues.sync');
+    Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.cleanup', 'business-throttle:20,1'])->group(function (): void {
         Route::get('/tenants/{tenant}/data-cleanup/accounts', [DataCleanupController::class, 'accounts'])->whereUuid('tenant')->name('data-cleanup.accounts');
         Route::post('/tenants/{tenant}/data-cleanup/preview', [DataCleanupController::class, 'preview'])->whereUuid('tenant')->name('data-cleanup.preview');
         Route::post('/tenants/{tenant}/data-cleanup/{batch}/execute', [DataCleanupController::class, 'execute'])->whereUuid(['tenant', 'batch'])->name('data-cleanup.execute');
         Route::get('/tenants/{tenant}/data-cleanup/{batch}', [DataCleanupController::class, 'show'])->whereUuid(['tenant', 'batch'])->name('data-cleanup.show');
         Route::get('/tenants/{tenant}/data-cleanup/{batch}/records', [DataCleanupController::class, 'records'])->whereUuid(['tenant', 'batch'])->name('data-cleanup.records');
     });
-    Route::middleware(['admin.scope:platform,cards.read', 'throttle:240,1'])->get('/tenants/{tenant}/cards/{card}/transactions', [CardOperationsController::class, 'transactions'])->whereUuid(['tenant', 'card'])->name('cards.transactions');
-    Route::middleware(['admin.scope:platform,cards.read', 'admin.scope:platform,card_product.manage', 'throttle:20,1'])->post('/tenants/{tenant}/cards/{card}/transactions/sync', [CardOperationsController::class, 'syncTransactions'])->whereUuid(['tenant', 'card'])->name('cards.transactions.sync');
-    Route::middleware(['admin.scope:platform,cards.read', 'throttle:60,1'])->post('/tenants/{tenant}/cards/{card}/refresh', [CardOperationsController::class, 'refresh'])->whereUuid(['tenant', 'card'])->name('cards.refresh');
-    Route::post('/tenants/{tenant}/users/{user}/support-remark', [SupportWorkspaceController::class, 'remark'])->whereUuid(['tenant', 'user'])->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,support.read', 'admin.scope:platform,support.send', 'throttle:60,1']);
-    Route::post('/tenants/{tenant}/users/{user}/support-agent', [SupportWorkspaceController::class, 'grantUser'])->whereUuid(['tenant', 'user'])->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,support.read', 'admin.scope:platform,support.agents.manage', 'throttle:60,1']);
-    Route::post('/tenants/{tenant}/users', UserCreationController::class)->whereUuid('tenant')->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.create', 'throttle:40,1']);
+    Route::middleware(['admin.scope:platform,cards.read', 'business-throttle:240,1'])->get('/tenants/{tenant}/cards/{card}/transactions', [CardOperationsController::class, 'transactions'])->whereUuid(['tenant', 'card'])->name('cards.transactions');
+    Route::middleware(['admin.scope:platform,cards.read', 'admin.scope:platform,card_product.manage', 'business-throttle:20,1'])->post('/tenants/{tenant}/cards/{card}/transactions/sync', [CardOperationsController::class, 'syncTransactions'])->whereUuid(['tenant', 'card'])->name('cards.transactions.sync');
+    Route::middleware(['admin.scope:platform,cards.read', 'business-throttle:60,1'])->post('/tenants/{tenant}/cards/{card}/refresh', [CardOperationsController::class, 'refresh'])->whereUuid(['tenant', 'card'])->name('cards.refresh');
+    Route::post('/tenants/{tenant}/users/{user}/support-remark', [SupportWorkspaceController::class, 'remark'])->whereUuid(['tenant', 'user'])->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,support.read', 'admin.scope:platform,support.send', 'business-throttle:60,1']);
+    Route::post('/tenants/{tenant}/users/{user}/support-agent', [SupportWorkspaceController::class, 'grantUser'])->whereUuid(['tenant', 'user'])->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,support.read', 'admin.scope:platform,support.agents.manage', 'business-throttle:60,1']);
+    Route::post('/tenants/{tenant}/users', UserCreationController::class)->whereUuid('tenant')->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.create', 'business-throttle:40,1']);
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.restrictions.manage'])->group(function () {
         Route::get('/tenants/{tenant}/users/{user}/restrictions', [UserRestrictionsController::class, 'show'])->whereUuid(['tenant', 'user']);
-        Route::post('/tenants/{tenant}/users/{user}/restrictions', [UserRestrictionsController::class, 'update'])->whereUuid(['tenant', 'user'])->middleware('throttle:40,1');
+        Route::post('/tenants/{tenant}/users/{user}/restrictions', [UserRestrictionsController::class, 'update'])->whereUuid(['tenant', 'user'])->middleware('business-throttle:40,1');
     });
-    Route::middleware(['admin.scope:platform,users.read', 'throttle:240,1'])->get('/users/referrer-candidates', [UserOperationsController::class, 'referrerCandidates']);
+    Route::middleware(['admin.scope:platform,users.read', 'business-throttle:240,1'])->get('/users/referrer-candidates', [UserOperationsController::class, 'referrerCandidates']);
     Route::middleware('admin.scope:platform,users.read')->get('/users/export', [UserOperationsController::class, 'export'])->name('users.export');
     Route::middleware('admin.scope:platform,users.read')->get('/users', UserOperationsController::class)->name('users.index');
     foreach (['deposit' => 'wallet_topups.read', 'withdrawal' => 'withdrawals.read'] as $mode => $permission) {
@@ -230,32 +230,32 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,kyc.read'])->get('/tenants/{tenant}/users/{user}/kyc', [KycDetailController::class, 'user'])->whereUuid(['tenant', 'user'])->name('users.kyc');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.invitation.manage'])->group(function () {
         Route::get('/tenants/{tenant}/users/{user}/invitation-code', [UserInvitationCodeController::class, 'show'])->whereUuid(['tenant', 'user']);
-        Route::post('/tenants/{tenant}/users/{user}/invitation-code', [UserInvitationCodeController::class, 'update'])->middleware('throttle:40,1')->whereUuid(['tenant', 'user']);
+        Route::post('/tenants/{tenant}/users/{user}/invitation-code', [UserInvitationCodeController::class, 'update'])->middleware('business-throttle:40,1')->whereUuid(['tenant', 'user']);
     });
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.referrer.manage'])->group(function () {
         Route::get('/tenants/{tenant}/users/{user}/referrer', [UserReferrerController::class, 'show'])->whereUuid(['tenant', 'user']);
-        Route::post('/tenants/{tenant}/users/{user}/referrer', [UserReferrerController::class, 'update'])->middleware('throttle:40,1')->whereUuid(['tenant', 'user']);
+        Route::post('/tenants/{tenant}/users/{user}/referrer', [UserReferrerController::class, 'update'])->middleware('business-throttle:40,1')->whereUuid(['tenant', 'user']);
     });
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,commissions.adjust'])->group(function () {
         Route::get('/tenants/{tenant}/users/{user}/manual-commissions', [ManualCommissionController::class, 'show'])->whereUuid(['tenant', 'user']);
-        Route::post('/tenants/{tenant}/users/{user}/manual-commissions', [ManualCommissionController::class, 'update'])->middleware('throttle:40,1')->whereUuid(['tenant', 'user']);
-        Route::post('/tenants/{tenant}/users/{user}/manual-commissions/{adjustment}/classify', [ManualCommissionController::class, 'classify'])->middleware('throttle:40,1')->whereUuid(['tenant', 'user', 'adjustment']);
+        Route::post('/tenants/{tenant}/users/{user}/manual-commissions', [ManualCommissionController::class, 'update'])->middleware('business-throttle:40,1')->whereUuid(['tenant', 'user']);
+        Route::post('/tenants/{tenant}/users/{user}/manual-commissions/{adjustment}/classify', [ManualCommissionController::class, 'classify'])->middleware('business-throttle:40,1')->whereUuid(['tenant', 'user', 'adjustment']);
     });
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,wallet.adjust'])->group(function () {
         Route::get('/tenants/{tenant}/users/{user}/wallet-adjustments', [WalletAdjustmentController::class, 'show'])->whereUuid(['tenant', 'user']);
-        Route::post('/tenants/{tenant}/users/{user}/wallet-adjustments', [WalletAdjustmentController::class, 'update'])->middleware('throttle:40,1')->whereUuid(['tenant', 'user']);
+        Route::post('/tenants/{tenant}/users/{user}/wallet-adjustments', [WalletAdjustmentController::class, 'update'])->middleware('business-throttle:40,1')->whereUuid(['tenant', 'user']);
     });
     Route::middleware('admin.scope:platform,users.read')->get('/tenants/{tenant}/users/{user}/details', [UserOperationsController::class, 'show'])->whereUuid(['tenant', 'user']);
     Route::middleware('admin.scope:platform,users.read')->get('/tenants/{tenant}/users/{user}/promotion', [UserPromotionController::class, 'show'])->whereUuid(['tenant', 'user']);
-    Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,promotion_members.manage', 'throttle:40,1'])->post('/tenants/{tenant}/users/{user}/promotion', [UserPromotionController::class, 'update'])->whereUuid(['tenant', 'user']);
+    Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,promotion_members.manage', 'business-throttle:40,1'])->post('/tenants/{tenant}/users/{user}/promotion', [UserPromotionController::class, 'update'])->whereUuid(['tenant', 'user']);
     Route::middleware('admin.scope:platform,provider_operation.read')->get('/card-providers', CardProviderController::class)->name('card-providers.index');
     Route::middleware(['admin.scope:platform,provider_operation.read', 'admin.scope:platform,card_provider_reference.manage'])->group(function (): void {
         Route::get('/card-providers/{reference}/u1/notifications', [U1AccountsController::class, 'index'])->whereUuid('reference');
         Route::get('/card-providers/{reference}/u1/notifications/{notification}', [U1AccountsController::class, 'show'])->whereUuid(['reference', 'notification']);
-        Route::post('/card-providers/{reference}/u1/notifications/{notification}/retry', [U1AccountsController::class, 'retry'])->whereUuid(['reference', 'notification'])->middleware('throttle:30,1');
-        Route::post('/card-providers/{reference}/u1/tests', [U1AccountsController::class, 'send'])->whereUuid('reference')->middleware('throttle:30,1');
+        Route::post('/card-providers/{reference}/u1/notifications/{notification}/retry', [U1AccountsController::class, 'retry'])->whereUuid(['reference', 'notification'])->middleware('business-throttle:30,1');
+        Route::post('/card-providers/{reference}/u1/tests', [U1AccountsController::class, 'send'])->whereUuid('reference')->middleware('business-throttle:30,1');
     });
-    Route::middleware(['admin.scope:platform,card_provider_reference.manage', 'throttle:60,1'])->group(function (): void {
+    Route::middleware(['admin.scope:platform,card_provider_reference.manage', 'business-throttle:60,1'])->group(function (): void {
         Route::post('/card-providers/{reference}/check', [CardProviderController::class, 'check'])->whereUuid('reference')->name('card-providers.check');
         Route::post('/card-providers', [CardProviderController::class, 'store'])->name('card-providers.store');
         Route::put('/card-providers/{reference}', [CardProviderController::class, 'update'])->whereUuid('reference')->name('card-providers.update');
@@ -280,11 +280,11 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     });
     Route::middleware('admin.scope:platform,wallet_topups.read')->get('/tenants/{tenant}/topups', [TopupVerificationController::class, 'index'])->whereUuid('tenant')->name('topups.index');
     Route::middleware('admin.scope:platform,wallet_topups.read')->get('/topups', [TopupVerificationController::class, 'all'])->name('topups.all');
-    Route::middleware(['admin.scope:platform,wallet_topups.verify', 'throttle:10,1'])->post('/tenants/{tenant}/topups/{topup}/verify', [TopupVerificationController::class, 'verify'])->whereUuid(['tenant', 'topup'])->name('topups.verify');
-    Route::middleware(['admin.scope:platform,wallet_topups.confirm', 'throttle:10,1'])->post('/tenants/{tenant}/topups/{topup}/confirm', [TopupVerificationController::class, 'confirm'])->whereUuid(['tenant', 'topup'])->name('topups.confirm');
+    Route::middleware(['admin.scope:platform,wallet_topups.verify', 'business-throttle:10,1'])->post('/tenants/{tenant}/topups/{topup}/verify', [TopupVerificationController::class, 'verify'])->whereUuid(['tenant', 'topup'])->name('topups.verify');
+    Route::middleware(['admin.scope:platform,wallet_topups.confirm', 'business-throttle:10,1'])->post('/tenants/{tenant}/topups/{topup}/confirm', [TopupVerificationController::class, 'confirm'])->whereUuid(['tenant', 'topup'])->name('topups.confirm');
     Route::middleware('admin.scope:platform,card_product.manage')->group(function (): void {
-        Route::post('/card-products/merchants/{merchant}/refresh-catalog', [CardProductController::class, 'refreshMerchant'])->whereUuid('merchant')->middleware('throttle:10,1');
-        Route::post('/card-products/{cardProduct}/refresh-forms', [CardProductController::class, 'refreshForms'])->whereUuid('cardProduct')->middleware('throttle:10,1');
+        Route::post('/card-products/merchants/{merchant}/refresh-catalog', [CardProductController::class, 'refreshMerchant'])->whereUuid('merchant')->middleware('business-throttle:10,1');
+        Route::post('/card-products/{cardProduct}/refresh-forms', [CardProductController::class, 'refreshForms'])->whereUuid('cardProduct')->middleware('business-throttle:10,1');
         Route::post('/card-products', [CardProductController::class, 'store'])->name('card-products.store');
         Route::put('/card-products/{cardProduct}', [CardProductController::class, 'update'])->whereUuid('cardProduct')->name('card-products.update');
     });
@@ -299,11 +299,11 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::delete('/settings/domains/{domain}', [PlatformDomainController::class, 'destroy'])->whereUuid('domain')->name('settings.domains.destroy');
         Route::get('/settings/sms', [NotificationProfilesController::class, 'sms'])->name('settings.sms');
         Route::get('/settings/email', [NotificationProfilesController::class, 'email'])->name('settings.email');
-        Route::post('/settings/sms/{profile?}', [NotificationProfilesController::class, 'saveSms'])->whereUuid('profile')->middleware('throttle:10,1')->name('settings.sms.save');
-        Route::post('/settings/email/{profile?}', [NotificationProfilesController::class, 'saveEmail'])->whereUuid('profile')->middleware('throttle:10,1')->name('settings.email.save');
+        Route::post('/settings/sms/{profile?}', [NotificationProfilesController::class, 'saveSms'])->whereUuid('profile')->middleware('business-throttle:10,1')->name('settings.sms.save');
+        Route::post('/settings/email/{profile?}', [NotificationProfilesController::class, 'saveEmail'])->whereUuid('profile')->middleware('business-throttle:10,1')->name('settings.email.save');
 
         Route::get('/settings/kyc', [KycSettingsController::class, 'show'])->name('settings.kyc');
-        Route::post('/settings/kyc', [KycSettingsController::class, 'update'])->middleware('throttle:40,1')->name('settings.kyc.update');
+        Route::post('/settings/kyc', [KycSettingsController::class, 'update'])->middleware('business-throttle:40,1')->name('settings.kyc.update');
         Route::put('/tenants/{tenant}/deposit-settings', [TenantManagementController::class, 'updateDeposit'])->whereUuid('tenant')->name('tenants.deposit-settings.update');
         Route::get('/tenants/{tenant}/domains', [DomainManagementController::class, 'index'])->whereUuid('tenant')->name('domains');
         Route::post('/tenants/{tenant}/domains', [DomainManagementController::class, 'store'])->whereUuid('tenant')->name('domains.store');
@@ -317,7 +317,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     });
 
     Route::middleware('admin.scope:platform,admin_team.manage')->group(function (): void {
-        Route::post('/administrators', [AdministratorController::class, 'store'])->middleware('throttle:10,1')->name('administrators.store');
+        Route::post('/administrators', [AdministratorController::class, 'store'])->middleware('business-throttle:10,1')->name('administrators.store');
         Route::post('/tenants/{tenant}/invitations/{invitation}/resend', [TenantInvitationController::class, 'resend'])->whereUuid(['tenant', 'invitation'])->name('invitations.resend');
         Route::post('/tenants/{tenant}/invitations/{invitation}/cancel', [TenantInvitationController::class, 'cancel'])->whereUuid(['tenant', 'invitation'])->name('invitations.cancel');
     });
@@ -329,30 +329,30 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::get('/card-products', [App\Http\Controllers\Platform\CompanyConfiguration\CardProductController::class, 'index'])->name('card-products.index');
         Route::put('/card-products/{cardProduct}', [App\Http\Controllers\Platform\CompanyConfiguration\CardProductController::class, 'update'])->whereUuid('cardProduct')->name('card-products.update');
         Route::get('/wealth', [WealthController::class, 'show']);
-        Route::post('/wealth', [WealthController::class, 'save'])->middleware('throttle:20,1');
-        Route::post('/paid-promotion/levels', [PaidPromotionController::class, 'batch'])->middleware('throttle:20,1');
-        Route::post('/invitation-poster', [InvitationPosterController::class, 'save'])->middleware('throttle:20,1');
+        Route::post('/wealth', [WealthController::class, 'save'])->middleware('business-throttle:20,1');
+        Route::post('/paid-promotion/levels', [PaidPromotionController::class, 'batch'])->middleware('business-throttle:20,1');
+        Route::post('/invitation-poster', [InvitationPosterController::class, 'save'])->middleware('business-throttle:20,1');
         Route::get('/invitation-poster/background', [InvitationPosterController::class, 'platformImage']);
         Route::get('/paid-promotion', [PaidPromotionController::class, 'show']);
-        Route::post('/paid-promotion/levels/{level}', [PaidPromotionController::class, 'configure'])->whereUuid('level')->middleware('throttle:20,1');
+        Route::post('/paid-promotion/levels/{level}', [PaidPromotionController::class, 'configure'])->whereUuid('level')->middleware('business-throttle:20,1');
         Route::get('/promotion', [PaidPromotionController::class, 'show'])->name('promotion');
-        Route::post('/promotion', [PromotionController::class, 'update'])->middleware('throttle:40,1')->name('promotion.update');
+        Route::post('/promotion', [PromotionController::class, 'update'])->middleware('business-throttle:40,1')->name('promotion.update');
         Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
         Route::get('/settings/{section?}', [TenantSettingsController::class, 'show'])->where('section', 'branding|locales|business|kyc|articles|sms|email')->name('settings');
-        Route::post('/settings/email', [TenantEmailSettingsController::class, 'update'])->middleware('throttle:10,1')->name('settings.email');
-        Route::post('/settings/email/test', [TenantEmailSettingsController::class, 'test'])->middleware('throttle:10,1')->name('settings.email.test');
-        Route::post('/settings/sms', [TenantSmsSettingsController::class, 'update'])->middleware('throttle:10,1')->name('settings.sms');
+        Route::post('/settings/email', [TenantEmailSettingsController::class, 'update'])->middleware('business-throttle:10,1')->name('settings.email');
+        Route::post('/settings/email/test', [TenantEmailSettingsController::class, 'test'])->middleware('business-throttle:10,1')->name('settings.email.test');
+        Route::post('/settings/sms', [TenantSmsSettingsController::class, 'update'])->middleware('business-throttle:10,1')->name('settings.sms');
         Route::post('/settings/articles/{article}/{locale}', [TenantArticleController::class, 'update'])
             ->whereIn('article', ['terms', 'privacy', 'account-closure'])->whereIn('locale', ['zh-CN', 'en', 'ms', 'es'])->name('settings.articles.update');
-        Route::post('/settings/android-release', AndroidReleaseController::class)->middleware('throttle:10,1')->name('settings.android-release');
+        Route::post('/settings/android-release', AndroidReleaseController::class)->middleware('business-throttle:10,1')->name('settings.android-release');
         Route::post('/settings/branding', [TenantSettingsController::class, 'branding'])->name('settings.branding');
         Route::post('/settings/locales', [TenantSettingsController::class, 'locales'])->name('settings.locales');
         Route::post('/settings/business', [TenantSettingsController::class, 'business'])->name('settings.business');
         Route::post('/settings/kyc', [TenantSettingsController::class, 'kyc'])->name('settings.kyc');
         Route::post('/onboarding/activate', [OnboardingController::class, 'activate'])->name('activate');
         Route::get('/team', [TeamController::class, 'index'])->name('team');
-        Route::post('/team/administrators', [TeamController::class, 'store'])->middleware('throttle:10,1')->name('team.create');
-        Route::put('/team/memberships/{membership}', [TeamController::class, 'update'])->whereUuid('membership')->middleware('throttle:20,1')->name('team.update');
+        Route::post('/team/administrators', [TeamController::class, 'store'])->middleware('business-throttle:10,1')->name('team.create');
+        Route::put('/team/memberships/{membership}', [TeamController::class, 'update'])->whereUuid('membership')->middleware('business-throttle:20,1')->name('team.update');
         Route::post('/team/invitations', [TeamController::class, 'invite'])->name('team.invite');
         Route::post('/team/invitations/{invitation}/resend', [TeamController::class, 'resend'])->whereUuid('invitation')->name('team.resend');
         Route::post('/team/invitations/{invitation}/cancel', [TeamController::class, 'cancel'])->whereUuid('invitation')->name('team.cancel');
