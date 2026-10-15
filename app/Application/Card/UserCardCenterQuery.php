@@ -91,7 +91,6 @@ final readonly class UserCardCenterQuery
             'issueOrders' => CardIssueOrder::query()->where('tenant_id', $tenantId)->where('user_id', $userId)
                 ->with('product')->latest('created_at')->limit(10)->get()->map(fn (CardIssueOrder $order): array => [
                     'id' => $order->id,
-                    'provider' => $card->provider,
                     'productName' => $displayNames->get($order->card_product_id) ?: $order->product->name,
                     'openingFee' => $order->opening_fee,
                     'initialLoadAmount' => $order->initial_load_amount,
@@ -107,6 +106,7 @@ final readonly class UserCardCenterQuery
                 ->whereNull('archived_at')
                 ->with('product')->latest('created_at')->get()->map(fn (UserCard $card): array => [
                     'id' => $card->id,
+                    'provider' => $card->provider,
                     'productName' => $displayNames->get($card->card_product_id) ?: $card->product->name,
                     'maskedPan' => $card->masked_pan,
                     'activationStatus' => DB::table('card_activation_attempts')->where('card_id', $card->id)->latest('created_at')->value('status'),

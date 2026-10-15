@@ -3856,3 +3856,16 @@ it('preserves the U1 report snapshot when a background refresh fails', function 
     $after = DB::table('u1_connections')->where('id', $connection->id)->first();
     expect($after->account_report)->toBe($before->account_report)->and($after->check_status)->toBe($before->check_status);
 });
+
+it('reads cards with issue history and exposes the actual card provider without external requests', function (): void {
+    u1StandardFixture($this);
+    $issue = phaseTenIssue($this, '100.00');
+    app(SyncCardIssueAction::class)->execute($this->tenant->id, $issue->id, $this->user->id);
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    $view = app(UserCardCenterQuery::class)->get($this->tenant->id, $this->user->id);
+    expect(collect($view['issueOrders'])->firstWhere('id', $issue->id)['state'])->toBe('created')
+        ->and(collect($view['cards'])->firstWhere('id', UserCard::where('card_issue_order_id', $issue->id)->sole()->id)['provider'])->toBe('U1');
+    $this->actingAs($this->user, 'tenant_user')->getJson('http://a.localhost/api/v1/client/cards')->assertOk();
+    Http::assertNothingSent();
+});
