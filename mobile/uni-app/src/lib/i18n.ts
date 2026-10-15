@@ -53,3 +53,7 @@ export function dateTime(value: string) {
         timeStyle: 'short',
     }).format(date);
 }
+
+export function dateLabel(value: string) {
+    return new Intl.DateTimeFormat(locale.value, { timeZone: timezone, dateStyle: 'medium' }).format(new Date(value));
+}

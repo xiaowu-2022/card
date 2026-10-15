@@ -183,3 +183,17 @@ and local fallback types/states are preserved. Unrecognized states remain confir
 This applies to existing saved rows on read, without a migration, historical rewrite,
 provider request or H5 rebuild. It fixes the invalid_item frontend rejection that
 remained after optional fee-pair normalization. Deploy the updated PHP query class.
+
+2026-10-15 history presentation consolidation: App/H5 and consumer web history now
+share date sections in the existing consumer display timezone, with newest entries
+first, loaded record counts, concise merchant/type/card/amount/status rows and fees
+inside transaction details. Single-card and all-card views share the same components.
+Pagination merges by immutable projected transaction identity across pages, without
+merging distinct cards/UUIDs even when times and amounts match. No daily money sum,
+fee-inclusive consumption assumption or cross-currency net amount is introduced.
+Existing exact provider/order-ID deduplication stays on the server. The current U1
+saved model lacks a parent reference tying standalone fee/refund UUIDs to purchases;
+such records remain separate rather than guessed into a business group. Canonical
+same-record fees are displayed together with their transaction. No evidence rewrite,
+migration or provider call is needed. Deploy frontend assets/public/h5 together;
+native uni-app clients need their usual rebuild to receive the updated layout.

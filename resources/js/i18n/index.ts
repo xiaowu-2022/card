@@ -97,3 +97,7 @@ export function errorMessage(
     // Never display an untranslated/unrecognized server or provider error in the UI.
     return t(fallback);
 }
+
+export function dateLabel(value: string) {
+    return new Intl.DateTimeFormat(clientI18n.language, { timeZone: displayTimezone, dateStyle: 'medium' }).format(new Date(value));
+}

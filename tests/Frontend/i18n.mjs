@@ -1534,14 +1534,17 @@ test('local simulated transactions promote the card tail and type without hiding
         const markup = render();
         assert.doesNotMatch(markup, /TEST \/ LOCAL MOCK/);
         assert.doesNotMatch(markup, /已加载记录按交易时间|Loaded records are sorted/);
-        assert.match(markup, /font-medium">尾号 1234 · 卡片充值<\/p>/);
+        assert.match(markup, /break-words">尾号 1234 · 卡片充值<\/span>/);
+        assert.match(markup, /<details/);
+        assert.match(markup, /1 笔记录/);
         assert.equal((markup.match(/尾号 1234/g) ?? []).length, 1);
-        assert.match(markup, /\$35(?:\.00)?<\/p>/);
-        assert.doesNotMatch(markup, /记录时间|已完成/);
+        assert.match(markup, /\$35(?:\.00)?<\/span>/);
+        assert.match(markup, /记录时间/);
+        assert.match(markup, /已完成/);
         assert.match(markup, /<time dateTime="2026-09-13T14:54:32\+00:00"/);
         assert.doesNotMatch(markup, /发卡方|卡商|通道方/);
         history.items[0].merchant = 'A real shop';
-        assert.match(render(), /font-medium">A real shop<\/p>/);
+        assert.match(render(), /A real shop<\/span>/);
     } finally {
         void i18n.clientI18n.changeLanguage(previousLocale);
     }

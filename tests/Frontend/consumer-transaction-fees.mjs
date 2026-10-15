@@ -41,7 +41,7 @@ test('consumer transaction rows render provider fees separately from purchase cu
         'react/jsx-runtime': jsx,
         'lucide-react': { CreditCard: () => null, LoaderCircle: () => null },
         '@/components/ui/button': { Button: () => null },
-        '@/i18n': { t: (key) => key, dateTime: (date) => date, useClientTranslation: () => null },
+        '@/i18n': { t: (key) => key, dateTime: (date) => date, dateLabel: (date) => date.slice(0, 10), useClientTranslation: () => null },
         '@/hooks/useCardTransactions': { useCardTransactions: () => ({ items, failed: 0, loading: false, hasMore: false }) },
         '@/lib/card-transactions': load(resolve('resources/js/lib/card-transactions.ts')),
     };
@@ -62,4 +62,16 @@ test('fee validation identifies the exact optional field and failure without exp
         error.field === 'feeReturnAmount' && error.detail === 'amount_missing' && error.message === 'Invalid transaction fee');
     assert.throws(() => transactionPage({ page: 1, hasMore: false, items: [{ ...item, feeAmount: '0.00000000', feeCurrency: null }] }, 'card', 1), error =>
         error.field === 'feeAmount' && error.detail === 'currency_missing');
+});
+
+test('day sections keep independent records and exact fees across cards and pagination', () => {
+    const { transactionSections } = load(resolve('resources/js/lib/card-transactions.ts'));
+    const a = { id: 'a', cardId: 'card-a', displayAt: '2026-10-15T10:00:00Z', amount: '-10.00000000', feeAmount: '-0.10000000', feeCurrency: 'USD' };
+    const b = { ...a, id: 'b', cardId: 'card-b' };
+    const c = { ...a, id: 'c', displayAt: '2026-10-14T10:00:00Z' };
+    const groups = transactionSections([c, a, b, a], value => value.slice(0, 10));
+    assert.deepEqual(Array.from(groups, group => group.day), ['2026-10-15', '2026-10-14']);
+    assert.equal(groups[0].items.length, 2);
+    assert.equal(groups[0].items[0].feeAmount, '-0.10000000');
+    assert.equal(groups[1].items.length, 1);
 });

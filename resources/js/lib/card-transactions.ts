@@ -111,3 +111,15 @@ export function mergeCardTransactions(
 }
 
 export { displayMoney as transactionAmount } from './exact-amount';
+
+/** Date sections are presentation only: distinct transaction IDs never coalesce. */
+export function transactionSections(items: CardTransaction[], day: (value: string) => string) {
+    const sections: { day: string; items: CardTransaction[] }[] = [];
+    for (const item of mergeCardTransactions([], items)) {
+        const label = day(item.displayAt);
+        let section = sections.find(section => section.day === label);
+        if (!section) { section = { day: label, items: [] }; sections.push(section); }
+        section.items.push(item);
+    }
+    return sections;
+}

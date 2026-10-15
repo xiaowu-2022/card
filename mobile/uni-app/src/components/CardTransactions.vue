@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from 'vue';
 import { request, ApiError } from '../lib/api';
-import { t, dateTime } from '../lib/i18n';
+import { t, dateTime, dateLabel } from '../lib/i18n';
 import {
     TransactionFeeError,
     mergeCardTransactions,
+    transactionSections,
     transactionPage,
     transactionMoney,
     transactionStates,
@@ -54,6 +55,8 @@ const props = defineProps<{ cardIds: string[]; singleCard?: boolean }>(),
     loading = ref(false),
     failed = ref(0),
     hasMore = ref(false);
+function sectionCount(count: number) { return t('{{count}} transactions', { count }); }
+const sections = computed(() => transactionSections(items.value, dateLabel));
 let generation = 0,
     states: { id: string; page: number; more: boolean; failed: boolean }[] = [];
 const key = computed(() => [...props.cardIds].sort().join(','));
@@ -123,10 +126,12 @@ function ending(item: CardTransaction) {
     return item.last4 ? t('Card ending in {{last4}}', { last4: item.last4 }) : t('Card');
 }
 function title(item: CardTransaction) {
-    return item.merchant === 'TEST / LOCAL MOCK'
-        ? ending(item) + ' · ' + t(transactionTitles[item.type] ?? 'Card transaction')
-        : item.merchant || t(transactionTitles[item.type] ?? 'Card transaction');
+    return ending(item) + ' · ' + t(transactionTitles[item.type] ?? 'Card transaction');
 }
+function subtitle(item: CardTransaction) {
+    return item.merchant && item.merchant !== 'TEST / LOCAL MOCK' ? item.merchant : dateTime(item.displayAt);
+}
+
 </script>
 <template>
     <view class="transactions"
@@ -136,50 +141,21 @@ function title(item: CardTransaction) {
             ><button class="secondary" :disabled="loading" @click="run(true)">
                 {{ t('Retry') }}
             </button></view
-        ><view v-if="items.length" class="list"
-            ><button
-                v-for="item in items"
-                :key="item.id"
-                class="item"
-                :aria-label="t('Transaction details') + ': ' + title(item)"
-                @click="selected = item"
-            >
-                <view class="icon"><UiIcon name="cards" :size="16" /></view
-                ><view class="body"
-                    ><view class="top"
-                        ><view class="merchant"
-                            ><text>{{ title(item) }}</text
-                            ><text v-if="item.merchant !== 'TEST / LOCAL MOCK'" class="small muted"
-                                >{{ ending(item)
-                                }}{{
-                                    item.merchant
-                                        ? ' · ' +
-                                          t(transactionTitles[item.type] ?? 'Card transaction')
-                                        : ''
-                                }}</text
-                            ></view
-                        ><view class="money"
-                            ><text>{{ transactionMoney(item.amount, item.currency) }}</text
-                            ><text class="small muted"
-                                >{{ t('Transaction fee') }}:
-                                {{
-                                    item.feeAmount != null && item.feeCurrency
-                                        ? transactionMoney(item.feeAmount, item.feeCurrency)
-                                        : '—'
-                                }}</text
-                            ><text
-                                v-if="item.feeReturnAmount != null && item.feeReturnCurrency"
-                                class="small muted"
-                                >{{ t('Fee refund') }}:
-                                {{
-                                    transactionMoney(item.feeReturnAmount, item.feeReturnCurrency)
-                                }}</text
-                            ><text v-if="item.state !== 'completed'" class="small muted">{{
-                                t(transactionStates[item.state] ?? 'Confirming')
-                            }}</text></view
-                        ></view
-                    ><text class="time muted">{{ dateTime(item.displayAt) }}</text></view
-                ><UiIcon name="chevron-right" :size="16" /></button></view
+        ><view v-if="items.length" class="sections">
+            <view v-for="section in sections" :key="section.day" class="day-section">
+                <view class="day-heading"><text>{{ section.day }}</text><text class="muted">{{ sectionCount(section.items.length) }}</text></view>
+                <view class="list">
+                    <button v-for="item in section.items" :key="item.id" class="item" :aria-label="t('Transaction details') + ': ' + title(item)" @click="selected = item">
+                        <view class="icon"><UiIcon name="cards" :size="16" /></view>
+                        <view class="body">
+                            <view class="top"><view class="merchant">{{ title(item) }}</view><text class="money">{{ transactionMoney(item.amount, item.currency) }}</text></view>
+                            <view class="row-meta"><text class="muted">{{ subtitle(item) }}</text><text class="state" :class="{ declined: item.state === 'declined' }">{{ t(transactionStates[item.state] ?? 'Confirming') }}</text></view>
+                        </view>
+                        <UiIcon name="chevron-right" :size="14" />
+                    </button>
+                </view>
+            </view>
+        </view
         ><view v-if="!loading && !failed && !items.length" class="empty"
             ><UiIcon name="cards" :size="24" color="#68736e" /><text class="empty-title">{{
                 t('No card transactions yet')
@@ -212,6 +188,11 @@ function title(item: CardTransaction) {
     line-height: 28px;
     margin-bottom: 16px;
 }
+.day-heading { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; font-weight: 500; padding: 20px 4px 10px; }
+.day-section:first-child .day-heading { padding-top: 0; }
+.row-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 6px; font-size: 12px; line-height: 20px; }
+.state { color: #68736e; flex-shrink: 0; }
+.state.declined { color: #a43e32; }
 .list {
     background: white;
     border-radius: 16px;

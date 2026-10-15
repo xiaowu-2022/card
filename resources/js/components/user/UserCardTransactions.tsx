@@ -1,8 +1,8 @@
 import { CreditCard, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { t, dateTime, useClientTranslation } from '@/i18n';
+import { t, dateTime, dateLabel, useClientTranslation } from '@/i18n';
 import { useCardTransactions } from '@/hooks/useCardTransactions';
-import { transactionMoney, transactionStates, transactionTitles } from '@/lib/card-transactions';
+import { transactionMoney, transactionStates, transactionTitles, transactionSections } from '@/lib/card-transactions';
 
 export function UserCardTransactions({
     cardIds,
@@ -44,84 +44,40 @@ export function UserCardTransactions({
                         </Button>
                     </div>
                 )}
-                {history.items.length > 0 && (
-                    <div className="divide-y rounded-2xl bg-surface px-4 sm:px-6">
-                        {history.items.map((item) => {
-                            const localMock = item.merchant === 'TEST / LOCAL MOCK';
-                            const cardTitle = `${t('Card ending in {{last4}}', { last4: item.last4 ?? '—' })} · ${t(transactionTitles[item.type] ?? 'Card transaction')}`;
-                            return (
-                                <div key={item.id} className="flex min-w-0 gap-3 py-5">
-                                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted">
-                                        <CreditCard className="size-4" aria-hidden="true" />
-                                    </span>
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                                            <div className="min-w-0 flex-1 basis-28">
-                                                <p className="break-words text-sm font-medium">
-                                                    {localMock
-                                                        ? cardTitle
-                                                        : item.merchant ||
-                                                          t(
-                                                              transactionTitles[item.type] ??
-                                                                  'Card transaction',
-                                                          )}
-                                                </p>
-                                                {!localMock && (
-                                                    <p className="mt-1 text-xs text-muted-foreground">
-                                                        {t('Card ending in {{last4}}', {
-                                                            last4: item.last4 ?? '—',
-                                                        })}
-                                                        {item.merchant
-                                                            ? ` · ${t(transactionTitles[item.type] ?? 'Card transaction')}`
-                                                            : ''}
-                                                    </p>
-                                                )}
-                                            </div>
-                                            <div className="max-w-full text-right">
-                                                <p className="break-all text-sm font-semibold tabular-nums">
-                                                    {transactionMoney(item.amount, item.currency)}
-                                                </p>
-                                                <p className="mt-1 text-xs text-muted-foreground">
-                                                    {t('Transaction fee')}:{' '}
-                                                    {item.feeAmount != null && item.feeCurrency
-                                                        ? transactionMoney(
-                                                              item.feeAmount,
-                                                              item.feeCurrency,
-                                                          )
-                                                        : '—'}
-                                                </p>
-                                                {item.feeReturnAmount != null &&
-                                                    item.feeReturnCurrency && (
-                                                        <p className="mt-1 text-xs text-muted-foreground">
-                                                            {t('Fee refund')}:{' '}
-                                                            {transactionMoney(
-                                                                item.feeReturnAmount,
-                                                                item.feeReturnCurrency,
-                                                            )}
-                                                        </p>
-                                                    )}
-                                                {item.state !== 'completed' && (
-                                                    <p className="mt-1 text-xs text-muted-foreground">
-                                                        {t(
-                                                            transactionStates[item.state] ??
-                                                                'Confirming',
-                                                        )}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <time
-                                            dateTime={item.displayAt}
-                                            className="mt-2 block text-xs text-muted-foreground"
-                                        >
-                                            {dateTime(item.displayAt)}
-                                        </time>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                {transactionSections(history.items, dateLabel).map(section => (
+                    <div key={section.day} className="mb-5">
+                        <div className="mb-2 flex items-center justify-between px-1 text-xs text-muted-foreground">
+                            <span>{section.day}</span>
+                            <span>{t('{{count}} transactions', { count: section.items.length })}</span>
+                        </div>
+                        <div className="divide-y rounded-2xl bg-surface px-4 sm:px-6">
+                            {section.items.map(item => {
+                                const ending = item.last4 ? t('Card ending in {{last4}}', { last4: item.last4 }) : t('Card');
+                                const title = ending + ' · ' + t(transactionTitles[item.type] ?? 'Card transaction');
+                                const subtitle = item.merchant && item.merchant !== 'TEST / LOCAL MOCK' ? item.merchant : dateTime(item.displayAt);
+                                return (
+                                    <details key={item.id} className="group py-4">
+                                        <summary className="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
+                                            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted"><CreditCard className="size-4" aria-hidden="true" /></span>
+                                            <span className="min-w-0 flex-1">
+                                                <span className="flex flex-wrap justify-between gap-2 text-sm font-medium"><span className="break-words">{title}</span><span className="tabular-nums">{transactionMoney(item.amount, item.currency)}</span></span>
+                                                <span className="mt-1 flex justify-between gap-2 text-xs text-muted-foreground"><span>{subtitle}</span><span>{t(transactionStates[item.state] ?? 'Confirming')}</span></span>
+                                            </span>
+                                            <span aria-hidden="true" className="shrink-0 text-muted-foreground transition-transform group-open:rotate-90">›</span>
+                                        </summary>
+                                        <dl className="mt-4 space-y-3 border-t pt-4 text-xs">
+                                            <div className="flex justify-between gap-4"><dt>{t('Transaction type')}</dt><dd>{t(transactionTitles[item.type] ?? 'Card transaction')}</dd></div>
+                                            <div className="flex justify-between gap-4"><dt>{t(item.timeKind === 'completed' ? 'Completion time' : 'Recorded time')}</dt><dd><time dateTime={item.displayAt}>{dateTime(item.displayAt)}</time></dd></div>
+                                            <div className="flex justify-between gap-4"><dt>{t('Transaction fee')}</dt><dd>{item.feeAmount != null && item.feeCurrency ? transactionMoney(item.feeAmount, item.feeCurrency) : '—'}</dd></div>
+                                            <div className="flex justify-between gap-4"><dt>{t('Fee refund')}</dt><dd>{item.feeReturnAmount != null && item.feeReturnCurrency ? transactionMoney(item.feeReturnAmount, item.feeReturnCurrency) : '—'}</dd></div>
+                                            {item.note && <div className="flex justify-between gap-4"><dt>{t('Transaction note')}</dt><dd>{item.note}</dd></div>}
+                                        </dl>
+                                    </details>
+                                );
+                            })}
+                        </div>
                     </div>
-                )}
+                ))}
                 {!history.loading && history.failed === 0 && history.items.length === 0 && (
                     <div className="rounded-2xl bg-surface px-5 py-8 text-center" role="status">
                         <CreditCard
