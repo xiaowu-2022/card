@@ -96,8 +96,8 @@ final readonly class UserCardTransactionsQuery
     {
         return ['id' => hash('sha256', $row->card_id."\0".$row->provider_transaction_id), 'cardId' => $row->card_id,
             'last4' => $row->last4, 'amount' => Money::of((string) $row->amount, 'USD')->amount(), 'currency' => $row->currency, 'type' => $row->type,
-            'feeAmount' => $row->fee_amount === null ? null : (string) $row->fee_amount, 'feeCurrency' => $row->fee_currency,
-            'feeReturnAmount' => $row->fee_return_amount === null ? null : (string) $row->fee_return_amount, 'feeReturnCurrency' => $row->fee_return_currency,
+            'feeAmount' => $row->fee_amount === null ? null : Money::of((string) $row->fee_amount, 'USD')->amount(), 'feeCurrency' => $row->fee_currency,
+            'feeReturnAmount' => $row->fee_return_amount === null ? null : Money::of((string) $row->fee_return_amount, 'USD')->amount(), 'feeReturnCurrency' => $row->fee_return_currency,
             'state' => $row->state, 'displayAt' => CarbonImmutable::parse($row->display_at)->utc()->toIso8601String(),
             'timeKind' => $row->completed_entry_id ? 'completed' : 'recorded', 'merchant' => $row->merchant];
     }

@@ -4016,3 +4016,23 @@ it('logs specific U1 sensitive response validation failures without card secrets
         && ! str_contains(json_encode($context), 'example.invalid')))->once();
     expect(fn () => app(CardProductProviderRouter::class)->forCard($card)->revealCard($card->provider_card_id))->toThrow(\App\Domain\CardProvider\Exceptions\ProviderUnknownResultException::class);
 });
+
+it('records scoped frontend transaction failures even when the original API response succeeded', function (): void {
+    [$card] = managedCardFixture($this);
+    $logger = Mockery::mock(\Illuminate\Log\LogManager::class, [app()])->makePartial();
+    \Illuminate\Support\Facades\Log::swap($logger);
+    $source = (string) Str::uuid();
+    $logger->shouldReceive('warning')->once()->with('Client card transactions load failed', Mockery::on(fn ($data) =>
+        $data['card_id'] === $card->id && $data['stage'] === 'response_validation'
+        && $data['reason'] === 'invalid_fee' && $data['source_request_id'] === $source && ! isset($data['secret'])));
+    $url = 'http://a.localhost/api/v1/client/cards/'.$card->id.'/transactions/load-failure';
+    $this->actingAs($this->user, 'tenant_user')->postJson($url, [
+        'page' => 1, 'stage' => 'response_validation', 'reason' => 'invalid_fee',
+        'http_status' => 200, 'source_request_id' => $source, 'secret' => 'DO-NOT-LOG',
+    ])->assertOk()->assertJsonPath('recorded', true);
+    $this->postJson(str_replace($card->id, (string) Str::uuid(), $url), [
+        'page' => 1, 'stage' => 'transport', 'reason' => 'request_failed', 'http_status' => 0,
+    ])->assertNotFound();
+    $this->postJson($url, ['page' => 1, 'stage' => 'response_validation', 'reason' => 'arbitrary private response'])
+        ->assertUnprocessable();
+});

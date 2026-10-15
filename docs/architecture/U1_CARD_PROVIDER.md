@@ -141,3 +141,13 @@ No additional migration or H5 rebuild is required for scheduled backfill.
 result success, data shape and separate PAN/CVV/expiry validity/iframe-presence flags.
 These logs do not disclose card details or embedded URLs; full encrypted request and
 response evidence remains in the existing U1 request log.
+
+2026-10-15 transaction display diagnostics: App/H5 CardTransactions now reports
+HTTP, transport and response-validation failures to an authenticated company/card-owner
+scoped POST endpoint with fixed reason codes, page, HTTP status and original request UUID.
+No transaction payloads, merchant names or card secrets are accepted into diagnostic
+logs. Reporting is best effort when offline and rate limited. A successful HTTP 200
+followed by frontend parsing failure therefore gets a server diagnostic when reachable.
+The database query normalizes fee/fee-return decimals to the same eight-place contract
+as transaction amounts; provider calls are not introduced on history reads.
+Deploy PHP and rebuilt public/h5 together; native clients require a rebuild.

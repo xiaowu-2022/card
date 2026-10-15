@@ -110,6 +110,7 @@ export async function request<T>(
     path: string,
     method: 'GET' | 'POST' = 'GET',
     data?: Record<string, unknown>,
+    onResponse?: (status: number, requestId: string) => void,
 ): Promise<T> {
     // Reopen an idle browser session before sending a form; never replay the mutation.
     if (!native && method === 'POST' && csrf && Date.now() - csrfUpdatedAt >= 60 * 60 * 1000) {
@@ -137,6 +138,7 @@ export async function request<T>(
                 : /^\/images\/direct\/[^/]+\/complete$/.test(path) ? 150000 : 20000,
             success(response) {
                 capture(response.header);
+                onResponse?.(response.statusCode, String(Object.entries(response.header ?? {}).find(([key]) => key.toLowerCase() === 'x-request-id')?.[1] ?? reference));
                 if (response.statusCode >= 200 && response.statusCode < 300)
                     resolve(response.data as T);
                 else

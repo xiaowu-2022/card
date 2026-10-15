@@ -107,6 +107,8 @@ Route::middleware(['tenant.surface:end-user', RequireConsumerApiUser::class, Req
         ->whereUuid('card')->middleware('throttle:cards');
     Route::post('/cards/{card}/transactions/sync', [CardTransactionsController::class, 'sync'])
         ->whereUuid('card')->middleware(ThrottleCardTransactionReads::class);
+    Route::post('/cards/{card}/transactions/load-failure', [CardTransactionsController::class, 'reportFailure'])
+        ->whereUuid('card')->middleware('throttle:20,1');
     Route::get('/cards/{card}/transactions', [CardTransactionsController::class, 'index'])
         ->whereUuid('card')->middleware(ThrottleCardTransactionReads::class);
     Route::post('/cards/{card}/activation/sync', [PhysicalCardActivationController::class, 'sync'])->whereUuid('card')->middleware('throttle:cards');

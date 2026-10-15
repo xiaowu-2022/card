@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from 'vue';
-import { request } from '../lib/api';
+import { request, ApiError } from '../lib/api';
 import { t, dateTime } from '../lib/i18n';
 import {
     mergeCardTransactions,
@@ -80,18 +80,33 @@ async function run(failedOnly: boolean) {
         Array.from({ length: Math.min(3, queue.length) }, async () => {
             while (queue.length && current === generation) {
                 const source = queue.shift()!;
+                let status = 0, sourceRequestId: string | undefined;
+                let received = false;
                 try {
                     const result = await request(
                         '/client/cards/' + source.id + '/transactions?page=' + source.page,
+                        'GET', undefined, (code, id) => { status = code; sourceRequestId = id; },
                     );
+                    received = true;
                     const data = transactionPage(result, source.id, source.page);
                     if (current !== generation) return;
                     items.value = mergeCardTransactions(items.value, data.items);
                     source.page++;
                     source.more = data.hasMore;
                     source.failed = false;
-                } catch {
-                    if (current === generation) source.failed = true;
+                } catch (error) {
+                    if (current === generation) {
+                        source.failed = true;
+                        const reason = received && error instanceof Error
+                            ? ({ 'Invalid transaction page': 'invalid_page', 'Invalid transaction fee': 'invalid_fee', 'Invalid transaction item': 'invalid_item' } as Record<string, string>)[error.message] ?? 'invalid_page'
+                            : 'request_failed';
+                        // Report only fixed diagnostics and local IDs, never transaction data.
+                        void request('/client/cards/' + source.id + '/transactions/load-failure', 'POST', {
+                            page: source.page, stage: received ? 'response_validation' : status ? 'http' : 'transport',
+                            reason, http_status: status || (error instanceof ApiError ? error.status : 0),
+                            source_request_id: sourceRequestId ?? (error instanceof ApiError ? error.requestId : undefined),
+                        }).catch(() => { /* An offline device cannot reach server logging. */ });
+                    }
                 }
                 publish();
             }
