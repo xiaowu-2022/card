@@ -2,7 +2,7 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
-    'Card authorization': '授权消费',
+    'Card authorization': '交易消费',
     'Card fund collection': '资金收取',
     'Card ATM deposit': 'ATM 存款',
     'Card settlement debit': '清算（借记）',

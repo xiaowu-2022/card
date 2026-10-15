@@ -205,7 +205,7 @@ This supersedes the generic `other` projection for all unrecognized raw U1 types
 
 | Raw tradeType | Read DTO type | Chinese label |
 | --- | --- | --- |
-| AUTHORIZATION | authorization | 授权消费 |
+| AUTHORIZATION | authorization | 交易消费 |
 | REFUND | refund | 退款 |
 | FUND COLLECTION | fund_collection | 资金收取 |
 | ATM DEPOSIT | atm_deposit | ATM 存款 |

@@ -127,7 +127,7 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  assert.deepEqual(loginEvents.at(-1),['capture',b]);
  view.events.titleUpdate({title:signal+JSON.stringify({signedIn:false,tenantId:'tenant',sequence:2})});
  assert.deepEqual(loginEvents.at(-1),['capture',b],'old child cannot clear current login');
- retry.events.titleUpdate({title:signal+JSON.stringify({signedIn:false,tenantId:'tenant',sequence:2})});
+ retry.events.titleUpdate({title:signal+JSON.stringify({signedIn:false,signedOut:true,tenantId:'tenant',sequence:2})});
  assert.deepEqual(loginEvents.at(-1),['clear']);
  retry.events.titleUpdate({title:signal+JSON.stringify({signedIn:true,tenantId:'tenant',sequence:1})});
  assert.deepEqual(loginEvents.at(-1),['clear'], 'restored titles cannot replay an older sign-in after logout');
@@ -179,10 +179,18 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
 
  const current=windows.at(-1);current.url=b+'/';
  current.events.titleUpdate({title:page.token()});flushLayout();
+ assert.equal(page.state.value,'loading', 'rendering cannot pass the identity barrier');
+ current.events.titleUpdate({title:page.sessionToken()+JSON.stringify({signedIn:false,tenantId:'tenant',sequence:1})});
+ current.events.titleUpdate({title:page.token()});flushLayout();
  assert.equal(page.state.value,'ready');
  assert.equal(current.styles.at(-1).height,'804px');
  assert.equal(current.styles.some(style=>style.height==='504px'),false, 'retry cannot repeat startup pulse');
  pulse.fn();flushLayout();
  assert.equal(current.styles.at(-1).opacity,1, 'stale pulse callback has no effect');
+ const clears=loginEvents.filter(event=>event[0]==='clear').length;
+ current.events.titleUpdate({title:page.sessionToken()+JSON.stringify({signedIn:true,tenantId:'tenant',sequence:2})});
+ current.events.titleUpdate({title:page.sessionToken()+JSON.stringify({signedIn:false,tenantId:'tenant',sequence:3})});
+ assert.equal(page.state.value,'error', 'temporary anonymous signal cannot reveal a login page');
+ assert.equal(loginEvents.filter(event=>event[0]==='clear').length,clears, 'only explicit logout clears persistent credentials');
 
 });

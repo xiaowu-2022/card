@@ -15,13 +15,14 @@ export function readRememberCookie(header: string): string | null {
 export function pageOrigin(url: string): string | null {
     return origin(url.match(/^https:\/\/[^/?#]+/i)?.[0]);
 }
-type Metadata = { initialized: boolean; source: string | null; signedIn: boolean };
+type Metadata = { initialized: boolean; source: string | null; signedIn: boolean; recovering?: boolean };
 export function sharedSession(ports: {
     cookies: { get(url: string): string; set(url: string, value: string): void };
     // Android: AES-GCM/Keystore. iOS: retain credentials only in its native
     // HttpOnly cookie store; metadata never contains a credential.
     vault: { read(): string | null; write(value: string | null): void } | null;
     metadata: { get(): Metadata | null; set(value: Metadata): void };
+    verify?: (url: string, cookie: string | null) => Promise<{ tenantId: string; signedIn: boolean }>;
 }) {
     let directory: DirectoryCache | null = null;
     let credential: string | null = null;
@@ -43,8 +44,7 @@ export function sharedSession(ports: {
                 // Do not restore an earlier account, but retain the trusted source
                 // so a delayed native cookie sync can recover on the next start.
                 credential = null;
-                ports.vault?.write(null);
-                remember(url, true);
+                ports.metadata.set({ initialized: true, source: url, signedIn: true, recovering: true });
                 return false;
             }
             if (credential !== value) ports.vault?.write(value);
@@ -71,40 +71,48 @@ export function sharedSession(ports: {
         async configure(value: DirectoryCache, previousOrigin?: string) {
             if (directory && directory.tenantId !== value.tenantId) throw new Error('Company changed');
             directory = value;
-            if (initialized) return;
+            if (initialized && !ports.metadata.get()?.recovering) return;
             const meta = ports.metadata.get();
             if (meta?.initialized && !meta.signedIn) { initialized = true; return; }
-            credential = ports.vault?.read() ?? null;
+            credential = meta?.recovering ? null : ports.vault?.read() ?? null;
             if (credential && !validRememberCookie(credential)) credential = null;
             // Adopt an existing installation once. iOS restores from the last
             // verified host's native cookie store, not JS/localStorage.
             const source = meta?.source ?? previousOrigin;
-            if (!credential && (!ports.vault || !meta?.initialized) && source && trusted(source)) {
+            if (!credential && (!ports.vault || !meta?.initialized || meta?.recovering) && source && trusted(source)) {
                 // WKWebView's cookie store can become available after the shell.
                 // An empty first read must not become a durable logout marker.
-                for (let attempt = 0; attempt < 20; attempt++) {
+                for (let attempt = 0; attempt < 60; attempt++) {
                     const value = readRememberCookie(ports.cookies.get(source + '/'));
                     if (value) { capture(source); break; }
                     await new Promise(resolve => setTimeout(resolve, 50));
                 }
                 if (!credential && meta?.signedIn) throw new LoginRestoreUnavailable();
             }
+            if (!credential && meta?.signedIn) throw new LoginRestoreUnavailable();
             initialized = true;
         },
+        expectedSignedIn: () => !!credential || ports.metadata.get()?.signedIn === true,
         capture,
         clear,
         async restore(url: string) {
             if (!trusted(url)) throw new Error('Unverified login destination');
             const value = credential;
+            if (!value && ports.metadata.get()?.signedIn) throw new LoginRestoreUnavailable();
             const cookie = value
                 ? `${rememberCookie}=${value}; Path=/; Max-Age=2592000; Expires=${new Date(Date.now() + 2592000000).toUTCString()}; Secure; HttpOnly; SameSite=Lax`
                 : `${rememberCookie}=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; HttpOnly; SameSite=Lax`;
-            if (value && readRememberCookie(ports.cookies.get(url + '/')) === value) return;
-            ports.cookies.set(url + '/', cookie);
+            if (!value || readRememberCookie(ports.cookies.get(url + '/')) !== value) ports.cookies.set(url + '/', cookie);
             // Some runtimes commit native cookie writes asynchronously. Do not
             // start the destination H5 before the intended credential is ready.
-            for (let attempt = 0; attempt < 20; attempt++) {
-                if (readRememberCookie(ports.cookies.get(url + '/')) === value) return;
+            for (let attempt = 0; attempt < 60; attempt++) {
+                if (readRememberCookie(ports.cookies.get(url + '/')) === value) {
+                    if (ports.verify) {
+                        const result = await ports.verify(url, value);
+                        if (result.tenantId !== directory?.tenantId || (result.signedIn !== (value !== null))) throw new LoginRestoreUnavailable();
+                    }
+                    return;
+                }
                 await new Promise(resolve => setTimeout(resolve, 50));
             }
             throw new Error('登录状态恢复失败，请重试。');

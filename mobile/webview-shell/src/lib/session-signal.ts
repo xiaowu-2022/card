@@ -9,7 +9,7 @@ export function sessionSignalScript(prefix: string): string {
             if (!state || typeof state.signedIn !== 'boolean' || typeof state.tenantId !== 'string') return;
             if (!/^specpay-(ready|debug|session|poster)-/.test(document.title) && document.title.indexOf(prefix) !== 0) restoreTitle = document.title;
             window.__consumerSessionSequence = (window.__consumerSessionSequence || 0) + 1;
-            var title = prefix + JSON.stringify({signedIn:state.signedIn,tenantId:state.tenantId,sequence:window.__consumerSessionSequence});
+            var title = prefix + JSON.stringify({signedIn:state.signedIn,tenantId:state.tenantId,signedOut:state.signedOut===true,sequence:window.__consumerSessionSequence});
             document.title = title;
             window.setTimeout(function () { if (document.title === title) document.title = restoreTitle; }, 100);
         }

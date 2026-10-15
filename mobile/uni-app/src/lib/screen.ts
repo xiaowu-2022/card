@@ -1,7 +1,7 @@
 import { ref, watch, onBeforeUnmount } from 'vue';
 import { onShow, onHide } from '@dcloudio/uni-app';
 import { ApiError } from './api';
-import { clearSession, requireUser, consumerSessionScope } from './session';
+import { bootstrap, session, clearSession, requireUser, consumerSessionScope } from './session';
 export function useScreen(load: () => Promise<void>, options: { refreshOnShow?: () => boolean; onAccessDenied?: () => void } = {}) {
     const loading = ref(true);
     const failed = ref(false);
@@ -24,8 +24,14 @@ export function useScreen(load: () => Promise<void>, options: { refreshOnShow?: 
             failed.value = true;
             if (error instanceof ApiError && [401,403,419].includes(error.status)) options.onAccessDenied?.();
             if (error instanceof ApiError && error.status === 401) {
-                clearSession();
-                uni.reLaunch({ url: '/pages/login/index' });
+                try {
+                    await bootstrap();
+                    if (run !== generation || !visible) return;
+                    if (!session.value?.user) {
+                        clearSession();
+                        uni.reLaunch({ url: '/pages/login/index' });
+                    }
+                } catch { /* A failed recovery is not proof of logout; show retry. */ }
             }
         } finally {
             // #ifdef H5

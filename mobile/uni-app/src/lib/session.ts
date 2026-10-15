@@ -59,20 +59,7 @@ export async function bootstrap() {
     if (pending) return pending;
     let generation = sessionGeneration;
     pending = (async () => {
-        let data: Bootstrap;
-        try {
-            data = await request<Bootstrap>('/bootstrap');
-        } catch (error) {
-            if (
-                error instanceof ApiError &&
-                error.status === 401 &&
-                generation === sessionGeneration
-            ) {
-                clearSession();
-                generation = sessionGeneration;
-                data = await request<Bootstrap>('/bootstrap');
-            } else throw error;
-        }
+        const data = await request<Bootstrap>('/bootstrap');
         if (generation !== sessionGeneration) return;
         if (native && data.tenant.slug !== company.tenantSlug) {
             clearSession();
@@ -90,8 +77,8 @@ export async function bootstrap() {
     });
     return pending;
 }
-export function clearSession() {
-    notifyWebviewSession(false, session.value?.tenant.id);
+export function clearSession(explicitLogout = false) {
+    notifyWebviewSession(false, session.value?.tenant.id, explicitLogout);
     resetWalletReadiness();
     resetSupportReminder();
     setToken(null);
@@ -118,7 +105,7 @@ export async function login(identifier: string, password: string) {
 }
 export async function logout() {
     await request('/logout', 'POST');
-    clearSession();
+    clearSession(true);
     uni.reLaunch({ url: '/pages/login/index' });
 }
 let lastPresence = 0;
@@ -146,8 +133,13 @@ export async function refreshUnread() {
     } catch (error) {
         resetSupportReminder();
         if (error instanceof ApiError && error.status === 401 && generation === sessionGeneration) {
-            clearSession();
-            uni.reLaunch({ url: '/pages/login/index' });
+            try {
+                await bootstrap();
+                if (!session.value?.user && generation === sessionGeneration) {
+                    clearSession();
+                    uni.reLaunch({ url: '/pages/login/index' });
+                }
+            } catch { /* Keep credentials and the last session on transient recovery errors. */ }
         }
         // Keep the last successful count when offline; never display a false zero.
     }

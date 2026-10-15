@@ -33,7 +33,7 @@ function setup({ native = false, serverSlug = 'company' } = {}) {
         throw new Error(name);
     } });
     exports.session.value = signedIn();
-    return { ...exports, requests, navigations, signedIn, preview };
+    return { ...exports, requests, navigations, signedIn, preview, api };
 }
 
 test('concurrent and subsequent page entries reuse successful wallet initialization', async () => {
@@ -122,4 +122,16 @@ test('native bootstrap still rejects another company and clears its session', as
     const s = setup({ native: true, serverSlug: 'tenant-b' });
     await assert.rejects(s.bootstrap());
     assert.equal(s.session.value, null);
+});
+
+
+test('transient bootstrap failures retain the session and persistent token', async () => {
+    const s = setup();
+    const before = s.session.value;
+    const generation = s.api.sessionGeneration;
+    s.api.request = async () => { throw new Error('temporary network failure'); };
+    await assert.rejects(s.bootstrap(), /network/);
+    assert.equal(s.session.value, before);
+    assert.equal(s.api.sessionGeneration, generation);
+    assert.equal(s.navigations.length, 0);
 });

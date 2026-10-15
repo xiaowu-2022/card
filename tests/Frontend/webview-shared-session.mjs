@@ -60,7 +60,7 @@ test('iOS uses native HttpOnly cookie store and nonsecret source metadata across
 test('missing Android key does not fall back to a copied native cookie; storage errors do not persist plaintext',async()=>{
     const h=setup();h.ports.metadata.set({initialized:true,signedIn:true,source:a});
     h.jar.set(a+'/',`consumer_remember=${cookie}`);
-    const s=h.create();await s.configure(listing,a);await s.restore(b);assert.equal(h.jar.get(b+'/'),'');
+    const s=h.create();await assert.rejects(s.configure(listing,a),/登录状态/);assert.equal(h.writes.length,0);
     h.ports.vault.write=()=>{throw Error('unavailable');};
     assert.throws(()=>s.capture(a),/unavailable/);
     assert.equal(h.saved(),null);
@@ -86,7 +86,7 @@ test('session signal transports only status and company, including a completed b
         addEventListener:(name,fn)=>events[name]=fn,removeEventListener:()=>{},setTimeout:()=>{}};
     const document={get title(){return title;},set title(value){title=value;titles.push(value);}};
     runInNewContext(signals.sessionSignalScript('signal:'),{window,document});
-    assert.deepEqual(JSON.parse(titles[0].slice(7)),{signedIn:true,tenantId:'tenant-a',sequence:1});
+    assert.deepEqual(JSON.parse(titles[0].slice(7)),{signedIn:true,tenantId:'tenant-a',signedOut:false,sequence:1});
     events['consumer-session-state']({detail:{signedIn:false,tenantId:'tenant-a',password:'never'}});
     assert.ok(titles.every(value=>!value.includes('token')&&!value.includes('password')));
     assert.equal(JSON.parse(titles.at(-1).slice(7)).signedIn,false);
@@ -131,4 +131,33 @@ test('explicit sign-in recovery can clear missing expired cookies without waitin
     const s=h.create();await assert.rejects(s.configure(listing),/尚未恢复/);
     s.clear();await s.configure(listing);await s.restore(b);
     assert.equal(h.meta().signedIn,false);assert.equal(h.jar.get(b+'/'),'');
+});
+
+test('destination requires server-confirmed company and identity even if the cookie already exists', async()=>{
+    const h=setup();h.jar.set(a+'/',`consumer_remember=${cookie}`);
+    let checks=0;
+    h.ports.verify=async()=>{checks++;throw Error('temporary network failure');};
+    const s=h.create();await s.configure(listing,a);
+    await assert.rejects(s.restore(a),/network/);
+    assert.equal(checks,1);assert.equal(h.saved(),cookie);assert.equal(h.meta().signedIn,true);
+    h.ports.verify=async()=>({tenantId:'other-company',signedIn:true});
+    await assert.rejects(s.restore(b),/登录状态/);
+    h.ports.verify=async()=>({tenantId:listing.tenantId,signedIn:false});
+    await assert.rejects(s.restore(b),/登录状态/);
+    assert.equal(h.saved(),cookie);
+    h.ports.verify=async()=>({tenantId:listing.tenantId,signedIn:true});
+    await s.restore(b);
+});
+
+test('a temporarily empty native cookie does not erase credentials or restore the earlier account',async()=>{
+    const h=setup();h.jar.set(a+'/',`consumer_remember=${cookie}`);
+    const s=h.create();await s.configure(listing,a);
+    h.jar.delete(a+'/');
+    assert.equal(s.capture(a),false);
+    assert.equal(h.saved(),cookie);
+    assert.equal(h.meta().recovering,true);
+    // Recover only from the trusted source's new cookie, never the old vault value.
+    h.jar.set(a+'/',`consumer_remember=${'C'.repeat(160)}`);
+    await s.configure(listing,a);await s.restore(b);
+    assert.equal(exports.readRememberCookie(h.jar.get(b+'/')),'C'.repeat(160));
 });

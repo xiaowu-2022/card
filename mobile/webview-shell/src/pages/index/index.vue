@@ -5,7 +5,7 @@ import config from '../../config.json';
 import { discover, type DirectoryCache } from '../../lib/directory';
 import { readinessScript } from '../../lib/readiness';
 import { safeAddress, debugScript, debugMessages } from '../../lib/debug';
-import { sharedSession, pageOrigin, validRememberCookie, LoginRestoreUnavailable } from '../../lib/shared-session';
+import { sharedSession, pageOrigin, validRememberCookie, rememberCookie, LoginRestoreUnavailable } from '../../lib/shared-session';
 import { sessionSignalScript } from '../../lib/session-signal';
 import { posterBridgeScript, posterReceiver, savePoster, type PosterRuntime } from '../../lib/poster-bridge';
 import { androidCredentialVault, type AndroidBridge } from '../../../../uni-app/src/lib/device-credentials';
@@ -32,7 +32,7 @@ let revealPending = false, startupPulseDone = false, startupPulseActive = false;
 let startupPulseTimer: ReturnType<typeof setTimeout> | undefined;
 let loginStore: ReturnType<typeof sharedSession> | null = null, loginTenant = '', sessionPrefix = '', signedIn = false;
 let loginDirectory: DirectoryCache | null = null;
-let sessionSequence = 0;
+let sessionSequence = 0, identityReady = false, expectsSignedIn = false;
 let posterChannel: ReturnType<typeof posterReceiver> | null = null;
 async function configureLogin(directory: DirectoryCache, previous: DirectoryCache | null) {
     if (loginTenant && loginTenant !== directory.tenantId) throw new Error('公司信息已变更，请重新打开应用。');
@@ -46,6 +46,18 @@ async function configureLogin(directory: DirectoryCache, previous: DirectoryCach
         loginStore = sharedSession({
             cookies: { get: url => plus.navigator.getCookie(url) || '', set: (url, value) => plus.navigator.setCookie(url, value) },
             vault,
+            verify: (url, value) => new Promise((resolve, reject) => uni.request({
+                url: url + '/api/v1/bootstrap', method: 'GET', withCredentials: false, timeout: 15000,
+                header: { Accept: 'application/json', 'X-Consumer-Webview': '1', ...(value ? { Cookie: rememberCookie + '=' + value } : {}) },
+                success: response => {
+                    const data = response.data as { tenant?: { id?: string }; user?: { id?: string } };
+                    if (response.statusCode !== 200 || typeof data?.tenant?.id !== 'string') {
+                        reject(new LoginRestoreUnavailable()); return;
+                    }
+                    resolve({ tenantId: data.tenant.id, signedIn: typeof data.user?.id === 'string' });
+                },
+                fail: () => reject(new LoginRestoreUnavailable()),
+            })),
             metadata: {
                 get: () => { const value = uni.getStorageSync(metaKey); return value && typeof value === 'object' ? value : null; },
                 set: value => uni.setStorageSync(metaKey, value),
@@ -61,6 +73,23 @@ function trustedLoginPage(view: Webview) {
 function captureLogin() {
     if (signedIn && child && trustedLoginPage(child) && loginStore && !loginStore.capture(active.value))
         throw new Error('登录凭证尚未保存');
+}
+async function confirmPageIdentity(view: Webview, sequence: number) {
+    for (let attempt = 0; attempt < 60; attempt++) {
+        if (disposed || child !== view || sessionSequence !== sequence || !signedIn || !trustedLoginPage(view)) return;
+        try {
+            captureLogin();
+            identityReady = true;
+            checkContent(view);
+            return;
+        } catch {
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
+    }
+    if (!disposed && child === view && sessionSequence === sequence) {
+        loginRecoveryFailed.value = true;
+        failure('登录凭证尚未就绪，请重试；已保存的登录状态不会因网络错误清除。');
+    }
 }
 function loginStorageFailure() {
     debugLog('登录状态未能安全保存');
@@ -147,7 +176,7 @@ function contentBounds() {
 function loading() {
     posterChannel?.dispose(); posterChannel = null;
     stopTimer(); state.value = 'loading'; error.value = '';
-    signedIn = false;
+    signedIn = false; identityReady = false;
     sessionPrefix = `specpay-session-${Date.now()}-${loadSequence + 1}:`;
     sessionSequence = 0;
     debugInstalled = false; debugPrefix = ''; debugLog('网页开始加载');
@@ -250,8 +279,10 @@ function open(url: string) {
                     || !Number.isSafeInteger(value.sequence) || value.sequence <= sessionSequence) return;
                 sessionSequence = value.sequence;
                 signedIn = value.signedIn;
-                if (signedIn) captureLogin();
-                else loginStore?.clear();
+                if (signedIn) { expectsSignedIn = true; void confirmPageIdentity(view, sessionSequence); }
+                else if (value.signedOut === true) { loginStore?.clear(); expectsSignedIn = false; identityReady = true; }
+                else if (!expectsSignedIn) identityReady = true;
+                else { loginRecoveryFailed.value = true; failure('登录状态尚未恢复，请重试；登录凭证已保留。'); }
             } catch { loginStorageFailure(); }
             return;
         }
@@ -259,7 +290,7 @@ function open(url: string) {
             debugMessages(event.title.slice(debugPrefix.length)).forEach(debugLog); return;
         }
         if (disposed || child !== view || state.value !== 'loading'
-            || !readinessToken || event.title !== readinessToken
+            || !identityReady || !readinessToken || event.title !== readinessToken
             || !/^https:\/\//i.test(view.getURL())) return;
         stopTimer(); revealPending = true;
         // Once content is ready, pulse its native bounds behind the welcome page.
@@ -284,7 +315,10 @@ async function connect() {
         const result = await discover(config.seeds, config.tenantSlug, previous, probe);
         if (disposed) return;
         await configureLogin(result, previous);
+        expectsSignedIn = loginStore!.expectedSignedIn?.() ?? false;
+        debugLog('正在验证目标线路身份');
         await loginStore!.restore(result.selected);
+        debugLog('目标线路身份验证通过');
         if (disposed) return;
         save(result); lastRefresh = Date.now(); active.value = result.selected;
         stopDebug(); refreshDebug(); open(result.selected);

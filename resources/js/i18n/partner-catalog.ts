@@ -1,5 +1,5 @@
 export const partnerCatalog = {
-    'Card authorization': ['授权消费', 'Kebenaran kad', 'Autorización de tarjeta'],
+    'Card authorization': ['交易消费', 'Kebenaran kad', 'Autorización de tarjeta'],
     'Card fund collection': ['资金收取', 'Kutipan dana', 'Cobro de fondos'],
     'Card ATM deposit': ['ATM 存款', 'Deposit ATM', 'Depósito en cajero'],
     'Card settlement debit': ['清算（借记）', 'Penyelesaian debit', 'Liquidación de débito'],

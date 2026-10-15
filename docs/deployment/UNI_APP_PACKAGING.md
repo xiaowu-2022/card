@@ -573,3 +573,30 @@ open tabs; no backend API/schema changes or native installation is required for 
 H5 publication.
 
 2026-10-15 H5 多公司域名启动修复：116a.my 的 `/api/v1/bootstrap` 已正确返回 tenant-b，但旧 H5 在 session.bootstrap 将服务器公司 slug 与打包常量比较，错误抛出 403。H5 按当前同源域名由服务器解析公司，不要求与构建 tenantSlug 相同；原生 App 仍要求公司 slug 匹配且保留原有可信域名发现和凭据隔离。仅更新 H5 资源即可修复网页，无数据库迁移、域名重分配或服务端权限放宽。发布新入口及其依赖的全部静态资源后刷新页面。不要通过禁用服务器公司隔离或将其他域名的凭据复制过来解决。
+
+## 2026-10-15 WebView line-switch identity barrier
+
+Deploy matching H5 and rebuild/install the `mobile/webview-shell` App resources.
+The shell restores only the verified company's encrypted remember cookie, waits for
+native cookie commitment (up to three seconds), and verifies `/api/v1/bootstrap`
+with that credential before opening the destination page. The response must match
+the discovered company and expected signed-in/guest state. Credentials remain native
+and HttpOnly; they never pass through remote JavaScript, titles, URLs or diagnostics.
+The destination H5 must additionally emit its successful company/session bootstrap
+signal before rendered content can dismiss the native welcome screen.
+
+Network/timeout/recovery failures preserve secure credentials and show a retry path.
+A temporarily empty native cookie store records pending recovery; it cannot restore
+an older account from the vault until the trusted source cookie is available again.
+A missing secure key requires explicit reauthentication, not plaintext fallback.
+Only an explicit H5 logout signal clears the shell's persisted state. Server token
+expiry/revocation still denies access; preserving a credential does not authenticate it.
+Old windows, session signals and pending layout callbacks cannot reveal or clear a
+new destination. H5 screen/unread 401 handling rechecks bootstrap before logout;
+a failed recheck does not erase the session or replay a financial request.
+
+Use `npm --prefix mobile/webview-shell run build:app` to compile resources, then
+cloud-package and install with HBuilderX using the existing signing process.
+This resource build does not produce a signed IPA/APK. H5 must also be rebuilt and
+copied to public/h5. Existing installed shells need reinstall to receive the barrier.
+Debug output includes only recovery stages; no credentials or identity values.
