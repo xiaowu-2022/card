@@ -9,6 +9,14 @@ export function transactionMoney(amount: string, currency: string): string {
 
 export const transactionTitles: Record<string, string> = {
     purchase: 'Card purchase',
+    authorization: 'Card authorization',
+    fund_collection: 'Card fund collection',
+    atm_deposit: 'Card ATM deposit',
+    settlement_debit: 'Card settlement debit',
+    settlement_credit: 'Card settlement credit',
+    settlement_reversal: 'Card settlement reversal',
+    chargeback_debit: 'Card chargeback debit',
+    chargeback_credit: 'Card chargeback credit',
     verification: 'Card verification',
     reversal: 'Transaction reversal',
     refund: 'Card refund',

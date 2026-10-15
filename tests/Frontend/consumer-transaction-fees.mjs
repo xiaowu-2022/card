@@ -75,3 +75,10 @@ test('day sections keep independent records and exact fees across cards and pagi
     assert.equal(groups[0].items[0].feeAmount, '-0.10000000');
     assert.equal(groups[1].items.length, 1);
 });
+
+test('all documented U1 read types pass the shared client contract', () => {
+    const row = { id: 'a'.repeat(64), cardId: 'card', last4: '1234', amount: '-1.00000000', currency: 'USD', state: 'completed', displayAt: '2026-10-15T09:00:00Z', timeKind: 'recorded', merchant: null, feeAmount: '-0.03000000', feeCurrency: 'USD' };
+    for (const type of ['authorization', 'refund', 'fund_collection', 'atm_deposit', 'reversal', 'verification', 'settlement_debit', 'settlement_credit', 'settlement_reversal', 'chargeback_debit', 'chargeback_credit']) {
+        assert.equal(transactionPage({ page: 1, hasMore: false, items: [{ ...row, type }] }, 'card', 1).items[0].type, type);
+    }
+});

@@ -4093,3 +4093,22 @@ it('projects raw U1 transaction types and terminal states into the consumer hist
         ->and(CardTransaction::where('provider_transaction_id', 'U1-RAW-SUCCESS')->sole()->state)->toBe('SUCCEEDED');
     Http::assertNothingSent();
 });
+
+it('classifies existing U1 documented transaction enums on database reads without changing source evidence', function (string $raw, string $type): void {
+    [$card] = transactionReadFixture($this);
+    app(RecordCardTransactionsAction::class)->execute($card, [
+        new ProviderCardTransactionDTO('U1-DOCUMENTED-TYPE', '-5.00000000', 'USD', $raw, 'SUCCEEDED', '2026-10-15T09:00:00', null, '-0.03000000', 'USD'),
+    ], CarbonImmutable::now());
+    Http::preventStrayRequests();
+    $this->actingAs($this->user, 'tenant_user')->getJson("http://a.localhost/cards/{$card->id}/transactions")
+        ->assertOk()->assertJsonPath('items.0.type', $type)->assertJsonPath('items.0.state', 'completed')
+        ->assertJsonPath('items.0.amount', '-5.00000000')->assertJsonPath('items.0.feeAmount', '-0.03000000');
+    expect(CardTransaction::where('provider_transaction_id', 'U1-DOCUMENTED-TYPE')->sole()->type)->toBe($raw);
+    Http::assertNothingSent();
+})->with([
+    ['AUTHORIZATION', 'authorization'], ['REFUND', 'refund'], ['FUND COLLECTION', 'fund_collection'],
+    ['ATM DEPOSIT', 'atm_deposit'], ['REVERSAL', 'reversal'], ['VALIDATION', 'verification'],
+    ['SETTLEMENT DEBIT', 'settlement_debit'], ['SETTLEMENT CREDIT', 'settlement_credit'],
+    ['SETTLEMENT REVERSAL', 'settlement_reversal'], ['CHARGEBACK DEBIT', 'chargeback_debit'],
+    ['CHARGEBACK CREDIT', 'chargeback_credit'], ['purchase', 'purchase'], ['fee', 'fee'], ['1', 'other'],
+]);

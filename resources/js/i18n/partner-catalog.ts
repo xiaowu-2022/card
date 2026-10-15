@@ -1,4 +1,12 @@
 export const partnerCatalog = {
+    'Card authorization': ['授权消费', 'Kebenaran kad', 'Autorización de tarjeta'],
+    'Card fund collection': ['资金收取', 'Kutipan dana', 'Cobro de fondos'],
+    'Card ATM deposit': ['ATM 存款', 'Deposit ATM', 'Depósito en cajero'],
+    'Card settlement debit': ['清算（借记）', 'Penyelesaian debit', 'Liquidación de débito'],
+    'Card settlement credit': ['清算（贷记）', 'Penyelesaian kredit', 'Liquidación de crédito'],
+    'Card settlement reversal': ['清算冲正', 'Pembalikan penyelesaian', 'Reversión de liquidación'],
+    'Card chargeback debit': ['拒付（借记）', 'Caj balik debit', 'Contracargo de débito'],
+    'Card chargeback credit': ['拒付（贷记）', 'Caj balik kredit', 'Contracargo de crédito'],
     '{{count}} transactions': ['{{count}} 笔记录', '{{count}} transaksi', '{{count}} transacciones'],
     'Card details are synchronizing': ['卡资料同步中', 'Butiran kad sedang disegerakkan', 'Sincronizando los datos de la tarjeta'],
     'The system is confirming this operation. Please wait.': ['系统正在确认本次操作，请稍候。', 'Sistem sedang mengesahkan operasi ini. Sila tunggu.', 'El sistema está confirmando esta operación. Espera un momento.'],

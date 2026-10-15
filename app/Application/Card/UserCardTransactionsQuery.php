@@ -122,7 +122,7 @@ final readonly class UserCardTransactionsQuery
     {
         [$fee, $feeCurrency] = $this->fee($row, 'fee_amount', 'fee_currency');
         [$returnedFee, $returnedCurrency] = $this->fee($row, 'fee_return_amount', 'fee_return_currency');
-        $type = in_array($row->type, ['purchase', 'verification', 'reversal', 'refund', 'transfer_in', 'transfer_out', 'fee', 'cash_withdrawal', 'balance_inquiry', 'adjustment', 'other'], true) ? $row->type : 'other';
+        $type = CardTransactionType::display($row->type);
         $state = match ($row->state) {
             'SUCCEEDED' => 'completed', 'FAILED' => 'declined',
             'completed', 'authorized', 'declined', 'reversed', 'pending', 'confirming' => $row->state,

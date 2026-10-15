@@ -197,3 +197,32 @@ such records remain separate rather than guessed into a business group. Canonica
 same-record fees are displayed together with their transaction. No evidence rewrite,
 migration or provider call is needed. Deploy frontend assets/public/h5 together;
 native uni-app clients need their usual rebuild to receive the updated layout.
+
+## Documented transaction types — verified 2026-10-15
+
+Source: https://doc.u1card.com/#trade-type and /v2/api/vcctrade response definition.
+This supersedes the generic `other` projection for all unrecognized raw U1 types.
+
+| Raw tradeType | Read DTO type | Chinese label |
+| --- | --- | --- |
+| AUTHORIZATION | authorization | 授权消费 |
+| REFUND | refund | 退款 |
+| FUND COLLECTION | fund_collection | 资金收取 |
+| ATM DEPOSIT | atm_deposit | ATM 存款 |
+| REVERSAL | reversal | 冲正 |
+| VALIDATION | verification | 校验 |
+| SETTLEMENT DEBIT | settlement_debit | 清算（借记） |
+| SETTLEMENT CREDIT | settlement_credit | 清算（贷记） |
+| SETTLEMENT REVERSAL | settlement_reversal | 清算冲正 |
+| CHARGEBACK DEBIT | chargeback_debit | 拒付（借记） |
+| CHARGEBACK CREDIT | chargeback_credit | 拒付（贷记） |
+
+CardTransactionType projects documented enums when existing saved rows are read;
+raw type/state/amount/fees remain untouched in the database. No resync or migration.
+Canonical local/PhotonPay types retain their existing labels. Unknown numeric codes
+remain other; callback tradetype examples are not an undocumented mapping for vcctrade.
+The document defines feeAmount/feeCurrency on each transaction but no standalone fee
+tradeType. Never classify FUND COLLECTION as a fee or create a second fee debit from
+that field. Known canonical fee rows still display as fees. Deploy PHP and matched
+admin/H5 resources, including the shared parser/catalogs. Native clients need rebuild
+for the added types (old parsers reject unknown canonical enum values).

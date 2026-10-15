@@ -2,6 +2,14 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Card authorization': '授权消费',
+    'Card fund collection': '资金收取',
+    'Card ATM deposit': 'ATM 存款',
+    'Card settlement debit': '清算（借记）',
+    'Card settlement credit': '清算（贷记）',
+    'Card settlement reversal': '清算冲正',
+    'Card chargeback debit': '拒付（借记）',
+    'Card chargeback credit': '拒付（贷记）',
     'Card status is still pending.': '三方结果尚未确认，请稍后再次刷新。',
     'Card request status refreshed.': '开卡订单状态已刷新。',
     '{{days}}-day average': '前{{days}}天日均',
