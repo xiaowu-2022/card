@@ -48,6 +48,7 @@ export type StockReport = {
     flowDetails?: StockFlowDetails | null;
     version: 'partner' | 'standard';
     stockBasis?: 'BUSINESS_CONTRIBUTIONS';
+    stockBeforeDifference?: string;
     cashFlow: null | {
         rateObservedAt: string | null;
         assets: {

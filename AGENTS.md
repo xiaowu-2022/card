@@ -1,3 +1,11 @@
+On 2026-10-15 the user changed enabled-partner stock to previous business stock
+minus that partner's signed personal theoretical-minus-actual difference. Apply once
+across reports, lists, child summaries, homepage totals/source dialogs and derived
+reference shares; negative differences increase stock. Preserve existing team/root
+scopes, base contribution evidence, daily activity, personal reconciliation, decimals,
+read-only snapshots and immutable Wallet/Ledger. Update admin/H5/App presentation;
+no migration, provider calls or production financial tests. See PARTNER_STOCK.md.
+
 On 2026-10-13 the user required all administrative date display, date filters and
 daily reporting to use Beijing time (Asia/Shanghai, UTC+8), independently of company,
 browser and server timezones. Today starts at Beijing midnight; source dialogs share

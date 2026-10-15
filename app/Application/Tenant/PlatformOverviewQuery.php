@@ -8,6 +8,7 @@ use App\Application\CardProviderDirectory\CardProviderReferenceQuery;
 use App\Application\Partners\LegacyStockReport;
 use App\Application\Partners\PartnerAccountBalance;
 use App\Application\Partners\PartnerBusinessStock;
+use App\Application\Partners\PartnerStockValue;
 use App\Application\Payment\DepositReceiptClassification;
 use App\Application\User\PlatformUserFinancialSummary;
 use App\Domain\Assets\MarketSnapshot;
@@ -128,18 +129,20 @@ final class PlatformOverviewQuery
                         COALESCE(SUM((CASE WHEN reverses_id IS NULL THEN amount ELSE -amount END)*(CASE WHEN kind='ADJUSTMENT_DECREASE' THEN -1 ELSE 1 END)) FILTER(WHERE kind IN ('ADJUSTMENT_INCREASE','ADJUSTMENT_DECREASE')),0)::text AS adjustment")
                     ->groupBy('partner_id')->get()->keyBy('partner_id');
                 $entries = null;
+                $difference = BigDecimal::zero();
                 foreach ($rows as $p) {
                     $query = app(PartnerBusinessStock::class)->entries($tenant, $p->user_id);
                     $entries === null ? $entries = $query : $entries->unionAll($query);
                     $f = $income[$tenant.':'.$p->user_id];
                     $j = $journals->get($p->id);
                     $balance = PartnerAccountBalance::calculate($j->advance ?? '0', $f['annualExpense'], $f['activationCommission'], $f['annualCommission'], $f['unclassifiedCommission'], $j->reimbursement ?? '0', $j->adjustment ?? '0', $actual[$p->user_id] ?? '0', false);
+                    $difference = $difference->plus($balance['difference']);
                     foreach (['theoretical', 'actual', 'difference'] as $key) {
                         $totals[$key] = $this->decimal(BigDecimal::of($totals[$key])->plus($balance[$key]));
                     }
                 }
                 $stock = DB::query()->fromSub($entries, 'entries')->selectRaw("COALESCE(SUM(CASE WHEN category IN ('deposits','annual') THEN amount ELSE -amount END),0) AS amount")->value('amount');
-                $totals['stock'] = $this->decimal(BigDecimal::of($totals['stock'])->plus($stock));
+                $totals['stock'] = $this->decimal(BigDecimal::of($totals['stock'])->plus(PartnerStockValue::afterDifference((string) $stock, (string) $difference)));
             }
         }
 

@@ -66,6 +66,7 @@ export type StockReport = {
     flowDetails?: StockFlowDetails | null;
     version: 'partner' | 'standard';
     stockBasis?: 'BUSINESS_CONTRIBUTIONS';
+    stockBeforeDifference?: string;
     cashFlow: null | {
         rateObservedAt: string | null;
         assets: {
@@ -328,14 +329,14 @@ export function PartnerStockReport({
                 {!compactHeader && showShare && r.version === 'partner' && (
                     <p>
                         {t(
-                            'Reference only. No settlement or transfer is created. Advances do not reduce stock or the reference share.',
+                            'Reference only. Stock deducts the signed personal account balance difference; reference share uses the adjusted stock. No settlement or transfer is created.',
                         )}
                     </p>
                 )}
             </section>
             {r.version === 'partner' && onPartners && (
                 <button className="stock-panel w-full text-left" onClick={onPartners}>
-                    {t('Partner data')} ›
+                    {t('Partner data')} {'›'}
                 </button>
             )}
             {r.missingRates > 0 && (
@@ -392,11 +393,17 @@ export function PartnerStockReport({
                             </dd>
                         </div>
                     ))}
+                    {r.version === 'partner' && r.accountBalance && (
+                        <div>
+                            <dt>{'−'} {t('Account balance difference')}</dt>
+                            <dd>{value(r.accountBalance.difference)}</dd>
+                        </div>
+                    )}
                 </dl>
                 {r.version === 'partner' && (
                     <p className="stock-muted">
                         {t(
-                            'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses. Wallet top-ups and withdrawals do not count.',
+                            'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses − personal account balance difference. Wallet flows affect stock through the personal difference, not business contributions.',
                         )}
                     </p>
                 )}

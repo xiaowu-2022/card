@@ -240,7 +240,8 @@ it('records signed cooperation offsets with exact totals replay guards and rever
     expect($report['accountBalance']['advances'])->toBe('60.00000000')
         ->and($report['accountBalance']['reimbursements'])->toBe('7.00000000')
         ->and($report['accountBalance']['theoretical'])->toBe('53.00000000')
-        ->and($report['stock'])->toBe('-7.00000000');
+        ->and($report['stockBeforeDifference'])->toBe('-7.00000000')
+        ->and($report['stock'])->toBe('-60.00000000');
     $summary = app(PartnerListSummary::class)->forRows([$partner])[$partner->id]['summary'];
     expect($summary['advance'])->toBe('60.00000000')->and($summary['reimbursement'])->toBe('7.00000000');
     expect(operatingOverview()['reimbursement'])->toBe('7.00000000');
@@ -838,16 +839,17 @@ it('converts guarantees once and excludes commissions received by the owner and 
     $r = $query->read($this->tenant->id, $owner->id, true, 1, 'outflow');
     expect($r['totals']['deposits'])->toBe('0.00000000')->and($r['totals']['annual'])->toBe($order->settlement_total)
         ->and($r['totals']['annualCommission'])->toBe('0.00000000')->and($r['totals']['activation'])->toBe($cost)
-        ->and($r['stock'])->toBe((string) BigDecimal::of($order->settlement_total)->minus($cost)->toScale(8));
+        ->and($r['stockBeforeDifference'])->toBe((string) BigDecimal::of($order->settlement_total)->minus($cost)->toScale(8))
+        ->and($r['stock'])->toBe((string) BigDecimal::of($r['stockBeforeDifference'])->minus($r['accountBalance']['difference'])->toScale(8));
     $sum = collect($r['flowDetails']['items'])->reduce(fn ($sum, $row) => $sum->plus($row['amount']), BigDecimal::zero());
     expect((string) $sum->toScale(8))->toBe($r['totals']['outflow']);
     stockPartner($this, $child);
     $r = $query->read($this->tenant->id, $owner->id);
-    expect($r['stock'])->toBe('0.00000000')->and($r['totals']['annualCommission'])->toBe('0.00000000');
+    expect($r['stockBeforeDifference'])->toBe('0.00000000')->and($r['stock'])->toBe((string) BigDecimal::of('0')->minus($r['accountBalance']['difference'])->toScale(8))->and($r['totals']['annualCommission'])->toBe('0.00000000');
     Http::assertNothingSent();
 });
 
-it('deducts net owner and descendant partner reimbursements with reversals but not advances', function () {
+it('retains business reimbursement evidence and deducts signed personal differences', function () {
     $owner = stockPartner($this, $this->user);
     $direct = stockChild($this->user);
     $nested = stockPartner($this, $direct);
@@ -858,14 +860,14 @@ it('deducts net owner and descendant partner reimbursements with reversals but n
     $this->management->journal($this->admin, $this->tenant->id, $owner->id, stockEntry('ADVANCE', '900'));
     $query = app(PartnerReport::class);
     $r = $query->read($this->tenant->id, $this->user->id, true, 1, 'outflow');
-    expect($r['stock'])->toBe('-25.00000001')->and($r['negative'])->toBeTrue()->and($r['totals']['reimbursements'])->toBe('125.12345679')
+    expect($r['stockBeforeDifference'])->toBe('-25.00000001')->and($r['stock'])->toBe('-804.87654322')->and($r['negative'])->toBeTrue()->and($r['totals']['reimbursements'])->toBe('125.12345679')
         ->and($r['flowDetails']['total'])->toBe(2);
     $this->management->journal($this->admin, $this->tenant->id, $owner->id, stockEntry('REIMBURSEMENT', '120.12345679') + ['reverses_id' => $first->id]);
     $r = $query->read($this->tenant->id, $this->user->id, true, 1, 'outflow');
-    expect($r['stock'])->toBe('95.12345678')->and($r['totals']['reimbursements'])->toBe('5.00000000')->and($r['flowDetails']['total'])->toBe(3)
+    expect($r['stockBeforeDifference'])->toBe('95.12345678')->and($r['stock'])->toBe((string) BigDecimal::of('95.12345678')->minus($r['accountBalance']['difference'])->toScale(8))->and($r['totals']['reimbursements'])->toBe('5.00000000')->and($r['flowDetails']['total'])->toBe(3)
         ->and(collect($r['flowDetails']['items'])->where('amount', '<', 0))->toHaveCount(1);
     stockGuarantee($child, '-50'); // Completed refund leaves held principal once.
-    expect($query->read($this->tenant->id, $this->user->id)['stock'])->toBe('45.12345678');
+    expect($query->read($this->tenant->id, $this->user->id)['stockBeforeDifference'])->toBe('45.12345678');
     Http::assertNothingSent();
 });
 
@@ -1069,7 +1071,7 @@ it('deducts non-partner descendant net commission income and attributes details 
     Http::assertNothingSent();
 });
 
-it('counts own completed annual settlements as negative advances only in personal reconciliation', function () {
+it('counts own completed annual settlements in personal reconciliation and adjusted stock', function () {
     stockFundWallet($this, $this->user);
     $partner = stockPartner($this, $this->user);
     $this->management->journal($this->admin, $this->tenant->id, $partner->id, stockEntry('ADVANCE', '100.12345678'));
@@ -1098,7 +1100,8 @@ it('counts own completed annual settlements as negative advances only in persona
         ->and($a['theoretical'])->toBe((string) BigDecimal::of($a['advances'])->plus($a['activationCommission'])->plus($a['annualCommission'])->plus($a['unclassifiedCommission'])->minus($a['reimbursements'])->toScale(8))
         ->and($a['actual'])->toBe((string) BigDecimal::of($before['accountBalance']['actual'])->minus($walletPaid)->plus($a['activationCommission'])->plus($a['annualCommission'])->toScale(8))
         ->and($a['difference'])->toBe((string) BigDecimal::of($a['theoretical'])->minus($a['actual'])->toScale(8))
-        ->and($after['stock'])->toBe($before['stock'])
+        ->and($after['stockBeforeDifference'])->toBe($before['stockBeforeDifference'])
+        ->and($after['stock'])->toBe((string) BigDecimal::of($after['stockBeforeDifference'])->minus($a['difference'])->toScale(8))
         ->and($after['totals']['advances'])->toBe('100.12345678')
         ->and($after['journal'])->toEqual($before['journal'])
         ->and($report->read($this->tenant->id, $this->user->id)['accountBalance'])->toBe($a)
@@ -1127,7 +1130,7 @@ it('records theoretical adjustments and reversals without moving money or busine
         ->and($report['accountBalance']['theoretical'])->toBe('-19.87654322')
         ->and($report['accountBalance']['actual'])->toBe($before['accountBalance']['actual'])
         ->and($report['accountBalance']['difference'])->toBe('-19.87654322')
-        ->and($report['stock'])->toBe($before['stock'])->and($report['totals'])->toBe($before['totals'])
+        ->and($report['stockBeforeDifference'])->toBe($before['stockBeforeDifference'])->and($report['stock'])->toBe('19.87654322')->and($report['totals'])->toBe($before['totals'])
         ->and($report['journal']['total'])->toBe(3);
     expect(fn () => $this->management->journal($this->admin, $this->tenant->id, $partner->id, array_replace($up, ['amount' => '1'])))->toThrow(HttpException::class);
     foreach ([$increase, $decrease] as $row) {
@@ -1501,3 +1504,34 @@ it('uses Beijing days for administrative partner statistics even when company ti
     $this->getJson('http://admin.localhost/platform/overview/sources?metric=deposits&period=today')
         ->assertOk()->assertJsonPath('amount', '50.00000000')->assertJsonPath('rows.total', 1);
 });
+
+it('deducts signed personal differences consistently across reports lists hierarchy and overview', function (string $kind, string $amount, string $expected): void {
+    $root = stockPartner($this, $this->user);
+    $child = stockChild($this->user);
+    $partner = stockPartner($this, $child);
+    $this->management->journal($this->admin, $this->tenant->id, $root->id, stockEntry('ADJUSTMENT_INCREASE', '77') + ['confirmed' => true]);
+    if ($kind !== 'NONE') {
+        $this->management->journal($this->admin, $this->tenant->id, $partner->id, stockEntry($kind, $amount) + ['confirmed' => true]);
+    }
+    $before = [DB::table('ledger_entries')->count(), DB::table('ledger_accounts')->orderBy('id')->get()->toJson(), DB::table('partner_journal_entries')->count()];
+    $report = app(PartnerReport::class)->read($this->tenant->id, $child->id);
+    expect($report['stockBeforeDifference'])->toBe('0.00000000')->and($report['stock'])->toBe($expected)
+        ->and($report['share'])->toBe((string) BigDecimal::of($expected)->multipliedBy($report['sharePercent'])->withPointMovedLeft(2)->toScale(8, RoundingMode::HalfUp))
+        ->and($report['negative'])->toBe(BigDecimal::of($expected)->isNegative());
+    $rows = app(\App\Application\Partners\PartnerListSummary::class)->forRows([$root, $partner]);
+    expect($rows[$partner->id]['summary']['stock'])->toBe($expected);
+    $children = app(\App\Application\Partners\PartnerHierarchy::class)->read($this->tenant->id, $this->user->id, null, 'children');
+    expect($children['items'][0]['stock'])->toBe($expected);
+    $access = array_fill_keys(['partners', 'inflow', 'outflow', 'cards', 'providers', 'assets'], false);
+    $access['partners'] = true;
+    $overview = app(PlatformOverviewQuery::class)->execute($access);
+    expect($overview['partners']['stock'])->toBe('-77.00000000');
+    $this->actingAs($this->admin, 'platform_admin')->getJson('http://admin.localhost/platform/overview/sources?metric=stock')
+        ->assertOk()->assertJsonPath('rows.items.0.amount', '-77.00000000');
+    expect([DB::table('ledger_entries')->count(), DB::table('ledger_accounts')->orderBy('id')->get()->toJson(), DB::table('partner_journal_entries')->count()])->toBe($before);
+    Http::assertNothingSent();
+})->with([
+    ['ADJUSTMENT_INCREASE', '100.12345678', '-100.12345678'],
+    ['ADJUSTMENT_DECREASE', '12.34567891', '12.34567891'],
+    ['NONE', '0', '0.00000000'],
+]);

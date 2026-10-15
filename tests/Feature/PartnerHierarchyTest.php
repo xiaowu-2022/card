@@ -103,7 +103,8 @@ it('reuses complete stock totals while removing administrator identities', funct
     $actual = hierarchyRead($this, $p->id, 'report')['report'];
     $row = collect(hierarchyRead($this)['items'])->firstWhere('id', $p->id);
     expect($row['email'])->toBe($child->email)
-        ->and($row['stock'])->toBe('-12.34567891')->toBe($expected['stock']);
+        ->and($expected['stockBeforeDifference'])->toBe('-12.34567891')
+        ->and($row['stock'])->toBe('-10.00000000')->toBe($expected['stock']);
     foreach (['stock', 'totals', 'accountBalance', 'share', 'risks'] as $field) {
         expect($actual[$field])->toBe($expected[$field]);
     }

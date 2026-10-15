@@ -147,9 +147,13 @@ const more = computed(() =>
                                 : value(r.totals[key])
                         }}</text>
                     </view> </template
+                ><view v-if="r.version === 'partner' && r.accountBalance" class="row">
+                    <text>− {{ t('Account balance difference') }}</text>
+                    <text>{{ value(r.accountBalance.difference) }}</text>
+                </view
                 ><text v-if="r.version === 'partner'" class="muted small">{{
                     t(
-                        'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses. Wallet top-ups and withdrawals do not count.',
+                        'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses − personal account balance difference. Wallet flows affect stock through the personal difference, not business contributions.',
                     )
                 }}</text
                 ><text v-if="r.version === 'partner'" class="muted small">{{

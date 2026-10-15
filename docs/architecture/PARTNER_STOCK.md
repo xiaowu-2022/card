@@ -1,3 +1,11 @@
+## 2026-10-15：存量扣除本人理论差额（当前口径）
+
+启用合伙人的当前存量 = 原业务存量 − 本人 accountBalance.difference。difference 仍为本人理论余额减本人实际 USDT 可用余额，使用带正负号的精确八位小数；负差额会增加存量，不取绝对值、不截零。参考分成和负存量提示使用调整后的存量。本人理论/实际/差额计算本身不改变，不扣团队或下级的差额，也不重复扣除。
+
+PartnerReport、PartnerListSummary、PartnerHierarchy 和首页 PlatformOverviewQuery 使用共享 PartnerStockValue。列表分页/页面合计、下级合伙人行、完整报表、首页当前启用顶层根合计和来源弹窗同步；首页按每个当前根各扣其本人差额一次，维持原来的根/团队范围。报表增加 stockBeforeDifference 说明原业务存量，前端构成增加单独的本人理论差额扣项。原业务入项/出项及其来源分页仍是业务证据，不将当前差额伪装成交易或历史日流水。日统计、告警、合作日志及停用伙伴的 standard 版本维持现状。
+
+该规则取代本文以前关于预支、年费自购、理论调整不影响最终存量的描述：这些记录不改变基础业务存量，但通过本人差额影响当前展示存量。钱包变动同样通过实际余额间接影响当前存量。仅只读投影变化，不写 Wallet/Ledger 或历史订单，不创建差额扣款或结算。部署 PHP、后台/H5 一起发布；原生 App 重建资源并重新安装。无迁移、外部请求或生产资金测试。
+
 ## Theoretical balance adjustments (2026-10-08)
 
 Update (2026-10-11): Recharge orders may explicitly switch settled manual receipts

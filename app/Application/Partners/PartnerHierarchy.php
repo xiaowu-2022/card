@@ -86,7 +86,7 @@ final class PartnerHierarchy
                 return [
                     'id' => $row->partner_id, 'name' => trim($row->display_name ?? '') ?: $row->account_id, 'accountId' => $row->account_id,
                     'email' => $row->email,
-                    'stock' => (string) BigDecimal::of($totals['inflow'])->minus($totals['outflow'])->toScale(8),
+                    'stock' => PartnerStockValue::afterDifference((string) BigDecimal::of($totals['inflow'])->minus($totals['outflow']), app(LegacyStockReport::class)->accountBalance($tenant, $row->user_id, $row->partner_id)['difference']),
                     'teamCount' => (int) ($counts->get($row->user_id)?->total ?? 0),
                 ];
             })->all(), 'page' => $page, 'total' => $total, 'hasMore' => $page * 20 < $total];

@@ -45,7 +45,9 @@ final class PartnerReport
 
             $business = app(PartnerBusinessStock::class);
             $totals = $business->totals($tenant, $user);
-            $stock = BigDecimal::of($totals['inflow'])->minus($totals['outflow']);
+            $businessStock = $this->decimal(BigDecimal::of($totals['inflow'])->minus($totals['outflow']));
+            $report['stockBeforeDifference'] = $businessStock;
+            $stock = BigDecimal::of(PartnerStockValue::afterDifference($businessStock, $report['accountBalance']['difference']));
             $report['stock'] = $this->decimal($stock);
             $report['share'] = $this->decimal($stock->multipliedBy($report['sharePercent'])->withPointMovedLeft(2));
             $report['negative'] = $stock->isNegative();

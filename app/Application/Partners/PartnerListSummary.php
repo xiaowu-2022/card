@@ -66,7 +66,7 @@ final class PartnerListSummary
                         $daily[$category][(string) $d] = (string) BigDecimal::of($r->{'d'.$d} ?? '0')->dividedBy($d, 8, RoundingMode::HalfUp);
                     }
                 }
-                $result[$p->id] = $identity[$tenant.':'.$p->user_id] + ['summary' => ['advance' => $j->advance ?? '0', 'stock' => $p->enabled ? ($totals[$p->id] ?? '0') : ($legacyTotals->get($p->id)?->missing ? null : ($legacyTotals->get($p->id)?->stock ?? '0')), 'theoretical' => $p->enabled ? $balance['theoretical'] : null, 'actual' => $p->enabled ? $balance['actual'] : null, 'difference' => $p->enabled ? $balance['difference'] : null, 'reimbursement' => $j->reimbursement ?? '0', 'daily' => $daily, 'alerts' => ['remaining' => $remaining[$p->id] ?? '0', 'refund10' => $pending->get($p->id)?->d10 ?? '0', 'refund3' => $pending->get($p->id)?->d3 ?? '0'], 'timezone' => $timezone, 'updatedAt' => $at->toIso8601String()]];
+                $result[$p->id] = $identity[$tenant.':'.$p->user_id] + ['summary' => ['advance' => $j->advance ?? '0', 'stock' => $p->enabled ? PartnerStockValue::afterDifference($totals[$p->id] ?? '0', $balance['difference']) : ($legacyTotals->get($p->id)?->missing ? null : ($legacyTotals->get($p->id)?->stock ?? '0')), 'theoretical' => $p->enabled ? $balance['theoretical'] : null, 'actual' => $p->enabled ? $balance['actual'] : null, 'difference' => $p->enabled ? $balance['difference'] : null, 'reimbursement' => $j->reimbursement ?? '0', 'daily' => $daily, 'alerts' => ['remaining' => $remaining[$p->id] ?? '0', 'refund10' => $pending->get($p->id)?->d10 ?? '0', 'refund3' => $pending->get($p->id)?->d3 ?? '0'], 'timezone' => $timezone, 'updatedAt' => $at->toIso8601String()]];
             }
         }
 

@@ -1,4 +1,6 @@
 export const partnerCatalog = {
+    'Item': ['项目', 'Item', 'Concepto'],
+    '{{days}}-day average': ['前{{days}}天日均', 'Purata {{days}} hari', 'Promedio de {{days}} días'],
     'Security deposit refunds': ['保证金退回金额', 'Bayaran balik deposit keselamatan', 'Reembolsos de garantía'],
     'Increase theoretical balance': ['增加理论余额', 'Tambah baki teori', 'Aumentar saldo teórico'],
     'Decrease theoretical balance': [
@@ -70,11 +72,11 @@ export const partnerCatalog = {
         'Baki jaminan semasa (bukan satu transaksi)',
         'Saldo actual de garantía (no una transacción)',
     ],
-    'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses. Wallet top-ups and withdrawals do not count.':
+    'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses − personal account balance difference. Wallet flows affect stock through the personal difference, not business contributions.':
         [
-            '合伙人存量＝非合伙人下级保证金余额＋已付年费－已付佣金－已返还年费－报销净额。钱包充值、提现均不计入。',
-            'Baki rakan kongsi = baki jaminan layak + yuran tahunan dibayar − komisen dibayar − yuran tahunan dipulangkan − perbelanjaan dibayar balik bersih. Tambah nilai dan pengeluaran dompet tidak dikira.',
-            'Saldo del socio = garantías elegibles + cuotas anuales pagadas − comisiones pagadas − cuotas anuales devueltas − gastos reembolsados netos. No incluye recargas ni retiros de la billetera.',
+            '合伙人存量＝非合伙人下级保证金余额＋已付年费－已付佣金－已返还年费－报销净额－本人理论差额。钱包变动通过本人差额影响存量，不作为业务入项。',
+            'Baki rakan kongsi = baki jaminan layak + yuran tahunan dibayar − komisen dibayar − yuran tahunan dipulangkan − perbelanjaan dibayar balik bersih − perbezaan baki akaun peribadi. Aliran dompet mempengaruhi perbezaan peribadi, bukan sumbangan perniagaan.',
+            'Saldo del socio = garantías elegibles + cuotas anuales pagadas − comisiones pagadas − cuotas anuales devueltas − gastos reembolsados netos − diferencia de saldo personal. Los movimientos de billetera afectan la diferencia personal, no las aportaciones comerciales.',
         ],
     'Converted or refunded security deposits are no longer included in deposit balances. Annual fees count actual completed payments, including converted deposits.':
         [
@@ -293,11 +295,11 @@ export const partnerCatalog = {
     'Reimbursed expenses': ['已报销费用', 'Perbelanjaan dibayar balik', 'Gastos reembolsados'],
     'Partner share': ['合伙人占比', 'Peratus bahagian rakan kongsi', 'Porcentaje del socio'],
     'Reference share': ['参考分成', 'Anggaran bahagian', 'Participación de referencia'],
-    'Reference only. No settlement or transfer is created. Advances do not reduce stock or the reference share.':
+    'Reference only. Stock deducts the signed personal account balance difference; reference share uses the adjusted stock. No settlement or transfer is created.':
         [
-            '仅供试算，不生成结算或转账。预支不扣减存量及参考分成。',
-            'Anggaran sahaja. Tiada penyelesaian atau pindahan dibuat. Pendahuluan tidak mengurangkan baki atau anggaran bahagian.',
-            'Solo orientativo. No genera liquidaciones ni transferencias. Los anticipos no reducen el saldo ni la participación.',
+            '仅供试算。存量扣除带正负号的本人理论差额，参考分成按调整后的存量计算，不生成结算或转账。',
+            'Anggaran sahaja. Baki menolak perbezaan akaun peribadi bertanda; bahagian menggunakan baki terlaras. Tiada penyelesaian atau pindahan.',
+            'Solo orientativo. El saldo descuenta la diferencia personal con signo y la participación usa el saldo ajustado. No genera liquidaciones ni transferencias.',
         ],
     'Incomplete valuation': ['暂不可完整计算', 'Penilaian belum lengkap', 'Valoración incompleta'],
     'Rates pending': ['汇率待补全', 'Kadar belum dilengkapkan', 'Tipos de cambio pendientes'],
