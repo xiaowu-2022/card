@@ -3414,17 +3414,17 @@ function u1StandardFixture($test, bool $fees = true): object
     return DB::table('u1_connections')->where('reference_id', $ref->id)->firstOrFail();
 }
 
-function u1StandardFake(string $terminal = 'openvcc.success', bool $loseResponse = false, string $key = 'offline-u1-key', string $innerKey = 'offline-u1-key', bool $unsignedResult = false): void
+function u1StandardFake(string $terminal = 'openvcc.success', bool $loseResponse = false, string $key = 'offline-u1-key', string $innerKey = 'offline-u1-key', bool $unsignedResult = false, ?array $sensitiveData = null): void
 {
     Http::swap(new Factory);
     Http::preventStrayRequests();
-    Http::fake(function ($request) use ($terminal, $loseResponse, $key, $innerKey, $unsignedResult) {
+    Http::fake(function ($request) use ($terminal, $loseResponse, $key, $innerKey, $unsignedResult, $sensitiveData) {
         $endpoint = basename($request->url());
         $data = match ($endpoint) {
             'queryaccount' => ['amount' => [['currency' => 'USD', 'freeAmt' => '999.12345678', 'unfreeAmt' => '0']], 'cardCount' => '0'],
             'querygroupno' => ['group' => [['currency' => 'USD', 'groupNo' => 'GROUP-SHARE', 'bin' => '412345', 'model' => 'SHARE'], ['currency' => 'USD', 'groupNo' => 'GROUP-SINGLE', 'bin' => '412346', 'model' => 'SINGLE']]],
             'vccquery' => ['cardNo' => 'U1-CARD-001', 'amount' => '100.00000000', 'status' => '1'],
-            'querycvv' => ['status' => '1', 'cardNo' => '4111111111114242', 'cvv' => '123', 'expiry' => '12/29'],
+            'querycvv' => $sensitiveData ?? ['status' => '1', 'cardNo' => '4111111111114242', 'cvv' => '123', 'expiry' => '12/29'],
             'queryapiid' => (function () use ($request, $terminal, $innerKey, $unsignedResult) {
                 $event = ['apiId' => $request['apiId'], 'type' => $terminal, 'cardNo' => 'U1-CARD-001', 'timestamp' => (string) now()->getTimestampMs()];
                 $event['sign'] = md5(implode('', array_map(fn ($name) => $event[$name], U1NotificationVerifier::FIELDS[$terminal])).$innerKey);
@@ -3716,5 +3716,25 @@ it('requires matching signed callback evidence for unsigned U1 query facts', fun
     $result = app(SyncCardIssueAction::class)->execute($this->tenant->id, $order->id, $this->user->id);
     expect($result->status->value)->toBe($matches ? 'SUCCEEDED' : 'UNKNOWN')
         ->and(UserCard::where('card_issue_order_id', $order->id)->count())->toBe($matches ? 1 : 0);
+    Http::assertNotSent(fn ($request) => str_ends_with($request->url(), '/vccopen'));
+})->with([true, false]);
+
+it('synchronizes U1 openings with valid status-zero sensitive fields and rejects incomplete fields', function (bool $complete): void {
+    u1StandardFixture($this);
+    $order = phaseTenIssue($this, '100.00');
+    u1StandardFake(sensitiveData: $complete
+        ? ['status' => '0', 'cardNo' => '4111111111114242', 'cvv' => '263', 'expiry' => '10/31']
+        : ['status' => '0', 'url' => 'https://embedded.uqpay.com/iframe/card', 'message' => 'success']);
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $url = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/card-issues/'.$order->id.'/sync';
+    $this->actingAs($actor, 'platform_admin')->post($url)->assertRedirect()->assertSessionHasNoErrors();
+    expect($order->fresh()->status->value)->toBe($complete ? 'SUCCEEDED' : 'UNKNOWN')
+        ->and(UserCard::where('card_issue_order_id', $order->id)->count())->toBe($complete ? 1 : 0);
+    if ($complete) {
+        $card = UserCard::where('card_issue_order_id', $order->id)->sole();
+        expect($card->last4)->toBe('4242')->and($card->expiry)->toBe('10/31');
+        $this->post($url)->assertRedirect()->assertSessionHasNoErrors();
+        expect(UserCard::where('card_issue_order_id', $order->id)->count())->toBe(1);
+    }
     Http::assertNotSent(fn ($request) => str_ends_with($request->url(), '/vccopen'));
 })->with([true, false]);

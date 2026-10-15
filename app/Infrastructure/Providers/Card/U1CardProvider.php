@@ -354,7 +354,8 @@ final class U1CardProvider implements CardProviderInterface
     {
         $response = $this->client()->sensitiveCard($providerCardId);
         $data = $response['data'] ?? [];
-        if ($response['resultCode'] !== '0000' || ($data['status'] ?? null) !== '1'
+        // U1 can return status=0 alongside valid sensitive fields; validate the fields themselves.
+        if ($response['resultCode'] !== '0000' || ! is_array($data)
             || ! is_string($data['cardNo'] ?? null) || ! preg_match('/^\d{12,19}$/D', $data['cardNo'])
             || ! is_string($data['cvv'] ?? null) || ! preg_match('/^\d{3,4}$/D', $data['cvv'])
             || ! is_string($data['expiry'] ?? null) || ! preg_match('/^(0[1-9]|1[0-2])\/\d{2}$/D', $data['expiry'])) {
