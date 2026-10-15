@@ -1,6 +1,20 @@
+import { cpSync, rmSync } from 'node:fs';
+import { basename } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import uni from '@dcloudio/vite-plugin-uni';
 import config from './src/generated/company.json';
+// Direct H5/native builds must use the current shared translation catalog.
+rmSync(fileURLToPath(new URL('./src/generated/i18n/', import.meta.url)), { recursive: true, force: true });
+cpSync(
+    fileURLToPath(new URL('../../resources/js/i18n/', import.meta.url)),
+    fileURLToPath(new URL('./src/generated/i18n/', import.meta.url)),
+    {
+        recursive: true,
+        filter: (source) => basename(source) === 'i18n' || basename(source) === 'catalog.ts' ||
+            (source.endsWith('-catalog.ts') && !basename(source).startsWith('admin')),
+    },
+);
 export default defineConfig({
     define: { 'import.meta.env.UNI_PLATFORM': JSON.stringify(process.env.UNI_PLATFORM) },
     plugins: [
