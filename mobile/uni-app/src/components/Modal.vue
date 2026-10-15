@@ -12,6 +12,7 @@ const props = defineProps<{
     sheet?: boolean;
     wide?: boolean;
     compact?: boolean;
+    applicationStyle?: boolean;
 }>();
 const emit = defineEmits<{ close: [] }>();
 const pageVisible = ref(true);
@@ -47,7 +48,7 @@ onBeforeUnmount(() => stop?.());
     <view v-if="visible" class="modal-backdrop" :style="viewportStyle" :class="{ sheet }" @click.self="!busy && emit('close')"
         ><view
             class="modal-panel"
-            :class="{ wide, compact }"
+            :class="{ wide, compact, 'application-style': applicationStyle }"
             role="dialog"
             aria-modal="true"
             :aria-label="title"
@@ -157,4 +158,28 @@ onBeforeUnmount(() => stop?.());
 <style scoped>
 .modal-panel.compact { padding: 16px; }
 .modal-footer { flex-shrink: 0; padding-top: 10px; padding-bottom: env(safe-area-inset-bottom); border-top: 1px solid #e2e7e4; margin-top: 8px; }
+</style>
+
+<style scoped>
+.modal-panel.application-style {
+    max-width: 480px;
+    padding: 26px;
+    border-radius: 24px;
+    border-color: #ffffff;
+    background: #fdfdfb;
+    box-shadow: 0 24px 80px #0003;
+}
+.application-style .modal-header {
+    margin-bottom: 24px;
+    font-size: 20px;
+    letter-spacing: -0.4px;
+}
+.application-style .modal-footer {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 0;
+}
+@media (max-width: 420px) {
+    .modal-panel.application-style { padding: 22px 18px; border-radius: 20px; }
+}
 </style>

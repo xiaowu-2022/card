@@ -62,7 +62,7 @@ final readonly class SubmitProviderCardholderAction
         if ($provider->name() === 'U1') {
             $email = $data['email'] ?? null;
             $email = is_string($email) ? trim($email) : $email;
-            if ($email !== null && $email !== '' && (! is_string($email) || strlen($email) > 254 || ! filter_var($email, FILTER_VALIDATE_EMAIL))) {
+            if (! is_string($email) || $email === '' || strlen($email) > 254 || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 throw new DomainException('CARD_SETUP_INVALID', 'Enter a valid email address.');
             }
             // U1 has no holder API. KYC remains enforced by assertOwner; no fabricated identity materials.

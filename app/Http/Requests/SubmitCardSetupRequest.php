@@ -28,7 +28,7 @@ final class SubmitCardSetupRequest extends FormRequest
             foreach (['legal_first_name', 'legal_last_name', 'date_of_birth', 'mobile', 'mobile_country_code'] as $field) {
                 $rules[$field] = ['nullable', 'string', 'max:254'];
             }
-            $rules['email'] = ['nullable', 'email:rfc', 'max:254'];
+            $rules['email'] = ['required', 'email:rfc', 'max:254'];
         }
         foreach (['tenant_id', 'user_id', 'provider', 'provider_cardholder_id', 'nationality_country_code',
             'residential_address', 'residential_city', 'residential_state', 'residential_country_code', 'residential_postal_code',

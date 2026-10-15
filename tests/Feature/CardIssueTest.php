@@ -3656,7 +3656,7 @@ it('uses each U1 product minimum below twenty and preserves the accepted order s
     expect($order->fresh()->minimum_initial_load)->toBe('1.00000000');
 });
 
-it('uses U1 specific setup with optional email and no fabricated holder identity', function (?string $email): void {
+it('uses U1 specific setup with verification email and no fabricated holder identity', function (?string $email): void {
     $connection = u1StandardFixture($this);
     $data = ['request_id' => $this->holder->request_id, 'card_product_id' => $this->product->id, 'form_factor' => 'virtual_card'];
     if ($email !== null) $data['email'] = $email;
@@ -3675,4 +3675,14 @@ it('uses U1 specific setup with optional email and no fabricated holder identity
         expect($request->data())->not->toHaveKeys(['mobile', 'legal_first_name', 'legal_last_name']);
         return $email === null ? ! isset($request['email']) : $request['email'] === $email;
     });
-})->with([null, 'offline-holder@example.test']);
+})->with(['offline-holder@example.test']);
+
+it('requires a valid verification email for U1 applications', function (): void {
+    u1StandardFixture($this);
+    foreach ([null, '', 'invalid-email'] as $email) {
+        $this->actingAs($this->user, 'tenant_user')->post('http://a.localhost/cards/cardholder', [
+            'request_id' => $this->holder->request_id, 'card_product_id' => $this->product->id,
+            'form_factor' => 'virtual_card', 'email' => $email,
+        ])->assertSessionHasErrors('email');
+    }
+});

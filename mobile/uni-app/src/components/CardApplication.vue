@@ -79,7 +79,8 @@ const calculation = computed(() => {
 });
 const validFields = computed(
     () =>
-        u1Profile.value ||
+        (u1Profile.value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.value.email?.trim() ?? '')) ||
+        !u1Profile.value &&
         ['legal_first_name', 'legal_last_name', 'email', 'mobile', 'mobile_country_code'].every(
             (key) => fields.value[key]?.trim(),
         ) &&
@@ -294,7 +295,7 @@ const feedback = useFormFeedback(combinedErrors);
         :message="t(loading ? 'Loading cardholder information…' : 'Processing card opening…')"
     />
     <Modal
-        wide
+        application-style
         compact
         :open="open"
         :title="t('Apply for a card') + ' · ' + product.name"
@@ -306,7 +307,7 @@ const feedback = useFormFeedback(combinedErrors);
                 v-if="u1Profile"
                 name="email"
                 v-model="fields.email"
-                :label="t('Verification email (optional)')"
+                :label="t('Verification email')"
                 :disabled="busy || pending || issueUncertain"
             />
             <CardholderFields
@@ -397,35 +398,43 @@ const feedback = useFormFeedback(combinedErrors);
 .application {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    font-size: 13px;
+    gap: 18px;
+    font-size: 14px;
     line-height: 20px;
 }
 .application :deep(.form-field) {
     margin-bottom: 0;
 }
 .application :deep(.form-label) {
-    margin-bottom: 4px;
+    margin-bottom: 8px;
     font-size: 13px;
 }
 .application :deep(.form-input) {
-    height: 40px;
-    min-height: 40px;
-    padding: 8px 10px;
-    border-radius: 8px;
+    height: 50px;
+    min-height: 50px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: #fff;
+    border-color: #e3e6e4;
 }
 .fees {
-    border: 1px solid #e2e7e4;
-    border-radius: 8px;
-    padding: 6px 10px;
+    border: 1px solid #e7e9e7;
+    border-radius: 16px;
+    padding: 14px 16px;
+    background: #f4f6f4;
 }
 .fees > view {
     display: flex;
     justify-content: space-between;
     gap: 8px;
-    padding: 3px 0;
+    padding: 7px 0;
+    color: #626b65;
 }
-.total {
+.fees > view.total {
+    margin-top: 8px;
+    padding-top: 14px;
+    color: #171c19;
+    font-size: 16px;
     font-weight: 700;
     border-top: 1px solid #e2e7e4;
 }
