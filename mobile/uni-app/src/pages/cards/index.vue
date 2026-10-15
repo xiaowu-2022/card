@@ -294,7 +294,11 @@ usePagePosition(() => '/cards', () => !!page.value);
                                 >{{ displayMoney(product.minimumInitialLoad) }}
                                 {{ product.cardCurrency }}</text
                             ></view
-                        ><button
+                        ><CardProductInfo :monthly-fee-text="product.monthlyFeeText" :notes="product.notes" />
+                        <text v-if="!product.readyForSetup" class="application-note muted">{{
+                            t(product.guidance)
+                        }}</text>
+                        <button
                             class="primary wide"
                             :disabled="
                                 !product.readyForSetup ||
@@ -303,9 +307,7 @@ usePagePosition(() => '/cards', () => !!page.value);
                             @click="choose(product)"
                         >
                             {{ t('Open this card') }}</button
-                        ><CardProductInfo :monthly-fee-text="product.monthlyFeeText" :notes="product.notes" /><text v-if="!product.readyForSetup" class="application-note muted">{{
-                            t(product.guidance)
-                        }}</text></view
+                        ></view
                     ><view v-if="!page.products.length" class="empty-card"
                         ><text>{{ t('No card products available') }}</text
                         ><text class="muted">{{
