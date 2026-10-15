@@ -1,4 +1,5 @@
 export const partnerCatalog = {
+    'The system is confirming this operation. Please wait.': ['系统正在确认本次操作，请稍候。', 'Sistem sedang mengesahkan operasi ini. Sila tunggu.', 'El sistema está confirmando esta operación. Espera un momento.'],
     'Verification email': ['验证码接收邮箱', 'E-mel pengesahan', 'Correo de verificación'],
     'Verification email (optional)': ['验证码接收邮箱（选填）', 'E-mel pengesahan (pilihan)', 'Correo de verificación (opcional)'],
     'Item': ['项目', 'Item', 'Concepto'],

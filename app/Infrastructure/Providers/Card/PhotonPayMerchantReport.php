@@ -16,7 +16,16 @@ final class PhotonPayMerchantReport
 {
     public function read(string $encryptedConnection): array
     {
-        return $this->fetch($encryptedConnection);
+        $row = \Illuminate\Support\Facades\DB::table('platform_card_provider_references')
+            ->where('photonpay_reporting_encrypted', $encryptedConnection)->value('photonpay_report_snapshot');
+        $snapshot = $row ? json_decode($row, true, flags: JSON_THROW_ON_ERROR) : [];
+        return ($snapshot['credentialHash'] ?? null) === hash('sha256', $encryptedConnection)
+            ? $snapshot['report'] : ['balance' => null, 'asset' => 'USD', 'issuedCardCount' => null, 'queriedAt' => null];
+    }
+
+    public function refresh(string $encryptedConnection): array
+    {
+        return $this->fetch($encryptedConnection, fresh: true);
     }
 
     public function bins(string $encryptedConnection, bool $fresh = false): ?array

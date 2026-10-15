@@ -254,6 +254,9 @@ final class U1CardProvider implements CardProviderInterface
             $current = DB::table('u1_operations')->where('id', $intent->id)->lockForUpdate()->firstOrFail();
             if (! in_array($current->status, ['SUCCEEDED', 'FAILED'], true)) {
                 DB::table('u1_operations')->where('id', $intent->id)->update($values);
+                if ($values['status'] === 'SUCCEEDED') {
+                    \App\Jobs\RefreshU1AccountReport::dispatch($current->connection_id)->afterCommit();
+                }
             }
         });
 

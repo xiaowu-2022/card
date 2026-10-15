@@ -429,14 +429,7 @@ async function copy(part: 'pan' | 'cvv' | 'all') {
                                 class="small"
                                 :class="item.state === 'completed' ? 'success' : 'muted'"
                                 >{{ t(states[item.state] ?? 'Awaiting confirmation') }}</text
-                            ><button
-                                v-if="item.state === 'confirming'"
-                                class="text-button"
-                                :disabled="busy"
-                                @click="run('sync', item)"
-                            >
-                                {{ t('Check result') }}
-                            </button></view
+                            ></view
                         ></view
                     ><text v-if="busy" class="muted">{{ t('Loading…') }}</text
                     ><button
@@ -503,14 +496,9 @@ async function copy(part: 'pan' | 'cvv' | 'all') {
                                     'The quote expires shortly. Confirm only if you accept the displayed amounts.',
                                 )
                             }}</text></template
-                        ><button
-                            v-if="order.state === 'confirming'"
-                            class="secondary"
-                            :disabled="busy"
-                            @click="run('sync')"
-                        >
-                            {{ t('Check result') }}
-                        </button></view
+                        ><text v-if="order.state === 'confirming'" class="small muted">{{
+                            t('The system is confirming this operation. Please wait.')
+                        }}</text></view
                     ><view v-if="otp" class="space-y-2"
                         ><text>{{ t('Card verification code') }}</text
                         ><text class="block text-2xl">{{ otp.code }}</text
@@ -547,6 +535,8 @@ async function copy(part: 'pan' | 'cvv' | 'all') {
                         }}</text></view
                     ><FormField
                         v-if="needsPassword && !details && !otp"
+                        name="current_password"
+                        :error="errors.current_password"
                         v-model="password"
                         :label="t('Current password')"
                         password

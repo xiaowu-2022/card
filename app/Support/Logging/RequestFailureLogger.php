@@ -30,6 +30,10 @@ final class RequestFailureLogger
         $code = preg_match('/^[A-Z][A-Z0-9_]{0,100}$/D', $code) ? $code : 'HTTP_'.$status;
         $route = $request->route();
         $context = ['request_id' => $request->attributes->get('request_id'), 'method' => $request->method(),
+            'host' => $request->getHost(),
+            'path' => $this->safePath($request->getPathInfo()),
+            'path_hash' => hash('sha256', $request->getPathInfo()),
+            'client_page' => $this->safePath((string) parse_url(substr((string) $request->header('X-Consumer-Page', ''), 0, 1024), PHP_URL_PATH)),
             'route' => is_object($route) ? $route->getName() : null,
             'route_template' => is_object($route) ? $route->uri() : null,
             'http_status' => $status, 'error_code' => $code,
@@ -81,6 +85,25 @@ final class RequestFailureLogger
         } catch (\Throwable) {
             // A logging failure must not change the original response.
         }
+    }
+
+    /** Preserve routing vocabulary while excluding arbitrary identifiers and credentials. */
+    private function safePath(string $path): ?string
+    {
+        if ($path === '') return null;
+        $known = ['api', 'v1', 'v2', 'mobile', 'client', 'h5', 'assets', 'static', 'storage', 'favicon.ico', 'robots.txt', 'pages', 'index'];
+        foreach (\Illuminate\Support\Facades\Route::getRoutes() as $route) {
+            foreach (explode('/', $route->uri()) as $part) {
+                if ($part !== '' && ! str_contains($part, '{')) $known[] = $part;
+            }
+        }
+        $segments = explode('/', substr($path, 0, 2048));
+        return implode('/', array_map(function ($part) use ($known): string {
+            if ($part === '' || in_array($part, $known, true)) return $part;
+            if (\Illuminate\Support\Str::isUuid($part)) return ':uuid';
+            if (ctype_digit($part)) return ':number';
+            return ':redacted';
+        }, array_slice($segments, 0, 32)));
     }
 
     public function exception(Request $request, \Throwable $exception): void

@@ -37,7 +37,7 @@ final class CardProviderReference extends Model
 
     protected $guarded = ['*'];
 
-    protected $hidden = ['photonpay_reporting_encrypted', 'photonpay_issuing_encrypted', 'photonpay_webhook_key_encrypted'];
+    protected $hidden = ['photonpay_report_snapshot', 'photonpay_reporting_encrypted', 'photonpay_issuing_encrypted', 'photonpay_webhook_key_encrypted'];
 
     protected function casts(): array
     {

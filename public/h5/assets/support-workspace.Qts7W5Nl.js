@@ -1,0 +1,1 @@
+import{A as a,G as s,a4 as n,D as e,j as t,aE as o}from"./index-DNaaM702.js";function i(i){return!!(i instanceof a&&[401,403,404].includes(i.status))&&(s.value&&(s.value.supportAgent=!1),o(),n({title:e("Support access is no longer available."),icon:"none"}),t("/account",!0),!0)}export{i as s};

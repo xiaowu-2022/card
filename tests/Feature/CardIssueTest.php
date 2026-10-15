@@ -3810,3 +3810,49 @@ it('shows settled card loads immediately and deduplicates later provider records
         ->and(collect($after['items'])->firstWhere('id', $before['items'][0]['id'])['feeAmount'])->toBe('-0.10000000')
         ->and(LedgerEntry::count())->toBe($entries);
 });
+
+it('reports an incorrect card-operation password explicitly without invoking providers', function (): void {
+    [$card, $provider] = managedCardFixture($this);
+    $provider->shouldNotReceive('returnCardFunds');
+    $before = CardManagementOrder::count();
+    $this->actingAs($this->user, 'tenant_user')->postJson('http://a.localhost/cards/'.$card->id.'/management', [
+        'action' => 'return', 'amount' => '5', 'request_id' => (string) Str::uuid(),
+        'current_password' => 'definitely-wrong-password', 'confirmed' => true,
+    ])->assertUnprocessable()->assertJsonPath('errors.current_password.0', 'The current password is incorrect.');
+    expect(CardManagementOrder::count())->toBe($before);
+});
+
+it('queues U1 merchant report refresh once after successful operations and refreshes only the database snapshot', function (): void {
+    \Illuminate\Support\Facades\Queue::fake([\App\Jobs\RefreshU1AccountReport::class]);
+    $connection = u1StandardFixture($this);
+    $issue = phaseTenIssue($this, '100.00');
+    \Illuminate\Support\Facades\Queue::assertNotPushed(\App\Jobs\RefreshU1AccountReport::class);
+    app(SyncCardIssueAction::class)->execute($this->tenant->id, $issue->id, $this->user->id);
+    app(SyncCardIssueAction::class)->execute($this->tenant->id, $issue->id, $this->user->id);
+    \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\RefreshU1AccountReport::class, 1);
+    $before = DB::table('u1_connections')->where('id', $connection->id)->first();
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(fn ($request) => Http::response(['resultCode' => '0000', 'timestamp' => $request['timestamp'],
+        'sign' => md5('0000'.$request['timestamp'].'offline-u1-key'),
+        'data' => ['amount' => [['currency' => 'USD', 'freeAmt' => '123.45678901']], 'cardCount' => '9']]));
+    (new \App\Jobs\RefreshU1AccountReport($connection->id))->handle(app(U1Accounts::class));
+    $after = DB::table('u1_connections')->where('id', $connection->id)->first();
+    $report = json_decode($after->account_report, true);
+    expect($report['balance'])->toBe('123.45678901')->and($report['issuedCardCount'])->toBe('9')
+        ->and($after->group_catalog)->toBe($before->group_catalog)->and($after->check_status)->toBe($before->check_status);
+    Http::assertSentCount(1);
+    Http::assertSent(fn ($request) => str_ends_with($request->url(), '/queryaccount'));
+});
+
+it('preserves the U1 report snapshot when a background refresh fails', function (): void {
+    \Illuminate\Support\Facades\Queue::fake([\App\Jobs\RefreshU1AccountReport::class]);
+    $connection = u1StandardFixture($this);
+    $before = DB::table('u1_connections')->where('id', $connection->id)->first();
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(fn () => Http::response('unavailable', 503));
+    expect(fn () => app(U1Accounts::class)->refreshReport($connection->id))->toThrow(ProviderUnknownResultException::class);
+    $after = DB::table('u1_connections')->where('id', $connection->id)->first();
+    expect($after->account_report)->toBe($before->account_report)->and($after->check_status)->toBe($before->check_status);
+});

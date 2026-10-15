@@ -8,6 +8,14 @@ use Illuminate\Validation\Rule;
 
 final class ManageCardRequest extends FormRequest
 {
+    public function messages(): array
+    {
+        return [
+            'current_password.current_password' => 'The current password is incorrect.',
+            'current_password.required' => 'This field is required.',
+        ];
+    }
+
     public function rules(): array
     {
         $geo = app(CardholderGeography::class);

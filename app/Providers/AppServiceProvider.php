@@ -147,6 +147,26 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        \App\Domain\Card\Models\CardIssueOrder::saved(function ($order): void {
+            if ($order->wasChanged('status') && $order->status->value === 'SUCCEEDED' && $order->provider === 'PHOTONPAY') {
+                $reference = \App\Domain\CardProduct\Models\CardProduct::whereKey($order->card_product_id)->value('card_provider_reference_id');
+                if ($reference) \App\Jobs\RefreshPhotonPayAccountReport::dispatch($reference)->onConnection(config('queue.default') === 'sync' ? 'database' : config('queue.default'))->afterCommit();
+            }
+        });
+        \App\Domain\Card\Models\CardManagementOrder::saved(function ($order): void {
+            if ($order->wasChanged('status') && $order->status === 'SUCCEEDED'
+                && in_array($order->kind, ['LOAD', 'RETURN', 'CANCEL_RETURN'], true)) {
+                $card = \App\Domain\Card\Models\UserCard::where('tenant_id', $order->tenant_id)->whereKey($order->card_id)->first();
+                $reference = $card && $card->provider === 'PHOTONPAY' ? \App\Domain\CardProduct\Models\CardProduct::whereKey($card->card_product_id)->value('card_provider_reference_id') : null;
+                if ($reference) \App\Jobs\RefreshPhotonPayAccountReport::dispatch($reference)->onConnection(config('queue.default') === 'sync' ? 'database' : config('queue.default'))->afterCommit();
+            }
+        });
+        \App\Domain\CardProviderDirectory\Models\CardProviderReference::saved(function ($reference): void {
+            if ($reference->photonpay_reporting_encrypted && ($reference->wasRecentlyCreated || $reference->wasChanged('photonpay_reporting_encrypted'))) {
+                \App\Jobs\RefreshPhotonPayAccountReport::dispatch($reference->id)->onConnection(config('queue.default') === 'sync' ? 'database' : config('queue.default'))->afterCommit();
+            }
+        });
+
         Queue::before(app(DiscardCleanedJobs::class));
         SupportConversation::saved(fn ($row) => app(SupportRealtime::class)->conversation($row->tenant_id, $row->user_id));
 

@@ -182,6 +182,7 @@ usePagePosition(() => '/cards', () => !!page.value);
                         ><view v-for="card in page.cards" :key="card.id" class="card-group"
                             ><CardVisual
                                 :name="card.productName"
+                                :provider="card.provider"
                                 :currency="card.currency"
                                 :masked-pan="card.maskedPan"
                                 :balance="card.balance"
@@ -257,6 +258,7 @@ usePagePosition(() => '/cards', () => !!page.value);
                     ><view v-for="product in page.products" :key="product.id" class="product"
                         ><CardVisual
                             :name="product.name"
+                            :provider="product.applicationProfile === 'U1' ? 'U1' : 'PHOTONPAY'"
                             :currency="product.cardCurrency"
                             :bin="product.bin"
                             preview

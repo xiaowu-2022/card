@@ -54,3 +54,11 @@ Platform `card_provider_reference.manage`、明确确认、版本检查、请求
 `2026_09_24_140000` 不请求上游、不创建卡、不移动资金。已有数据库报告和发卡连接先检查配置身份一致，无法确认时记 `LEGACY_CONNECTION_REQUIRES_REVIEW`，不迁移该账号。只有环境、App ID、USD/member/Matrix 与旧环境配置一致时才导入其回调公钥；其他账号在后台补充独立公钥。
 
 运行 `php artisan cards:accounts-preflight`，输出未绑定 `.env` 产品、历史重复及冲突 BIN、需要核对的账号，不输出秘密。存在 `.env` 历史产品时先制定同一账号的显式映射并证明归属，不自动改绑，不禁用历史路由保护。当前开发数据库只读检查没有未绑定产品；`522105` 的两条归档记录和 `53493435` 的一条归档、一条在用记录全部保留。
+
+## 2026-10-15 Database-only merchant report reads
+
+Card-provider directory and homepage merchant reporting now read only photonpay_report_snapshot in the provider directory row. Reads never call PhotonPay or refresh expired caches. Missing snapshots return unavailable; old values remain with their queriedAt on refresh failure. The credential hash prevents showing snapshots after credential rotation.
+
+The first successful issue or LOAD/RETURN/CANCEL_RETURN order transition queues RefreshPhotonPayAccountReport after commit. New/rotated reporting credentials also queue initialization. The job fetches fresh merchant balance/card count through existing scoped merchant validation, serializes per reference, rejects stale credentials/older reports and stores sanitized metrics only. Failure retries independently of business settlement. BIN reads/explicit configuration checks retain their existing behavior.
+
+Deploy 2026_10_15_150000_add_photonpay_report_snapshot with PHP, migrate, restart queue workers, then run php artisan photonpay:refresh-reports once to enqueue existing-provider initialization. This command only queues read-only reporting; never run financial operations for deployment verification. No frontend/H5 build is required.

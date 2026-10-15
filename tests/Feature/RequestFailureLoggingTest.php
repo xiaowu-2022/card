@@ -64,3 +64,17 @@ it('retains safe diagnostic context for unexpected server errors', function (): 
         ->and($this->failureEntries[0]['http_status'])->toBe(500)
         ->and($this->failureEntries[0]['exception_class'])->toBe(RuntimeException::class);
 });
+
+it('logs safe missing-route paths and client context without query strings or path secrets', function (): void {
+    $this->withHeader('X-Consumer-Page', '/cards?token=CLIENT-SECRET')
+        ->getJson('http://a.localhost/api/v1/client/cards/01a09996-8c3d-727d-8f0a-6b96544dc07a/transactions/missing?token=QUERY-SECRET')->assertNotFound();
+    $entry = $this->failureEntries[0];
+    expect($entry['host'])->toBe('a.localhost')
+        ->and($entry['path'])->toBe('/api/v1/client/cards/:uuid/transactions/:redacted')
+        ->and($entry['client_page'])->toBe('/cards')
+        ->and($entry['path_hash'])->toHaveLength(64)
+        ->and(json_encode($entry))->not->toContain('CLIENT-SECRET', 'QUERY-SECRET');
+    $this->getJson('/api/v1/VERY-PRIVATE-TOKEN?password=PRIVATE-PASSWORD')->assertNotFound();
+    expect($this->failureEntries[1]['path'])->toBe('/api/v1/:redacted')
+        ->and(json_encode($this->failureEntries))->not->toContain('VERY-PRIVATE-TOKEN', 'PRIVATE-PASSWORD');
+});

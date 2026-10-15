@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import U1CardNetworks from './U1CardNetworks.vue';
 import { staticAsset } from '../lib/origin';
 import { computed } from 'vue';
 import { t } from '../lib/i18n';
@@ -6,6 +7,7 @@ import { displayMoney } from '../generated/exact-amount';
 import { systemMoney } from '../generated/system-money';
 const props = defineProps<{
     name: string;
+    provider?: string;
     currency: string;
     bin?: string;
     maskedPan?: string;
@@ -44,7 +46,8 @@ const name = computed(() =>
                 ></view
             ><view v-if="preview" class="user-card-preview-footer"
                 ><text>{{ currency }}{{ bin ? ' · BIN ' + bin : '' }}</text
-                ><image class="user-card-preview-network" :src="staticAsset('images/cards/mastercard.svg')" mode="widthFix" /></view
+                ><U1CardNetworks v-if="provider === 'U1'" />
+                <image v-else class="user-card-preview-network" :src="staticAsset('images/cards/mastercard.svg')" mode="widthFix" /></view
             ><template v-else
                 ><text class="user-card-number">{{ maskedPan }}</text
                 ><view class="user-card-face-footer"
@@ -60,7 +63,8 @@ const name = computed(() =>
                     ><view class="user-card-expiry"
                         ><text class="user-card-label">{{ t('Expiry') }}</text
                         ><text class="expiry">{{ expiry ?? '—' }}</text></view
-                    ><image
+                    ><U1CardNetworks v-if="provider === 'U1'" />
+                    <image v-else
                         class="user-card-network"
                         :src="staticAsset('images/cards/mastercard.svg')"
                         mode="widthFix" /></view></template></view
