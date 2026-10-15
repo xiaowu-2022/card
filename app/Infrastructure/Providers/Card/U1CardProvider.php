@@ -228,6 +228,18 @@ final class U1CardProvider implements CardProviderInterface
             $facts = (new U1NotificationVerifier)->verify($body, Crypt::decryptString($intent->api_key_snapshot_encrypted));
         }
         $event = ExactJson::decode($body);
+        \Illuminate\Support\Facades\Log::channel('u1_requests')->info('U1 operation evidence checked', [
+            'connection_id' => $this->connection->id, 'operation_id' => $intent->id,
+            'provider_request_id' => $intent->request_id, 'api_id' => $intent->api_id,
+            'kind' => $intent->kind, 'verified' => $facts['verified'],
+            'reason' => $facts['reason'] ?? null,
+            'api_id_matches' => ($event['apiId'] ?? null) === $intent->api_id,
+            'event_type_matches' => in_array($event['type'] ?? null, match ($intent->kind) {
+                'OPEN' => ['openvcc.success', 'openvcc.failed', 'openvcc.fail'],
+                'LOAD' => ['rechargevcc.success', 'rechargevcc.failed', 'rechargevcc.fail'],
+                'RETURN' => ['withdrawvcc.success', 'withdrawvcc.failed', 'withdrawvcc.fail'], default => [],
+            }, true),
+        ]);
         if (! $facts['verified'] || ($event['apiId'] ?? null) !== $intent->api_id) {
             throw new ProviderUnknownResultException('U1 operation evidence does not match.');
         }

@@ -7,6 +7,8 @@ use App\Domain\CardProvider\Exceptions\ProviderUnavailableException;
 use App\Domain\CardProvider\Exceptions\ProviderUnknownResultException;
 use App\Infrastructure\Assets\ExactJson;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /** U1's documented protocol. Transport only: no application balance or business writes. */
@@ -59,22 +61,48 @@ final readonly class U1ApiClient
         $body['customerNo'] = $this->customerNo;
         $body['timestamp'] = $timestamp;
         $body['sign'] = md5($this->customerNo.implode('', $parts).$timestamp.$this->apiKey);
+        $trace = ['call_id' => (string) Str::uuid(), 'endpoint' => $endpoint,
+            'protocol' => $this->v2 ? 'v2' : 'v1', 'request_id' => $fields['requestId'] ?? null,
+            'api_id' => $fields['apiId'] ?? null, 'received_at_beijing' => now()->setTimezone('Asia/Shanghai')->toIso8601String()];
+        // Exact bodies remain encrypted; credentials never appear in searchable log fields.
+        Log::channel('u1_requests')->info('U1 API request', $trace + [
+            'request_encrypted' => Crypt::encryptString(json_encode($body, JSON_THROW_ON_ERROR)),
+        ]);
+        $started = microtime(true);
+        $stage = 'TRANSPORT';
+        $response = null;
+        $data = null;
         try {
             $response = Http::connectTimeout(5)->timeout(20)->withoutRedirecting()->post(($this->v2 ? self::V2_BASE_URL : self::BASE_URL).'/api/'.$endpoint, $body);
+            $stage = 'HTTP_STATUS_OR_BODY_SIZE';
             if (! $response->successful() || strlen($response->body()) > 1048576) {
                 throw new \RuntimeException;
             }
+            $stage = 'RESPONSE_JSON';
             $data = ExactJson::decode($response->body());
+            $stage = 'RESPONSE_SIGNATURE';
             if (! is_string($data['resultCode'] ?? null) || ! is_string($data['timestamp'] ?? null)
                 || ! preg_match('/^\d{10,16}$/D', $data['timestamp'])
                 || ! is_string($data['sign'] ?? null) || ! preg_match('/^[a-fA-F0-9]{32}$/D', $data['sign'])
                 || ! hash_equals(md5($data['resultCode'].$data['timestamp'].$this->apiKey), strtolower($data['sign']))) {
                 throw new \RuntimeException;
             }
-        } catch (\Throwable) {
+        } catch (\Throwable $error) {
+            Log::channel('u1_requests')->warning('U1 API response unconfirmed', $trace + [
+                'stage' => $stage, 'http_status' => $response?->status(),
+                'duration_ms' => (int) round((microtime(true) - $started) * 1000),
+                'exception_class' => get_class($error),
+                'response_encrypted' => $response && strlen($response->body()) <= 1048576 ? Crypt::encryptString($response->body()) : null,
+            ]);
             // No retries and no transport exception details containing credentials, PAN, PIN or OTP.
             throw new ProviderUnknownResultException('U1 request result could not be confirmed.');
         }
+        Log::channel('u1_requests')->info('U1 API response verified', $trace + [
+            'http_status' => $response->status(), 'result_code' => $data['resultCode'],
+            'duration_ms' => (int) round((microtime(true) - $started) * 1000),
+            'data_type' => get_debug_type($data['data'] ?? null),
+            'response_encrypted' => Crypt::encryptString($response->body()),
+        ]);
         if ($data['resultCode'] === '0002') {
             throw new ProviderRejectedException('U1 rejected the request.');
         }

@@ -30,7 +30,11 @@ final readonly class SyncCardIssueAction
         }
         try {
             $result = $provider->queryOperation($order->provider_request_id);
-        } catch (Throwable) {
+        } catch (Throwable $error) {
+            \Illuminate\Support\Facades\Log::warning('Card issue provider query failed', [
+                'tenant_id' => $tenantId, 'order_id' => $orderId, 'provider' => $order->provider,
+                'provider_request_id' => $order->provider_request_id, 'exception_class' => get_class($error),
+            ]);
             return $this->results->markUnknown($tenantId, $orderId);
         }
         if (! hash_equals($order->provider_request_id, $result->providerOperationId)) {

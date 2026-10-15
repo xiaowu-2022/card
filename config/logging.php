@@ -53,6 +53,14 @@ return [
     */
 
     'channels' => [
+        'u1_requests' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/u1-requests.log'),
+            'level' => 'info',
+            'days' => 7,
+            'permission' => 0600,
+            'locking' => true,
+        ],
         'u1_notifications' => [
             'driver' => 'daily',
             'path' => storage_path('logs/u1-notifications.log'),

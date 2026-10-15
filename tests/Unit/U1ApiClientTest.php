@@ -87,3 +87,22 @@ it('verifies OTP with the corrected documented order and rejects the previous or
     $data['sign'] = md5('OFFLINE-CARDotp1791965165254001234offline-key');
     expect($verifier->verify(json_encode($data), 'offline-key')['reason'])->toBe('INVALID_SIGNATURE');
 });
+
+it('records every U1 call with encrypted bodies and an explicit verification failure stage', function (): void {
+    \Illuminate\Support\Facades\Log::spy();
+    \Illuminate\Support\Facades\Log::shouldReceive('channel')->with('u1_requests')->andReturnSelf();
+    Http::preventStrayRequests();
+    Http::fake(fn () => Http::response(['resultCode' => '0000', 'timestamp' => '1792030000000', 'sign' => str_repeat('0', 32), 'data' => ['otp' => '876543']]));
+    expect(fn () => (new U1ApiClient('CUSTOMER', 'offline-key'))->operation('API-TEST'))
+        ->toThrow(ProviderUnknownResultException::class);
+    \Illuminate\Support\Facades\Log::shouldHaveReceived('info')->with('U1 API request', Mockery::on(function ($context) {
+        $body = json_decode(\Illuminate\Support\Facades\Crypt::decryptString($context['request_encrypted']), true);
+        return $context['endpoint'] === 'queryapiid' && $body['apiId'] === 'API-TEST'
+            && ! str_contains(json_encode($context), 'offline-key');
+    }))->once();
+    \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->with('U1 API response unconfirmed', Mockery::on(function ($context) {
+        return $context['stage'] === 'RESPONSE_SIGNATURE' && $context['http_status'] === 200
+            && str_contains(\Illuminate\Support\Facades\Crypt::decryptString($context['response_encrypted']), '876543')
+            && ! str_contains(json_encode($context), '876543');
+    }))->once();
+});
