@@ -4,14 +4,14 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 
-function setup() {
+function setup({ native = false, serverSlug = 'company' } = {}) {
     const exports = {}, requests = [], navigations = [];
     const preview = {};
     runInNewContext(ts.transpileModule(readFileSync('mobile/uni-app/src/lib/cards-preview.ts', 'utf8'), {
         compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     }).outputText, { exports: preview });
-    const signedIn = (tenant = 'tenant-a', id = 'user-a') => ({ tenant: { id: tenant, slug: 'company' }, user: { id }, unread: {}, locale: 'en' });
-    const api = { native: false, company: { tenantSlug: 'company' }, sessionGeneration: 0,
+    const signedIn = (tenant = 'tenant-a', id = 'user-a') => ({ tenant: { id: tenant, slug: serverSlug }, user: { id }, unread: {}, locale: 'en' });
+    const api = { native, company: { tenantSlug: 'company' }, sessionGeneration: 0,
         setToken() { api.sessionGeneration++; }, setCsrf() {}, clearFlow() {},
         ApiError: class extends Error {},
         request(path) {
@@ -108,4 +108,18 @@ test('account-only reads do not wait for or mark wallet provisioning ready', asy
     assert.equal(await s.requireUser({ ensureWallet: false }), true);
     s.requests[0].resolve();
     assert.equal(await financialPage, true);
+});
+
+
+test('H5 bootstrap accepts the current domain company independently of the build company', async () => {
+    const s = setup({ native: false, serverSlug: 'tenant-b' });
+    s.session.value = null;
+    await s.bootstrap();
+    assert.equal(s.session.value.tenant.slug, 'tenant-b');
+});
+
+test('native bootstrap still rejects another company and clears its session', async () => {
+    const s = setup({ native: true, serverSlug: 'tenant-b' });
+    await assert.rejects(s.bootstrap());
+    assert.equal(s.session.value, null);
 });

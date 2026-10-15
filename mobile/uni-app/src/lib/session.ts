@@ -74,7 +74,7 @@ export async function bootstrap() {
             } else throw error;
         }
         if (generation !== sessionGeneration) return;
-        if (data.tenant.slug !== company.tenantSlug) {
+        if (native && data.tenant.slug !== company.tenantSlug) {
             clearSession();
             throw new ApiError(403);
         }

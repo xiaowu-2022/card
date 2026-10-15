@@ -20,8 +20,9 @@ function client(platform, base = '/', initialAssets = {}) {
     };
     const window = { __PUBLIC_ASSETS__: initialAssets, location: { origin: 'https://alternate.example.org', href: 'https://alternate.example.org/' } };
     function load(path) {
+        if (path.endsWith('support-reminder.ts')) return { remindSupportUnread() {}, resetSupportReminder() {} };
         if (path.endsWith('device-credentials.ts')) return { androidCredentialVault: () => ({ read: () => null, write() {} }) };
-        if (path === 'vue') return { ref: (value) => ({ value }), shallowRef: (value) => ({ value }) };
+        if (path === 'vue') return { ref: (value) => ({ value }), shallowRef: (value) => ({ value }), reactive: (value) => value, computed: (fn) => ({ get value() { return fn(); } }) };
         if (path.endsWith('company.json')) return { apiOrigin: 'https://primary.example.org', apiOrigins: ['https://zb33333.com', 'https://primary.example.org'], tenantSlug: 'company-a', appId: 'test.cards.app', developmentOnly: false };
         if (cache.has(path)) return cache.get(path);
         const exports = {};

@@ -571,3 +571,5 @@ switching and compact card-opening browser checks also run. Evidence lives in
 artifacts/h5-experience. Publish matching H5 index/new hashes and retain old assets for
 open tabs; no backend API/schema changes or native installation is required for this
 H5 publication.
+
+2026-10-15 H5 多公司域名启动修复：116a.my 的 `/api/v1/bootstrap` 已正确返回 tenant-b，但旧 H5 在 session.bootstrap 将服务器公司 slug 与打包常量比较，错误抛出 403。H5 按当前同源域名由服务器解析公司，不要求与构建 tenantSlug 相同；原生 App 仍要求公司 slug 匹配且保留原有可信域名发现和凭据隔离。仅更新 H5 资源即可修复网页，无数据库迁移、域名重分配或服务端权限放宽。发布新入口及其依赖的全部静态资源后刷新页面。不要通过禁用服务器公司隔离或将其他域名的凭据复制过来解决。
