@@ -143,9 +143,6 @@ const pendingDescription = computed(() =>
         "We're confirming the card status. Your reserved funds remain protected; do not open another card.",
     ),
 );
-function requirements() {
-    uni.pageScrollTo({ selector: '#card-setup', duration: 250 });
-}
 usePagePosition(() => '/cards', () => !!page.value);
 </script>
 <template>
@@ -155,7 +152,7 @@ usePagePosition(() => '/cards', () => !!page.value);
                 ><view v-if="loading || failed" class="refresh-status" role="status"
                     ><text>{{ t(loading ? 'Refreshing card data…' : 'Refresh failed. Showing previously loaded data.') }}</text
                     ><button v-if="failed && !loading" class="secondary" @click="refresh">{{ t('Retry') }}</button></view
-                ><template v-if="!page.cards.length && page.products.length && !canOpen"
+                ><template v-if="!page.cards.length && page.products.length && !page.kycApproved && !unresolved"
                     ><text class="intro-title">{{ t('Apply for a Mastercard U Card') }}</text
                     ><view class="intro-stage"
                         ><view class="intro-card"
@@ -165,15 +162,9 @@ usePagePosition(() => '/cards', () => !!page.value);
                                 :aria-label="t('Card design illustration')" /></view></view
                     ><button
                         class="intro-action"
-                        @click="!page.kycApproved ? (verification = true) : requirements()"
+                        @click="verification = true"
                     >
-                        {{
-                            t(
-                                !page.kycApproved
-                                    ? 'Verify identity'
-                                    : 'View application requirements',
-                            )
-                        }}
+                        {{ t('Verify identity') }}
                     </button></template
                 ><view
                     ><view class="section-header"
