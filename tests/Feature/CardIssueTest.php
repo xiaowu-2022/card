@@ -3788,3 +3788,25 @@ it('retains U1 orders for mismatched query identities or invalid outer signature
         ->and(UserCard::where('card_issue_order_id', $order->id)->count())->toBe(0);
     Http::assertSentCount(1);
 })->with([true, false]);
+
+it('shows settled card loads immediately and deduplicates later provider records by exact scoped identity', function (): void {
+    [$card, $provider, $action] = managedCardFixture($this);
+    $provider->shouldReceive('quoteCardLoad')->once()->andReturnUsing(fn ($id, $amount, $request) => new ProviderCardQuoteDTO($request, '20.00000000', '20.00000000', '0.00000000'));
+    $provider->shouldReceive('confirmCardLoad')->once()->andReturnUsing(fn ($id, $request) => new ProviderCardFundsDTO(ProviderOperationStatus::Succeeded, $id, $request, 'TX-FALLBACK-LOAD', '20.00000000', '20.00000000', '0.00000000'));
+    $order = $action->quote($this->tenant->id, $this->user->id, $card->id, (string) Str::uuid(), '20');
+    $query = app(UserCardTransactionsQuery::class);
+    expect($query->get($card->tenant_id, $card->user_id, $card->id, 1)['items'])->toHaveCount(0);
+    $action->confirmLoad($card->tenant_id, $card->user_id, $card->id, $order->id);
+    $entries = LedgerEntry::count();
+    $before = $query->get($card->tenant_id, $card->user_id, $card->id, 1, admin: true);
+    expect($before['total'])->toBe(1)->and($before['items'][0]['amount'])->toBe('20.00000000')
+        ->and($before['items'][0]['type'])->toBe('transfer_in')->and($before['items'][0]['timeKind'])->toBe('completed');
+    app(RecordCardTransactionsAction::class)->execute($card, [
+        new ProviderCardTransactionDTO('TX-FALLBACK-LOAD', '20.00000000', 'USD', 'transfer_in', 'completed', now()->format('Y-m-d H:i:s'), null, '-0.10000000', 'USD'),
+        new ProviderCardTransactionDTO('TX-UNRELATED-SAME-AMOUNT', '20.00000000', 'USD', 'transfer_in', 'completed', now()->format('Y-m-d H:i:s'), null),
+    ], CarbonImmutable::now());
+    $after = $query->get($card->tenant_id, $card->user_id, $card->id, 1, admin: true);
+    expect($after['total'])->toBe(2)->and(collect($after['items'])->where('id', $before['items'][0]['id']))->toHaveCount(1)
+        ->and(collect($after['items'])->firstWhere('id', $before['items'][0]['id'])['feeAmount'])->toBe('-0.10000000')
+        ->and(LedgerEntry::count())->toBe($entries);
+});
