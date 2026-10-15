@@ -164,3 +164,13 @@ inferred from rejected diagnostic requests; use accepted client diagnostic recor
 The later platform-wide ordinary limiter revision supersedes the 12/20 background
 quotas above: presence and card-history diagnostics are each 60/minute. See
 BUSINESS_THROTTLING.md for current independent counters and security exceptions.
+
+2026-10-15 incomplete transaction fee pairs: a missing amount or currency in optional
+provider/local fee evidence no longer blocks the entire database history response.
+Read DTOs present incomplete pairs as null/null (unknown, never fabricated zero or
+inferred currency) and emit `Card transaction fee evidence incomplete` with request,
+card and transaction IDs plus field/reason/type metadata. Stored evidence is untouched.
+Complete pairs retain exact eight-place amounts and independently normalized currencies.
+Client validation diagnostics additionally report feeAmount/feeReturnAmount and a
+fixed missing/invalid amount/currency reason; no values are sent in diagnostics.
+Deploy matching PHP and rebuilt H5; no migration or provider synchronization is needed.

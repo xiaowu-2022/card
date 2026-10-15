@@ -92,12 +92,40 @@ final readonly class UserCardTransactionsQuery
             ->selectRaw('? AS last4', [$card->last4])->orderByDesc('display_at')->orderBy('card_transactions.id');
     }
 
+    private function fee(object $row, string $field, string $currencyField): array
+    {
+        $amount = $row->{$field};
+        $currency = $row->{$currencyField};
+        if ($amount === null && $currency === null) return [null, null];
+        $reason = $amount === null ? 'amount_missing' : (! is_string($currency) || trim($currency) === '' ? 'currency_missing' : null);
+        $normalizedCurrency = is_string($currency) ? strtoupper(trim($currency)) : null;
+        if (! $reason && ! preg_match('/^[A-Z]{3}$/D', $normalizedCurrency)) $reason = 'invalid_currency';
+        if (! $reason) {
+            try {
+                return [Money::of((string) $amount, 'USD')->amount(), $normalizedCurrency];
+            } catch (\InvalidArgumentException) {
+                $reason = 'invalid_amount';
+            }
+        }
+        // Optional incomplete fee evidence must not hide the transaction itself.
+        // Keep unknown fees unknown: never assume zero or invent a currency.
+        \Illuminate\Support\Facades\Log::warning('Card transaction fee evidence incomplete', [
+            'request_id' => request()->attributes->get('request_id'),
+            'card_id' => $row->card_id, 'transaction_id' => $row->id,
+            'field' => $field, 'reason' => $reason,
+            'amount_type' => get_debug_type($amount), 'currency_type' => get_debug_type($currency),
+        ]);
+        return [null, null];
+    }
+
     private function item(object $row): array
     {
+        [$fee, $feeCurrency] = $this->fee($row, 'fee_amount', 'fee_currency');
+        [$returnedFee, $returnedCurrency] = $this->fee($row, 'fee_return_amount', 'fee_return_currency');
         return ['id' => hash('sha256', $row->card_id."\0".$row->provider_transaction_id), 'cardId' => $row->card_id,
             'last4' => $row->last4, 'amount' => Money::of((string) $row->amount, 'USD')->amount(), 'currency' => $row->currency, 'type' => $row->type,
-            'feeAmount' => $row->fee_amount === null ? null : Money::of((string) $row->fee_amount, 'USD')->amount(), 'feeCurrency' => $row->fee_currency,
-            'feeReturnAmount' => $row->fee_return_amount === null ? null : Money::of((string) $row->fee_return_amount, 'USD')->amount(), 'feeReturnCurrency' => $row->fee_return_currency,
+            'feeAmount' => $fee, 'feeCurrency' => $feeCurrency,
+            'feeReturnAmount' => $returnedFee, 'feeReturnCurrency' => $returnedCurrency,
             'state' => $row->state, 'displayAt' => CarbonImmutable::parse($row->display_at)->utc()->toIso8601String(),
             'timeKind' => $row->completed_entry_id ? 'completed' : 'recorded', 'merchant' => $row->merchant];
     }

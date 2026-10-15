@@ -48,6 +48,12 @@ export type CardTransaction = {
 };
 export type CardTransactionPage = { items: CardTransaction[]; page: number; hasMore: boolean };
 
+export class TransactionFeeError extends Error {
+    constructor(public field: 'feeAmount' | 'feeReturnAmount', public detail: string) {
+        super('Invalid transaction fee');
+    }
+}
+
 export function transactionPage(value: unknown, cardId: string, page: number): CardTransactionPage {
     if (!value || typeof value !== 'object') throw new Error('Invalid transaction page');
     const data = value as Partial<CardTransactionPage>;
@@ -59,18 +65,16 @@ export function transactionPage(value: unknown, cardId: string, page: number): C
     )
         throw new Error('Invalid transaction page');
     for (const item of data.items) {
-        for (const [amount, currency] of [
-            [item?.feeAmount, item?.feeCurrency],
-            [item?.feeReturnAmount, item?.feeReturnCurrency],
+        for (const { amount, currency, field } of [
+            { amount: item?.feeAmount, currency: item?.feeCurrency, field: 'feeAmount' as const },
+            { amount: item?.feeReturnAmount, currency: item?.feeReturnCurrency, field: 'feeReturnAmount' as const },
         ]) {
             if (amount == null && currency == null) continue;
-            if (
-                typeof amount !== 'string' ||
-                !/^-?\d{1,12}\.\d{8}$/.test(amount) ||
-                typeof currency !== 'string' ||
-                !/^[A-Z]{3}$/.test(currency)
-            )
-                throw new Error('Invalid transaction fee');
+            const detail = amount == null ? 'amount_missing'
+                : typeof amount !== 'string' || !/^-?\d{1,12}\.\d{8}$/.test(amount) ? 'invalid_amount'
+                : currency == null ? 'currency_missing'
+                : typeof currency !== 'string' || !/^[A-Z]{3}$/.test(currency) ? 'invalid_currency' : null;
+            if (detail) throw new TransactionFeeError(field, detail);
         }
         if (
             !item ||

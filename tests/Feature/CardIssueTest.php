@@ -4056,3 +4056,24 @@ it('isolates presence and card history diagnostics from generic polling throttle
     for ($i = 0; $i < 58; $i++) $this->postJson('http://a.localhost/api/v1/presence')->assertNoContent();
     $this->postJson('http://a.localhost/api/v1/presence')->assertStatus(429);
 });
+
+it('keeps database transactions visible when optional fee evidence is incomplete and logs the exact field', function (): void {
+    [$card] = transactionReadFixture($this);
+    app(RecordCardTransactionsAction::class)->execute($card, [
+        new ProviderCardTransactionDTO('FEE-PARTIAL', '25.00000000', 'USD', 'purchase', 'completed', '2026-09-29T09:00:00', null, null, 'USD', '0.00000000', null),
+    ], CarbonImmutable::now());
+    $before = CardTransaction::where('provider_transaction_id', 'FEE-PARTIAL')->sole()->getRawOriginal();
+    $logger = Mockery::mock(\Illuminate\Log\LogManager::class, [app()])->makePartial();
+    \Illuminate\Support\Facades\Log::swap($logger);
+    $logger->shouldReceive('warning')->once()->with('Card transaction fee evidence incomplete', Mockery::on(fn ($data) =>
+        $data['card_id'] === $card->id && $data['field'] === 'fee_amount' && $data['reason'] === 'amount_missing'));
+    $logger->shouldReceive('warning')->once()->with('Card transaction fee evidence incomplete', Mockery::on(fn ($data) =>
+        $data['card_id'] === $card->id && $data['field'] === 'fee_return_amount' && $data['reason'] === 'currency_missing'));
+    Http::preventStrayRequests();
+    $this->actingAs($this->user, 'tenant_user')->getJson("http://a.localhost/cards/{$card->id}/transactions")
+        ->assertOk()->assertJsonPath('items.0.amount', '25.00000000')
+        ->assertJsonPath('items.0.feeAmount', null)->assertJsonPath('items.0.feeCurrency', null)
+        ->assertJsonPath('items.0.feeReturnAmount', null)->assertJsonPath('items.0.feeReturnCurrency', null);
+    expect(CardTransaction::where('provider_transaction_id', 'FEE-PARTIAL')->sole()->getRawOriginal())->toBe($before);
+    Http::assertNothingSent();
+});

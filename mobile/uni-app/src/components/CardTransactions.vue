@@ -3,6 +3,7 @@ import { computed, ref, watch, onBeforeUnmount } from 'vue';
 import { request, ApiError } from '../lib/api';
 import { t, dateTime } from '../lib/i18n';
 import {
+    TransactionFeeError,
     mergeCardTransactions,
     transactionPage,
     transactionMoney,
@@ -103,6 +104,7 @@ async function run(failedOnly: boolean) {
                         // Report only fixed diagnostics and local IDs, never transaction data.
                         void request('/client/cards/' + source.id + '/transactions/load-failure', 'POST', {
                             page: source.page, stage: received ? 'response_validation' : status ? 'http' : 'transport',
+                            ...(error instanceof TransactionFeeError ? { field: error.field, detail: error.detail } : {}),
                             reason, http_status: status || (error instanceof ApiError ? error.status : 0),
                             source_request_id: sourceRequestId ?? (error instanceof ApiError ? error.requestId : undefined),
                         }).catch(() => { /* An offline device cannot reach server logging. */ });

@@ -55,3 +55,11 @@ test('consumer transaction rows render provider fees separately from purchase cu
     assert.ok(html.includes('Fee refund'));
     assert.ok(html.includes('—'));
 });
+
+test('fee validation identifies the exact optional field and failure without exposing values', () => {
+    const item = { id: 'a'.repeat(64), cardId: 'card', last4: '1234', amount: '1.00000000', currency: 'USD', type: 'purchase', state: 'completed', displayAt: '2026-09-29T09:00:00Z', timeKind: 'recorded', merchant: null };
+    assert.throws(() => transactionPage({ page: 1, hasMore: false, items: [{ ...item, feeReturnAmount: null, feeReturnCurrency: 'USD' }] }, 'card', 1), error =>
+        error.field === 'feeReturnAmount' && error.detail === 'amount_missing' && error.message === 'Invalid transaction fee');
+    assert.throws(() => transactionPage({ page: 1, hasMore: false, items: [{ ...item, feeAmount: '0.00000000', feeCurrency: null }] }, 'card', 1), error =>
+        error.field === 'feeAmount' && error.detail === 'currency_missing');
+});

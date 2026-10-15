@@ -29,6 +29,8 @@ final class CardTransactionsController extends Controller
             'reason' => ['required', 'in:invalid_page,invalid_fee,invalid_item,request_failed'],
             'http_status' => ['nullable', 'integer', 'min:0', 'max:599'],
             'source_request_id' => ['nullable', 'uuid'],
+            'field' => ['nullable', 'in:feeAmount,feeReturnAmount'],
+            'detail' => ['nullable', 'in:amount_missing,invalid_amount,currency_missing,invalid_currency'],
         ]);
         $owned = \App\Domain\Card\Models\UserCard::where('tenant_id', $context->id())
             ->where('user_id', $request->user('tenant_user')->id)->whereKey($card)->firstOrFail();
