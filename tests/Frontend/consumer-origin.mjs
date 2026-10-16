@@ -43,6 +43,7 @@ test('H5 follows the current domain for links, image paths and internal navigati
     for (const domain of ['https://alternate.example.org', 'https://second.example.org']) {
         c.window.location.origin = domain;
         assert.equal(c.origin.companyOrigin(), domain);
+        assert.equal(c.origin.invitationUrl('523612'), domain + '/register?invite=523612');
         assert.equal(c.api.photoUrl(domain + '/storage/image.png'), '/storage/image.png');
         assert.equal(c.navigation.internalUrl(domain + '/login'), '/pages/login/index');
         assert.throws(() => c.navigation.internalUrl('https://primary.example.org/login'));
@@ -52,18 +53,18 @@ test('H5 follows the current domain for links, image paths and internal navigati
     }
 });
 
-test('assets follow deployment while invitations always use the fixed launcher', async () => {
+test('assets follow deployment and invitations follow the current company origin', async () => {
     const c = client('h5', '/h5/');
     assert.equal(c.origin.staticAsset('icons/Bell.svg'), c.origin.webBase() + 'static/icons/Bell.svg');
     const invite = new URL(c.origin.invitationUrl('test+code'));
-    assert.equal(invite.origin, 'https://zb33333.com');
-    assert.equal(invite.pathname, '/start.html');
+    assert.equal(invite.origin, c.window.location.origin);
+    assert.equal(invite.pathname, '/register');
     assert.equal(invite.searchParams.get('invite'), 'test+code');
     assert.equal(invite.hash, '');
     const native = client('app', '/h5/');
     await native.origin.ensureCompanyOrigin();
     assert.equal(native.origin.staticAsset('icons/Bell.svg'), '/static/icons/Bell.svg');
-    assert.equal(native.origin.invitationUrl('test'), 'https://zb33333.com/start.html?invite=test');
+    assert.equal(native.origin.invitationUrl('test'), 'https://primary.example.org/register?invite=test');
 });
 
 test('native App verifies its company domain before using it even when a browser-like global exists', async () => {
@@ -82,7 +83,7 @@ test('one relative build follows root, renamed directories and explicit index en
         c.window.location.href = c.window.location.origin + entry + '#/pages/login/index';
         assert.equal(c.origin.webBase(), base);
         assert.equal(c.origin.staticAsset('icons/Bell.svg'), c.origin.webBase() + 'static/icons/Bell.svg');
-        assert.equal(c.origin.invitationUrl('test'), 'https://zb33333.com/start.html?invite=test');
+        assert.equal(c.origin.invitationUrl('test'), c.window.location.origin + '/register?invite=test');
     }
 });
 

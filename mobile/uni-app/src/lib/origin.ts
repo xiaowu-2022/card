@@ -94,5 +94,5 @@ export function staticAsset(path: string): string {
 }
 
 export function invitationUrl(code: string): string {
-    return 'https://zb33333.com/start.html?invite=' + encodeURIComponent(code);
+    return companyOrigin() + '/register?invite=' + encodeURIComponent(code);
 }
