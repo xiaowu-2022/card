@@ -77,6 +77,20 @@ final class ConsumerController extends Controller
         return response()->json(['cards' => $data['cards']]);
     }
 
+    /** Minimal company/session confirmation; no assets, unread counters or business summaries. */
+    public function session(Request $request, TenantContext $context)
+    {
+        $tenant = $context->tenant();
+        $user = $request->attributes->get('consumer_user');
+        $authenticated = $user instanceof User;
+
+        return response()->json([
+            'tenant' => ['id' => $tenant->id, 'slug' => $tenant->slug],
+            'user' => $authenticated ? ['id' => $user->id] : null,
+            'restricted' => $tenant->status !== TenantStatus::Active || ($authenticated && $user->status !== UserStatus::Active),
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
     public function bootstrap(Request $request, TenantContext $context, InboxQuery $inbox, SupportUnread $support, AndroidAppRelease $releases)
     {
         $tenant = $context->tenant();
@@ -100,7 +114,7 @@ final class ConsumerController extends Controller
             'user' => $authenticated ? ['id' => $user->id, 'accountId' => $user->account_id, 'displayName' => $user->profile?->display_name, 'email' => $user->email] : null,
             'supportAgent' => $authenticated && app(SupportUserAgents::class)->enabled($tenant->id, $user->id),
             'restricted' => $tenant->status !== TenantStatus::Active || ($authenticated && $user->status !== UserStatus::Active),
-            'unread' => ['messages' => $authenticated ? $inbox->unread($tenant->id, $user->id) : 0,
+            'unread' => $request->boolean('defer_unread') ? null : ['messages' => $authenticated ? $inbox->unread($tenant->id, $user->id) : 0,
                 'support' => $authenticated ? $support->count($tenant->id, $user->id) : 0,
                 'agentSupport' => $authenticated ? $support->agentCount($tenant->id, $user->id) : 0],
             'csrfToken' => $request->attributes->get('consumer_mode') === 'web' && $request->hasSession() ? $request->session()->token() : null,

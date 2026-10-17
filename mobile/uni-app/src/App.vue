@@ -10,7 +10,7 @@ import {
 } from './lib/support-realtime';
 import { checkAppUpdate } from './lib/app-update';
 import { pauseSupportReminder, resumeSupportReminder } from './lib/support-reminder';
-import { refreshUnread, session } from './lib/session';
+import { confirmSession, refreshUnread, session } from './lib/session';
 let foreground = false,
     lastCheck = 0,
     refreshing = false,
@@ -47,35 +47,51 @@ watch(
         if (foreground && value) {
             resumeSupportRealtime();
             restartSupportRealtime();
+            refresh();
         } else pauseSupportRealtime();
     },
 );
 let timer: ReturnType<typeof setInterval> | undefined;
+let lifecycleGeneration = 0, lastVersionCheck = 0;
 function pause() {
     foreground = false;
+    lifecycleGeneration++;
+    pendingRefresh = false;
     pauseSupportRealtime();
     pauseSupportReminder();
     clearInterval(timer);
     timer = undefined;
 }
 function resume() {
-    pause();
+    if (foreground) return; // focus + visibility + native onShow describe one resume.
     // #ifdef H5
     if (document.hidden) return;
-    // #endif
-    // #ifdef H5
-    // Keep the existing translated PageShell navigation; the framework tab bar is routing only.
     uni.hideTabBar({ animation: false, fail: () => {} });
     // #endif
     foreground = true;
-    if (session.value?.user) resumeSupportRealtime();
-    resumeSupportReminder();
-    void checkAppUpdate(true);
-    refresh();
-    timer = setInterval(() => {
-        if (!supportRealtimeConnected() || Date.now() - lastCheck >= 10000) refresh();
-    }, 5000);
+    const generation = ++lifecycleGeneration;
+    // Keep the mounted page and scroll position while checking only session status.
+    const activate = (valid: boolean) => {
+        if (!valid || !foreground || generation !== lifecycleGeneration) return;
+        clearInterval(timer);
+        if (session.value?.user) resumeSupportRealtime();
+        resumeSupportReminder();
+        refresh();
+        timer = setInterval(() => {
+            if (!supportRealtimeConnected() || Date.now() - lastCheck >= 10000) refresh();
+        }, 5000);
+    };
+    void confirmSession().then(activate).catch(() => {
+        if (!foreground || generation !== lifecycleGeneration) return;
+        // Retry quietly without discarding the mounted page or reviving a hidden socket.
+        timer = setInterval(() => { void confirmSession().then(activate).catch(() => {}); }, 10000);
+    });
+    if (Date.now() - lastVersionCheck >= 60000) {
+        lastVersionCheck = Date.now();
+        void checkAppUpdate(true);
+    }
 }
+
 onShow(resume);
 onHide(pause);
 // #ifdef H5

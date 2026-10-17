@@ -4,12 +4,15 @@ export function readinessScript(token: string): string {
     return `(function () {
         if (/^specpay-(ready|debug)-/.test(document.title)) return;
         var root = document.querySelector('uni-page-body');
-        if (!root || window.innerWidth < 100 || window.innerHeight < 100) return;
+        if (!root || root.querySelector('[data-webview-pending="true"]') || window.innerWidth < 100 || window.innerHeight < 100) return;
         var rect = root.getBoundingClientRect();
         if (rect.width < 100 || rect.height < 40 || !root.innerText.trim()) return;
         var style = window.getComputedStyle(root);
         if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return;
+        var route = window.location.href;
         window.requestAnimationFrame(function () { window.requestAnimationFrame(function () {
+            if (window.location.href !== route || document.querySelector('uni-page-body') !== root
+                || root.querySelector('[data-webview-pending="true"]')) return;
             var original = document.title;
             var token = ${JSON.stringify(token)};
             document.title = token;

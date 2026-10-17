@@ -1,5 +1,6 @@
 import { origin, type DirectoryCache } from './directory';
 
+export type SessionIdentity = { tenantId: string; signedIn: boolean; restricted?: boolean };
 export const rememberCookie = 'consumer_remember';
 export class LoginRestoreUnavailable extends Error {
     constructor() { super('登录状态尚未恢复，请重试；若仍无法恢复，可重新登录。'); }
@@ -22,7 +23,7 @@ export function sharedSession(ports: {
     // HttpOnly cookie store; metadata never contains a credential.
     vault: { read(): string | null; write(value: string | null): void } | null;
     metadata: { get(): Metadata | null; set(value: Metadata): void };
-    verify?: (url: string, cookie: string | null) => Promise<{ tenantId: string; signedIn: boolean }>;
+    verify?: (url: string, cookie: string | null) => Promise<SessionIdentity>;
 }) {
     let directory: DirectoryCache | null = null;
     let credential: string | null = null;
@@ -109,9 +110,13 @@ export function sharedSession(ports: {
                 if (readRememberCookie(ports.cookies.get(url + '/')) === value) {
                     if (ports.verify) {
                         const result = await ports.verify(url, value);
-                        if (result.tenantId !== directory?.tenantId || (result.signedIn !== (value !== null))) throw new LoginRestoreUnavailable();
+                        if (result.tenantId !== directory?.tenantId || typeof result.signedIn !== 'boolean'
+                            || (result.signedIn && !value)) throw new LoginRestoreUnavailable();
+                        // A valid same-company guest response confirms expiry. Show login without
+                        // erasing the native vault on a transient error or accepting another account.
+                        return result;
                     }
-                    return;
+                    return { tenantId: directory!.tenantId, signedIn: value !== null };
                 }
                 await new Promise(resolve => setTimeout(resolve, 50));
             }

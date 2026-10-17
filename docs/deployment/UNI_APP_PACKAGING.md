@@ -1,22 +1,107 @@
-### 2026-10-09：iPhone/iPad 邀请海报保存
+## 2026-10-17 WebView line/cache/reveal review
 
-H5 与 WebView 的 iOS 保存不再依赖模拟点击 download 链接，也不再显示
-“已发起下载，请查看浏览器下载记录”。支持文件分享时，在按钮点击的用户手势内
-打开 PNG 系统分享菜单；分享完成只提示按所选操作查看相册，取消不显示成功。
-不支持或分享失败时保留原生 img 预览，提示长按“存储图像”，无菜单时在 Safari
-打开页面。iOS 不等待旧壳可能不回调的标题桥。Android 原生桥与 APP-PLUS
-仍以相册保存回调为成功依据。
+Confirmed existing behavior: the previous selected host is included first in the three
+concurrent fresh probes; first verified response within 300ms wins. Foreground directory
+refresh never reloads or changes the active WebView origin. Keep these semantics rather
+than introducing a serial delay or trusting stale domain ownership.
 
-部署更新后的 public/h5 入口及新增哈希资源，保留旧资源；此修复不要求重新打包
-WebView 壳。离线 Chromium/WebKit（含 iPhone/iPad 模式）覆盖无分享能力、
-分享完成、取消与 Android 相册回调；系统分享菜单和真实相册写入仍需真机验收。
+The reveal probe now rejects the login page's explicit pending-session marker and rechecks
+the marker, root and route after its two animation frames. Successful guest forms and
+retry errors can render; mere restoration text cannot reveal the child. Existing native
+identity gate, opaque welcome, stale-window guards and layout pulse remain intact.
 
-On 2026-10-08 the user enabled direct Platform app-release metadata edits.
-Prefill existing version values; permit valid same/lower version corrections and
-destination updates without repackaging. Preserve fixed AppID, tenant.manage,
-company locking, stale revision checks, confirmation and atomic audit. Legacy CLI
-new-release publication still requires increasing codes. This supersedes the
-Platform monotonic-version requirement below.
+`public/h5/.htaccess` adds immutable one-year caching only for content-hashed static
+filenames, with HTML/JSON revalidation. Nginx deployments must merge the supplied
+`docs/deployment/snippets/webview-h5-cache.nginx.conf` into the consumer H5 virtual host,
+respecting its current root/alias routing and security headers; root-mounted examples
+are explicitly opt-in. Never apply these H5 entry locations to Platform/API servers.
+Keep HTML revalidated, API private/no-store, unversioned static files outside immutable
+rules, and retain old hashed assets during releases. The local artisan server bypasses
+Apache/Nginx static headers, so it does not validate deployed caching. No server config
+reload or production change was performed. Rebuild/reinstall shells for probe changes;
+deploy matching H5 for the pending marker. Existing APKs remain unchanged.
+
+## 2026-10-17 Independent homepage sections, warm resume and startup diagnostics
+
+The authenticated operational `GET /home/summary` and `/home/activity` routes share
+existing consumer tenant/user authorization. Summary retains the complete valuation
+snapshot but skips movement/order history; recent activity loads separately with its
+original scoped evidence. Neither read provisions wallets or calls providers. Unknown
+estimates remain unknown. Summary and activity failures/retries are independent, scoped
+late results are discarded, and confirmed authorization failure clears visible sections.
+The new frontend opts into `bootstrap?defer_unread=1` (unread=null); it loads unread
+counters in the background. Old bootstrap clients still receive counters by default.
+
+Warm resumes keep the mounted route and existing scroll restoration. Homepage sections
+reuse same-session memory for 15 seconds; stale sections refresh without clearing the
+visible snapshot. App show/focus/visibility signals share one resume check, using the
+minimal session endpoint before restoring foreground sockets. Hidden completions cannot
+restart them. Network errors retain the page and retry quietly; a valid guest response
+or native bearer 401 confirms expiry. Browser authorization errors alone do not erase
+cookies. Identity changes require fresh bootstrap; no cached state authorizes server reads.
+
+Allowlisted startup phases (line discovery, restore, bootstrap, document/identity/content,
+home sections and resume checks) retain at most 40 numeric duration/outcome records in
+memory. `globalThis.__consumerStartupTimings` exposes copies for opt-in diagnostics; the
+shell diagnostic panel shows those safe fields. No account, URL, token, persistent log
+or telemetry upload is added. Durations measure actual stages and do not promise a fixed
+end-to-end startup time. Deploy matching PHP/H5; compile and repackage/reinstall native
+shell resources to apply shell timing. No migration or financial/provider test required.
+
+## 2026-10-17 Lightweight session verification and direct authenticated entry
+
+WebView restoration now calls `GET /api/v1/session` instead of full `bootstrap`.
+The shared consumer routes also expose `/api/mobile/v1/session` with existing bearer
+scope. The minimal response contains only Host-resolved tenant ID/slug, user ID or
+null, and the restricted flag; it remains private/no-store. Host resolution skips
+branding/locales only for these exact session paths, retaining fresh active-domain
+ownership checks, cleanup fences, remember-cookie/session-version checks and existing
+company/user status gates. No locale/flow setup, assets/download metadata, unread
+counters, wallet provisioning or provider operations run in this endpoint.
+
+After native cookie commitment and server identity confirmation, signed-in users open
+`/#/pages/assets/index` directly; restricted accounts open their existing restricted
+screen. Confirmed guests open the normal login entry. An unexpected authenticated
+result with no intended credential is rejected, as are invalid company/status payloads.
+A valid same-company guest result can represent expiry without erasing the vault;
+network/malformed/authorization errors retain credentials and the retry screen.
+The destination H5 still performs full bootstrap and emits its own verified session
+signal before the shell reveals rendered content. No credentials are passed to page
+JavaScript or URLs, and no cached identity authorizes business reads.
+
+The H5/native login page mounts only a neutral restoration/retry screen until successful
+guest confirmation. Signed-in users navigate directly home while its form stays unmounted;
+network failure cannot expose a misleading login form or erase credentials. Hidden
+login pages cannot navigate on late completion.
+
+Deploy PHP/routes first, then matching H5 resources, and rebuild/cloud-package/reinstall
+the WebView shell. The server endpoint must be live before shipping the new shell;
+older shells remain compatible with full bootstrap. No database migration required.
+
+## 2026-10-17 WebView first qualifying response with three concurrent probes
+
+The WebView shell runs at most three domain probes concurrently. The first response
+taking at most 300ms that verifies the packaged company, pinned tenant ID and current
+domain membership wins immediately. All other native requests are aborted and queued
+hosts are not started. Late responses cannot change the winner or its directory.
+This supersedes the earlier sequential and exhaustive absolute-fastest policies.
+
+The last selected cached domain is prioritized in the initial group, but cache alone
+never authenticates a destination. A valid response supplies the full fresh directory;
+retired/unassigned candidates are excluded, including cancellation of pending excluded
+hosts. Vacant slots may try remaining verified-directory candidates until a qualifying
+response succeeds. No full-directory scan runs after a winner is chosen.
+
+Retain a 1s per-request limit and 4s total discovery budget. Abort expired native
+requests before reusing their slots. If no response meets 300ms, use the fastest
+verified response obtained within the budget; no verified response means a retry screen.
+Foreground refresh and manual reconnect share pending discovery. Discovery and login
+restoration have separate UI states. Company/session bootstrap barriers, native secure
+cookies and explicit logout behavior remain mandatory and unchanged.
+
+Rebuild `mobile/webview-shell` resources, cloud-package and reinstall the signed App.
+Source/resource compilation does not update an already uploaded APK. No database
+migration, provider calls, financial operations or H5/server deployment are required.
 
 ## 2026-10-08 Advisory updates for common app versions
 

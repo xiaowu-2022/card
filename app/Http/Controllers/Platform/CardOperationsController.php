@@ -2,16 +2,18 @@
 
 namespace App\Http\Controllers\Platform;
 
-use App\Application\Card\CardProductProviderRouter;
+use App\Application\Card\CardSensitiveDetails;
 use App\Application\Card\CardVoidPolicy;
 use App\Application\Card\PlatformCardQuery;
 use App\Application\Card\PlatformCardTransactionsQuery;
 use App\Application\Card\RecordCardOverflowSpend;
 use App\Application\Card\RefreshManagedCardAction;
+use App\Application\Card\SyncCardIssueAction;
 use App\Application\Card\SyncUserCardTransactionsAction;
 use App\Application\Tenant\PlatformListFilters;
 use App\Application\User\PlatformUserSummary;
 use App\Domain\Audit\Services\AuditLogger;
+use App\Domain\Card\Models\CardIssueOrder;
 use App\Domain\Card\Models\CardManagementOrder;
 use App\Domain\Card\Models\UserCard;
 use App\Domain\Ledger\ValueObjects\Money;
@@ -19,6 +21,7 @@ use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CardTransactionsRequest;
+use App\Support\Errors\DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,9 +33,9 @@ use Inertia\Response;
 
 final class CardOperationsController extends Controller
 {
-    public function syncIssue(Request $request, Tenant $tenant, string $issue, \App\Application\Card\SyncCardIssueAction $sync): RedirectResponse
+    public function syncIssue(Request $request, Tenant $tenant, string $issue, SyncCardIssueAction $sync): RedirectResponse
     {
-        $order = \App\Domain\Card\Models\CardIssueOrder::query()->where('tenant_id', $tenant->id)->whereKey($issue)->firstOrFail();
+        $order = CardIssueOrder::query()->where('tenant_id', $tenant->id)->whereKey($issue)->firstOrFail();
         $result = $sync->execute($tenant->id, $order->id, $order->user_id);
         app(AuditLogger::class)->record($tenant->id, 'ADMIN', $request->user('platform_admin')->id,
             'CARD_ISSUE_STATUS_REFRESHED', 'card_issue_order', $order->id);
@@ -49,8 +52,12 @@ final class CardOperationsController extends Controller
         $owned = UserCard::query()->where('tenant_id', $tenant->id)->whereKey($card)->firstOrFail();
         abort_unless(in_array($owned->provider_status, ['normal', 'frozen'], true), 409);
         try {
-            $details = app(\App\Application\Card\CardSensitiveDetails::class)->readOrAcquire($owned);
-        } catch (\Throwable) {
+            $details = app(CardSensitiveDetails::class)->readOrAcquire($owned);
+        } catch (\Throwable $error) {
+            if ($error instanceof DomainException && $error->errorCode === 'CARD_DETAILS_OFFLINE') {
+                throw $error;
+            }
+
             return response()->json(['message' => 'Card details could not be loaded. Please try again later.'], 503, ['Cache-Control' => 'no-store, private']);
         }
         abort_unless(preg_match('/^[0-9]{12,19}$/D', $details->displayPan)

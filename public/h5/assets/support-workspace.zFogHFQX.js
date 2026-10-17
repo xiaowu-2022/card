@@ -1,0 +1,1 @@
+import{A as a,G as s,at as n,D as t,j as e,aG as o}from"./index-BKSIDay3.js";function i(i){return!!(i instanceof a&&[401,403,404].includes(i.status))&&(s.value&&(s.value.supportAgent=!1),o(),n({title:t("Support access is no longer available."),icon:"none"}),e("/account",!0),!0)}export{i as s};

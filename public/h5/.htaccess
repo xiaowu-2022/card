@@ -1,0 +1,9 @@
+# Only Vite content-hashed assets are immutable. Never cache HTML/API identity.
+<IfModule mod_headers.c>
+    <FilesMatch "[.\-][A-Za-z0-9_\-]{8}\.(js|css|woff2?|ttf|otf|png|jpe?g|webp|svg|gif|avif)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+    <FilesMatch "\.(html|json)$">
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
+</IfModule>

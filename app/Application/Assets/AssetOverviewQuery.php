@@ -24,7 +24,7 @@ final readonly class AssetOverviewQuery
     public function __construct(private MarketPrices $prices, private PromotionReportQuery $promotion) {}
 
     /** One read snapshot for all balances. No account creation on GET. */
-    public function get(string $tenantId, string $userId, array $legacy): array
+    public function get(string $tenantId, string $userId, array $legacy, bool $includeHistory = true): array
     {
         $accounts = LedgerAccount::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->get();
         $eligible = $legacy['transferAvailable'] ?? false;
@@ -59,11 +59,9 @@ final readonly class AssetOverviewQuery
                 $options[] = ['code' => $rail->code, 'network' => $rail->network, 'deposit' => $assetEligible && $settings->deposit_enabled && $settings->minimum_deposit !== null, 'withdrawal' => $assetEligible && $settings->withdrawal_enabled && $settings->withdrawal_fee_percent !== null, 'feePercent' => $settings->withdrawal_fee_percent, 'minimum' => $settings->minimum_deposit === null ? null : Money::of($settings->minimum_deposit, $asset)->amount()];
             }
             $policy = $policies->get($asset);
-            $activity = DB::table('ledger_postings as p')->join('ledger_accounts as a', 'a.id', '=', 'p.ledger_account_id')->join('ledger_entries as e', 'e.id', '=', 'p.ledger_entry_id')->where('a.tenant_id', $tenantId)->where('p.tenant_id', $tenantId)->where('e.tenant_id', $tenantId)->where('a.user_id', $userId)->where('a.asset_code', $asset)->where('a.account_type', 'USER_AVAILABLE')->orderByDesc('e.posted_at')->orderByDesc('p.id')->limit(5)->get(['p.id', 'p.delta', 'e.posted_at', 'e.event_type', 'e.id as entry_id', 'e.reference_id', 'e.reference_type']);
-            $details = app(AssetActivityDetails::class)->forRows($tenantId, $userId, $activity);
-            $activity = $activity->map(fn ($p) => ['id' => $p->id, 'amount' => Money::of($p->delta, $asset)->amount(), 'time' => $p->posted_at, 'kind' => AssetActivityLabel::for($p->event_type, $p->delta), 'details' => $details->get($p->id)])->all();
+            $activity = $includeHistory ? $this->activity($tenantId, $userId, $asset) : [];
             $orders = collect();
-            foreach (['deposit' => AssetDepositOrder::class, 'withdrawal' => AssetWithdrawalOrder::class, 'exchange' => ExchangeOrder::class] as $mode => $model) {
+            foreach ($includeHistory ? ['deposit' => AssetDepositOrder::class, 'withdrawal' => AssetWithdrawalOrder::class, 'exchange' => ExchangeOrder::class] : [] as $mode => $model) {
                 $orders = $orders->merge($model::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->where('asset_code', $asset)->latest()->limit(5)->get()->map(fn ($o) => [
                     'id' => $o->id, 'mode' => $mode, 'amount' => $o->actual_received_amount ?? $o->amount, 'time' => $o->created_at->toIso8601String(),
                     'state' => match ($o->status) {
@@ -81,5 +79,27 @@ final readonly class AssetOverviewQuery
         }
 
         return ['activation' => app(AccountActivationStatus::class)->get($tenantId, $userId), 'cumulativeCommission' => $this->promotion->cumulative($tenantId, $userId), 'assets' => $assets, 'estimate' => $valuation['estimate'], 'updatedAt' => $valuation['updatedAt']];
+    }
+
+    /** Independently loaded recent movements; balances/estimates stay in their own full snapshot. */
+    public function recentActivity(string $tenantId, string $userId): array
+    {
+        $rows = collect();
+        foreach (AssetCatalog::ASSETS as $asset) {
+            foreach ($this->activity($tenantId, $userId, $asset) as $row) {
+                $rows->push($row + ['asset' => $asset]);
+            }
+        }
+
+        return $rows->sort(fn ($a, $b) => strcmp($b['time'], $a['time']) ?: strcmp($b['id'], $a['id']))->take(5)->values()->all();
+    }
+
+    private function activity(string $tenantId, string $userId, string $asset): array
+    {
+        $activity = DB::table('ledger_postings as p')->join('ledger_accounts as a', 'a.id', '=', 'p.ledger_account_id')->join('ledger_entries as e', 'e.id', '=', 'p.ledger_entry_id')->where('a.tenant_id', $tenantId)->where('p.tenant_id', $tenantId)->where('e.tenant_id', $tenantId)->where('a.user_id', $userId)->where('a.asset_code', $asset)->where('a.account_type', 'USER_AVAILABLE')->orderByDesc('e.posted_at')->orderByDesc('p.id')->limit(5)->get(['p.id', 'p.delta', 'e.posted_at', 'e.event_type', 'e.id as entry_id', 'e.reference_id', 'e.reference_type']);
+        $details = app(AssetActivityDetails::class)->forRows($tenantId, $userId, $activity);
+        $activity = $activity->map(fn ($p) => ['id' => $p->id, 'amount' => Money::of($p->delta, $asset)->amount(), 'time' => $p->posted_at, 'kind' => AssetActivityLabel::for($p->event_type, $p->delta), 'details' => $details->get($p->id)])->all();
+
+        return $activity;
     }
 }

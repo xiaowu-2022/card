@@ -4,7 +4,7 @@ import FormField from '../../components/FormField.vue';
 import { useFormFeedback } from '../../lib/form-feedback';
 import { useSensitiveScreen } from '../../lib/sensitive';
 import { ref } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { onShow, onHide } from '@dcloudio/uni-app';
 import { bootstrap, login, session } from '../../lib/session';
 import { native } from '../../lib/api';
 import { t, changeLocale } from '../../lib/i18n';
@@ -20,17 +20,42 @@ const email = ref(''),
     errors = ref<Record<string, string>>({});
 // Fresh H5 visitors start in English; bootstrap retains saved, enabled preferences.
 if (!session.value) changeLocale(native ? 'zh-CN' : 'en');
-onShow(async () => {
+const checkingSession = ref(true), sessionCheckFailed = ref(false);
+let checking = false, visible = true;
+async function verifySession() {
+    if (checking) return;
+    checking = true;
+    checkingSession.value = true;
+    sessionCheckFailed.value = false;
+    errors.value = {};
     if (native) changeLocale('zh-CN');
     try {
         await bootstrap();
-        if (session.value?.user)
-            home(session.value.restricted ? '/account/restricted' : '/dashboard');
-        else if (native) changeLocale('zh-CN');
+        if (!visible) return;
+        const current = session.value;
+        if (!current || typeof current.tenant?.id !== 'string' || !current.tenant.id
+            || typeof current.restricted !== 'boolean'
+            || (current.user !== null && (typeof current.user?.id !== 'string' || !current.user.id))) {
+            throw new Error('Invalid session confirmation');
+        }
+        if (current.user) {
+            home(current.restricted ? '/account/restricted' : '/dashboard');
+            return;
+        }
+        if (native) changeLocale('zh-CN');
+        // Only a successful server-confirmed guest result may reveal the login form.
+        checkingSession.value = false;
     } catch (e) {
+        if (!visible) return;
+        sessionCheckFailed.value = true;
         errors.value = explainError(e);
+    } finally {
+        checking = false;
     }
-});
+}
+onShow(() => { visible = true; void verifySession(); });
+onHide(() => { visible = false; });
+
 useSensitiveScreen(() => {
     password.value = '';
     show.value = false;
@@ -53,7 +78,12 @@ async function submit() {
 const feedback = useFormFeedback(errors);
 </script>
 <template>
-    <AuthLayout login
+    <view v-if="checkingSession || sessionCheckFailed" class="login-restoring" :data-webview-pending="checkingSession ? 'true' : 'false'" role="status">
+        <text>{{ t('Restoring sign-in…') }}</text>
+        <FormErrors v-if="sessionCheckFailed" :errors="errors" />
+        <button v-if="sessionCheckFailed" @click="verifySession">{{ t('Retry') }}</button>
+    </view>
+    <AuthLayout v-else login
         ><FormErrors :errors="errors" />
         <form @submit="submit">
             <view class="login-fields"
@@ -112,6 +142,7 @@ const feedback = useFormFeedback(errors);
     >
 </template>
 <style scoped>
+.login-restoring { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 20px; padding: 28px; box-sizing: border-box; background: #11100c; color: #f6edce; }
 .login-feedback { margin-bottom: 0; }
 .login-fields {
     display: flex;

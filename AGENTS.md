@@ -1,3 +1,45 @@
+On 2026-10-17 the user requested checking WebView line reuse, static cache and welcome
+reveal, avoiding duplicate implementations. Preserve existing three-concurrent verified
+probe race and no-switch foreground behavior. Reject pending login-restoration content
+and stale layout/route in reveal checks, preserving identity barriers and visible retry
+screens. Cache only hashed static files immutably; revalidate HTML/metadata, retain old
+hashes and never cache API identity/evidence. Nginx integration must preserve consumer
+H5 root/alias routing and security headers; do not apply frontend entry locations to
+Platform/API servers. See docs/deployment/UNI_APP_PACKAGING.md.
+
+On 2026-10-17 the user approved independently loaded homepage summary/activity,
+warm foreground return retaining mounted pages/scroll, and bounded startup phase timing.
+Homepage reads never provision wallets or invent zero estimates; preserve complete native
+balance evidence and tenant/user scope. Defer unread queries with opt-in bootstrap flag,
+retaining old-client defaults. Recheck sessions quietly on resume, deduplicate lifecycle
+events and reject stale scoped results; network errors retain credentials/pages while
+confirmed expiry returns to login. Timing retains only allowlisted phase/duration/outcome
+in memory, with opt-in diagnostics and no credentials/PII or telemetry upload. Deploy
+PHP/H5 and rebuild/reinstall shell; no migration/provider/production financial tests.
+See docs/deployment/UNI_APP_PACKAGING.md.
+
+On 2026-10-17 the user approved lightweight App auto-login confirmation and direct
+home entry without a login-page flash. WebView shells call the minimal scoped session
+endpoint (no branding/assets/download/unread/flow work), then open home or restricted
+home directly after confirmed identity; H5 still performs its own full bootstrap before
+native reveal. Only a valid same-company guest response may show login; transient,
+malformed or cross-company responses preserve credentials and retry. An authenticated
+response without the intended credential must fail closed. Login forms remain unmounted
+until successful guest confirmation. Preserve secure cookie/Keystore, revocation,
+company scope and explicit logout semantics. Deploy PHP/H5 before rebuilt/reinstalled
+shells; no migration, provider calls or production financial tests.
+See docs/deployment/UNI_APP_PACKAGING.md.
+
+On 2026-10-17 the user superseded sequential WebView App probing with at most
+three concurrent domain probes. Immediately select the first company-verified response
+within 300ms and abort every remaining request; never wait for the full directory.
+Put the previously selected cached candidate in the initial group but freshly verify
+company/active membership before credentials. Retain 1s individual/4s total bounds,
+verified fastest fallback if none meets the target, full fresh public directory,
+secure cookies and login identity barriers. Foreground refresh and manual reconnect
+share pending discovery. Rebuild/reinstall native resources.
+See docs/deployment/UNI_APP_PACKAGING.md.
+
 On 2026-10-17 the user requested company invitation code modification and disabling.
 Expose effective code/enabled state in Platform company promotion configuration, with
 confirmation, reason, scoped tenant.manage, company locking, stale revisions, idempotency,

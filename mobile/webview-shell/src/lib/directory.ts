@@ -8,50 +8,97 @@ export function origin(value: unknown): string | null {
 function clean(values: unknown): string[] {
     return Array.isArray(values) ? [...new Set(values.map(origin).filter((s): s is string => !!s))].slice(0, 100) : [];
 }
+export type DirectoryProbe = (url: string, onAbort?: (cancel: () => void) => void) => Promise<unknown>;
 export async function discover(seeds: string[], slug: string, cached: Partial<DirectoryCache> | null,
-    probe: (url: string) => Promise<unknown>, now = Date.now,
-    limits = { probeMs: 4500, totalMs: 15000 }): Promise<DirectoryCache> {
+    probe: DirectoryProbe, now = Date.now,
+    limits: { probeMs: number; totalMs: number; acceptableMs?: number } = { probeMs: 1000, totalMs: 4000, acceptableMs: 300 }): Promise<DirectoryCache> {
     const deadline = now() + limits.totalMs;
-    // Native request callbacks can be lost during DNS/TLS or runtime failures.
-    // Bound each worker independently, including newly discovered/cache entries.
-    async function boundedProbe(url: string): Promise<unknown> {
-        const remaining = Math.min(limits.probeMs, deadline - now());
-        if (remaining <= 0) throw new Error('timeout');
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        try {
-            return await Promise.race([
-                Promise.resolve().then(() => probe(url)),
-                new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), remaining); }),
-            ]);
-        } finally { clearTimeout(timer); }
-    }
-    const trustedSeeds = clean(seeds);
-    const candidates = clean([...trustedSeeds, ...clean(cached?.origins)]);
-    async function measure(urls: string[], tenantId?: string) {
-        const results: { url: string; elapsed: number; directory: Directory }[] = [];
-        let next = 0;
-        await Promise.all(Array.from({ length: Math.min(6, urls.length) }, async () => {
-            while (next < urls.length && now() < deadline) {
-                const url = urls[next++], start = now();
-                try {
-                    const d = await boundedProbe(url) as Directory;
-                    if (d?.tenant?.slug !== slug || typeof d.tenant.id !== 'string' || !d.tenant.id
-                        || (tenantId && d.tenant.id !== tenantId)) continue;
-                    const origins = clean(d.origins);
-                    if (!origins.includes(url)) continue;
-                    results.push({ url, elapsed: now() - start, directory: { tenant: d.tenant, origins } });
-                } catch { /* Unavailable candidates are excluded; no business requests here. */ }
+    const acceptableMs = limits.acceptableMs ?? 300;
+    const cachedOrigins = clean(cached?.origins);
+    const previous = origin(cached?.selected);
+    const candidates = clean([
+        ...(previous && cachedOrigins.includes(previous) ? [previous] : []),
+        ...clean(seeds), ...cachedOrigins,
+    ]);
+    return new Promise<DirectoryCache>((resolve, reject) => {
+        type Task = { settled: boolean; timer?: ReturnType<typeof setTimeout>; cancel?: () => void };
+        const active = new Map<string, Task>();
+        let next = 0, done = false;
+        let authoritative: Directory | undefined;
+        let best: { url: string; elapsed: number } | undefined;
+        const stop = (url: string, task: Task, abort: boolean) => {
+            if (task.settled) return;
+            task.settled = true;
+            clearTimeout(task.timer);
+            active.delete(url);
+            if (abort) {
+                try { task.cancel?.(); } catch { /* Native abort failure cannot block selection. */ }
             }
-        }));
-        return results.sort((a,b) => a.elapsed - b.elapsed);
-    }
-    const initial = await measure(candidates, cached?.tenantId);
-    if (!initial.length) throw new Error('暂时无法连接服务器，请检查网络后重试。');
-    const authoritative = initial[0].directory;
-    const extra = await measure(authoritative.origins.filter(s => !candidates.includes(s)), authoritative.tenant.id);
-    const valid = [...initial,...extra].filter(r => r.directory.tenant.id === authoritative.tenant.id && authoritative.origins.includes(r.url)).sort((a,b)=>a.elapsed-b.elapsed);
-    const selected = valid[0];
-    if (!selected) throw new Error('暂无可用线路，请稍后重试。');
-    // Cached origins are discovery candidates, never a preference over fresh timing.
-    return { tenantId: authoritative.tenant.id, origins: authoritative.origins, selected: selected.url, fetchedAt: now() };
+        };
+        const finish = () => {
+            if (done) return;
+            done = true;
+            clearTimeout(totalTimer);
+            for (const [url, task] of active) stop(url, task, true);
+            if (!authoritative || !best) {
+                reject(new Error('暂时无法连接服务器，请检查网络后重试。'));
+                return;
+            }
+            resolve({ tenantId: authoritative.tenant.id, origins: authoritative.origins,
+                selected: best.url, fetchedAt: now() });
+        };
+        const totalTimer = setTimeout(finish, Math.max(0, deadline - now()));
+        const pump = () => {
+            if (done) return;
+            if (now() >= deadline) { finish(); return; }
+            while (active.size < 3 && next < candidates.length) {
+                const url = candidates[next++];
+                if (authoritative && !authoritative.origins.includes(url)) continue;
+                const start = now();
+                const task: Task = { settled: false };
+                active.set(url, task);
+                task.timer = setTimeout(() => {
+                    stop(url, task, true);
+                    pump();
+                }, Math.max(0, Math.min(limits.probeMs, deadline - now())));
+                void Promise.resolve().then(() => {
+                    if (done || task.settled) return;
+                    return probe(url, cancel => {
+                        if (task.settled) { try { cancel(); } catch { /* Already cancelled. */ } }
+                        else task.cancel = cancel;
+                    });
+                }).then(value => {
+                    if (done || task.settled) return;
+                    stop(url, task, false);
+                    const d = value as Directory;
+                    const elapsed = now() - start;
+                    if (now() >= deadline) { finish(); return; }
+                    const origins = clean(d?.origins);
+                    if (d?.tenant?.slug === slug && typeof d.tenant.id === 'string' && d.tenant.id
+                        && (!cached?.tenantId || d.tenant.id === cached.tenantId)
+                        && (!authoritative || (d.tenant.id === authoritative.tenant.id && authoritative.origins.includes(url)))
+                        && origins.includes(url)) {
+                        if (!authoritative) {
+                            authoritative = { tenant: d.tenant, origins };
+                            // Save the full fresh directory without waiting to probe every host.
+                            for (const host of origins) if (!candidates.includes(host)) candidates.push(host);
+                        }
+                        if (!best || elapsed < best.elapsed) best = { url, elapsed };
+                        if (elapsed <= acceptableMs) { finish(); return; }
+                        for (const [host, pending] of active) {
+                            if (!authoritative.origins.includes(host)) stop(host, pending, true);
+                        }
+                    }
+                    pump();
+                }, () => {
+                    if (done || task.settled) return;
+                    stop(url, task, false);
+                    pump();
+                });
+            }
+            // No qualifying response: retain the fastest verified fallback within the budget.
+            if (!active.size && next >= candidates.length) finish();
+        };
+        pump();
+    });
 }

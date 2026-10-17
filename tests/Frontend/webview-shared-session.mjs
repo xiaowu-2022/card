@@ -143,7 +143,9 @@ test('destination requires server-confirmed company and identity even if the coo
     h.ports.verify=async()=>({tenantId:'other-company',signedIn:true});
     await assert.rejects(s.restore(b),/登录状态/);
     h.ports.verify=async()=>({tenantId:listing.tenantId,signedIn:false});
-    await assert.rejects(s.restore(b),/登录状态/);
+    const guest = await s.restore(b);
+    assert.equal(guest.signedIn,false);
+    assert.equal(guest.tenantId,listing.tenantId);
     assert.equal(h.saved(),cookie);
     h.ports.verify=async()=>({tenantId:listing.tenantId,signedIn:true});
     await s.restore(b);
@@ -160,4 +162,17 @@ test('a temporarily empty native cookie does not erase credentials or restore th
     h.jar.set(a+'/',`consumer_remember=${'C'.repeat(160)}`);
     await s.configure(listing,a);await s.restore(b);
     assert.equal(exports.readRememberCookie(h.jar.get(b+'/')),'C'.repeat(160));
+});
+
+test('a guest installation refuses an unexpected authenticated response from an older host session',async()=>{
+    const h=setup();h.ports.metadata.set({initialized:true,signedIn:false,source:null});
+    h.ports.verify=async()=>({tenantId:listing.tenantId,signedIn:true});
+    const s=h.create();await s.configure(listing);
+    await assert.rejects(s.restore(b),/登录状态/);assert.equal(h.saved(),null);
+});
+test('restriction status is retained when confirming a remembered session',async()=>{
+    const h=setup();h.jar.set(a+'/',`consumer_remember=${cookie}`);
+    h.ports.verify=async()=>({tenantId:listing.tenantId,signedIn:true,restricted:true});
+    const s=h.create();await s.configure(listing,a);
+    assert.equal((await s.restore(b)).restricted,true);
 });

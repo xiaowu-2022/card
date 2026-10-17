@@ -126,7 +126,13 @@ export function AdminCardReveal({
                                                 body,
                                             },
                                         );
-                                        if (!response.ok) throw new Error();
+                                        if (!response.ok) {
+                                            const failure = await response.json().catch(() => null);
+                                            if (failure?.error?.code === 'CARD_DETAILS_OFFLINE') {
+                                                throw new Error('CARD_DETAILS_OFFLINE');
+                                            }
+                                            throw new Error();
+                                        }
                                         const value = (await response.json()) as {
                                             pan: string;
                                             expiry: string;
@@ -136,11 +142,14 @@ export function AdminCardReveal({
                                             setDetails(value);
                                             showOperationResult('success', 'Request completed.');
                                         }
-                                    } catch {
+                                    } catch (error) {
                                         if (!controller.signal.aborted)
                                             setError(
                                                 t(
-                                                    'Card details could not be loaded. Please try again later.',
+                                                    error instanceof Error &&
+                                                        error.message === 'CARD_DETAILS_OFFLINE'
+                                                        ? 'This offline environment has no saved details for this card. Import a matching encrypted card snapshot to view it.'
+                                                        : 'Card details could not be loaded. Please try again later.',
                                                 ),
                                             );
                                     } finally {

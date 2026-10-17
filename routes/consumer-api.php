@@ -8,12 +8,15 @@ use App\Http\Controllers\SupportRealtimeController;
 use App\Http\Middleware\ConsumerFlowSession;
 use App\Http\Middleware\ConsumerPageResponse;
 use App\Http\Middleware\RequireConsumerApiUser;
+use App\Http\Middleware\ResolveUserLocale;
+use App\Http\Middleware\ThrottleConsumerBackground;
 use App\Http\Middleware\ThrottleConsumerMedia;
 use Illuminate\Support\Facades\Route;
 
 Route::get('app-debug', [AppReleaseController::class, 'debug'])->middleware('business-throttle:240,1,consumer-debug:');
 Route::get('app-release', AppReleaseController::class)->middleware('business-throttle:240,1,consumer-release:');
 Route::get('domains', [ConsumerController::class, 'domains'])->middleware('throttle:consumer-domains');
+Route::get('session', [ConsumerController::class, 'session'])->middleware('business-throttle:240,1,consumer-session:')->withoutMiddleware(ResolveUserLocale::class);
 Route::get('bootstrap', [ConsumerController::class, 'bootstrap'])->middleware(['business-throttle:240,1,consumer-bootstrap:', ConsumerFlowSession::class]);
 Route::prefix('client')->middleware([
     ConsumerFlowSession::class,
@@ -21,6 +24,8 @@ Route::prefix('client')->middleware([
 ])->group(base_path('routes/consumer-client.php'));
 Route::post('login', [ConsumerController::class, 'login'])->middleware('throttle:20,1,consumer-login:');
 Route::middleware(RequireConsumerApiUser::class)->group(function (): void {
+    Route::get('home/summary', [\App\Http\Controllers\Api\HomeController::class, 'summary'])->middleware(RequireConsumerApiUser::class.':operational');
+    Route::get('home/activity', [\App\Http\Controllers\Api\HomeController::class, 'activity'])->middleware(RequireConsumerApiUser::class.':operational');
     Route::post('wallet/ensure', [ConsumerController::class, 'ensureWallet'])->middleware('business-throttle:240,1');
     Route::post('logout', [ConsumerController::class, 'logout']);
     Route::post('locale', [ConsumerController::class, 'locale'])->middleware('business-throttle:60,1,consumer-locale:');
@@ -30,7 +35,7 @@ Route::middleware(RequireConsumerApiUser::class)->group(function (): void {
     Route::post('messages/read-all', [ConsumerController::class, 'read'])->middleware('business-throttle:60,1');
     Route::get('messages/{message}', [ConsumerController::class, 'message'])->whereUuid('message');
     Route::post('messages/{message}/read', [ConsumerController::class, 'read'])->whereUuid('message')->middleware('business-throttle:240,1');
-    Route::post('presence', [ConsumerController::class, 'presence'])->middleware(\App\Http\Middleware\ThrottleConsumerBackground::class.':presence');
+    Route::post('presence', [ConsumerController::class, 'presence'])->middleware(ThrottleConsumerBackground::class.':presence');
     Route::post('support/read', [ConsumerController::class, 'supportRead'])->middleware('business-throttle:240,1');
 });
 Route::middleware(RequireConsumerApiUser::class.':operational')->group(function (): void {

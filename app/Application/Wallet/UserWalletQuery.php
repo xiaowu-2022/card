@@ -2,6 +2,7 @@
 
 namespace App\Application\Wallet;
 
+use App\Application\Assets\TronDepositConfiguration;
 use App\Domain\Ledger\ValueObjects\Money;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
@@ -12,12 +13,12 @@ final readonly class UserWalletQuery
     public function __construct(private WalletEligibilityService $eligibility, private BlockchainGatewayInterface $blockchainGateway) {}
 
     /** @return array<string, mixed> */
-    public function get(string $tenantId, string $userId): array
+    public function get(string $tenantId, string $userId, bool $includeActivity = true): array
     {
         $tenant = Tenant::query()->whereKey($tenantId)->with('businessSettings')->firstOrFail();
         $user = User::query()->where('tenant_id', $tenantId)->whereKey($userId)->firstOrFail();
         $eligibility = $this->eligibility->forUser($tenant, $user);
-        $activity = $eligibility['wallet'] === null ? [] : app(WalletActivityQuery::class)->get($tenantId, $userId);
+        $activity = ! $includeActivity || $eligibility['wallet'] === null ? [] : app(WalletActivityQuery::class)->get($tenantId, $userId);
 
         return [
             'transferAvailable' => $eligibility['wallet'] !== null
@@ -32,7 +33,7 @@ final readonly class UserWalletQuery
                 && $eligibility['wallet']['asset'] === 'USDT'
                 && $tenant->businessSettings->allow_wallet_topup
                 && $this->blockchainGateway->available()
-                && app(\App\Application\Assets\TronDepositConfiguration::class)->address() !== ''
+                && app(TronDepositConfiguration::class)->address() !== ''
                 && (string) config('payment.trc20_token_contract') !== '',
             'depositFundingAvailable' => $eligibility['wallet'] !== null
                 && $eligibility['userStatus'] === 'ACTIVE'

@@ -11,7 +11,8 @@ export function debugScript(prefix: string, enabled: boolean): string {
         var key = '__specpayDiagnostics';
         if (window[key]) window[key]();
         if (!${enabled}) return;
-        var queue = [], originals = {}, wrappers = {}, originalTitle = null, restoreTimer;
+        var queue = [], originals = {}, wrappers = {}, originalTitle = null, restoreTimer, timingSeen = 0;
+        var timingStages = ['startup','lineDiscovery','loginRestore','bootstrap','document','identity','webContent','homeSummary','homeActivity','resumeCheck'];
         var allowedNames = ['Error','TypeError','ReferenceError','SyntaxError','RangeError','URIError','EvalError'];
         function push(value) { if (queue.length < 20) queue.push(value); }
         ['log','info','warn','error','debug'].forEach(function (level) {
@@ -34,6 +35,13 @@ export function debugScript(prefix: string, enabled: boolean): string {
         window.addEventListener('unhandledrejection', rejection);
         function restore() { if (originalTitle !== null && document.title.indexOf(${JSON.stringify(prefix)}) === 0) document.title = originalTitle; originalTitle = null; }
         var timer = window.setInterval(function () {
+            var timings = window.__consumerStartupTimings;
+            if (Array.isArray(timings)) timings.slice(-40).forEach(function (row) {
+                if (!row || !Number.isSafeInteger(row.sequence) || row.sequence <= timingSeen) return;
+                timingSeen = row.sequence;
+                if (timingStages.indexOf(row.stage) < 0 || !Number.isFinite(row.durationMs) || row.durationMs < 0 || row.durationMs > 600000) return;
+                push({kind:'timing',stage:row.stage,durationMs:Math.round(row.durationMs)});
+            });
             if (!queue.length || /^specpay-(ready|poster)-/.test(document.title)) return;
             restore(); originalTitle = document.title;
             document.title = ${JSON.stringify(prefix)} + JSON.stringify(queue.splice(0, 20));
@@ -58,6 +66,9 @@ export function debugMessages(payload: string): string[] {
         if (!Array.isArray(rows)) return [];
         return rows.slice(0, 20).flatMap(row => {
             if (!row || typeof row !== 'object') return [];
+            if (row.kind === 'timing' && ['startup','lineDiscovery','loginRestore','bootstrap','document','identity','webContent','homeSummary','homeActivity','resumeCheck'].includes(row.stage)
+                && Number.isFinite(row.durationMs) && row.durationMs >= 0 && row.durationMs <= 600000)
+                return [`启动耗时 ${row.stage}: ${Math.round(row.durationMs)}ms`];
             if (row.kind === 'console' && ['log','info','warn','error','debug'].includes(row.level)) {
                 const types = Array.isArray(row.types) ? row.types.slice(0, 5).filter((t: unknown) =>
                     ['string','number','boolean','object','undefined','function','symbol','bigint','null'].includes(String(t))) : [];

@@ -8,8 +8,12 @@ import type { AssetOverview } from '../lib/assets';
 import UiIcon from './UiIcon.vue';
 import AssetIcon from './AssetIcon.vue';
 import ActivityList from './ActivityList.vue';
+import PageSkeleton from './PageSkeleton.vue';
+import RefreshStatus from './RefreshStatus.vue';
+import type { FundsMovement } from '../lib/assets';
 import GrowthCampaign from './GrowthCampaign.vue';
-const props = defineProps<{ overview: AssetOverview; prerequisite?: string }>();
+const props = defineProps<{ overview: AssetOverview; prerequisite?: string; activity?: (FundsMovement & { asset: string })[] | null; activityLoading?: boolean; activityFailed?: boolean }>();
+defineEmits<{ retryActivity: [] }>();
 const expanded = ref(false);
 const key = 'balance-hidden:' + session.value?.user?.id;
 const hidden = ref(uni.getStorageSync(key) === '1');
@@ -53,7 +57,7 @@ const tabs = computed(() => [
         : []),
 ]);
 const recent = computed(() =>
-    props.overview.assets
+    props.activity !== undefined ? (props.activity ?? []) : props.overview.assets
         .flatMap((a) => a.activity.map((row) => ({ ...row, asset: a.asset })))
         .sort((a, b) => b.time.localeCompare(a.time) || b.id.localeCompare(a.id))
         .slice(0, 5),
@@ -167,7 +171,9 @@ function show(value: string | null) {
                 ><text class="semibold">{{ t('Latest transactions') }}</text
                 ><button class="more" @click="go('/funds')">
                     {{ t('More') }}<UiIcon name="chevron-right" :size="14" /></button></view
-            ><ActivityList :items="recent" :hidden="hidden" /></view
+            ><RefreshStatus :loading="!!activityLoading" :failed="!!activityFailed" @retry="$emit('retryActivity')" />
+            <PageSkeleton v-if="activity === null && !activityFailed" compact />
+            <ActivityList v-else-if="activity !== null" :items="recent" :hidden="hidden" /></view
     ></view>
 </template>
 <style scoped>

@@ -1,3 +1,4 @@
+import { beginTiming } from './startup-timing';
 import { computed, reactive, ref } from 'vue';
 import { remindSupportUnread, resetSupportReminder } from './support-reminder';
 import {
@@ -37,7 +38,7 @@ export type Bootstrap = {
     timezone: string;
     csrfToken: string | null;
     restricted: boolean;
-    unread: { messages: number; support: number; agentSupport?: number };
+    unread: { messages: number; support: number; agentSupport?: number } | null;
 };
 export const session = ref<Bootstrap | null>(null);
 export const isSupportAgent = computed(() => !!session.value?.user && !session.value.restricted && session.value.supportAgent === true);
@@ -57,9 +58,11 @@ export function consumerSessionScope(): string | null {
 }
 export async function bootstrap() {
     if (pending) return pending;
+    const finishTiming = beginTiming('bootstrap');
+    let outcome: 'ok' | 'error' = 'ok';
     let generation = sessionGeneration;
     pending = (async () => {
-        const data = await request<Bootstrap>('/bootstrap');
+        const data = await request<Bootstrap>('/bootstrap?defer_unread=1');
         if (generation !== sessionGeneration) return;
         if (native && data.tenant.slug !== company.tenantSlug) {
             clearSession();
@@ -67,18 +70,21 @@ export async function bootstrap() {
         }
         setPublicAssets(data.publicAssets);
         session.value = data;
-        Object.assign(unread, data.unread, { agentSupport: data.unread.agentSupport ?? 0 });
-        remindSupportUnread(data.unread.agentSupport ?? 0, isSupportAgent.value);
+        if (data.unread) {
+            Object.assign(unread, data.unread, { agentSupport: data.unread.agentSupport ?? 0 });
+            remindSupportUnread(data.unread.agentSupport ?? 0, isSupportAgent.value);
+        }
         setCsrf(data.csrfToken);
         configureLocale(data.locale, data.timezone);
         notifyWebviewSession(!!data.user, data.tenant.id);
-    })().finally(() => {
+    })().catch(error => { outcome = 'error'; throw error; }).finally(() => {
+        finishTiming(outcome);
         pending = null;
     });
     return pending;
 }
-export function clearSession(explicitLogout = false) {
-    notifyWebviewSession(false, session.value?.tenant.id, explicitLogout);
+export function clearSession(explicitLogout = false, confirmedExpired = false) {
+    notifyWebviewSession(false, session.value?.tenant.id, explicitLogout, confirmedExpired);
     resetWalletReadiness();
     resetSupportReminder();
     setToken(null);
@@ -168,4 +174,50 @@ export async function requireUser(options: { ensureWallet?: boolean } = {}) {
         await walletPending.promise;
     }
     return consumerSessionScope() === key;
+}
+
+let sessionConfirmation: Promise<boolean> | null = null;
+/** Recheck in the background without reloading a page, replacing balances or clearing on network failure. */
+export function confirmSession(): Promise<boolean> {
+    if (sessionConfirmation) return sessionConfirmation;
+    if (!session.value?.user) return Promise.resolve(true);
+    const scope = consumerSessionScope();
+    const finishTiming = beginTiming('resumeCheck');
+    let outcome: 'ok' | 'error' = 'ok';
+    sessionConfirmation = (async () => {
+        const value = await request<{ tenant: { id: string }; user: { id: string } | null; restricted: boolean }>('/session');
+        if (scope !== consumerSessionScope()) return false;
+        if (value.tenant?.id !== session.value?.tenant.id || typeof value.restricted !== 'boolean'
+            || (value.user !== null && (typeof value.user?.id !== 'string' || !value.user.id))) throw new ApiError(503);
+        if (!value.user) {
+            clearSession(false, true);
+            uni.reLaunch({ url: '/pages/login/index' });
+            return false;
+        }
+        if (value.user.id !== session.value?.user?.id) {
+            resetWalletReadiness();
+            resetSupportReminder();
+            await bootstrap();
+            uni.reLaunch({ url: !session.value?.user ? '/pages/login/index' : session.value.restricted ? '/pages/screen/index?path=%2Faccount%2Frestricted' : '/pages/assets/index' });
+            return false;
+        }
+        session.value!.restricted = value.restricted;
+        if (value.restricted) {
+            uni.reLaunch({ url: '/pages/screen/index?path=%2Faccount%2Frestricted' });
+            return false;
+        }
+        return true;
+    })().catch(error => {
+        outcome = 'error';
+        if (native && error instanceof ApiError && error.status === 401 && scope === consumerSessionScope()) {
+            clearSession(false, true);
+            uni.reLaunch({ url: '/pages/login/index' });
+            return false;
+        }
+        throw error;
+    }).finally(() => {
+        finishTiming(outcome);
+        sessionConfirmation = null;
+    });
+    return sessionConfirmation;
 }

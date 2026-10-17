@@ -1,9 +1,9 @@
 // This is a non-secret lifecycle notification, not a native API bridge.
 // Credentials remain HttpOnly and are read only by the owning native shell.
-export function notifyWebviewSession(signedIn: boolean, tenantId?: string, signedOut = false) {
+export function notifyWebviewSession(signedIn: boolean, tenantId?: string, signedOut = false, expired = false) {
     // #ifdef H5
     if (typeof window === 'undefined' || !tenantId) return;
-    const state = { signedIn, tenantId, signedOut };
+    const state = { signedIn, tenantId, signedOut, ...(expired ? { expired: true } : {}) };
     (window as typeof window & { __consumerSessionState?: typeof state }).__consumerSessionState = state;
     window.dispatchEvent(new CustomEvent('consumer-session-state', { detail: state }));
     // #endif

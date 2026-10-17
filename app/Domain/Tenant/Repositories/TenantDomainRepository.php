@@ -7,10 +7,10 @@ use App\Domain\Tenant\Models\TenantDomain;
 
 final class TenantDomainRepository
 {
-    public function resolveActiveHostname(string $hostname): ?TenantDomain
+    public function resolveActiveHostname(string $hostname, bool $withPresentation = true): ?TenantDomain
     {
         return TenantDomain::query()
-            ->with(['tenant.branding', 'tenant.locales'])
+            ->with($withPresentation ? ['tenant.branding', 'tenant.locales'] : ['tenant'])
             ->where('hostname', strtolower(rtrim($hostname, '.')))
             ->whereNotNull('tenant_id')
             ->where('status', TenantDomainStatus::Active)

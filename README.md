@@ -70,3 +70,9 @@ Preserve APP_KEY, KYC/withdrawal encryption and HMAC keys, OTP secret and privat
 storage with the database. Do not seed, reset, recreate historical orders or rewrite
 balances. See [Unified site deployment](docs/architecture/UNIFIED_SITE_DEPLOYMENT.md)
 and [Agent rules](AGENTS.md) for the effective scope.
+
+Local imported snapshots set `CARD_PROVIDER_OFFLINE=true` in private local configuration
+(and the local Compose override). Saved encrypted card details can be read after normal
+administrator confirmation; missing details fail explicitly without contacting a provider.
+Only restore ciphertext from a matching company/user/card/provider identity and validate
+it with the existing local key. Never fabricate card details or overwrite financial rows.

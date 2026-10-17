@@ -2,6 +2,7 @@
 
 return [
     // directory routes each product through its immutable persisted merchant connection.
+    'offline' => (bool) env('CARD_PROVIDER_OFFLINE', false),
     'driver' => env('CARD_PROVIDER_DRIVER', 'photonpay'),
     'mock_mode' => env('MOCK_CARD_PROVIDER_MODE', 'SUCCESS'),
     'mock_cardholder_mode' => env('MOCK_CARDHOLDER_MODE', 'READY'),

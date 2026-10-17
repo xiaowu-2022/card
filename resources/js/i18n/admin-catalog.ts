@@ -710,6 +710,7 @@ export const adminCatalog: Record<string, string> = {
     'I confirm this company invitation change. Replaced or disabled codes cannot accept new registration requests.': '我确认修改公司邀请码及状态，旧码或已禁用的邀请码将不再接受新的注册请求。',
     'No changes to save.': '没有需要保存的修改。',
     'Choose an active company.': '请选择正常启用的公司。',
+    'This offline environment has no saved details for this card. Import a matching encrypted card snapshot to view it.': '本地离线环境没有这张卡的加密信息，请导入包含该卡加密信息的匹配备份后查看。',
     'Cumulative advances': '累计预支金额',
     'Withdrawal amount': '提现金额',
     'Product / Card': '产品 / 卡片',

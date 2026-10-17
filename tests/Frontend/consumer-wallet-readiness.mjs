@@ -13,10 +13,10 @@ function setup({ native = false, serverSlug = 'company' } = {}) {
     const signedIn = (tenant = 'tenant-a', id = 'user-a') => ({ tenant: { id: tenant, slug: serverSlug }, user: { id }, unread: {}, locale: 'en' });
     const api = { native, company: { tenantSlug: 'company' }, sessionGeneration: 0,
         setToken() { api.sessionGeneration++; }, setCsrf() {}, clearFlow() {},
-        ApiError: class extends Error {},
+        ApiError: class extends Error { constructor(status) { super(String(status)); this.status = status; } },
         request(path) {
             if (path === '/login') return Promise.resolve({});
-            if (path === '/bootstrap') return Promise.resolve(signedIn());
+            if (path.split('?')[0] === '/bootstrap') return Promise.resolve(signedIn());
             return new Promise((resolve, reject) => requests.push({ path, resolve, reject }));
         } };
     const source = ts.transpileModule(readFileSync('mobile/uni-app/src/lib/session.ts', 'utf8'), {
@@ -24,6 +24,7 @@ function setup({ native = false, serverSlug = 'company' } = {}) {
     }).outputText;
     runInNewContext(source, { exports, uni: { reLaunch: value => navigations.push(value.url) }, require: name => {
         if (name === 'vue') return { ref: value => ({ value }), reactive: value => value, computed: fn => ({ get value() { return fn(); } }) };
+        if (name === './startup-timing') return { beginTiming: () => () => {} };
         if (name === './api') return api;
         if (name === './cards-preview') return preview;
         if (name === './webview-session') return { notifyWebviewSession() {} };
@@ -135,3 +136,38 @@ test('transient bootstrap failures retain the session and persistent token', asy
     assert.equal(s.api.sessionGeneration, generation);
     assert.equal(s.navigations.length, 0);
 });
+
+test('resume confirmation is deduplicated and leaves the mounted page untouched for a valid session',async()=>{
+    const s=setup();const before=s.session.value;
+    const first=s.confirmSession(),second=s.confirmSession();assert.equal(first,second);
+    assert.equal(s.requests.length,1);assert.equal(s.requests[0].path,'/session');
+    s.requests[0].resolve({tenant:{id:'tenant-a'},user:{id:'user-a'},restricted:false});
+    assert.equal(await first,true);assert.equal(s.session.value,before);assert.deepEqual(s.navigations,[]);
+});
+test('a failed resume check preserves credentials, session and page for retry',async()=>{
+    const s=setup();const before=s.session.value,generation=s.api.sessionGeneration;
+    const first=s.confirmSession();s.requests[0].reject(Error('offline'));await assert.rejects(first,/offline/);
+    assert.equal(s.session.value,before);assert.equal(s.api.sessionGeneration,generation);assert.deepEqual(s.navigations,[]);
+    const second=s.confirmSession();assert.equal(s.requests.length,2);
+    s.requests[1].resolve({tenant:{id:'tenant-a'},user:{id:'user-a'},restricted:false});assert.equal(await second,true);
+});
+test('confirmed session expiry goes to login while stale confirmations cannot affect a new user',async()=>{
+    const s=setup();const first=s.confirmSession();s.requests[0].resolve({tenant:{id:'tenant-a'},user:null,restricted:false});
+    assert.equal(await first,false);assert.equal(s.session.value,null);assert.equal(s.navigations[0],'/pages/login/index');
+    const other=setup();const old=other.confirmSession();other.session.value=other.signedIn('tenant-b','user-b');
+    other.requests[0].resolve({tenant:{id:'tenant-a'},user:null,restricted:false});await old;
+    assert.equal(other.session.value.user.id,'user-b');assert.deepEqual(other.navigations,[]);
+});
+
+ test('only native bearer 401 confirms expiry; browser authorization failures retain state',async()=>{
+ for(const native of [true,false]) {
+ const s=setup({native});const before=s.session.value;const run=s.confirmSession();
+ s.requests[0].reject(new s.api.ApiError(401));
+ if(native){assert.equal(await run,false);assert.equal(s.session.value,null);assert.equal(s.navigations.length,1);}
+ else {await assert.rejects(run);assert.equal(s.session.value,before);assert.equal(s.navigations.length,0);}
+ }
+ });
+ test('bootstrap may defer unread without replacing counters with unknown zeroes', async()=>{
+ const s=setup();s.api.request=async path=>{assert.equal(path,'/bootstrap?defer_unread=1');return {...s.signedIn(),unread:null};};
+ await s.bootstrap();assert.equal(s.session.value.user.id,'user-a');
+ });

@@ -17,6 +17,13 @@ test('readiness rejects missing scripts and zero-size content; accepts painted H
   await page.evaluate(readinessScript('zero'));await page.waitForTimeout(100);
   assert.equal(await page.title(),'Spec Pay');
   await page.evaluate(()=>{document.querySelector('uni-page-body').style.height='600px';window.seenTitles=[];new MutationObserver(()=>window.seenTitles.push(document.title)).observe(document.querySelector('title'),{childList:true});});
+  await page.evaluate(()=>{document.querySelector('uni-page-body').innerHTML='<div data-webview-pending="true">Restoring session</div>';});
+  await page.evaluate(readinessScript('restoring'));await page.waitForTimeout(100);
+  assert.equal(await page.title(),'Spec Pay');
+  await page.evaluate(()=>{document.querySelector('[data-webview-pending]').setAttribute('data-webview-pending','false');});
+  await page.evaluate(script=>{window.eval(script);document.querySelector('[data-webview-pending]').setAttribute('data-webview-pending','true');},readinessScript('stale'));
+  await page.waitForTimeout(100);assert.equal(await page.title(),'Spec Pay');
+  await page.evaluate(()=>{document.querySelector('[data-webview-pending]').setAttribute('data-webview-pending','false');});
   await page.evaluate(readinessScript('painted'));
   await page.waitForFunction(()=>window.seenTitles.includes('painted'));
   await page.waitForFunction(()=>document.title==='Spec Pay');

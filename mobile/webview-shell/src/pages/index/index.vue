@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { beginTiming, timingSnapshot } from '../../../../uni-app/src/lib/startup-timing';
 import { nextTick, ref } from 'vue';
 import { onReady, onShow, onHide, onUnload, onBackPress } from '@dcloudio/uni-app';
 import config from '../../config.json';
@@ -17,19 +18,22 @@ type Webview = {
     addEventListener: (event: string, callback: (event: { title?: string }) => void) => void;
 };
 declare const plus: PosterRuntime & { webview: { create: (url: string, id: string, styles: Record<string, unknown>) => Webview }; runtime: { appid: string; quit: () => void }; os: { name: string }; android: AndroidBridge; navigator: { getCookie(url: string): string; setCookie(url: string, value: string): void } };
-const state = ref<'discovering' | 'loading' | 'ready' | 'error'>('discovering');
+const state = ref<'discovering' | 'restoring' | 'loading' | 'ready' | 'error'>('discovering');
 const error = ref(''), active = ref(''), loginRecoveryFailed = ref(false);
 const debugEnabled = ref(false), debugRows = ref<string[]>([]), debugUrl = ref('');
 const debugHeight = Math.min(300, Math.floor((uni.getSystemInfoSync().screenHeight || 800) * 0.4));
 let debugTimer: ReturnType<typeof setTimeout> | undefined, debugLease: ReturnType<typeof setTimeout> | undefined;
+let lastTimingVisible = 0;
 let debugGeneration = 0, debugPrefix = '', debugInstalled = false, background = false;
 const statusHeight = uni.getSystemInfoSync().statusBarHeight ?? 24;
 let child: Webview | null = null, timer: ReturnType<typeof setTimeout> | undefined;
 let disposed = false, detecting = false, lastRefresh = 0;
+let directoryRefresh: Promise<DirectoryCache> | null = null;
 let readinessTimer: ReturnType<typeof setTimeout> | undefined, readinessToken = '', loadSequence = 0;
 let measuredParentHeight = 0, layoutRevision = 0;
 let revealPending = false, startupPulseDone = false, startupPulseActive = false;
 let startupPulseTimer: ReturnType<typeof setTimeout> | undefined;
+let finishStartup: ReturnType<typeof beginTiming> | undefined, finishDocument: ReturnType<typeof beginTiming> | undefined, finishContent: ReturnType<typeof beginTiming> | undefined;
 let loginStore: ReturnType<typeof sharedSession> | null = null, loginTenant = '', sessionPrefix = '', signedIn = false;
 let loginDirectory: DirectoryCache | null = null;
 let sessionSequence = 0, identityReady = false, expectsSignedIn = false;
@@ -47,14 +51,16 @@ async function configureLogin(directory: DirectoryCache, previous: DirectoryCach
             cookies: { get: url => plus.navigator.getCookie(url) || '', set: (url, value) => plus.navigator.setCookie(url, value) },
             vault,
             verify: (url, value) => new Promise((resolve, reject) => uni.request({
-                url: url + '/api/v1/bootstrap', method: 'GET', withCredentials: false, timeout: 15000,
+                url: url + '/api/v1/session', method: 'GET', withCredentials: false, timeout: 15000,
                 header: { Accept: 'application/json', 'X-Consumer-Webview': '1', ...(value ? { Cookie: rememberCookie + '=' + value } : {}) },
                 success: response => {
-                    const data = response.data as { tenant?: { id?: string }; user?: { id?: string } };
-                    if (response.statusCode !== 200 || typeof data?.tenant?.id !== 'string') {
+                    const data = response.data as { tenant?: { id?: string; slug?: string }; user?: { id?: string } | null; restricted?: boolean };
+                    if (response.statusCode !== 200 || typeof data?.tenant?.id !== 'string' || !data.tenant.id
+                        || data.tenant.slug !== config.tenantSlug || typeof data.restricted !== 'boolean'
+                        || (data.user !== null && (typeof data.user?.id !== 'string' || !data.user.id))) {
                         reject(new LoginRestoreUnavailable()); return;
                     }
-                    resolve({ tenantId: data.tenant.id, signedIn: typeof data.user?.id === 'string' });
+                    resolve({ tenantId: data.tenant.id, signedIn: typeof data.user?.id === 'string', restricted: data.restricted });
                 },
                 fail: () => reject(new LoginRestoreUnavailable()),
             })),
@@ -75,17 +81,20 @@ function captureLogin() {
         throw new Error('登录凭证尚未保存');
 }
 async function confirmPageIdentity(view: Webview, sequence: number) {
+    const finishTiming = beginTiming('identity');
     for (let attempt = 0; attempt < 60; attempt++) {
-        if (disposed || child !== view || sessionSequence !== sequence || !signedIn || !trustedLoginPage(view)) return;
+        if (disposed || child !== view || sessionSequence !== sequence || !signedIn || !trustedLoginPage(view)) { finishTiming('error'); return; }
         try {
             captureLogin();
             identityReady = true;
+            finishTiming(); appendTimingRows();
             checkContent(view);
             return;
         } catch {
             await new Promise(resolve => setTimeout(resolve, 50));
         }
     }
+    finishTiming('error');
     if (!disposed && child === view && sessionSequence === sequence) {
         loginRecoveryFailed.value = true;
         failure('登录凭证尚未就绪，请重试；已保存的登录状态不会因网络错误清除。');
@@ -94,6 +103,14 @@ async function confirmPageIdentity(view: Webview, sequence: number) {
 function loginStorageFailure() {
     debugLog('登录状态未能安全保存');
     uni.showToast({ title: '登录状态未能安全保存，切换线路后可能需要重新登录。', icon: 'none', duration: 3500 });
+}
+function appendTimingRows() {
+    if (!debugEnabled.value) return;
+    for (const row of timingSnapshot()) {
+        if (row.sequence <= lastTimingVisible) continue;
+        lastTimingVisible = row.sequence;
+        debugLog(`启动耗时 ${row.stage}: ${row.durationMs}ms (${row.outcome})`);
+    }
 }
 function debugLog(message: string) {
     if (debugEnabled.value) debugRows.value = [...debugRows.value.slice(-59), `${new Date().toLocaleTimeString()} ${message}`];
@@ -111,7 +128,10 @@ function setDebug(enabled: boolean) {
         debugInstalled = false; debugPrefix = ''; debugRows.value = []; debugUrl.value = '';
     } else {
         debugUrl.value = safeAddress(child?.getURL() || active.value);
-        if (changed) debugLog('调试已开启（仅本机内存，最多 60 条）');
+        if (changed) {
+            debugLog('调试已开启（仅本机内存，最多 60 条）');
+            lastTimingVisible = 0; appendTimingRows();
+        }
         installDebug();
     }
     if (changed) resizeContent();
@@ -145,13 +165,16 @@ function cache(): DirectoryCache | null {
     catch { return null; }
 }
 function save(value: DirectoryCache) { try { uni.setStorageSync(config.cacheKey, value); } catch { /* optional cache */ } }
-function probe(url: string): Promise<unknown> {
-    return new Promise((resolve, reject) => uni.request({
-        url: url + '/api/mobile/v1/domains', method: 'GET', timeout: 4000,
+function probe(url: string, onAbort?: (cancel: () => void) => void): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+        const request = uni.request({
+        url: url + '/api/mobile/v1/domains', method: 'GET', timeout: 1000,
         header: { Accept: 'application/json' }, withCredentials: false,
         success: response => response.statusCode === 200 ? resolve(response.data) : reject(new Error('unavailable')),
         fail: reject,
-    }));
+        });
+        onAbort?.(() => request.abort());
+    });
 }
 function stopTimer() {
     clearTimeout(timer); timer = undefined;
@@ -162,6 +185,7 @@ function stopTimer() {
 }
 function failure(message: string) {
     if (disposed) return;
+    finishStartup?.('error'); finishDocument?.('error'); finishContent?.('error');
     debugLog('加载失败：' + message);
     stopTimer();
     const previous = child; child = null; previous?.close();
@@ -215,6 +239,7 @@ function finishStartupLayout(view: Webview, bounds: ReturnType<typeof contentBou
         startupPulseActive = false; startupPulseTimer = undefined; revealPending = false;
         view.setStyle({ ...contentBounds(), opacity: 0 });
         state.value = 'ready';
+        finishContent?.(); finishStartup?.(); appendTimingRows();
         // Restore current bounds, including any debug/rotation changes during the pulse.
         resizeContent();
     };
@@ -237,7 +262,9 @@ function checkContent(view: Webview) {
     view.evalJS(readinessScript(readinessToken));
     readinessTimer = setTimeout(() => checkContent(view), 350);
 }
-function open(url: string) {
+function open(url: string, entryPath = config.entryPath) {
+    finishDocument = beginTiming('document');
+    finishContent = beginTiming('webContent');
     // #ifdef APP-PLUS
     child?.close(); child = null;
     const page = getCurrentPages().slice(-1)[0] as unknown as { $getAppWebview: () => Webview };
@@ -255,6 +282,7 @@ function open(url: string) {
         // An empty native window can emit loaded before the requested document.
         if (!/^https:\/\//i.test(view.getURL())) return;
         if (debugEnabled.value) debugUrl.value = safeAddress(view.getURL());
+        finishDocument?.(); appendTimingRows();
         debugLog('文档 loaded，等待页面内容'); installDebug();
         if (trustedLoginPage(view)) {
             view.evalJS(sessionSignalScript(sessionPrefix));
@@ -281,6 +309,7 @@ function open(url: string) {
                 signedIn = value.signedIn;
                 if (signedIn) { expectsSignedIn = true; void confirmPageIdentity(view, sessionSequence); }
                 else if (value.signedOut === true) { loginStore?.clear(); expectsSignedIn = false; identityReady = true; }
+                else if (value.expired === true) { expectsSignedIn = false; identityReady = true; }
                 else if (!expectsSignedIn) identityReady = true;
                 else { loginRecoveryFailed.value = true; failure('登录状态尚未恢复，请重试；登录凭证已保留。'); }
             } catch { loginStorageFailure(); }
@@ -299,7 +328,7 @@ function open(url: string) {
     });
     view.addEventListener('error', () => { if (child === view) failure('网页无法打开，请检查网络后重试。'); });
     page.$getAppWebview().append(view);
-    loading(); view.loadURL(url + '/?app_webview=1' + config.entryPath.slice(1));
+    loading(); view.loadURL(url + '/?app_webview=1' + entryPath.slice(1));
     // #endif
     // #ifndef APP-PLUS
     failure('请使用 HBuilderX 运行到手机或云打包，此工程是 App 网页容器。');
@@ -307,21 +336,29 @@ function open(url: string) {
 }
 async function connect() {
     if (detecting || disposed) return;
+    finishStartup = beginTiming('startup');
     detecting = true; state.value = 'discovering'; error.value = ''; loginRecoveryFailed.value = false; stopTimer();
     try { captureLogin(); } catch { loginStorageFailure(); }
     const previous = cache();
     const previousChild = child; child = null; previousChild?.close();
     try {
-        const result = await discover(config.seeds, config.tenantSlug, previous, probe);
+        const discoveryTiming = beginTiming('lineDiscovery');
+        const result = await (directoryRefresh ?? discover(config.seeds, config.tenantSlug, previous, probe)).then(value => { discoveryTiming(); return value; }, error => { discoveryTiming('error'); throw error; });
         if (disposed) return;
+        state.value = 'restoring';
         await configureLogin(result, previous);
         expectsSignedIn = loginStore!.expectedSignedIn?.() ?? false;
         debugLog('正在验证目标线路身份');
-        await loginStore!.restore(result.selected);
+        const restoreTiming = beginTiming('loginRestore');
+        const restored = await loginStore!.restore(result.selected).then(value => { restoreTiming(); return value; }, error => { restoreTiming('error'); throw error; });
+        expectsSignedIn = restored?.signedIn ?? expectsSignedIn;
+        const entryPath = restored?.signedIn
+            ? (restored.restricted ? '/#/pages/screen/index?path=%2Faccount%2Frestricted' : '/#/pages/assets/index')
+            : config.entryPath;
         debugLog('目标线路身份验证通过');
         if (disposed) return;
         save(result); lastRefresh = Date.now(); active.value = result.selected;
-        stopDebug(); refreshDebug(); open(result.selected);
+        stopDebug(); refreshDebug(); open(result.selected, entryPath);
     } catch (e) { loginRecoveryFailed.value = e instanceof LoginRestoreUnavailable; failure(e instanceof Error ? e.message : '连接失败，请重试。'); }
     finally { detecting = false; }
 }
@@ -358,11 +395,13 @@ onShow(() => {
     background = false; refreshDebug();
     resizeContent();
     // Refresh the directory cache without moving an active login or replaying an operation.
-    if (!child || detecting || Date.now() - lastRefresh < 60000) return;
+    if (!child || detecting || directoryRefresh || Date.now() - lastRefresh < 60000) return;
     lastRefresh = Date.now();
-    void discover(config.seeds, config.tenantSlug, cache(), probe).then(value => {
+    directoryRefresh = discover(config.seeds, config.tenantSlug, cache(), probe);
+    void directoryRefresh.then(value => {
         if (!disposed) save({ ...value, selected: active.value });
-    }).catch(() => { /* Retain the last verified directory during a temporary outage. */ });
+    }).catch(() => { /* Retain the last verified directory during a temporary outage. */ })
+        .finally(() => { directoryRefresh = null; });
 });
 onHide(() => { try { captureLogin(); } catch { loginStorageFailure(); } background = true; stopDebug(); });
 onBackPress(() => { back(); return true; });
@@ -398,7 +437,7 @@ onUnload(() => { disposed = true; posterChannel?.dispose(); stopDebug(); uni.off
                 </view>
                 <view v-else class="loading-state" role="status">
                     <view class="loading-track"><view class="loading-glow"/></view>
-                    <text class="loading-label">{{ state === 'discovering' ? '正在检测线路速度，选择最快线路' : '正在为您开启全球支付' }}</text>
+                    <text class="loading-label">{{ state === 'discovering' ? '正在检测可用线路' : state === 'restoring' ? '正在恢复登录状态' : '正在为您开启全球支付' }}</text>
                 </view>
             </view>
             <text class="security-note">保护账户安全，请勿向任何人透露密码或验证码。</text>

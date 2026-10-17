@@ -1129,6 +1129,7 @@ export const catalog = {
     Reversed: ['已撤销', 'Dibatalkan', 'Anulada'],
     Pending: ['处理中', 'Sedang diproses', 'En proceso'],
     Confirming: ['确认中', 'Sedang disahkan', 'En confirmación'],
+    'Restoring sign-in…': ['正在恢复登录状态…', 'Memulihkan log masuk…', 'Restaurando la sesión…'],
     Retry: ['重试', 'Cuba lagi', 'Reintentar'],
     'Card transactions are temporarily unavailable.': [
         '暂时无法获取卡片交易流水。',

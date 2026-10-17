@@ -28,6 +28,7 @@
         <server name="DB_DATABASE" value="card_ui_test" force="true"/>
         <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing" force="true"/>
+        <env name="CARD_PROVIDER_OFFLINE" value="false" force="true"/>
         <env name="CARD_PROVIDER_DRIVER" value="mock" force="true"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
