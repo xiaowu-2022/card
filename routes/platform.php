@@ -330,6 +330,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::put('/card-products/{cardProduct}', [App\Http\Controllers\Platform\CompanyConfiguration\CardProductController::class, 'update'])->whereUuid('cardProduct')->name('card-products.update');
         Route::get('/wealth', [WealthController::class, 'show']);
         Route::post('/wealth', [WealthController::class, 'save'])->middleware('business-throttle:20,1');
+        Route::post('/company-invitation', [PaidPromotionController::class, 'invitation'])->middleware('business-throttle:20,1');
         Route::post('/paid-promotion/levels', [PaidPromotionController::class, 'batch'])->middleware('business-throttle:20,1');
         Route::post('/invitation-poster', [InvitationPosterController::class, 'save'])->middleware('business-throttle:20,1');
         Route::get('/invitation-poster/background', [InvitationPosterController::class, 'platformImage']);

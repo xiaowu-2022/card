@@ -1,3 +1,12 @@
+On 2026-10-17 the user requested company invitation code modification and disabling.
+Expose effective code/enabled state in Platform company promotion configuration, with
+confirmation, reason, scoped tenant.manage, company locking, stale revisions, idempotency,
+append-only changes/audit and permanent global code reservations. Reject replaced/disabled
+company codes and retired aliases for new registration challenges; preserve accepted
+challenge bindings, personal codes, existing invitation relationships and financial evidence.
+Deploy the company-invitation migration with PHP/admin assets; isolated tests only.
+See docs/architecture/PROMOTION_INVITATION_CODES.md.
+
 On 2026-10-15 the user changed enabled-partner stock to previous business stock
 minus that partner's signed personal theoretical-minus-actual difference. Apply once
 across reports, lists, child summaries, homepage totals/source dialogs and derived

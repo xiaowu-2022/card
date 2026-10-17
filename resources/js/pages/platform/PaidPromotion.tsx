@@ -1,3 +1,8 @@
+import {
+    CompanyInvitationSettings,
+    type CompanyInvitation,
+    type CompanyInvitationHistory,
+} from '@/components/admin/CompanyInvitationSettings';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useForm } from '@/components/admin/editor-context';
@@ -152,7 +157,13 @@ function ReturnRecord({ claim: c }: { claim: PaidClaim & { accountId: string } }
 export default function PaidPromotion({
     paid: p,
     posterBackground,
+    companyInvitation,
+    invitationNextCode,
+    invitationHistory,
 }: {
+    companyInvitation: CompanyInvitation | null;
+    invitationNextCode: number;
+    invitationHistory: CompanyInvitationHistory;
     posterBackground: string | null;
     paid: {
         companyName: string;
@@ -172,6 +183,15 @@ export default function PaidPromotion({
             <Head title={t('Paid promotion settings')} />
             <div className="min-w-0 space-y-4">
                 <CompanyConfigurationHeader title={t('Paid promotion settings')} />
+                {companyInvitation && (
+                    <CompanyInvitationSettings
+                        key={`${companyInvitation.id}:${companyInvitation.revision}`}
+                        tenant={p.tenantId}
+                        invitation={companyInvitation}
+                        nextCode={invitationNextCode}
+                        history={invitationHistory}
+                    />
+                )}
                 <InvitationPosterSettings tenant={p.tenantId} background={posterBackground} />
                 <Tariffs
                     key={p.levels.map((level) => `${level.id}:${level.revision}`).join(',')}

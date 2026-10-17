@@ -1,3 +1,25 @@
+## Company code management (2026-10-17)
+
+Platform company configuration → Paid promotion settings exposes the company invitation
+code, enabled status and a separately paginated change history. Active Platform
+administrators with `tenant.manage` may submit an explicit confirmation and reason to
+change the code or disable/re-enable it. Company suspension still allows disabling;
+enabling requires an active company. Six-digit replacements must be globally unused
+and at/after the allocation counter. Every old/new code remains permanently reserved.
+
+`company_invitation_changes` is immutable append-only evidence and the effective
+settings projection; original `promotion_company_invitations` rows remain immutable.
+Changes lock the company before the allocation counter, enforce stale revisions and
+request replay consistency, and append audit evidence atomically. GETs do not provision
+company invitations. Registration challenge acceptance rereads effective settings under
+the same company lock. Replaced codes, disabled codes and retired legacy aliases fail
+closed; individual codes and existing memberships are unchanged. Challenges accepted
+before a change retain their original binding and may finish registration normally.
+
+Deploy migration `2026_10_17_100000_add_company_invitation_changes.php` with PHP and
+administrative assets. No consumer rebuild, provider operations or financial changes.
+Validate only against isolated fixtures, never a production database.
+
 # Sequential promotion invitation codes
 
 User approval: 2026-09-11, explicitly superseding the old random immutable

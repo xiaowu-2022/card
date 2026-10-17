@@ -65,9 +65,10 @@ final readonly class PromotionMembershipAction
     public function enrollment(string $tenantId, string $code): array
     {
         $code = $this->canonicalCode($tenantId, $code);
-        $company = CompanyInvitation::query()->where('tenant_id', $tenantId)->where('invitation_code', $code)->first();
-        if ($company) {
-            return ['code' => $company->invitation_code, 'memberId' => null, 'companyId' => $company->id];
+        $company = CompanyInvitation::query()->where('tenant_id', $tenantId)->first();
+        $settings = $company ? app(CompanyInvitationSettings::class)->current($company) : null;
+        if ($settings && $settings['enabled'] && $settings['code'] === $code) {
+            return ['code' => $settings['code'], 'memberId' => null, 'companyId' => $company->id];
         }
         $member = $this->resolve($tenantId, $code);
 
@@ -87,7 +88,7 @@ final readonly class PromotionMembershipAction
             if ($alias) {
                 $code = $alias->member_id
                     ? PromotionMember::query()->where('tenant_id', $tenantId)->whereKey($alias->member_id)->where('invitation_revision', 0)->value('invitation_code')
-                    : CompanyInvitation::query()->where('tenant_id', $tenantId)->whereKey($alias->company_invitation_id)->value('invitation_code');
+                    : $this->companyAliasCode($tenantId, $alias->company_invitation_id);
             }
         }
 
@@ -96,6 +97,14 @@ final readonly class PromotionMembershipAction
         }
 
         return $code;
+    }
+
+    private function companyAliasCode(string $tenant, string $id): ?string
+    {
+        $company = CompanyInvitation::where('tenant_id', $tenant)->find($id);
+        $settings = $company ? app(CompanyInvitationSettings::class)->current($company) : null;
+
+        return $settings && $settings['revision'] === 0 && $settings['enabled'] ? $settings['code'] : null;
     }
 
     private function createWithCode(\Closure $create): PromotionMember|CompanyInvitation

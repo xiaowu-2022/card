@@ -10,7 +10,8 @@ export default function Promotion({
     promotion: p,
 }: {
     promotion: {
-        companyCode: string;
+        companyCode: string | null;
+        companyCodeEnabled: boolean;
         accountId: string;
         members: { accountId: string; code: string | null; levelId: string | null }[];
         page: number;
@@ -29,7 +30,8 @@ export default function Promotion({
             <div className="space-y-5">
                 <h1 className="text-xl font-semibold">{t('Promotion')}</h1>
                 <p>
-                    {t('Company invitation code')}: {p.companyCode}
+                    {t('Company invitation code')}: {p.companyCode ?? '—'} ·{' '}
+                    {t(p.companyCodeEnabled ? 'Enabled' : 'Disabled')}
                 </p>
                 <p className="text-sm text-muted-foreground">
                     {t(

@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Platform\CompanyConfiguration;
 
+use App\Application\Promotion\CompanyInvitationSettings;
 use App\Application\Promotion\ConfigurePaidPromotion;
 use App\Application\Promotion\PaidPromotionQuery;
 use App\Application\Promotion\PaidPromotionRules;
+use App\Domain\Promotion\Models\CompanyInvitation;
 use App\Domain\Tenant\Models\Tenant;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -16,9 +18,22 @@ final class PaidPromotionController extends Controller
     public function show(Tenant $tenant, Request $request, PaidPromotionQuery $query, PaidPromotionRules $rules)
     {
         $rules->platform($request->user('platform_admin'), 'tenant.manage');
+        $request->validate(['invitation_page' => 'nullable|integer|min:1|max:100000']);
+        $invitation = CompanyInvitation::where('tenant_id', $tenant->id)->first();
+        $companyInvitation = $invitation ? app(CompanyInvitationSettings::class)->current($invitation) : null;
         $page = max(1, min(100000, $request->integer('page', 1)));
 
-        return Inertia::render('platform/PaidPromotion', ['paid' => $query->platform($tenant->id, $page), 'posterBackground' => $tenant->businessSettings->invitation_poster_background ? '/platform/tenants/'.$tenant->id.'/configuration/invitation-poster/background?v='.hash('sha256', $tenant->businessSettings->invitation_poster_background) : null]);
+        return Inertia::render('platform/PaidPromotion', ['companyInvitation' => $companyInvitation,
+            'invitationNextCode' => (int) DB::table('promotion_invitation_counter')->where('id', 1)->value('next_value'),
+            'invitationHistory' => DB::table('company_invitation_changes')->where('tenant_id', $tenant->id)->orderByDesc('revision')->paginate(10, ['id', 'old_code', 'new_code', 'enabled', 'reason', 'actor_name', 'created_at'], 'invitation_page')->withQueryString(),
+            'paid' => $query->platform($tenant->id, $page), 'posterBackground' => $tenant->businessSettings->invitation_poster_background ? '/platform/tenants/'.$tenant->id.'/configuration/invitation-poster/background?v='.hash('sha256', $tenant->businessSettings->invitation_poster_background) : null]);
+    }
+
+    public function invitation(Tenant $tenant, Request $request, CompanyInvitationSettings $settings)
+    {
+        $settings->change($tenant->id, $request->user('platform_admin'), $request->only(['old_code', 'new_code', 'enabled', 'revision', 'reason', 'confirmed', 'request_id']));
+
+        return back()->with('success', 'Company invitation updated.');
     }
 
     public function batch(Tenant $tenant, Request $request, ConfigurePaidPromotion $configure)

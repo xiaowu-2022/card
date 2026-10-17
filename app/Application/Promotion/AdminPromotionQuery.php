@@ -2,21 +2,23 @@
 
 namespace App\Application\Promotion;
 
+use App\Domain\Promotion\Models\CompanyInvitation;
 use App\Domain\Promotion\Models\PromotionLevel;
 use App\Domain\User\Models\User;
 use Illuminate\Support\Facades\DB;
 
 final readonly class AdminPromotionQuery
 {
-    public function __construct(private PromotionMembershipAction $members) {}
-
     public function execute(string $tenantId, ?string $accountId, int $page): array
     {
         $users = DB::table('users as u')->leftJoin('promotion_members as m', fn ($join) => $join->on('m.user_id', '=', 'u.id')->on('m.tenant_id', '=', 'u.tenant_id'))
             ->where('u.tenant_id', $tenantId)->when($accountId, fn ($q) => $q->where('u.account_id', $accountId))->orderBy('u.account_id')
             ->paginate(30, ['u.account_id', 'm.level_id', 'm.invitation_code'], 'page', $page);
 
-        return ['companyCode' => $this->members->companyInvitation($tenantId)->invitation_code,
+        $invitation = CompanyInvitation::where('tenant_id', $tenantId)->first();
+        $company = $invitation ? app(CompanyInvitationSettings::class)->current($invitation) : null;
+
+        return ['companyCode' => $company['code'] ?? null, 'companyCodeEnabled' => $company['enabled'] ?? false,
             'levels' => PromotionLevel::query()->where('tenant_id', $tenantId)->orderBy('rank')->get()->map(fn ($row) => ['id' => $row->id, 'rank' => $row->rank, 'name' => $row->name, 'reward' => $row->reward_amount, 'revision' => $row->revision])->all(),
             'members' => $users->take(30)->map(fn ($row) => ['accountId' => $row->account_id, 'levelId' => $row->level_id, 'code' => $row->invitation_code])->all(),
             'accountId' => $accountId ?? '', 'page' => $page, 'lastPage' => $users->lastPage(), 'total' => $users->total(), 'hasMore' => $users->hasMorePages()];
