@@ -17,7 +17,7 @@ import { PartnerUserDetails } from '@/components/admin/PartnerUserDetails';
 import { Button } from '@/components/ui/button';
 import { invitationLocation } from '@/components/admin/partner-invitations-state';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, type FormEvent } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -60,6 +60,7 @@ type Partner = {
     company_name: string;
     enabled: boolean;
     updated_at: string;
+    registered_at?: string;
     share_percent: string;
     account_id: string;
     display_name: string | null;
@@ -123,6 +124,26 @@ export default function Partners({
     const [feeCompany, setFeeCompany] = useState('');
     const fx = useForm({ rate: '', observed_at: '', evidence: '', request_id: requestId() });
     const { url } = usePage();
+    const sortQuery = new URL(url, location.origin).searchParams;
+    const sortColumn = sortQuery.get('sort');
+    const sortDirection = sortQuery.get('direction') === 'desc' ? 'desc' : 'asc';
+    const changeSort = (column: 'registered_at' | 'advance') => {
+        const query = new URL(location.href).searchParams;
+        query.set('sort', column);
+        query.set('direction', sortColumn === column && sortDirection === 'asc' ? 'desc' : 'asc');
+        query.set('page', '1');
+        router.get('/platform/partners', Object.fromEntries(query), {
+            preserveState: true,
+            preserveScroll: true,
+        });
+    };
+    const sortHeader = (column: 'registered_at' | 'advance', label: string) => (
+        <th aria-sort={sortColumn === column ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}>
+            <button type="button" className="inline-flex items-center gap-1 whitespace-nowrap" onClick={() => changeSort(column)}>
+                {t(label)} <span aria-hidden="true">{sortColumn === column ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
+            </button>
+        </th>
+    );
     const [invitationPartner, setInvitationPartner] = useState(() =>
         new URL(location.href).searchParams.get('invitation_partner'),
     );
@@ -414,6 +435,7 @@ export default function Partners({
                                                 <th className="partner-summary-identity">
                                                     {t('Company / User')}
                                                 </th>
+                                                {sortHeader('registered_at', 'Registration time')}
                                                 {[
                                                     'Agent level',
                                                     'Direct referrer',
@@ -424,7 +446,9 @@ export default function Partners({
                                                     'Partner balance difference',
                                                     'Reimbursements',
                                                 ].map((label) => (
-                                                    <th key={label}>{t(label)}</th>
+                                                    label === 'Cumulative advances' ? (
+                                                        <Fragment key={label}>{sortHeader('advance', label)}</Fragment>
+                                                    ) : <th key={label}>{t(label)}</th>
                                                 ))}
                                                 {partnerDailyColumns.map(([key, label]) => (
                                                     <th key={key}>{t(label)}</th>
@@ -444,6 +468,9 @@ export default function Partners({
                                                             {t(p.enabled ? 'Enabled' : 'Disabled')}{' '}
                                                             · {exactAmount(p.share_percent)}%
                                                         </div>
+                                                    </td>
+                                                    <td className="whitespace-nowrap">
+                                                        {p.registered_at ? new Date(p.registered_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }) : '—'}
                                                     </td>
                                                     <td>
                                                         {p.promotionRank

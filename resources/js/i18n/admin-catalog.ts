@@ -703,6 +703,7 @@ export const adminCatalog: Record<string, string> = {
     'Company / User': '公司 / 用户',
     'User details': '客户详情',
     'Actual deposits': '实际充值',
+    'Registration time': '注册时间',
     'Cumulative advances': '累计预支金额',
     'Withdrawal amount': '提现金额',
     'Product / Card': '产品 / 卡片',
