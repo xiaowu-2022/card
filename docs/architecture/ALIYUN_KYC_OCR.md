@@ -170,3 +170,12 @@ Existing Platform permissions, recent password verification and access audit rem
 OSS photos are already public-read by prior authorization; their returned direct
 URLs are not temporary access grants and cannot be revoked by the admin session.
 No originals, OCR input, provider documents or storage settings are changed.
+
+## 2026-10-18 Identity image size limit
+
+Each KYC image (front/back) is limited to 5 MiB (5 × 1024 × 1024 bytes), inclusive.
+This supersedes the previous 10 MiB limit. `KYC_DOCUMENT_MAX_MB` defaults to 5
+and is capped at 5 even when an existing deployment still configures 10; smaller
+configured limits remain supported. H5/App hints and selection checks use the same
+server configuration as multipart validation and signed direct-upload policies.
+No image compression or changes to historical documents are required.

@@ -1,3 +1,150 @@
+## 2026-10-17 Correct website APK object: `U 卡.apk`
+
+The user clarified that the website downloads OSS key `U 卡.apk`, not `specpay.apk`.
+The previous rollbacks updated `specpay.apk` only and therefore did not update this
+website download. Direct OSS inspection confirmed `U 卡.apk` was still version
+2.6.05 (2605), SHA256 `28a977a9f308282775d04eaeb4c319aec2028140ce7959dbb2ad8e1cb624ed2e`.
+This confirms the user's installed-version screenshot and is an object-path mismatch,
+not evidence of stale CDN caching on the previously verified `specpay.apk` path.
+
+The old website object was backed up privately as
+`~/Private/SpecPay/release-backups/U-card-before-rollback-2603.apk`.
+At the user's existing rollback authorization, `U 卡.apk` was then replaced by the
+original signed October 9 2.6.03 (2603) artifact. Full direct OSS and public URL
+`http://zb33333.com/U%20%E5%8D%A1.apk` downloads both matched SHA256
+`b3b89ffd6706ee295e74f11bd1a945627a0df197cc46529dced2e6cd8c821f87`.
+The public response was a CDN MISS and its embedded version was 2.6.03 (2603).
+AES256/public-read and no-cache/no-store headers were retained.
+A separate version-labelled `specpay-2.6.03-2603.apk` copy was also created and publicly
+hash-verified. Future publication must check the actual per-company website download
+URL/key, including the space and Unicode characters, before selecting objects to update.
+No backend release metadata or source changed. Phone installation/startup remain unverified.
+
+## 2026-10-17 Public rollback download and native version verified
+
+Follow-up to the user's concern about identical APK sizes: fresh full downloads from
+both `http://zb33333.com/specpay.apk` and
+`http://zb33333.com/specpay.apk?v=2603-20261017` succeeded. Both matched the original
+2.6.03 SHA256 `b3b89ffd6706ee295e74f11bd1a945627a0df197cc46529dced2e6cd8c821f87`
+and embedded resource version 2603/2.6.03. CDN responses were `MISS TCP_MISS` and
+retained `no-cache, no-store, must-revalidate`. This resolves the earlier transient
+public-download verification limitation. Apktool decoding of the matching original
+APK additionally confirmed native Android versionCode 2603 and versionName 2.6.03,
+not just the web-resource manifest. Several retained releases have the same exact
+27,642,043-byte length but distinct hashes; file size alone cannot identify the release.
+No additional OSS or application changes were made by this verification.
+
+## 2026-10-17 Android rollback to last pre-today package: 2.6.03
+
+The user explicitly requested the last package built before October 17 after the
+2.6.05 and 2.6.04 attempts. The last retained package matching the current app is
+`mobile/webview-shell/dist/release/apk/__UNI__30F90A0__20261009232635.apk`,
+October 9 at 23:26, version 2.6.03 (2603). ZIP integrity and release-signature
+verification passed. Its resource manifest id, native dcloud_control appid and
+assets/apps directory all match `__UNI__30F90A0`; these identities also match in
+2.6.06. This inspection found no package-internal AppID mismatch and does not
+establish the cause of the reported startup failure.
+
+OSS `specpay.apk` was atomically replaced with that original signed 2.6.03 APK.
+Direct authenticated OSS readback returned all 27,642,043 bytes and matched SHA256
+`b3b89ffd6706ee295e74f11bd1a945627a0df197cc46529dced2e6cd8c821f87`.
+AES256 and `no-cache, no-store, must-revalidate` response headers were confirmed.
+The replaced 2.6.04 was publicly downloaded and hash-verified before replacement,
+then saved privately as `~/Private/SpecPay/release-backups/specpay-before-rollback-2603.apk`.
+Public download-domain verification after this replacement encountered connection
+timeouts; a separate HTTP/HTTPS retry was stopped after it failed to finish promptly.
+Do not claim public CDN readback passed for this rollback. The unchanged public URL
+is `http://zb33333.com/specpay.apk`. No source or backend release metadata changed.
+Device startup and installation downgrade remain unverified.
+
+## 2026-10-17 Android OSS rollback to signed 2.6.04
+
+After 2.6.05 still showed the startup error, the user explicitly requested 2.6.04.
+OSS `specpay.apk` was atomically replaced with the original signed
+`mobile/webview-shell/dist/release/apk/__UNI__30F90A0__20261017084716.apk`,
+version 2.6.04 (2604). ZIP integrity and apksigner verification passed with release
+certificate SHA256 `e972513b35b8087efce434e66fbee8df3beb0fc4db1cb7b1fd5b3f313192332f`.
+The public download was read back in full and matched SHA256
+`3887f4d05982ab2593ddb05b98f3174ca02d0b501f0f1f2c7583fa6f6f489425`
+(27,642,043 bytes). The replaced 2.6.05 was downloaded, hash-verified and saved privately
+as `~/Private/SpecPay/release-backups/specpay-before-rollback-2604.apk`.
+The same public URL and OSS AES256/cache protections are retained. No source, PHP/H5
+or backend release metadata changes were made for this rollback. Physical-device
+startup remains unverified; Android may block a lower-version overwrite install.
+
+## 2026-10-17 Android OSS rollback to signed 2.6.05
+
+After reports of the local `__uniappview.html` startup error across multiple Android
+models, the user requested a rebuild and OSS update. Clean 2.6.07 resource compilation
+succeeded, but DCloud rejected cloud packaging because the account daily quota was
+exhausted; no signed 2.6.07 APK was produced or published. Source version was restored
+to the pre-attempt 2.6.06 value; any 2.6.07 compiled resources remain unpublished.
+
+At the user's subsequent request, OSS `specpay.apk` was atomically rolled back to the
+existing signed `__UNI__30F90A0__20261017134335.apk`, version 2.6.05 (2605).
+APK ZIP integrity and apksigner verification passed with the existing release
+certificate. The public download `http://zb33333.com/specpay.apk` was fully downloaded
+and SHA256 matched the rollback artifact:
+`046c0706cbe2cc6609c64a1b510538a14f4b365e998932551bb07d2030bf3db4`
+(27,642,043 bytes). The replaced 2.6.06 object was downloaded and saved privately as
+`~/Private/SpecPay/release-backups/specpay-before-rollback-2605.apk`, matching its
+previous published SHA256. OSS retains AES256 encryption and revalidation/no-store
+response headers. No backend release metadata or PHP/H5 was changed.
+
+This rollback does not establish that Android startup is fixed. Physical device
+startup remains unverified. Android can reject installing a lower version over 2606;
+do not represent the OSS rollback as an automatic downgrade of installed clients.
+
+## 2026-10-17 Signed 2.6.06 packages and Android OSS publication
+
+HBuilderX 5.26 safe packaging completed Android and iOS 2.6.06 (2606).
+Both native/resource versions and all three embedded app-service.js,
+app-config-service.js and app.css files match the current resource build. Android
+apksigner verification matches the existing Spec Pay release certificate; iOS passes
+codesign --verify --deep --strict with the existing registered-device profile.
+
+Artifacts are under mobile/webview-shell/dist/release:
+- apk/__UNI__30F90A0__20261017142924.apk
+- ipa/__UNI__30F90A0__20261017142859.ipa
+
+At the user's explicit request, the signed Android package replaced OSS object
+specpay.apk behind http://zb33333.com/specpay.apk. Single-stream uploads stalled;
+106 verified parts completed and were atomically assembled at the existing key.
+The original public URL was fully read back and SHA256 matched the local signed APK:
+d99201dfe9fdefc4cc4b36ef547af0119fcb61b44a79f72569b0d33b1c6ffab9
+(27,642,043 bytes). APK response remains no-cache and AES256 encrypted at rest.
+A verified previous package remains in the private local release backup directory.
+Temporary password/signing authorization files were removed; original signing
+materials remain private and unchanged. No company release metadata, PHP/H5,
+financial evidence or provider operations changed. Device installation and actual
+startup latency have not been verified by this packaging/publication step.
+
+## 2026-10-17 Welcome wait investigation (2.6.06)
+
+A phone running 2.6.05 reported about three minutes on the black/gold welcome.
+This has not been reproduced on a physical device. The shell previously began session
+signal installation and readiness checks only at native `loaded`, which can wait for
+slow subresources even after usable H5 content has painted. Start the existing guarded
+checks at `rendering` as well. Install document listeners once per loading generation;
+retain loaded as fallback, scoped identity confirmation, pending-session rejection,
+paint/layout checks and stale-window guards. In addition, start the readiness loop
+when loading begins; it waits for the current trusted origin without relying on either
+native rendering or loaded callbacks. A ready page can reveal even if neither arrives.
+Repeated loading events/redirects reuse one original 30-second display deadline instead
+of restarting it; a new window or navigation after ready starts its own display budget.
+This is a bounded failure path, not a claim that slow networks become fast.
+
+Session verification also has an independent 15-second JavaScript deadline which aborts
+the native request and rejects late callbacks. Transport timeout alone must not strand
+restoration. Failure keeps credentials and offers the existing retry screen. Discovery
+and foreground no-switch behavior are unchanged. Diagnostic version text now follows
+the manifest instead of a stale hardcoded value.
+
+Offline event-order, missing-callback, identity and browser-readiness tests pass. Compile
+2.6.06 (2606) App resources and cloud-package/reinstall the signed shell to apply this
+change. Compilation is not installation or a verified phone startup improvement. No
+PHP/H5, migration, provider or financial change is needed for this shell-only patch.
+
 ## 2026-10-17 WebView line/cache/reveal review
 
 Confirmed existing behavior: the previous selected host is included first in the three

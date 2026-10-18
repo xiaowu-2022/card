@@ -127,9 +127,10 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  script = script.replace(/^import .*;\n/gm, '').replace(/\/\/ #ifndef APP-PLUS[\s\S]*?\/\/ #endif/g, '');
  const requests = [], windows = [], ticks = [], timers = new Map(), loginEvents = []; let sequence = 0;
  let finishDiscovery, restoredIdentity, foregroundHook;
- let parentHeight = 828;
+ let parentHeight = 828, clock = 100000;
  const flushLayout = () => { while (ticks.length) ticks.shift()(); };
  const context = {
+  Date: class extends Date { static now() { return clock; } },
   beginTiming: () => () => {}, timingSnapshot: () => [],
   nextTick: callback => { ticks.push(callback); },
   discover: () => new Promise(resolve => { finishDiscovery = resolve; }),
@@ -160,10 +161,13 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  assert.equal(view.styles[0].position,'absolute');
  assert.equal(view.styles[0].opacity,0);assert.equal(view.styles[0].render,'always');
  view.events.loaded();assert.equal(view.scripts.length,0);
- view.url=a+'/';view.events.loaded();assert.equal(page.state.value,'loading');assert.equal(view.scripts.length,1);
+ view.url=a+'/';view.events.loaded();assert.equal(page.state.value,'loading');assert.equal(view.scripts.length,0);
  const oldToken=page.token();
  view.events.titleUpdate({title:'Spec Pay'});assert.equal(page.state.value,'loading');
- [...timers.values()].find(t=>t.delay===30000).fn();assert.equal(page.state.value,'error');assert.equal(view.closed,true);
+ clock += 10000; view.events.loading();
+ assert.ok([...timers.values()].some(t=>t.delay===20000), 'repeated loading does not reset the thirty-second budget');
+ assert.equal([...timers.values()].some(t=>t.delay===30000),false);
+ [...timers.values()].find(t=>t.delay===20000).fn();assert.equal(page.state.value,'error');assert.equal(view.closed,true);
  view.events.titleUpdate({title:oldToken});assert.equal(page.state.value,'error');
  const reconnect = page.retry();
  assert.equal(page.state.value,'discovering');assert.equal(windows.length,1);
@@ -171,7 +175,13 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  await reconnect;
  const retry=windows[1];assert.equal(retry.requestedURL,b+'/?app_webview=1#/pages/login/index');
  assert.deepEqual(loginEvents,[['restore',b]], 'credential is restored before loading H5');
- retry.url=b+'/';retry.events.loaded();
+ retry.url=b+'/';
+ [...timers.values()].find(t=>t.delay===350).fn();
+ assert.ok(retry.scripts.includes('session-status-listener'), 'identity listener starts even if rendering and loaded never fire');
+ assert.ok(retry.scripts.some(script=>script.includes('uni-page-body')), 'paint checks start without native render/load events');
+ const listeners = retry.scripts.filter(script=>script==='session-status-listener').length;
+ retry.events.rendering();
+ assert.equal(retry.scripts.filter(script=>script==='session-status-listener').length,listeners, 'render callbacks do not reinstall the identity listener');
  const signal=page.sessionToken();
  retry.events.titleUpdate({title:signal+JSON.stringify({signedIn:true,tenantId:'other',sequence:1})});
  assert.equal(loginEvents.length,1,'other company cannot capture a credential');
@@ -264,4 +274,25 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  assert.equal(mounted.closed,false,'foreground refresh never closes the active page');
  assert.equal(page.active.value,b,'foreground return retains the active origin');
 
+});
+
+// A missing native callback must neither hang restoration nor accept a late identity.
+test('session verification has an independent aborting deadline and ignores late success', async () => {
+ const {runInNewContext}=await import('node:vm');
+ const source=readFileSync('mobile/webview-shell/src/pages/index/index.vue','utf8');
+ const expression=source.split('verify: ')[1].split('            metadata:')[0].trim().replace(/,$/,'');
+ let callback,request,aborted=0;const timers=new Set();
+ const context={config:{tenantSlug:'company'},rememberCookie:'consumer_remember',LoginRestoreUnavailable:class extends Error{},
+  uni:{request: options=>{request=options;return {abort(){aborted++;}};}},
+  setTimeout: fn=>{callback=fn;timers.add(fn);return fn;},clearTimeout: fn=>timers.delete(fn)};
+ const js=ts.transpileModule('globalThis.verify = '+expression, {compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+ runInNewContext(js,context);
+ const pending=context.verify(a,null);
+ const rejected=assert.rejects(pending);
+ callback();await rejected;assert.equal(aborted,1);assert.equal(timers.size,0);
+ request.success({statusCode:200,data:{tenant:{id:'tenant',slug:'company'},user:null,restricted:false}});
+ assert.equal(aborted,1);
+ const successful=context.verify(a,null);
+ request.success({statusCode:200,data:{tenant:{id:'tenant',slug:'company'},user:null,restricted:false}});
+ assert.equal((await successful).signedIn,false);assert.equal(timers.size,0);
 });

@@ -3,6 +3,7 @@ import { beginTiming, timingSnapshot } from '../../../../uni-app/src/lib/startup
 import { nextTick, ref } from 'vue';
 import { onReady, onShow, onHide, onUnload, onBackPress } from '@dcloudio/uni-app';
 import config from '../../config.json';
+import manifest from '../../manifest.json';
 import { discover, type DirectoryCache } from '../../lib/directory';
 import { readinessScript } from '../../lib/readiness';
 import { safeAddress, debugScript, debugMessages } from '../../lib/debug';
@@ -31,6 +32,7 @@ let disposed = false, detecting = false, lastRefresh = 0;
 let directoryRefresh: Promise<DirectoryCache> | null = null;
 let readinessTimer: ReturnType<typeof setTimeout> | undefined, readinessToken = '', loadSequence = 0;
 let measuredParentHeight = 0, layoutRevision = 0;
+let documentDeadline = 0;
 let revealPending = false, startupPulseDone = false, startupPulseActive = false;
 let startupPulseTimer: ReturnType<typeof setTimeout> | undefined;
 let finishStartup: ReturnType<typeof beginTiming> | undefined, finishDocument: ReturnType<typeof beginTiming> | undefined, finishContent: ReturnType<typeof beginTiming> | undefined;
@@ -38,6 +40,7 @@ let loginStore: ReturnType<typeof sharedSession> | null = null, loginTenant = ''
 let loginDirectory: DirectoryCache | null = null;
 let sessionSequence = 0, identityReady = false, expectsSignedIn = false;
 let posterChannel: ReturnType<typeof posterReceiver> | null = null;
+let preparedDocument = -1;
 async function configureLogin(directory: DirectoryCache, previous: DirectoryCache | null) {
     if (loginTenant && loginTenant !== directory.tenantId) throw new Error('公司信息已变更，请重新打开应用。');
     if (!loginStore) {
@@ -50,20 +53,34 @@ async function configureLogin(directory: DirectoryCache, previous: DirectoryCach
         loginStore = sharedSession({
             cookies: { get: url => plus.navigator.getCookie(url) || '', set: (url, value) => plus.navigator.setCookie(url, value) },
             vault,
-            verify: (url, value) => new Promise((resolve, reject) => uni.request({
-                url: url + '/api/v1/session', method: 'GET', withCredentials: false, timeout: 15000,
-                header: { Accept: 'application/json', 'X-Consumer-Webview': '1', ...(value ? { Cookie: rememberCookie + '=' + value } : {}) },
-                success: response => {
-                    const data = response.data as { tenant?: { id?: string; slug?: string }; user?: { id?: string } | null; restricted?: boolean };
-                    if (response.statusCode !== 200 || typeof data?.tenant?.id !== 'string' || !data.tenant.id
-                        || data.tenant.slug !== config.tenantSlug || typeof data.restricted !== 'boolean'
-                        || (data.user !== null && (typeof data.user?.id !== 'string' || !data.user.id))) {
-                        reject(new LoginRestoreUnavailable()); return;
-                    }
-                    resolve({ tenantId: data.tenant.id, signedIn: typeof data.user?.id === 'string', restricted: data.restricted });
-                },
-                fail: () => reject(new LoginRestoreUnavailable()),
-            })),
+            verify: (url, value) => new Promise((resolve, reject) => {
+                let settled = false;
+                let request: { abort: () => void } | undefined;
+                const finish = (identity?: { tenantId: string; signedIn: boolean; restricted: boolean }) => {
+                    if (settled) return;
+                    settled = true; clearTimeout(deadline);
+                    if (identity) resolve(identity); else reject(new LoginRestoreUnavailable());
+                };
+                // Native transport timeouts are not reliable on every WebView runtime.
+                const deadline = setTimeout(() => {
+                    finish();
+                    try { request?.abort(); } catch { /* The retry screen must remain available. */ }
+                }, 15000);
+                request = uni.request({
+                    url: url + '/api/v1/session', method: 'GET', withCredentials: false, timeout: 15000,
+                    header: { Accept: 'application/json', 'X-Consumer-Webview': '1', ...(value ? { Cookie: rememberCookie + '=' + value } : {}) },
+                    success: response => {
+                        const data = response.data as { tenant?: { id?: string; slug?: string }; user?: { id?: string } | null; restricted?: boolean };
+                        if (response.statusCode !== 200 || typeof data?.tenant?.id !== 'string' || !data.tenant.id
+                            || data.tenant.slug !== config.tenantSlug || typeof data.restricted !== 'boolean'
+                            || (data.user !== null && (typeof data.user?.id !== 'string' || !data.user.id))) {
+                            finish(); return;
+                        }
+                        finish({ tenantId: data.tenant.id, signedIn: typeof data.user?.id === 'string', restricted: data.restricted });
+                    },
+                    fail: () => finish(),
+                });
+            }),
             metadata: {
                 get: () => { const value = uni.getStorageSync(metaKey); return value && typeof value === 'object' ? value : null; },
                 set: value => uni.setStorageSync(metaKey, value),
@@ -189,6 +206,7 @@ function failure(message: string) {
     debugLog('加载失败：' + message);
     stopTimer();
     const previous = child; child = null; previous?.close();
+    documentDeadline = 0;
     error.value = message; state.value = 'error';
 }
 function contentBounds() {
@@ -198,7 +216,9 @@ function contentBounds() {
         ...(height > 0 ? { height: `${height}px` } : {}) };
 }
 function loading() {
-    posterChannel?.dispose(); posterChannel = null;
+    // Redirects/repeated native loading events share the original display budget.
+    if (state.value !== 'loading' || !documentDeadline) documentDeadline = Date.now() + 30000;
+    posterChannel?.dispose(); posterChannel = null; preparedDocument = -1;
     stopTimer(); state.value = 'loading'; error.value = '';
     signedIn = false; identityReady = false;
     sessionPrefix = `specpay-session-${Date.now()}-${loadSequence + 1}:`;
@@ -206,7 +226,10 @@ function loading() {
     debugInstalled = false; debugPrefix = ''; debugLog('网页开始加载');
     readinessToken = `specpay-ready-${Date.now()}-${++loadSequence}`;
     child?.setStyle({ opacity: 0 });
-    timer = setTimeout(() => failure('网页未能显示，请重试或重新连接。'), 30000);
+    timer = setTimeout(() => failure('网页未能显示，请重试或重新连接。'), Math.max(0, documentDeadline - Date.now()));
+    // Some runtimes delay both rendering and loaded until subresources finish.
+    // Poll the current trusted document independently of those native events.
+    if (child) checkContent(child);
 }
 function resizeContent() {
     const view = child, revision = ++layoutRevision;
@@ -238,7 +261,7 @@ function finishStartupLayout(view: Webview, bounds: ReturnType<typeof contentBou
         if (disposed || child !== view || state.value !== 'loading' || !revealPending) return;
         startupPulseActive = false; startupPulseTimer = undefined; revealPending = false;
         view.setStyle({ ...contentBounds(), opacity: 0 });
-        state.value = 'ready';
+        state.value = 'ready'; documentDeadline = 0;
         finishContent?.(); finishStartup?.(); appendTimingRows();
         // Restore current bounds, including any debug/rotation changes during the pulse.
         resizeContent();
@@ -254,15 +277,32 @@ function finishStartupLayout(view: Webview, bounds: ReturnType<typeof contentBou
         startupPulseTimer = setTimeout(reveal, 120);
     } else reveal();
 }
+function prepareDocument(view: Webview) {
+    if (preparedDocument !== loadSequence && trustedLoginPage(view)) {
+        preparedDocument = loadSequence;
+        view.evalJS(sessionSignalScript(sessionPrefix));
+        posterChannel?.dispose();
+        const prefix = `specpay-poster-${Date.now()}-${loadSequence}:`;
+        const documentSequence = loadSequence;
+        const trusted = () => !disposed && child === view && loadSequence === documentSequence && trustedLoginPage(view);
+        posterChannel = posterReceiver({ prefix, trusted, evaluate: script => view.evalJS(script),
+            save: data => savePoster(plus, data, trusted) });
+        view.evalJS(posterBridgeScript(prefix));
+    }
+}
 function checkContent(view: Webview) {
     if (disposed || child !== view || state.value !== 'loading') return;
     clearTimeout(readinessTimer);
-    // Only a layout/readiness boolean crosses via the title event. No native
-    // bridge, input values, cookies or business requests are exposed or replayed.
-    view.evalJS(readinessScript(readinessToken));
+    if (trustedLoginPage(view)) {
+        prepareDocument(view);
+        // Only a layout/readiness boolean crosses via the title event. No native
+        // bridge, input values, cookies or business requests are exposed or replayed.
+        view.evalJS(readinessScript(readinessToken));
+    }
     readinessTimer = setTimeout(() => checkContent(view), 350);
 }
 function open(url: string, entryPath = config.entryPath) {
+    documentDeadline = 0;
     finishDocument = beginTiming('document');
     finishContent = beginTiming('webContent');
     // #ifdef APP-PLUS
@@ -276,7 +316,12 @@ function open(url: string, entryPath = config.entryPath) {
     });
     child = view; debugInstalled = false;
     view.addEventListener('loading', () => { if (child === view) loading(); });
-    view.addEventListener('rendering', () => { if (child === view) installDebug(); });
+    view.addEventListener('rendering', () => {
+        if (disposed || child !== view || state.value !== 'loading') return;
+        installDebug();
+        // Do not wait for slow images/subresources to complete window.onload.
+        checkContent(view);
+    });
     view.addEventListener('loaded', () => {
         if (disposed || child !== view || state.value === 'error') return;
         // An empty native window can emit loaded before the requested document.
@@ -284,16 +329,6 @@ function open(url: string, entryPath = config.entryPath) {
         if (debugEnabled.value) debugUrl.value = safeAddress(view.getURL());
         finishDocument?.(); appendTimingRows();
         debugLog('文档 loaded，等待页面内容'); installDebug();
-        if (trustedLoginPage(view)) {
-            view.evalJS(sessionSignalScript(sessionPrefix));
-            posterChannel?.dispose();
-            const prefix = `specpay-poster-${Date.now()}-${loadSequence}:`;
-            const documentSequence = loadSequence;
-            const trusted = () => !disposed && child === view && loadSequence === documentSequence && trustedLoginPage(view);
-            posterChannel = posterReceiver({ prefix, trusted, evaluate: script => view.evalJS(script),
-                save: data => savePoster(plus, data, trusted) });
-            view.evalJS(posterBridgeScript(prefix));
-        }
         checkContent(view);
     });
     view.addEventListener('titleUpdate', event => {
@@ -410,7 +445,7 @@ onUnload(() => { disposed = true; posterChannel?.dispose(); stopDebug(); uni.off
 <template>
     <view class="shell" :style="{ paddingTop: statusHeight + 'px', paddingBottom: debugEnabled ? debugHeight + 'px' : '0px' }">
         <view v-if="debugEnabled" class="debug-panel" :style="{ height: debugHeight + 'px' }">
-            <text class="debug-title">App 调试 · 2.5.07 · {{ state }}</text>
+            <text class="debug-title">App 调试 · {{ manifest.versionName }} · {{ state }}</text>
             <text class="debug-address">{{ debugUrl }}</text>
             <scroll-view scroll-y class="debug-log"><text v-for="(row, index) in debugRows" :key="index" class="debug-row">{{ row }}</text></scroll-view>
         </view>
