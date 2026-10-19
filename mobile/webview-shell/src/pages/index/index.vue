@@ -397,7 +397,7 @@ function open(url: string, entryPath = config.entryPath) {
     });
     view.addEventListener('error', () => { if (child === view) failure('网页无法打开，请检查网络后重试。'); });
     page.$getAppWebview().append(view);
-    loading(); view.loadURL(url + '/?app_webview=1' + entryPath.slice(1));
+    loading(); view.loadURL(url + '/?app_webview=1&native_auth=token-v1' + entryPath.slice(1));
     // #endif
     // #ifndef APP-PLUS
     failure('请使用 HBuilderX 运行到手机或云打包，此工程是 App 网页容器。');

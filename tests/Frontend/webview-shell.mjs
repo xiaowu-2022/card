@@ -190,7 +190,7 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  runInNewContext(js, context);
  const page = context.pageTest;page.open(a);page.active.value=a;
  const view=windows[0];
- assert.equal(view.requestedURL,a+'/?app_webview=1#/pages/login/index');
+ assert.equal(view.requestedURL,a+'/?app_webview=1&native_auth=token-v1#/pages/login/index');
  assert.equal(view.styles[0].bottom,'0px');assert.equal(view.styles[0].height,undefined);
  assert.equal(view.styles[0].position,'absolute');
  assert.equal(view.styles[0].opacity,0);assert.equal(view.styles[0].render,'always');
@@ -214,7 +214,7 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  const retry=windows[1];
  retry.back=()=>assert.fail('stale back callback must not navigate a replacement page');
  completeBack({canBack:true});completeBack({canBack:false});
- assert.equal(retry.requestedURL,b+'/?app_webview=1#/pages/login/index');
+ assert.equal(retry.requestedURL,b+'/?app_webview=1&native_auth=token-v1#/pages/login/index');
  assert.deepEqual(loginEvents,[['restore',b]], 'credential is restored before loading H5');
  retry.url=b+'/';
  [...timers.values()].find(t=>t.delay===350).fn();
@@ -304,14 +304,14 @@ test('native loaded cannot dismiss welcome; only current rendered content can re
  // Authenticated cold starts must never mount the login route, including restricted accounts.
  restoredIdentity={tenantId:'tenant',signedIn:true,restricted:false};
  let auto=page.retry();await Promise.resolve();finishDiscovery({tenantId:'tenant',origins:[a,b],selected:b});await auto;
- assert.equal(windows.at(-1).requestedURL,b+'/?app_webview=1#/pages/assets/index');
+ assert.equal(windows.at(-1).requestedURL,b+'/?app_webview=1&native_auth=token-v1#/pages/assets/index');
  assert.equal(windows.at(-1).styles.at(-1).opacity,0,'home is still hidden until its own bootstrap confirms identity');
  restoredIdentity={tenantId:'tenant',signedIn:true,restricted:true};
  auto=page.retry();await Promise.resolve();finishDiscovery({tenantId:'tenant',origins:[a,b],selected:b});await auto;
- assert.equal(windows.at(-1).requestedURL,b+'/?app_webview=1#/pages/screen/index?path=%2Faccount%2Frestricted');
+ assert.equal(windows.at(-1).requestedURL,b+'/?app_webview=1&native_auth=token-v1#/pages/screen/index?path=%2Faccount%2Frestricted');
  restoredIdentity={tenantId:'tenant',signedIn:false,restricted:false};
  auto=page.retry();await Promise.resolve();finishDiscovery({tenantId:'tenant',origins:[a,b],selected:b});await auto;
- assert.equal(windows.at(-1).requestedURL,b+'/?app_webview=1#/pages/login/index');
+ assert.equal(windows.at(-1).requestedURL,b+'/?app_webview=1&native_auth=token-v1#/pages/login/index');
  const mounted=windows.at(-1),count=windows.length;
  foregroundHook();foregroundHook();
  assert.equal(windows.length,count,'returning to foreground keeps the existing WebView');

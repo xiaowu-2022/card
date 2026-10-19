@@ -13,6 +13,7 @@ import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readCompany } from './config.mjs';
 import { prepareBranding } from './branding.mjs';
+import { prepareWebviewEntry } from './webview-entry.mjs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { icons } from 'lucide-react';
@@ -287,6 +288,7 @@ try {
             if (!preservePreview) rmSync(output, { recursive: true, force: true });
             mkdirSync(output, { recursive: true });
             const source = resolve(project, 'dist/build', platform === 'app' ? 'app' : 'h5');
+            if (platform === 'h5') prepareWebviewEntry(source, resolve(root, 'public/h5'));
             cpSync(source, output, {
                 recursive: true,
                 filter: (path) => !preservePreview || path !== resolve(source, 'index.html'),

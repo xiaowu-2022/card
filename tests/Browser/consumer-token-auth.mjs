@@ -81,7 +81,7 @@ for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome
         await page.addInitScript(({ token, channel, tenantId }) => {
             window.__consumerTokenBridge = { token, channel, tenantId };
         }, { token, channel, tenantId: fixture.authenticated.tenant.id });
-        await page.goto(origin + '/?app_webview=1#/pages/login/index');
+        await page.goto(origin + '/?app_webview=1&native_auth=token-v1#/pages/login/index');
         await page.locator('.restricted-title').waitFor();
         assert.equal(restoredFromNative, true);
         assert.equal(await page.evaluate(() => localStorage.getItem('consumer-bearer-v1')), null);
