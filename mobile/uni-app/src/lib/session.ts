@@ -10,11 +10,13 @@ import {
     setCsrf,
     setToken,
     clearFlow,
+    persistWebviewToken,
 } from './api';
 import { setPublicAssets } from './origin';
 import { configureLocale } from './i18n';
 import { clearCardsPreview } from './cards-preview';
 import { notifyWebviewSession } from './webview-session';
+import { assertBrowserCompany, onBrowserTokenChange } from './browser-credentials';
 export type Bootstrap = {
     supportAgent?: boolean;
     publicAssets?: Record<string, string>;
@@ -44,6 +46,7 @@ export const session = ref<Bootstrap | null>(null);
 export const isSupportAgent = computed(() => !!session.value?.user && !session.value.restricted && session.value.supportAgent === true);
 export const unread = reactive({ messages: 0, support: 0, agentSupport: 0 });
 let pending: Promise<void> | null = null;
+let pendingGeneration = -1;
 let walletEpoch = 0, walletReadyFor: string | null = null;
 let walletPending: { key: string; promise: Promise<void> } | null = null;
 function resetWalletReadiness() {
@@ -57,17 +60,34 @@ export function consumerSessionScope(): string | null {
     return value?.user ? JSON.stringify([walletEpoch, sessionGeneration, value.tenant.id, value.user.id]) : null;
 }
 export async function bootstrap() {
-    if (pending) return pending;
+    if (pending) {
+        if (pendingGeneration === sessionGeneration) return pending;
+        await pending.catch(() => {});
+        return bootstrap();
+    }
     const finishTiming = beginTiming('bootstrap');
     let outcome: 'ok' | 'error' = 'ok';
     let generation = sessionGeneration;
+    pendingGeneration = generation;
     pending = (async () => {
-        const data = await request<Bootstrap>('/bootstrap?defer_unread=1');
-        if (generation !== sessionGeneration) return;
-        if (native && data.tenant.slug !== company.tenantSlug) {
-            clearSession();
-            throw new ApiError(403);
+        let data: Bootstrap;
+        try { data = await request<Bootstrap>('/bootstrap?defer_unread=1'); }
+        catch (error) {
+            if (!(error instanceof ApiError) || error.status !== 401 || generation !== sessionGeneration) throw error;
+            await confirmRejectedCredential();
+            if (generation !== sessionGeneration) return;
+            // Company-confirmed rejection discards only the expired credential.
+            clearSession(false, true);
+            generation = sessionGeneration;
+            pendingGeneration = generation;
+            data = await request<Bootstrap>('/bootstrap?defer_unread=1');
         }
+        if (generation !== sessionGeneration) return;
+        if (!data.tenant?.id || typeof data.restricted !== 'boolean'
+            || (data.user !== null && (typeof data.user?.id !== 'string' || !data.user.id))) throw new ApiError(503);
+        if (native && data.tenant.slug !== company.tenantSlug) throw new ApiError(403);
+        if (!native) await persistWebviewToken(data.tenant.id);
+        if (generation !== sessionGeneration) return;
         setPublicAssets(data.publicAssets);
         session.value = data;
         if (data.unread) {
@@ -82,6 +102,15 @@ export async function bootstrap() {
         pending = null;
     });
     return pending;
+}
+async function confirmRejectedCredential() {
+    const value = await request<{ tenant: { id: string; slug: string }; user: null; restricted: boolean }>(
+        '/session', 'GET', undefined, undefined, true,
+    );
+    if (!value.tenant?.id || value.user !== null || typeof value.restricted !== 'boolean'
+        || (session.value && value.tenant.id !== session.value.tenant.id)
+        || (native && value.tenant.slug !== company.tenantSlug)) throw new ApiError(503);
+    if (!native) await assertBrowserCompany(value.tenant.id);
 }
 export function clearSession(explicitLogout = false, confirmedExpired = false) {
     notifyWebviewSession(false, session.value?.tenant.id, explicitLogout, confirmedExpired);
@@ -99,10 +128,9 @@ export async function login(identifier: string, password: string) {
         password,
         device_name: 'uni-app',
     });
-    if (native) {
-        if (!result.token) throw new ApiError(401);
-        setToken(result.token);
-    }
+    if (!result.token) throw new ApiError(401);
+    setToken(result.token);
+    clearFlow();
     if (result.csrfToken) setCsrf(result.csrfToken);
     resetWalletReadiness();
     resetSupportReminder();
@@ -207,9 +235,11 @@ export function confirmSession(): Promise<boolean> {
             return false;
         }
         return true;
-    })().catch(error => {
+    })().catch(async error => {
         outcome = 'error';
-        if (native && error instanceof ApiError && error.status === 401 && scope === consumerSessionScope()) {
+        if (error instanceof ApiError && error.status === 401 && scope === consumerSessionScope()) {
+            await confirmRejectedCredential();
+            if (scope !== consumerSessionScope()) return false;
             clearSession(false, true);
             uni.reLaunch({ url: '/pages/login/index' });
             return false;
@@ -221,3 +251,14 @@ export function confirmSession(): Promise<boolean> {
     });
     return sessionConfirmation;
 }
+onBrowserTokenChange(value => {
+    setToken(value);
+    clearFlow();
+    resetWalletReadiness();
+    resetSupportReminder();
+    session.value = null;
+    Object.assign(unread, { messages: 0, support: 0, agentSupport: 0 });
+    // Leave any previous account's mounted page immediately. Login restores the
+    // latest credential through bootstrap before showing a form or entering home.
+    uni.reLaunch({ url: '/pages/login/index' });
+});

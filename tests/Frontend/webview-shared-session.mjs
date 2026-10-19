@@ -11,6 +11,11 @@ runInNewContext(compile('mobile/webview-shell/src/lib/session-signal.ts'), {expo
 const a='https://a.example.test', b='https://b.example.test', c='https://foreign.example.test';
 const cookie='eyJ'+'A'.repeat(150)+'%3D';
 const listing={tenantId:'tenant-a',origins:[a,b],selected:b,fetchedAt:Date.now()};
+test('an uninitialized native WebView URL cannot pass the page identity barrier',()=>{
+    for (const value of [null, undefined, '', {}, 42, 'about:blank'])
+        assert.equal(exports.pageOrigin(value),null);
+    assert.equal(exports.pageOrigin(b+'/path?x=1'),b);
+});
 function setup(nativeVault=true) {
     let saved=null, meta=null;
     const jar=new Map(), writes=[];

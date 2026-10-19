@@ -17,8 +17,18 @@ function client(platform = 'app', ossStatus = 204, backupStatus = 204, serverOnl
     const exports = {};
     const source = readFileSync('mobile/uni-app/src/lib/api.ts', 'utf8').replaceAll('import.meta.env.UNI_PLATFORM', JSON.stringify(platform));
     runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
-        { exports, uni, plus: { os: { name: 'Android' }, android: {} }, fetch: async () => ({ blob: async () => ({ type: 'image/png' }) }),
-            require: id => id === './device-credentials' ? { androidCredentialVault: () => ({ read: () => null, write() {} }) } : id.includes('company.json') ? { default: { appId: 'test', tenantSlug: 'company-a', apiOrigin: 'https://app.example.org' } } : { ensureLatestApp: async () => {}, companyOrigin: () => 'https://app.example.org', ensureCompanyOrigin: async () => {} } });
+        { exports, uni, plus: { os: { name: 'Android' }, android: {} }, AbortController, Response, FormData, setTimeout, clearTimeout,
+            fetch: async (url, options = {}) => {
+                if(url.startsWith('blob:')) return new Response(new Blob(['image'],{type:'image/png'}));
+                return new Promise(resolve => {
+                    const args={url,method:options.method,header:options.headers,
+                        success:r=>resolve(new Response(r.statusCode===204?null:JSON.stringify(r.data),{status:r.statusCode})),
+                        data:typeof options.body==='string'?JSON.parse(options.body):undefined,
+                        formData:options.body instanceof FormData?Object.fromEntries(options.body):undefined};
+                    if(options.body instanceof FormData) uni.uploadFile(args); else uni.request(args);
+                });
+            },
+            require: id => id === './browser-credentials' ? { loadBrowserToken: async () => null, saveBrowserToken() {}, publishBrowserToken: async () => {} } : id === './device-credentials' ? { androidCredentialVault: () => ({ read: () => null, write() {} }) } : id.includes('company.json') ? { default: { appId: 'test', tenantSlug: 'company-a', apiOrigin: 'https://app.example.org' } } : { ensureLatestApp: async () => {}, companyOrigin: () => 'https://app.example.org', ensureCompanyOrigin: async () => {} } });
     exports.setToken('private-token'); return { api: exports, calls, uni };
 }
 for (const platform of ['app', 'h5']) {
@@ -32,7 +42,7 @@ for (const platform of ['app', 'h5']) {
         assert.deepEqual(Object.keys(calls[2].header), []);
         assert.equal(calls[2].formData.support_message, undefined);
         assert.equal(calls[4].data.support_image_upload_id, 'ticket');
-        if (platform === 'app') assert.equal(calls[1].header.Authorization, 'Bearer private-token');
+        assert.equal(calls[1].header.Authorization, 'Bearer private-token');
     });
     test(platform + ' KYC uploads straight to OSS and submits exact original URLs without backup or complete', async () => {
         const { api, calls } = client(platform);

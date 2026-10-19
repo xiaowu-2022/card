@@ -1,4 +1,4 @@
-// Loopback-only preview of compiled H5; Laravel continues to own API/cookies/CSRF.
+// Loopback-only preview of compiled H5; Laravel validates the API bearer identity.
 import http from 'node:http';
 import https from 'node:https';
 import { readFileSync, statSync, createReadStream } from 'node:fs';
@@ -24,7 +24,7 @@ const types = {
 };
 http.createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost');
-    if (/^\/(api\/v1|storage|images)(\/|$)/.test(url.pathname)) {
+    if (/^\/(api\/(?:mobile\/)?v1|storage|images)(\/|$)/.test(url.pathname)) {
         const upstream = (target.protocol === 'https:' ? https : http).request(
             new URL(req.url, target),
             { method: req.method, headers: { ...req.headers, host: target.host } },

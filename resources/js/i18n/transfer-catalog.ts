@@ -44,10 +44,10 @@ export const transferCatalog = {
         'Permintaan pindahan ini telah digunakan dengan butiran berbeza.',
         'Esta solicitud ya se utilizó con otros datos.',
     ],
-    'The recipient is unavailable. Check the account ID and company.': [
-        '收款账号不可用，请确认账号 ID 正确且属于同一公司，不能转给自己。',
-        'Penerima tidak tersedia. Semak ID akaun dan syarikat; tidak boleh menghantar kepada diri sendiri.',
-        'El destinatario no está disponible. Revisa el ID y la empresa; no puedes enviarte saldo a ti mismo.',
+    'The recipient has not completed identity registration and cannot receive transfers.': [
+        '对方未实名注册，无法接收转账。',
+        'Penerima belum melengkapkan pendaftaran identiti dan tidak boleh menerima pindahan.',
+        'El destinatario no ha completado el registro de identidad y no puede recibir transferencias.',
     ],
     'Your available balance is insufficient for this transfer.': [
         '可用余额不足，无法完成此次转账。',

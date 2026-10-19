@@ -20,6 +20,7 @@ function client(platform, base = '/', initialAssets = {}) {
     };
     const window = { __PUBLIC_ASSETS__: initialAssets, location: { origin: 'https://alternate.example.org', href: 'https://alternate.example.org/' } };
     function load(path) {
+        if (path.endsWith('browser-credentials.ts')) return { loadBrowserToken: async () => null, saveBrowserToken() {}, publishBrowserToken: async () => {}, onBrowserTokenChange() {}, assertBrowserCompany: async () => {} };
         if (path.endsWith('support-reminder.ts')) return { remindSupportUnread() {}, resetSupportReminder() {} };
         if (path.endsWith('device-credentials.ts')) return { androidCredentialVault: () => ({ read: () => null, write() {} }) };
         if (path === 'vue') return { ref: (value) => ({ value }), shallowRef: (value) => ({ value }), reactive: (value) => value, computed: (fn) => ({ get value() { return fn(); } }) };
@@ -31,7 +32,7 @@ function client(platform, base = '/', initialAssets = {}) {
         const compiled = ts.transpileModule(source, {
             compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
         }).outputText;
-        runInNewContext(compiled, { exports, window, location: window.location, URL, URLSearchParams, uni, plus: { os: { name: 'Android' }, android: {} }, require: (id) => id === 'vue' ? load('vue') : load(resolve(dirname(path), id + (id.endsWith('.json') ? '' : '.ts'))) });
+        runInNewContext(compiled, { exports, AbortController, Response, setTimeout, clearTimeout, fetch: async (url, options) => new Promise((resolve,reject) => uni.request({url,method:options.method,header:options.headers,withCredentials:false,success:r=>resolve(new Response(JSON.stringify(r.data),{status:r.statusCode})),fail:reject})), window, location: window.location, URL, URLSearchParams, uni, plus: { os: { name: 'Android' }, android: {} }, require: (id) => id === 'vue' ? load('vue') : load(resolve(dirname(path), id + (id.endsWith('.json') ? '' : '.ts'))) });
         return exports;
     }
     const sourceDir = resolve('mobile/uni-app/src/lib');
@@ -101,12 +102,14 @@ test('native requests wait for credential-free discovery and failed mutations ar
     assert.ok(c.calls.slice(1).every((call) => call.header.Authorization === 'Bearer secret'));
 });
 
-test('only the marked WebView H5 asks the server to require its remember credential', async () => {
+test('H5 and WebView use the cookie-independent transport without legacy remember markers', async () => {
     for (const [platform, search, expected] of [['h5','?app_webview=1','1'],['h5','',undefined],['app','?app_webview=1',undefined]]) {
         const c=client(platform); c.window.location.search=search;
         await assert.rejects(c.api.request('/bootstrap'));
         const request=c.calls.find(call=>call.url.endsWith('/bootstrap'));
-        assert.equal(request.header['X-Consumer-Webview'],expected);
+        assert.equal(request.header['X-Consumer-Webview'],undefined);
+        assert.equal(request.withCredentials,false);
+        assert.ok(request.url.endsWith('/api/mobile/v1/bootstrap'));
         assert.equal(request.header.Authorization,undefined);
     }
 });

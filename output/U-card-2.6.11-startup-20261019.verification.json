@@ -1,0 +1,13 @@
+{
+  "version": "2.6.11",
+  "build": 2611,
+  "sha256": "0ea158798bfd6a0cc21931356df5694c5c5f2b3bba04596dfa9bbe53aa725c9f",
+  "signer_sha256": "e972513b35b8087efce434e66fbee8df3beb0fc4db1cb7b1fd5b3f313192332f",
+  "size": 27646139,
+  "resources_match": true,
+  "native_code_unchanged": true,
+  "packaging": "local apktool/zipalign/apksigner using existing 2.6.10 shell",
+  "device_startup_verified": false,
+  "native_version_verified": true,
+  "native_package_verified": true
+}

@@ -1,5 +1,5 @@
 import { ref, onScopeDispose } from 'vue';
-import { ApiError, native, request, setCsrf, setToken, upload, type Upload, type UploadProgress } from './api';
+import { ApiError, request, setCsrf, setToken, clearFlow, upload, type Upload, type UploadProgress } from './api';
 import { bootstrap, session } from './session';
 import { t, errorMessage } from './i18n';
 import { go } from './navigation';
@@ -62,12 +62,13 @@ export function useAction() {
             registrationCreated.value = registration;
             if (disposed) return;
             if (response?.csrfToken) setCsrf(response.csrfToken);
-            if (response?.token && native) {
+            if (registration && !response?.token) throw new ApiError(502);
+            if (response?.token) {
                 setToken(response.token);
+                clearFlow();
                 await bootstrap();
             }
             if (
-                (!native && /^\/register\/challenges\/[a-f0-9-]+\/complete$/.test(path)) ||
                 path.startsWith('/account/information/')
             )
                 await bootstrap();

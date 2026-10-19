@@ -125,8 +125,8 @@ try {
                                 ),
                             });
                         }
-                        if (u.pathname.startsWith('/api/v1/')) {
-                            let key = u.pathname.slice(7);
+                        if (u.pathname.startsWith('/api/mobile/v1/')) {
+                            let key = u.pathname.slice('/api/mobile/v1'.length);
                             if (key === '/unread') return route.fulfill({ json: bootstrap.unread });
                             if (fixture.api[key]) return route.fulfill({ json: fixture.api[key] });
                             if (key === '/bootstrap') return route.fulfill({ json: bootstrap });

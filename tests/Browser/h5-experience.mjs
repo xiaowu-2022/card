@@ -121,7 +121,7 @@ for(const [name,engine,launch] of [['chrome',chromium,{channel:'chrome'}],['webk
   await page.getByText('Enter a positive transfer amount.',{exact:true}).waitFor();
   assert.equal(await page.locator('input[name="amount"]').evaluate(e=>e===document.activeElement),true);
   await page.locator('input[name="amount"]').fill('20');await page.getByText('Review transfer',{exact:true}).click();
-  await page.getByText('The recipient is unavailable. Check the account ID and company.',{exact:true}).waitFor();
+  await page.getByText('The recipient has not completed identity registration and cannot receive transfers.',{exact:true}).waitFor();
   assert.equal(await page.locator('input[name="recipient_account_id"]').evaluate(e=>e===document.activeElement),true);
   assert.equal(writes.includes('/client/wallet/transfers'),false,'invalid transfer never submits money');
   await page.goto(origin+'/?case=withdraw#/pages/screen/index?path='+encodeURIComponent('/wallet/withdraw'));

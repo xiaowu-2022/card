@@ -3,7 +3,27 @@
   "seeds": [
     "https://27m.my",
     "https://113b.my",
-    "https://18k.my"
+    "https://18k.my",
+    "https://113c.my",
+    "https://113d.my",
+    "https://113e.my",
+    "https://113f.my",
+    "https://113g.my",
+    "https://113h.my",
+    "https://113k.my",
+    "https://113m.my",
+    "https://113n.my",
+    "https://113p.my",
+    "https://113q.my",
+    "https://113r.my",
+    "https://113s.my",
+    "https://113t.my",
+    "https://113u.my",
+    "https://113v.my",
+    "https://113w.my",
+    "https://113x.my",
+    "https://113y.my",
+    "https://113z.my"
   ],
   "entryPath": "/#/pages/login/index",
   "cacheKey": "specpay-webview-directory-v1"

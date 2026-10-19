@@ -1,3 +1,214 @@
+## 2026-10-19 WebView 随机抽样选线（当前规则）
+
+内置域名和缓存域名清理、去重后构成候选池。每次随机、不重复地抽取最多六条，
+按每组三条分成两组；首组并发检测，全部失败或超时后才启动第二组，不逐个补位。
+首条通过 HTTPS、公司 slug、已缓存公司 ID 及活动目录成员校验的响应立即胜出，
+取消其他请求。不再等速度阈值、不比较全目录，也不把上次线路固定放在首组。
+每组最多 2 秒、整轮最多 4 秒，最多六个请求、最多三个并发。两组均失败显示现有
+重试入口；用户重试重新抽样。4 秒仅包括选线，不包括登录确认和网页加载。
+
+完整的新目录仍会替换缓存，但不会追加检测其中的新域名。冷启动、手动重连和
+前台目录刷新共用同一实现；前台仍保留当前线路、已挂载页面和滚动位置，手动
+重连复用正在进行的目录发现。检测请求不带 Token；凭证只发往已验证的公司线路。
+现有 Token、当前窗口身份和页面内容显示屏障保持不变。
+
+此规则取代下文历史的缓存首选、持续补位、速度阈值和 16 秒全目录预算。
+本次保留当前 `src/manifest.json` 的 2.6.11（2611），已重新编译壳资源；原生资源编译不等于
+签名包或真机安装。发布仍须遵守下述 Token 配套切换要求，无服务端接口或迁移变化。
+离线测试覆盖随机注入、两组数量/并发/时限、慢响应立即胜出、身份错误、迟到结果、
+取消失败、目录缓存、重试重新抽样和前台页面保留。
+
+# 2026-10-19 Token authentication cutover
+
+WebView and ordinary browser H5 now use the existing `/api/mobile/v1` Bearer
+transport, including registration, uploads, private images and support HTTP auth.
+See [CONSUMER_TOKEN_AUTH.md](../architecture/CONSUMER_TOKEN_AUTH.md) for storage,
+native mailbox, expiry/revocation and coordinated release requirements. This
+supersedes cookie restoration for the new shell/H5 build. The shell version is
+2.6.12 (2612). PHP, H5 and the signed rebuilt shell must be released together;
+replacing a cookie-only installed shell's H5 entry alone will break its handshake.
+Existing cookie sessions require one sign-in at cutover. Compilation is not cloud
+packaging, deployment or device acceptance. No migration/provider/financial test.
+
+## 2026-10-19 WebView 2.6.11 startup regression repair
+
+The user reports widespread native startup timeouts after 2.6.03, while the same
+phone browser can display the exact App login URL. Public directory, guest session
+and H5 entry reads succeed. This does not establish that every company domain is down.
+
+Comparison of the signed 2.6.03 and 2.6.10 embedded resources identifies a timing
+change: 2.6.03 installs the H5 identity listener after loaded, while the later shell
+can install before document readiness and permanently mark that load as prepared.
+Retry the existing listener until the current document acknowledges its scoped H5
+bootstrap; stop retrying once authenticated cookie capture or confirmed guest state
+has begun. Keep company checks, credential capture, sequence and stale-window guards.
+
+Content readiness also has a 200ms timer alternative to two animation frames for
+transparent native windows whose animation frames pause. Both paths recheck the same
+root, route, unchanged dimensions, visible nonempty content and pending-restoration
+marker. Native identity confirmation remains mandatory. Timeout text identifies only
+the structural stage; no credentials, user data or exception bodies are exposed.
+
+24 startup/readiness tests, 18 shared-session tests and shell type checking pass, including dropped early
+listener retries, paused frames, stale route/root/layout, pending restoration and
+unchanged discovery bounds. Native-device startup remains unverified. No H5/server
+changes, migrations or financial/provider operations are included.
+
+DCloud rejected cloud packaging due to today's quota. The test APK was instead built
+locally using apktool, zipalign and apksigner with the existing release certificate,
+reusing 2.6.10 native dex/libraries unchanged. Compiled resources match the source
+build. Native/resource versions are 2.6.11 (2611), certificate SHA256
+`e972513b35b8087efce434e66fbee8df3beb0fc4db1cb7b1fd5b3f313192332f`.
+APK SHA256: `0ea158798bfd6a0cc21931356df5694c5c5f2b3bba04596dfa9bbe53aa725c9f`.
+See `output/U-card-2.6.11-startup-20261019.verification.json`; publication to the
+user-requested root key `1.apk` is confirmed separately in `output/1-apk-publication.json`.
+
+## 2026-10-19 Published APK versus local startup repair
+
+The user confirmed that the failing device installed the latest OSS-uploaded 2.6.10.
+The publication record and the full OSS object backup taken before the 12:00 rollback
+both identify SHA256 `1abada619b7f89afd9bbd26eb272700d0dcb1fd8f6a97e2f9061e17d9f1e5138`.
+That package still directly calls `.match()` on native `getURL()` without a string guard.
+The local signed startup repair is a different APK, SHA256
+`994fbdc3978e1bb5cfaa8035d80b615520d22f26505f04b40d96cb6bc9f19a4e`, available as
+`output/U-card-2.6.10-startup-fix-20261019.apk`; its embedded URL and address helpers
+contain the string guards. Both packages display 2.6.10 (2610), so the version label
+cannot establish that the startup repair is installed. Do not claim the local repair
+was published based on the old publication report. Device startup remains unverified.
+
+## 2026-10-19 Website APK rolled back to 2.6.03
+
+At the user's request, OSS key `U 卡.apk` was restored from the retained
+`specpay-2.6.03-2603.apk` object. The original local APK's ZIP integrity and release
+signature were verified. The replaced 2.6.10 object was privately backed up before
+replacement. Full authenticated OSS readback matches original 2.6.03 SHA256
+`b3b89ffd6706ee295e74f11bd1a945627a0df197cc46529dced2e6cd8c821f87`.
+Public-read, AES256 and no-cache/no-store response headers were retained.
+Only `U 卡.apk` was replaced; backend release metadata was not changed.
+Full public HTTPS download from `https://zb33333.com/U%20%E5%8D%A1.apk` also
+matches that original hash. The HTTP check timed out before completing; HTTPS
+readback passed. Physical-device downgrade/installation remains unverified.
+
+## 2026-10-19 Signed Android 2.6.10 release published
+
+With explicit user authorization, HBuilderX 5.26 safe cloud packaging produced
+`mobile/webview-shell/dist/release/apk/__UNI__30F90A0__20261019101724.apk`.
+Native package `cc.specpay.cards`, native/resource version 2.6.10 (2610), APK ZIP
+integrity and the existing release certificate were verified. All three embedded
+app-service.js, app-config-service.js and app.css files exactly match the compiled
+resources. The 23 built-in seeds and 1000ms immediate / 2000ms per-probe / 16000ms
+whole-discovery parameters were checked inside the signed APK.
+
+SHA256: `1abada619b7f89afd9bbd26eb272700d0dcb1fd8f6a97e2f9061e17d9f1e5138`
+Size: 27,642,043 bytes. Release signer SHA256 remains
+`e972513b35b8087efce434e66fbee8df3beb0fc4db1cb7b1fd5b3f313192332f`.
+
+The actual previously published objects specpay.apk and `U 卡.apk` both contained
+signed 2.6.03, despite their same size as later builds. They were fully downloaded,
+signature/hash checked and backed up privately at
+`~/Private/SpecPay/release-backups/before-2610-20261019.apk`, with the companion JSON
+recording both prior object ETags and the original SHA256.
+
+The new version-labelled OSS object specpay-2.6.10-2610.apk was uploaded in 106 verified
+parts and fully read back before copying to both existing download keys. Both OSS
+objects and both plain public URLs were fully read back and SHA256 matched the signed
+local artifact. Public-read, AES256 at rest, APK content type and
+`Cache-Control: no-cache, no-store, must-revalidate` were retained. Local verification
+and publication JSON records accompany the APK. Temporary OSS credential export was
+removed after publication. No backend version metadata, PHP/H5, migration or financial
+provider operation was changed. Physical-device installation/startup remain unverified.
+
+## 2026-10-19 WebView sixteen-second discovery budget
+
+Shell 2.6.10 (2610) extends only the default total discovery budget to 16000ms, so all
+23 built-in candidates can be reached when preceding hosts consume their timeouts.
+Keep at most three concurrent probes, 2000ms native/JavaScript individual bounds and
+immediate selection of the first freshly company-verified response within 1000ms.
+Fast responses still abort all remaining requests immediately. Slower verified results
+remain fallback candidates. Preserve prior-host priority, fresh membership checks,
+identity barriers, visible retry and foreground no-switch behavior.
+
+Eight two-second groups cover 23 candidates nominally; real scheduling overhead can
+reduce the last group's time because the global 16-second deadline remains authoritative.
+Recompile, cloud-package and reinstall signed native shells; no PHP/H5 deployment,
+migration or financial/provider test is required.
+
+## 2026-10-19 WebView built-in fallback directory
+
+Shell 2.6.09 (2609) includes the original 27m.my, 113b.my and 18k.my plus the twenty
+user-specified 113c–113z company domains (excluding the unspecified letters). All 23
+origins are discovery candidates only: each still requires fresh company and active
+membership verification. After the first group fails or times out, free slots try the
+next built-in candidates even without a previously successful directory/cache.
+
+Retain at most three concurrent probes, prior-host priority, 1000ms immediate selection,
+2000ms individual timeout and the 4000ms overall budget. The total budget does not
+promise an exhaustive scan of all 23 unreachable hosts. Recompile, cloud-package and
+reinstall the signed shell; no PHP/H5 deployment or migration is needed.
+
+## 2026-10-19 WebView two-second slow-line fallback
+
+Shell 2.6.08 (2608) preserves first verified response within 1000ms immediate selection,
+three concurrent probes, prior-host priority and the four-second total budget. Both the
+native directory request and the independent JavaScript probe deadline now allow 2000ms.
+Responses above 1000ms remain verified fallback candidates, rather than immediately
+winning; discovery chooses the fastest verified fallback when candidates finish or the
+overall budget expires. Unknown callbacks are aborted before slots are reused. Fresh
+company/membership checks and foreground no-switch behavior remain unchanged.
+
+Recompile, cloud-package and reinstall the signed shell to apply this client change;
+resource compilation alone does not update an installed APK/IPA. No server deployment,
+migration or financial/provider test is required.
+
+## 2026-10-19 Production PHP startup optimization
+
+With explicit user approval, deployed only the lightweight directory changes in
+`ResolveTenantFromHost.php` and `routes/consumer-api.php`. Enabled the already installed
+PHP 8.4 OPcache extension in the FPM php.ini, retaining timestamp revalidation defaults,
+generated Laravel configuration/route caches as the www user, and gracefully reloaded
+PHP-FPM after its configuration test passed. No migration, financial/provider operation,
+H5/native rebuild or frontend proxy change was performed.
+
+Rollback copies of both PHP files, php.ini and the previous bootstrap/cache directory
+are stored privately on the main server in `/root/card-perf-20261019-094737` (0700).
+The generated configuration cache is www-owned and mode 0640. Future environment or route
+changes require regeneration of their respective Laravel caches; never expose cached
+configuration or private backups through a web route.
+
+The same main-server loopback directory endpoint returned HTTP 200 in 212–243ms before
+(median 226ms, five samples), then 28–34ms in seven warm samples after a 453ms first cold
+request. Front-server direct-origin and local-proxy checks subsequently took 22–26ms.
+External checks of 27m.my, 113b.my, 113c.my and 18k.my (three requests each) all returned
+200 in 582–965ms with the unchanged 544-byte body. These are bounded samples, not a
+promise of phone startup latency. Verified private/no-store, current tenant/directory,
+unknown-host 404, guest session 200, H5 entry 200 and OPcache mapped in running FPM.
+
+## 2026-10-18 Lightweight domain directory reads
+
+Both domain-directory API paths omit presentation eager loading and locale resolution,
+reusing the existing minimal tenant lookup already used for session confirmation.
+Host ownership, company availability, directory membership, throttling, cleanup fences
+and private/no-store responses remain fresh and unchanged. No cached ownership or static
+ping file substitutes for the verified directory. Deploy PHP for this optimization;
+no H5 rebuild, native rebuild or migration is required for this server-only change.
+
+Local loopback HTTP samples (10 sequential calls each) had median 95ms before and 71ms
+after, with the same 225-byte directory body. These samples include local development
+server/bridge overhead, exclude public DNS/TLS/CDN and do not establish phone or production
+latency. Public-directory response latency still needs deployment-side investigation.
+
+## 2026-10-18 WebView one-second qualifying response
+
+Supersedes the 300ms qualifying threshold below: select the first freshly company-verified
+response taking at most 1000ms, abort remaining requests immediately and do not probe
+queued domains after selection. Keep at most three concurrent probes, previous-host
+priority, 1s individual timeout, 4s overall budget, full fresh directory and identity
+barriers. Foreground refresh still never switches the mounted page.
+
+Build shell 2.6.07 (2607) resources, then cloud-package and reinstall the signed App;
+resource compilation alone does not update installed Apps. No PHP/H5 deployment or
+migration is required for this shell-only threshold change.
+
 ## 2026-10-17 Correct website APK object: `U 卡.apk`
 
 The user clarified that the website downloads OSS key `U 卡.apk`, not `specpay.apk`.
@@ -832,3 +1043,10 @@ cloud-package and install with HBuilderX using the existing signing process.
 This resource build does not produce a signed IPA/APK. H5 must also be rebuilt and
 copied to public/h5. Existing installed shells need reinstall to receive the barrier.
 Debug output includes only recovery stages; no credentials or identity values.
+
+2026-10-19：原生 WebView 初次加载时 `getURL()` 可能返回 null。页面来源校验
+和脱敏地址显示必须先验证字符串；无地址时保持未就绪、拒绝通过身份屏障，
+继续等待有效 HTTPS 页面，避免启动页出现 `Cannot read property 'match' of null`。
+本修复需要重新编译壳资源、云打包并安装；仅更新服务器 H5 不会修复已安装的壳。
+同次排查补充：标题事件忽略空事件与非字符串标题；返回键异步查询只允许操作
+发起查询的当前 WebView，重连或卸载后到达的旧回调直接忽略。

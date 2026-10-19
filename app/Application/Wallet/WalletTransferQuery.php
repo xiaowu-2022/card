@@ -19,7 +19,7 @@ final readonly class WalletTransferQuery
     /** Exact same-company lookup for an authenticated transfer review; never writes money. */
     public function recipient(string $tenantId, string $userId, string $accountId, string $asset): array
     {
-        $unavailable = fn () => new DomainException('WALLET_TRANSFER_RECIPIENT_UNAVAILABLE', 'The recipient is unavailable. Check the account ID and company.');
+        $unavailable = fn () => new DomainException('WALLET_TRANSFER_RECIPIENT_UNAVAILABLE', 'The recipient has not completed identity registration and cannot receive transfers.');
         $sender = $this->get($tenantId, $userId);
         if (! collect($sender['assets'])->contains(fn ($a) => $a['asset'] === $asset && $a['available'])) {
             throw $unavailable();

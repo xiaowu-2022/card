@@ -1,4 +1,5 @@
-export function safeAddress(value: string): string {
+export function safeAddress(value: unknown): string {
+    if (typeof value !== 'string') return '(未打开 HTTPS 网页)';
     const host = value.match(/^https:\/\/[a-z0-9.-]+(?::\d+)?(?=\/|$)/i)?.[0];
     if (!host) return '(未打开 HTTPS 网页)';
     const rest = value.slice(host.length), path = rest.split(/[?#]/)[0];

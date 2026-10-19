@@ -45,7 +45,7 @@ export async function refreshCompanyOrigins() {
 }
 
 export function companyOrigin(): string {
-    // H5 keeps host-only cookies; only native apps select a verified company origin.
+    // Browser credentials remain origin-scoped; only native apps select a verified company origin.
     if (import.meta.env.UNI_PLATFORM === 'h5') return window.location.origin;
     if (!router.selected) throw new Error('Company domain is not ready');
     return router.selected;

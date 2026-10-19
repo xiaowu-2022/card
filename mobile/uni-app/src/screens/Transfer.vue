@@ -152,7 +152,7 @@ async function submit() {
         ) {
             action.errors.value = {
                 recipient_account_id: t(
-                    'The recipient is unavailable. Check the account ID and company.',
+                    'The recipient has not completed identity registration and cannot receive transfers.',
                 ),
             };
             return;

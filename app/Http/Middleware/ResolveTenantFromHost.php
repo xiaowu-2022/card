@@ -22,8 +22,8 @@ final readonly class ResolveTenantFromHost
 
         abort_if($hostname === strtolower((string) config('tenancy.platform_admin_host')), 404);
 
-        // Session confirmation needs the same fresh Host ownership checks, without branding/locales.
-        $withPresentation = ! $request->is('api/v1/session', 'api/mobile/v1/session');
+        // Session confirmation and directory probes need fresh Host ownership, without presentation data.
+        $withPresentation = ! $request->is('api/v1/session', 'api/mobile/v1/session', 'api/v1/domains', 'api/mobile/v1/domains');
         $domain = $this->domains->resolveActiveHostname($hostname, $withPresentation);
         abort_if($domain === null, 404, 'Tenant not found for this host.');
 

@@ -13,7 +13,9 @@ export function readRememberCookie(header: string): string | null {
     const value = values[0].slice(rememberCookie.length + 1);
     return validRememberCookie(value) ? value : null;
 }
-export function pageOrigin(url: string): string | null {
+export function pageOrigin(url: unknown): string | null {
+    // Native WebViews have no URL while their first document is being created.
+    if (typeof url !== 'string') return null;
     return origin(url.match(/^https:\/\/[^/?#]+/i)?.[0]);
 }
 type Metadata = { initialized: boolean; source: string | null; signedIn: boolean; recovering?: boolean };

@@ -1,3 +1,27 @@
+On 2026-10-19 the user approved WebView randomized bounded line discovery.
+Sample three distinct candidates from the merged valid seed/cache pool, without
+pinning the previous selection. Race the first group; immediately accept the first
+company-verified active-directory member and abort all others, regardless of latency.
+Only if the whole group fails, try up to three remaining random candidates. Never
+probe more than six hosts or three concurrently; enforce 2s/group and 4s total.
+Cache the full fresh directory without probing added hosts; user retry resamples.
+Keep credential-free probes, Token identity/reveal barriers, shared foreground/manual
+discovery and no-switch mounted foreground pages. This supersedes prior exhaustive
+refill/fastest-fallback and cached-first selection. Recompile native resources; retain
+coordinated Token cutover. No migration/provider/financial tests.
+See docs/deployment/UNI_APP_PACKAGING.md.
+
+On 2026-10-19 the user approved explicit Token authentication for WebView and
+ordinary browser H5. Reuse existing scoped `/api/mobile/v1` Bearer authentication
+and independent form flow; browser requests/uploads/private images omit cookies.
+Preserve tenant/identity/revocation barriers, 30-day sliding lifetime, transient
+failure retention, explicit logout, warm foreground and current native reveal
+checks. Browser persistence is origin scoped; WebView uses memory plus native
+protected storage and an encrypted expiring document mailbox, never credential
+URLs/titles/logs. Coordinate PHP/H5 and signed rebuilt shell cutover; old cookie-only
+shells cannot load the new handshake. No migration/provider/financial tests.
+See docs/architecture/CONSUMER_TOKEN_AUTH.md and docs/deployment/UNI_APP_PACKAGING.md.
+
 On 2026-10-17 the user requested checking WebView line reuse, static cache and welcome
 reveal, avoiding duplicate implementations. Preserve existing three-concurrent verified
 probe race and no-switch foreground behavior. Reject pending login-restoration content

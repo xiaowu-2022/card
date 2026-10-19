@@ -100,7 +100,7 @@ it('rejects insufficient funds and malformed amounts without posting money', fun
 it('denies self, unknown and other-company recipients without disclosing contact data', function (): void {
     $other = User::query()->where('tenant_id', '<>', $this->tenant->id)->firstOrFail();
     foreach ([$this->sender->account_id, '200001010000', $other->account_id] as $accountId) {
-        expect(fn () => $this->action->execute($this->tenant->id, $this->sender->id, $accountId, '10', (string) Str::uuid()))->toThrow(DomainException::class, 'recipient is unavailable');
+        expect(fn () => $this->action->execute($this->tenant->id, $this->sender->id, $accountId, '10', (string) Str::uuid()))->toThrow(DomainException::class, 'recipient has not completed identity registration');
     }
     expect(WalletTransfer::query()->count())->toBe(0);
 });

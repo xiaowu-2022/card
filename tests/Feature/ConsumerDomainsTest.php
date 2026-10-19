@@ -39,10 +39,25 @@ it('rejects unavailable companies and follows active domain reassignment', funct
 
 it('limits repeated probes per host without consuming other domain or login allowances', function () {
     TenantDomain::create(['tenant_id' => $this->tenant->id, 'hostname' => 'alternate.example.org', 'domain_type' => 'CUSTOM_DOMAIN', 'status' => 'ACTIVE', 'is_primary' => false]);
-    for ($i = 0; $i < 30; $i++) {
+    for ($i = 0; $i < 60; $i++) {
         $this->getJson('https://a.localhost/api/mobile/v1/domains')->assertOk();
     }
     $this->getJson('https://a.localhost/api/mobile/v1/domains')->assertStatus(429);
     $this->getJson('https://alternate.example.org/api/mobile/v1/domains')->assertOk();
     $this->getJson('https://a.localhost/api/mobile/v1/bootstrap')->assertOk();
+});
+
+it('keeps directory probes free of presentation queries while reading fresh ownership', function () {
+    $queries = [];
+    DB::listen(function ($query) use (&$queries) {
+        $queries[] = strtolower($query->sql);
+    });
+    $this->getJson('https://a.localhost/api/mobile/v1/domains')->assertOk();
+    expect(collect($queries)->contains(fn ($sql) => str_contains($sql, 'tenant_branding')
+        || str_contains($sql, 'tenant_locales') || str_contains($sql, 'user_preferences')))->toBeFalse();
+    expect(collect($queries)->contains(fn ($sql) => str_contains($sql, 'tenant_domains')))->toBeTrue();
+    expect(collect($queries)->contains(fn ($sql) => str_contains($sql, 'pg_try_advisory_lock_shared')))->toBeTrue();
+
+    TenantDomain::where('hostname', 'a.localhost')->update(['status' => 'DISABLED']);
+    $this->getJson('https://a.localhost/api/mobile/v1/domains')->assertNotFound();
 });

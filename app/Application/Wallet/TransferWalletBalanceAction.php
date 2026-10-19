@@ -52,7 +52,7 @@ final readonly class TransferWalletBalanceAction
             \App\Application\User\UserOperationRestrictions::assertAllowed($tenantId, $senderId, 'wallet_transfer_blocked');
             $recipient = User::query()->where('tenant_id', $tenantId)->where('account_id', $recipientAccountId)->first();
             if (! $recipient || $recipient->id === $senderId) {
-                throw new DomainException('WALLET_TRANSFER_RECIPIENT_UNAVAILABLE', 'The recipient is unavailable. Check the account ID and company.');
+                throw new DomainException('WALLET_TRANSFER_RECIPIENT_UNAVAILABLE', 'The recipient has not completed identity registration and cannot receive transfers.');
             }
             $users = User::query()->where('tenant_id', $tenantId)->whereIn('id', [$senderId, $recipient->id])->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             $wallets = Wallet::query()->where('tenant_id', $tenantId)->whereIn('user_id', [$senderId, $recipient->id])
@@ -60,6 +60,9 @@ final readonly class TransferWalletBalanceAction
             foreach ([$senderId, $recipient->id] as $id) {
                 if ($tenant->status !== TenantStatus::Active || $users->get($id)?->status !== UserStatus::Active
                     || $wallets->get($id)?->status !== WalletStatus::Active || $this->kyc->forUser($tenantId, $id) !== KycUserStatus::Approved) {
+                    if ($id === $recipient->id) {
+                        throw new DomainException('WALLET_TRANSFER_RECIPIENT_UNAVAILABLE', 'The recipient has not completed identity registration and cannot receive transfers.');
+                    }
                     throw new DomainException('WALLET_TRANSFER_UNAVAILABLE', 'Both accounts need active verified wallets in the same currency.');
                 }
             }

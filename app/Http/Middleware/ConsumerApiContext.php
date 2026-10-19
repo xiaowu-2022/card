@@ -22,7 +22,7 @@ final readonly class ConsumerApiContext
         $request->attributes->set('consumer_mode', $mode);
         $guard = Auth::guard('tenant_user');
         if ($mode === 'mobile') {
-            // Native APIs never restore browser/admin cookies or accept a caller-selected tenant.
+            // Bearer transport (native, WebView and H5) never restores browser/admin cookies.
             $guard->forgetUser();
             $user = null;
             if ($bearer = $request->bearerToken()) {

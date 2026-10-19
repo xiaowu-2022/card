@@ -7,18 +7,20 @@ import manifest from '../../manifest.json';
 import { discover, type DirectoryCache } from '../../lib/directory';
 import { readinessScript } from '../../lib/readiness';
 import { safeAddress, debugScript, debugMessages } from '../../lib/debug';
-import { sharedSession, pageOrigin, validRememberCookie, rememberCookie, LoginRestoreUnavailable } from '../../lib/shared-session';
+import { pageOrigin, LoginRestoreUnavailable } from '../../lib/shared-session';
+import { tokenSession, validToken, type Identity } from '../../lib/token-session';
+import { iosCredentialVault, type IOSBridge } from '../../../../uni-app/src/lib/ios-credentials';
 import { sessionSignalScript } from '../../lib/session-signal';
 import { posterBridgeScript, posterReceiver, savePoster, type PosterRuntime } from '../../lib/poster-bridge';
 import { androidCredentialVault, type AndroidBridge } from '../../../../uni-app/src/lib/device-credentials';
 type Webview = {
     append: (child: Webview) => void; close: () => void;
-    getURL: () => string; evalJS: (script: string) => void; setStyle: (styles: Record<string, unknown>) => void;
+    getURL: () => string | null; evalJS: (script: string) => void; setStyle: (styles: Record<string, unknown>) => void;
     loadURL: (url: string) => void; reload: () => void; back: () => void;
     canBack: (callback: (result: { canBack: boolean }) => void) => void;
-    addEventListener: (event: string, callback: (event: { title?: string }) => void) => void;
+    addEventListener: (event: string, callback: (event: { title?: string | null } | null | undefined) => void) => void;
 };
-declare const plus: PosterRuntime & { webview: { create: (url: string, id: string, styles: Record<string, unknown>) => Webview }; runtime: { appid: string; quit: () => void }; os: { name: string }; android: AndroidBridge; navigator: { getCookie(url: string): string; setCookie(url: string, value: string): void } };
+declare const plus: PosterRuntime & { webview: { create: (url: string, id: string, styles: Record<string, unknown>) => Webview }; runtime: { appid: string; quit: () => void }; os: { name: string }; android: AndroidBridge; ios: IOSBridge; io: PosterRuntime['io'] & { convertLocalFileSystemURL(path: string): string } };
 const state = ref<'discovering' | 'restoring' | 'loading' | 'ready' | 'error'>('discovering');
 const error = ref(''), active = ref(''), loginRecoveryFailed = ref(false);
 const debugEnabled = ref(false), debugRows = ref<string[]>([]), debugUrl = ref('');
@@ -36,51 +38,61 @@ let documentDeadline = 0;
 let revealPending = false, startupPulseDone = false, startupPulseActive = false;
 let startupPulseTimer: ReturnType<typeof setTimeout> | undefined;
 let finishStartup: ReturnType<typeof beginTiming> | undefined, finishDocument: ReturnType<typeof beginTiming> | undefined, finishContent: ReturnType<typeof beginTiming> | undefined;
-let loginStore: ReturnType<typeof sharedSession> | null = null, loginTenant = '', sessionPrefix = '', signedIn = false;
+let loginStore: ReturnType<typeof tokenSession> | null = null, loginTenant = '', sessionPrefix = '', signedIn = false;
 let loginDirectory: DirectoryCache | null = null;
+let credentialRevision = 0;
 let sessionSequence = 0, identityReady = false, expectsSignedIn = false;
 let posterChannel: ReturnType<typeof posterReceiver> | null = null;
 let preparedDocument = -1;
-async function configureLogin(directory: DirectoryCache, previous: DirectoryCache | null) {
+async function nativeApi<T>(url: string, path: string, token: string | null = null, channel?: string, revision?: number): Promise<T> {
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        let task: { abort(): void } | undefined;
+        const finish = (value?: T, status?: number) => {
+            if (settled) return;
+            settled = true; clearTimeout(deadline);
+            if (status === 200) resolve(value!);
+            else { const error = new LoginRestoreUnavailable(); Object.assign(error, { status }); reject(error); }
+        };
+        const deadline = setTimeout(() => { finish(); try { task?.abort(); } catch {} }, 15000);
+        task = uni.request({
+            url: url + '/api/mobile/v1' + path, method: path === '/session' ? 'GET' : 'POST',
+            withCredentials: false, timeout: 15000,
+            header: { Accept: 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}),
+                ...(channel ? { 'X-Consumer-Bridge': channel } : {}) },
+            data: revision ? { revision } : {},
+            success: response => finish(response.data as T, response.statusCode), fail: () => finish(),
+        });
+    });
+}
+async function verifyToken(url: string, token: string | null): Promise<Identity> {
+    type Session = { tenant?: { id?: string; slug?: string }; user?: { id?: string } | null; restricted?: boolean };
+    let data: Session;
+    try { data = await nativeApi<Session>(url, '/session', token); }
+    catch (error) {
+        if (!token || (error as { status?: number }).status !== 401) throw error;
+        // Confirm a valid same-company guest response before clearing expiry.
+        data = await nativeApi<Session>(url, '/session');
+        if (data?.user !== null) throw new LoginRestoreUnavailable();
+    }
+    if (typeof data.tenant?.id !== 'string' || !data.tenant.id || data.tenant.slug !== config.tenantSlug
+        || typeof data.restricted !== 'boolean' || (data.user !== null && (typeof data.user?.id !== 'string' || !data.user.id)))
+        throw new LoginRestoreUnavailable();
+    return { tenantId: data.tenant.id, signedIn: !!data.user, restricted: data.restricted };
+}
+async function configureLogin(directory: DirectoryCache, _previous: DirectoryCache | null) {
     if (loginTenant && loginTenant !== directory.tenantId) throw new Error('公司信息已变更，请重新打开应用。');
     if (!loginStore) {
         loginTenant = directory.tenantId;
-        const scope = `webview:${plus.runtime.appid}:${config.tenantSlug}:${loginTenant}`;
+        const scope = `webview-token:${plus.runtime.appid}:${config.tenantSlug}:${loginTenant}`;
         const key = 'encrypted-session:' + scope, metaKey = 'session-state:' + scope;
         const vault = plus.os.name === 'Android' ? androidCredentialVault(plus.android, scope, {
             get: () => uni.getStorageSync(key), set: value => uni.setStorageSync(key, value), remove: () => uni.removeStorageSync(key),
-        }, validRememberCookie) : null;
-        loginStore = sharedSession({
-            cookies: { get: url => plus.navigator.getCookie(url) || '', set: (url, value) => plus.navigator.setCookie(url, value) },
-            vault,
-            verify: (url, value) => new Promise((resolve, reject) => {
-                let settled = false;
-                let request: { abort: () => void } | undefined;
-                const finish = (identity?: { tenantId: string; signedIn: boolean; restricted: boolean }) => {
-                    if (settled) return;
-                    settled = true; clearTimeout(deadline);
-                    if (identity) resolve(identity); else reject(new LoginRestoreUnavailable());
-                };
-                // Native transport timeouts are not reliable on every WebView runtime.
-                const deadline = setTimeout(() => {
-                    finish();
-                    try { request?.abort(); } catch { /* The retry screen must remain available. */ }
-                }, 15000);
-                request = uni.request({
-                    url: url + '/api/v1/session', method: 'GET', withCredentials: false, timeout: 15000,
-                    header: { Accept: 'application/json', 'X-Consumer-Webview': '1', ...(value ? { Cookie: rememberCookie + '=' + value } : {}) },
-                    success: response => {
-                        const data = response.data as { tenant?: { id?: string; slug?: string }; user?: { id?: string } | null; restricted?: boolean };
-                        if (response.statusCode !== 200 || typeof data?.tenant?.id !== 'string' || !data.tenant.id
-                            || data.tenant.slug !== config.tenantSlug || typeof data.restricted !== 'boolean'
-                            || (data.user !== null && (typeof data.user?.id !== 'string' || !data.user.id))) {
-                            finish(); return;
-                        }
-                        finish({ tenantId: data.tenant.id, signedIn: typeof data.user?.id === 'string', restricted: data.restricted });
-                    },
-                    fail: () => finish(),
-                });
-            }),
+        }, validToken) : iosCredentialVault(plus.ios,
+            plus.io.convertLocalFileSystemURL('_doc/consumer-token-' + encodeURIComponent(loginTenant) + '.json'), scope);
+        loginStore = tokenSession({ vault, verify: verifyToken,
+            open: async url => (await nativeApi<{ channel: string }>(url, '/session/bridge/open')).channel,
+            claim: async (url, channel, revision) => (await nativeApi<{ token: string }>(url, '/session/bridge/claim', null, channel, revision)).token,
             metadata: {
                 get: () => { const value = uni.getStorageSync(metaKey); return value && typeof value === 'object' ? value : null; },
                 set: value => uni.setStorageSync(metaKey, value),
@@ -88,13 +100,16 @@ async function configureLogin(directory: DirectoryCache, previous: DirectoryCach
         });
     }
     loginDirectory = directory;
-    await loginStore.configure(directory, previous?.tenantId === directory.tenantId ? previous.selected : undefined);
+    await loginStore.configure(directory);
 }
 function trustedLoginPage(view: Webview) {
     return !!loginDirectory && pageOrigin(view.getURL()) === active.value && loginDirectory.origins.includes(active.value);
 }
-function captureLogin() {
-    if (signedIn && child && trustedLoginPage(child) && loginStore && !loginStore.capture(active.value))
+async function captureLogin() {
+    const view = child, sequence = sessionSequence;
+    if (signedIn && view && trustedLoginPage(view) && loginStore
+        && !await loginStore.capture(active.value, credentialRevision,
+            () => !disposed && child === view && signedIn && sessionSequence === sequence && trustedLoginPage(view)))
         throw new Error('登录凭证尚未保存');
 }
 async function confirmPageIdentity(view: Webview, sequence: number) {
@@ -102,7 +117,8 @@ async function confirmPageIdentity(view: Webview, sequence: number) {
     for (let attempt = 0; attempt < 60; attempt++) {
         if (disposed || child !== view || sessionSequence !== sequence || !signedIn || !trustedLoginPage(view)) { finishTiming('error'); return; }
         try {
-            captureLogin();
+            await captureLogin();
+            if (disposed || child !== view || sessionSequence !== sequence || !signedIn || !trustedLoginPage(view)) { finishTiming('error'); return; }
             identityReady = true;
             finishTiming(); appendTimingRows();
             checkContent(view);
@@ -133,7 +149,7 @@ function debugLog(message: string) {
     if (debugEnabled.value) debugRows.value = [...debugRows.value.slice(-59), `${new Date().toLocaleTimeString()} ${message}`];
 }
 function installDebug() {
-    if (!debugEnabled.value || !child || debugInstalled || !/^https:\/\//i.test(child.getURL())) return;
+    if (!debugEnabled.value || !child || debugInstalled || !pageOrigin(child.getURL())) return;
     debugPrefix = `specpay-debug-${Date.now()}-${debugGeneration}:`;
     child.evalJS(debugScript(debugPrefix, true)); debugInstalled = true;
 }
@@ -185,7 +201,7 @@ function save(value: DirectoryCache) { try { uni.setStorageSync(config.cacheKey,
 function probe(url: string, onAbort?: (cancel: () => void) => void): Promise<unknown> {
     return new Promise((resolve, reject) => {
         const request = uni.request({
-        url: url + '/api/mobile/v1/domains', method: 'GET', timeout: 1000,
+        url: url + '/api/mobile/v1/domains', method: 'GET', timeout: 2000,
         header: { Accept: 'application/json' }, withCredentials: false,
         success: response => response.statusCode === 200 ? resolve(response.data) : reject(new Error('unavailable')),
         fail: reject,
@@ -226,7 +242,12 @@ function loading() {
     debugInstalled = false; debugPrefix = ''; debugLog('网页开始加载');
     readinessToken = `specpay-ready-${Date.now()}-${++loadSequence}`;
     child?.setStyle({ opacity: 0 });
-    timer = setTimeout(() => failure('网页未能显示，请重试或重新连接。'), Math.max(0, documentDeadline - Date.now()));
+    timer = setTimeout(() => {
+        const stage = !child || !pageOrigin(child.getURL()) ? '网页地址尚未就绪'
+            : preparedDocument !== loadSequence ? '网页脚本尚未注入'
+            : !identityReady ? '网页身份确认尚未完成' : '网页内容尚未就绪';
+        failure(`网页未能显示（${stage}），请重试或重新连接。`);
+    }, Math.max(0, documentDeadline - Date.now()));
     // Some runtimes delay both rendering and loaded until subresources finish.
     // Poll the current trusted document independently of those native events.
     if (child) checkContent(child);
@@ -278,9 +299,16 @@ function finishStartupLayout(view: Webview, bounds: ReturnType<typeof contentBou
     } else reveal();
 }
 function prepareDocument(view: Webview) {
-    if (preparedDocument !== loadSequence && trustedLoginPage(view)) {
-        preparedDocument = loadSequence;
+    if (!trustedLoginPage(view)) return;
+    // getURL can identify the destination before its document is ready for evalJS.
+    // Retry the idempotent listener until H5 actually acknowledges bootstrap. Do
+    // not restart an authenticated credential capture that is already in progress.
+    if (preparedDocument !== loadSequence || (!identityReady && !signedIn)) {
+        view.evalJS(loginStore!.script(active.value, sessionPrefix));
         view.evalJS(sessionSignalScript(sessionPrefix));
+    }
+    if (preparedDocument !== loadSequence) {
+        preparedDocument = loadSequence;
         posterChannel?.dispose();
         const prefix = `specpay-poster-${Date.now()}-${loadSequence}:`;
         const documentSequence = loadSequence;
@@ -325,13 +353,14 @@ function open(url: string, entryPath = config.entryPath) {
     view.addEventListener('loaded', () => {
         if (disposed || child !== view || state.value === 'error') return;
         // An empty native window can emit loaded before the requested document.
-        if (!/^https:\/\//i.test(view.getURL())) return;
+        if (!pageOrigin(view.getURL())) return;
         if (debugEnabled.value) debugUrl.value = safeAddress(view.getURL());
         finishDocument?.(); appendTimingRows();
         debugLog('文档 loaded，等待页面内容'); installDebug();
         checkContent(view);
     });
     view.addEventListener('titleUpdate', event => {
+        if (!event || typeof event.title !== 'string') return;
         if (!disposed && child === view && event.title?.startsWith('specpay-poster-')) {
             void posterChannel?.receive(event.title); return;
         }
@@ -341,10 +370,15 @@ function open(url: string, entryPath = config.entryPath) {
                 if (value.tenantId !== loginDirectory?.tenantId || typeof value.signedIn !== 'boolean'
                     || !Number.isSafeInteger(value.sequence) || value.sequence <= sessionSequence) return;
                 sessionSequence = value.sequence;
+                if (value.pending === true) {
+                    loginStore?.pending(); signedIn = false; expectsSignedIn = true; identityReady = false;
+                    return;
+                }
                 signedIn = value.signedIn;
+                credentialRevision = value.credentialRevision ?? 0;
                 if (signedIn) { expectsSignedIn = true; void confirmPageIdentity(view, sessionSequence); }
                 else if (value.signedOut === true) { loginStore?.clear(); expectsSignedIn = false; identityReady = true; }
-                else if (value.expired === true) { expectsSignedIn = false; identityReady = true; }
+                else if (value.expired === true) { loginStore?.clear(); expectsSignedIn = false; identityReady = true; }
                 else if (!expectsSignedIn) identityReady = true;
                 else { loginRecoveryFailed.value = true; failure('登录状态尚未恢复，请重试；登录凭证已保留。'); }
             } catch { loginStorageFailure(); }
@@ -355,7 +389,7 @@ function open(url: string, entryPath = config.entryPath) {
         }
         if (disposed || child !== view || state.value !== 'loading'
             || !identityReady || !readinessToken || event.title !== readinessToken
-            || !/^https:\/\//i.test(view.getURL())) return;
+            || !pageOrigin(view.getURL())) return;
         stopTimer(); revealPending = true;
         // Once content is ready, pulse its native bounds behind the welcome page.
         // Only reveal after restoring; stale windows cannot complete this sequence.
@@ -373,7 +407,7 @@ async function connect() {
     if (detecting || disposed) return;
     finishStartup = beginTiming('startup');
     detecting = true; state.value = 'discovering'; error.value = ''; loginRecoveryFailed.value = false; stopTimer();
-    try { captureLogin(); } catch { loginStorageFailure(); }
+    try { await captureLogin(); } catch { loginStorageFailure(); }
     const previous = cache();
     const previousChild = child; child = null; previousChild?.close();
     try {
@@ -416,8 +450,10 @@ function changeLine() {
 }
 function back() {
     if (!child) return;
-    child.canBack(result => {
-        if (result.canBack) child?.back();
+    const view = child;
+    view.canBack(result => {
+        if (disposed || child !== view) return;
+        if (result.canBack) view.back();
         else uni.showModal({ title: '退出应用', content: '确定退出吗？', confirmText: '退出', cancelText: '取消', success: r => {
             // #ifdef APP-PLUS
             if (r.confirm) plus.runtime.quit();
@@ -438,7 +474,7 @@ onShow(() => {
     }).catch(() => { /* Retain the last verified directory during a temporary outage. */ })
         .finally(() => { directoryRefresh = null; });
 });
-onHide(() => { try { captureLogin(); } catch { loginStorageFailure(); } background = true; stopDebug(); });
+onHide(() => { void captureLogin().catch(loginStorageFailure); background = true; stopDebug(); });
 onBackPress(() => { back(); return true; });
 onUnload(() => { disposed = true; posterChannel?.dispose(); stopDebug(); uni.offWindowResize(resizeContent); stopTimer(); child?.close(); child = null; });
 </script>

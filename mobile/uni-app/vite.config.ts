@@ -48,7 +48,7 @@ export default defineConfig({
         port: 5200,
         strictPort: true,
         proxy: {
-            '/api/v1': { target: config.apiOrigin, changeOrigin: true },
+            '/api/mobile/v1': { target: config.apiOrigin, changeOrigin: true },
             '/storage': { target: config.apiOrigin, changeOrigin: true },
         },
     },

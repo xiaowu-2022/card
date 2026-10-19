@@ -35,6 +35,7 @@ test('diagnostics redact secrets and restore console/listeners on remote disable
  const {debugScript,debugMessages,safeAddress}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
  assert.equal(safeAddress('https://27m.my/?token=SECRET#/pages/login/index?password=SECRET'),'https://27m.my/#/pages/login/index');
  assert.equal(safeAddress('https://user:SECRET@27m.my/'),'(未打开 HTTPS 网页)');
+ for (const value of [null, undefined, '', {}, 42]) assert.equal(safeAddress(value),'(未打开 HTTPS 网页)');
  assert.deepEqual(debugMessages(JSON.stringify([{kind:'console',level:'error',types:['SECRET','string'],message:'SECRET'}])),['console.error (string) [内容已脱敏]']);
  const chrome='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
  const browser=await chromium.launch({headless:true,...(existsSync(chrome)?{executablePath:chrome}:{})});
@@ -54,4 +55,27 @@ test('diagnostics redact secrets and restore console/listeners on remote disable
   await page.evaluate(()=>console.error('SECRET'));await page.waitForTimeout(1100);
   assert.equal(await page.evaluate(()=>window.titles.length),before);
  }finally{await browser.close();}
+});
+
+test('transparent-window timer reports stable content when frames pause, rejecting stale route, layout and identity restoration',async()=>{
+ const chrome='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+ const browser=await chromium.launch({headless:true,...(existsSync(chrome)?{executablePath:chrome}:{})});
+ try {
+  const page=await browser.newPage({viewport:{width:393,height:800}});
+  for (const change of ['none','route','layout','pending','hidden','root']) {
+   await page.setContent('<title>Spec Pay</title><uni-page-body style="display:block;height:600px">Sign in</uni-page-body>');
+   await page.evaluate(()=>{window.requestAnimationFrame=()=>1;window.seen=[];new MutationObserver(()=>window.seen.push(document.title)).observe(document.querySelector('title'),{childList:true});});
+   await page.evaluate(readinessScript('specpay-ready-paused'));
+   await page.evaluate(change=>{
+    const root=document.querySelector('uni-page-body');
+    if(change==='route')location.hash='changed';
+    if(change==='layout')root.style.height='500px';
+    if(change==='pending')root.innerHTML='<div data-webview-pending="true">Restoring</div>';
+    if(change==='hidden')root.style.visibility='hidden';
+    if(change==='root')root.replaceWith(root.cloneNode(true));
+   },change);
+   await page.waitForTimeout(350);
+   assert.equal(await page.evaluate(()=>window.seen.includes('specpay-ready-paused')),change==='none',change);
+  }
+ } finally {await browser.close();}
 });

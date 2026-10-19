@@ -1,3 +1,17 @@
+# 2026-10-19: current Token transport
+
+The 2.6.12 (2612) shell and ordinary H5 use explicit Bearer authentication via the
+existing `/api/mobile/v1` endpoints. This supersedes the cookie synchronization
+workflow described historically below. WebView credentials stay in page memory
+and OS-protected native storage, with a scoped, encrypted, expiring HTTP mailbox
+for document-to-shell capture; no credential travels through a URL or title.
+See [consumer Token architecture](../../docs/architecture/CONSUMER_TOKEN_AUTH.md).
+
+Release the PHP, matching H5 and signed rebuilt shell as a coordinated cutover.
+Cookie-only installed shells require upgrading; do not replace their shared H5
+entry alone. Old cookies are not imported: sign in once after upgrading. Native
+resource builds do not constitute signed packages or real-device persistence tests.
+
 # U卡 WebView 过渡工程
 
 这是独立的 uni-app CLI 工程，只负责打开线上 H5，不导入原 App 的业务页面。
@@ -38,26 +52,30 @@ DCloud AppID `__UNI__30F90A0`，Android 包名 `cc.specpay.cards`，iOS Bundle I
 ## 网站与线路
 
 `src/config.json` 集中配置内置域名、公司 slug、H5 入口和缓存键。
-内置域名仅为 `27m.my`、`113b.my`、`18k.my`；2026-10-08 按用户要求移除
-`specpay.cc`、`specpay.top`、`specpay.vip`。此调整不禁止服务器目录或已验证缓存
+当前内置 23 条种子域名，以 `src/config.json` 为准；历史上移除的
+`specpay.cc`、`specpay.top`、`specpay.vip` 不在种子中。此调整不禁止服务器目录或已验证缓存
 再次提供这些域名；若要停止动态发现，需在 Platform 中停用或解绑相应域名。
 默认入口为 `https://选定域名/#/pages/login/index`。
 部署前确保所有分配给该公司的域名均提供同一份 H5 和同源 API。
 
-每次启动并发检测内置域名和缓存域名，读取 `/api/mobile/v1/domains`，
-检查 HTTPS、公司 slug、已缓存的公司 ID 及域名自身是否仍在服务器列表中。
-新列表替换缓存，不累积已解绑域名；新发现的域名也要检测。
-每次启动、重试和重新连接都先测速，再打开本轮响应最快的可用线路。
-缓存仅用于发现候选域名，不再优先保留旧线路；有效登录凭证在同公司已验证线路间恢复。
-每次回到前台，最多每分钟刷新一次列表缓存，不自动移动当前网页。
-全部不可用时显示中文错误与重试，缓存不会绕过服务器验证。测速期间显示
-“正在检测线路速度，选择最快线路”，完成后才创建并加载远程网页。
+每次启动、重试和手动重连，从内置域名与缓存域名合并、去重后的有效候选池
+随机抽取最多两组，每组最多三条。首组并发读取 `/api/mobile/v1/domains`；
+首条通过 HTTPS、公司 slug、已缓存公司 ID 和活动域名成员校验的响应立即胜出，
+取消其余请求。首组全部失败或超时后才启动第二组，不逐条补测其他线路。
+每组上限 2 秒，整轮上限 4 秒；最多检测六条、最多三个并发，不遍历或全量比速。
+上次使用的线路不强制占首组名额。两组失败后显示中文错误与重试，点击重试重新抽样。
+这 4 秒仅指选线，不包括后续登录确认及网页加载。
+
+完整的新目录替换缓存，但不追加检测其中的新域名；缓存不会绕过服务器验证。
+检测期间不发送 Token，选定已验证公司线路后才恢复凭证并继续现有身份/页面显示检查。
+每次回到前台，最多每分钟刷新一次目录缓存，不自动移动当前网页；手动重连复用
+正在进行的目录发现。保留页面挂载状态和滚动位置。
 
 启动选线及网页加载期间显示本地黑金品牌欢迎页：“Spec Pay 万事达U卡 / 全球支付，尽在掌握。”，
 卡片示意图随包内置，不依赖网络。移除常驻返回、刷新、线路工具栏；加载成功后网页占满状态栏下方区域。
 加载超时或连接失败时在同一品牌页提供重试；“重新连接”确认后选择线路并恢复有效登录，失效凭证仍需重新登录。
 Android 返回键优先回退网页历史，无历史时提示退出。
-WebView 不注入 5+ 权限；业务使用 H5 的浏览器接口、Cookie 和原有服务端权限。
+WebView 不注入 5+ 权限；业务通过 H5 的 Token 接口及原有服务端权限处理。
 壳不保存账号密码、不替网页重发交易，也不注入脚本提交表单。2026-10-09 起允许下述受公司范围约束的登录凭证保存与恢复。
 
 ## 2026-10-09 同公司跨域保持登录

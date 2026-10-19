@@ -1,6 +1,7 @@
 import company from '../generated/company.json';
 import { companyOrigin, ensureCompanyOrigin, refreshCompanyOrigins } from './origin';
 import { androidCredentialVault, type AndroidBridge } from './device-credentials';
+import { loadBrowserToken, saveBrowserToken, publishBrowserToken } from './browser-credentials';
 export const native = import.meta.env.UNI_PLATFORM === 'app';
 let token: string | null = null;
 let tokenLoaded = false;
@@ -17,21 +18,35 @@ function credentialVault() {
         remove: () => uni.removeStorageSync(key),
     });
 }
-let csrf: string | null = null;
-let csrfUpdatedAt = 0;
 let flow: string | null = null;
+let flowUpdatedAt = 0;
 let language = '';
 let page = '/';
 export let sessionGeneration = 0;
 export function setToken(value: string | null) {
     if (native) credentialVault()?.write(value);
+    else saveBrowserToken(value);
     token = value;
     tokenLoaded = true;
     sessionGeneration++;
 }
+let loadingToken: Promise<void> | null = null;
+async function ensureToken() {
+    if (tokenLoaded) return;
+    if (!loadingToken) {
+        const generation = sessionGeneration;
+        loadingToken = (async () => {
+            const value = native ? credentialVault()?.read() ?? null : await loadBrowserToken();
+            if (generation !== sessionGeneration) return;
+            token = value; tokenLoaded = true;
+        })().finally(() => { loadingToken = null; });
+    }
+    await loadingToken;
+}
+export function persistWebviewToken(tenantId: string) { return publishBrowserToken(token, tenantId); }
 export function setCsrf(value: string | null) {
-    csrf = value;
-    csrfUpdatedAt = Date.now();
+    // Retained for shared action DTOs; bearer requests never use browser CSRF.
+    void value;
 }
 export function setLanguage(value: string) {
     language = value;
@@ -41,6 +56,7 @@ export function setCurrentPage(value: string) {
 }
 export function clearFlow() {
     flow = null;
+    flowUpdatedAt = 0;
 }
 export class ApiError extends Error {
     constructor(
@@ -78,45 +94,32 @@ function uploadResponseError(response: { statusCode: number; data: string }) {
 function url(path: string) {
     if (!/^\/[a-z0-9/?=&_%+.,:-]+$/i.test(path) || path.startsWith('//') || path.includes('..'))
         throw new Error('Invalid API path');
-    return `${native ? companyOrigin() : ''}${native ? '/api/mobile/v1' : '/api/v1'}${path}`;
+    return `${native ? companyOrigin() : ''}/api/mobile/v1${path}`;
 }
-function headers() {
-    if (native && !tokenLoaded) {
-        token = credentialVault()?.read() ?? null;
-        tokenLoaded = true;
-    }
+function headers(authenticated = true) {
     const header: Record<string, string> = { Accept: 'application/json', 'X-Consumer-Page': page };
     if (language || native) header['Accept-Language'] = language || uni.getLocale();
-    if (native && token) header.Authorization = `Bearer ${token}`;
-    if (native && flow) header['X-Consumer-Flow'] = flow;
-    if (!native && csrf) header['X-CSRF-TOKEN'] = csrf;
-    // A shell-restored remember credential owns the consumer session on this
-    // host. The marker grants no access; the server still verifies the cookie.
-    // #ifdef H5
-    if (!native && typeof location !== 'undefined' && new URLSearchParams(location.search).get('app_webview') === '1')
-        header['X-Consumer-Webview'] = '1';
-    // #endif
+    if (authenticated && token) header.Authorization = `Bearer ${token}`;
+    if (flow) header['X-Consumer-Flow'] = flow;
     return header;
 }
 function capture(header: Record<string, unknown> | undefined) {
-    const csrfEntry = Object.entries(header ?? {}).find(([key]) => key.toLowerCase() === 'x-csrf-token');
-    if (!native && typeof csrfEntry?.[1] === 'string') setCsrf(csrfEntry[1]);
     const entry = Object.entries(header ?? {}).find(
         ([key]) => key.toLowerCase() === 'x-consumer-flow',
     );
-    if (native && typeof entry?.[1] === 'string') flow = entry[1];
+    if (typeof entry?.[1] === 'string') { flow = entry[1]; flowUpdatedAt = Date.now(); }
 }
 export async function request<T>(
     path: string,
     method: 'GET' | 'POST' = 'GET',
     data?: Record<string, unknown>,
     onResponse?: (status: number, requestId: string) => void,
+    anonymous = false,
 ): Promise<T> {
-    // Reopen an idle browser session before sending a form; never replay the mutation.
-    if (!native && method === 'POST' && csrf && Date.now() - csrfUpdatedAt >= 60 * 60 * 1000) {
-        const fresh = await request<{ csrfToken: string }>('/bootstrap');
-        setCsrf(fresh.csrfToken);
-    }
+    await ensureToken();
+    // Refresh an idle form proof before sending, without replaying a mutation.
+    if (method === 'POST' && flow && Date.now() - flowUpdatedAt >= 60 * 60 * 1000)
+        await request('/bootstrap?defer_unread=1');
     await ensureCompanyOrigin().catch(() => {
         throw new ApiError(0, { error: { code: 'CLIENT_ORIGIN_UNAVAILABLE' } });
     });
@@ -125,25 +128,40 @@ export async function request<T>(
         return (c === 'x' ? value : (value & 3) | 8).toString(16);
     });
     const generation = sessionGeneration;
-    const send = () => new Promise<T>((resolve, reject) =>
+    const timeout = ['/client/kyc/applications', '/client/kyc/recognize-front'].includes(path.split('?')[0]) ? 300000
+        : path.split('?')[0] === '/client/cards/cardholder' ? 180000
+        : path.split('?')[0] === '/support/messages' ? 60000
+        : /^\/images\/direct\/[^/]+\/complete$/.test(path) ? 150000 : 20000;
+    const complete = (status: number, data: unknown, header: Record<string, unknown> | undefined): T => {
+        if (generation !== sessionGeneration) throw new ApiError(409);
+        capture(header);
+        const requestId = String(Object.entries(header ?? {}).find(([key]) => key.toLowerCase() === 'x-request-id')?.[1] ?? reference);
+        onResponse?.(status, requestId);
+        if (status >= 200 && status < 300) return data as T;
+        throw new ApiError(status, data as ApiError['payload'], requestId);
+    };
+    const send = () => !native ? browserFetch(url(path), {
+        method, headers: { ...headers(!anonymous), 'X-Request-ID': reference, ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}) },
+        ...(method === 'POST' ? { body: JSON.stringify(data ?? {}) } : {}),
+    }, timeout).then(async response => {
+        let result: unknown = null;
+        const text = await response.text();
+        try { result = text ? JSON.parse(text) : null; }
+        catch { throw new ApiError(response.ok ? 502 : response.status); }
+        const responseHeaders: Record<string, string> = {};
+        response.headers.forEach((value, key) => { responseHeaders[key] = value; });
+        return complete(response.status, result, responseHeaders);
+    }) : new Promise<T>((resolve, reject) =>
         uni.request({
             url: url(path),
             method,
             data,
-            header: { ...headers(), 'X-Request-ID': reference },
-            withCredentials: !native,
-            timeout: ['/client/kyc/applications', '/client/kyc/recognize-front'].includes(path.split('?')[0]) ? 300000
-                : path.split('?')[0] === '/client/cards/cardholder' ? 180000
-                : path.split('?')[0] === '/support/messages' ? 60000
-                : /^\/images\/direct\/[^/]+\/complete$/.test(path) ? 150000 : 20000,
+            header: { ...headers(!anonymous), 'X-Request-ID': reference },
+            withCredentials: false,
+            timeout,
             success(response) {
-                capture(response.header);
-                onResponse?.(response.statusCode, String(Object.entries(response.header ?? {}).find(([key]) => key.toLowerCase() === 'x-request-id')?.[1] ?? reference));
-                if (response.statusCode >= 200 && response.statusCode < 300)
-                    resolve(response.data as T);
-                else
-                    reject(new ApiError(response.statusCode, response.data as ApiError['payload'],
-                        String(Object.entries(response.header ?? {}).find(([key]) => key.toLowerCase() === 'x-request-id')?.[1] ?? reference)));
+                try { resolve(complete(response.statusCode, response.data, response.header)); }
+                catch (error) { reject(error); }
             },
             fail(error) {
                 reject(transportError(error));
@@ -161,6 +179,35 @@ export async function request<T>(
         return send();
     }
 }
+async function browserFetch(url: string, options: RequestInit, timeout: number): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, { ...options, credentials: 'omit', cache: 'no-store', signal: controller.signal });
+        // Keep the deadline through body receipt, including private images.
+        const body = await response.arrayBuffer();
+        return new Response(body.byteLength ? body : null, { status: response.status, statusText: response.statusText, headers: response.headers });
+    } catch { throw transportError({ errMsg: controller.signal.aborted ? 'timeout' : 'network' }); }
+    finally { clearTimeout(timer); }
+}
+function uploadTransport(options: UniApp.UploadFileOption) {
+    if (native) { uni.uploadFile(options); return; }
+    const generation = sessionGeneration;
+    void (async () => {
+        const form = new FormData();
+        for (const [key, value] of Object.entries(options.formData ?? {})) form.append(key, String(value));
+        const files = options.files ?? [{ name: options.name, uri: options.filePath }];
+        for (const file of files) {
+            const path = file.uri;
+            if (!path) throw new ApiError(422);
+            const blob = await (await fetch(path, { credentials: 'omit' })).blob();
+            form.append(file.name ?? 'file', blob, 'image');
+        }
+        const response = await browserFetch(options.url, { method: 'POST', headers: options.header, body: form }, options.timeout ?? 60000);
+        if (generation !== sessionGeneration) throw new ApiError(409);
+        options.success?.({ statusCode: response.status, data: await response.text(), errMsg: 'uploadFile:ok' });
+    })().catch(error => options.fail?.({ errMsg: error instanceof ApiError && error.status === 0 ? error.payload?.error?.code ?? 'network' : 'uploadFile:fail' }));
+}
 type UploadTicket = { id: string; mode?: string; url: string; imageUrl?: string; fields: Record<string, string> };
 export type UploadProgress = { stage: 'uploading' | 'submitting'; completed: number; total: number };
 export type Upload = { name: string; path: string };
@@ -170,6 +217,7 @@ export async function upload<T>(
     files: Upload[],
     onProgress?: (progress: UploadProgress) => void,
 ): Promise<T> {
+    await ensureToken();
     await uploadStep('prepare', null, () => ensureCompanyOrigin().catch(() => {
         throw new ApiError(0);
     }));
@@ -217,7 +265,7 @@ export async function upload<T>(
         const send = ({ file, ticket }: typeof prepared[number]) => uploadStep('upload', file.name, async () => {
             if (ticket.mode === 'kyc_url') {
                 if (purpose !== 'kyc' || !ticket.imageUrl || !/^https:\/\//i.test(ticket.imageUrl)) throw new ApiError(502);
-                await new Promise<void>((resolve, reject) => uni.uploadFile({
+                await new Promise<void>((resolve, reject) => uploadTransport({
                     url: ticket.url, filePath: file.path, name: 'file', formData: ticket.fields,
                     header: {}, timeout: 120000,
                     success: response => response.statusCode >= 200 && response.statusCode < 300
@@ -231,14 +279,14 @@ export async function upload<T>(
                 return;
             }
             // The private same-origin copy is validated before any business binding.
-            await new Promise<void>((resolve, reject) => uni.uploadFile({
+            await new Promise<void>((resolve, reject) => uploadTransport({
                 url: url('/images/direct/' + ticket.id + '/backup'),
                 filePath: file.path, name: 'file', header: headers(), timeout: 120000,
                 success: response => response.statusCode >= 200 && response.statusCode < 300
                     ? resolve() : reject(uploadResponseError(response)),
                 fail: error => reject(transportError(error)),
             }));
-            if (ticket.mode !== 'server') await new Promise<void>((resolve, reject) => uni.uploadFile({
+            if (ticket.mode !== 'server') await new Promise<void>((resolve, reject) => uploadTransport({
                 url: ticket.url,
                 filePath: file.path,
                 name: 'file',
@@ -266,7 +314,7 @@ export async function upload<T>(
         return uploadStep('submit', null, () => request<T>(path, 'POST', payload));
     }
     return new Promise((resolve, reject) =>
-        uni.uploadFile({
+        uploadTransport({
             url: url(path),
             header: headers(),
             timeout: ['/client/kyc/applications', '/client/kyc/recognize-front'].includes(path.split('?')[0]) ? 300000 : 60000,
@@ -309,8 +357,16 @@ export async function privateImage(path: string): Promise<string> {
     await ensureCompanyOrigin().catch(() => {
         throw new ApiError(0);
     });
-    const url = (native ? companyOrigin() + '/api/mobile/v1' : '/api/v1') + path;
+    await ensureToken();
+    const url = (native ? companyOrigin() : '') + '/api/mobile/v1' + path;
     const header = headers();
+    if (!native) {
+        const generation = sessionGeneration;
+        const response = await browserFetch(url, { headers: header }, 60000);
+        if (generation !== sessionGeneration) throw new ApiError(409);
+        if (!response.ok) throw new ApiError(response.status);
+        return URL.createObjectURL(await response.blob());
+    }
     return new Promise((resolve, reject) =>
         uni.downloadFile({
             url,

@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\Api\AppReleaseController;
 use App\Http\Controllers\Api\ConsumerController;
+use App\Http\Controllers\Api\ConsumerTokenBridgeController;
 use App\Http\Controllers\Api\DirectImageUploadController;
+use App\Http\Controllers\Api\HomeController;
 use App\Http\Controllers\Api\SupportWorkspaceController;
 use App\Http\Controllers\SupportRealtimeController;
 use App\Http\Middleware\ConsumerFlowSession;
@@ -15,8 +17,15 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('app-debug', [AppReleaseController::class, 'debug'])->middleware('business-throttle:240,1,consumer-debug:');
 Route::get('app-release', AppReleaseController::class)->middleware('business-throttle:240,1,consumer-release:');
-Route::get('domains', [ConsumerController::class, 'domains'])->middleware('throttle:consumer-domains');
+Route::get('domains', [ConsumerController::class, 'domains'])->middleware('throttle:consumer-domains')->withoutMiddleware(ResolveUserLocale::class);
 Route::get('session', [ConsumerController::class, 'session'])->middleware('business-throttle:240,1,consumer-session:')->withoutMiddleware(ResolveUserLocale::class);
+// Only the cookie-independent transport exposes the native credential mailbox.
+Route::middleware('business-throttle:120,1,consumer-token-bridge:')->group(function (): void {
+    Route::post('session/bridge/open', [ConsumerTokenBridgeController::class, 'open']);
+    Route::post('session/bridge/claim', [ConsumerTokenBridgeController::class, 'claim']);
+    Route::post('session/bridge/publish', [ConsumerTokenBridgeController::class, 'publish'])
+        ->middleware(RequireConsumerApiUser::class);
+});
 Route::get('bootstrap', [ConsumerController::class, 'bootstrap'])->middleware(['business-throttle:240,1,consumer-bootstrap:', ConsumerFlowSession::class]);
 Route::prefix('client')->middleware([
     ConsumerFlowSession::class,
@@ -24,8 +33,8 @@ Route::prefix('client')->middleware([
 ])->group(base_path('routes/consumer-client.php'));
 Route::post('login', [ConsumerController::class, 'login'])->middleware('throttle:20,1,consumer-login:');
 Route::middleware(RequireConsumerApiUser::class)->group(function (): void {
-    Route::get('home/summary', [\App\Http\Controllers\Api\HomeController::class, 'summary'])->middleware(RequireConsumerApiUser::class.':operational');
-    Route::get('home/activity', [\App\Http\Controllers\Api\HomeController::class, 'activity'])->middleware(RequireConsumerApiUser::class.':operational');
+    Route::get('home/summary', [HomeController::class, 'summary'])->middleware(RequireConsumerApiUser::class.':operational');
+    Route::get('home/activity', [HomeController::class, 'activity'])->middleware(RequireConsumerApiUser::class.':operational');
     Route::post('wallet/ensure', [ConsumerController::class, 'ensureWallet'])->middleware('business-throttle:240,1');
     Route::post('logout', [ConsumerController::class, 'logout']);
     Route::post('locale', [ConsumerController::class, 'locale'])->middleware('business-throttle:60,1,consumer-locale:');

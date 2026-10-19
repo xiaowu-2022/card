@@ -10,12 +10,13 @@ function setup({ native = false, serverSlug = 'company' } = {}) {
     runInNewContext(ts.transpileModule(readFileSync('mobile/uni-app/src/lib/cards-preview.ts', 'utf8'), {
         compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     }).outputText, { exports: preview });
-    const signedIn = (tenant = 'tenant-a', id = 'user-a') => ({ tenant: { id: tenant, slug: serverSlug }, user: { id }, unread: {}, locale: 'en' });
+    const signedIn = (tenant = 'tenant-a', id = 'user-a') => ({ tenant: { id: tenant, slug: serverSlug }, user: { id }, restricted: false, unread: {}, locale: 'en' });
     const api = { native, company: { tenantSlug: 'company' }, sessionGeneration: 0,
-        setToken() { api.sessionGeneration++; }, setCsrf() {}, clearFlow() {},
+        setToken() { api.sessionGeneration++; }, setCsrf() {}, clearFlow() {}, persistWebviewToken: async () => {},
         ApiError: class extends Error { constructor(status) { super(String(status)); this.status = status; } },
-        request(path) {
-            if (path === '/login') return Promise.resolve({});
+        request(path, method, data, onResponse, anonymous) {
+            if(anonymous) return Promise.resolve({tenant:{id:'tenant-a',slug:serverSlug},user:null,restricted:false});
+            if (path === '/login') return Promise.resolve({ token: '12|' + 'A'.repeat(64) });
             if (path.split('?')[0] === '/bootstrap') return Promise.resolve(signedIn());
             return new Promise((resolve, reject) => requests.push({ path, resolve, reject }));
         } };
@@ -26,6 +27,7 @@ function setup({ native = false, serverSlug = 'company' } = {}) {
         if (name === 'vue') return { ref: value => ({ value }), reactive: value => value, computed: fn => ({ get value() { return fn(); } }) };
         if (name === './startup-timing') return { beginTiming: () => () => {} };
         if (name === './api') return api;
+        if (name === './browser-credentials') return { onBrowserTokenChange() {}, assertBrowserCompany: async () => {} };
         if (name === './cards-preview') return preview;
         if (name === './webview-session') return { notifyWebviewSession() {} };
         if (name === './support-reminder') return { remindSupportUnread() {}, resetSupportReminder() {} };
@@ -119,10 +121,12 @@ test('H5 bootstrap accepts the current domain company independently of the build
     assert.equal(s.session.value.tenant.slug, 'tenant-b');
 });
 
-test('native bootstrap still rejects another company and clears its session', async () => {
+test('native bootstrap rejects another company while retaining its existing credential and session', async () => {
     const s = setup({ native: true, serverSlug: 'tenant-b' });
+    const before = s.session.value, generation = s.api.sessionGeneration;
     await assert.rejects(s.bootstrap());
-    assert.equal(s.session.value, null);
+    assert.equal(s.session.value, before);
+    assert.equal(s.api.sessionGeneration, generation);
 });
 
 
@@ -159,15 +163,31 @@ test('confirmed session expiry goes to login while stale confirmations cannot af
     assert.equal(other.session.value.user.id,'user-b');assert.deepEqual(other.navigations,[]);
 });
 
- test('only native bearer 401 confirms expiry; browser authorization failures retain state',async()=>{
+ test('bearer 401 confirms expiry for native and browser clients',async()=>{
  for(const native of [true,false]) {
  const s=setup({native});const before=s.session.value;const run=s.confirmSession();
  s.requests[0].reject(new s.api.ApiError(401));
- if(native){assert.equal(await run,false);assert.equal(s.session.value,null);assert.equal(s.navigations.length,1);}
- else {await assert.rejects(run);assert.equal(s.session.value,before);assert.equal(s.navigations.length,0);}
+ assert.equal(await run,false);assert.equal(s.session.value,null);assert.equal(s.navigations.length,1);
  }
  });
  test('bootstrap may defer unread without replacing counters with unknown zeroes', async()=>{
  const s=setup();s.api.request=async path=>{assert.equal(path,'/bootstrap?defer_unread=1');return {...s.signedIn(),unread:null};};
  await s.bootstrap();assert.equal(s.session.value.user.id,'user-a');
  });
+
+test('a bearer rejection followed by a cross-company guest or network failure preserves the intended credential', async () => {
+    for (const response of [null, { tenant: { id: 'other', slug: 'company' }, user: null, restricted: false }]) {
+        const s = setup(), before = s.session.value, generation = s.api.sessionGeneration;
+        const original = s.api.request;
+        s.api.request = (...args) => {
+            if (args[4]) return response ? Promise.resolve(response) : Promise.reject(Error('offline'));
+            return original(...args);
+        };
+        const run = s.confirmSession();
+        s.requests[0].reject(new s.api.ApiError(401));
+        await assert.rejects(run);
+        assert.equal(s.session.value, before);
+        assert.equal(s.api.sessionGeneration, generation);
+        assert.deepEqual(s.navigations, []);
+    }
+});

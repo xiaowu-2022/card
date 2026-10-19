@@ -155,7 +155,7 @@ export default function Transfer({
                                 if (form.data.recipient_account_id === accountId) {
                                     form.setError(
                                         'recipient_account_id',
-                                        'The recipient is unavailable. Check the account ID and company.',
+                                        'The recipient has not completed identity registration and cannot receive transfers.',
                                     );
                                     return;
                                 }

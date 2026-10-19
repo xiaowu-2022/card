@@ -21,6 +21,11 @@ async function harness(native = true) {
             await state.refresh?.();
         };
         const androidCredentialVault = () => null;
+        const loadBrowserToken = async () => null, saveBrowserToken = () => {}, publishBrowserToken = async () => {};
+        const fetch = async (url, options) => new Promise((resolve,reject) => uni.request({
+            url, method:options.method, header:options.headers, withCredentials:false,
+            fail:reject, success:r=>resolve(new Response(JSON.stringify(r.data),{status:r.statusCode,headers:r.header})),
+        }));
         const uni = {
             getLocale: () => 'en',
             request(options) {
