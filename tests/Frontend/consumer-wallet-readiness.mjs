@@ -12,6 +12,7 @@ function setup({ native = false, serverSlug = 'company' } = {}) {
     }).outputText, { exports: preview });
     const signedIn = (tenant = 'tenant-a', id = 'user-a') => ({ tenant: { id: tenant, slug: serverSlug }, user: { id }, restricted: false, unread: {}, locale: 'en' });
     const api = { native, company: { tenantSlug: 'company' }, sessionGeneration: 0,
+        hasConsumerToken: () => false,
         setToken() { api.sessionGeneration++; }, setCsrf() {}, clearFlow() {}, persistWebviewToken: async () => {},
         ApiError: class extends Error { constructor(status) { super(String(status)); this.status = status; } },
         request(path, method, data, onResponse, anonymous) {
@@ -190,4 +191,33 @@ test('a bearer rejection followed by a cross-company guest or network failure pr
         assert.equal(s.api.sessionGeneration, generation);
         assert.deepEqual(s.navigations, []);
     }
+});
+
+
+test('a successful anonymous resume response cannot discard an intended bearer identity', async () => {
+    const s = setup();
+    s.api.hasConsumerToken = () => true;
+    const before = s.session.value, generation = s.api.sessionGeneration;
+    const run = s.confirmSession();
+    s.requests[0].resolve({tenant: {id: 'tenant-a'}, user: null, restricted: false});
+    await assert.rejects(run, error => error.status === 503);
+    assert.equal(s.session.value, before);
+    assert.equal(s.api.sessionGeneration, generation);
+    assert.deepEqual(s.navigations, []);
+    const retry = s.confirmSession();
+    s.requests[1].resolve({tenant: {id: 'tenant-a'}, user: {id: 'user-a'}, restricted: false});
+    assert.equal(await retry, true);
+});
+
+test('an anonymous bootstrap after bearer login cannot be published as a guest or accepted as successful login', async () => {
+    const s = setup();
+    s.session.value = null;
+    s.api.hasConsumerToken = () => true;
+    s.api.request = async path => path === '/login' ? {token: '12|' + 'A'.repeat(64)}
+        : {tenant: {id: 'tenant-a'}, user: null, restricted: false};
+    const generation = s.api.sessionGeneration;
+    await assert.rejects(s.login('offline@example.test', 'fixture-password'), error => error.status === 503);
+    assert.equal(s.session.value, null);
+    assert.equal(s.api.sessionGeneration, generation + 1, 'only installing the new credential changes generation');
+    assert.deepEqual(s.navigations, []);
 });

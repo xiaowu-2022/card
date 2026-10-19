@@ -11,6 +11,7 @@ import {
     setToken,
     clearFlow,
     persistWebviewToken,
+    hasConsumerToken,
 } from './api';
 import { setPublicAssets } from './origin';
 import { configureLocale } from './i18n';
@@ -85,6 +86,9 @@ export async function bootstrap() {
         if (generation !== sessionGeneration) return;
         if (!data.tenant?.id || typeof data.restricted !== 'boolean'
             || (data.user !== null && (typeof data.user?.id !== 'string' || !data.user.id))) throw new ApiError(503);
+        // A successful anonymous response does not revoke a credential. A proxy
+        // or inconsistent response must not turn a just-signed-in user into a guest.
+        if (hasConsumerToken() && data.user === null) throw new ApiError(503);
         if (native && data.tenant.slug !== company.tenantSlug) throw new ApiError(403);
         if (!native) await persistWebviewToken(data.tenant.id);
         if (generation !== sessionGeneration) return;
@@ -136,6 +140,7 @@ export async function login(identifier: string, password: string) {
     resetSupportReminder();
     session.value = null;
     await bootstrap();
+    if (!(session.value as Bootstrap | null)?.user) throw new ApiError(503);
 }
 export async function logout() {
     await request('/logout', 'POST');
@@ -218,6 +223,7 @@ export function confirmSession(): Promise<boolean> {
         if (value.tenant?.id !== session.value?.tenant.id || typeof value.restricted !== 'boolean'
             || (value.user !== null && (typeof value.user?.id !== 'string' || !value.user.id))) throw new ApiError(503);
         if (!value.user) {
+            if (hasConsumerToken()) throw new ApiError(503);
             clearSession(false, true);
             uni.reLaunch({ url: '/pages/login/index' });
             return false;

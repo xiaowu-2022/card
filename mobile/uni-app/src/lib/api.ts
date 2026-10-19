@@ -43,6 +43,7 @@ async function ensureToken() {
     }
     await loadingToken;
 }
+export function hasConsumerToken() { return tokenLoaded && !!token; }
 export function persistWebviewToken(tenantId: string) { return publishBrowserToken(token, tenantId); }
 export function setCsrf(value: string | null) {
     // Retained for shared action DTOs; bearer requests never use browser CSRF.
