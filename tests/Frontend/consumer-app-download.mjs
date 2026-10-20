@@ -39,7 +39,7 @@ function downloadAction(refresh, userAgent = 'Mozilla Android 14') {
         })[name],
         navigator: { userAgent, platform: '', maxTouchPoints: 0 },
         window: { location: { assign: url => navigations.push(url) } },
-        uni: { showToast: value => messages.push(value.title), showActionSheet: value => { sheet = value; } },
+        uni: { navigateTo: value => { navigations.push(value.url); value.complete?.(); }, showToast: value => messages.push(value.title), showActionSheet: value => { sheet = value; } },
     });
     return { ...action, navigations, messages, choose: index => sheet.success({ tapIndex: index }) };
 }
@@ -66,21 +66,19 @@ test('refresh failure never downloads from the cached URL and permits retry', as
     assert.deepEqual(action.navigations, ['https://new.example/new.apk']);
 });
 
-test('repeated clicks share one active refresh and desktop selection reads fresh iOS configuration', async () => {
-    let finish, reads = 0;
-    const action = downloadAction(session => {
-        reads++;
-        return new Promise(resolve => { finish = () => {
-            session.value.appDownloads.iosDistributionUrl = 'https://new.example/ios';
-            resolve();
-        }; });
-    }, 'Mozilla Windows');
-    action.openAppDownload();
+test('iOS opens its compiled page immediately without bootstrap or an external URL', async () => {
+    let reads = 0;
+    const action = downloadAction(() => { reads++; throw Error('must not bootstrap'); }, 'Mozilla iPhone OS 17');
+    await action.openAppDownload();
     assert.equal(reads, 0);
-    const first = action.choose(1);
+    assert.deepEqual(action.navigations, ['/pages/app-download/index']);
+    assert.deepEqual(action.messages, []);
+});
+test('desktop iOS selection opens the same internal distribution page', async () => {
+    let reads = 0;
+    const action = downloadAction(() => { reads++; }, 'Mozilla Windows');
+    action.openAppDownload();
     await action.choose(1);
-    assert.equal(reads, 1);
-    finish();
-    await first;
-    assert.deepEqual(action.navigations, ['https://new.example/ios']);
+    assert.equal(reads, 0);
+    assert.deepEqual(action.navigations, ['/pages/app-download/index']);
 });

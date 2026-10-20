@@ -1,0 +1,1 @@
+import{g as n,O as e}from"./index-DA7XYEHy.js";function i(i,t={}){function o(){!document.hidden||t.retainOnBackground||t.retainUntilUnmount||i()}n(()=>{t.retainUntilUnmount||t.retainOnBackground&&document.hidden||i()}),e(()=>{i(),document.removeEventListener("visibilitychange",o)}),document.addEventListener("visibilitychange",o)}export{i as u};

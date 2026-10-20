@@ -16,7 +16,7 @@ export function normalizeWebEntry() {
         return;
     }
     if (
-        !/^\/(?:login|register|forgot-password|dashboard|account|cards|wallet|funds|assets|security-deposit|wealth|promotion|messages|support|about)(?:\/|$)/.test(
+        !/^\/(?:app-download|login|register|forgot-password|dashboard|account|cards|wallet|funds|assets|security-deposit|wealth|promotion|messages|support|about)(?:\/|$)/.test(
             path,
         )
     )

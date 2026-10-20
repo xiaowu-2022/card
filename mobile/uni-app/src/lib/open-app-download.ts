@@ -8,6 +8,11 @@ export function openAppDownload() {
     // #ifdef H5
     const open = async (platform: DownloadPlatform) => {
         if (opening) return;
+        if (platform === 'ios') {
+            opening = true;
+            uni.navigateTo({ url: '/pages/app-download/index', complete: () => { opening = false; } });
+            return;
+        }
         opening = true;
         try {
             // A page can stay open while Platform changes the download destination.

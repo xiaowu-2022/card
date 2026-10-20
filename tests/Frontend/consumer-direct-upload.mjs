@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
-function client(platform = 'app', ossStatus = 204, backupStatus = 204, serverOnly = false) {
+function client(platform = 'app', ossStatus = 204, backupStatus = 204, serverOnly = false, timers = {}) {
     const calls = [];
     const uni = {
         getLocale: () => 'en', getImageInfo: o => o.success(platform === 'app' ? { type: 'png' } : {}),
@@ -17,7 +17,7 @@ function client(platform = 'app', ossStatus = 204, backupStatus = 204, serverOnl
     const exports = {};
     const source = readFileSync('mobile/uni-app/src/lib/api.ts', 'utf8').replaceAll('import.meta.env.UNI_PLATFORM', JSON.stringify(platform));
     runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
-        { exports, uni, plus: { os: { name: 'Android' }, android: {} }, AbortController, Response, FormData, setTimeout, clearTimeout,
+        { exports, uni, plus: { os: { name: 'Android' }, android: {} }, AbortController, Response, FormData, setTimeout, clearTimeout, ...timers,
             fetch: async (url, options = {}) => {
                 if(url.startsWith('blob:')) return new Response(new Blob(['image'],{type:'image/png'}));
                 return new Promise(resolve => {
@@ -127,3 +127,43 @@ for (const platform of ['app', 'h5']) {
         assert.equal(progress.length, count);
     });
 }
+
+for (const platform of ['app', 'h5']) {
+    test(platform + ' hung image metadata times out before requesting upload tickets', async () => {
+        const timers = new Map();
+        let next = 0;
+        const { api, calls, uni } = client(platform, 204, 204, false, {
+            setTimeout: (fn, ms) => { const id = ++next; timers.set(id, { fn, ms }); return id; },
+            clearTimeout: id => timers.delete(id),
+        });
+        uni.getImageInfo = () => {};
+        const result = api.upload('/client/kyc/applications', {}, [{ name: 'back', path: 'blob:back' }]);
+        const rejection = assert.rejects(result, error => error.stage === 'read' && error.field === 'back'
+            && error.payload.error.code === 'CLIENT_REQUEST_TIMEOUT');
+        await new Promise(resolve => setImmediate(resolve));
+        const deadline = [...timers.values()].find(timer => timer.ms === 15000);
+        assert.ok(deadline);
+        deadline.fn();
+        await rejection;
+        assert.equal(calls.length, 0);
+    });
+}
+test('native upload watchdog aborts a silent transport and ignores late success', async () => {
+    const timers = new Map();
+    let next = 0, aborted = false, pending;
+    const { api, calls, uni } = client('app', 204, 204, true, {
+        setTimeout: (fn, ms) => { const id = ++next; timers.set(id, { fn, ms }); return id; },
+        clearTimeout: id => timers.delete(id),
+    });
+    uni.uploadFile = options => { pending = options; return { abort() { aborted = true; } }; };
+    const result = api.upload('/client/kyc/applications', {}, [{ name: 'back', path: 'local' }]);
+    const rejection = assert.rejects(result, error => error.stage === 'upload'
+        && error.payload.error.code === 'CLIENT_REQUEST_TIMEOUT');
+    await new Promise(resolve => setImmediate(resolve));
+    [...timers.values()].find(timer => timer.ms === 120000).fn();
+    await rejection;
+    assert.equal(aborted, true);
+    pending.success({ statusCode: 204 });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calls.length, 1);
+});

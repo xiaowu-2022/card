@@ -1169,3 +1169,19 @@ Debug output includes only recovery stages; no credentials or identity values.
 本修复需要重新编译壳资源、云打包并安装；仅更新服务器 H5 不会修复已安装的壳。
 同次排查补充：标题事件忽略空事件与非字符串标题；返回键异步查询只允许操作
 发起查询的当前 WebView，重连或卸载后到达的旧回调直接忽略。
+
+
+### 2026-10-20 document upload wait bounds
+
+Consumer image metadata reads now stop after 15 seconds, and upload preparation
+stops after 30 seconds. Upload transports have an independent once-only deadline
+(including H5 local-file reads); native tasks are aborted when their callback does
+not arrive. Late transport success cannot complete a timed-out operation or submit
+its business request. Existing authenticated upload tickets, credential-free OSS
+requests and business submission rules remain unchanged.
+
+This bounds a reported H5 wait at 0/2 documents; it does not establish the cause of
+the reported storage/network failure. Publish the matching H5 build and retain old
+hashed assets. WebView shells consume the refreshed H5; standalone native resources
+need their normal rebuild to receive this transport change. No migration is needed.
+Offline validation: consumer-direct-upload tests and uni-app typecheck.

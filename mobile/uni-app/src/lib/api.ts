@@ -78,8 +78,19 @@ export class UploadError extends ApiError {
     }
 }
 async function uploadStep<T>(stage: UploadStage, field: string | null, run: () => Promise<T>): Promise<T> {
-    try { return await run(); }
+    if (stage !== 'read' && stage !== 'prepare') {
+        try { return await run(); }
+        catch (error) { throw error instanceof UploadError ? error : new UploadError(stage, field, error); }
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        return await Promise.race([run(), new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(transportError({ errMsg: 'timeout' })),
+                stage === 'read' ? 15000 : 30000);
+        })]);
+    }
     catch (error) { throw error instanceof UploadError ? error : new UploadError(stage, field, error); }
+    finally { if (timer !== undefined) clearTimeout(timer); }
 }
 function transportError(error?: { errMsg?: string }) {
     return new ApiError(0, /timeout/i.test(error?.errMsg ?? '')
@@ -192,7 +203,26 @@ async function browserFetch(url: string, options: RequestInit, timeout: number):
     finally { clearTimeout(timer); }
 }
 function uploadTransport(options: UniApp.UploadFileOption) {
-    if (native) { uni.uploadFile(options); return; }
+    // Some runtimes omit failure callbacks; settle once and abort on our deadline.
+    const success = options.success;
+    const fail = options.fail;
+    let settled = false;
+    let task: UniApp.UploadTask | undefined;
+    const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        task?.abort?.();
+        fail?.({ errMsg: 'uploadFile:fail timeout' });
+    }, options.timeout ?? 60000);
+    options = { ...options,
+        success: response => { if (!settled) { settled = true; clearTimeout(timer); success?.(response); } },
+        fail: error => { if (!settled) { settled = true; clearTimeout(timer); fail?.(error); } },
+    };
+    if (native) {
+        try { task = uni.uploadFile(options) as unknown as UniApp.UploadTask; }
+        catch { options.fail?.({ errMsg: 'uploadFile:fail' }); }
+        return;
+    }
     const generation = sessionGeneration;
     void (async () => {
         const form = new FormData();
@@ -201,9 +231,10 @@ function uploadTransport(options: UniApp.UploadFileOption) {
         for (const file of files) {
             const path = file.uri;
             if (!path) throw new ApiError(422);
-            const blob = await (await fetch(path, { credentials: 'omit' })).blob();
+            const blob = await (await browserFetch(path, {}, 15000)).blob();
             form.append(file.name ?? 'file', blob, 'image');
         }
+        if (settled) return;
         const response = await browserFetch(options.url, { method: 'POST', headers: options.header, body: form }, options.timeout ?? 60000);
         if (generation !== sessionGeneration) throw new ApiError(409);
         options.success?.({ statusCode: response.status, data: await response.text(), errMsg: 'uploadFile:ok' });
@@ -243,7 +274,7 @@ export async function upload<T>(
                     : kind === 'png' ? 'image/png' : kind === 'webp' ? 'image/webp' : '';
                 // H5 getImageInfo supplies dimensions but no type; selected images are local blobs.
                 if (!mime && !native && /^(blob:|data:image\/)/i.test(file.path)) {
-                    const blob = await fetch(file.path).then((response) => response.blob()).catch(() => {
+                    const blob = await browserFetch(file.path, {}, 15000).then((response) => response.blob()).catch(() => {
                         throw new ApiError(422);
                     });
                     mime = blob.type.toLowerCase();

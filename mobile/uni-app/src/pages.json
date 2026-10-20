@@ -13,6 +13,9 @@
       "path": "pages/login/index"
     },
     // #endif
+    // #ifdef H5
+    { "path": "pages/app-download/index" },
+    // #endif
     {
       "path": "pages/assets/index"
     },

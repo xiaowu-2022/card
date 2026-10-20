@@ -56,6 +56,15 @@ foreach (scandir(__DIR__) ?: [] as $file) {
     }
 }
 usort($packages, static fn (array $a, array $b): int => ($b['modified'] <=> $a['modified']) ?: strcmp($a['file'], $b['file']));
+if (($_GET['format'] ?? null) === 'json') {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['packages' => array_map(static fn (array $package): array => [
+        'file' => $package['file'], 'title' => $package['title'],
+        'version' => $package['version'], 'build' => $package['build'], 'size' => $package['size'],
+        'downloadUrl' => ipaDownloadUrl($package, $base),
+    ], $packages), 'unavailable' => $unavailable], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    exit;
+}
 header('Content-Type: text/html; charset=utf-8');
 ?>
 <!doctype html>

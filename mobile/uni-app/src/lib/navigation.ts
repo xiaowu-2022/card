@@ -3,6 +3,7 @@ import { consumerSessionScope } from './session';
 import { t } from './i18n';
 // All business URLs stay inside uni-app. Only explicitly registered consumer paths resolve.
 const direct: Record<string, string> = {
+    '/app-download': '/pages/app-download/index',
     '/login': '/pages/login/index',
     '/dashboard': '/pages/assets/index',
     '/cards': '/pages/cards/index',
