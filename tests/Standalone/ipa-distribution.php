@@ -62,3 +62,29 @@ try {
 check(ipaFailureCode(new RuntimeException('Archive support unavailable')) === 'IPA-PHP-PHAR', 'missing PHP archive support is explicit');
 check(ipaFailureCode(new RuntimeException('Unavailable package')) === 'IPA-FILE-ACCESS', 'unreadable file is explicit');
 check(ipaFailureCode(new UnexpectedValueException('private path')) === 'IPA-ARCHIVE', 'archive diagnostics do not reveal raw errors');
+
+$remoteDirectory = sys_get_temp_dir().'/ipa-remote-'.bin2hex(random_bytes(8));
+mkdir($remoteDirectory);
+try {
+    check(ipaRemotePackage($remoteDirectory) === null, 'unconfigured remote retains local distribution');
+    $remote = ['file' => 'U-card-2.6.20.ipa', 'bundle' => 'com.example.distribution', 'build' => '42',
+        'version' => '2.1.0', 'title' => 'U 卡', 'size' => 123, 'modified' => 123456,
+        'sha256' => str_repeat('a', 64), 'url' => 'https://cdn.example/U%20%E5%8D%A1.ipa?v=42'];
+    file_put_contents($remoteDirectory.'/oss-release.json', json_encode($remote));
+    $loaded = ipaRemotePackage($remoteDirectory);
+    check($loaded === $remote, 'remote release works without local IPA');
+    check(ipaDownloadUrl($loaded, 'https://company.example/ipa') === $remote['url'], 'direct download uses OSS');
+    check(str_contains(ipaManifest($loaded, 'https://company.example/ipa'), '<string>'.$remote['url'].'</string>'), 'OTA manifest downloads from OSS');
+    foreach (['http://cdn.example/app.ipa', 'https://user:secret@cdn.example/app.ipa', 'javascript:alert(1)'] as $url) {
+        file_put_contents($remoteDirectory.'/oss-release.json', json_encode(array_replace($remote, ['url' => $url])));
+        try {
+            ipaRemotePackage($remoteDirectory);
+            throw new LogicException('Unsafe remote accepted');
+        } catch (RuntimeException) {
+            echo "PASS unsafe remote URL rejected\n";
+        }
+    }
+} finally {
+    unlink($remoteDirectory.'/oss-release.json');
+    rmdir($remoteDirectory);
+}

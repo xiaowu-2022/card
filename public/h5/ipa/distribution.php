@@ -178,7 +178,7 @@ function ipaPackage(string $path): array
 function ipaManifest(array $package, string $base): string
 {
     $escape = static fn (string $text): string => htmlspecialchars($text, ENT_XML1 | ENT_QUOTES, 'UTF-8');
-    $url = $escape($base.'/'.rawurlencode($package['file']));
+    $url = $escape(ipaDownloadUrl($package, $base));
     $bundle = $escape($package['bundle']);
     $version = $escape($package['build']);
     $title = $escape($package['title']);
@@ -202,4 +202,36 @@ function ipaFailureCode(Throwable $error): string
         'Invalid application metadata', 'Invalid bundle identifier' => 'IPA-METADATA',
         default => $error instanceof UnexpectedValueException ? 'IPA-ARCHIVE' : 'IPA-READ',
     };
+}
+
+function ipaRemotePackage(string $directory): ?array
+{
+    $path = $directory.'/oss-release.json';
+    if (! is_file($path)) {
+        return null;
+    }
+    $package = json_decode(file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    if (! is_array($package)) {
+        throw new RuntimeException('Invalid remote release');
+    }
+    foreach (['file', 'bundle', 'build', 'version', 'title', 'url', 'sha256'] as $field) {
+        ipaString($package, $field);
+    }
+    $url = parse_url($package['url']);
+    if (! is_array($url) || ($url['scheme'] ?? '') !== 'https' || empty($url['host'])
+        || isset($url['user']) || isset($url['pass']) || isset($url['fragment'])
+        || preg_match('/[\s\\\\]/', $package['url'])
+        || basename($package['file']) !== $package['file'] || ! preg_match('/\.ipa$/iD', $package['file'])
+        || ! preg_match('/^[a-f0-9]{64}$/D', $package['sha256'])
+        || ! is_int($package['size'] ?? null) || $package['size'] < 1
+        || ! is_int($package['modified'] ?? null)) {
+        throw new RuntimeException('Invalid remote release');
+    }
+
+    return $package;
+}
+
+function ipaDownloadUrl(array $package, string $base): string
+{
+    return $package['url'] ?? $base.'/'.rawurlencode($package['file']);
 }

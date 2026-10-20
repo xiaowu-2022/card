@@ -17,6 +17,12 @@ if (! preg_match('/^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])
 // Always HTTPS, including behind a TLS-terminating reverse proxy. Do not trust
 // arbitrary forwarded-host/proto headers to construct an installation URL.
 $base = 'https://'.$host.'/ipa';
+try {
+    $remote = ipaRemotePackage(__DIR__);
+} catch (Throwable) {
+    http_response_code(503);
+    exit('分发配置暂不可用（IPA-CONFIG）');
+}
 $escape = static fn (string $text): string => htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 if (isset($_GET['manifest'])) {
     $file = $_GET['manifest'];
@@ -25,7 +31,7 @@ if (isset($_GET['manifest'])) {
         exit('Package not found');
     }
     try {
-        $package = ipaPackage(__DIR__.'/'.$file);
+        $package = ($remote !== null && $remote['file'] === $file) ? $remote : ipaPackage(__DIR__.'/'.$file);
         header('Content-Type: application/xml; charset=utf-8');
         echo ipaManifest($package, $base);
     } catch (Throwable $error) {
@@ -35,11 +41,11 @@ if (isset($_GET['manifest'])) {
     }
     exit;
 }
-$packages = [];
+$packages = $remote === null ? [] : [$remote];
 $unavailable = 0;
 $failures = [];
 foreach (scandir(__DIR__) ?: [] as $file) {
-    if (! preg_match('/\.ipa$/iD', $file)) {
+    if (($remote !== null && $remote['file'] === $file) || ! preg_match('/\.ipa$/iD', $file)) {
         continue;
     }
     try {
@@ -85,7 +91,7 @@ header('Content-Type: text/html; charset=utf-8');
 <div class="details"><div class="title"><h2><?= $escape($package['title']) ?></h2><?php if ($index === 0) { ?><span class="badge">最近上传</span><?php } ?></div>
 <p>版本 <?= $escape($package['version']) ?> · Build <?= $escape($package['build']) ?> · <?= number_format($package['size'] / 1048576, 1) ?> MB</p>
 <p class="filename"><?= $escape($package['file']) ?></p></div>
-<div class="actions"><a class="install" href="<?= $escape($install) ?>">安装到设备</a><a class="download" href="<?= $escape('/ipa/'.rawurlencode($package['file'])) ?>" download>下载 IPA 文件</a></div>
+<div class="actions"><a class="install" href="<?= $escape($install) ?>">安装到设备</a><a class="download" href="<?= $escape(ipaDownloadUrl($package, $base)) ?>" download>下载 IPA 文件</a></div>
 </article>
 <?php } ?>
 </section>
