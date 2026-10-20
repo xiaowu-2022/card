@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 define('IPA_DISTRIBUTION', true);
-require dirname(__DIR__, 2).'/public/ipa/distribution.php';
+require dirname(__DIR__, 2).'/public/h5/ipa/distribution.php';
 function check(bool $condition, string $label): void
 {
     if (! $condition) {

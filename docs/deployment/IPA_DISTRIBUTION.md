@@ -1,9 +1,9 @@
 # iOS IPA 分发
 
-入口：`https://你的域名/ipa/`，或 `/ipa/index.php`。部署整个 `public/ipa` 文件夹，服务器需要 PHP 8.4、Phar、zlib、SimpleXML、iconv
+入口：`https://你的域名/ipa/`，或 `/ipa/index.php`。部署整个 `public/h5/ipa` 文件夹，服务器需要 PHP 8.4、Phar、zlib、SimpleXML、iconv
 （现有 PHP 容器具备这些能力，无需新增 Composer 包、ZipArchive 或数据库迁移）。
 
-将已签名 IPA 上传到 `public/ipa`。文件名可包含中文和空格；建议先上传为 `.part`，
+将已签名 IPA 上传到 `public/h5/ipa`。文件名可包含中文和空格；建议先上传为 `.part`，
 上传完整后原子重命名成 `.ipa`，避免用户下载未完成的包。页面自动枚举同目录包，
 按文件修改时间倒序显示；“最近上传”不代表最高版本。读取真实主应用 Info.plist
 （支持二进制/XML），不使用文件名推测 Bundle ID、版本和名称；损坏/未完成包不提供
@@ -28,7 +28,8 @@ App Store/TestFlight。网页分发不会绕过设备登记、签名失效或系
 参考：[Apple 分发说明](https://support.apple.com/guide/deployment/depce7cefc4d/web)。
 
 验证命令：`docker exec card-app-1 php /var/www/html/tests/Standalone/ipa-distribution.php`，
-以及 Node 22 下 `node tests/Browser/ipa-distribution.mjs`（本地 PHP 服务 8000）。
+以及 Node 22 下 `node tests/Browser/ipa-distribution.mjs`（以 public/h5 为根目录的本地 PHP 服务 8123，
+可用 IPA_TEST_ORIGIN 指定测试地址）。
 已覆盖 XML/二进制 plist、真实主应用元数据、中文文件名/名称、XML 转义、损坏包、
 符号链接/路径穿越拒绝、空目录、HTTP 安装阻止、Chromium/WebKit 手机布局和
 系统安装链接；浏览器测试仅使用临时合成 IPA，结束自动清理，不触发真实安装。
@@ -39,3 +40,14 @@ App Store/TestFlight。网页分发不会绕过设备登记、签名失效或系
 不会把后台域名或其他公司的域名带给消费者。历史自定义地址保留在原发布元数据/
 审计中，但不再作为实际 iOS 分发入口；读取不写入数据库，无需批量修改历史记录。
 部署 PHP 与新后台资源即可生效，消费者无需重新打包 H5 或原生 App。
+
+如果点击下载回到 H5 首页，先分别访问 `/ipa`、`/ipa/`、`/ipa/index.php`。
+三个入口都应到达分发页，不能由 H5 fallback 返回首页。配置已包含 `/ipa` 到
+`/ipa/` 的显式重定向。当前站点根目录为 `public/h5`，分发文件及 IPA 均放在
+`public/h5/ipa`，无需跨根目录 alias。index.php 仍须交给 PHP 8.4 FPM；保留原有
+H5 根目录。server 级无条件 rewrite 必须移到 location / 或排除 ipa。
+仅配置静态 try_files 而未接 PHP-FPM，无法运行本分发页。
+
+H5 更新时保留 `public/h5/ipa`，不要用删除整个 public/h5 的方式发布，或让
+`rsync --delete` 删除 ipa。已有 client 构建输出在 mobile/uni-app/dist 和
+dist/clients 下，不会删除 public/h5/ipa。签名 IPA 不进入 Git。

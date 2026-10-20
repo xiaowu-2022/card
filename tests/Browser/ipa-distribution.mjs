@@ -2,17 +2,19 @@ import assert from 'node:assert/strict';
 import { chromium, webkit } from 'playwright';
 import { spawnSync } from 'node:child_process';
 import { existsSync, unlinkSync } from 'node:fs';
-const origin = 'http://127.0.0.1:8000';
+const origin = process.env.IPA_TEST_ORIGIN ?? 'http://127.0.0.1:8123';
 const files = ['distribution-test U卡.ipa', 'distribution-test-broken.ipa'];
-const paths = files.map(name => new URL('../../public/ipa/' + name, import.meta.url));
+const paths = files.map(name => new URL('../../public/h5/ipa/' + name, import.meta.url));
 assert.ok(paths.every(path => !existsSync(path)), 'Test fixture filenames must be unused');
 try {
     let response = await fetch(origin + '/ipa/index.php');
     assert.equal(response.status, 200);
     assert.match(response.headers.get('cache-control'), /no-store/);
-    assert.match(await response.text(), /安装包准备中/);
+    const initial = await response.text();
+    const initialCount = (initial.match(/class="package"/g) ?? []).length;
+    if (initialCount === 0) assert.match(initial, /安装包准备中/);
     const setup = spawnSync('python3', ['-c', `import pathlib,zipfile,json,base64
-root=pathlib.Path('public/ipa')
+root=pathlib.Path('public/h5/ipa')
 fixtures=json.loads(pathlib.Path('tests/Fixtures/ipa-plists.json').read_text())
 with zipfile.ZipFile(root/'distribution-test U卡.ipa','x') as z:z.writestr('Payload/Example.app/Info.plist',base64.b64decode(fixtures['binary']))
 with (root/'distribution-test-broken.ipa').open('x') as f:f.write('incomplete')
@@ -21,7 +23,7 @@ with (root/'distribution-test-broken.ipa').open('x') as f:f.write('incomplete')
     response = await fetch(origin + '/ipa/index.php?manifest=' + encodeURIComponent(files[0]));
     assert.equal(response.status, 200);
     const manifest = await response.text();
-    assert.match(manifest, /https:\/\/127\.0\.0\.1:8000\/ipa\/distribution-test%20U%E5%8D%A1\.ipa/);
+    assert.match(manifest, /https:\/\/127\.0\.0\.1:[0-9]+\/ipa\/distribution-test%20U%E5%8D%A1\.ipa/);
     assert.match(manifest, /<key>bundle-version<\/key><string>42<\/string>/);
     for (const file of ['../index.php', files[1], 'missing.ipa']) {
         assert.equal((await fetch(origin + '/ipa/index.php?manifest=' + encodeURIComponent(file))).status, 404);
@@ -40,21 +42,21 @@ with (root/'distribution-test-broken.ipa').open('x') as f:f.write('incomplete')
                 await route.fulfill({ status: upstream.status, headers: Object.fromEntries(upstream.headers), body: Buffer.from(await upstream.arrayBuffer()) });
             });
             await page.goto('https://ipa.example.test/ipa/');
-            assert.equal(await page.locator('.package').count(), 1);
-            assert.equal(await page.locator('.details h2').textContent(), '测试 U卡 & <示例>');
-            assert.match(await page.locator('.details').textContent(), /2\.1\.0.*42/);
+            assert.equal(await page.locator('.package').count(), initialCount + 1);
+            assert.equal(await page.locator('.package').filter({ hasText: files[0] }).locator('.details h2').textContent(), '测试 U卡 & <示例>');
+            assert.match(await page.locator('.package').filter({ hasText: files[0] }).locator('.details').textContent(), /2\.1\.0.*42/);
             assert.equal(await page.locator('.details script').count(), 0);
-            const link = await page.locator('.install').getAttribute('href');
+            const link = await page.locator('.package').filter({ hasText: files[0] }).locator('.install').getAttribute('href');
             assert.match(link, /^itms-services:\/\/\?action=download-manifest&url=/);
             assert.equal(new URL(decodeURIComponent(link.split('&url=')[1])).protocol, 'https:');
-            await page.locator('.install').evaluate(el => el.addEventListener('click', e => e.preventDefault()));
-            await page.locator('.install').click();
+            await page.locator('.package').filter({ hasText: files[0] }).locator('.install').evaluate(el => el.addEventListener('click', e => e.preventDefault()));
+            await page.locator('.package').filter({ hasText: files[0] }).locator('.install').click();
             await page.waitForFunction(() => !document.querySelector('#install-status').hidden);
             assert.match(await page.locator('#install-status').textContent(), /已请求系统/);
             assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'No mobile horizontal overflow');
             await page.screenshot({ path: '/tmp/card-ipa-distribution-' + name + '.png', fullPage: true });
             await page.goto(origin + '/ipa/');
-            await page.locator('.install').click();
+            await page.locator('.package').filter({ hasText: files[0] }).locator('.install').click();
             assert.match(await page.locator('#install-status').textContent(), /HTTPS/);
             console.log('PASS', name, 'mobile layout, install URL, escaping and HTTP guard');
         } finally { await browser.close(); }
