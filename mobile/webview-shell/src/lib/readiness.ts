@@ -2,6 +2,21 @@
 // document and layout before reporting content, whichever scheduler runs first.
 export function readinessScript(token: string): string {
     return `(function () {
+        var failureToken = ${JSON.stringify(token + '-resource-error')};
+        if (!window.__specpayResourceFailureListener) {
+            window.__specpayResourceFailureListener = function(event) {
+                var target = event.target;
+                var moduleFailure = event.type === 'unhandledrejection' && event.reason
+                    && typeof event.reason.message === 'string'
+                    && /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk .* failed/.test(event.reason.message);
+                var resourceFailure = event.type === 'error' && target
+                    && (target.tagName === 'SCRIPT' || (target.tagName === 'LINK' && target.rel === 'stylesheet'));
+                if ((moduleFailure || resourceFailure) && window.__specpayResourceFailureToken) document.title = window.__specpayResourceFailureToken;
+            };
+            window.addEventListener('error', window.__specpayResourceFailureListener, true);
+            window.addEventListener('unhandledrejection', window.__specpayResourceFailureListener);
+        }
+        window.__specpayResourceFailureToken = failureToken;
         if (/^specpay-(ready|debug)-/.test(document.title)) return;
         var root = document.querySelector('uni-page-body');
         function valid() {

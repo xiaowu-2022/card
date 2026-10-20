@@ -45,3 +45,9 @@ Thumbs.db
 
 /mobile/webview-shell/node_modules
 /mobile/webview-shell/dist
+
+# IPA packages are uploaded separately; never commit signed binaries or partial uploads.
+/public/ipa/*.ipa
+/public/ipa/*.IPA
+/public/ipa/*.part
+/public/ipa/*.upload

@@ -24,7 +24,10 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
     const form = useForm({
         appId: release.current?.appId ?? '',
         androidDownloadUrl: release.androidDownloadUrl ?? release.downloadUrl,
-        iosDistributionUrl: release.iosDistributionUrl ?? '',
+        iosDistributionUrl:
+            typeof window === 'undefined'
+                ? (release.iosDistributionUrl ?? '')
+                : window.location.origin + '/ipa',
         versionName: release.current?.versionName ?? '',
         versionCode: release.current ? String(release.current.versionCode) : '',
         revision: release.revision,
@@ -140,10 +143,16 @@ export function AndroidReleaseForm({ release }: { release: AndroidReleaseSetting
                                     required
                                     maxLength={2048}
                                     value={form.data[field]}
+                                    readOnly={field === 'iosDistributionUrl'}
                                     onChange={(event) => form.setData(field, event.target.value)}
                                 />
                             </FormField>
                         ))}
+                        <p className="text-sm text-muted-foreground">
+                            {t(
+                                'The iOS distribution page always uses the current domain followed by /ipa.',
+                            )}
+                        </p>
                         <FormField
                             id="app-debug-enabled"
                             label={t('App debug mode')}

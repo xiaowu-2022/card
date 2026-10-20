@@ -55,14 +55,15 @@ for (const [name, engine, launch] of [['chrome', chromium, {channel:'chrome'}], 
         await dialog.locator('#android-version-name').fill('2.3.59');
         await dialog.locator('#android-version-code').fill('2359');
         await dialog.locator('#androidDownloadUrl').fill('https://download.example/app.apk');
-        await dialog.locator('#iosDistributionUrl').fill('https://install.example/ios');
+        assert.equal(await dialog.locator('#iosDistributionUrl').getAttribute('readonly'), '');
+        assert.equal(await dialog.locator('#iosDistributionUrl').inputValue(), new URL('/ipa', page.url()).href);
         assert.equal(await publish.isDisabled(),true);
         await dialog.locator('#android-confirmed').check();
         await publish.click();
         assert.equal(await dialog.locator('#android-appid').isDisabled(),true);
         await dialog.getByText('App 版本已被其他人更新，请重新打开编辑器后重试。',{exact:true}).waitFor();
         assert.equal(await dialog.locator('#android-version-name').inputValue(),'2.3.59');
-        assert.match(writes[0],/name="revision"/);assert.match(writes[0],/https:\/\/download.example\/app.apk/);assert.match(writes[0],/https:\/\/install.example\/ios/);assert.doesNotMatch(writes[0],/name="apk"|filename=/);
+        assert.match(writes[0],/name="revision"/);assert.match(writes[0],/https:\/\/download.example\/app.apk/);assert.ok(writes[0].includes(new URL('/ipa', page.url()).href));assert.doesNotMatch(writes[0],/name="apk"|filename=/);
         fail=false;await publish.click();await dialog.waitFor({state:'hidden'});
         assert.equal(writes.length,2);assert.equal(new URL(page.url()).searchParams.get('page'),'2');
         await page.goto(origin+'/platform/company-configurations?page=2&section=settings%2Fbranding&editor='+encodeURIComponent(base+'/settings/branding'));

@@ -142,3 +142,29 @@ test('transient restoration failures retain credentials; only a confirmed guest 
     assert.equal((await s.restore(host)).signedIn, false);
     assert.equal(n.saved(), null);
 });
+test('native save failure retains the current mailbox and retries the same credential without restoring an older account', async () => {
+    const n = native(), s = n.create();
+    await s.configure(listing); await s.restore(host); s.pending(); n.reply(other);
+    const write = n.ports.vault.write;
+    n.ports.vault.write = () => { throw Error('locked storage'); };
+    await assert.rejects(s.capture(host, 1, () => true), /locked storage/);
+    assert.equal(s.captureStage(), 'storage');
+    assert.equal(n.metadata().recovering, true);
+    await assert.rejects(s.restore(host));
+    n.ports.vault.write = write;
+    assert.equal(await s.capture(host, 1, () => true), true);
+    assert.equal(s.captureStage(), 'ready');
+    assert.equal(n.saved(), other);
+    assert.equal(n.metadata().recovering, undefined);
+});
+test('capture diagnostics distinguish mailbox and identity failures without exposing errors or credentials', async () => {
+    const n = native(), s = n.create();
+    await s.configure(listing); await s.restore(host);
+    n.ports.claim = async () => { throw Error('private server error'); };
+    await assert.rejects(s.capture(host, 1, () => true));
+    assert.equal(s.captureStage(), 'claim');
+    n.ports.claim = async () => other;
+    n.ports.verify = async () => { throw Error('private identity error'); };
+    await assert.rejects(s.capture(host, 1, () => true));
+    assert.equal(s.captureStage(), 'verify');
+});

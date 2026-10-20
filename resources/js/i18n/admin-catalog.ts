@@ -410,6 +410,8 @@ export const adminCatalog: Record<string, string> = {
     'Current app release': '当前 App 版本',
     'Android download URL': 'Android 下载地址',
     'iOS distribution page URL': 'iOS 分发页面地址',
+    'The iOS distribution page always uses the current domain followed by /ipa.':
+        'iOS 分发页面固定使用当前访问域名下的 /ipa，无需手动填写。',
     'Android and iOS share the version details below. Publishing a newer version requires older apps to update.':
         'Android 和 iOS 共用以下版本信息。发布更高版本后，旧版 App 将要求更新。',
     'I confirm both destinations provide the published version for their platform.':

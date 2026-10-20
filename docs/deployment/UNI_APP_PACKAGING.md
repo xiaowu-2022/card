@@ -1,3 +1,76 @@
+## 2026-10-20 11:02 iOS 安全存储修复 IPA 已生成
+
+使用现有证书/描述文件和 Bundle ID，通过 HBuilderX 5.26 安心云打包生成：
+`mobile/webview-shell/dist/release/ipa/__UNI__30F90A0__20261020110129.ipa`。
+版本 2.6.20（2620），Bundle ID `com.tng.pingqiu`，AppID `__UNI__30F90A0`。
+SHA256：`f1e1aa6e25f967c5b63fae336782903bbb2d6d19a13d0203c81daf1d5c9705c7`。
+原生/资源版本和身份检查通过；三个主要资源与本次编译结果逐字节一致；包内
+确认有 `0x40000001` 保护掩码及 NSString 比较修复。ZIP 完整性和解包后
+`codesign --verify --deep --strict` 均通过。相邻 `.verification.json` 记录结果。
+仅生成本地签名 IPA，未上传分发或修改发布元数据；登录保存、杀进程后恢复和
+锁屏/解锁仍待新包真机验收。未将签名密码写入源码、报告或文档。
+
+## 2026-10-20 iOS `IOS-PROTECTION` 保存失败修复
+
+用户提供真机截图，失败码为 `IOS-PROTECTION`，Android 登录已正常。
+定位到独立 shell 的 `src/lib/ios-credentials.ts` 写入掩码与读回要求不同：
+写入 `0x30000001` 实际是 Atomic + CompleteUnlessOpen，而读回要求
+CompleteUntilFirstUserAuthentication，其正确掩码为 `0x40000001`。
+已用本机 Apple SDK Foundation/NSData.h 的枚举核实。修复写入掩码以匹配现有
+保护要求，保持公司 scope、Token 格式、备份排除、读回验证及安全保存后显示屏障。
+另兼容 Native.js 返回原生 NSString 属性句柄，使用 isEqualToString: 校验并
+严格接受 BOOL true/1，不通过对象引用或任意字符串化推断保护成功。
+
+新增 `tests/Frontend/webview-ios-credentials.mjs` 直接测试实际 shell 存储模块，
+模拟系统根据写入掩码生成文件保护属性。修复前保存后稳定复现 storage unavailable，
+修复后覆盖 JS/native NSString、数值 BOOL、Token 读回、跨公司、锁定、无保护及
+备份排除失败。旧 `consumer-ios-credentials.mjs` 测试的是另一客户端模块，不能
+代表这个独立 shell 的存储实现。原生资源已重编译，保留当前 2.6.20/2620。
+
+必须重新签名构建并安装 iOS 原生包；单独更新 H5 不包含该修复。本次没有生成或
+发布已签名 IPA，没有覆盖旧签名包，仍需真机验证首次登录保存、杀进程重启恢复、
+锁屏/解锁和退出登录。无迁移、供应商或财务测试。
+
+## 2026-10-19 19:17 登录诊断 IPA 已生成
+
+通过 HBuilderX 5.26 安心云打包、沿用已有 iOS 证书与 Bundle ID 生成：
+`mobile/webview-shell/dist/release/ipa/__UNI__30F90A0__20261019191731.ipa`。
+版本仍为 2.6.12（2612）；不得用版本号替代本次文件校验。
+SHA256：`d59c51db400bc7986dc26f37a79a94f2894d7f6d7d51c4db7dcb6f90efde0a9b`。
+原生/资源版本、Bundle ID、DCloud AppID 均匹配；包内 app-service.js、
+app-config-service.js、app.css 与本次编译产物逐字节一致；登录诊断、保留文档
+重试和 token-v1 标记存在。解包后 codesign --verify --deep --strict 通过。
+相邻 `.verification.json` 保存校验结果。尚无用户设备安装/登录验收，未发布
+下载地址或更新服务端版本元数据。首次失败原因仍待此诊断包的真机证据。
+
+## 下一次原生包的登录诊断验收
+
+登录失败页直接展示允许列表诊断码，无需开启调试：CLAIM-HTTP-410 表示邮箱
+凭证已不存在或版本不匹配；CLAIM-HTTP-422 表示领取请求校验失败；HTTP-429
+表示限流；CLAIM/VERIFY-TIMEOUT、NETWORK 区分超时和请求失败；VERIFY-IDENTITY
+表示身份不满足屏障；IOS-WRITE、IOS-PROTECTION、IOS-BACKUP、IOS-LOCKED
+分别定位安全写入、保护级别检查、备份排除和受保护读取失败。
+诊断码不包含原始异常、响应内容、Token、邮箱密钥、账号或用户 ID，也不上传。
+新增模拟故障测试核对代码和脱敏。保存自动尝试由 60 次降为 3 次，避免连续失败
+请求放大并最终只看见限流。此版本必须在签名包资源校验中包含诊断模块；不能
+仅凭相同版本号认定设备已安装诊断。诊断定位失败操作，不等于自动查明其底层
+网络或系统原因；还需结合具体代码分析，不能保证下一包直接解决首次失败。
+
+## 2026-10-19 登录凭证失败后的原生重试修复
+
+用户反馈最新版登录后出现“登录凭证尚未就绪”，重试持续失败。该提示来自
+原生领取、验证或安全保存 Token 的共同失败分支，截图不能确认最初失败环节。
+确认并修复的恢复缺陷：失败时关闭远端登录文档，丢失当前内存身份；随后
+recovering 元数据又阻止恢复旧凭证，重连无法完成。现在保留隐藏的当前文档和
+同一邮箱，重试该文档身份确认，安全保存成功后仍须通过当前内容/布局显示屏障。
+不放行未保存凭证，不恢复上一账号，不清除网络失败中的凭证。
+
+提示区分领取、身份验证和本机安全保存三个阶段，不展示原始异常、Token、邮箱
+密钥或身份信息。离线测试覆盖安全保存失败后同一邮箱重试、阶段诊断以及原生
+错误页保留文档/不重新选线。50 项相关回归和壳类型检查通过。
+需重新编译、签名打包并安装原生壳；H5 更新不能修补已安装壳。此修改修复重试
+死路，但首次失败的设备原因仍待新提示和真机验证确认。无迁移、供应商或财务测试。
+
 ## 2026-10-19 最新 WebView 登录后跳回登录页：会话确认保护
 
 用户确认 Android 最新 2.6.12 在应用内部跳回登录页，非进程退出。

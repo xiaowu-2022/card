@@ -126,20 +126,19 @@ it('publishes platform destinations with shared version checks and rejects unsaf
     $this->getJson('http://a.localhost/api/mobile/v1/app-release')->assertOk()
         ->assertJsonPath('androidDownloadUrl', $fields['androidDownloadUrl'])
         ->assertJsonPath('downloadUrl', $fields['androidDownloadUrl'])
-        ->assertJsonPath('iosDistributionUrl', $fields['iosDistributionUrl']);
+        ->assertJsonPath('iosDistributionUrl', 'http://a.localhost/ipa');
     $this->getJson('http://a.localhost/api/v1/bootstrap')->assertOk()
         ->assertJsonPath('appDownloads.androidDownloadUrl', $fields['androidDownloadUrl'])
-        ->assertJsonPath('appDownloads.iosDistributionUrl', $fields['iosDistributionUrl']);
+        ->assertJsonPath('appDownloads.iosDistributionUrl', 'http://a.localhost/ipa');
     $this->getJson('http://b.localhost/api/v1/bootstrap')->assertOk()
-        ->assertJsonPath('appDownloads.iosDistributionUrl', null);
+        ->assertJsonPath('appDownloads.iosDistributionUrl', 'http://b.localhost/ipa');
     $audit = AuditLog::where('action', 'ANDROID_RELEASE_PUBLISHED')->sole();
     expect($audit->after_data['iosDistributionUrl'])->toBe($fields['iosDistributionUrl']);
     app(AndroidAppRelease::class)->publish($this->releaseTenant, ['appId' => '__UNI__TEST', 'versionName' => '2.3.60', 'versionCode' => 2360]);
     $this->getJson('http://a.localhost/api/mobile/v1/app-release')->assertOk()
         ->assertJsonPath('androidDownloadUrl', $fields['androidDownloadUrl'])
-        ->assertJsonPath('iosDistributionUrl', $fields['iosDistributionUrl']);
+        ->assertJsonPath('iosDistributionUrl', 'http://a.localhost/ipa');
 });
-
 
 it('edits destinations at the same version and corrects version metadata without repackaging', function (): void {
     $this->actingAs($this->owner, 'platform_admin')->post($this->releaseUrl, $this->releaseFields)->assertSessionHasNoErrors();
@@ -153,7 +152,7 @@ it('edits destinations at the same version and corrects version metadata without
     $this->getJson('http://a.localhost/api/mobile/v1/app-release')->assertOk()
         ->assertJsonPath('versionCode', 2359)->assertJsonPath('versionName', '2.3.59')
         ->assertJsonPath('androidDownloadUrl', $edit['androidDownloadUrl'])
-        ->assertJsonPath('iosDistributionUrl', $edit['iosDistributionUrl']);
+        ->assertJsonPath('iosDistributionUrl', 'http://a.localhost/ipa');
     $this->post($this->releaseUrl, $edit)->assertSessionHasNoErrors();
     expect(AuditLog::where('action', 'ANDROID_RELEASE_PUBLISHED')->count())->toBe(2);
     $stale = array_replace($edit, ['androidDownloadUrl' => 'https://downloads.example/stale.apk']);
@@ -187,4 +186,15 @@ it('switches company app diagnostics with revision confirmation and audit withou
     $this->owner->memberships()->delete();
     $next['revision'] = app(AndroidAppRelease::class)->settings($this->releaseTenant)['revision'];
     $this->post($this->releaseUrl, array_replace($next, ['debugEnabled' => true]))->assertForbidden();
+});
+
+it('resolves iOS distribution on the current request origin without rewriting release metadata', function (): void {
+    $service = app(AndroidAppRelease::class);
+    $service->publish($this->releaseTenant, $this->releaseFields);
+    $before = $service->current($this->releaseTenant->id);
+    $this->getJson('https://a.localhost/api/mobile/v1/app-release')->assertOk()
+        ->assertJsonPath('iosDistributionUrl', 'https://a.localhost/ipa');
+    $this->getJson('https://b.localhost/api/v1/bootstrap')->assertOk()
+        ->assertJsonPath('appDownloads.iosDistributionUrl', 'https://b.localhost/ipa');
+    expect($service->current($this->releaseTenant->id))->toBe($before);
 });

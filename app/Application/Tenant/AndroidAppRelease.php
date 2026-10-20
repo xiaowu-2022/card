@@ -80,7 +80,8 @@ final class AndroidAppRelease
         return [
             'downloadUrl' => $release['androidDownloadUrl'] ?? self::DOWNLOAD_URL,
             'androidDownloadUrl' => $release['androidDownloadUrl'] ?? self::DOWNLOAD_URL,
-            'iosDistributionUrl' => $release['iosDistributionUrl'] ?? null,
+            // Resolve on each request so each company domain keeps its own IPA entry.
+            'iosDistributionUrl' => request()->getSchemeAndHttpHost().'/ipa',
         ];
     }
 
