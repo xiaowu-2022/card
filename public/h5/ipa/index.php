@@ -28,22 +28,25 @@ if (isset($_GET['manifest'])) {
         $package = ipaPackage(__DIR__.'/'.$file);
         header('Content-Type: application/xml; charset=utf-8');
         echo ipaManifest($package, $base);
-    } catch (Throwable) {
+    } catch (Throwable $error) {
         http_response_code(404);
-        echo 'Package unavailable';
+        header('X-IPA-Error: '.ipaFailureCode($error));
+        echo 'Package unavailable ('.ipaFailureCode($error).')';
     }
     exit;
 }
 $packages = [];
 $unavailable = 0;
+$failures = [];
 foreach (scandir(__DIR__) ?: [] as $file) {
     if (! preg_match('/\.ipa$/iD', $file)) {
         continue;
     }
     try {
         $packages[] = ipaPackage(__DIR__.'/'.$file);
-    } catch (Throwable) {
+    } catch (Throwable $error) {
         $unavailable++;
+        $failures[] = ['file' => $file, 'code' => ipaFailureCode($error)];
     }
 }
 usort($packages, static fn (array $a, array $b): int => ($b['modified'] <=> $a['modified']) ?: strcmp($a['file'], $b['file']));
@@ -67,7 +70,11 @@ header('Content-Type: text/html; charset=utf-8');
 <p id="https-tip" class="notice" hidden>在线安装需要 HTTPS。请通过本页的 HTTPS 地址访问。</p>
 <section class="packages" aria-label="可用安装包">
 <?php if (! $packages) { ?>
-<div class="empty"><h2>安装包准备中</h2><p>安装包发布后会显示在这里，请稍后刷新。</p></div>
+<?php if ($unavailable > 0) { ?>
+<div class="empty"><h2>安装包读取失败</h2><p>已发现 IPA 文件，但服务器未能读取安装信息。请将下方文件名与诊断码发给发布人员。</p></div>
+<?php } else { ?>
+<div class="empty"><h2>安装包准备中</h2><p>当前目录未发现 IPA 文件。请确认 IPA 与本页面的 index.php 放在同一目录（public/h5/ipa），且文件名以 .ipa 结尾。</p></div>
+<?php } ?>
 <?php } ?>
 <?php foreach ($packages as $index => $package) {
     $manifest = $base.'/index.php?manifest='.rawurlencode($package['file']);
@@ -82,7 +89,9 @@ header('Content-Type: text/html; charset=utf-8');
 </article>
 <?php } ?>
 </section>
-<?php if ($unavailable) { ?><p class="muted">有 <?= $unavailable ?> 个安装包暂不可用，请等待上传完成或联系发布人员。</p><?php } ?>
+<?php if ($unavailable) { ?><div class="notice"><p>有 <?= $unavailable ?> 个安装包读取失败：</p>
+<?php foreach ($failures as $failed) { ?><p class="filename"><?= $escape($failed['file']) ?> · <?= $escape($failed['code']) ?></p><?php } ?>
+<p>IPA-FILE-ACCESS：文件不可读；IPA-PHP-PHAR：服务器缺少 Phar 支持；IPA-ARCHIVE：压缩包无法打开；IPA-MAIN-PLIST / IPA-METADATA / IPA-READ：安装信息读取失败。</p></div><?php } ?>
 <p id="install-status" class="notice" role="status" hidden></p>
 <section class="guide"><h2>安装说明</h2><ol><li>使用 Safari 打开本页，点击“安装到设备”，并确认系统安装提示。</li><li>返回主屏幕查看安装进度。网页无法确认系统是否已安装完成。</li><li>如系统提示企业开发者未受信任，请在“设置 → 通用 → VPN 与设备管理”中按系统提示操作。</li></ol><p>安装包须具备有效签名。Ad Hoc 包仅限已登记的设备；App Store 包应通过 App Store 或 TestFlight 分发。本页面不会绕过签名、证书或设备限制。</p></section>
 <footer>Spec Pay 万事达 U卡</footer>

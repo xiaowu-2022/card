@@ -50,4 +50,10 @@ H5 根目录。server 级无条件 rewrite 必须移到 location / 或排除 ipa
 
 H5 更新时保留 `public/h5/ipa`，不要用删除整个 public/h5 的方式发布，或让
 `rsync --delete` 删除 ipa。已有 client 构建输出在 mobile/uni-app/dist 和
-dist/clients 下，不会删除 public/h5/ipa。签名 IPA 不进入 Git。
+dist/clients 下，不会删除 public/h5/ipa。已完成的 IPA 允许进入 Git，随代码部署；仅忽略 .part/.upload 未完成文件。
+
+2026-10-20 线上只读核查：113d.my/ipa/ 与 /ipa/index.php 返回分发页的空目录状态；
+/ipa/U-card-2.6.20.ipa 则返回 Content-Type: text/html、title Spec Pay 的 H5 首页。
+该路径没有实际分发 IPA，不能把 HTTP 200 当成包已上传。确认文件在服务器的
+当前 H5 document root 下 ipa 目录，已移除该目录 IPA 的 Git 忽略规则，发布时应一并提交和部署安装包。
+空目录与读取失败现已分开显示，读取失败附带允许列表错误码，不输出原始异常。

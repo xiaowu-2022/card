@@ -147,6 +147,9 @@ function ipaPackage(string $path): array
         throw new RuntimeException('Unavailable package');
     }
     // PharData reads ZIP without requiring the optional ZipArchive extension.
+    if (! class_exists(PharData::class)) {
+        throw new RuntimeException('Archive support unavailable');
+    }
     $archive = new PharData($path);
     $main = [];
     foreach (new RecursiveIteratorIterator($archive) as $entry) {
@@ -188,4 +191,15 @@ function ipaManifest(array $package, string $base): string
 <key>metadata</key><dict><key>bundle-identifier</key><string>{$bundle}</string><key>bundle-version</key><string>{$version}</string><key>kind</key><string>software</string><key>title</key><string>{$title}</string></dict>
 </dict></array></dict></plist>
 XML;
+}
+
+function ipaFailureCode(Throwable $error): string
+{
+    return match ($error->getMessage()) {
+        'Unavailable package' => 'IPA-FILE-ACCESS',
+        'Archive support unavailable' => 'IPA-PHP-PHAR',
+        'Missing application plist' => 'IPA-MAIN-PLIST',
+        'Invalid application metadata', 'Invalid bundle identifier' => 'IPA-METADATA',
+        default => $error instanceof UnexpectedValueException ? 'IPA-ARCHIVE' : 'IPA-READ',
+    };
 }

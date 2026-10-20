@@ -58,3 +58,7 @@ try {
     }
     rmdir($temporary);
 }
+
+check(ipaFailureCode(new RuntimeException('Archive support unavailable')) === 'IPA-PHP-PHAR', 'missing PHP archive support is explicit');
+check(ipaFailureCode(new RuntimeException('Unavailable package')) === 'IPA-FILE-ACCESS', 'unreadable file is explicit');
+check(ipaFailureCode(new UnexpectedValueException('private path')) === 'IPA-ARCHIVE', 'archive diagnostics do not reveal raw errors');
