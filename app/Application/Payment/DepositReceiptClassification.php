@@ -11,7 +11,7 @@ final class DepositReceiptClassification
     public static function current(string $source): Builder
     {
         return DB::table('deposit_receipt_type_changes')->where('source', $source)
-            ->selectRaw('DISTINCT ON (source, order_id) source, order_id, tenant_id, after_type, after_journal_id, revision')
+            ->selectRaw('DISTINCT ON (source, order_id) source, order_id, tenant_id, after_type, after_journal_id, after_user_journal_id, revision')
             ->orderBy('source')->orderBy('order_id')->orderByDesc('revision');
     }
 

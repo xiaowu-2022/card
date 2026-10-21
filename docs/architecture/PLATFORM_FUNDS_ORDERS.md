@@ -189,3 +189,25 @@ PHP/admin assets. It replaces the classification guard without rewriting origina
 orders, chain receipts or credit journals. Every existing revision, tenant/user,
 amount and journal/reversal invariant remains in force. Rollback refuses automatic
 classification history; no evidence is deleted. No production financial test.
+
+## 2026-10-21 ordinary-user advances
+
+USDT manual receipt confirmation and credited manual/automatic receipt reclassification
+now also support ordinary users, including users without an enabled partner ancestor.
+`canAdvance` depends on USDT and the existing administrator permissions, not partner
+status. Enabled partners retain their existing partner-journal path; other users receive
+an independent `user_advance_entries` record, never a fabricated partner configuration.
+
+Orders retain nullable `user_advance_journal_id` beside historical `advance_journal_id`;
+classification changes retain matching before/after/reversal user-journal references.
+Database guards require exactly one evidence type for an ADVANCE, matching company,
+user, actual settled amount, revision and linked reversal. Original order classification
+and settled amounts remain immutable. Switching types appends evidence without crediting
+again. Independent order-backed user advances can only be reversed through this workflow.
+
+Ordinary consumer DTOs do not expose either advance journal reference or internal receipt
+classification. User advances follow current nearest-enabled-partner ownership for the
+new subordinate stock deduction; this does not change receipt totals or Ledger evidence.
+Deploy migration `2026_10_21_100000_add_user_advances`, PHP and matching admin/H5 resources
+together; signed native installation follows the normal packaging process. No historical
+backfill, provider operation or production financial test is part of this change.

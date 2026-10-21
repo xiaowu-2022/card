@@ -368,3 +368,35 @@ views omit the Make support agent and Set as partner controls, while retaining e
 operation restrictions, adjustments and confirmation workflows. Ledger journal dates
 start from Beijing's current date. Report and invitation filters/pagination and the
 underlying partner-list state remain independent of the user content tabs.
+
+## 2026-10-21 普通用户预支与下级预支扣项
+
+Platform 用户详情增加预支标签页，支持非零正负 USDT（18 位整数、8 位小数）、
+业务日期、必填备注、明确确认与追加冲正。`user_advance_entries` 直接归公司/用户所有，
+不创建合伙人配置或钱包，不移动 Wallet/Ledger；请求幂等、公司/用户锁、同用户等额
+单次冲正、数据库不可变约束和审计同事务提交。订单关联日志只能通过到账类型切换冲正。
+无合伙人归属也可记录。GET/POST `/platform/tenants/{tenant}/users/{user}/advances`
+要求 active Platform users.read + partners.manage；GET 私有/no-store、20 条编号分页。
+
+启用合伙人当前存量 = 原业务存量 − 本人理论差额 − subordinateAdvances。
+新增扣项只包括当前邀请树中归自己的多级普通/停用合伙人用户；遇启用合伙人即停止，
+该人及全部分支不计入。负预支增加存量。原业务存量、日统计和其他团队范围不变。
+UserAdvances 共用当前边界、公司作用域与带符号证据；合伙人列表、层级行、完整报告、
+首页和来源采用同口径，参考分成使用最终存量。来源 flow=subordinateAdvances，沿用
+flow_page 分页，仅输出账号、金额及时间，不包含管理备注/管理员。
+
+本人对账合并自己的历史合伙人 ADVANCE 与新用户预支，再按原规则扣个人年费。
+启用后既有用户预支进入本人理论差额，退出上级扣项；停用后进入最近启用上级的
+下级预支。记录不复制/迁移，关系调整依当前邀请树计算。普通用户端不增加预支接口
+或展示；充值模型隐藏原分类、两种预支日志 ID，到账金额/状态继续显示。
+
+充值 USDT 人工确认及已到账自动/人工订单分类切换均支持普通用户，不要求上级合伙人。
+启用合伙人继续使用现有合作日志，其他用户使用新日志；切换同时校验两类关联、
+不可变实际到账金额和分类版本。分类切换不再次入账。新迁移
+2026_10_21_100000_add_user_advances 增加日志与订单关联及数据库证据检查，不回填资金；
+不可直接回滚，应协调向前修复。仅隔离 card_ui_test/离线验证，不调用供应商。
+
+后台用户预支历史合并列出本人两类日志并按统一时间/ID 编号分页，使净额可与明细核对。
+历史合伙人日志提供原报表入口，仍通过原合作日志流程管理；新增用户日志在当前页
+冲正，订单关联日志通过充值分类切换处理。新增记录成功后刷新外层数据，保持明细与
+合伙人列表投影一致。普通用户消费者接口不提供这些后台记录。

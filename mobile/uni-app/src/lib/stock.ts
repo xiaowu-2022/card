@@ -40,7 +40,7 @@ export type StockFlowDetails = StockPage<{
     amount: string;
     amountUsdt: string | null;
     posted_at: string | null;
-}> & { direction: 'inflow' | 'outflow' };
+}> & { direction: 'inflow' | 'outflow' | 'subordinateAdvances' };
 export type StockReport = {
     subject?: PartnerIdentity;
     reportPath?: string;
@@ -49,6 +49,7 @@ export type StockReport = {
     version: 'partner' | 'standard';
     stockBasis?: 'BUSINESS_CONTRIBUTIONS';
     stockBeforeDifference?: string;
+    subordinateAdvances?: string;
     cashFlow: null | {
         rateObservedAt: string | null;
         assets: {

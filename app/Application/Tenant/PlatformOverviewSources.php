@@ -27,11 +27,11 @@ final class PlatformOverviewSources
         };
     }
 
-    public function read(string $metric, string $period, int $page, ?string $asset): array
+    public function read(string $metric, string $period, int $page, ?string $asset, int $adjustmentPage = 1): array
     {
         $outer = DB::transactionLevel();
 
-        return DB::transaction(function () use ($metric, $period, $page, $asset, $outer) {
+        return DB::transaction(function () use ($metric, $period, $page, $asset, $outer, $adjustmentPage) {
             if ($outer === 0) {
                 DB::statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
             }
@@ -94,7 +94,15 @@ final class PlatformOverviewSources
                 $rows = PlatformUserSummary::page($rows);
             }
 
-            return ['metric' => $metric, 'period' => $period, 'amount' => $total, 'asset' => $asset ?? 'USDT',
+            $adjustments = null;
+            $recordedAmount = null;
+            if ($metric === 'inflow' && $period === 'total' && ($asset === null || $asset === 'USDT')) {
+                $adjustments = app(OverviewRechargeAdjustments::class)->history($at, $adjustmentPage, $period);
+                $recordedAmount = $asset === null ? $overview['inflow']['recordedTotals'][$period] : $total;
+                $total = $recordedAmount === null ? null : (string) BigDecimal::of($recordedAmount)->plus($adjustments['amount'])->toScale(8);
+            }
+
+            return ['adjustments' => $adjustments, 'recordedAmount' => $recordedAmount, 'metric' => $metric, 'period' => $period, 'amount' => $total, 'asset' => $asset ?? 'USDT',
                 'updatedAt' => $at->toIso8601String(), 'timezone' => PlatformFundsFilters::TIMEZONE, 'rows' => ['items' => $rows->items(), 'page' => $rows->currentPage(), 'lastPage' => $rows->lastPage(), 'total' => $rows->total()]];
         });
     }

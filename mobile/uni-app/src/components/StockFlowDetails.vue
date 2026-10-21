@@ -28,7 +28,7 @@ const details = computed(() => props.report.flowDetails!);
         <view v-for="row in details.items" :key="row.source + row.id" class="flow-item">
             <text class="strong">{{ t('Transaction member') }}: {{ row.account_id }}</text>
             <text>{{ row.email }}</text>
-            <view class="branch">
+            <view v-if="details.direction !== 'subordinateAdvances'" class="branch">
                 <text
                     >{{ t('Direct branch member') }}:
                     {{ row.direct_account_id ?? t('This partner') }}</text

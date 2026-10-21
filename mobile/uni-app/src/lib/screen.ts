@@ -5,13 +5,22 @@ import { bootstrap, session, clearSession, requireUser, consumerSessionScope } f
 export function useScreen(load: () => Promise<void>, options: { refreshOnShow?: () => boolean; onAccessDenied?: () => void } = {}) {
     const loading = ref(true);
     const failed = ref(false);
-    let generation = 0, visible = true;
+    let generation = 0, visible = true, warmReturn = false;
     // #ifdef H5
-    onHide(() => { visible = false; generation++; });
+    onHide(() => { visible = false; warmReturn = typeof document !== 'undefined' && document.hidden; if (!warmReturn) generation++; });
     watch(consumerSessionScope, (value, previous) => { if (previous && value !== previous) { generation++; loading.value = false; failed.value = false; } }, { flush: 'sync' });
     onBeforeUnmount(() => { generation++; });
     // #endif
-    async function refresh() {
+    let flight: { generation: number; promise: Promise<void> } | null = null;
+    function refresh(): Promise<void> {
+        if (flight?.generation === generation) return flight.promise;
+        const promise = refreshOnce();
+        const entry = { generation, promise };
+        flight = entry;
+        void promise.finally(() => { if (flight === entry) flight = null; });
+        return promise;
+    }
+    async function refreshOnce() {
         const run = ++generation;
         loading.value = true;
         failed.value = false;
@@ -19,9 +28,10 @@ export function useScreen(load: () => Promise<void>, options: { refreshOnShow?: 
             if (await requireUser()) await load();
         } catch (error) {
             // #ifdef H5
-            if (run !== generation || !visible) return;
+            if (run !== generation) return;
             // #endif
             failed.value = true;
+            if (!visible) return;
             if (error instanceof ApiError && [401,403,419].includes(error.status)) options.onAccessDenied?.();
             if (error instanceof ApiError && error.status === 401) {
                 try {
@@ -35,13 +45,14 @@ export function useScreen(load: () => Promise<void>, options: { refreshOnShow?: 
             }
         } finally {
             // #ifdef H5
-            if (run !== generation || !visible) return;
+            if (run !== generation) return;
             // #endif
             loading.value = false;
         }
     }
     onShow(() => {
         visible = true;
+        if (warmReturn) { warmReturn = false; if (!loading.value && !failed.value) return; }
         if (options.refreshOnShow && !options.refreshOnShow()) return;
         void refresh();
     });

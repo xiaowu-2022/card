@@ -95,11 +95,11 @@ it('credits exactly once and atomically records the selected receipt type', func
     expect($order->fresh()->manual_receipt_type)->toBe($type);
 })->with(['primary', 'asset'])->with(['ACTUAL', 'ADVANCE']);
 
-it('rejects disabled partners without crediting or recording an advance', function ($source) {
+it('records disabled partners as ordinary user advances', function ($source) {
     $order = receiptOrder($this, $source);
     DB::table('partner_configurations')->where('id', $this->partner->id)->update(['enabled' => false]);
-    expect(fn () => confirmReceipt($this, $order, (string) Str::uuid(), 'ADVANCE'))->toThrow(DomainException::class);
-    expect($order->fresh()->ledger_entry_id)->toBeNull()->and(DB::table('partner_journal_entries')->count())->toBe(0);
+    confirmReceipt($this, $order, (string) Str::uuid(), 'ADVANCE');
+    expect($order->fresh()->ledger_entry_id)->not->toBeNull()->and($order->fresh()->user_advance_journal_id)->not->toBeNull()->and(DB::table('partner_journal_entries')->count())->toBe(0);
 })->with(['primary', 'asset']);
 
 it('rolls back the advance when ledger settlement fails', function ($source) {
@@ -405,8 +405,8 @@ it('reverses initial advances even for disabled partners and reuses an existing 
     expect(DB::table('partner_journal_entries')->count())->toBe(2)
         ->and(DB::table('deposit_receipt_type_changes')->value('before_journal_id'))->toBe($order->advance_journal_id)
         ->and(DB::table('deposit_receipt_type_changes')->value('after_journal_id'))->toBeNull();
-    expect(fn () => changeReceiptType($this, $order, 'ADVANCE', 1))->toThrow(DomainException::class);
-    expect(DB::table('deposit_receipt_type_changes')->count())->toBe(1);
+    changeReceiptType($this, $order, 'ADVANCE', 1);
+    expect(DB::table('deposit_receipt_type_changes')->count())->toBe(2)->and(DB::table('user_advance_entries')->count())->toBe(1);
 })->with(['primary', 'asset'])->with([true, false]);
 
 it('rejects stale revisions conflicting retries company overrides and unconfirmed type changes', function ($source): void {
@@ -467,15 +467,15 @@ function confirmAutomaticReceipt(object $order): void
     }
 }
 
-it('rejects pending classification and requires an enabled same company partner for automatic advances', function ($source): void {
+it('rejects pending classification and permits ordinary user automatic advances', function ($source): void {
     $order = receiptOrder($this, $source);
     expect(fn () => changeReceiptType($this, $order, 'ADVANCE', 0))->toThrow(DomainException::class);
     confirmAutomaticReceipt($order);
     $row = app(PlatformFundsQuery::class)->paginate('deposit', ['company' => $this->tenant->id])->items()[0];
     expect($row['arrivalType'])->toBe('AUTO')->and($row['canChangeReceiptType'])->toBeTrue();
     DB::table('partner_configurations')->where('id', $this->partner->id)->update(['enabled' => false]);
-    expect(fn () => changeReceiptType($this, $order, 'ADVANCE', 0))->toThrow(DomainException::class);
-    expect(DB::table('deposit_receipt_type_changes')->count())->toBe(0)->and(DB::table('partner_journal_entries')->count())->toBe(0);
+    changeReceiptType($this, $order, 'ADVANCE', 0);
+    expect(DB::table('deposit_receipt_type_changes')->count())->toBe(1)->and(DB::table('user_advance_entries')->count())->toBe(1)->and(DB::table('partner_journal_entries')->count())->toBe(0);
 })->with(['primary', 'asset']);
 
 it('keeps receipt changes immutable and rolls back classification when its audit fails', function ($source): void {

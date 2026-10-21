@@ -62,7 +62,7 @@ final class PlatformFundsQuery
                 $builder = DepositReceiptClassification::join($builder, $table, $source)
                     ->select($table.'.*')->selectRaw(DepositReceiptClassification::effectiveType($table).' AS effective_receipt_type')
                     ->selectRaw('COALESCE(receipt_change.revision,0) AS receipt_type_revision')
-                    ->selectRaw("CASE WHEN receipt_change.revision IS NULL THEN {$table}.advance_journal_id ELSE receipt_change.after_journal_id END AS effective_journal_id");
+                    ->selectRaw("CASE WHEN receipt_change.revision IS NULL THEN COALESCE({$table}.advance_journal_id,{$table}.user_advance_journal_id) ELSE COALESCE(receipt_change.after_journal_id,receipt_change.after_user_journal_id) END AS effective_journal_id");
             }
             $models[$source] = $builder->get()->keyBy('id');
         }
@@ -85,7 +85,7 @@ final class PlatformFundsQuery
                 'receiptTypeRevision' => $withdrawal ? null : (int) $o->receipt_type_revision,
                 'canChangeReceiptType' => ! $withdrawal && $row->status === 'CREDITED' && $o->ledger_entry_id !== null && $o->asset_code === 'USDT',
                 'advanceJournalId' => $withdrawal ? null : $o->effective_journal_id,
-                'canAdvance' => ! $withdrawal && $o->asset_code === 'USDT' && DB::table('partner_configurations')->where('tenant_id', $o->tenant_id)->where('user_id', $o->user_id)->where('enabled', true)->exists(),
+                'canAdvance' => ! $withdrawal && $o->asset_code === 'USDT',
                 'manuallyConfirmed' => ! $withdrawal && $o->manual_confirmed_at !== null,
                 'canConfirm' => ! $withdrawal && ($primary
                     ? $o->payment_rail === 'TRC20_SHARED' && $o->asset_code === 'USDT' && in_array($row->status, ['PENDING', 'PROCESSING', 'UNKNOWN'], true)

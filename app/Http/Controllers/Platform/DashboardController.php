@@ -29,9 +29,10 @@ final class DashboardController extends Controller
         $overviewAccess = ['inflow' => $access['inflow'], 'outflow' => $access['outflow'],
             'partners' => $funds && $allows('partners.manage'), 'cards' => $access['overflow'] && $allows('ledger.read'),
             'providers' => $allows('provider_operation.read'), 'assets' => $funds && $access['overflow']];
+        $canAdjustRecharge = $access['inflow'] && $allows('wallet_topups.confirm');
         $outer = DB::transactionLevel();
 
-        return DB::transaction(function () use ($request, $validated, $lists, $access, $query, $overview, $overviewAccess, $outer) {
+        return DB::transaction(function () use ($request, $validated, $lists, $access, $query, $overview, $overviewAccess, $outer, $canAdjustRecharge) {
             if ($outer === 0) {
                 DB::statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
             }
@@ -39,7 +40,7 @@ final class DashboardController extends Controller
             return Inertia::render('platform/Dashboard', [
                 'filters' => $validated, 'companies' => $lists->companies(), 'financialAccess' => $access,
                 ...$query->execute($validated, $access),
-                'overviewAccess' => $overviewAccess, 'overview' => $overview->execute($overviewAccess),
+                'overviewAccess' => $overviewAccess, 'overview' => $overview->execute($overviewAccess) + ['canAdjustRecharge' => $canAdjustRecharge],
             ])->toResponse($request)->header('Cache-Control', 'private, no-store');
         });
     }

@@ -175,22 +175,22 @@ it('rejects retries without reviewer permission and rejects changed retry intent
         ->toThrow(\Symfony\Component\HttpKernel\Exception\HttpException::class);
 });
 
-it('retains failed history while accepting new documents and blocks retrying the superseded attempt', function () {
+it('blocks new applications while a failed review is still pending and retries the same application', function () {
     $old = queuedKyc($this);
     $old->forceFill(['processing_status' => 'FAILED', 'processing_error' => 'KYC_PROCESSING_UNAVAILABLE', 'next_processing_at' => null])->save();
     $original = $old->fresh()->getAttributes();
-    $this->travel(1)->seconds();
-    $new = queuedKyc($this);
-    expect($new->id)->not->toBe($old->id)
-        ->and($new->resubmission_of_id)->toBe($old->id)
-        ->and($old->fresh()->getAttributes())->toBe($original);
-    expect(fn () => app(RetryKycProcessing::class)->execute($this->tenant->id, $old->id, $this->admin, (string) Str::uuid(), 'Stale retry'))
-        ->toThrow(\Symfony\Component\HttpKernel\Exception\HttpException::class);
-    expect(fn () => queuedKyc($this))->toThrow(\App\Support\Errors\DomainException::class);
+    try {
+        queuedKyc($this);
+        $this->fail('A failed pending application must block a new application.');
+    } catch (\App\Support\Errors\DomainException $error) {
+        expect($error->errorCode)->toBe('KYC_ALREADY_PENDING');
+    }
+    expect(KycApplication::count())->toBe(1)->and($old->fresh()->getAttributes())->toBe($original);
+    $retry = app(RetryKycProcessing::class)->execute($this->tenant->id, $old->id, $this->admin, (string) Str::uuid(), 'Retry original application');
+    expect($retry->id)->toBe($old->id)->and(KycApplication::count())->toBe(1);
     asyncOcrOnce();
-    app(ProcessPendingKyc::class)->execute($this->tenant->id, $new->id);
-    expect($new->fresh()->review_status->value)->toBe('APPROVED')
-        ->and($old->fresh()->getAttributes())->toBe($original);
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $old->id);
+    expect($old->fresh()->review_status->value)->toBe('APPROVED');
 });
 
 it('allows new documents after rejection without changing the completed review', function () {
@@ -219,13 +219,13 @@ it('issues retained server tickets through the HTTP controller even with OSS sel
     Http::assertNothingSent();
 });
 
-it('offers consumer resubmission only after failure and still respects the global KYC switch', function () {
+it('keeps consumer submission closed while review is pending including processing failure', function () {
     $application = queuedKyc($this);
     $this->actingAs($this->user, 'tenant_user')->get('http://a.localhost/kyc')
         ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page->where('canSubmit', false));
     $application->forceFill(['processing_status' => 'FAILED', 'next_processing_at' => null])->save();
     $this->get('http://a.localhost/kyc')
-        ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page->where('canSubmit', true));
+        ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page->where('canSubmit', false));
     PlatformKycSetting::current()->update(['enabled' => false]);
     $this->get('http://a.localhost/kyc')
         ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page->where('canSubmit', false));
@@ -326,6 +326,7 @@ it('retains manual decisions made while OCR is in flight', function (string $dec
 it('does not manually review superseded failures or bypass platform permissions and company scope', function () {
     $old = queuedKyc($this);
     $old->forceFill(['processing_status' => 'FAILED', 'next_processing_at' => null])->save();
+    app(RejectKycAction::class)->execute($this->tenant->id, $old->id, $this->admin, KycReviewReason::Other, 'New documents required');
     $this->travel(1)->seconds();
     $current = queuedKyc($this);
     foreach (['approve', 'reject'] as $decision) {

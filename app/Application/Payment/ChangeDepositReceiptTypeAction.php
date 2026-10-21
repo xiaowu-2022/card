@@ -4,6 +4,7 @@ namespace App\Application\Payment;
 
 use App\Application\Assets\AssetAccess;
 use App\Application\Partners\PartnerManagement;
+use App\Application\Partners\UserAdvances;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Assets\AssetDepositOrder;
 use App\Domain\Audit\Services\AuditLogger;
@@ -52,14 +53,27 @@ final class ChangeDepositReceiptTypeAction
             }
             $beforeType = $previous?->after_type ?? $order->manual_receipt_type ?? 'ACTUAL';
             $beforeJournal = $previous ? $previous->after_journal_id : $order->advance_journal_id;
+            $beforeUserJournal = $previous ? $previous->after_user_journal_id : $order->user_advance_journal_id;
             if ($beforeType === $type) {
                 throw new DomainException('VALIDATION_FAILED', 'Choose a different receipt type.', 422);
             }
             $amount = Money::of($order->actual_received_amount ?? $order->amount, $order->asset_code)->amount();
             $journal = null;
             $reversal = null;
+            $userJournal = null;
+            $userReversal = null;
             if ($type === 'ADVANCE') {
-                $journal = app(ManualDepositReceipt::class)->attributes($order, $actor, 'ADVANCE', $amount, true)['advance_journal_id'];
+                $attributes = app(ManualDepositReceipt::class)->attributes($order, $actor, 'ADVANCE', $amount, true);
+                $journal = $attributes['advance_journal_id'];
+                $userJournal = $attributes['user_advance_journal_id'];
+            } elseif ($beforeUserJournal) {
+                $originalJournal = DB::table('user_advance_entries')->where('tenant_id', $tenant)->where('user_id', $order->user_id)->where('id', $beforeUserJournal)->firstOrFail();
+                abort_if($originalJournal->reverses_id || ! BigDecimal::of($originalJournal->amount)->isEqualTo($amount), 409);
+                $userReversal = app(UserAdvances::class)->record($actor, $tenant, $order->user_id, [
+                    'amount' => $amount, 'confirmed' => true, 'business_date' => now()->setTimezone('Asia/Shanghai')->format('Y-m-d'),
+                    'note' => 'Deposit receipt type changed to actual: '.$order->getTable().'/'.$id,
+                    'request_id' => (string) Str::uuid(), 'reverses_id' => $beforeUserJournal,
+                ], true)->id;
             } else {
                 $originalJournal = DB::table('partner_journal_entries')->where('tenant_id', $tenant)->where('id', $beforeJournal)->firstOrFail();
                 if ($originalJournal->kind !== 'ADVANCE' || $originalJournal->reverses_id || ! BigDecimal::of($originalJournal->amount)->isEqualTo($amount)) {
@@ -69,7 +83,7 @@ final class ChangeDepositReceiptTypeAction
                 $reversal = DB::table('partner_journal_entries')->where('tenant_id', $tenant)->where('reverses_id', $beforeJournal)->value('id');
                 if (! $reversal) {
                     $reversal = app(PartnerManagement::class)->journal($actor, $tenant, $originalJournal->partner_id, [
-                        'kind' => 'ADVANCE', 'amount' => $amount, 'business_date' => now()->setTimezone($company->timezone)->format('Y-m-d'),
+                        'kind' => 'ADVANCE', 'amount' => $amount, 'business_date' => now()->setTimezone('Asia/Shanghai')->format('Y-m-d'),
                         'note' => 'Deposit receipt type changed to actual: '.$order->getTable().'/'.$id,
                         'request_id' => (string) Str::uuid(), 'reverses_id' => $beforeJournal,
                     ])->id;
@@ -78,13 +92,14 @@ final class ChangeDepositReceiptTypeAction
             $change = ['id' => (string) Str::uuid(), 'tenant_id' => $tenant, 'user_id' => $order->user_id, 'source' => $source, 'order_id' => $id,
                 'revision' => $revision + 1, 'before_type' => $beforeType, 'after_type' => $type, 'amount' => $amount, 'asset_code' => $order->asset_code,
                 'before_journal_id' => $beforeJournal, 'after_journal_id' => $journal, 'reversal_journal_id' => $reversal,
+                'before_user_journal_id' => $beforeUserJournal, 'after_user_journal_id' => $userJournal, 'reversal_user_journal_id' => $userReversal,
                 'actor_id' => $actor->id, 'request_id' => $request, 'request_hash' => $hash, 'created_at' => now()];
             DB::table('deposit_receipt_type_changes')->insert($change);
             app(AuditLogger::class)->record($tenant, 'ADMIN', $actor->id, 'DEPOSIT_RECEIPT_TYPE_CHANGED',
                 $source === 'primary' ? 'wallet_topup_order' : 'asset_deposit_order', $id,
                 ['receipt_type' => $beforeType, 'revision' => $revision, 'advance_journal_id' => $beforeJournal],
                 ['receipt_type' => $type, 'revision' => $revision + 1, 'amount' => $amount, 'asset' => $order->asset_code,
-                    'change_id' => $change['id'], 'advance_journal_id' => $journal, 'reversal_journal_id' => $reversal], $request);
+                    'change_id' => $change['id'], 'advance_journal_id' => $journal, 'reversal_journal_id' => $reversal, 'user_advance_journal_id' => $userJournal, 'user_reversal_journal_id' => $userReversal], $request);
         });
     }
 }

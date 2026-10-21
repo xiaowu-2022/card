@@ -8,6 +8,21 @@ import { useAdminTranslation, t, dateTime, countryName, errorMessage } from '@/i
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+const processingErrorMessages: Record<string, string> = {
+    IDENTITY_ACCOUNT_LIMIT_REACHED: 'This identity has reached the Tenant account limit.',
+    KYC_OCR_MISMATCH:
+        'The document number could not be recognized or validated. Please upload clear photos of your identity documents.',
+    KYC_OCR_UNAVAILABLE:
+        'Document recognition is temporarily unavailable. Please contact support to retry verification.',
+    KYC_DOCUMENT_STORAGE_FAILED:
+        'The document images could not be read. Please upload them again or contact support.',
+    KYC_DOCUMENT_INTEGRITY_FAILED:
+        'The document images could not be verified. Please upload them again or contact support.',
+    KYC_SUBMISSION_UNAVAILABLE:
+        'Identity verification is currently unavailable. Please contact support.',
+    KYC_PROCESSING_UNAVAILABLE: 'Verification processing failed',
+};
+
 export type KycApplication = {
     id: string;
     user: { id: string; displayName: string | null; contact: string | null };
@@ -202,7 +217,15 @@ export function KycDetailsContent({
                         'Processing status',
                         t(application.processingStatus ?? application.ocrStatus ?? '—'),
                     ],
-                    ['Processing error', application.processingError ?? '—'],
+                    [
+                        'Processing error',
+                        application.processingError
+                            ? t(
+                                  processingErrorMessages[application.processingError] ??
+                                      'Verification processing failed',
+                              )
+                            : '—',
+                    ],
                     ['Submitted', dateTime(application.submittedAt)],
                     [
                         'Reviewed at',

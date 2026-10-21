@@ -27,7 +27,7 @@ export function ReceiptTypeSelect({
             </label>
             {value === 'ADVANCE' && (
                 <p className="text-sm text-muted-foreground">
-                    {t('Credit the wallet and record the same amount as a partner advance.')}
+                    {t('Credit the wallet and record the same amount as a user advance.')}
                 </p>
             )}
         </div>

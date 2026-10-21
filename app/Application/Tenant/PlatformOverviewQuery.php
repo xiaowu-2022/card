@@ -9,6 +9,7 @@ use App\Application\Partners\LegacyStockReport;
 use App\Application\Partners\PartnerAccountBalance;
 use App\Application\Partners\PartnerBusinessStock;
 use App\Application\Partners\PartnerStockValue;
+use App\Application\Partners\UserAdvances;
 use App\Application\Payment\DepositReceiptClassification;
 use App\Application\User\PlatformUserFinancialSummary;
 use App\Domain\Assets\MarketSnapshot;
@@ -33,6 +34,18 @@ final class PlatformOverviewQuery
         if ($access['inflow']) {
             $receipts = $this->cashSource(false);
             $overview['inflow'] = $this->cashPeriods($receipts, $today, $at, $snapshot);
+            $adjustments = app(OverviewRechargeAdjustments::class)->periods($at);
+            $overview['inflow']['recordedTotals'] = $overview['inflow']['totals'];
+            $overview['inflow']['displayAdjustments'] = $adjustments;
+            $showUsdt = isset($overview['inflow']['native']['USDT']) || collect($adjustments)->contains(fn ($v) => ! BigDecimal::of($v)->isZero());
+            foreach ($adjustments as $period => $amount) {
+                if ($overview['inflow']['totals'][$period] !== null) {
+                    $overview['inflow']['totals'][$period] = $this->decimal(BigDecimal::of($overview['inflow']['totals'][$period])->plus($amount));
+                }
+                if ($showUsdt) {
+                    $overview['inflow']['native']['USDT'][$period] = $this->decimal(BigDecimal::of($overview['inflow']['native']['USDT'][$period] ?? '0')->plus($amount));
+                }
+            }
         }
         if ($access['outflow']) {
             $withdrawals = $this->cashSource(true);
@@ -119,6 +132,8 @@ final class PlatformOverviewQuery
         foreach ($this->topLevelPartners()->get(['p.id', 'p.tenant_id', 'p.user_id'])->groupBy('tenant_id') as $tenant => $partners) {
             foreach ($partners->chunk(100) as $rows) {
                 $ids = $rows->pluck('id');
+                $ownAdvances = app(UserAdvances::class)->ownTotals($tenant, $rows->pluck('user_id')->all());
+                $subordinateAdvances = app(UserAdvances::class)->subordinateTotals($tenant, $rows->pluck('user_id')->all());
                 $users = $rows->map(fn ($p) => (object) ['id' => $p->user_id, 'tenant_id' => $tenant])->all();
                 $income = app(PlatformUserFinancialSummary::class)->forUsers($users, ['commission' => true]);
                 $actual = DB::table('ledger_accounts')->where('tenant_id', $tenant)->whereIn('user_id', $rows->pluck('user_id'))
@@ -135,14 +150,14 @@ final class PlatformOverviewQuery
                     $entries === null ? $entries = $query : $entries->unionAll($query);
                     $f = $income[$tenant.':'.$p->user_id];
                     $j = $journals->get($p->id);
-                    $balance = PartnerAccountBalance::calculate($j->advance ?? '0', $f['annualExpense'], $f['activationCommission'], $f['annualCommission'], $f['unclassifiedCommission'], $j->reimbursement ?? '0', $j->adjustment ?? '0', $actual[$p->user_id] ?? '0', false);
+                    $balance = PartnerAccountBalance::calculate($ownAdvances[$p->user_id] ?? '0', $f['annualExpense'], $f['activationCommission'], $f['annualCommission'], $f['unclassifiedCommission'], $j->reimbursement ?? '0', $j->adjustment ?? '0', $actual[$p->user_id] ?? '0', false);
                     $difference = $difference->plus($balance['difference']);
                     foreach (['theoretical', 'actual', 'difference'] as $key) {
                         $totals[$key] = $this->decimal(BigDecimal::of($totals[$key])->plus($balance[$key]));
                     }
                 }
                 $stock = DB::query()->fromSub($entries, 'entries')->selectRaw("COALESCE(SUM(CASE WHEN category IN ('deposits','annual') THEN amount ELSE -amount END),0) AS amount")->value('amount');
-                $totals['stock'] = $this->decimal(BigDecimal::of($totals['stock'])->plus(PartnerStockValue::afterDifference((string) $stock, (string) $difference)));
+                $totals['stock'] = $this->decimal(BigDecimal::of($totals['stock'])->plus(PartnerStockValue::afterDifference((string) $stock, (string) $difference, (string) array_reduce($subordinateAdvances, fn ($sum, $v) => BigDecimal::of($sum)->plus($v), '0'))));
             }
         }
 

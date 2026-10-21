@@ -27,9 +27,10 @@ test('card drafts survive hide and screen lock but clear when their form is dest
 test('open application suppresses foreground reload without disabling explicit submission refresh', async () => {
     const hooks = {}, exports = {};
     let editing = true, requests = 0;
-    runInNewContext(compile('mobile/uni-app/src/lib/screen.ts'), { exports, uni: {}, require: name => {
-        if (name === 'vue') return { ref: value => ({ value }) };
-        if (name === '@dcloudio/uni-app') return { onShow: fn => hooks.show = fn };
+    const document = { hidden: false };
+    runInNewContext(compile('mobile/uni-app/src/lib/screen.ts'), { exports, uni: {}, document, require: name => {
+        if (name === 'vue') return { ref: value => ({ value }), watch() {}, onBeforeUnmount() {} };
+        if (name === '@dcloudio/uni-app') return { onShow: fn => hooks.show = fn, onHide: fn => hooks.hide = fn };
         if (name === './api') return { ApiError: class extends Error {} };
         return { requireUser: async () => true, clearSession: () => {} };
     } });
@@ -37,10 +38,14 @@ test('open application suppresses foreground reload without disabling explicit s
     hooks.show();
     await Promise.resolve();
     assert.equal(requests, 0);
-    await screen.refresh();
+    await Promise.all([screen.refresh(), screen.refresh()]);
     assert.equal(requests, 1);
     editing = false;
     hooks.show();
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(requests, 2);
+    document.hidden = true; hooks.hide();
+    document.hidden = false; hooks.show();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(requests, 2, 'warm foreground keeps the mounted page');
 });

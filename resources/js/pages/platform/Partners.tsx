@@ -42,6 +42,7 @@ type Partner = {
     directReferrer?: { accountId: string; displayName: string | null } | null;
     summary?: {
         advance: string;
+        subordinateAdvances?: string;
         stock: string | null;
         theoretical: string | null;
         actual: string | null;
@@ -138,9 +139,24 @@ export default function Partners({
         });
     };
     const sortHeader = (column: 'registered_at' | 'advance', label: string) => (
-        <th aria-sort={sortColumn === column ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}>
-            <button type="button" className="inline-flex items-center gap-1 whitespace-nowrap" onClick={() => changeSort(column)}>
-                {t(label)} <span aria-hidden="true">{sortColumn === column ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
+        <th
+            aria-sort={
+                sortColumn === column
+                    ? sortDirection === 'asc'
+                        ? 'ascending'
+                        : 'descending'
+                    : 'none'
+            }
+        >
+            <button
+                type="button"
+                className="inline-flex items-center gap-1 whitespace-nowrap"
+                onClick={() => changeSort(column)}
+            >
+                {t(label)}{' '}
+                <span aria-hidden="true">
+                    {sortColumn === column ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                </span>
             </button>
         </th>
     );
@@ -440,16 +456,21 @@ export default function Partners({
                                                     'Agent level',
                                                     'Direct referrer',
                                                     'Cumulative advances',
+                                                    'Subordinate advances',
                                                     'Stock',
                                                     'Theoretical balance',
                                                     'Actual balance',
                                                     'Partner balance difference',
                                                     'Reimbursements',
-                                                ].map((label) => (
+                                                ].map((label) =>
                                                     label === 'Cumulative advances' ? (
-                                                        <Fragment key={label}>{sortHeader('advance', label)}</Fragment>
-                                                    ) : <th key={label}>{t(label)}</th>
-                                                ))}
+                                                        <Fragment key={label}>
+                                                            {sortHeader('advance', label)}
+                                                        </Fragment>
+                                                    ) : (
+                                                        <th key={label}>{t(label)}</th>
+                                                    ),
+                                                )}
                                                 {partnerDailyColumns.map(([key, label]) => (
                                                     <th key={key}>{t(label)}</th>
                                                 ))}
@@ -470,7 +491,14 @@ export default function Partners({
                                                         </div>
                                                     </td>
                                                     <td className="whitespace-nowrap">
-                                                        {p.registered_at ? new Date(p.registered_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }) : '—'}
+                                                        {p.registered_at
+                                                            ? new Date(
+                                                                  p.registered_at,
+                                                              ).toLocaleString('zh-CN', {
+                                                                  timeZone: 'Asia/Shanghai',
+                                                                  hour12: false,
+                                                              })
+                                                            : '—'}
                                                     </td>
                                                     <td>
                                                         {p.promotionRank
@@ -499,6 +527,7 @@ export default function Partners({
                                                     {(
                                                         [
                                                             'advance',
+                                                            'subordinateAdvances',
                                                             'stock',
                                                             'theoretical',
                                                             'actual',

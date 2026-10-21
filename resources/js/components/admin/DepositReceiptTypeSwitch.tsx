@@ -67,7 +67,7 @@ export function DepositReceiptTypeSwitch({ order }: { order: Order }) {
                         <DialogTitle>{t('Change receipt type')}</DialogTitle>
                         <DialogDescription>
                             {t(
-                                'Changing receipt type updates receipt totals and partner advances. The wallet balance and credited amount stay unchanged.',
+                                'Changing receipt type updates receipt totals and user advances. The wallet balance and credited amount stay unchanged.',
                             )}
                         </DialogDescription>
                     </DialogHeader>

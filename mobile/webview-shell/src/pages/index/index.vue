@@ -115,10 +115,17 @@ async function configureLogin(directory: DirectoryCache, _previous: DirectoryCac
         loginTenant = directory.tenantId;
         const scope = `webview-token:${plus.runtime.appid}:${config.tenantSlug}:${loginTenant}`;
         const key = 'encrypted-session:' + scope, metaKey = 'session-state:' + scope;
+        let iosPath = '';
+        if (plus.os.name !== 'Android') {
+            try { iosPath = plus.io.convertLocalFileSystemURL('_doc/consumer-token-' + encodeURIComponent(loginTenant) + '.json'); }
+            catch { throw Object.assign(new LoginRestoreUnavailable(), { storageCode: 'IOS-PATH-INVALID' }); }
+            if (typeof iosPath !== 'string' || !iosPath.startsWith('/'))
+                throw Object.assign(new LoginRestoreUnavailable(), { storageCode: 'IOS-PATH-INVALID' });
+        }
         const vault = plus.os.name === 'Android' ? androidCredentialVault(plus.android, scope, {
             get: () => uni.getStorageSync(key), set: value => uni.setStorageSync(key, value), remove: () => uni.removeStorageSync(key),
         }, validToken) : iosCredentialVault(plus.ios,
-            plus.io.convertLocalFileSystemURL('_doc/consumer-token-' + encodeURIComponent(loginTenant) + '.json'), scope);
+            iosPath, scope);
         loginStore = tokenSession({ vault, verify: verifyToken,
             open: async url => (await nativeApi<{ channel: string }>(url, '/session/bridge/open')).channel,
             claim: async (url, channel, revision) => (await nativeApi<{ token: string }>(url, '/session/bridge/claim', null, channel, revision, 15000)).token,
@@ -167,9 +174,9 @@ async function confirmPageIdentity(view: Webview, sequence: number) {
         failure(`${reason}（${loginDiagnostic(stage, lastFailure)}），请重试；当前登录页面和凭证将保留。`, true);
     }
 }
-function loginStorageFailure() {
+function loginStorageFailure(error?: unknown, stage: string | undefined = 'storage') {
     debugLog('登录状态未能安全保存');
-    uni.showToast({ title: '登录状态未能安全保存，切换线路后可能需要重新登录。', icon: 'none', duration: 3500 });
+    uni.showToast({ title: `登录状态保存未完成（${loginDiagnostic(stage, error)}），请重试。`, icon: 'none', duration: 3500 });
 }
 function appendTimingRows() {
     if (!debugEnabled.value) return;
@@ -425,7 +432,7 @@ function open(url: string, entryPath = config.entryPath) {
                     || !Number.isSafeInteger(value.sequence) || value.sequence <= sessionSequence) return;
                 sessionSequence = value.sequence;
                 if (value.pending === true) {
-                    loginStore?.pending(); signedIn = false; expectsSignedIn = true; identityReady = false;
+                    signedIn = false; expectsSignedIn = true; identityReady = false; loginStore?.pending();
                     return;
                 }
                 signedIn = value.signedIn;
@@ -435,7 +442,7 @@ function open(url: string, entryPath = config.entryPath) {
                 else if (value.expired === true) { loginStore?.clear(); expectsSignedIn = false; identityReady = true; }
                 else if (!expectsSignedIn) identityReady = true;
                 else { loginRecoveryFailed.value = true; failure('登录状态尚未恢复，请重试；登录凭证已保留。'); }
-            } catch { loginStorageFailure(); }
+            } catch (error) { loginStorageFailure(error); }
             return;
         }
         if (!disposed && child === view && debugEnabled.value && debugPrefix && event.title?.startsWith(debugPrefix)) {
@@ -525,7 +532,11 @@ async function connect() {
         if ((diagnostic === 'network' || diagnostic === 'timeout') && retryStartupOrigin(restoringOrigin)) return;
         connectionUnavailable = !!(e as { networkUnavailable?: boolean })?.networkUnavailable || diagnostic === 'network' || diagnostic === 'timeout';
         loginRecoveryFailed.value = !connectionUnavailable && e instanceof LoginRestoreUnavailable;
-        failure(connectionUnavailable
+        const storageDiagnostic = loginDiagnostic('storage', e);
+        const storageFailure = storageDiagnostic.startsWith('IOS-') || storageDiagnostic.startsWith('SAVE-META-')
+            || ['SAVE-RECOVERY-PENDING', 'SAVE-CREDENTIAL-MISSING'].includes(storageDiagnostic);
+        if (storageFailure) loginRecoveryFailed.value = true;
+        failure(storageFailure ? `本机登录状态恢复未完成（${storageDiagnostic}），请重试；已保存凭证将保留。` : connectionUnavailable
             ? '连接暂未完成，请稍后重试。首次使用请允许应用联网；已保存的登录状态不会被清除。'
             : e instanceof Error ? e.message : '连接失败，请重试。');
     }
@@ -557,7 +568,7 @@ function signInAgain() {
         confirmText: '继续', cancelText: '取消', success: result => {
             if (!result.confirm) return;
             try { loginStore?.clear(); signedIn = false; void connect(); }
-            catch { loginStorageFailure(); }
+            catch (error) { loginStorageFailure(error); }
         } });
 }
 function changeLine() {
@@ -602,7 +613,7 @@ onShow(() => {
     }).catch(() => { /* Retain the last verified directory during a temporary outage. */ })
         .finally(() => { directoryRefresh = null; });
 });
-onHide(() => { void captureLogin().catch(loginStorageFailure); background = true; networkRecovery.pause(); stopDebug(); });
+onHide(() => { void captureLogin().catch(error => loginStorageFailure(error, loginStore?.captureStage())); background = true; networkRecovery.pause(); stopDebug(); });
 onBackPress(() => { back(); return true; });
 onUnload(() => { disposed = true; networkRecovery.dispose(); clearTimeout(startupRetryTimer); posterChannel?.dispose(); stopDebug(); uni.offWindowResize(resizeContent); uni.offNetworkStatusChange(networkChanged); stopTimer(); child?.close(); child = null; });
 </script>

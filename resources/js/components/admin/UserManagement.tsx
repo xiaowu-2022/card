@@ -1,3 +1,4 @@
+import { UserAdvancesPanel } from './UserAdvancesPanel';
 import { UserSnapshotExport } from './UserSnapshotExport';
 import { Input } from '@/components/ui/input';
 import { errorMessage } from '@/i18n/admin';
@@ -93,7 +94,7 @@ export type PlatformUser = {
 export default function UserManagement({
     detail = false,
     readOnly = false,
-    extraDetailTabs = [],
+    extraDetailTabs: providedDetailTabs = [],
     extraDetailActions,
     selectedDetailTab,
     onDetailTabChange,
@@ -155,6 +156,24 @@ export default function UserManagement({
         funds?: boolean;
     };
 }) {
+    const extraDetailTabs = [
+        ...providedDetailTabs,
+        ...(detail && !readOnly && canManagePartners && users.data[0]
+            ? [
+                  {
+                      value: 'advances',
+                      label: t('Advance amount'),
+                      content: (
+                          <UserAdvancesPanel
+                              key={`${users.data[0].companyId}:${users.data[0].id}`}
+                              user={users.data[0]}
+                              onSaved={() => router.reload()}
+                          />
+                      ),
+                  },
+              ]
+            : []),
+    ];
     useAdminTranslation();
     const [assetTarget, setAssetTarget] = useState<
         (PlatformUser & { view: 'funds' | 'cards' }) | null

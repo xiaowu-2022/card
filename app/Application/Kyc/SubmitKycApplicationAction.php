@@ -78,11 +78,15 @@ final readonly class SubmitKycApplicationAction
             if (! $settings->enabled || $currentTenant->status !== TenantStatus::Active || $currentUser->status !== UserStatus::Active) {
                 throw new DomainException('KYC_SUBMISSION_UNAVAILABLE', 'Identity verification submission is not currently available.', 403);
             }
+            // The tenant/user locks serialize every submission and administrator retry.
+            // Processing failure does not complete a pending manual review.
+            if (KycApplication::where('tenant_id', $tenant->id)->where('user_id', $user->id)->where('review_status', KycReviewStatus::Pending)->exists()) {
+                throw new DomainException('KYC_ALREADY_PENDING', 'Identity verification is already under review.', 409);
+            }
             $identity = IdentityRecord::where('tenant_id', $tenant->id)->where('user_id', $user->id)->first();
             abort_unless($reverify === (bool) $identity, 409);
             $latest = KycApplication::where('tenant_id', $tenant->id)->where('user_id', $user->id)->latest('submitted_at')->lockForUpdate()->first();
             if ($latest && ! in_array($latest->review_status, [KycReviewStatus::ResubmissionRequired, KycReviewStatus::Rejected], true)
-                && ! ($latest->review_status === KycReviewStatus::Pending && $latest->processing_status === 'FAILED')
                 && ! ($reverify && $latest->review_status === KycReviewStatus::Approved)) {
                 throw new DomainException('KYC_ALREADY_PENDING', 'Identity verification is already under review.', 409);
             }

@@ -1,13 +1,17 @@
+import {
+    UserReferrerSelect,
+    referrerCandidateLabel,
+    type ReferrerCandidate,
+} from '@/components/admin/UserReferrerSelect';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
-import { useEditor } from '@/components/admin/editor-context';
 import { useForm } from '@/components/admin/editor-context';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { useState } from 'react';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
 import { Button } from '@/components/ui/button';
 import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
-type Member = { id: string; account_id: string; email: string };
+type Member = ReferrerCandidate;
 type Props = {
     account: {
         id: string;
@@ -31,19 +35,13 @@ type Props = {
         descendants: number;
     }>;
 };
-export default function UserReferrer({
-    account,
-    current,
-    revision,
-    descendants,
-    search,
-    candidates,
-    history,
-}: Props) {
+export default function UserReferrer(props: Props) {
+    return <UserReferrerForm key={`${props.account.companyId}:${props.account.id}`} {...props} />;
+}
+function UserReferrerForm({ account, current, revision, descendants, history }: Props) {
     useAdminTranslation();
-    const editor = useEditor();
     const url = `/platform/tenants/${account.companyId}/users/${account.id}/referrer`;
-    const [query, setQuery] = useState(search);
+    const [target, setTarget] = useState<Member | null>(null);
     const form = useForm({
         new_inviter_id: '',
         old_inviter_id: current?.id ?? null,
@@ -52,7 +50,6 @@ export default function UserReferrer({
         confirmed: false,
         request_id: crypto.randomUUID(),
     });
-    const target = candidates.find((c) => c.id === form.data.new_inviter_id);
     return (
         <PlatformLayout
             title={t('Change referrer')}
@@ -64,7 +61,7 @@ export default function UserReferrer({
                     {t('Back to users')}
                 </Link>
                 <p>
-                    {t('Current referrer')}: {current?.account_id ?? '—'} ·{' '}
+                    {t('Current referrer')}: {current ? referrerCandidateLabel(current) : '—'} ·{' '}
                     {t('Descendants moving with this user')}: {descendants}
                 </p>
                 <p>
@@ -73,27 +70,6 @@ export default function UserReferrer({
                     )}
                 </p>
                 <form
-                    className="flex gap-3"
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        if (editor) {
-                            const next = new URL(url, location.origin);
-                            next.searchParams.set('search', query);
-                            editor.navigate(next.pathname + next.search);
-                        } else router.get(url, { search: query }, { preserveState: false });
-                    }}
-                >
-                    <input
-                        className="h-10 rounded border px-3"
-                        aria-label={t('Search account or email')}
-                        placeholder={t('Search account or email')}
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        maxLength={255}
-                    />
-                    <Button>{t('Search')}</Button>
-                </form>
-                <form
                     className="max-w-2xl space-y-4 rounded border p-4"
                     onSubmit={(e) => {
                         e.preventDefault();
@@ -101,29 +77,25 @@ export default function UserReferrer({
                     }}
                 >
                     <fieldset className="space-y-4" disabled={form.processing}>
-                        <label className="block">
-                            {t('New referrer')}
-                            <select
-                                required
-                                className="block h-10 w-full rounded border px-3"
-                                value={form.data.new_inviter_id}
-                                onChange={(e) =>
+                        <div className="space-y-1">
+                            <p>{t('New referrer')}</p>
+                            <UserReferrerSelect
+                                key={url}
+                                url={url}
+                                value={target}
+                                disabled={form.processing}
+                                onBrowse={() => form.setData('confirmed', false)}
+                                onChange={(candidate) => {
+                                    setTarget(candidate);
                                     form.setData({
                                         ...form.data,
-                                        new_inviter_id: e.target.value,
+                                        new_inviter_id: candidate.id,
                                         confirmed: false,
                                         request_id: crypto.randomUUID(),
-                                    })
-                                }
-                            >
-                                <option value="">{t('Select a matching account')}</option>
-                                {candidates.map((c) => (
-                                    <option key={c.id} value={c.id}>
-                                        {c.account_id} · {c.email}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
+                                    });
+                                }}
+                            />
+                        </div>
                         <label className="block">
                             {t('Adjustment reason')}
                             <textarea
@@ -142,7 +114,8 @@ export default function UserReferrer({
                             />
                         </label>
                         <p>
-                            {current?.account_id ?? '—'} {'→'} {target?.account_id ?? '—'} ·{' '}
+                            {current ? referrerCandidateLabel(current) : '—'} {'→'}{' '}
+                            {target ? referrerCandidateLabel(target) : '—'} ·{' '}
                             {t('Descendants moving with this user')}: {descendants}
                         </p>
                         <label className="flex gap-2">

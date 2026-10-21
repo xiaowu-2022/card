@@ -198,7 +198,7 @@ async function load(silent = false) {
     if (!silent) loading.value = true;
     try {
         if (!(await requireUser())) return;
-        const data = await request<Chat>(base.value + '?before=' + before.value);
+        const data = await request<Chat>(base.value + '?before=' + before.value, 'GET', undefined, undefined, false, { background: silent });
         if (run !== generation) return;
         chat.value = data;
         failed.value = false;
@@ -239,6 +239,7 @@ async function acknowledge() {
             agent.value ? base.value + '/read' : '/support/read',
             'POST',
             agent.value ? { through } : { through, revisions },
+            undefined, false, { background: true },
         );
         acknowledgedRevisions = revisionKey;
         acknowledged = through;

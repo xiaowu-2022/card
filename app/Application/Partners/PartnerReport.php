@@ -31,7 +31,7 @@ final class PartnerReport
             $report['cashFlow'] = null;
             $report['flowDetails'] = null;
             abort_if($flow !== null && ! $partner, 403);
-            abort_unless($flow === null || in_array($flow, ['inflow', 'outflow'], true), 422);
+            abort_unless($flow === null || in_array($flow, ['inflow', 'outflow', 'subordinateAdvances'], true), 422);
             if (! $partner) {
                 $report['accountBalance'] = null;
                 $report['share'] = null;
@@ -47,7 +47,8 @@ final class PartnerReport
             $totals = $business->totals($tenant, $user);
             $businessStock = $this->decimal(BigDecimal::of($totals['inflow'])->minus($totals['outflow']));
             $report['stockBeforeDifference'] = $businessStock;
-            $stock = BigDecimal::of(PartnerStockValue::afterDifference($businessStock, $report['accountBalance']['difference']));
+            $report['subordinateAdvances'] = $this->decimal(BigDecimal::of(app(UserAdvances::class)->subordinateTotals($tenant, [$user])[$user] ?? '0'));
+            $stock = BigDecimal::of(PartnerStockValue::afterDifference($businessStock, $report['accountBalance']['difference'], $report['subordinateAdvances']));
             $report['stock'] = $this->decimal($stock);
             $report['share'] = $this->decimal($stock->multipliedBy($report['sharePercent'])->withPointMovedLeft(2));
             $report['negative'] = $stock->isNegative();
@@ -55,7 +56,7 @@ final class PartnerReport
             $report['totals'] = [...$totals, 'advances' => $report['totals']['advances']];
             $report['stockBasis'] = 'BUSINESS_CONTRIBUTIONS';
             if ($flow !== null) {
-                $report['flowDetails'] = $business->details($tenant, $user, $flow, max(1, $flowPage));
+                $report['flowDetails'] = $flow === 'subordinateAdvances' ? app(UserAdvances::class)->details($tenant, $user, max(1, $flowPage)) : $business->details($tenant, $user, $flow, max(1, $flowPage));
             }
             $report['trends'] = $business->trends($tenant, $user, CarbonImmutable::parse($report['updatedAt']), $report['timezone']);
             $report['unvalued'] = ['items' => [], 'page' => $page, 'total' => 0, 'hasMore' => false];

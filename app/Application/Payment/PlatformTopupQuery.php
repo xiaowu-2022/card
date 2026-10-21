@@ -30,7 +30,7 @@ final class PlatformTopupQuery
                 'accountId' => $order->account_id, 'userEmail' => $order->user_email,
                 'amount' => $order->amount, 'asset' => $order->asset_code, 'status' => $order->status->value,
                 'receiptType' => $order->effective_receipt_type,
-                'canAdvance' => $order->asset_code === 'USDT' && DB::table('partner_configurations')->where('tenant_id', $order->tenant_id)->where('user_id', $order->user_id)->where('enabled', true)->exists(),
+                'canAdvance' => $order->asset_code === 'USDT',
                 'network' => $order->network_code, 'manuallyConfirmed' => $order->manual_confirmed_at !== null,
                 'manualConfirmedAt' => $order->manual_confirmed_at?->toIso8601String(),
                 'manualConfirmedBy' => $order->manual_confirmed_by === null ? null : ['id' => $order->manual_confirmed_by, 'name' => $order->confirmer_name],

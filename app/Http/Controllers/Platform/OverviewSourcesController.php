@@ -18,6 +18,7 @@ final class OverviewSourcesController extends Controller
             'metric' => ['required', Rule::in(PlatformOverviewSources::METRICS)],
             'period' => ['sometimes', Rule::in(['today', 'd3', 'd7', 'd15', 'd30', 'total'])],
             'page' => 'nullable|integer|min:1|max:100000',
+            'adjustment_page' => 'nullable|integer|min:1|max:100000',
             'asset' => ['nullable', Rule::in(['USDT', 'USDC', 'ETH', 'BTC', 'USD'])],
         ]);
         $gate = PlatformOverviewSources::gate($filters['metric']);
@@ -36,6 +37,6 @@ final class OverviewSourcesController extends Controller
         abort_if($metric === 'cardFunding' && ! in_array($period, ['today', 'total'], true), 422);
         abort_if(! empty($filters['asset']) && ! in_array($metric, ['inflow', 'outflow'], true), 422);
 
-        return response()->json($sources->read($metric, $period, $filters['page'] ?? 1, $filters['asset'] ?? null))->header('Cache-Control', 'private, no-store');
+        return response()->json($sources->read($metric, $period, $filters['page'] ?? 1, $filters['asset'] ?? null, $filters['adjustment_page'] ?? 1))->header('Cache-Control', 'private, no-store');
     }
 }

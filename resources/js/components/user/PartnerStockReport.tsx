@@ -61,12 +61,13 @@ export type StockFlowDetails = StockPage<{
     amount: string;
     amountUsdt: string | null;
     posted_at: string | null;
-}> & { direction: 'inflow' | 'outflow' };
+}> & { direction: 'inflow' | 'outflow' | 'subordinateAdvances' };
 export type StockReport = {
     flowDetails?: StockFlowDetails | null;
     version: 'partner' | 'standard';
     stockBasis?: 'BUSINESS_CONTRIBUTIONS';
     stockBeforeDifference?: string;
+    subordinateAdvances?: string;
     cashFlow: null | {
         rateObservedAt: string | null;
         assets: {
@@ -168,7 +169,10 @@ export function PartnerStockReport({
     compactDecimals?: boolean;
     showUserIdentity?: boolean;
     compactHeader?: boolean;
-    onFlow?: (direction: 'inflow' | 'outflow' | null, page?: number) => void;
+    onFlow?: (
+        direction: 'inflow' | 'outflow' | 'subordinateAdvances' | null,
+        page?: number,
+    ) => void;
 }) {
     const platform = usePlatformUi();
     const t = platform ? adminT : consumerT;
@@ -203,9 +207,11 @@ export function PartnerStockReport({
                     </button>
                     <h2>
                         {t(
-                            details.direction === 'inflow'
-                                ? 'Contribution details'
-                                : 'Deduction details',
+                            details.direction === 'subordinateAdvances'
+                                ? 'Subordinate advances'
+                                : details.direction === 'inflow'
+                                  ? 'Contribution details'
+                                  : 'Deduction details',
                         )}{' '}
                         ({details.total})
                     </h2>
@@ -237,7 +243,7 @@ export function PartnerStockReport({
                                 </div>
                             ) : (
                                 <>
-                                    <p>
+                                    <p hidden={details.direction === 'subordinateAdvances'}>
                                         {t('Direct branch member')}:{' '}
                                         {row.direct_account_id
                                             ? showUserIdentity
@@ -365,7 +371,12 @@ export function PartnerStockReport({
                                 ['inflow', 'outflow'].includes(key) ? (
                                     <button
                                         className="stock-link"
-                                        onClick={() => onFlow(key as 'inflow' | 'outflow', 1)}
+                                        onClick={() =>
+                                            onFlow(
+                                                key as 'inflow' | 'outflow' | 'subordinateAdvances',
+                                                1,
+                                            )
+                                        }
                                     >
                                         {sign} {t(label)} · {t('View details')} {'›'}
                                     </button>
@@ -381,7 +392,12 @@ export function PartnerStockReport({
                                 ['inflow', 'outflow'].includes(key) ? (
                                     <button
                                         className="stock-link"
-                                        onClick={() => onFlow(key as 'inflow' | 'outflow', 1)}
+                                        onClick={() =>
+                                            onFlow(
+                                                key as 'inflow' | 'outflow' | 'subordinateAdvances',
+                                                1,
+                                            )
+                                        }
                                     >
                                         {value(r.totals[key])}
                                     </button>
@@ -395,17 +411,42 @@ export function PartnerStockReport({
                     ))}
                     {r.version === 'partner' && r.accountBalance && (
                         <div>
-                            <dt>{'−'} {t('Account balance difference')}</dt>
+                            <dt>
+                                {'−'} {t('Account balance difference')}
+                            </dt>
                             <dd>{value(r.accountBalance.difference)}</dd>
                         </div>
                     )}
                 </dl>
                 {r.version === 'partner' && (
-                    <p className="stock-muted">
-                        {t(
-                            'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses − personal account balance difference. Wallet flows affect stock through the personal difference, not business contributions.',
-                        )}
-                    </p>
+                    <>
+                        {' '}
+                        <dl className="stock-lines">
+                            <div>
+                                <dt>
+                                    <button
+                                        className="stock-link"
+                                        onClick={() => onFlow?.('subordinateAdvances', 1)}
+                                    >
+                                        − {t('Subordinate advances')}
+                                    </button>
+                                </dt>
+                                <dd>
+                                    <button
+                                        className="stock-link"
+                                        onClick={() => onFlow?.('subordinateAdvances', 1)}
+                                    >
+                                        {value(r.subordinateAdvances ?? '0')}
+                                    </button>
+                                </dd>
+                            </div>
+                        </dl>
+                        <p className="stock-muted">
+                            {t(
+                                'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses − personal account balance difference − subordinate advances. Wallet flows affect stock through the personal difference, not business contributions.',
+                            )}
+                        </p>
+                    </>
                 )}
             </section>
             {r.version === 'partner' && (

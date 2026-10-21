@@ -147,7 +147,7 @@ test('native save failure retains the current mailbox and retries the same crede
     await s.configure(listing); await s.restore(host); s.pending(); n.reply(other);
     const write = n.ports.vault.write;
     n.ports.vault.write = () => { throw Error('locked storage'); };
-    await assert.rejects(s.capture(host, 1, () => true), /locked storage/);
+    await assert.rejects(s.capture(host, 1, () => true), error => error.storageCode === 'SAVE-VAULT-UNEXPECTED');
     assert.equal(s.captureStage(), 'storage');
     assert.equal(n.metadata().recovering, true);
     await assert.rejects(s.restore(host));
@@ -167,4 +167,35 @@ test('capture diagnostics distinguish mailbox and identity failures without expo
     n.ports.verify = async () => { throw Error('private identity error'); };
     await assert.rejects(s.capture(host, 1, () => true));
     assert.equal(s.captureStage(), 'verify');
+});
+
+test('metadata failures at pending and commit retain identity barriers and retry safely', async()=>{
+ for(const commit of [false,true]){
+  const n=native(),s=n.create();
+  await s.configure(listing);await s.restore(host);
+  n.reply('13|'+'B'.repeat(64));
+  const set=n.ports.metadata.set;let calls=0;
+  n.ports.metadata.set=value=>{calls++;if(commit?calls===3:calls===1)throw Error('private');set(value);};
+  await assert.rejects(s.capture(host,1,()=>true),error=>error.storageCode===(commit?'SAVE-META-COMMIT':'SAVE-META-PENDING'));
+  assert.equal(s.captureStage(),'storage');
+  n.ports.metadata.set=set;
+  assert.equal(await s.capture(host,1,()=>true),true);
+ }
+});
+test('silent metadata commit loss cannot reveal an authenticated page',async()=>{
+ const n=native(),s=n.create();await s.configure(listing);await s.restore(host);
+ const set=n.ports.metadata.set;let calls=0;
+ n.ports.metadata.set=value=>{if(++calls!==3)set(value);};
+ await assert.rejects(s.capture(host,1,()=>true),error=>error.storageCode==='SAVE-META-COMMIT');
+ assert.equal(s.captureStage(),'storage');
+});
+
+test('pending handoff and logout metadata failures have their own codes and cannot retain a usable prior identity',async()=>{
+ for(const action of ['pending','clear']){
+  const n=native(),s=n.create();await s.configure(listing);await s.restore(host);
+  n.ports.metadata.set=()=>{throw Error('private');};
+  assert.throws(()=>s[action](),error=>error.storageCode===(action==='pending'?'SAVE-META-PENDING':'SAVE-META-LOGOUT'));
+  await assert.rejects(s.restore(host));
+  assert.equal(n.saved(),token);
+ }
 });

@@ -1,3 +1,83 @@
+## 2026-10-20 最终全链路诊断 IPA：请使用 final 文件
+
+交付 `mobile/webview-shell/dist/release/ipa/SpecPay-2.6.22-2622-final.ipa`，
+2.6.22（2622），SHA256：
+`48fdd616e3cf15e9a4856c54cf34b74d11aab69dcc42c1534a6472f4b4c59e28`。
+最终源码重新编译到 dist/final-2622，并同步 dist/build/app-plus；全部资源与包内逐字节
+匹配。沿用 2.6.21 已签名包中相同原生运行时，以现有证书/描述文件在临时隔离钥匙串
+中重新签名；去除签名后的原生可执行文件与原包完全一致，描述文件完全一致。
+临时签名环境补齐 Apple 官方 G3 中间证书和 Root CA，仅导入临时钥匙串，未修改
+系统信任设置；签名结束删除临时钥匙串并恢复原有搜索列表。
+
+56 项故障注入/诊断/Token 测试、vue-tsc、版本/Bundle ID/AppID、ZIP 完整性、
+全部编译资源核验以及最终 IPA 解包后的 codesign --verify --deep --strict 通过。
+包内存在最终 META-LOGOUT/PENDING/COMMIT、PATH、READBACK 等诊断且无 SAVE-INVALID。
+相邻 verification.json 保存核验结果。未上传分发；真机登录、杀进程后恢复尚未实测。
+
+注意：此前 16:59:16 提交的云任务不含最后补齐的生命周期诊断，已请求取消，但云端以
+“已扣费不能取消”拒绝。该排队任务即使随后完成也不是交付版本，请勿覆盖 final IPA。
+本次最终包使用本地重新签名，没有再次提交云打包或购买加速服务。
+
+## 2026-10-20 iOS 全链路存储诊断与读回核验（2.6.22 / 2622）
+
+用户要求补齐诊断后重新生成签名 IPA。本次保持现有保护级别、显式 Foundation JSON
+序列化、公司/Token 校验和保存后显示屏障；不以跳过安全存储来放行登录。
+
+修正：读回缺失/读回不一致不再误报写入失败；原生 BOOL 只接受 true/1，存在性
+查询的空值不再当作“文件不存在”；本地登录状态标记也必须保存后读回一致。
+元数据 pending/commit/read/logout 故障有独立固定码，pending 前先关闭页面身份
+就绪状态。启动恢复、前后台保存和手动重试均可显示安全诊断码，不输出原生异常、
+文件路径、记录、账号或 Token。未知存储异常只保留固定 SAVE-UNEXPECTED 或
+SAVE-VAULT-UNEXPECTED；这不意味着任何未验证故障被认定已修好。
+
+| 阶段 | 固定诊断码（IOS- 前缀） |
+| --- | --- |
+| 路径 / 文件管理器 / 存在查询 | PATH-INVALID / MANAGER-EMPTY / EXISTS-INVALID |
+| 创建 / 编码 / 写入 | INPUT-TOKEN / CREATE-EMPTY / ENCODE-EMPTY / WRITE-FAILED |
+| 备份标记准备 / 设置 / 清理 | URL-EMPTY / BOOL-EMPTY / BACKUP-FAILED / BACKUP-CLEANUP |
+| 属性 / 保护 | ATTRIBUTES-EMPTY / PROTECTION-MISSING / PROTECTION-MISMATCH |
+| 读取 / JSON | READ-EMPTY / READ-TYPE / JSON-EMPTY / JSON-PARSE |
+| 记录 / 公司 / Token | RECORD-SHAPE / SCOPE-MISMATCH / TOKEN-INVALID |
+| 保存后核验 / 删除 | READBACK-MISSING / READBACK-MISMATCH / DELETE-FAILED |
+
+所有原生调用抛错使用 IOS-NATIVE- 加固定操作：MANAGER、EXISTS、DELETE、URL、BOOL、
+CREATE、ENCODE、WRITE、ATTRIBUTES、COMPARE、READ、BACKUP。
+状态标记使用 SAVE-META-PENDING / COMMIT / READ / LOGOUT；中断交接恢复和状态指向
+不存在凭证分别为 SAVE-RECOVERY-PENDING / SAVE-CREDENTIAL-MISSING。
+READ-EMPTY 仅说明读取返回空，不能证明设备锁屏；PROTECTION-MISMATCH 也不能证明
+后面的内容已成功读回。真机根因及保存/杀进程重开效果须由安装包实测确认。
+无迁移、供应商、财务测试或生产写入。签名包核验信息在生成后补充。
+
+## 2026-10-20 16:12 后续 iOS 序列化修复 IPA 已生成
+
+`mobile/webview-shell/dist/release/ipa/__UNI__30F90A0__20261020160641.ipa`，
+2.6.21（2621），沿用现有证书和 Bundle ID，通过 HBuilderX 安心云打包。
+SHA256：`6d0c9d3cbaf92245667630835b1992eb715def31756b5b6ca2c654453c7fd442`。
+原生/资源版本、Bundle ID/AppID、ZIP 完整性、三个主要资源逐字节匹配及
+codesign --verify --deep --strict 均通过。包内确认包含 Foundation JSON 序列化
+及新的原生操作诊断；相邻 verification.json 记录核验结果。
+未上传分发或修改发布元数据；SAVE-INVALID 真机具体原因及本包效果仍待实测。
+
+## 2026-10-20 iOS 后续 `SAVE-INVALID`：显式 Foundation 序列化
+
+用户安装保护掩码修复包后再次提供截图，并确认诊断码为 `SAVE-INVALID`。
+该码只证明 storage 阶段存在未映射异常；不能据此认定具体原生 selector 或 JSON
+解析就是设备根因。旧路径使用 `newObject('NSString', jsonText)`，没有显式指定
+Objective-C 初始化方法；读回 JSON.parse 的异常也会落到 SAVE-INVALID。
+
+写入改为显式 NSMutableDictionary/setObject:forKey: 与
+NSJSONSerialization/dataWithJSONObject:options:error:，不再依赖 NSString 的
+构造参数映射。保持现有原子写入、0x40000001、备份排除、公司 scope、Token 格式、
+完整读回验证和保存后显示屏障。空/无效 JSON、记录创建/编码失败分别归入固定的
+IOS-JSON、IOS-CREATE、IOS-ENCODE；原生异常只展示允许列表操作阶段
+IOS-NATIVE-CREATE/ENCODE/WRITE/ATTRIBUTES/COMPARE/READ/BACKUP，不输出原异常、
+文件内容、Token 或用户信息。无故障时这些诊断不改变认证流程。
+
+回归补充模拟 NSString 构造参数被忽略、JSON 为空/null 和原生序列化异常；
+20 项 shell iOS/Token/诊断测试与类型检查通过。当前版本保持工作区已有
+2.6.21/2621，重新编译并进行签名打包；真机首次失败具体来源仍待设备验证。
+无服务端、H5、迁移、供应商或财务变更。
+
 ## 2026-10-20 11:02 iOS 安全存储修复 IPA 已生成
 
 使用现有证书/描述文件和 Bundle ID，通过 HBuilderX 5.26 安心云打包生成：
@@ -1185,3 +1265,53 @@ the reported storage/network failure. Publish the matching H5 build and retain o
 hashed assets. WebView shells consume the refreshed H5; standalone native resources
 need their normal rebuild to receive this transport change. No migration is needed.
 Offline validation: consumer-direct-upload tests and uni-app typecheck.
+
+## 2026-10-21 H5 请求合并与网络刷新保护
+
+浏览器与 Token WebView 共用请求层：仅合并同一公司、身份代次、语言、页面、路径及
+参数的在途 GET；结束即清除，不保存响应。POST/上传保持独立且不自动重放。
+响应回调仍逐订阅者交付。页面刷新入口复用当前加载，后台返回保留挂载内容；未读
+更新不因仅 supportAgent 属性变化重复触发。服务端 JSON 控制器/DTO 接口不变。
+
+前台请求断网、超时、5xx 或无效 JSON 共用一次异常弹窗；后台会话、未读、心跳、
+WebSocket 配置、客服静默轮询与已读回执不触发。提交/上传异常提示结果未知、先核对。
+点击刷新只重载当前同源文档一次，不重发提交、不删除 Token、不重新选择线路。
+`sessionStorage` 仅保存固定的 pending 标记，不含 URL、账号、Token 或响应。
+刷新后持续失败只显示非模态手动重试条，不再次自动弹窗或重载；关闭提示后同一故障
+不重复打断。存储不可用时禁止程序刷新，允许用户使用浏览器手动恢复。
+前台页面读取成功且没有更新的失败时解除保护，后台成功不解除；页面重载继续使用
+现有原生 Token 注入、加密邮箱及身份/布局显示屏障。
+
+本次不修改原生壳源码，无须为这些 H5 行为新增原生权限或改变凭证协议。发布新增
+哈希资源后再原子替换 H5 入口，保留旧哈希及现有旧壳入口选择器；OSS 发布遵循
+OSS_IMAGES.md。不得以本次构建覆盖其他尚未发布的原生签名包。真机重载后的安全
+存储/显示屏障仍需安装现有匹配 Token 壳进行验收。无迁移或生产金融/供应商操作。
+
+验证：新增/更新网络与页面生命周期测试通过；相关登录恢复、主页拆分、Token 与原生
+显示屏障测试通过。全量 consumer 前端串行回归有 18 项失败，均能在修改前源码
+对照中复现（包括旧测试桩、KYC、表单及原生重试测试）；未将其记为全量通过。
+构建和类型检查结果另存本次交付目录；没有实机、线上断网或发布验收结论。
+
+本地交付目录：`output/h5-network-recovery-20261021/`，含 H5 资源、原入口备份、
+verification.json 与验证日志；同一构建已同步 `public/h5`，保留历史哈希文件。
+Chrome 真实文档重载测试通过；实际编译的 H5 在持续 503 的隔离服务下，每个文档
+仅一次 bootstrap，点击后只重载一次，路由保留，随后停留在手动重试条。
+测试命令：`node tests/Browser/consumer-network-recovery.mjs`（Node 22、已安装 Chrome）。
+本次仅更新本地资源，没有向生产或 OSS 发布，也没有生成/覆盖 APK、IPA。
+
+## 2026-10-21 普通用户预支与合伙人下级预支
+
+协调发布 `2026_10_21_100000_add_user_advances` 迁移、PHP、后台与 H5 资源。
+普通用户充值可分类为预支，但普通用户 App/H5 不显示预支标签或日志；合伙人报表
+新增下级预支扣项及分页来源，存量和参考分成同步扣减。身份/邀请关系按当前状态
+读取，不搬迁历史日志或重算 Wallet/Ledger。保留旧哈希资源，入口最后替换。
+编译 uni-app App 与 WebView shell 原生资源；签名 APK/IPA 仍需现有 HBuilderX
+打包/安装流程，资源编译不能代表已完成签名或发布。本次不运行生产迁移、供应商
+请求或生产资金测试；新增迁移保留不可变历史，后退使用协调的向前修复。
+
+本地交付为 `output/user-advances-20261021/`，包含后台/H5/两套原生资源、旧 H5 入口
+备份、390px 截图及验证日志。最终定向隔离回归 26 项通过、316 条断言；覆盖普通用户
+正负预支、冲销/幂等、充值人工及自动分类互切、权限/公司/合伙人边界，以及报表/
+列表/首页/来源/参考分成一致性。完整扩大回归因重复全库重建收敛为定向验证，未宣称
+全量通过。类型检查和四类资源构建通过；保留原有大 bundle 提示。生产尚未发布，
+也未执行生产迁移或生成签名安装包。

@@ -9,6 +9,7 @@ use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Kyc\Enums\KycReviewStatus;
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Tenant\Models\Tenant;
+use App\Support\Errors\DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -29,6 +30,10 @@ final class RetryKycProcessing
                 || ($row->processing_status !== null && $row->review_status === KycReviewStatus::Rejected), 409);
             abort_if(KycApplication::where('tenant_id', $tenant)->where('user_id', $row->user_id)->where('resubmission_of_id', $row->id)->exists(), 409);
             abort_unless(KycApplication::where('tenant_id', $tenant)->where('user_id', $row->user_id)->latest('submitted_at')->first()->id === $row->id, 409);
+            if (KycApplication::where('tenant_id', $tenant)->where('user_id', $row->user_id)
+                ->where('review_status', KycReviewStatus::Pending)->where('id', '<>', $row->id)->exists()) {
+                throw new DomainException('KYC_ALREADY_PENDING', 'Identity verification is already under review.', 409);
+            }
             if ($row->review_status === KycReviewStatus::Rejected) {
                 $previous = $row;
                 $row = new KycApplication;

@@ -27,6 +27,17 @@ test('each actionable capture failure has a distinct safe diagnostic code', () =
 });
 test('unexpected errors and server content cannot leak into diagnostics', () => {
     for (const error of [null, undefined, Error('TOKEN|SECRET account-name'), { status: 'SECRET', diagnostic: 'SECRET' }, { status: 999, message: 'SECRET' }]) {
-        assert.equal(diagnostic('storage', error), 'SAVE-INVALID');
+        assert.equal(diagnostic('storage', error), 'SAVE-UNEXPECTED');
     }
+});
+
+test('native storage exceptions carry only a fixed operation name',()=>{
+ assert.equal(exports.loginDiagnostic('storage',Object.assign(Error('Protected credential native bridge failed'),{iosStep:'ENCODE'})),'IOS-NATIVE-ENCODE');
+ assert.equal(exports.loginDiagnostic('storage',Object.assign(Error('Protected credential native bridge failed'),{iosStep:'secret'})),'IOS-NATIVE');
+ assert.equal(exports.loginDiagnostic('storage',Error('Protected credential record decode failed')),'IOS-JSON');
+});
+
+test('detailed codes cannot carry arbitrary native content',()=>{
+ for(const code of ['IOS-READBACK-MISMATCH','SAVE-META-COMMIT','IOS-PATH-INVALID']) assert.equal(diagnostic('storage',{storageCode:code}),code);
+ assert.equal(diagnostic('storage',{storageCode:'TOKEN|SECRET'}),'SAVE-UNEXPECTED');
 });

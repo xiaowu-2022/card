@@ -43,11 +43,11 @@ watch(
               ':' +
               session.value.supportAgent
             : null,
-    (value) => {
+    (value, previous) => {
         if (foreground && value) {
             resumeSupportRealtime();
             restartSupportRealtime();
-            refresh();
+            if (!previous || value.split(':').slice(0, 3).join(':') !== previous.split(':').slice(0, 3).join(':')) refresh();
         } else pauseSupportRealtime();
     },
 );

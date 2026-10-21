@@ -156,7 +156,7 @@ onErrorCaptured(() => {
     return false;
 });
 let generation = 0;
-let returningToKycDraft = false;
+let returningToKycDraft = false, warmReturn = false;
 const anchor = ref('');
 const retainedList = computed(() => ['/funds', '/wallet/withdrawals', '/security-deposit/history'].includes(path.value.split('?')[0]));
 // #ifdef H5
@@ -178,6 +178,7 @@ onLoad((options) => {
     anchor.value = parts[1] ?? '';
 });
 onShow(() => {
+    if (warmReturn) { warmReturn = false; returningToKycDraft = false; if (data.value) return; }
     if (returningToKycDraft) {
         returningToKycDraft = false;
         // Keep the mounted form and any in-flight submit when returning from the photo picker.
@@ -195,13 +196,14 @@ onShow(() => {
 });
 onHide(() => {
     // #ifdef H5
-    if (document.hidden && path.value.split('?')[0] === '/kyc') {
+    warmReturn = document.hidden;
+    if (warmReturn && path.value.split('?')[0] === '/kyc') {
         returningToKycDraft = true;
         return;
     }
     // #endif
     returningToKycDraft = false;
-    generation++;
+    if (!warmReturn) generation++;
 });
 function retryLoad() {
     // Browsers retain failed module imports for this document. An explicit retry
@@ -217,7 +219,16 @@ function retryLoad() {
     renderFailed = false;
     void load();
 }
-async function load() {
+let loadFlight: { generation: number; path: string; promise: Promise<void> } | null = null;
+function load(): Promise<void> {
+    if (loadFlight?.generation === generation && loadFlight.path === path.value) return loadFlight.promise;
+    const promise = loadOnce();
+    const entry = { generation, path: path.value, promise };
+    loadFlight = entry;
+    void promise.finally(() => { if (loadFlight === entry) loadFlight = null; });
+    return promise;
+}
+async function loadOnce() {
     const run = ++generation;
     let scope = consumerSessionScope();
     loading.value = true;

@@ -208,6 +208,11 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::post('/tenants/{tenant}/users/{user}/support-remark', [SupportWorkspaceController::class, 'remark'])->whereUuid(['tenant', 'user'])->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,support.read', 'admin.scope:platform,support.send', 'business-throttle:60,1']);
     Route::post('/tenants/{tenant}/users/{user}/support-agent', [SupportWorkspaceController::class, 'grantUser'])->whereUuid(['tenant', 'user'])->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,support.read', 'admin.scope:platform,support.agents.manage', 'business-throttle:60,1']);
     Route::post('/tenants/{tenant}/users', UserCreationController::class)->whereUuid('tenant')->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.create', 'business-throttle:40,1']);
+    Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,partners.manage'])->group(function () {
+        Route::get('/tenants/{tenant}/users/{user}/advances', [\App\Http\Controllers\Platform\UserAdvanceController::class, 'show'])->whereUuid(['tenant', 'user']);
+        Route::post('/tenants/{tenant}/users/{user}/advances', [\App\Http\Controllers\Platform\UserAdvanceController::class, 'store'])->whereUuid(['tenant', 'user'])->middleware('business-throttle:40,1');
+    });
+
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.restrictions.manage'])->group(function () {
         Route::get('/tenants/{tenant}/users/{user}/restrictions', [UserRestrictionsController::class, 'show'])->whereUuid(['tenant', 'user']);
         Route::post('/tenants/{tenant}/users/{user}/restrictions', [UserRestrictionsController::class, 'update'])->whereUuid(['tenant', 'user'])->middleware('business-throttle:40,1');
@@ -224,6 +229,11 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::get('/tenants/{tenant}/users/{user}/funds-summary', [UserSummaryController::class, 'funds'])->whereUuid(['tenant', 'user']);
         Route::get('/tenants/{tenant}/users/{user}/cards-summary', [UserSummaryController::class, 'cards'])->whereUuid(['tenant', 'user']);
     });
+    Route::middleware(['admin.scope:platform,tenant.read', 'admin.scope:platform,wallet_topups.read'])->group(function () {
+        Route::get('/overview/recharge-adjustments', [\App\Http\Controllers\Platform\OverviewRechargeAdjustmentController::class, 'index']);
+        Route::post('/overview/recharge-adjustments', [\App\Http\Controllers\Platform\OverviewRechargeAdjustmentController::class, 'store'])
+            ->middleware(['admin.scope:platform,wallet_topups.confirm', 'business-throttle:40,1']);
+    });
     Route::middleware('admin.scope:platform,tenant.read')->get('/overview/sources', OverviewSourcesController::class)->name('overview.sources');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,ledger.read'])->get('/funds', FundsController::class)->name('funds.index');
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,ledger.read'])->get('/tenants/{tenant}/users/{user}/funds', UserFundsController::class)->whereUuid(['tenant', 'user'])->name('users.funds');
@@ -233,6 +243,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::post('/tenants/{tenant}/users/{user}/invitation-code', [UserInvitationCodeController::class, 'update'])->middleware('business-throttle:40,1')->whereUuid(['tenant', 'user']);
     });
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.referrer.manage'])->group(function () {
+        Route::get('/tenants/{tenant}/users/{user}/referrer/candidates', [UserReferrerController::class, 'candidates'])->whereUuid(['tenant', 'user'])->middleware('business-throttle:240,1');
         Route::get('/tenants/{tenant}/users/{user}/referrer', [UserReferrerController::class, 'show'])->whereUuid(['tenant', 'user']);
         Route::post('/tenants/{tenant}/users/{user}/referrer', [UserReferrerController::class, 'update'])->middleware('business-throttle:40,1')->whereUuid(['tenant', 'user']);
     });

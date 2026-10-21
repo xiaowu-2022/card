@@ -1,4 +1,7 @@
-import { createContext, useContext, useState } from 'react';
+import { router } from '@inertiajs/react';
+import { Button } from '@/components/ui/button';
+import { OverviewRechargeAdjustmentsDialog } from './OverviewRechargeAdjustmentsDialog';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import { OverviewSourceDialog, type OverviewSourceTarget } from './OverviewSourceDialog';
 import { t, dateTime } from '@/i18n/admin';
 import { MoneyDisplay } from '@/components/admin/MoneyDisplay';
@@ -9,6 +12,7 @@ type Cash = {
     native: Record<string, Periods & { total: string }>;
 };
 export type PlatformOverviewData = {
+    canAdjustRecharge?: boolean;
     updatedAt: string;
     timezone: string;
     rateAt: string | null;
@@ -91,15 +95,18 @@ function CashPanel({
     label,
     cash,
     outflow = false,
+    action,
 }: {
     label: string;
     cash: Cash;
     outflow?: boolean;
+    action?: ReactNode;
 }) {
     return (
         <section className="min-w-0 rounded-xl border bg-surface p-4">
             <div className="flex items-center justify-between gap-3">
                 <h2 className="font-semibold">{t(label)}</h2>
+                {action}
                 <span className="text-xs text-muted-foreground">
                     {outflow ? t('T+1 arrival rule') : 'USDT'}
                 </span>
@@ -179,6 +186,7 @@ function CashPanel({
 }
 
 export function PlatformOverview({ overview }: { overview: PlatformOverviewData }) {
+    const [adjustmentsOpen, setAdjustmentsOpen] = useState(false);
     const [target, setTarget] = useState<OverviewSourceTarget | null>(null);
     return (
         <SourceContext.Provider value={setTarget}>
@@ -212,7 +220,19 @@ export function PlatformOverview({ overview }: { overview: PlatformOverviewData 
                 )}
                 <div className="grid items-start gap-4 lg:grid-cols-3">
                     {overview.inflow && (
-                        <CashPanel label="Actual received top-ups" cash={overview.inflow} />
+                        <CashPanel
+                            label="Actual received top-ups"
+                            cash={overview.inflow}
+                            action={
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => setAdjustmentsOpen(true)}
+                                >
+                                    {t('Adjustments and history')}
+                                </Button>
+                            }
+                        />
                     )}
                     {overview.outflow && (
                         <CashPanel
@@ -362,6 +382,13 @@ export function PlatformOverview({ overview }: { overview: PlatformOverviewData 
                     </section>
                 )}
             </div>
+            {adjustmentsOpen && (
+                <OverviewRechargeAdjustmentsDialog
+                    canManage={overview.canAdjustRecharge ?? false}
+                    onClose={() => setAdjustmentsOpen(false)}
+                    onSaved={() => router.reload({ only: ['overview'] })}
+                />
+            )}
             {target && (
                 <OverviewSourceDialog
                     key={JSON.stringify(target)}

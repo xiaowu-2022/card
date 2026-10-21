@@ -78,7 +78,9 @@ final class PartnerHierarchy
                 ) SELECT root,COUNT(*) FILTER (WHERE user_id<>root) AS total FROM teams GROUP BY root", [$tenant, ...$rows->pluck('user_id')->all(), $tenant]))->keyBy('root');
             }
 
-            return ['subject' => $identity, 'listPath' => $base, 'items' => $rows->map(function ($row) use ($tenant, $counts) {
+            $subordinateAdvances = app(UserAdvances::class)->subordinateTotals($tenant, $rows->pluck('user_id')->all());
+
+            return ['subject' => $identity, 'listPath' => $base, 'items' => $rows->map(function ($row) use ($tenant, $counts, $subordinateAdvances) {
                 // Only the current page's scoped, enabled partners; reuse report evidence
                 // without loading journals, risk pages or performing financial writes.
                 $totals = app(PartnerBusinessStock::class)->totals($tenant, $row->user_id);
@@ -86,7 +88,8 @@ final class PartnerHierarchy
                 return [
                     'id' => $row->partner_id, 'name' => trim($row->display_name ?? '') ?: $row->account_id, 'accountId' => $row->account_id,
                     'email' => $row->email,
-                    'stock' => PartnerStockValue::afterDifference((string) BigDecimal::of($totals['inflow'])->minus($totals['outflow']), app(LegacyStockReport::class)->accountBalance($tenant, $row->user_id, $row->partner_id)['difference']),
+                    'stock' => PartnerStockValue::afterDifference((string) BigDecimal::of($totals['inflow'])->minus($totals['outflow']), app(LegacyStockReport::class)->accountBalance($tenant, $row->user_id, $row->partner_id)['difference'], $subordinateAdvances[$row->user_id] ?? '0'),
+                    'subordinateAdvances' => (string) BigDecimal::of($subordinateAdvances[$row->user_id] ?? '0')->toScale(8),
                     'teamCount' => (int) ($counts->get($row->user_id)?->total ?? 0),
                 ];
             })->all(), 'page' => $page, 'total' => $total, 'hasMore' => $page * 20 < $total];

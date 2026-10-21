@@ -14,7 +14,7 @@ final class WalletTopupOrder extends Model
 
     protected $guarded = ['*'];
 
-    protected $hidden = ['manual_receipt_type', 'advance_journal_id'];
+    protected $hidden = ['manual_receipt_type', 'advance_journal_id', 'user_advance_journal_id'];
 
     protected function casts(): array
     {

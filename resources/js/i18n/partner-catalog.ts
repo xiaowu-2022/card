@@ -1,4 +1,118 @@
 export const partnerCatalog = {
+    'Only the lifetime actual recharge total includes display adjustments. Daily and recent totals stay unchanged.':
+        [
+            '仅调整累计实际充值金额；当天及近期各周期统计不变。',
+            'Only the lifetime actual recharge total includes display adjustments. Daily and recent totals stay unchanged.',
+            'Only the lifetime actual recharge total includes display adjustments. Daily and recent totals stay unchanged.',
+        ],
+    'Actual recharge display adjustments': [
+        '实际充值金额显示调整',
+        'Actual recharge display adjustments',
+        'Actual recharge display adjustments',
+    ],
+    'Adjustments and history': ['调整及记录', 'Adjustments and history', 'Adjustments and history'],
+    'Display adjustment history': [
+        '显示调整记录',
+        'Display adjustment history',
+        'Display adjustment history',
+    ],
+    'Only changes the actual recharge figures in this overview. Orders, wallets and other reports remain unchanged.':
+        [
+            '仅调整本总览的实际充值金额显示，不改变充值订单、钱包及其他报表。',
+            'Only changes the actual recharge figures in this overview. Orders, wallets and other reports remain unchanged.',
+            'Only changes the actual recharge figures in this overview. Orders, wallets and other reports remain unchanged.',
+        ],
+    'Recorded recharge total': [
+        '原始实际充值合计',
+        'Recorded recharge total',
+        'Recorded recharge total',
+    ],
+    'Cumulative display adjustment': [
+        '显示调整净额',
+        'Cumulative display adjustment',
+        'Cumulative display adjustment',
+    ],
+    'Adjusted recharge total': [
+        '调整后显示合计',
+        'Adjusted recharge total',
+        'Adjusted recharge total',
+    ],
+    'Adjustment amount (USDT)': [
+        '调整金额（USDT，可正可负）',
+        'Adjustment amount (USDT)',
+        'Adjustment amount (USDT)',
+    ],
+    'Adjustment reason': ['调整原因', 'Adjustment reason', 'Adjustment reason'],
+    'The adjustment date determines which Beijing-time daily and recent totals include this entry. Lifetime totals always include it.':
+        [
+            '按北京时间的调整日期计入对应当天、近几天及累计金额。',
+            'The adjustment date determines which Beijing-time daily and recent totals include this entry. Lifetime totals always include it.',
+            'The adjustment date determines which Beijing-time daily and recent totals include this entry. Lifetime totals always include it.',
+        ],
+    'This adjustment': ['本次调整', 'This adjustment', 'This adjustment'],
+    'Confirm this negative display adjustment.': [
+        '确认此次负数显示调整。',
+        'Confirm this negative display adjustment.',
+        'Confirm this negative display adjustment.',
+    ],
+    'Confirm this display adjustment.': [
+        '确认此次显示调整。',
+        'Confirm this display adjustment.',
+        'Confirm this display adjustment.',
+    ],
+    'Record adjustment': ['登记调整', 'Record adjustment', 'Record adjustment'],
+    'History cannot be edited or deleted. Correct an entry by adding an opposite adjustment.': [
+        '调整记录不可修改或删除；如需纠错，请追加一笔反向调整。',
+        'History cannot be edited or deleted. Correct an entry by adding an opposite adjustment.',
+        'History cannot be edited or deleted. Correct an entry by adding an opposite adjustment.',
+    ],
+    'Amount must not be zero.': [
+        '调整金额不能为零。',
+        'Amount must not be zero.',
+        'Amount must not be zero.',
+    ],
+    'Credit the wallet and record the same amount as a user advance.': [
+        '钱包到账，同时登记该用户的等额预支。',
+        'Kreditkan dompet dan rekod jumlah yang sama sebagai pendahuluan pengguna.',
+        'Abone la cartera y registre el mismo importe como anticipo del usuario.',
+    ],
+    'Changing receipt type updates receipt totals and user advances. The wallet balance and credited amount stay unchanged.':
+        [
+            '切换到账类型将更新到账统计和用户预支，不改变钱包余额及已入账金额。',
+            'Menukar jenis penerimaan mengemas kini jumlah penerimaan dan pendahuluan pengguna tanpa mengubah baki dompet.',
+            'Cambiar el tipo actualiza los totales y anticipos sin cambiar el saldo ni el importe abonado.',
+        ],
+    'Subordinate advances': [
+        '下级预支金额',
+        'Pendahuluan ahli bawahan',
+        'Anticipos de subordinados',
+    ],
+    'Signed user advances are administrative records. They do not move wallet funds.': [
+        '用户预支支持正负对冲，仅登记记录，不改变钱包资金。',
+        'Pendahuluan pengguna menyokong pelarasan positif dan negatif tanpa memindahkan dana dompet.',
+        'Los anticipos permiten ajustes positivos y negativos sin mover fondos.',
+    ],
+    'Confirm negative advance offset for this user.': [
+        '确认登记该用户的负预支对冲。',
+        'Sahkan pelarasan pendahuluan negatif pengguna ini.',
+        'Confirmar el ajuste negativo de este usuario.',
+    ],
+    'Confirm this user advance entry or reversal.': [
+        '确认登记该用户的预支或冲正。',
+        'Sahkan rekod atau pembalikan pendahuluan pengguna ini.',
+        'Confirmar este anticipo o su reversión.',
+    ],
+    'Change the deposit receipt classification to reverse this advance.': [
+        '充值关联预支请通过订单到账类型切换进行冲正。',
+        'Tukar klasifikasi penerimaan deposit untuk membalikkan pendahuluan ini.',
+        'Cambie la clasificación del depósito para revertir este anticipo.',
+    ],
+    'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses − personal account balance difference − subordinate advances. Wallet flows affect stock through the personal difference, not business contributions.':
+        [
+            '合伙人存量 = 有效保证金余额 + 已付年费 − 已付佣金 − 已返年费 − 净报销 − 本人理论差额 − 下级预支金额。下级预支仅统计归属本人的多级普通用户，遇启用合伙人及其分支停止；负预支增加存量。',
+            'Baki rakan kongsi menolak perbezaan peribadi dan pendahuluan bersih ahli bawahan hingga sempadan rakan kongsi aktif.',
+            'El saldo del socio descuenta la diferencia personal y los anticipos netos de usuarios hasta otro socio activo.',
+        ],
     'Card authorization': ['交易消费', 'Kebenaran kad', 'Autorización de tarjeta'],
     'Card fund collection': ['资金收取', 'Kutipan dana', 'Cobro de fondos'],
     'Card ATM deposit': ['ATM 存款', 'Deposit ATM', 'Depósito en cajero'],
@@ -7,14 +121,38 @@ export const partnerCatalog = {
     'Card settlement reversal': ['清算冲正', 'Pembalikan penyelesaian', 'Reversión de liquidación'],
     'Card chargeback debit': ['拒付（借记）', 'Caj balik debit', 'Contracargo de débito'],
     'Card chargeback credit': ['拒付（贷记）', 'Caj balik kredit', 'Contracargo de crédito'],
-    '{{count}} transactions': ['{{count}} 笔记录', '{{count}} transaksi', '{{count}} transacciones'],
-    'Card details are synchronizing': ['卡资料同步中', 'Butiran kad sedang disegerakkan', 'Sincronizando los datos de la tarjeta'],
-    'The system is confirming this operation. Please wait.': ['系统正在确认本次操作，请稍候。', 'Sistem sedang mengesahkan operasi ini. Sila tunggu.', 'El sistema está confirmando esta operación. Espera un momento.'],
+    '{{count}} transactions': [
+        '{{count}} 笔记录',
+        '{{count}} transaksi',
+        '{{count}} transacciones',
+    ],
+    'Card details are synchronizing': [
+        '卡资料同步中',
+        'Butiran kad sedang disegerakkan',
+        'Sincronizando los datos de la tarjeta',
+    ],
+    'The system is confirming this operation. Please wait.': [
+        '系统正在确认本次操作，请稍候。',
+        'Sistem sedang mengesahkan operasi ini. Sila tunggu.',
+        'El sistema está confirmando esta operación. Espera un momento.',
+    ],
     'Verification email': ['验证码接收邮箱', 'E-mel pengesahan', 'Correo de verificación'],
-    'Verification email (optional)': ['验证码接收邮箱（选填）', 'E-mel pengesahan (pilihan)', 'Correo de verificación (opcional)'],
-    'Item': ['项目', 'Item', 'Concepto'],
-    '{{days}}-day average': ['前{{days}}天日均', 'Purata {{days}} hari', 'Promedio de {{days}} días'],
-    'Security deposit refunds': ['保证金退回金额', 'Bayaran balik deposit keselamatan', 'Reembolsos de garantía'],
+    'Verification email (optional)': [
+        '验证码接收邮箱（选填）',
+        'E-mel pengesahan (pilihan)',
+        'Correo de verificación (opcional)',
+    ],
+    Item: ['项目', 'Item', 'Concepto'],
+    '{{days}}-day average': [
+        '前{{days}}天日均',
+        'Purata {{days}} hari',
+        'Promedio de {{days}} días',
+    ],
+    'Security deposit refunds': [
+        '保证金退回金额',
+        'Bayaran balik deposit keselamatan',
+        'Reembolsos de garantía',
+    ],
     'Increase theoretical balance': ['增加理论余额', 'Tambah baki teori', 'Aumentar saldo teórico'],
     'Decrease theoretical balance': [
         '减少理论余额',

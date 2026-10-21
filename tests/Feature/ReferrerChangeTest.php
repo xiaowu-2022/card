@@ -8,6 +8,7 @@ use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Promotion\Models\PromotionMember;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
+use App\Domain\User\Models\UserProfile;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -64,6 +65,42 @@ it('rejects self descendants cross-company stale forms and revoked permissions',
     DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'users.referrer.manage')->value('id'))->delete();
     $this->postJson($this->url, $this->data)->assertForbidden();
 });
+it('searches referrer dropdown candidates by partial name email account and UUID without writes', function () {
+    $targetUser = User::findOrFail($this->target->user_id);
+    UserProfile::updateOrCreate(['tenant_id' => $this->tenant->id, 'user_id' => $targetUser->id], ['display_name' => 'Cloud Orchid Referrer']);
+    $this->actingAs($this->actor, 'platform_admin');
+    $before = collect(['promotion_members', 'referrer_changes', 'ledger_entries', 'ledger_accounts'])->mapWithKeys(fn ($table) => [$table => DB::table($table)->orderBy('id')->get()->toJson()]);
+    foreach (['orchid', strtoupper(substr($targetUser->email, 0, 12)), substr($targetUser->account_id, 1), substr($targetUser->id, 0, 12), str_replace('-', '', $this->target->id)] as $search) {
+        $this->getJson($this->url.'/candidates?'.http_build_query(['search' => $search]))->assertOk()
+            ->assertJsonPath('items.0.id', $this->target->id)->assertJsonPath('items.0.display_name', 'Cloud Orchid Referrer');
+    }
+    $response = $this->getJson($this->url.'/candidates')->assertOk()->assertHeader('Cache-Control', 'no-store, private');
+    $ids = array_column($response->json('items'), 'id');
+    expect($ids)->toContain($this->target->id)->not->toContain($this->root->id, $this->child->id, $this->grandchild->id);
+    $this->getJson($this->url.'/candidates?search=%25')->assertOk()->assertJsonCount(0, 'items');
+    foreach ($before as $table => $snapshot) {
+        expect(DB::table($table)->orderBy('id')->get()->toJson())->toBe($snapshot);
+    }
+    Http::assertNothingSent();
+});
+
+it('paginates eligible referrers and rejects foreign scopes inactive candidates and lost permissions', function () {
+    for ($i = 0; $i < 22; $i++) {
+        referrerTestMember($this, null);
+    }
+    $inactive = User::findOrFail($this->target->user_id);
+    $inactive->forceFill(['status' => 'SUSPENDED'])->save();
+    $this->actingAs($this->actor, 'platform_admin');
+    $first = $this->getJson($this->url.'/candidates')->assertOk()->assertJsonCount(20, 'items')->assertJsonPath('hasMore', true)->json('items');
+    $second = $this->getJson($this->url.'/candidates?page=2')->assertOk()->assertJsonPath('hasMore', false)->json('items');
+    expect(array_intersect(array_column($first, 'id'), array_column($second, 'id')))->toBe([]);
+    expect(array_column([...$first, ...$second], 'id'))->not->toContain($this->target->id);
+    $foreign = Tenant::where('id', '<>', $this->tenant->id)->firstOrFail();
+    $this->getJson(str_replace($this->tenant->id, $foreign->id, $this->url).'/candidates')->assertNotFound();
+    DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'users.referrer.manage')->value('id'))->delete();
+    $this->getJson($this->url.'/candidates')->assertForbidden();
+});
+
 it('rejects direct relationship edits without matching immutable evidence', function () {
     expect(fn () => DB::transaction(fn () => DB::table('promotion_members')->where('id', $this->child->id)->update(['inviter_id' => $this->target->id])))->toThrow(QueryException::class);
     expect(fn () => DB::transaction(fn () => DB::table('promotion_members')->where('id', $this->child->id)->update(['referrer_revision' => 1])))->toThrow(QueryException::class);

@@ -55,20 +55,21 @@ Implementation validation in this workstation is limited while Docker/PHP are
 unavailable. Frontend checks/builds and PHP syntax parsing do not validate PostgreSQL
 constraints, scheduler execution or server-side regression behavior.
 
-## Consumer resubmission after failure
+## One pending application per account (2026-10-21)
 
-Technical FAILED and rejected applications allow the consumer to upload new documents
-and create a linked application. Old documents, processing errors and reviews remain
-unchanged. Pending active work still blocks duplicate submission; superseded failed
-applications cannot be approved or retried. Existing approved identity remains valid
-during a failed re-verification and a subsequent explicit re-verification.
+Within a company, an account with any PENDING review cannot submit another application,
+including when technical processing has FAILED or a newer historical row exists.
+Submission and administrator retry share the tenant transaction lock; submission also
+locks the user. Replays of an already accepted submission return that application.
+Failed pending work can be retried on the original application or manually reviewed.
+After rejection or a resubmission-required decision, new documents may create a linked
+application. Existing review and document evidence remain unchanged.
 
-Deploy `2026_10_05_200000_allow_failed_kyc_resubmission.php` before enabling the matching
-PHP and uni-app H5 build. The pending uniqueness index excludes technical failures
-without rewriting historical applications. All new KYC upload tickets use encrypted
-server originals even in OSS mode; unsubmitted legacy URL-only tickets require re-upload.
-Existing failed URL-only applications may be left intact and replaced by a consumer
-submission with new photos. No historical OCR or automatic retry is performed.
+The consumer submission and re-verification gates include failed pending applications.
+Administrator retries cannot create or reactivate an application while another pending
+review exists. The historical partial index excludes technical failures; the stricter
+rule is enforced by the shared locked application paths without changing that index or
+rewriting historical duplicate rows. Deploy matching PHP; no native rebuild is required.
 
 ## Manual decisions independent of OCR (2026-10-08)
 

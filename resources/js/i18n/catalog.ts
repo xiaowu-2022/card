@@ -15,6 +15,15 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    "Connection unavailable": ["连接异常", "Sambungan tidak tersedia", "Conexión no disponible"],
+    "The service is still unavailable. Check your connection and retry.": ["服务仍不可用，请检查网络后重试。", "Perkhidmatan masih tidak tersedia. Semak sambungan dan cuba lagi.", "El servicio sigue sin estar disponible. Comprueba la conexión y reinténtalo."],
+    "Cannot connect to the server. Refresh the page to try again.": ["网络异常或服务暂时不可用，请刷新页面重试。", "Tidak dapat menyambung ke pelayan. Muat semula halaman untuk mencuba lagi.", "No se puede conectar al servidor. Recarga la página para reintentarlo."],
+    "The operation result is unknown. Check your records before submitting again.": ["本次操作结果尚未确认，请先核对记录，勿重复提交。", "Keputusan operasi belum diketahui. Semak rekod sebelum menghantar semula.", "El resultado de la operación es desconocido. Consulta los registros antes de volver a enviarla."],
+    "Refresh protection storage is unavailable. Refresh manually or close and reopen this page.": ["无法保存刷新保护状态，请手动刷新或关闭后重新打开页面。", "Storan perlindungan muat semula tidak tersedia. Muat semula secara manual atau tutup dan buka semula halaman ini.", "No se puede guardar la protección de recarga. Recarga manualmente o cierra y vuelve a abrir esta página."],
+    "Retry refresh": ["重试刷新", "Cuba muat semula", "Reintentar recarga"],
+    "Refresh page": ["刷新页面", "Muat semula halaman", "Recargar página"],
+    "Keep current page": ["暂不刷新", "Kekalkan halaman semasa", "Mantener la página actual"],
+
     'Updating…': ['正在更新…', 'Sedang mengemas kini…', 'Actualizando…'],
     'Update failed. Please retry.': ['更新失败，请重试。', 'Kemas kini gagal. Cuba semula.', 'No se pudo actualizar. Reinténtalo.'],
     'I confirm the opening fee and initial card balance shown above.': ['我确认以上开卡费用和首次充值金额。', 'Saya mengesahkan fi pembukaan dan baki awal yang dipaparkan.', 'Confirmo la comisión de apertura y el saldo inicial indicados.'],

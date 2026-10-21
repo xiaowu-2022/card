@@ -35,7 +35,7 @@ final class PartnerController extends Controller
 
     public function hierarchy(Request $request, string $partner, PartnerHierarchy $query)
     {
-        $data = $request->validate(['company' => 'nullable|uuid|exists:tenants,id', 'page' => 'nullable|integer|min:1|max:100000', 'flow' => 'nullable|in:inflow,outflow', 'flow_page' => 'nullable|integer|min:1|max:100000', 'user_id' => 'prohibited', 'tenant_id' => 'prohibited']);
+        $data = $request->validate(['company' => 'nullable|uuid|exists:tenants,id', 'page' => 'nullable|integer|min:1|max:100000', 'flow' => 'nullable|in:inflow,outflow,subordinateAdvances', 'flow_page' => 'nullable|integer|min:1|max:100000', 'user_id' => 'prohibited', 'tenant_id' => 'prohibited']);
 
         $result = $query->read($data['company'] ?? null, null, $partner, str_ends_with($request->path(), '/stock') ? 'report' : 'children', $request->integer('page', 1), $request->query('flow'), $request->integer('flow_page', 1));
         if (isset($result['items'])) {
@@ -62,7 +62,7 @@ final class PartnerController extends Controller
 
     public function index(Request $request)
     {
-        $request->validate(['sort' => 'nullable|in:registered_at,advance', 'direction' => 'nullable|in:asc,desc', 'company' => 'nullable|uuid|exists:tenants,id', 'tenant' => 'nullable|uuid|exists:tenants,id', 'partner' => 'nullable|uuid', 'invitation_partner' => 'nullable|uuid', 'page' => 'nullable|integer|min:1|max:100000', 'report_page' => 'nullable|integer|min:1|max:100000', 'referrer' => 'nullable|string|max:120', 'fees_page' => 'nullable|integer|min:1|max:100000', 'flow' => 'nullable|in:inflow,outflow', 'flow_page' => 'nullable|integer|min:1|max:100000']);
+        $request->validate(['sort' => 'nullable|in:registered_at,advance', 'direction' => 'nullable|in:asc,desc', 'company' => 'nullable|uuid|exists:tenants,id', 'tenant' => 'nullable|uuid|exists:tenants,id', 'partner' => 'nullable|uuid', 'invitation_partner' => 'nullable|uuid', 'page' => 'nullable|integer|min:1|max:100000', 'report_page' => 'nullable|integer|min:1|max:100000', 'referrer' => 'nullable|string|max:120', 'fees_page' => 'nullable|integer|min:1|max:100000', 'flow' => 'nullable|in:inflow,outflow,subordinateAdvances', 'flow_page' => 'nullable|integer|min:1|max:100000']);
         $tenant = $request->query('company', $request->query('tenant'));
         $selected = null;
         $report = null;
@@ -85,7 +85,7 @@ final class PartnerController extends Controller
                 ->whereColumn('sorting_journal.partner_id', 'p.id')
                 ->where('sorting_journal.kind', 'ADVANCE')
                 ->selectRaw('COALESCE(SUM(CASE WHEN sorting_journal.reverses_id IS NULL THEN sorting_journal.amount ELSE -sorting_journal.amount END), 0)');
-            $partnerQuery->orderBy($advance, $request->query('direction', 'asc'));
+            $partnerQuery->orderByRaw('(('.$advance->toSql().') + (SELECT COALESCE(SUM(CASE WHEN uaj.reverses_id IS NULL THEN uaj.amount ELSE -uaj.amount END),0) FROM user_advance_entries uaj WHERE uaj.tenant_id=p.tenant_id AND uaj.user_id=p.user_id)) '.$request->query('direction', 'asc'), $advance->getBindings());
         }
         $partnerPage = $partnerQuery->orderBy('u.account_id')->orderBy('p.id')->paginate(20, ['p.id', 'p.tenant_id', 'p.user_id', 't.name as company_name', 'p.enabled', 'p.updated_at', 'p.share_percent', 'u.created_at as registered_at', 'u.account_id', 'profile.display_name', 'u.email'])->withQueryString();
         $summaries = $canReadAmounts ? app(PartnerListSummary::class)->forRows($partnerPage->items()) : [];

@@ -16,6 +16,18 @@ export function tokenSession(ports: {
     let mailbox: { url: string; channel: string; savedRevision: number } | null = null;
     let captureTask: { url: string; channel: string; revision: number; generation: number;
         current: () => boolean; promise: Promise<boolean> } | null = null;
+    const readMetadata = () => {
+        try { return ports.metadata.get(); }
+        catch { throw Object.assign(new LoginRestoreUnavailable(), { storageCode: 'SAVE-META-READ' }); }
+    };
+    const saveMetadata = (value: { signedIn: boolean; recovering?: boolean }, code: string) => {
+        try {
+            ports.metadata.set(value);
+            const restored = ports.metadata.get();
+            if (restored?.signedIn !== value.signedIn || !!restored?.recovering !== !!value.recovering) throw new Error('Metadata readback mismatch');
+        }
+        catch { throw Object.assign(new Error('Login metadata storage failed'), { storageCode: code }); }
+    };
     const trusted = (url: string) => !!directory && directory.origins.includes(url) && origin(url) === url;
     function check(value: Identity, token: string | null) {
         if (value.tenantId !== directory?.tenantId || typeof value.signedIn !== 'boolean'
@@ -26,7 +38,7 @@ export function tokenSession(ports: {
         epoch++;
         credential = null;
         // Mark explicit logout first; no later in-flight capture may resurrect it.
-        ports.metadata.set({ signedIn: false });
+        saveMetadata({ signedIn: false }, 'SAVE-META-LOGOUT');
         ports.vault.write(null);
     }
     return {
@@ -34,24 +46,25 @@ export function tokenSession(ports: {
             if (directory && directory.tenantId !== value.tenantId) throw new Error('Company changed');
             directory = value;
             if (initialized) return;
-            const meta = ports.metadata.get();
-            if (meta?.recovering) throw new LoginRestoreUnavailable();
+            const meta = readMetadata();
+            if (meta?.recovering) throw Object.assign(new LoginRestoreUnavailable(), { storageCode: 'SAVE-RECOVERY-PENDING' });
             credential = meta?.signedIn === false ? null : ports.vault.read();
             if (credential && !validToken(credential)) throw new LoginRestoreUnavailable();
-            if (!credential && meta?.signedIn) throw new LoginRestoreUnavailable();
+            if (!credential && meta?.signedIn) throw Object.assign(new LoginRestoreUnavailable(), { storageCode: 'SAVE-CREDENTIAL-MISSING' });
             initialized = true;
         },
-        expectedSignedIn: () => !!credential || ports.metadata.get()?.signedIn === true,
+        expectedSignedIn: () => !!credential || readMetadata()?.signedIn === true,
         pending() {
             epoch++;
             credential = null;
-            ports.metadata.set({ signedIn: true, recovering: true });
+            captureStage = 'storage';
+            saveMetadata({ signedIn: true, recovering: true }, 'SAVE-META-PENDING');
         },
         clear,
         captureStage: () => captureStage,
         async restore(url: string) {
             if (!trusted(url)) throw new Error('Unverified login destination');
-            if (!credential && ports.metadata.get()?.signedIn) throw new LoginRestoreUnavailable();
+            if (!credential && readMetadata()?.signedIn) throw new LoginRestoreUnavailable();
             const generation = ++epoch;
             // Both requests are scoped to the verified host and are independent.
             const [verified, channel] = await Promise.all([ports.verify(url, credential), ports.open(url)]);
@@ -66,7 +79,7 @@ export function tokenSession(ports: {
             if (!trusted(url) || mailbox?.url !== url) throw new LoginRestoreUnavailable();
             // A login/account switch is still handing off its new token. Never
             // overwrite that page's bridge with a guest token during this gap.
-            if (!credential && ports.metadata.get()?.recovering) return '';
+            if (!credential && readMetadata()?.recovering) return '';
             // The credential travels in a trusted evalJS call only, never a URL,
             // title, diagnostics, page persistence or arbitrary native bridge.
             return `(function(){if(location.origin!==${JSON.stringify(url)}||window.__consumerTokenDocument===${JSON.stringify(documentId)})return;window.__consumerTokenDocument=${JSON.stringify(documentId)};window.__consumerTokenBridge=${JSON.stringify({ channel: mailbox.channel, token: credential, tenantId: directory!.tenantId })};window.dispatchEvent(new Event('consumer-token-bridge'));})();`;
@@ -87,7 +100,8 @@ export function tokenSession(ports: {
                 // A newer publication may be a different account. Retain encrypted
                 // bytes for retry, but prohibit restoring the preceding identity.
                 credential = null;
-                ports.metadata.set({ signedIn: true, recovering: true });
+                captureStage = 'storage';
+                saveMetadata({ signedIn: true, recovering: true }, 'SAVE-META-PENDING');
                 captureStage = 'claim';
                 const value = await ports.claim(url, channel, revision);
                 if (!task.current() || generation !== epoch || mailbox?.channel !== channel) return false;
@@ -98,12 +112,19 @@ export function tokenSession(ports: {
                 if (!identity.signedIn) throw Object.assign(new LoginRestoreUnavailable(), { diagnostic: 'identity' });
                 if (!task.current() || generation !== epoch || mailbox?.channel !== channel) return false;
                 credential = null;
-                ports.metadata.set({ signedIn: true, recovering: true });
                 captureStage = 'storage';
+                saveMetadata({ signedIn: true, recovering: true }, 'SAVE-META-PENDING');
                 // An unchanged, already-protected credential still gets a fresh
                 // identity check above, but does not need another encryption/write.
-                if (value !== savedCredential) ports.vault.write(value);
-                ports.metadata.set({ signedIn: true });
+                if (value !== savedCredential) {
+                    try { ports.vault.write(value); }
+                    catch (error) {
+                        // Preserve fixed native diagnoses; never surface arbitrary exception text.
+                        if (error instanceof Error && ('storageCode' in error || 'iosStep' in error || error.message.startsWith('Protected credential') || error.message === 'Invalid protected credential')) throw error;
+                        throw Object.assign(new Error('Credential vault failed'), { storageCode: 'SAVE-VAULT-UNEXPECTED' });
+                    }
+                }
+                saveMetadata({ signedIn: true }, 'SAVE-META-COMMIT');
                 credential = value;
                 mailbox.savedRevision = revision;
                 captureStage = 'ready';

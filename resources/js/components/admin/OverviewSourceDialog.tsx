@@ -1,3 +1,7 @@
+import {
+    RechargeAdjustmentRecords,
+    type RechargeAdjustmentHistory,
+} from './OverviewRechargeAdjustmentsDialog';
 import { useEffect, useState } from 'react';
 import {
     Dialog,
@@ -20,6 +24,8 @@ export type OverviewSourceTarget = {
     label: string;
 };
 type Report = {
+    adjustments?: RechargeAdjustmentHistory | null;
+    recordedAmount?: string | null;
     amount: string | null;
     asset: string;
     updatedAt: string;
@@ -55,6 +61,7 @@ export function OverviewSourceDialog({
     target: OverviewSourceTarget;
     onClose: () => void;
 }) {
+    const [adjustmentPage, setAdjustmentPage] = useState(1);
     const [page, setPage] = useState(1);
     const [report, setReport] = useState<Report | null>(null);
     const [loading, setLoading] = useState(true);
@@ -68,6 +75,7 @@ export function OverviewSourceDialog({
             metric: target.metric,
             period: target.period ?? 'total',
             page: String(page),
+            adjustment_page: String(adjustmentPage),
         });
         if (target.asset) params.set('asset', target.asset);
         void fetch(`/platform/overview/sources?${params}`, {
@@ -88,7 +96,7 @@ export function OverviewSourceDialog({
                 if (!controller.signal.aborted) setLoading(false);
             });
         return () => controller.abort();
-    }, [target, page, retry]);
+    }, [target, page, adjustmentPage, retry]);
     return (
         <Dialog
             open
@@ -101,9 +109,7 @@ export function OverviewSourceDialog({
                     <DialogTitle>
                         {target.label} · {t('Data sources')}
                     </DialogTitle>
-                    <DialogDescription className="sr-only">
-                        {t('Source records')}
-                    </DialogDescription>
+                    <DialogDescription className="sr-only">{t('Source records')}</DialogDescription>
                 </DialogHeader>
                 {loading && (
                     <p className="mt-4 text-sm text-muted-foreground" role="status">
@@ -129,6 +135,17 @@ export function OverviewSourceDialog({
                                 {t('Updated at')}: {dateTime(report.updatedAt, report.timezone)}
                             </p>
                         </div>
+                        {report.adjustments && (
+                            <p className="text-sm">
+                                {t('Recorded recharge total')}:{' '}
+                                <SourceMoney
+                                    amount={report.recordedAmount ?? null}
+                                    asset={report.asset}
+                                />{' '}
+                                · {t('Cumulative display adjustment')}:{' '}
+                                <SourceMoney amount={report.adjustments.amount} asset="USDT" />
+                            </p>
+                        )}
                         <div className="overflow-x-auto rounded-lg border">
                             <table className="w-full min-w-[720px] text-sm">
                                 <thead>
@@ -200,6 +217,12 @@ export function OverviewSourceDialog({
                             disabled={loading}
                             onPage={setPage}
                         />
+                        {report.adjustments && (
+                            <RechargeAdjustmentRecords
+                                data={report.adjustments}
+                                onPage={setAdjustmentPage}
+                            />
+                        )}
                     </div>
                 )}
             </DialogContent>

@@ -1,3 +1,44 @@
+## 2026-10-20 用户指定 IPA 已替换 OSS（公网核验未完成）
+
+按用户明确要求，将 `/Users/eaxyqminuo/8f5a6250b1b1e0622e5871b25508cca4.ipa`
+原样替换 OSS 根对象 `U 卡.ipa`。Bundle com.tng.pingqiu，2.6.22 / 2622，
+19663280 字节，SHA256 `c3e81bb00fbd54555eea4c36f2d70f5886fb52ea5141278d8476313bf48188bf`。
+旧对象已保存于私有 release-backups 并完整核验；分片上传完成后 OSS 完整回读一致。
+
+该指定文件本地 codesign --verify --deep --strict 报 arm64 invalid signature，
+已在上传前明确告知用户；没有擅自重新签名或换成其他 IPA。ZIP 与版本信息可读，
+不能据此声称安装可用。公开 HTTPS 下载曾读取约 9.6MB 后超时，后续连接重试亦超时；
+public_verified=false，不声称公网完整校验通过。记录在
+output/U-card-ipa-publication-20261020.json。
+
+为遵守公网校验后才更新分发元数据的发布门槛，未覆盖 public/h5/ipa/oss-release.json
+或声称部署网站。新元数据候选在 output/ipa-oss-release-2622-pending.json；
+现有部署的分发清单仍须后续同步版本，不能将上传 OSS 等同于更新分发清单。
+
+## 2026-10-20 分发界面编译进 uni-app（当前入口）
+
+按用户要求，苹果分发界面已改为 uni-app 页面 `pages/app-download/index`，随 H5
+编译。首页、账户和菜单复用的苹果下载动作直接站内 navigateTo，不再等待 bootstrap，
+也不再导航到服务端 `/ipa` 或 `/ipa/`。桌面选择苹果下载走同一路由。
+界面源码位于 `mobile/uni-app/src/pages/app-download/index.vue`，可直接编辑。
+
+安装包信息独立请求当前源 `/ipa/index.php?format=json`，credentials omit、no-store，
+8 秒超时，有加载、重试与空列表状态。页面显示不等待该请求。该明确文件地址不经过
+Nginx 目录补斜杠重定向。JSON 和旧 HTML/manifest 复用同一现有包读取/OSS 配置，
+不访问数据库、身份或供应商，不缓存凭证。不把版本、签名或安装完成状态编造为成功。
+安装清单用当前 HTTPS origin + `/ipa/index.php?manifest=…`，下载仍使用包配置中的
+HTTPS OSS/本地链接；没有把 IPA 二进制编译进 JS，也没有改动签名/设备授权。
+
+部署整个 `public/h5` 的新增哈希资源和新入口，并一并更新 `public/h5/ipa/index.php`。
+保留旧哈希、IPA、oss-release.json 以及现有 PHP-FPM 文件处理规则；本次不改服务器
+代理配置。H5 界面已编译复制至 public/h5，原生壳无需重打包。
+旧直接访问 `/ipa/` 的独立页面和安装清单接口仍保留兼容。
+
+验证：苹果/桌面下载路由与 HTTPS 清单单测通过；Chromium/WebKit 手机布局实测
+从首页点击可先显示分发页，再完成独立列表读取；503 后重试成功，未追加 bootstrap
+或请求目录 URL；真实 PHP JSON 模式、已有离线 IPA/OSS/清单解析测试和类型检查通过。
+截图：`output/uni-ios-distribution/`。线上尚未部署，未触发真实设备安装。
+
 # iOS IPA 分发
 
 入口：`https://你的域名/ipa/`，或 `/ipa/index.php`。部署整个 `public/h5/ipa` 文件夹，服务器需要 PHP 8.4、Phar、zlib、SimpleXML、iconv

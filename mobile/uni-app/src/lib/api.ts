@@ -1,3 +1,4 @@
+import { networkRecovery } from './network-recovery';
 import company from '../generated/company.json';
 import { companyOrigin, ensureCompanyOrigin, refreshCompanyOrigins } from './origin';
 import { androidCredentialVault, type AndroidBridge } from './device-credentials';
@@ -121,25 +122,87 @@ function capture(header: Record<string, unknown> | undefined) {
     );
     if (typeof entry?.[1] === 'string') { flow = entry[1]; flowUpdatedAt = Date.now(); }
 }
+function stableReadData(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(stableReadData);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, entry]) => [key, stableReadData(entry)]));
+    return value;
+}
+type ReadFlight = { promise: Promise<unknown>; listeners: Set<(status: number, requestId: string) => void> };
+const readFlights = new Map<string, ReadFlight>();
+function recoveryFailure(error: unknown, mutation: boolean) {
+    if (!native && typeof networkRecovery !== 'undefined' && error instanceof ApiError
+        && (error.status === 0 || error.status >= 500)) networkRecovery.failure(mutation);
+}
 export async function request<T>(
     path: string,
     method: 'GET' | 'POST' = 'GET',
     data?: Record<string, unknown>,
     onResponse?: (status: number, requestId: string) => void,
     anonymous = false,
+    options: { background?: boolean } = {},
+): Promise<T> {
+    const generation = sessionGeneration, context = page, requestLanguage = language;
+    await ensureToken();
+    if (generation !== sessionGeneration) throw new ApiError(409);
+    const recoveryRevision = !native && typeof networkRecovery !== 'undefined' ? networkRecovery.checkpoint() : 0;
+    const background = options.background === true || /^\/(?:unread|presence|session|support\/realtime(?:\/auth)?)(?:\?|$)/.test(path);
+    const key = JSON.stringify([generation, native ? [company.appId, company.tenantSlug, company.apiOrigin] : companyOrigin(), requestLanguage, context, path, stableReadData(data ?? null), anonymous]);
+    const scope: { generation: number; header: Record<string, string> } = { generation, header: { ...headers(!anonymous), 'X-Consumer-Page': context } };
+    if (requestLanguage || native) scope.header['Accept-Language'] = requestLanguage || uni.getLocale();
+    else delete scope.header['Accept-Language'];
+    const run = () => requestOnce<T>(path, method, data, onResponse, anonymous, scope);
+    let flight: Promise<T>;
+    if (method === 'GET') {
+        let shared = readFlights.get(key);
+        if (!shared) {
+            const entry: ReadFlight = { promise: Promise.resolve(), listeners: new Set() };
+            if (onResponse) entry.listeners.add(onResponse);
+            entry.promise = requestOnce<T>(path, method, data, (status, requestId) => {
+                for (const listener of entry.listeners) listener(status, requestId);
+            }, anonymous, scope).finally(() => { if (readFlights.get(key) === entry) readFlights.delete(key); });
+            readFlights.set(key, entry);
+            shared = entry;
+        } else if (onResponse) shared.listeners.add(onResponse);
+        flight = shared.promise as Promise<T>;
+    } else flight = run();
+    try {
+        const result = await flight;
+        if (generation !== sessionGeneration) throw new ApiError(409);
+        if (!native && typeof networkRecovery !== 'undefined' && method === 'GET'
+            && !background && (path.startsWith('/client/') || ['/home/summary', '/account', '/cards', '/support', '/bootstrap?defer_unread=1'].includes(path) || path.startsWith('/messages?')) && context === page)
+            networkRecovery.success(recoveryRevision);
+        return result;
+    } catch (error) {
+        if (!background && generation === sessionGeneration && context === page) recoveryFailure(error, method === 'POST');
+        throw error;
+    }
+}
+async function requestOnce<T>(
+    path: string,
+    method: 'GET' | 'POST' = 'GET',
+    data?: Record<string, unknown>,
+    onResponse?: (status: number, requestId: string) => void,
+    anonymous = false,
+    scope?: { generation: number; header: Record<string, string> },
 ): Promise<T> {
     await ensureToken();
+    const generation = scope?.generation ?? sessionGeneration;
+    if (generation !== sessionGeneration) throw new ApiError(409);
     // Refresh an idle form proof before sending, without replaying a mutation.
     if (method === 'POST' && flow && Date.now() - flowUpdatedAt >= 60 * 60 * 1000)
         await request('/bootstrap?defer_unread=1');
+    if (generation !== sessionGeneration) throw new ApiError(409);
+    const requestHeaders = { ...(scope?.header ?? headers(!anonymous)) };
+    delete requestHeaders['X-Consumer-Flow'];
+    if (flow) requestHeaders['X-Consumer-Flow'] = flow;
     await ensureCompanyOrigin().catch(() => {
         throw new ApiError(0, { error: { code: 'CLIENT_ORIGIN_UNAVAILABLE' } });
     });
+    if (generation !== sessionGeneration) throw new ApiError(409);
     const reference = globalThis.crypto?.randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
         const value = Math.floor(Math.random() * 16);
         return (c === 'x' ? value : (value & 3) | 8).toString(16);
     });
-    const generation = sessionGeneration;
     const timeout = ['/client/kyc/applications', '/client/kyc/recognize-front'].includes(path.split('?')[0]) ? 300000
         : path.split('?')[0] === '/client/cards/cardholder' ? 180000
         : path.split('?')[0] === '/support/messages' ? 60000
@@ -153,13 +216,14 @@ export async function request<T>(
         throw new ApiError(status, data as ApiError['payload'], requestId);
     };
     const send = () => !native ? browserFetch(url(path), {
-        method, headers: { ...headers(!anonymous), 'X-Request-ID': reference, ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}) },
+        method, headers: { ...requestHeaders, 'X-Request-ID': reference, ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}) },
         ...(method === 'POST' ? { body: JSON.stringify(data ?? {}) } : {}),
     }, timeout).then(async response => {
         let result: unknown = null;
         const text = await response.text();
         try { result = text ? JSON.parse(text) : null; }
         catch { throw new ApiError(response.ok ? 502 : response.status); }
+        if (response.ok && response.status !== 204 && (result === null || typeof result !== 'object')) throw new ApiError(502);
         const responseHeaders: Record<string, string> = {};
         response.headers.forEach((value, key) => { responseHeaders[key] = value; });
         return complete(response.status, result, responseHeaders);
@@ -168,7 +232,7 @@ export async function request<T>(
             url: url(path),
             method,
             data,
-            header: { ...headers(!anonymous), 'X-Request-ID': reference },
+            header: { ...requestHeaders, 'X-Request-ID': reference },
             withCredentials: false,
             timeout,
             success(response) {
@@ -244,15 +308,26 @@ type UploadTicket = { id: string; mode?: string; url: string; imageUrl?: string;
 export type UploadProgress = { stage: 'uploading' | 'submitting'; completed: number; total: number };
 export type Upload = { name: string; path: string };
 export async function upload<T>(
+    path: string, data: Record<string, unknown>, files: Upload[],
+    onProgress?: (progress: UploadProgress) => void,
+): Promise<T> {
+    const generation = sessionGeneration;
+    try { return await uploadOnce<T>(path, data, files, onProgress, generation); }
+    catch (error) { if (generation === sessionGeneration) recoveryFailure(error, true); throw error; }
+}
+async function uploadOnce<T>(
     path: string,
     data: Record<string, unknown>,
     files: Upload[],
     onProgress?: (progress: UploadProgress) => void,
+    generation = sessionGeneration,
 ): Promise<T> {
     await ensureToken();
+    if (generation !== sessionGeneration) throw new ApiError(409);
     await uploadStep('prepare', null, () => ensureCompanyOrigin().catch(() => {
         throw new ApiError(0);
     }));
+    if (generation !== sessionGeneration) throw new ApiError(409);
     const purpose = ({
         '/client/kyc/applications': 'kyc',
         '/client/kyc/recognize-front': 'kyc',
@@ -381,6 +456,14 @@ export function photoUrl(value: string | null) {
     return native ? origin + path : path;
 }
 export async function privateImage(path: string): Promise<string> {
+    const generation = sessionGeneration, context = page;
+    try { return await privateImageOnce(path, generation); }
+    catch (error) {
+        if (generation === sessionGeneration && context === page) recoveryFailure(error, false);
+        throw error;
+    }
+}
+async function privateImageOnce(path: string, expectedGeneration: number): Promise<string> {
     if (
         !/^\/(?:support|support-workspace)\/images\/[a-f0-9-]{36}$/i.test(path) &&
         path !== '/client/promotion/poster-background'
@@ -390,6 +473,7 @@ export async function privateImage(path: string): Promise<string> {
         throw new ApiError(0);
     });
     await ensureToken();
+    if (expectedGeneration !== sessionGeneration) throw new ApiError(409);
     const url = (native ? companyOrigin() : '') + '/api/mobile/v1' + path;
     const header = headers();
     if (!native) {

@@ -69,9 +69,11 @@ const more = computed(() =>
         :title="
             t(
                 r.flowDetails
-                    ? r.flowDetails.direction === 'inflow'
-                        ? 'Contribution details'
-                        : 'Deduction details'
+                    ? r.flowDetails.direction === 'subordinateAdvances'
+                        ? 'Subordinate advances'
+                        : r.flowDetails.direction === 'inflow'
+                          ? 'Contribution details'
+                          : 'Deduction details'
                     : 'Stock data',
             )
         "
@@ -150,10 +152,18 @@ const more = computed(() =>
                 ><view v-if="r.version === 'partner' && r.accountBalance" class="row">
                     <text>− {{ t('Account balance difference') }}</text>
                     <text>{{ value(r.accountBalance.difference) }}</text>
-                </view
-                ><text v-if="r.version === 'partner'" class="muted small">{{
+                </view>
+                <button
+                    v-if="r.version === 'partner'"
+                    class="row flow-link"
+                    @click="go(reportPath + '?flow=subordinateAdvances', true)"
+                >
+                    <text>− {{ t('Subordinate advances') }}</text
+                    ><text>{{ value(r.subordinateAdvances ?? '0') }}</text>
+                </button>
+                <text v-if="r.version === 'partner'" class="muted small">{{
                     t(
-                        'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses − personal account balance difference. Wallet flows affect stock through the personal difference, not business contributions.',
+                        'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses − personal account balance difference − subordinate advances. Wallet flows affect stock through the personal difference, not business contributions.',
                     )
                 }}</text
                 ><text v-if="r.version === 'partner'" class="muted small">{{

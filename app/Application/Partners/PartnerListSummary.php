@@ -25,6 +25,8 @@ final class PartnerListSummary
             $identity = app(PlatformUserListIdentity::class)->forUsers($users);
             $financial = app(PlatformUserFinancialSummary::class)->forUsers($users, ['commission' => true]);
             $ids = $rows->pluck('id')->all();
+            $ownAdvances = app(UserAdvances::class)->ownTotals($tenant, $rows->pluck('user_id')->all());
+            $subordinateAdvances = app(UserAdvances::class)->subordinateTotals($tenant, $rows->pluck('user_id')->all());
             $journals = DB::table('partner_journal_entries')->where('tenant_id', $tenant)->whereIn('partner_id', $ids)->select('partner_id')->selectRaw("COALESCE(SUM(CASE WHEN reverses_id IS NULL THEN amount ELSE -amount END) FILTER(WHERE kind='ADVANCE'),0)::text AS advance, COALESCE(SUM(CASE WHEN reverses_id IS NULL THEN amount ELSE -amount END) FILTER(WHERE kind='REIMBURSEMENT'),0)::text AS reimbursement, COALESCE(SUM((CASE WHEN reverses_id IS NULL THEN amount ELSE -amount END)*(CASE WHEN kind='ADJUSTMENT_DECREASE' THEN -1 ELSE 1 END)) FILTER(WHERE kind IN ('ADJUSTMENT_INCREASE','ADJUSTMENT_DECREASE')),0)::text AS adjustment, COUNT(*) FILTER(WHERE kind IN ('ADJUSTMENT_INCREASE','ADJUSTMENT_DECREASE')) AS adjustment_count")->groupBy('partner_id')->get()->keyBy('partner_id');
             $actual = DB::table('ledger_accounts')->where('tenant_id', $tenant)->whereIn('user_id', $rows->pluck('user_id'))->where('asset_code', 'USDT')->where('account_type', 'USER_AVAILABLE')->select('user_id')->selectRaw('SUM(balance)::text AS balance')->groupBy('user_id')->pluck('balance', 'user_id');
             $entries = $activity = $risks = $refunds = $legacy = null;
@@ -56,7 +58,7 @@ final class PartnerListSummary
             foreach ($rows as $p) {
                 $j = $journals->get($p->id);
                 $f = $financial[$tenant.':'.$p->user_id];
-                $balance = PartnerAccountBalance::calculate($j->advance ?? '0', $f['annualExpense'], $f['activationCommission'], $f['annualCommission'], $f['unclassifiedCommission'], $j->reimbursement ?? '0', $j->adjustment ?? '0', $actual[$p->user_id] ?? '0', ($j->adjustment_count ?? 0) > 0);
+                $balance = PartnerAccountBalance::calculate($ownAdvances[$p->user_id] ?? '0', $f['annualExpense'], $f['activationCommission'], $f['annualCommission'], $f['unclassifiedCommission'], $j->reimbursement ?? '0', $j->adjustment ?? '0', $actual[$p->user_id] ?? '0', ($j->adjustment_count ?? 0) > 0);
                 $daily = [];
                 $byCategory = $trends->get($p->id, collect())->keyBy('category');
                 foreach (['deposits', 'annual', 'depositRefunds', 'activation', 'rebates', 'annualCommission'] as $category) {
@@ -66,7 +68,7 @@ final class PartnerListSummary
                         $daily[$category][(string) $d] = (string) BigDecimal::of($r->{'d'.$d} ?? '0')->dividedBy($d, 8, RoundingMode::HalfUp);
                     }
                 }
-                $result[$p->id] = $identity[$tenant.':'.$p->user_id] + ['summary' => ['advance' => $j->advance ?? '0', 'stock' => $p->enabled ? PartnerStockValue::afterDifference($totals[$p->id] ?? '0', $balance['difference']) : ($legacyTotals->get($p->id)?->missing ? null : ($legacyTotals->get($p->id)?->stock ?? '0')), 'theoretical' => $p->enabled ? $balance['theoretical'] : null, 'actual' => $p->enabled ? $balance['actual'] : null, 'difference' => $p->enabled ? $balance['difference'] : null, 'reimbursement' => $j->reimbursement ?? '0', 'daily' => $daily, 'alerts' => ['remaining' => $remaining[$p->id] ?? '0', 'refund10' => $pending->get($p->id)?->d10 ?? '0', 'refund3' => $pending->get($p->id)?->d3 ?? '0'], 'timezone' => $timezone, 'updatedAt' => $at->toIso8601String()]];
+                $result[$p->id] = $identity[$tenant.':'.$p->user_id] + ['summary' => ['advance' => (string) BigDecimal::of($ownAdvances[$p->user_id] ?? '0')->toScale(8), 'subordinateAdvances' => (string) BigDecimal::of($subordinateAdvances[$p->user_id] ?? '0')->toScale(8), 'stock' => $p->enabled ? PartnerStockValue::afterDifference($totals[$p->id] ?? '0', $balance['difference'], $subordinateAdvances[$p->user_id] ?? '0') : ($legacyTotals->get($p->id)?->missing ? null : ($legacyTotals->get($p->id)?->stock ?? '0')), 'theoretical' => $p->enabled ? $balance['theoretical'] : null, 'actual' => $p->enabled ? $balance['actual'] : null, 'difference' => $p->enabled ? $balance['difference'] : null, 'reimbursement' => $j->reimbursement ?? '0', 'daily' => $daily, 'alerts' => ['remaining' => $remaining[$p->id] ?? '0', 'refund10' => $pending->get($p->id)?->d10 ?? '0', 'refund3' => $pending->get($p->id)?->d3 ?? '0'], 'timezone' => $timezone, 'updatedAt' => $at->toIso8601String()]];
             }
         }
 

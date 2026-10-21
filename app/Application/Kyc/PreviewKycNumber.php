@@ -32,6 +32,9 @@ final class PreviewKycNumber
         if ($tenant->status !== TenantStatus::Active || $user->status !== UserStatus::Active || ! PlatformKycSetting::current()->enabled) {
             throw new DomainException('KYC_SUBMISSION_UNAVAILABLE', 'Identity verification submission is not currently available.', 403);
         }
+        if (KycApplication::where('tenant_id', $tenant->id)->where('user_id', $user->id)->where('review_status', KycReviewStatus::Pending)->exists()) {
+            throw new DomainException('KYC_ALREADY_PENDING', 'Identity verification is already under review.', 409);
+        }
         $hasIdentity = IdentityRecord::where('tenant_id', $tenant->id)->where('user_id', $user->id)->exists();
         abort_if($reverify !== $hasIdentity, 409);
         $latest = KycApplication::where('tenant_id', $tenant->id)->where('user_id', $user->id)->latest('submitted_at')->first();

@@ -4,9 +4,9 @@ namespace App\Application\Payment;
 
 use App\Application\Assets\AssetAccess;
 use App\Application\Partners\PartnerManagement;
+use App\Application\Partners\UserAdvances;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Ledger\ValueObjects\Money;
-use App\Domain\Tenant\Models\Tenant;
 use App\Support\Errors\DomainException;
 use Brick\Math\BigDecimal;
 use Illuminate\Database\Eloquent\Model;
@@ -53,23 +53,27 @@ final class ManualDepositReceipt
     {
         $this->validateType($type);
         $journalId = null;
+        $userJournalId = null;
         if ($type === 'ADVANCE') {
             app(AssetAccess::class)->platform($actor, 'partners.manage');
             app(AssetAccess::class)->settlementOwners($order->tenant_id, $order->user_id);
-            $partner = DB::table('partner_configurations')->where('tenant_id', $order->tenant_id)
-                ->where('user_id', $order->user_id)->lockForUpdate()->first();
-            if ($order->asset_code !== 'USDT' || ! $partner || ! $partner->enabled) {
-                throw new DomainException('TOPUP_CONFIRMATION_NOT_ALLOWED', 'Advances require an enabled partner and USDT.', 422);
+            if ($order->asset_code !== 'USDT') {
+                throw new DomainException('TOPUP_CONFIRMATION_NOT_ALLOWED', 'Advances require USDT.', 422);
             }
-            $journal = app(PartnerManagement::class)->journal($actor, $order->tenant_id, $partner->id, [
-                'kind' => 'ADVANCE', 'amount' => $amount,
-                'business_date' => now()->setTimezone(Tenant::findOrFail($order->tenant_id)->timezone)->format('Y-m-d'),
+            $partner = DB::table('partner_configurations')->where('tenant_id', $order->tenant_id)->where('user_id', $order->user_id)->lockForUpdate()->first();
+            $input = [
+                'amount' => $amount, 'confirmed' => true,
+                'business_date' => now()->setTimezone('Asia/Shanghai')->format('Y-m-d'),
                 'note' => ($classificationChange ? 'Deposit receipt: ' : 'Manual deposit: ').$order->getTable().'/'.$order->id,
                 'request_id' => (string) Str::uuid(),
-            ]);
-            $journalId = $journal->id;
+            ];
+            if ($partner?->enabled) {
+                $journalId = app(PartnerManagement::class)->journal($actor, $order->tenant_id, $partner->id, ['kind' => 'ADVANCE'] + $input)->id;
+            } else {
+                $userJournalId = app(UserAdvances::class)->record($actor, $order->tenant_id, $order->user_id, $input)->id;
+            }
         }
 
-        return ['actual_received_amount' => $amount, 'manual_receipt_type' => $type, 'advance_journal_id' => $journalId];
+        return ['actual_received_amount' => $amount, 'manual_receipt_type' => $type, 'advance_journal_id' => $journalId, 'user_advance_journal_id' => $userJournalId];
     }
 }
