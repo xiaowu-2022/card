@@ -23,6 +23,7 @@ export function partnerJournalKind(kind: string): string {
         (
             {
                 ADVANCE: 'Advance',
+                ANNUAL_SUBSIDY: 'Annual fee subsidy',
                 REIMBURSEMENT: 'Reimbursement',
                 ADJUSTMENT_INCREASE: 'Increase theoretical balance',
                 ADJUSTMENT_DECREASE: 'Decrease theoretical balance',

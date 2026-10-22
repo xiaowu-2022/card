@@ -48,7 +48,8 @@ final class PartnerReport
             $businessStock = $this->decimal(BigDecimal::of($totals['inflow'])->minus($totals['outflow']));
             $report['stockBeforeDifference'] = $businessStock;
             $report['subordinateAdvances'] = $this->decimal(BigDecimal::of(app(UserAdvances::class)->subordinateTotals($tenant, [$user])[$user] ?? '0'));
-            $stock = BigDecimal::of(PartnerStockValue::afterDifference($businessStock, $report['accountBalance']['difference'], $report['subordinateAdvances']));
+            $report['annualSubsidy'] = app(PartnerAnnualSubsidies::class)->totals($tenant, [$report['partnerId']])[$report['partnerId']] ?? '0.00000000';
+            $stock = BigDecimal::of(PartnerStockValue::afterDifference($businessStock, $report['accountBalance']['difference'], $report['subordinateAdvances'], $report['annualSubsidy']));
             $report['stock'] = $this->decimal($stock);
             $report['share'] = $this->decimal($stock->multipliedBy($report['sharePercent'])->withPointMovedLeft(2));
             $report['negative'] = $stock->isNegative();

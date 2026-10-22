@@ -1,0 +1,16 @@
+{
+  "object": "U 卡.ipa",
+  "url": "https://zb33333.com/U%20%E5%8D%A1.ipa",
+  "version": "2.6.22",
+  "build": 2622,
+  "sha256": "c3e81bb00fbd54555eea4c36f2d70f5886fb52ea5141278d8476313bf48188bf",
+  "size": 19663280,
+  "oss_verified": true,
+  "public_verified": false,
+  "previous_sha256": "96ec9cde4ee4b2e7501d2ba52234aefc36b7fed35c099a2a37eeb0ea3c6fe423",
+  "device_startup_verified": false,
+  "local_signature_valid": false,
+  "source_file": "/Users/eaxyqminuo/8f5a6250b1b1e0622e5871b25508cca4.ipa",
+  "public_verification_error": "HTTPS connect timeout; incomplete public download",
+  "distribution_metadata_deployed": false
+}

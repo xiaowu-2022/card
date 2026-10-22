@@ -1,0 +1,1 @@
+import{i as e}from"./editor-context-_XGmCd3q.js";function t(){let{configurationBase:t}=e().props;return e=>t?e.replace(/^\/admin(?=\/|$)/,t):e}export{t};

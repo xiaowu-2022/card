@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-21",
+  "tests": {
+    "database": "card_ui_test",
+    "passed": 8,
+    "assertions": 116,
+    "duration_seconds": 30.6,
+    "scope": "referrer candidate search/change and lifetime-only overview display adjustment",
+    "log": "tests.log"
+  },
+  "checks": {
+    "typecheck": "passed",
+    "admin_build": "passed",
+    "offline_browser": "passed",
+    "git_diff_check": "passed"
+  },
+  "period_policy": "仅累计实际充值金额应用调整；当天及近3/7/15/30天不变；日期仅为记录信息。",
+  "migration": "2026_10_21_110000_add_overview_recharge_adjustments",
+  "referrer_search_migration_required": false,
+  "production_migration_applied": false,
+  "production_deployed": false,
+  "production_test_adjustments": false,
+  "provider_operations": false,
+  "h5_or_native_rebuild_required": false,
+  "existing_workspace_changes_preserved": true
+}

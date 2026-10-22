@@ -68,6 +68,7 @@ export type StockReport = {
     stockBasis?: 'BUSINESS_CONTRIBUTIONS';
     stockBeforeDifference?: string;
     subordinateAdvances?: string;
+    annualSubsidy?: string;
     cashFlow: null | {
         rateObservedAt: string | null;
         assets: {
@@ -441,9 +442,15 @@ export function PartnerStockReport({
                                 </dd>
                             </div>
                         </dl>
+                        <dl className="stock-lines">
+                            <div>
+                                <dt>− {t('Annual fee subsidy')}</dt>
+                                <dd>{value(r.annualSubsidy ?? '0')}</dd>
+                            </div>
+                        </dl>
                         <p className="stock-muted">
                             {t(
-                                'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses − personal account balance difference − subordinate advances. Wallet flows affect stock through the personal difference, not business contributions.',
+                                'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses − personal account balance difference − subordinate advances − own annual fee subsidies. Wallet flows affect stock through the personal difference, not business contributions.',
                             )}
                         </p>
                     </>

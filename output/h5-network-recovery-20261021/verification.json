@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-21",
+  "artifact": "h5",
+  "indexSha256": "1286ea32c25d4af814f77b1bd255b79a933a2fb871b5e4f45266ea08b32d1b0a",
+  "moduleEntry": "./assets/webview-entry-53f2af25def2.js",
+  "typecheck": "passed",
+  "build": "passed",
+  "networkTests": {
+    "passed": 29,
+    "failed": 0
+  },
+  "relatedTests": {
+    "passed": 54,
+    "failed": 0
+  },
+  "fullRegression": {
+    "passed": 158,
+    "failed": 18,
+    "allFailuresReproducedInBaseline": true
+  },
+  "browserRecovery": "PASS: browser reload, persistent-outage banner, route retention, dismissal, recovery and unavailable storage; compiled H5 startup sends one bootstrap per document with no refresh loop",
+  "preservesOldHashes": true,
+  "nativeShellChanged": false,
+  "productionDeployed": false,
+  "physicalDeviceValidated": false,
+  "compiledH5BootstrapPerDocument": 1
+}

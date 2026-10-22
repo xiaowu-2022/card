@@ -1,0 +1,123 @@
+{
+  "@platforms": [
+    "android",
+    "iPhone",
+    "iPad"
+  ],
+  "id": "__UNI__C523F9C",
+  "name": "Spec Pay",
+  "version": {
+    "name": "2.5.03",
+    "code": "2503"
+  },
+  "description": "",
+  "developer": {
+    "name": "",
+    "email": "",
+    "url": ""
+  },
+  "permissions": {
+    "Camera": {},
+    "Share": {},
+    "UniNView": {
+      "description": "UniNView原生渲染"
+    }
+  },
+  "plus": {
+    "useragent": {
+      "value": "uni-app",
+      "concatenate": true
+    },
+    "splashscreen": {
+      "target": "id:1",
+      "autoclose": true,
+      "waiting": true,
+      "delay": 0
+    },
+    "popGesture": "close",
+    "launchwebview": {
+      "render": "always",
+      "id": "1",
+      "kernel": "WKWebview"
+    },
+    "usingComponents": true,
+    "compilerVersion": 3,
+    "distribute": {
+      "google": {
+        "packagename": "cc.specpay.cards",
+        "abiFilters": [
+          "arm64-v8a",
+          "armeabi-v7a"
+        ],
+        "permissionPhoneState": {
+          "request": "none"
+        },
+        "permissionExternalStorage": {
+          "request": "none"
+        },
+        "excludePermissions": [
+          "<uses-permission android:name=\"android.permission.READ_PHONE_STATE\"/>",
+          "<uses-permission android:name=\"android.permission.READ_PHONE_NUMBERS\"/>",
+          "<uses-permission android:name=\"android.permission.READ_PRIVILEGED_PHONE_STATE\"/>",
+          "<uses-permission android:name=\"android.permission.RECORD_AUDIO\"/>",
+          "<uses-permission android:name=\"android.permission.INSTALL_PACKAGES\"/>",
+          "<uses-permission android:name=\"android.permission.REQUEST_INSTALL_PACKAGES\"/>",
+          "<uses-permission android:name=\"com.asus.msa.SupplementaryDID.ACCESS\"/>"
+        ],
+        "permissions": [
+          "<uses-permission android:name=\"android.permission.INTERNET\"/>",
+          "<uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>"
+        ]
+      },
+      "apple": {
+        "appid": "com.tng.pingqiu",
+        "privacyDescription": {
+          "NSCameraUsageDescription": "Take a photo when you choose to submit identity documents or attach an image to customer support.",
+          "NSPhotoLibraryUsageDescription": "Select photos when you choose to submit identity documents or attach an image to customer support.",
+          "NSPhotoLibraryAddUsageDescription": "Save your invitation poster to your photo library when you choose Save image."
+        }
+      },
+      "plugins": {
+        "audio": {
+          "mp3": {
+            "description": "Android平台录音支持MP3格式文件"
+          }
+        }
+      }
+    },
+    "statusbar": {
+      "immersed": "supportedDevice",
+      "style": "dark",
+      "background": "#000000"
+    },
+    "uniStatistics": {
+      "enable": false
+    },
+    "allowsInlineMediaPlayback": true,
+    "uni-app": {
+      "control": "uni-v3",
+      "vueVersion": "3",
+      "compilerVersion": "5.26",
+      "nvueCompiler": "uni-app",
+      "renderer": "auto",
+      "nvue": {
+        "flex-direction": "column"
+      },
+      "nvueLaunchMode": "normal",
+      "webView": {
+        "minUserAgentVersion": "49.0"
+      }
+    }
+  },
+  "app-harmony": {
+    "useragent": {
+      "value": "uni-app",
+      "concatenate": true
+    },
+    "uniStatistics": {
+      "enable": false
+    }
+  },
+  "launch_path": "__uniappview.html",
+  "fallbackLocale": "en"
+}

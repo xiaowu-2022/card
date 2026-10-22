@@ -4,9 +4,11 @@ namespace App\Http\Controllers\TenantAdmin;
 
 use App\Application\Support\SendSupportMessageAction;
 use App\Application\Support\SupportAccess;
+use App\Application\Support\SupportAdminUnread;
 use App\Application\Support\SupportBot;
 use App\Application\Support\SupportChatQuery;
 use App\Application\Support\SupportImageStorage;
+use App\Application\Support\SupportMessageChanges;
 use App\Application\Support\SupportProfiles;
 use App\Application\Support\SupportQuickReplies;
 use App\Domain\Support\Models\SupportConversation;
@@ -20,12 +22,12 @@ use Symfony\Component\HttpFoundation\Response;
 
 final class SupportController extends Controller
 {
-    public function unread(Request $r, TenantContext $context, \App\Application\Support\SupportAdminUnread $unread)
+    public function unread(Request $r, TenantContext $context, SupportAdminUnread $unread)
     {
         return response()->json(['count' => $unread->count($r->user('tenant_admin')->id, $context->id())])->header('Cache-Control', 'private, no-store');
     }
 
-    public function read(Request $r, TenantContext $context, string $conversation, \App\Application\Support\SupportAdminUnread $unread)
+    public function read(Request $r, TenantContext $context, string $conversation, SupportAdminUnread $unread)
     {
         $data = $r->validate(['through' => 'required|integer|min:0|max:2147483647']);
         $unread->read($r->user('tenant_admin')->id, $context->id(), $conversation, $data['through'], false);
@@ -68,6 +70,13 @@ final class SupportController extends Controller
         $image = $query->image($context->id(), $request->user('tenant_admin')->id, $message, true);
 
         return $images->response($image['path']);
+    }
+
+    public function change(Request $request, TenantContext $context, string $conversation, string $message, SupportMessageChanges $changes)
+    {
+        $changes->change($context->id(), $request->user('tenant_admin')->id, $conversation, $message, $request->all(), false);
+
+        return response()->noContent();
     }
 
     public function finish(Request $request, TenantContext $context, string $conversation, SupportBot $bot)

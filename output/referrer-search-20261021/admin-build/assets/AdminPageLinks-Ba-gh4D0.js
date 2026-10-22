@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-DZSQB3lT.js";import{t}from"./AdminPagination-D_O-DM07.js";import{t as n}from"./admin-pagination-CayhJGxU.js";var r=e();function i({page:e}){return e?(0,r.jsx)(t,{className:`border-t p-4`,page:e.currentPage,pages:e.lastPage,total:e.total,href:t=>n({first_page_url:e.first,prev_page_url:e.previous,next_page_url:e.next},t)}):null}export{i as t};

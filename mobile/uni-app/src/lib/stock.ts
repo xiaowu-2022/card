@@ -50,6 +50,7 @@ export type StockReport = {
     stockBasis?: 'BUSINESS_CONTRIBUTIONS';
     stockBeforeDifference?: string;
     subordinateAdvances?: string;
+    annualSubsidy?: string;
     cashFlow: null | {
         rateObservedAt: string | null;
         assets: {

@@ -34,6 +34,7 @@ use App\Http\Controllers\Platform\KycSettingsController;
 use App\Http\Controllers\Platform\ManualCommissionController;
 use App\Http\Controllers\Platform\NotificationProfilesController;
 use App\Http\Controllers\Platform\OssSettingsController;
+use App\Http\Controllers\Platform\OverviewRechargeAdjustmentController;
 use App\Http\Controllers\Platform\OverviewSourcesController;
 use App\Http\Controllers\Platform\PartnerController;
 use App\Http\Controllers\Platform\PlatformAuthController;
@@ -48,6 +49,7 @@ use App\Http\Controllers\Platform\TenantManagementController;
 use App\Http\Controllers\Platform\TopupVerificationController;
 use App\Http\Controllers\Platform\TronWithdrawalsController;
 use App\Http\Controllers\Platform\U1AccountsController;
+use App\Http\Controllers\Platform\UserAdvanceController;
 use App\Http\Controllers\Platform\UserCreationController;
 use App\Http\Controllers\Platform\UserFundsController;
 use App\Http\Controllers\Platform\UserInvitationCodeController;
@@ -112,6 +114,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
             Route::post('/tenants/{tenant}/support/users/{user}/finish', [SupportController::class, 'finish'])->whereUuid(['tenant', 'user'])->middleware('business-throttle:40,1');
             Route::get('/tenants/{tenant}/support/candidates', [SupportController::class, 'candidates'])->whereUuid('tenant')->middleware('business-throttle:120,1');
             Route::post('/tenants/{tenant}/support/users/{user}/messages', [SupportController::class, 'send'])->whereUuid(['tenant', 'user'])->middleware('business-throttle:60,1');
+            Route::post('/tenants/{tenant}/support/users/{user}/messages/{message}/change', [SupportController::class, 'change'])->whereUuid(['tenant', 'user', 'message'])->middleware('business-throttle:40,1');
             Route::post('/support/profile', [SupportController::class, 'profile'])->middleware('business-throttle:40,1');
         });
         Route::middleware('admin.scope:platform,support.agents.manage')->group(function (): void {
@@ -144,6 +147,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
 
     Route::middleware('admin.scope:platform,partners.manage')->group(function (): void {
         Route::get('/tenants/{tenant}/partner-candidates', [PartnerController::class, 'candidates'])->whereUuid('tenant')->middleware('business-throttle:240,1');
+        Route::get('/partners/export', [PartnerController::class, 'export'])->middleware('business-throttle:10,1')->name('partners.export');
         Route::get('/partners', [PartnerController::class, 'index'])->name('partners');
         Route::get('/partner-balances', [PartnerController::class, 'balances'])
             ->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,ledger.read', 'business-throttle:240,1'])->name('partner-balances');
@@ -209,8 +213,8 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     Route::post('/tenants/{tenant}/users/{user}/support-agent', [SupportWorkspaceController::class, 'grantUser'])->whereUuid(['tenant', 'user'])->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,support.read', 'admin.scope:platform,support.agents.manage', 'business-throttle:60,1']);
     Route::post('/tenants/{tenant}/users', UserCreationController::class)->whereUuid('tenant')->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.create', 'business-throttle:40,1']);
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,partners.manage'])->group(function () {
-        Route::get('/tenants/{tenant}/users/{user}/advances', [\App\Http\Controllers\Platform\UserAdvanceController::class, 'show'])->whereUuid(['tenant', 'user']);
-        Route::post('/tenants/{tenant}/users/{user}/advances', [\App\Http\Controllers\Platform\UserAdvanceController::class, 'store'])->whereUuid(['tenant', 'user'])->middleware('business-throttle:40,1');
+        Route::get('/tenants/{tenant}/users/{user}/advances', [UserAdvanceController::class, 'show'])->whereUuid(['tenant', 'user']);
+        Route::post('/tenants/{tenant}/users/{user}/advances', [UserAdvanceController::class, 'store'])->whereUuid(['tenant', 'user'])->middleware('business-throttle:40,1');
     });
 
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,users.restrictions.manage'])->group(function () {
@@ -230,8 +234,8 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::get('/tenants/{tenant}/users/{user}/cards-summary', [UserSummaryController::class, 'cards'])->whereUuid(['tenant', 'user']);
     });
     Route::middleware(['admin.scope:platform,tenant.read', 'admin.scope:platform,wallet_topups.read'])->group(function () {
-        Route::get('/overview/recharge-adjustments', [\App\Http\Controllers\Platform\OverviewRechargeAdjustmentController::class, 'index']);
-        Route::post('/overview/recharge-adjustments', [\App\Http\Controllers\Platform\OverviewRechargeAdjustmentController::class, 'store'])
+        Route::get('/overview/recharge-adjustments', [OverviewRechargeAdjustmentController::class, 'index']);
+        Route::post('/overview/recharge-adjustments', [OverviewRechargeAdjustmentController::class, 'store'])
             ->middleware(['admin.scope:platform,wallet_topups.confirm', 'business-throttle:40,1']);
     });
     Route::middleware('admin.scope:platform,tenant.read')->get('/overview/sources', OverviewSourcesController::class)->name('overview.sources');

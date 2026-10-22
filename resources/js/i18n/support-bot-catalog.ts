@@ -46,6 +46,17 @@ export const supportBotCatalog = {
     'Customer online': ['用户在线', 'Pelanggan dalam talian', 'Cliente en línea'],
     'Customer offline': ['用户离线', 'Pelanggan luar talian', 'Cliente desconectado'],
     'Message actions': ['消息操作', 'Tindakan mesej', 'Acciones del mensaje'],
+    'Recall message': ['撤销', 'Tarik balik mesej', 'Retirar mensaje'],
+    'Recall this message for both sides?': [
+        '确认撤销这条消息？撤销后双方将显示消息已删除提示。',
+        'Tarik balik mesej ini untuk kedua-dua pihak?',
+        '¿Retirar este mensaje para ambas partes?',
+    ],
+    'Message changed. Refresh and try again.': [
+        '消息已变更，请刷新后重试。',
+        'Mesej telah berubah. Muat semula dan cuba lagi.',
+        'El mensaje ha cambiado. Actualiza e inténtalo de nuevo.',
+    ],
     'Edit message': ['修改消息', 'Edit mesej', 'Editar mensaje'],
     'Delete message': ['删除消息', 'Padam mesej', 'Eliminar mensaje'],
     '[Image]': ['[图片]', '[Imej]', '[Imagen]'],

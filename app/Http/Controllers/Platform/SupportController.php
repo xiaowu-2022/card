@@ -8,6 +8,7 @@ use App\Application\Support\SupportAdminUnread;
 use App\Application\Support\SupportBot;
 use App\Application\Support\SupportChatQuery;
 use App\Application\Support\SupportImageStorage;
+use App\Application\Support\SupportMessageChanges;
 use App\Application\Support\SupportProfiles;
 use App\Application\Tenant\PlatformListFilters;
 use App\Application\User\PlatformUserSummary;
@@ -124,6 +125,14 @@ final class SupportController extends Controller
         $profiles->update($r->user('platform_admin')->id, $agent, $data['support_name'] ?? null);
 
         return back()->with('success', 'Support name saved.');
+    }
+
+    public function change(Request $r, Tenant $tenant, string $user, string $message, SupportMessageChanges $changes)
+    {
+        $row = SupportConversation::where('tenant_id', $tenant->id)->where('user_id', $user)->firstOrFail();
+        $changes->change($tenant->id, $r->user('platform_admin')->id, $row->id, $message, $r->all(), true);
+
+        return response()->noContent();
     }
 
     public function finish(Request $r, Tenant $tenant, string $user, SupportBot $bot)

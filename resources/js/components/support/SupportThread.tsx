@@ -28,7 +28,9 @@ export type SupportChat = {
         fromSupport: boolean;
         senderKind?: 'BOT' | 'ADMIN' | 'USER' | 'SUPPORT_AGENT';
         supportName?: string | null;
-        text: string;
+        text: string | null;
+        canManage?: boolean;
+        messageRevision?: number;
         createdAt: string;
         imageUrl: string | null;
         imageSources?: string[];
@@ -67,6 +69,19 @@ export function SupportThread({
         support_image: null,
     });
     const transition = useForm({ request_id: crypto.randomUUID(), revision: chat.revision ?? 0 });
+    const [changing, setChanging] = useState(false);
+    const [changeError, setChangeError] = useState('');
+    const [changeTarget, setChangeTarget] = useState<{
+        message: SupportChat['messages'][number];
+        operation: 'EDIT' | 'DELETE';
+    } | null>(null);
+    const [changeText, setChangeText] = useState('');
+    const changeIntent = useRef<{
+        request_id: string;
+        revision: number;
+        operation: 'EDIT' | 'DELETE';
+        text: string;
+    } | null>(null);
     const [finishing, setFinishing] = useState(false);
     const [finishError, setFinishError] = useState('');
     const transitionIntent = useRef<{ request_id: string; revision: number } | null>(null);
@@ -80,7 +95,11 @@ export function SupportThread({
     const followLatest = useRef(true);
     const disconnected = useSupportPolling(
         workspace ? 'workspace' : 'chat',
-        !form.processing && !transition.processing && !finishing && chat.before === 0,
+        !form.processing &&
+            !transition.processing &&
+            !finishing &&
+            !changeTarget &&
+            chat.before === 0,
     );
     useAdminSupportRead(base, chat.messages.at(-1)?.sequence ?? 0, admin && Boolean(chat.id));
     const lastId = chat.messages.at(-1)?.id;
@@ -99,6 +118,7 @@ export function SupportThread({
             messages.current.scrollTop = messages.current.scrollHeight;
         }
     }, [lastId, chat.before]);
+    const visibleMessages = chat.messages.filter((message) => admin || !message.deleted);
     const errors = form.errors as Record<string, string>;
     const navigate = (before: number) => {
         const filters = workspace
@@ -242,7 +262,7 @@ export function SupportThread({
                             box.scrollHeight - box.scrollTop - box.clientHeight < 80;
                 }}
             >
-                {chat.messages.length === 0 ? (
+                {visibleMessages.length === 0 ? (
                     <div className="support-empty">
                         <MessageSquare aria-hidden="true" />
                         <h2>{t('How can we help?')}</h2>
@@ -253,7 +273,7 @@ export function SupportThread({
                         </p>
                     </div>
                 ) : (
-                    chat.messages.map((message) => (
+                    visibleMessages.map((message) => (
                         <article
                             className={`support-message ${message.senderKind !== 'BOT' && message.fromSupport === admin ? 'support-message-own' : ''}`}
                             key={message.id}
@@ -300,8 +320,35 @@ export function SupportThread({
                                 ) : (
                                     message.text && <p>{message.text}</p>
                                 )}
-                                {message.edited && !message.deleted && <small>{t('Edited')}</small>}
+                                {admin && message.edited && !message.deleted && (
+                                    <small>{t('Edited')}</small>
+                                )}
                             </div>
+                            {admin && canSend && message.canManage && !message.deleted && (
+                                <div className="flex gap-2">
+                                    {(['EDIT', 'DELETE'] as const).map((operation) => (
+                                        <Button
+                                            key={operation}
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            disabled={changing}
+                                            onClick={() => {
+                                                setChangeTarget({ message, operation });
+                                                setChangeText(message.text ?? '');
+                                                setChangeError('');
+                                                changeIntent.current = null;
+                                            }}
+                                        >
+                                            {t(
+                                                operation === 'EDIT'
+                                                    ? 'Edit message'
+                                                    : 'Recall message',
+                                            )}
+                                        </Button>
+                                    ))}
+                                </div>
+                            )}
                             <time dateTime={message.createdAt}>{dateTime(message.createdAt)}</time>
                         </article>
                     ))
@@ -473,6 +520,87 @@ export function SupportThread({
                     )}
                 </form>
             )}
+            <Dialog
+                open={changeTarget !== null}
+                onOpenChange={(open) => {
+                    if (!open && !changing) setChangeTarget(null);
+                }}
+            >
+                <DialogContent closeLabel={t('Close')} aria-describedby={undefined}>
+                    <DialogTitle>
+                        {t(changeTarget?.operation === 'EDIT' ? 'Edit message' : 'Recall message')}
+                    </DialogTitle>
+                    {changeTarget?.operation === 'EDIT' ? (
+                        <Textarea
+                            aria-label={t('Message')}
+                            maxLength={2000}
+                            value={changeText}
+                            disabled={changing}
+                            onChange={(event) => {
+                                setChangeText(event.target.value);
+                                changeIntent.current = null;
+                            }}
+                        />
+                    ) : (
+                        <p>{t('Recall this message for both sides?')}</p>
+                    )}
+                    {changeError && (
+                        <OperationFeedback role="alert">{changeError}</OperationFeedback>
+                    )}
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            variant="secondary"
+                            disabled={changing}
+                            onClick={() => setChangeTarget(null)}
+                        >
+                            {t('Cancel')}
+                        </Button>
+                        <Button
+                            disabled={
+                                changing ||
+                                (changeTarget?.operation === 'EDIT' && !changeText.trim())
+                            }
+                            onClick={() => {
+                                if (!changeTarget || changing) return;
+                                const target = changeTarget;
+                                changeIntent.current ??= {
+                                    request_id: crypto.randomUUID(),
+                                    revision: target.message.messageRevision ?? 0,
+                                    operation: target.operation,
+                                    text: target.operation === 'EDIT' ? changeText.trim() : '',
+                                };
+                                setChanging(true);
+                                setChangeError('');
+                                void supportRequest(
+                                    `${base}/messages/${target.message.id}/change`,
+                                    changeIntent.current,
+                                )
+                                    .then(() => {
+                                        changeIntent.current = null;
+                                        setChangeTarget(null);
+                                        router.reload({ only: ['chat', 'inbox'] });
+                                    })
+                                    .catch((error: unknown) => {
+                                        if (
+                                            error instanceof SupportRequestError &&
+                                            error.status === 409
+                                        ) {
+                                            setChangeTarget(null);
+                                            setFinishError(
+                                                t('Message changed. Refresh and try again.'),
+                                            );
+                                            router.reload({ only: ['chat', 'inbox'] });
+                                        } else
+                                            setChangeError(t('Unable to save. Please try again.'));
+                                    })
+                                    .finally(() => setChanging(false));
+                            }}
+                        >
+                            {t(changing ? 'Saving…' : 'Confirm')}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
             <Dialog
                 open={enlarged !== null}
                 onOpenChange={(open) => {

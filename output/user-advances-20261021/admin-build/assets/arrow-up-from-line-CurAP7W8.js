@@ -1,0 +1,1 @@
+import{i as e}from"./useLocaleSync-WG7u7x_B.js";var t=e(`arrow-up-from-line`,[[`path`,{d:`m18 9-6-6-6 6`,key:`kcunyi`}],[`path`,{d:`M12 3v14`,key:`7cf3v8`}],[`path`,{d:`M5 21h14`,key:`11awu3`}]]);export{t};

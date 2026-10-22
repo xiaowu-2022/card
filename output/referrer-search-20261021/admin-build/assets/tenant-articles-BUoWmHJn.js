@@ -1,0 +1,1 @@
+var e=[{key:`terms`,title:`Terms of service`},{key:`privacy`,title:`Privacy policy`},{key:`account-closure`,title:`Account closure`}];export{e as t};

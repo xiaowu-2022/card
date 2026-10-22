@@ -7,6 +7,7 @@ use App\Application\Assets\MarketPrices;
 use App\Application\CardProviderDirectory\CardProviderReferenceQuery;
 use App\Application\Partners\LegacyStockReport;
 use App\Application\Partners\PartnerAccountBalance;
+use App\Application\Partners\PartnerAnnualSubsidies;
 use App\Application\Partners\PartnerBusinessStock;
 use App\Application\Partners\PartnerStockValue;
 use App\Application\Partners\UserAdvances;
@@ -133,6 +134,7 @@ final class PlatformOverviewQuery
             foreach ($partners->chunk(100) as $rows) {
                 $ids = $rows->pluck('id');
                 $ownAdvances = app(UserAdvances::class)->ownTotals($tenant, $rows->pluck('user_id')->all());
+                $annualSubsidies = app(PartnerAnnualSubsidies::class)->totals($tenant, $ids->all());
                 $subordinateAdvances = app(UserAdvances::class)->subordinateTotals($tenant, $rows->pluck('user_id')->all());
                 $users = $rows->map(fn ($p) => (object) ['id' => $p->user_id, 'tenant_id' => $tenant])->all();
                 $income = app(PlatformUserFinancialSummary::class)->forUsers($users, ['commission' => true]);
@@ -157,7 +159,7 @@ final class PlatformOverviewQuery
                     }
                 }
                 $stock = DB::query()->fromSub($entries, 'entries')->selectRaw("COALESCE(SUM(CASE WHEN category IN ('deposits','annual') THEN amount ELSE -amount END),0) AS amount")->value('amount');
-                $totals['stock'] = $this->decimal(BigDecimal::of($totals['stock'])->plus(PartnerStockValue::afterDifference((string) $stock, (string) $difference, (string) array_reduce($subordinateAdvances, fn ($sum, $v) => BigDecimal::of($sum)->plus($v), '0'))));
+                $totals['stock'] = $this->decimal(BigDecimal::of($totals['stock'])->plus(PartnerStockValue::afterDifference((string) $stock, (string) $difference, (string) array_reduce($subordinateAdvances, fn ($sum, $v) => BigDecimal::of($sum)->plus($v), '0'), (string) array_reduce($annualSubsidies, fn ($sum, $v) => BigDecimal::of($sum)->plus($v), '0'))));
             }
         }
 

@@ -28,7 +28,7 @@ final readonly class SupportChatQuery
         $conversation = SupportConversation::query()->where('tenant_id', $tenantId)->whereKey($conversationId)->firstOrFail();
         $user = User::query()->where('tenant_id', $tenantId)->whereKey($conversation->user_id)->firstOrFail();
 
-        return $this->thread($tenantId, $conversation, $before, true) + ['accountId' => $user->account_id];
+        return $this->thread($tenantId, $conversation, $before, true, null, $adminId) + ['accountId' => $user->account_id];
     }
 
     public function inbox(string $tenantId, string $adminId, int $page = 1): array
@@ -51,7 +51,7 @@ final readonly class SupportChatQuery
         $this->access->platform($adminId);
         $user = User::query()->where('tenant_id', $tenantId)->whereKey($userId)->firstOrFail();
         $conversation = SupportConversation::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->first();
-        $chat = $this->thread($tenantId, $conversation, $before, true);
+        $chat = $this->thread($tenantId, $conversation, $before, true, null, $adminId);
         foreach ($chat['messages'] as &$message) {
             if ($message['imageUrl'] && str_starts_with($message['imageUrl'], '/admin/')) {
                 $message['imageUrl'] = '/platform/tenants/'.$tenantId.'/support/images/'.$message['id'];
@@ -108,7 +108,7 @@ final readonly class SupportChatQuery
         })->all();
     }
 
-    public function thread(string $tenantId, ?SupportConversation $conversation, int $before, bool $admin = false, ?string $agent = null): array
+    public function thread(string $tenantId, ?SupportConversation $conversation, int $before, bool $admin = false, ?string $agent = null, ?string $adminActor = null): array
     {
         if (! $conversation) {
             return ['id' => null, 'messages' => [], 'before' => 0, 'olderCursor' => null] + app(SupportBot::class)->metadata($tenantId, null);
@@ -126,7 +126,7 @@ final readonly class SupportChatQuery
         return app(SupportBot::class)->metadata($tenantId, $conversation) + [
             'id' => $conversation->id, 'before' => $before,
             'olderCursor' => $rows->count() > 50 ? $visible->first()->sequence : null,
-            'messages' => $visible->map(function (SupportMessage $message) use ($changes, $reads, $conversation, $admin, $agent): array {
+            'messages' => $visible->map(function (SupportMessage $message) use ($changes, $reads, $conversation, $admin, $agent, $adminActor): array {
                 $change = $changes->get($message->id);
                 $deleted = $change?->operation === 'DELETE';
 
@@ -139,6 +139,7 @@ final readonly class SupportChatQuery
                     'deleted' => $deleted, 'edited' => $change?->operation === 'EDIT',
                     'messageRevision' => $change?->revision ?? 0,
                     ...($admin ? ['readByUser' => ($message->sender_admin_id || $message->sender_support_user_id) ? ($change ? ($reads->get($message->id, 0) >= $change->revision) : $message->sequence <= $conversation->user_read_sequence) : null] : []),
+                    ...($adminActor ? ['canManage' => ! $deleted && ! $message->is_bot && $message->sender_admin_id === $adminActor] : []),
                     ...($agent ? ['canManage' => ! $deleted && $message->sender_support_user_id === $agent] : []), 'createdAt' => $message->created_at->toIso8601String(),
                     'imageSources' => ! $deleted && $message->image_object_key ? app(ImageStorage::class)->previewSources('private', $message->image_object_key) : [],
                     'imageUrl' => ! $deleted && $message->image_mime ? (app(ImageStorage::class)->active()

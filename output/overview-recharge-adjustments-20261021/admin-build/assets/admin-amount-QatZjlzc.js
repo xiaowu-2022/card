@@ -1,0 +1,1 @@
+function e(e){let t=/^([+-]?)(\d+)(?:\.(\d+))?$/.exec(e);if(!t)return e;let n=(t[3]??``).replace(/0+$/,``),r=t[2];return`${/^0+$/.test(r)&&!n?``:t[1]}${r}${n?`.${n}`:``}`}export{e as t};

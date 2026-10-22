@@ -495,3 +495,24 @@ REVERB_ALLOWED_ORIGINS is retired and ignored; config reverb's static origin lis
 unused by the bound origin guard. No migrations, evidence writes or provider reads.
 Deploy the new server/service binding and configuration and restart Reverb once;
 subsequent company domain changes need no list maintenance or process restart.
+
+## Backend own-message correction (2026-10-22)
+
+Platform and company administrators have explicit Edit/Recall buttons on their own
+AdminUser replies. The existing encrypted append-only revision projection is shared
+with consumer-agent changes; admin revisions use a separate admin FK and request UUID
+uniqueness, with exactly one actor per revision. Authorization is rechecked under the
+Tenant/conversation locks, including Platform support.send or company support.manage
+and message ownership. Customer,
+bot and other staff replies cannot be changed. Recall confirms a permanent tombstone;
+text/caption edits retain images and original evidence. Replays, stale revisions,
+customer revision receipts, image denial and committed realtime invalidation follow
+the existing rules. Deploy the additive admin-actor migration with PHP/admin assets.
+
+## Customer message presentation (2026-10-22)
+
+Customer H5/App and browser transcripts omit recalled messages entirely and show only
+the latest text without an Edited marker. Staff views retain correction/tombstone
+markers. Keep the full delivered sequence and revision receipts for acknowledgement
+and history cursors; presentation filtering must not alter read synchronization or
+immutable message/revision evidence.

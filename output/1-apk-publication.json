@@ -1,9 +1,12 @@
 {
   "object": "1.apk",
   "url": "https://zb33333.com/1.apk",
-  "version": "2.6.11",
-  "build": 2611,
-  "sha256": "0ea158798bfd6a0cc21931356df5694c5c5f2b3bba04596dfa9bbe53aa725c9f",
+  "version": "2.6.12",
+  "build": 2612,
+  "sha256": "444cb9f9cb82422c8255cacd1548cda87e0bc3267fb724581040153863ad9893",
+  "size": 27646139,
   "oss_verified": true,
-  "public_verified": true
+  "public_verified": false,
+  "public_check": "Custom CNAME zb33333.com connection timed out on HTTP and HTTPS; default OSS endpoint returns ApkDownloadForbidden and requires CNAME. Authenticated OSS full readback verified.",
+  "device_startup_verified": false
 }

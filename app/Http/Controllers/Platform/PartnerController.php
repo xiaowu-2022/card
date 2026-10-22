@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Platform;
 
+use App\Application\Partners\ExportPlatformPartners;
 use App\Application\Partners\FeeValuation;
 use App\Application\Partners\PartnerBalanceHierarchy;
 use App\Application\Partners\PartnerHierarchy;
@@ -10,7 +11,9 @@ use App\Application\Partners\PartnerListSummary;
 use App\Application\Partners\PartnerManagement;
 use App\Application\Partners\PartnerReport;
 use App\Application\Partners\PlatformPartnerIdentity;
+use App\Application\Partners\PlatformPartnerQuery;
 use App\Application\User\PlatformUserSummary;
+use App\Application\User\Snapshots\UserSnapshotReader;
 use App\Domain\Admin\Enums\ScopeType;
 use App\Domain\Admin\Services\AuthorizationService;
 use App\Domain\Tenant\Models\Tenant;
@@ -75,19 +78,8 @@ final class PartnerController extends Controller
 
         $authorization = app(AuthorizationService::class);
         $canReadAmounts = $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'wallet.read') && $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'ledger.read');
-        $partnerQuery = DB::table('partner_configurations as p')->where('p.enabled', true)->join('users as u', fn ($j) => $j->on('u.id', '=', 'p.user_id')->on('u.tenant_id', '=', 'p.tenant_id'))->leftJoin('user_profiles as profile', fn ($j) => $j->on('profile.user_id', '=', 'u.id')->on('profile.tenant_id', '=', 'u.tenant_id'))->join('tenants as t', 't.id', '=', 'p.tenant_id')->when($tenant, fn ($q) => $q->where('p.tenant_id', $tenant))->when($request->filled('referrer'), fn ($q) => $q->whereExists(fn ($m) => $m->selectRaw('1')->from('promotion_members as m')->join('promotion_members as parent', fn ($j) => $j->on('parent.id', '=', 'm.inviter_id')->on('parent.tenant_id', '=', 'm.tenant_id'))->join('users as referrer', fn ($j) => $j->on('referrer.id', '=', 'parent.user_id')->on('referrer.tenant_id', '=', 'parent.tenant_id'))->whereColumn('m.tenant_id', 'p.tenant_id')->whereColumn('m.user_id', 'p.user_id')->where('referrer.account_id', $request->query('referrer'))));
-        if ($request->query('sort') === 'registered_at') {
-            $partnerQuery->orderBy('u.created_at', $request->query('direction', 'asc'));
-        } elseif ($request->query('sort') === 'advance') {
-            abort_unless($canReadAmounts, 403);
-            $advance = DB::table('partner_journal_entries as sorting_journal')
-                ->whereColumn('sorting_journal.tenant_id', 'p.tenant_id')
-                ->whereColumn('sorting_journal.partner_id', 'p.id')
-                ->where('sorting_journal.kind', 'ADVANCE')
-                ->selectRaw('COALESCE(SUM(CASE WHEN sorting_journal.reverses_id IS NULL THEN sorting_journal.amount ELSE -sorting_journal.amount END), 0)');
-            $partnerQuery->orderByRaw('(('.$advance->toSql().') + (SELECT COALESCE(SUM(CASE WHEN uaj.reverses_id IS NULL THEN uaj.amount ELSE -uaj.amount END),0) FROM user_advance_entries uaj WHERE uaj.tenant_id=p.tenant_id AND uaj.user_id=p.user_id)) '.$request->query('direction', 'asc'), $advance->getBindings());
-        }
-        $partnerPage = $partnerQuery->orderBy('u.account_id')->orderBy('p.id')->paginate(20, ['p.id', 'p.tenant_id', 'p.user_id', 't.name as company_name', 'p.enabled', 'p.updated_at', 'p.share_percent', 'u.created_at as registered_at', 'u.account_id', 'profile.display_name', 'u.email'])->withQueryString();
+        $partnerQuery = app(PlatformPartnerQuery::class)->query($request, $tenant, $canReadAmounts);
+        $partnerPage = $partnerQuery->paginate(20, PlatformPartnerQuery::COLUMNS)->withQueryString();
         $summaries = $canReadAmounts ? app(PartnerListSummary::class)->forRows($partnerPage->items()) : [];
         $partnerPage->through(fn ($p) => (array) $p + ($summaries[$p->id] ?? []));
 
@@ -105,6 +97,26 @@ final class PartnerController extends Controller
             'reportCompanyId' => $selected?->tenant_id, 'report' => $report, 'selectedPartner' => $selectedPartner,
             'pendingFees' => DB::table('withdrawal_fee_valuations as f')->join('tenants as t', 't.id', '=', 'f.tenant_id')->when($tenant, fn ($q) => $q->where('f.tenant_id', $tenant))->where('f.source', 'PENDING')->orderBy('f.created_at')->orderBy('f.id')->paginate(20, ['f.id', 'f.tenant_id', 't.name as company_name', 'f.withdrawal_id', 'f.asset_code', 'f.original_amount', 'f.created_at'], 'fees_page')->withQueryString(),
         ])->toResponse($request)->header('Cache-Control', 'private, no-store');
+    }
+
+    public function export(Request $request)
+    {
+        $request->validate([
+            'company' => 'nullable|uuid|exists:tenants,id', 'tenant' => 'nullable|uuid|exists:tenants,id',
+            'referrer' => 'nullable|string|max:120', 'sort' => 'nullable|in:registered_at,advance',
+            'direction' => 'nullable|in:asc,desc',
+        ]);
+        $authorization = app(AuthorizationService::class);
+        $amounts = $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'wallet.read')
+            && $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'ledger.read');
+        $csv = app(UserSnapshotReader::class)->read(null,
+            fn () => app(ExportPlatformPartners::class)->execute($request, $amounts));
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="partners-'.now('Asia/Shanghai')->format('Ymd-His').'.csv"',
+            'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function candidates(Request $request, Tenant $tenant)

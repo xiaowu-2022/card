@@ -161,9 +161,13 @@ const more = computed(() =>
                     <text>− {{ t('Subordinate advances') }}</text
                     ><text>{{ value(r.subordinateAdvances ?? '0') }}</text>
                 </button>
+                <view v-if="r.version === 'partner'" class="row"
+                    ><text>− {{ t('Annual fee subsidy') }}</text
+                    ><text>{{ value(r.annualSubsidy ?? '0') }}</text></view
+                >
                 <text v-if="r.version === 'partner'" class="muted small">{{
                     t(
-                        'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses − personal account balance difference − subordinate advances. Wallet flows affect stock through the personal difference, not business contributions.',
+                        'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses − personal account balance difference − subordinate advances − own annual fee subsidies. Wallet flows affect stock through the personal difference, not business contributions.',
                     )
                 }}</text
                 ><text v-if="r.version === 'partner'" class="muted small">{{

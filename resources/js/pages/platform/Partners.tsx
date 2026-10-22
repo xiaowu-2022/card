@@ -1,3 +1,4 @@
+import { UserSnapshotExport } from '@/components/admin/UserSnapshotExport';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 import { ReferrerFilterSelect } from '@/components/admin/ReferrerFilterSelect';
 import {
@@ -43,6 +44,7 @@ type Partner = {
     summary?: {
         advance: string;
         subordinateAdvances?: string;
+        annualSubsidy?: string;
         stock: string | null;
         theoretical: string | null;
         actual: string | null;
@@ -318,17 +320,18 @@ export default function Partners({
     const submitJournal = (e: FormEvent) => {
         e.preventDefault();
         const adjustment = journal.data.kind.startsWith('ADJUSTMENT_');
+        const subsidy = journal.data.kind === 'ANNUAL_SUBSIDY';
         const offset = journal.data.amount.trim().startsWith('-');
         if (
-            (adjustment || offset) &&
+            (adjustment || subsidy || offset) &&
             !confirm(
-                `${journalAccount} · ${t(partnerJournalKind(journal.data.kind))} · ${journal.data.amount} U${journal.data.reverses_id ? ` · ${t('Reversal')}` : ''}\n${t(adjustment ? 'Confirm this theoretical balance adjustment?' : 'Confirm this negative cooperation entry?')}`,
+                `${journalAccount} · ${t(partnerJournalKind(journal.data.kind))} · ${journal.data.amount} U${journal.data.reverses_id ? ` · ${t('Reversal')}` : ''}\n${t(subsidy ? 'Confirm this annual fee subsidy entry or reversal?' : adjustment ? 'Confirm this theoretical balance adjustment?' : 'Confirm this negative cooperation entry?')}`,
             )
         )
             return;
         journal.transform((data) => ({
             ...data,
-            ...(adjustment || offset ? { confirmed: true } : {}),
+            ...(adjustment || subsidy || offset ? { confirmed: true } : {}),
         }));
         if (targetCompany && (journalPartner || report?.partnerId))
             journal.post(
@@ -348,9 +351,20 @@ export default function Partners({
         <PlatformLayout
             title={t('Partners')}
             actions={
-                <button type="button" className="partner-admin-action" onClick={add}>
-                    + {t('Add partner')}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                    <UserSnapshotExport
+                        resource="partners"
+                        filters={{
+                            company: companyId ?? undefined,
+                            referrer: sortQuery.get('referrer') ?? undefined,
+                            sort: sortColumn ?? undefined,
+                            direction: sortQuery.get('direction') ?? undefined,
+                        }}
+                    />
+                    <button type="button" className="partner-admin-action" onClick={add}>
+                        + {t('Add partner')}
+                    </button>
+                </div>
             }
         >
             <Head title={t('Partners')} />
@@ -457,6 +471,7 @@ export default function Partners({
                                                     'Direct referrer',
                                                     'Cumulative advances',
                                                     'Subordinate advances',
+                                                    'Annual fee subsidy',
                                                     'Stock',
                                                     'Theoretical balance',
                                                     'Actual balance',
@@ -528,6 +543,7 @@ export default function Partners({
                                                         [
                                                             'advance',
                                                             'subordinateAdvances',
+                                                            'annualSubsidy',
                                                             'stock',
                                                             'theoretical',
                                                             'actual',
@@ -792,6 +808,9 @@ export default function Partners({
                                             <option value="REIMBURSEMENT">
                                                 {t('Reimbursement')}
                                             </option>
+                                            <option value="ANNUAL_SUBSIDY">
+                                                {t('Annual fee subsidy')}
+                                            </option>
                                             <option value="ADVANCE">{t('Advance')}</option>
                                             <option value="ADJUSTMENT_INCREASE">
                                                 {t('Increase theoretical balance')}
@@ -820,7 +839,9 @@ export default function Partners({
                                     {!journal.data.kind.startsWith('ADJUSTMENT_') && (
                                         <p className="stock-muted">
                                             {t(
-                                                'Enter a negative amount to offset reimbursements or advances. Zero is not allowed.',
+                                                journal.data.kind === 'ANNUAL_SUBSIDY'
+                                                    ? 'Positive subsidies reduce only this partner’s stock; negative subsidies increase it. Wallet and theoretical balances stay unchanged.'
+                                                    : 'Enter a negative amount to offset reimbursements or advances. Zero is not allowed.',
                                             )}
                                         </p>
                                     )}

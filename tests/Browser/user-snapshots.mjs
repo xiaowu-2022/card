@@ -47,6 +47,13 @@ try {
         return route.fulfill({ contentType: 'text/html', body: `<!doctype html><html><head><meta charset="utf-8">${(entry.css ?? []).map(file => `<link rel="stylesheet" href="/build/${file}">`).join('')}</head><body><script data-page="app" type="application/json">${JSON.stringify(state).replaceAll('<', '\\u003c')}</script><div id="app"></div><script type="module" src="/build/${entry.file}"></script></body></html>` });
     });
     await page.goto(origin + '/platform/users?page=2');
+    // A plain search must remain a live query; historical mode is explicit.
+    assert.equal(await page.getByLabel('截止时间（北京时间）').inputValue(), '');
+    await page.getByRole('textbox', { name: '搜索姓名、账号 ID 或邮箱' }).fill('snapshot-user');
+    await page.getByRole('button', { name: '应用', exact: true }).click();
+    await page.waitForURL('**search=snapshot-user');
+    assert.equal(new URL(page.url()).searchParams.has('as_of'), false);
+    assert.equal(new URL(page.url()).searchParams.has('page'), false);
     await page.getByLabel('截止时间（北京时间）').fill('2026-10-13T08:00:01');
     await page.getByRole('button', { name: '应用', exact: true }).click();
     await page.waitForURL('**as_of=*');

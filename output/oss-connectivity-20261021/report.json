@@ -1,0 +1,102 @@
+{
+  "tested_at_server": "2026-10-21T11:02:40+08:00",
+  "source_server": "104.168.135.209",
+  "application": "/www/wwwroot/card",
+  "bucket": "aadwaaw",
+  "region": "cn-beijing",
+  "configured_endpoint": "https://zb33333.com",
+  "public_url": "https://zb33333.com",
+  "official_endpoint": "https://oss-cn-beijing.aliyuncs.com",
+  "result": "NOT_USABLE_FROM_FORMAL_SERVER_AT_TEST_TIME",
+  "operations": [
+    {
+      "mode": "configured",
+      "object": "connection-tests/server-20261021-a17910a9849f142d-configured.png",
+      "upload": {
+        "result": "FAIL",
+        "reason": "timeout",
+        "seconds": 3.012
+      },
+      "signed_read": "SKIPPED_UPLOAD_UNCONFIRMED",
+      "public_read": "SKIPPED_UPLOAD_UNCONFIRMED",
+      "delete": {
+        "result": "FAIL",
+        "reason": "storage_unavailable",
+        "seconds": 3.003
+      },
+      "absence_verified": false
+    },
+    {
+      "mode": "regional",
+      "object": "connection-tests/server-20261021-ad10ee22ae25df5a-regional.png",
+      "upload": {
+        "result": "FAIL",
+        "reason": "timeout",
+        "seconds": 3.002
+      },
+      "signed_read": "SKIPPED_UPLOAD_UNCONFIRMED",
+      "public_read": "SKIPPED_UPLOAD_UNCONFIRMED",
+      "delete": {
+        "result": "FAIL",
+        "reason": "storage_unavailable",
+        "seconds": 3.003
+      },
+      "absence_verified": false
+    }
+  ],
+  "network_controls": [
+    {
+      "host": "aadwaaw.oss-cn-beijing.aliyuncs.com",
+      "resolved_ipv4": "39.103.20.72",
+      "http_status": 0,
+      "tcp_connected": false,
+      "tls_established": false,
+      "timeout_seconds": 8
+    },
+    {
+      "host": "zb33333.com",
+      "resolved_ipv4": "183.95.252.41",
+      "http_status": 0,
+      "tcp_connected": false,
+      "tls_established": false,
+      "timeout_seconds": 8
+    },
+    {
+      "host": "oss-cn-beijing.aliyuncs.com",
+      "http_status": 0,
+      "tcp_connected": false,
+      "timeout_seconds": 4
+    },
+    {
+      "host": "aadwaaw.cn-beijing.taihangrda.cn",
+      "http_status": 0,
+      "tcp_connected": false,
+      "timeout_seconds": 4
+    },
+    {
+      "host": "www.aliyun.com",
+      "http_status": 302,
+      "tcp_connected": true,
+      "tls_established": true,
+      "total_seconds": 0.829582
+    },
+    {
+      "host": "www.cloudflare.com",
+      "http_status": 200,
+      "tcp_connected": true,
+      "tls_established": true,
+      "total_seconds": 0.205395
+    }
+  ],
+  "interpretation": "DNS resolved, but HTTPS TCP connections to the tested Beijing OSS and custom-domain destinations timed out. Other HTTPS destinations succeeded. No OSS authorization response was received; credential and permission correctness remain unverified.",
+  "application_config_changed": false,
+  "credentials_exported": false,
+  "business_objects_modified": false,
+  "remote_probe_script_removed": true,
+  "remote_safe_log": "/tmp/card-oss-probe-20261021.log",
+  "test_object_cleanup": "Delete requests timed out; absence has not been verified.",
+  "evidence": [
+    "network-control.png",
+    "oss-test-results.png"
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-21",
+  "feature": "用户预支与合伙人下级预支扣减",
+  "isolated_tests": {
+    "database": "card_ui_test",
+    "passed": 26,
+    "assertions": 316,
+    "duration_seconds": 295.96,
+    "log": "focused-tests.log",
+    "full_suite_completed": false
+  },
+  "checks": {
+    "admin_typecheck": "passed",
+    "uni_app_typecheck": "passed",
+    "admin_build": "passed",
+    "h5_build": "passed",
+    "uni_app_native_resources": "passed",
+    "webview_shell_resources": "passed",
+    "browser_signed_entry_reversal_pagination": "passed",
+    "git_diff_check": "passed"
+  },
+  "migration": "2026_10_21_100000_add_user_advances",
+  "production_migration_applied": false,
+  "production_deployed": false,
+  "provider_operations": false,
+  "signed_apk_ipa_created": false,
+  "existing_workspace_changes_preserved": true,
+  "h5_public_synced": true,
+  "old_hashed_assets_retained": true,
+  "build_notes": [
+    "Existing large-bundle warning retained.",
+    "Native builds are resources only; signed packaging and installation remain required."
+  ]
+}

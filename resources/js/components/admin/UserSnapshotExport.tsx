@@ -14,7 +14,13 @@ function firstValidationError(result: unknown): string | undefined {
     }
 }
 
-export function UserSnapshotExport({ filters }: { filters: Record<string, string | undefined> }) {
+export function UserSnapshotExport({
+    filters,
+    resource = 'users',
+}: {
+    filters: Record<string, string | undefined>;
+    resource?: 'users' | 'partners';
+}) {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const download = async () => {
@@ -22,11 +28,20 @@ export function UserSnapshotExport({ filters }: { filters: Record<string, string
         setError('');
         try {
             const query = new URLSearchParams();
-            for (const key of ['company', 'search', 'status', 'support', 'referrer', 'as_of']) {
+            for (const key of [
+                'company',
+                'search',
+                'status',
+                'support',
+                'referrer',
+                'as_of',
+                'sort',
+                'direction',
+            ]) {
                 const value = filters[key];
                 if (value) query.set(key, value);
             }
-            const response = await fetch(`/platform/users/export?${query}`, {
+            const response = await fetch(`/platform/${resource}/export?${query}`, {
                 credentials: 'same-origin',
                 cache: 'no-store',
                 headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -45,7 +60,7 @@ export function UserSnapshotExport({ filters }: { filters: Record<string, string
             link.href = objectUrl;
             link.download =
                 response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ??
-                'users.csv';
+                `${resource}.csv`;
             document.body.appendChild(link);
             link.click();
             link.remove();

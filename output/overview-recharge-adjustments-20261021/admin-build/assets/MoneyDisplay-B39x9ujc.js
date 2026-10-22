@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BGCV2sz3.js";import{o as t}from"./admin-CCt_6tpN.js";import{t as n}from"./MoneyDisplay-BUsLaah7.js";var r=e();function i(e){return(0,r.jsx)(n,{...e,assetLabel:t(e.assetLabel??e.asset),exact:!0})}export{i as t};

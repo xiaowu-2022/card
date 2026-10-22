@@ -38,6 +38,7 @@ Route::middleware(['tenant.surface:tenant-admin', CompanyConfigurationReadOnly::
         Route::get('/support/{conversation}', [SupportController::class, 'show'])->whereUuid('conversation')->middleware('business-throttle:120,1')->name('support.show');
         Route::post('/support/{conversation}/finish', [SupportController::class, 'finish'])->whereUuid('conversation')->middleware('business-throttle:40,1');
         Route::post('/support/{conversation}/messages', [SupportController::class, 'store'])->whereUuid('conversation')->middleware('business-throttle:40,1')->name('support.send');
+        Route::post('/support/{conversation}/messages/{message}/change', [SupportController::class, 'change'])->whereUuid(['conversation', 'message'])->middleware('business-throttle:40,1');
     });
     Route::post('/locale', AdminLocaleController::class)->middleware('business-throttle:60,1')->name('locale.update');
     Route::get('/login', [TenantAdminAuthController::class, 'create'])->name('login');

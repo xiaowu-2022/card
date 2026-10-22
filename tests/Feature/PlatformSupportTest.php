@@ -202,3 +202,36 @@ it('serializes simultaneous proactive first sends and duplicate requests in the 
     expect($results)->toBe(['ok', 'ok', 'ok'])->and(SupportConversation::count())->toBe(1)
         ->and(SupportMessage::count())->toBe(2)->and(SupportConversation::sole()->last_sequence)->toBe(2);
 });
+
+it('corrects only own backend replies with immutable revisions and scoped replay guards', function () {
+    $this->post($this->url.'/messages', ['request_id' => (string) Str::uuid(), 'support_message' => 'Original reply'])->assertRedirect();
+    $message = SupportMessage::sole();
+    $endpoint = $this->url.'/messages/'.$message->id.'/change';
+    $input = ['request_id' => (string) Str::uuid(), 'revision' => 0, 'operation' => 'EDIT', 'text' => 'Corrected reply'];
+    $this->get($this->url)->assertInertia(fn ($p) => $p->where('chat.messages.0.canManage', true));
+    $this->postJson($endpoint, $input)->assertNoContent();
+    $this->postJson($endpoint, $input)->assertNoContent();
+    $this->postJson($endpoint, [...$input, 'text' => 'Changed retry'])->assertConflict();
+    $this->postJson($endpoint, [...$input, 'request_id' => (string) Str::uuid()])->assertConflict();
+    expect($message->fresh()->support_message)->toBe('Original reply')
+        ->and(DB::table('support_message_revisions')->count())->toBe(1);
+    $projection = app(SupportChatQuery::class)->user($this->company->id, $this->customer->id);
+    expect($projection['messages'][0]['text'])->toBe('Corrected reply')
+        ->and($projection['messages'][0])->not->toHaveKey('canManage');
+    $this->actingAs($this->agent, 'tenant_admin');
+    $companyEndpoint = 'http://a.localhost/admin/support/'.$message->conversation_id.'/messages/'.$message->id.'/change';
+    $this->postJson($companyEndpoint, [...$input, 'revision' => 1])->assertForbidden();
+    $this->action->admin($this->company->id, $this->agent->id, $message->conversation_id, (string) Str::uuid(), 'Company reply');
+    $own = SupportMessage::orderByDesc('sequence')->first();
+    $ownEndpoint = 'http://a.localhost/admin/support/'.$message->conversation_id.'/messages/'.$own->id.'/change';
+    $this->postJson($ownEndpoint, [...$input, 'request_id' => (string) Str::uuid()])->assertNoContent();
+    $this->actingAs($this->owner, 'platform_admin');
+    $this->postJson($this->url.'/messages/'.$own->id.'/change', [...$input, 'revision' => 1])->assertForbidden();
+    $delete = ['request_id' => (string) Str::uuid(), 'revision' => 1, 'operation' => 'DELETE'];
+    $this->postJson($endpoint, $delete)->assertNoContent();
+    $this->postJson($endpoint, $delete)->assertNoContent();
+    $this->postJson($endpoint, [...$input, 'revision' => 2, 'request_id' => (string) Str::uuid()])->assertConflict();
+    $projection = app(SupportChatQuery::class)->user($this->company->id, $this->customer->id);
+    expect($projection['messages'][0]['deleted'])->toBeTrue()->and($projection['messages'][0]['text'])->toBeNull();
+    $this->postJson('http://admin.localhost/platform/tenants/'.$this->otherCompany->id.'/support/users/'.$this->otherCustomer->id.'/messages/'.$message->id.'/change', $delete)->assertNotFound();
+});

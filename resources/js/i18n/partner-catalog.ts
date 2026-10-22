@@ -1,4 +1,17 @@
 export const partnerCatalog = {
+    'Annual fee subsidy': ['补贴年费', 'Subsidi yuran tahunan', 'Subvención de cuota anual'],
+    'Confirm this annual fee subsidy entry or reversal?': [
+        '确认登记此补贴年费或冲正？',
+        'Sahkan subsidi yuran tahunan atau pembalikan ini?',
+        '¿Confirmar esta subvención o reversión?',
+    ],
+    'Positive subsidies reduce only this partner’s stock; negative subsidies increase it. Wallet and theoretical balances stay unchanged.':
+        [
+            '正数补贴扣减该合伙人存量，负数补贴增加存量；不改变钱包和理论余额。',
+            'Subsidi positif mengurangkan baki rakan kongsi ini; subsidi negatif menambahnya. Baki dompet dan teori tidak berubah.',
+            'Las subvenciones positivas reducen el saldo de este socio; las negativas lo aumentan. No cambian el monedero ni el saldo teórico.',
+        ],
+
     'Only the lifetime actual recharge total includes display adjustments. Daily and recent totals stay unchanged.':
         [
             '仅调整累计实际充值金额；当天及近期各周期统计不变。',
@@ -107,11 +120,11 @@ export const partnerCatalog = {
         'Tukar klasifikasi penerimaan deposit untuk membalikkan pendahuluan ini.',
         'Cambie la clasificación del depósito para revertir este anticipo.',
     ],
-    'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses − personal account balance difference − subordinate advances. Wallet flows affect stock through the personal difference, not business contributions.':
+    'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses − personal account balance difference − subordinate advances − own annual fee subsidies. Wallet flows affect stock through the personal difference, not business contributions.':
         [
-            '合伙人存量 = 有效保证金余额 + 已付年费 − 已付佣金 − 已返年费 − 净报销 − 本人理论差额 − 下级预支金额。下级预支仅统计归属本人的多级普通用户，遇启用合伙人及其分支停止；负预支增加存量。',
-            'Baki rakan kongsi menolak perbezaan peribadi dan pendahuluan bersih ahli bawahan hingga sempadan rakan kongsi aktif.',
-            'El saldo del socio descuenta la diferencia personal y los anticipos netos de usuarios hasta otro socio activo.',
+            '合伙人存量 = 有效保证金余额 + 已付年费 − 已付佣金 − 已返年费 − 净报销 − 本人理论差额 − 下级预支金额 − 本人补贴年费净额。补贴年费正数扣存量、负数增加存量。下级预支仅统计归属本人的多级普通用户，遇启用合伙人及其分支停止；负预支增加存量。',
+            'Baki rakan kongsi menolak perbezaan peribadi dan pendahuluan bersih ahli bawahan hingga sempadan rakan kongsi aktif serta subsidi yuran tahunan sendiri.',
+            'El saldo del socio descuenta la diferencia personal y los anticipos netos de usuarios hasta otro socio activo y las subvenciones propias de cuota anual.',
         ],
     'Card authorization': ['交易消费', 'Kebenaran kad', 'Autorización de tarjeta'],
     'Card fund collection': ['资金收取', 'Kutipan dana', 'Cobro de fondos'],

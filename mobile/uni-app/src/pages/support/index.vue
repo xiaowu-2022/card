@@ -92,6 +92,9 @@ async function changeMessage() {
 const composerId = 'support-composer-' + requestId();
 const conversation = ref('');
 const agent = computed(() => !!conversation.value);
+const visibleMessages = computed(() =>
+    chat.value.messages.filter((message) => agent.value || !message.deleted),
+);
 const base = computed(() =>
     agent.value ? '/support-workspace/conversations/' + conversation.value : '/support',
 );
@@ -198,7 +201,14 @@ async function load(silent = false) {
     if (!silent) loading.value = true;
     try {
         if (!(await requireUser())) return;
-        const data = await request<Chat>(base.value + '?before=' + before.value, 'GET', undefined, undefined, false, { background: silent });
+        const data = await request<Chat>(
+            base.value + '?before=' + before.value,
+            'GET',
+            undefined,
+            undefined,
+            false,
+            { background: silent },
+        );
         if (run !== generation) return;
         chat.value = data;
         failed.value = false;
@@ -239,7 +249,9 @@ async function acknowledge() {
             agent.value ? base.value + '/read' : '/support/read',
             'POST',
             agent.value ? { through } : { through, revisions },
-            undefined, false, { background: true },
+            undefined,
+            false,
+            { background: true },
         );
         acknowledgedRevisions = revisionKey;
         acknowledged = through;
@@ -485,7 +497,7 @@ function updateDraft(event: unknown) {
                 ><view v-else-if="failed" class="loading"
                     ><text>{{ t('Unable to load. Please try again.') }}</text
                     ><button class="secondary" @click="load()">{{ t('Retry') }}</button></view
-                ><view v-else-if="!chat.messages.length" class="support-empty"
+                ><view v-else-if="!visibleMessages.length" class="support-empty"
                     ><UiIcon name="support" :size="36" /><text class="empty-title">{{
                         t('How can we help?')
                     }}</text
@@ -493,7 +505,7 @@ function updateDraft(event: unknown) {
                         t('Send a message or image. Your company support team can reply here.')
                     }}</text></view
                 ><view
-                    v-for="message in chat.messages"
+                    v-for="message in visibleMessages"
                     :key="message.id"
                     class="support-message"
                     :class="{
@@ -538,7 +550,8 @@ function updateDraft(event: unknown) {
                         }}</text></view
                     ><text class="support-time"
                         >{{ dateTime(message.createdAt)
-                        }}<text v-if="message.edited && !message.deleted"> · {{ t('Edited') }}</text
+                        }}<text v-if="agent && message.edited && !message.deleted">
+                            · {{ t('Edited') }}</text
                         ><text v-if="agent && message.readByUser != null">
                             · {{ t(message.readByUser ? 'Read' : 'Unread') }}</text
                         ></text

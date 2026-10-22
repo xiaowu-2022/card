@@ -97,14 +97,14 @@ final class PartnerManagement
     public function journal(AdminUser $actor, string $tenant, string $partner, array $input): object
     {
         app(AssetAccess::class)->platform($actor, 'partners.manage');
-        $data = Validator::make($input, ['kind' => 'required|in:REIMBURSEMENT,ADVANCE,ADJUSTMENT_INCREASE,ADJUSTMENT_DECREASE', 'amount' => ['required', 'regex:/^-?\d{1,18}(\.\d{1,8})?$/', 'numeric'], 'business_date' => 'required|date_format:Y-m-d', 'note' => 'required|string|max:2000', 'request_id' => 'required|uuid', 'reverses_id' => 'nullable|uuid'])->validate();
+        $data = Validator::make($input, ['kind' => 'required|in:ANNUAL_SUBSIDY,REIMBURSEMENT,ADVANCE,ADJUSTMENT_INCREASE,ADJUSTMENT_DECREASE', 'amount' => ['required', 'regex:/^-?\d{1,18}(\.\d{1,8})?$/', 'numeric'], 'business_date' => 'required|date_format:Y-m-d', 'note' => 'required|string|max:2000', 'request_id' => 'required|uuid', 'reverses_id' => 'nullable|uuid'])->validate();
         $amount = BigDecimal::of($data['amount']);
         $adjustment = in_array($data['kind'], ['ADJUSTMENT_INCREASE', 'ADJUSTMENT_DECREASE'], true);
         if ($amount->isZero() || ($adjustment && $amount->isNegative())) {
             throw ValidationException::withMessages(['amount' => $adjustment
                 ? 'Adjustment amount must be positive.' : 'Amount must not be zero.']);
         }
-        if ($adjustment || $amount->isNegative()) {
+        if ($adjustment || $data['kind'] === 'ANNUAL_SUBSIDY' || $amount->isNegative()) {
             Validator::make($input, ['confirmed' => 'required|accepted'])->validate();
         }
         $data['amount'] = (string) $amount->toScale(8);
@@ -113,6 +113,9 @@ final class PartnerManagement
 
         return DB::transaction(function () use ($actor, $tenant, $partner, $data, $hash) {
             app(AssetAccess::class)->platform($actor, 'partners.manage');
+            if ($data['kind'] === 'ANNUAL_SUBSIDY') {
+                Tenant::whereKey($tenant)->lockForUpdate()->firstOrFail();
+            }
             DB::table('partner_configurations')->where('tenant_id', $tenant)->where('id', $partner)->lockForUpdate()->firstOrFail();
             AssetAccess::lock('partner-journal:'.$tenant.':'.$data['request_id']);
             $old = DB::table('partner_journal_entries')->where('tenant_id', $tenant)->where('request_id', $data['request_id'])->first();

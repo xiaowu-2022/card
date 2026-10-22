@@ -1,3 +1,12 @@
+On 2026-10-21 the user added signed partner annual-fee subsidies. Record independent
+ANNUAL_SUBSIDY cooperation journals: positive amounts deduct only the owner's stock,
+negative amounts increase it; reversals negate signed originals. Never include these
+in personal theoretical balances, reimbursements, advances or ancestor stock deductions.
+Preserve scoped confirmation/idempotency/immutable audit and Wallet/Ledger. Synchronize
+list/export/hierarchy/report/homepage/source projections and reference shares. Deploy
+the constraint migration with PHP/admin/H5; rebuild native resources. Isolated/offline
+verification only, no production financial or provider operations. See PARTNER_STOCK.md.
+
 On 2026-10-19 the user approved WebView randomized bounded line discovery.
 Sample three distinct candidates from the merged valid seed/cache pool, without
 pinning the previous selection. Race the first group; immediately accept the first
