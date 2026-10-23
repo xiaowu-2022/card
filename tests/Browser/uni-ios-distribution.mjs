@@ -38,9 +38,14 @@ for(const [name,engine,options] of [['chromium',chromium,{channel:'chrome'}],['w
   assert.equal(await page.locator('.install-methods a').nth(2).getAttribute('href'),'/pwa/');
   assert.equal(metadataCalls,0,'chooser never loads IPA metadata');
   assert.equal(await page.locator('.marketing-desktop-nav').count(),0);
-  for (const width of [375,768,1440]) {
-   await page.setViewportSize({width,height:844});
+  assert.equal(await page.locator('.install-main h1, .install-eyebrow, .install-tagline').count(),0);
+  for (const [width,height] of [[320,480],[375,600],[390,650],[768,844],[1440,844]]) {
+   await page.setViewportSize({width,height});
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+   for (const button of await page.locator('.install-methods a').all()) {
+    const box=await button.boundingBox();
+    assert.ok(box && box.y>=0 && box.y+box.height+3<=height, `${name} ${width}x${height}: each installation button fits fully on the first screen`);
+   }
    await page.screenshot({path:'output/uni-ios-distribution/'+name+'-chooser-'+width+'.png',fullPage:true});
   }
   await page.locator('.install-methods a').first().click();
