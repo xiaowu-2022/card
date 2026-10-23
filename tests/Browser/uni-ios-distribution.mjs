@@ -32,7 +32,7 @@ for(const [name,engine,options] of [['chromium',chromium,{channel:'chrome'}],['w
   await page.locator('.install-methods a').first().waitFor();
   assert.match(page.url(),/#\/pages\/app-download\/index$/);
   assert.equal(await page.locator('.install-methods a').count(),3);
-  assert.deepEqual(await page.locator('.install-methods strong').allTextContents(),['app','轻量版app','便携版app']);
+  assert.deepEqual((await page.locator('.install-methods a').allTextContents()).map(text=>text.trim()),['app','轻量版app','便携版app']);
   assert.doesNotMatch(await page.locator('.install-methods').innerText(), /\b(?:ipa|webclip|pwa)\b/i);
   assert.equal(await page.locator('.install-methods a').nth(1).getAttribute('href'),'/webclip/');
   assert.equal(await page.locator('.install-methods a').nth(2).getAttribute('href'),'/pwa/');
