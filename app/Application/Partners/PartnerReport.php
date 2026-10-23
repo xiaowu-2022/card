@@ -31,7 +31,7 @@ final class PartnerReport
             $report['cashFlow'] = null;
             $report['flowDetails'] = null;
             abort_if($flow !== null && ! $partner, 403);
-            abort_unless($flow === null || in_array($flow, ['inflow', 'outflow', 'subordinateAdvances'], true), 422);
+            abort_unless($flow === null || in_array($flow, ['inflow', 'outflow', 'subordinateAdvances', 'childrenStock'], true), 422);
             if (! $partner) {
                 $report['accountBalance'] = null;
                 $report['share'] = null;
@@ -44,12 +44,13 @@ final class PartnerReport
             }
 
             $business = app(PartnerBusinessStock::class);
-            $totals = $business->totals($tenant, $user);
-            $businessStock = $this->decimal(BigDecimal::of($totals['inflow'])->minus($totals['outflow']));
-            $report['stockBeforeDifference'] = $businessStock;
-            $report['subordinateAdvances'] = $this->decimal(BigDecimal::of(app(UserAdvances::class)->subordinateTotals($tenant, [$user])[$user] ?? '0'));
-            $report['annualSubsidy'] = app(PartnerAnnualSubsidies::class)->totals($tenant, [$report['partnerId']])[$report['partnerId']] ?? '0.00000000';
-            $stock = BigDecimal::of(PartnerStockValue::afterDifference($businessStock, $report['accountBalance']['difference'], $report['subordinateAdvances'], $report['annualSubsidy']));
+            $projection = app(PartnerStockProjection::class)->forUsers($tenant, [$user]);
+            $value = $projection[$user];
+            $totals = $value['totals'];
+            foreach (['stockBeforeDifference', 'childrenStock', 'stockForParent', 'subordinateAdvances', 'annualSubsidy'] as $key) {
+                $report[$key] = $value[$key];
+            }
+            $stock = BigDecimal::of($value['stock']);
             $report['stock'] = $this->decimal($stock);
             $report['share'] = $this->decimal($stock->multipliedBy($report['sharePercent'])->withPointMovedLeft(2));
             $report['negative'] = $stock->isNegative();
@@ -57,7 +58,7 @@ final class PartnerReport
             $report['totals'] = [...$totals, 'advances' => $report['totals']['advances']];
             $report['stockBasis'] = 'BUSINESS_CONTRIBUTIONS';
             if ($flow !== null) {
-                $report['flowDetails'] = $flow === 'subordinateAdvances' ? app(UserAdvances::class)->details($tenant, $user, max(1, $flowPage)) : $business->details($tenant, $user, $flow, max(1, $flowPage));
+                $report['flowDetails'] = $flow === 'childrenStock' ? app(PartnerStockProjection::class)->details($tenant, $user, $projection, max(1, $flowPage)) : ($flow === 'subordinateAdvances' ? app(UserAdvances::class)->details($tenant, $user, max(1, $flowPage)) : $business->details($tenant, $user, $flow, max(1, $flowPage)));
             }
             $report['trends'] = $business->trends($tenant, $user, CarbonImmutable::parse($report['updatedAt']), $report['timezone']);
             $report['unvalued'] = ['items' => [], 'page' => $page, 'total' => 0, 'hasMore' => false];

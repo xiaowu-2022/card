@@ -53,6 +53,17 @@ it('filters direct referrers by exact account or case insensitive email without 
         ->where('users.total', 1)->has('users.data', 0)
         ->where('users.prev_page_url', fn ($value) => str_contains($value, 'referrer='.$rootUser->account_id)));
     $this->getJson($url.'?'.http_build_query(['referrer' => str_repeat('a', 121)]))->assertUnprocessable();
+    $grandchild->refresh();
+    $teamUrl = "http://admin.localhost/platform/tenants/{$tenant->id}/users/{$rootUser->id}/subordinates";
+    $this->getJson($teamUrl)->assertOk()->assertJsonPath('total', 2)->assertJsonCount(2, 'data');
+    $this->getJson($teamUrl.'?scope=direct')->assertOk()->assertJsonPath('total', 1)
+        ->assertJsonPath('data.0.id', $child->id)->assertJsonPath('data.0.descendantCount', 1);
+    $this->getJson($teamUrl.'?search='.$grandchild->account_id)->assertOk()->assertJsonPath('total', 1)
+        ->assertJsonPath('data.0.id', $grandchild->id);
+    $this->getJson($teamUrl.'?scope=direct&search='.$grandchild->account_id)->assertOk()->assertJsonPath('total', 0);
+    $this->getJson($teamUrl.'?page=2')->assertOk()->assertJsonPath('total', 2)->assertJsonCount(0, 'data');
+    $this->getJson("http://admin.localhost/platform/tenants/{$otherTenant->id}/users/{$rootUser->id}/subordinates")->assertNotFound();
+    $this->getJson($teamUrl.'?scope=invalid')->assertUnprocessable();
     foreach ($before as $table => $snapshot) {
         expect(DB::table($table)->orderBy('id')->get()->toJson())->toBe($snapshot);
     }

@@ -60,13 +60,17 @@ export type StockFlowDetails = StockPage<{
     asset_code: string;
     amount: string;
     amountUsdt: string | null;
+    stock?: string;
+    annualSubsidy?: string;
     posted_at: string | null;
-}> & { direction: 'inflow' | 'outflow' | 'subordinateAdvances' };
+}> & { direction: 'inflow' | 'outflow' | 'subordinateAdvances' | 'childrenStock' };
 export type StockReport = {
     flowDetails?: StockFlowDetails | null;
     version: 'partner' | 'standard';
     stockBasis?: 'BUSINESS_CONTRIBUTIONS';
     stockBeforeDifference?: string;
+    childrenStock?: string;
+    stockForParent?: string;
     subordinateAdvances?: string;
     annualSubsidy?: string;
     cashFlow: null | {
@@ -131,6 +135,7 @@ const lines: [string, string, string][] = [
     ['reimbursements', 'Reimbursed expenses', '−'],
 ];
 const stockEntryLabels: Record<string, string> = {
+    childrenStock: 'Subordinate partner stock',
     deposits: 'Eligible security deposit balances',
     annual: 'Total annual fees paid',
     activation: 'Activation commissions paid',
@@ -171,7 +176,7 @@ export function PartnerStockReport({
     showUserIdentity?: boolean;
     compactHeader?: boolean;
     onFlow?: (
-        direction: 'inflow' | 'outflow' | 'subordinateAdvances' | null,
+        direction: 'inflow' | 'outflow' | 'subordinateAdvances' | 'childrenStock' | null,
         page?: number,
     ) => void;
 }) {
@@ -208,11 +213,13 @@ export function PartnerStockReport({
                     </button>
                     <h2>
                         {t(
-                            details.direction === 'subordinateAdvances'
-                                ? 'Subordinate advances'
-                                : details.direction === 'inflow'
-                                  ? 'Contribution details'
-                                  : 'Deduction details',
+                            details.direction === 'childrenStock'
+                                ? 'Subordinate partner stock'
+                                : details.direction === 'subordinateAdvances'
+                                  ? 'Subordinate advances'
+                                  : details.direction === 'inflow'
+                                    ? 'Contribution details'
+                                    : 'Deduction details',
                         )}{' '}
                         ({details.total})
                     </h2>
@@ -244,7 +251,11 @@ export function PartnerStockReport({
                                 </div>
                             ) : (
                                 <>
-                                    <p hidden={details.direction === 'subordinateAdvances'}>
+                                    <p
+                                        hidden={['subordinateAdvances', 'childrenStock'].includes(
+                                            details.direction,
+                                        )}
+                                    >
                                         {t('Direct branch member')}:{' '}
                                         {row.direct_account_id
                                             ? showUserIdentity
@@ -262,7 +273,16 @@ export function PartnerStockReport({
                                 {t(stockEntryLabels[row.source] ?? 'Amount')}: {number(row.amount)}{' '}
                                 {assetLabel('USDT')}
                             </p>
-                            <p className="stock-muted">
+                            {details.direction === 'childrenStock' && (
+                                <p>
+                                    {t('Displayed stock')}: {number(row.stock ?? '0')} ·{' '}
+                                    {t('Subsidy added back')}: {number(row.annualSubsidy ?? '0')}
+                                </p>
+                            )}
+                            <p
+                                hidden={details.direction === 'childrenStock'}
+                                className="stock-muted"
+                            >
                                 {row.posted_at ? (
                                     <>
                                         {t('Posted at')}: {dateTime(row.posted_at)}
@@ -374,7 +394,11 @@ export function PartnerStockReport({
                                         className="stock-link"
                                         onClick={() =>
                                             onFlow(
-                                                key as 'inflow' | 'outflow' | 'subordinateAdvances',
+                                                key as
+                                                    | 'inflow'
+                                                    | 'outflow'
+                                                    | 'subordinateAdvances'
+                                                    | 'childrenStock',
                                                 1,
                                             )
                                         }
@@ -395,7 +419,11 @@ export function PartnerStockReport({
                                         className="stock-link"
                                         onClick={() =>
                                             onFlow(
-                                                key as 'inflow' | 'outflow' | 'subordinateAdvances',
+                                                key as
+                                                    | 'inflow'
+                                                    | 'outflow'
+                                                    | 'subordinateAdvances'
+                                                    | 'childrenStock',
                                                 1,
                                             )
                                         }
@@ -410,6 +438,26 @@ export function PartnerStockReport({
                             </dd>
                         </div>
                     ))}
+                    {r.version === 'partner' && (
+                        <div>
+                            <dt>
+                                <button
+                                    className="stock-link"
+                                    onClick={() => onFlow?.('childrenStock', 1)}
+                                >
+                                    + {t('Subordinate partner stock')} · {t('View details')} {'›'}
+                                </button>
+                            </dt>
+                            <dd>
+                                <button
+                                    className="stock-link"
+                                    onClick={() => onFlow?.('childrenStock', 1)}
+                                >
+                                    {value(r.childrenStock ?? '0')}
+                                </button>
+                            </dd>
+                        </div>
+                    )}
                     {r.version === 'partner' && r.accountBalance && (
                         <div>
                             <dt>
@@ -429,7 +477,7 @@ export function PartnerStockReport({
                                         className="stock-link"
                                         onClick={() => onFlow?.('subordinateAdvances', 1)}
                                     >
-                                        − {t('Subordinate advances')}
+                                        {'−'} {t('Subordinate advances')}
                                     </button>
                                 </dt>
                                 <dd>
@@ -444,13 +492,15 @@ export function PartnerStockReport({
                         </dl>
                         <dl className="stock-lines">
                             <div>
-                                <dt>− {t('Annual fee subsidy')}</dt>
+                                <dt>
+                                    {'−'} {t('Annual fee subsidy')}
+                                </dt>
                                 <dd>{value(r.annualSubsidy ?? '0')}</dd>
                             </div>
                         </dl>
                         <p className="stock-muted">
                             {t(
-                                'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses − personal account balance difference − subordinate advances − own annual fee subsidies. Wallet flows affect stock through the personal difference, not business contributions.',
+                                'Partner stock = local non-partner deposit balances + annual fees paid + subordinate partner stock − commissions paid − annual fees returned − own net reimbursements − personal account balance difference − local non-partner advances − own annual fee subsidies. Stop at enabled partners. Subordinate stock excludes their own subsidy deductions.',
                             )}
                         </p>
                     </>
@@ -712,7 +762,7 @@ export function PartnerStockReport({
                 <p className="stock-muted">
                     {t(
                         r.version === 'partner'
-                            ? 'Contributions and annual returns include only non-partner descendants. Commissions are deducted by those users’ business source, regardless of recipient. Reimbursements include this partner and descendant partners, net of reversals. Current team relationships apply; overlapping reports must not be added together.'
+                            ? 'Local contributions, commissions, annual returns and advances stop at enabled partners. Commissions follow the non-partner recipient. Reimbursements include only this partner, net of reversals. Add nearest child transferable stock once, including negative values. Subsidies affect only their owner. Current referral relationships apply; do not add ancestor and descendant reports together.'
                             : 'Includes this account and all descendants. Historical totals use current team relationships.',
                     )}
                 </p>

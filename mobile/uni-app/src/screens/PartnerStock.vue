@@ -69,11 +69,13 @@ const more = computed(() =>
         :title="
             t(
                 r.flowDetails
-                    ? r.flowDetails.direction === 'subordinateAdvances'
-                        ? 'Subordinate advances'
-                        : r.flowDetails.direction === 'inflow'
-                          ? 'Contribution details'
-                          : 'Deduction details'
+                    ? r.flowDetails.direction === 'childrenStock'
+                        ? 'Subordinate partner stock'
+                        : r.flowDetails.direction === 'subordinateAdvances'
+                          ? 'Subordinate advances'
+                          : r.flowDetails.direction === 'inflow'
+                            ? 'Contribution details'
+                            : 'Deduction details'
                     : 'Stock data',
             )
         "
@@ -149,6 +151,13 @@ const more = computed(() =>
                                 : value(r.totals[key])
                         }}</text>
                     </view> </template
+                ><button
+                    v-if="r.version === 'partner'"
+                    class="row flow-link"
+                    @click="go(reportPath + '?flow=childrenStock', true)"
+                >
+                    <text>+ {{ t('Subordinate partner stock') }}</text
+                    ><text>{{ value(r.childrenStock ?? '0') }}</text></button
                 ><view v-if="r.version === 'partner' && r.accountBalance" class="row">
                     <text>− {{ t('Account balance difference') }}</text>
                     <text>{{ value(r.accountBalance.difference) }}</text>
@@ -167,7 +176,7 @@ const more = computed(() =>
                 >
                 <text v-if="r.version === 'partner'" class="muted small">{{
                     t(
-                        'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses − personal account balance difference − subordinate advances − own annual fee subsidies. Wallet flows affect stock through the personal difference, not business contributions.',
+                        'Partner stock = local non-partner deposit balances + annual fees paid + subordinate partner stock − commissions paid − annual fees returned − own net reimbursements − personal account balance difference − local non-partner advances − own annual fee subsidies. Stop at enabled partners. Subordinate stock excludes their own subsidy deductions.',
                     )
                 }}</text
                 ><text v-if="r.version === 'partner'" class="muted small">{{
@@ -287,7 +296,7 @@ const more = computed(() =>
             /><text class="muted small">{{
                 t(
                     r.version === 'partner'
-                        ? 'Contributions and annual returns include only non-partner descendants. Commissions are deducted by those users’ business source, regardless of recipient. Reimbursements include this partner and descendant partners, net of reversals. Current team relationships apply; overlapping reports must not be added together.'
+                        ? 'Local contributions, commissions, annual returns and advances stop at enabled partners. Commissions follow the non-partner recipient. Reimbursements include only this partner, net of reversals. Add nearest child transferable stock once, including negative values. Subsidies affect only their owner. Current referral relationships apply; do not add ancestor and descendant reports together.'
                         : 'Includes this account and all descendants. Historical totals use current team relationships.',
                 )
             }}</text></view

@@ -8,6 +8,17 @@ historical-analysis company/date filters. Historical charts are collapsed by def
 and keep their previous gross-withdrawal accounting, explicitly labeled separately
 from the new net-payout overview.
 
+## 2026-10-23 申请退押途中金额
+
+首页“存量”之后新增同样黑色可点击金额卡片，字段 `pendingDepositRefunds`。
+全平台汇总所有公司、普通用户和合伙人的有效退押申请：状态 CHECKING、未请求取消、
+无退款 Ledger 入账且创建时间不晚于当前快照。包括尚在等待期、已到期和阻塞处理中的
+申请，不限近 3/10 天，也不与合伙人团队重复相加。已完成到账、已取消及撤销恢复中不计。
+金额使用申请时保存的原精度 USDT，不读取可用余额推算，不改变存量、对账或钱包。
+来源 `metric=pendingDepositRefunds` 复用相同查询、截止时间和现有作用域权限、只读快照、
+25 条编号分页，展示公司、用户、申请金额及申请时间。零值仍可打开来源。
+仅需发布 PHP 与后台资源，无迁移、H5 或原生修改；隔离/离线验证，不操作生产资金或供应商。
+
 ## Confirmed amounts
 
 - Stock, theoretical balance, actual balance and difference sum **currently enabled

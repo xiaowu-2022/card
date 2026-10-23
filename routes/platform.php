@@ -260,6 +260,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
         Route::get('/tenants/{tenant}/users/{user}/wallet-adjustments', [WalletAdjustmentController::class, 'show'])->whereUuid(['tenant', 'user']);
         Route::post('/tenants/{tenant}/users/{user}/wallet-adjustments', [WalletAdjustmentController::class, 'update'])->middleware('business-throttle:40,1')->whereUuid(['tenant', 'user']);
     });
+    Route::middleware(['admin.scope:platform,users.read', 'business-throttle:240,1'])->get('/tenants/{tenant}/users/{user}/subordinates', [UserOperationsController::class, 'subordinates'])->whereUuid(['tenant', 'user']);
     Route::middleware('admin.scope:platform,users.read')->get('/tenants/{tenant}/users/{user}/details', [UserOperationsController::class, 'show'])->whereUuid(['tenant', 'user']);
     Route::middleware('admin.scope:platform,users.read')->get('/tenants/{tenant}/users/{user}/promotion', [UserPromotionController::class, 'show'])->whereUuid(['tenant', 'user']);
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,promotion_members.manage', 'business-throttle:40,1'])->post('/tenants/{tenant}/users/{user}/promotion', [UserPromotionController::class, 'update'])->whereUuid(['tenant', 'user']);

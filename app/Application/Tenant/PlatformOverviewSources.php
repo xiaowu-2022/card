@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\DB;
 
 final class PlatformOverviewSources
 {
-    public const METRICS = ['stock', 'theoretical', 'actual', 'difference', 'reimbursement', 'inflow', 'outflow', 'cardBalance', 'cardFunding', 'providerBalance', 'partnerAssets', 'ordinaryAssets', 'deposits', 'annual', 'depositRefunds', 'activation', 'rebates', 'annualCommission', 'remaining', 'refund10', 'refund3'];
+    public const METRICS = ['pendingDepositRefunds', 'stock', 'theoretical', 'actual', 'difference', 'reimbursement', 'inflow', 'outflow', 'cardBalance', 'cardFunding', 'providerBalance', 'partnerAssets', 'ordinaryAssets', 'deposits', 'annual', 'depositRefunds', 'activation', 'rebates', 'annualCommission', 'remaining', 'refund10', 'refund3'];
 
     public static function gate(string $metric): string
     {
@@ -43,6 +43,7 @@ final class PlatformOverviewSources
             $overview = $overviewQuery->execute($access, $at);
             $total = match ($metric) {
                 'stock', 'theoretical', 'actual', 'difference' => $overview['partners'][$metric],
+                'pendingDepositRefunds' => $overview['pendingDepositRefunds'],
                 'reimbursement' => $overview['reimbursement'], 'inflow', 'outflow' => $overview[$metric]['totals'][$period],
                 'cardBalance' => $overview['cards']['balance'], 'cardFunding' => $overview['cards'][$period],
                 'providerBalance' => $overview['providerBalance'], 'partnerAssets' => $overview['assets']['partner'],
@@ -112,6 +113,8 @@ final class PlatformOverviewSources
         $overview = app(PlatformOverviewQuery::class);
         if (in_array($metric, ['inflow', 'outflow'], true)) {
             $source = $overview->cashSource($metric === 'outflow');
+        } elseif ($metric === 'pendingDepositRefunds') {
+            $source = $overview->pendingDepositRefunds($at)->selectRaw("r.id, r.tenant_id, r.user_id, r.asset_code, r.amount, r.created_at AS posted_at, 'Deposit refunds in progress'::text AS source");
         } elseif ($metric === 'cardFunding') {
             $source = $overview->cardFundingSource();
         } elseif ($metric === 'reimbursement') {

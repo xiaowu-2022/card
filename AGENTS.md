@@ -1,3 +1,23 @@
+On 2026-10-23 the user added Platform homepage “申请退押途中金额” immediately
+below Stock: sum all companies/users' live CHECKING security-deposit refund applications
+not yet credited to available balance, excluding cancelled/cancel-requested applications.
+Include waiting, overdue and blocked requests; do not limit to partner trees or 3/10-day
+alerts. Share snapshot/cutoff/evidence with paginated clickable sources, native USDT
+precision and existing administrative permission gates. Reads never settle refunds,
+provision wallets or call providers. Deploy PHP/admin assets; no migration or H5/native
+change. Isolated/offline verification only. See PLATFORM_OVERVIEW.md.
+
+On 2026-10-23 the user approved bottom-up partner stock: local non-partner annual
+fees and effective deposits plus nearest enabled child partner transferable stock,
+minus local non-partner commissions/annual returns/advances, own net reimbursements,
+own signed personal difference and own annual subsidies. Every local business scope
+stops at enabled partners; negative child stock subtracts. Child transferable stock
+adds back only its own subsidy, recursively preventing subsidies from affecting any
+ancestor. Synchronize reports/list/export/hierarchy/homepage/sources/reference shares.
+Preserve personal reconciliation, daily activity, disabled standard reports and immutable
+Wallet/Ledger. No migration; deploy PHP/admin/H5 and rebuild native resources. Isolated
+offline verification only, no production financial/provider operations. See PARTNER_STOCK.md.
+
 On 2026-10-21 the user added signed partner annual-fee subsidies. Record independent
 ANNUAL_SUBSIDY cooperation journals: positive amounts deduct only the owner's stock,
 negative amounts increase it; reversals negate signed originals. Never include these

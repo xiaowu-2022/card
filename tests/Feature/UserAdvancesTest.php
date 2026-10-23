@@ -105,7 +105,7 @@ it('stops at enabled partners but includes multiple ordinary levels and follows 
     $overview = app(\App\Application\Tenant\PlatformOverviewQuery::class)->execute($access);
     $sources = app(\App\Application\Tenant\PlatformOverviewSources::class)->read('stock', 'total', 1, null);
     expect($overview['partners']['stock'])->toBe($report['stock'])->and($sources['amount'])->toBe($report['stock'])
-        ->and($sources['rows']['items'][0]['amount'])->toBe($report['stock'])->and($report['share'])->toBe('-2.80000000');
+        ->and($sources['rows']['items'][0]['amount'])->toBe($report['stock'])->and($report['share'])->toBe('-58.80000000');
 
     $json = json_encode($report['flowDetails']);
     expect($json)->not->toContain('Offline advance fixture')->not->toContain('actor_id');

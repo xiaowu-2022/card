@@ -39,8 +39,10 @@ export type StockFlowDetails = StockPage<{
     asset_code: string;
     amount: string;
     amountUsdt: string | null;
+    stock?: string;
+    annualSubsidy?: string;
     posted_at: string | null;
-}> & { direction: 'inflow' | 'outflow' | 'subordinateAdvances' };
+}> & { direction: 'inflow' | 'outflow' | 'subordinateAdvances' | 'childrenStock' };
 export type StockReport = {
     subject?: PartnerIdentity;
     reportPath?: string;
@@ -49,6 +51,8 @@ export type StockReport = {
     version: 'partner' | 'standard';
     stockBasis?: 'BUSINESS_CONTRIBUTIONS';
     stockBeforeDifference?: string;
+    childrenStock?: string;
+    stockForParent?: string;
     subordinateAdvances?: string;
     annualSubsidy?: string;
     cashFlow: null | {

@@ -19,6 +19,7 @@ export type PlatformOverviewData = {
     bubble: null;
     partners?: Record<'stock' | 'theoretical' | 'actual' | 'difference', string>;
     reimbursement?: string;
+    pendingDepositRefunds?: string;
     inflow?: Cash;
     outflow?: Cash;
     cards?: { balance: string | null; today: string; total: string };
@@ -192,8 +193,15 @@ export function PlatformOverview({ overview }: { overview: PlatformOverviewData 
         <SourceContext.Provider value={setTarget}>
             <div data-platform-overview className="min-w-0 space-y-4">
                 {overview.partners && (
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
                         <Metric label="Stock" metric="stock" value={overview.partners.stock} />
+                        {overview.pendingDepositRefunds !== undefined && (
+                            <Metric
+                                label="Deposit refunds in progress"
+                                metric="pendingDepositRefunds"
+                                value={overview.pendingDepositRefunds}
+                            />
+                        )}
                         <Metric
                             label="Theoretical balance"
                             metric="theoretical"

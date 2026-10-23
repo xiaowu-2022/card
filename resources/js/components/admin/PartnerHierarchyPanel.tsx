@@ -18,7 +18,7 @@ type View = {
     id: string;
     kind: 'children' | 'stock';
     page: number;
-    flow?: 'inflow' | 'outflow' | 'subordinateAdvances' | null;
+    flow?: 'inflow' | 'outflow' | 'subordinateAdvances' | 'childrenStock' | null;
     flowPage?: number;
     scroll: number;
 };

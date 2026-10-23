@@ -15,6 +15,12 @@ import { transferCatalog } from './transfer-catalog';
 import { accountCatalog } from './account-catalog';
 
 export const catalog = {
+    'iOS installation': ['苹果安装', 'Pemasangan iOS', 'Instalación de iOS'],
+    'Choose your installation method': ['选择安装方式', 'Pilih kaedah pemasangan anda', 'Elige el método de instalación'],
+    'Open in Safari on your iPhone or iPad.': ['请在 iPhone 或 iPad 上使用 Safari 打开。', 'Buka dalam Safari pada iPhone atau iPad anda.', 'Abre Safari en tu iPhone o iPad.'],
+    'Install the iOS app': ['安装苹果客户端', 'Pasang aplikasi iOS', 'Instala la aplicación iOS'],
+    'Install a home screen shortcut': ['安装桌面快捷方式', 'Pasang pintasan skrin utama', 'Instala un acceso directo'],
+    'Add the web app to your home screen': ['添加网页应用到桌面', 'Tambah aplikasi web ke skrin utama', 'Añade la aplicación web al inicio'],
     "Connection unavailable": ["连接异常", "Sambungan tidak tersedia", "Conexión no disponible"],
     "The service is still unavailable. Check your connection and retry.": ["服务仍不可用，请检查网络后重试。", "Perkhidmatan masih tidak tersedia. Semak sambungan dan cuba lagi.", "El servicio sigue sin estar disponible. Comprueba la conexión y reinténtalo."],
     "Cannot connect to the server. Refresh the page to try again.": ["网络异常或服务暂时不可用，请刷新页面重试。", "Tidak dapat menyambung ke pelayan. Muat semula halaman untuk mencuba lagi.", "No se puede conectar al servidor. Recarga la página para reintentarlo."],

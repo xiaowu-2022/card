@@ -1,4 +1,12 @@
 export const partnerCatalog = {
+    'Subordinate partner stock': [
+        '下级合伙人传递存量',
+        'Stok rakan kongsi bawahan',
+        'Existencias transferidas de socios subordinados',
+    ],
+    'Displayed stock': ['展示存量', 'Stok dipaparkan', 'Existencias mostradas'],
+    'Subsidy added back': ['补贴还原额', 'Subsidi ditambah semula', 'Subsidio restituido'],
+
     'Annual fee subsidy': ['补贴年费', 'Subsidi yuran tahunan', 'Subvención de cuota anual'],
     'Confirm this annual fee subsidy entry or reversal?': [
         '确认登记此补贴年费或冲正？',
@@ -120,11 +128,11 @@ export const partnerCatalog = {
         'Tukar klasifikasi penerimaan deposit untuk membalikkan pendahuluan ini.',
         'Cambie la clasificación del depósito para revertir este anticipo.',
     ],
-    'Partner stock = eligible deposit balances + annual fees paid − commissions paid − annual fees returned − net reimbursed expenses − personal account balance difference − subordinate advances − own annual fee subsidies. Wallet flows affect stock through the personal difference, not business contributions.':
+    'Partner stock = local non-partner deposit balances + annual fees paid + subordinate partner stock − commissions paid − annual fees returned − own net reimbursements − personal account balance difference − local non-partner advances − own annual fee subsidies. Stop at enabled partners. Subordinate stock excludes their own subsidy deductions.':
         [
-            '合伙人存量 = 有效保证金余额 + 已付年费 − 已付佣金 − 已返年费 − 净报销 − 本人理论差额 − 下级预支金额 − 本人补贴年费净额。补贴年费正数扣存量、负数增加存量。下级预支仅统计归属本人的多级普通用户，遇启用合伙人及其分支停止；负预支增加存量。',
-            'Baki rakan kongsi menolak perbezaan peribadi dan pendahuluan bersih ahli bawahan hingga sempadan rakan kongsi aktif serta subsidi yuran tahunan sendiri.',
-            'El saldo del socio descuenta la diferencia personal y los anticipos netos de usuarios hasta otro socio activo y las subvenciones propias de cuota anual.',
+            '合伙人存量 = 本层非合伙人有效押金余额 + 已付年费 + 下级合伙人传递存量 − 已付非合伙人佣金 − 已返非合伙人年费 − 本人净报销 − 本人理论差额 − 本层非合伙人净预支 − 本人净补贴年费。各项遇启用合伙人停止向下统计，下级负存量按负数相加。下级传递存量已还原其本人补贴，补贴仅影响本人。',
+            'Stok = deposit dan yuran ahli bukan rakan kongsi tempatan + stok bawahan − komisen − pulangan yuran − pembayaran balik sendiri − perbezaan sendiri − pendahuluan tempatan − subsidi sendiri. Berhenti pada rakan kongsi aktif. Subsidi bawahan ditambah semula sebelum stok dipindahkan.',
+            'Existencias = depósitos y cuotas de usuarios locales + existencias subordinadas − comisiones − cuotas devueltas − reembolsos propios − diferencia personal − anticipos locales − subsidios propios. El ámbito termina en socios activos. Los subsidios subordinados se restituyen antes de transferir las existencias.',
         ],
     'Card authorization': ['交易消费', 'Kebenaran kad', 'Autorización de tarjeta'],
     'Card fund collection': ['资金收取', 'Kutipan dana', 'Cobro de fondos'],
@@ -211,11 +219,11 @@ export const partnerCatalog = {
         'Cari nama pengguna atau e-mel',
         'Buscar nombre de usuario o correo',
     ],
-    'Contributions and annual returns include only non-partner descendants. Commissions are deducted by those users’ business source, regardless of recipient. Reimbursements include this partner and descendant partners, net of reversals. Current team relationships apply; overlapping reports must not be added together.':
+    'Local contributions, commissions, annual returns and advances stop at enabled partners. Commissions follow the non-partner recipient. Reimbursements include only this partner, net of reversals. Add nearest child transferable stock once, including negative values. Subsidies affect only their owner. Current referral relationships apply; do not add ancestor and descendant reports together.':
         [
-            '保证金、年费及返还仅统计非合伙人下级；已付佣金按这些用户的业务来源扣除，不限收款人。报销包含本人和下级合伙人净额，冲销抵回。按当前团队关系统计，重叠报表不可相加。',
-            'Sumbangan dan pulangan tahunan hanya meliputi ahli bawahan bukan rakan kongsi. Komisen ditolak mengikut sumber perniagaan mereka tanpa mengira penerima. Bayaran balik perbelanjaan termasuk rakan kongsi ini dan rakan kongsi bawahan selepas pembalikan. Hubungan pasukan semasa digunakan; jangan jumlahkan laporan bertindih.',
-            'Aportaciones y devoluciones anuales: solo descendientes no socios. Se deducen las comisiones de sus operaciones sin importar el destinatario. Los gastos incluyen este socio y socios descendientes, netos de anulaciones. Se usan relaciones actuales; no sume informes superpuestos.',
+            '本层缴费、佣金、返年费及预支均在启用合伙人处停止向下统计；佣金按非合伙人收款人归属。净报销只扣本人。最近下级的传递存量仅加一次，负数做减法；补贴仅影响记录所有人。按当前邀请关系计算，上下级报表不可再次相加。',
+            'Skop tempatan berhenti pada rakan kongsi aktif; komisen mengikut penerima bukan rakan kongsi. Tolak pembayaran balik bersih sendiri sahaja. Tambah stok bawahan terdekat sekali termasuk nilai negatif. Subsidi hanya menjejaskan pemilik. Gunakan hubungan rujukan semasa; jangan jumlahkan laporan induk dan bawahan.',
+            'El ámbito local termina en socios activos; las comisiones siguen al destinatario no socio. Solo se deducen los reembolsos propios netos. Se añade una vez el saldo transferible del socio más cercano, incluso negativo. Los subsidios solo afectan a su titular. Se usan referencias actuales; no sume informes de ascendientes y descendientes.',
         ],
     'Eligible contributions': ['有效缴费合计', 'Jumlah sumbangan layak', 'Aportaciones válidas'],
     'Stock deductions': ['存量扣减合计', 'Jumlah potongan baki', 'Deducciones del saldo'],

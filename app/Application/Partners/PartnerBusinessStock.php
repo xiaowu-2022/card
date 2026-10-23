@@ -96,8 +96,8 @@ final class PartnerBusinessStock
 
     public function entries(string $tenant, string $user): Builder
     {
-        return $this->entriesForMembers($tenant, app(PartnerStockTeam::class)->members($tenant, $user),
-            app(PartnerStockTeam::class)->members($tenant, $user, false), $user);
+        return $this->entriesForMembers($tenant, app(PartnerStockTeam::class)->localMembers($tenant, $user),
+            app(PartnerStockTeam::class)->members($tenant, $user, false)->whereRaw('FALSE'), $user);
     }
 
     public function entriesForMembers(string $tenant, Builder $team, Builder $all, ?string $owner = null): Builder

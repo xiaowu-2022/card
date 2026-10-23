@@ -1,55 +1,46 @@
 <script setup lang="ts">
-import {ref, onMounted, onBeforeUnmount} from 'vue';
-import {iosManifestUrl, loadIOSPackages, type IOSPackage} from '../../lib/ios-distribution';
-const packages = ref<IOSPackage[]>([]), loading = ref(true), failed = ref(false), notice = ref('');
-let controller: AbortController | null = null, disposed = false;
-async function load() {
-    controller?.abort();
-    const current = new AbortController(); controller = current;
-    loading.value = true; failed.value = false;
-    const timer = setTimeout(() => current.abort(), 8000);
-    try {
-        const data = await loadIOSPackages(current.signal);
-        if (!disposed && controller === current) packages.value = data;
-    } catch { if (!disposed && controller === current) failed.value = true; }
-    finally { clearTimeout(timer); if (!disposed && controller === current) loading.value = false; }
+import { computed } from 'vue';
+import { session } from '../../lib/session';
+import { photoUrl } from '../../lib/api';
+import { staticAsset } from '../../lib/origin';
+import { t } from '../../lib/i18n';
+import UiIcon from '../../components/UiIcon.vue';
+const brand = computed(() => session.value?.tenant.name ?? 'SPEC PAY');
+const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
+const methods = [
+    { name: 'IPA', copy: 'Install the iOS app', href: '#/pages/app-download/ipa', icon: 'download' },
+    { name: 'WebClip', copy: 'Install a home screen shortcut', href: '/webclip/', icon: 'plus' },
+    { name: 'PWA', copy: 'Add the web app to your home screen', href: '/pwa/', icon: 'globe' },
+];
+function openIPA(event: Event) {
+    event.preventDefault();
+    uni.navigateTo({ url: '/pages/app-download/ipa' });
 }
-function install(file: string) {
-    // #ifdef H5
-    if (location.protocol !== 'https:') { notice.value = '请使用 HTTPS 地址打开本页后安装。'; return; }
-    if (/MicroMessenger|QQ\//i.test(navigator.userAgent)) { notice.value = '请通过浏览器菜单在 Safari 中打开本页。'; return; }
-    if (!/iPhone|iPad|iPod/i.test(navigator.userAgent) && !(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
-        notice.value = '请在 iPhone 或 iPad 上使用 Safari 安装。'; return;
-    }
-    location.assign('itms-services://?action=download-manifest&url=' + encodeURIComponent(iosManifestUrl(location.origin, file)));
-    notice.value = '已请求系统安装，请确认提示后返回主屏幕查看进度。';
-    // #endif
-}
-onMounted(() => { void load(); });
-onBeforeUnmount(() => { disposed = true; controller?.abort(); });
 </script>
 <template>
-    <view class="ios-distribution">
-        <view class="distribution-wrap">
-            <view class="brand">SPEC PAY <text>iOS 下载</text></view>
-            <text class="eyebrow">GLOBAL PAYMENT</text>
-            <h1>U 卡，随身同行。</h1>
-            <p class="intro">在 iPhone 或 iPad 上使用 Safari 安装。</p>
-            <view v-if="loading" class="status" role="status">正在读取安装包…</view>
-            <view v-else-if="failed" class="status" role="alert">暂时无法读取安装包，请重试。<button @click="load">重试</button></view>
-            <view v-else-if="!packages.length" class="status">安装包准备中，请稍后再试。</view>
-            <view v-for="p in packages" :key="p.file" class="package-card">
-                <view class="app-icon">U</view><h2>{{ p.title }}</h2>
-                <p>版本 {{ p.version }} · Build {{ p.build }} · {{ (p.size / 1048576).toFixed(1) }} MB</p>
-                <button class="install" @click="install(p.file)">安装到 iPhone / iPad</button>
-                <a :href="p.downloadUrl" class="download" download>下载 IPA 文件</a>
+    <view class="apple-install">
+        <view class="install-header">
+            <image v-if="logo" :src="logo" mode="heightFix" :aria-label="brand" />
+            <view v-else class="install-brand"><UiIcon name="aperture" :size="32" /><text>{{ brand }}</text></view>
+            <text class="install-platform">{{ t('iOS installation') }}</text>
+        </view>
+        <view class="install-main">
+            <text class="install-eyebrow">{{ t('Mastercard U Card') }}</text>
+            <h1>{{ brand }}</h1>
+            <p class="install-tagline">{{ t('Global payments, in your hands.') }}</p>
+            <image class="install-art" :src="staticAsset('images/marketing/spec-pay-gold-world.png')" mode="widthFix" />
+            <view class="install-copy"><h2>{{ t('Choose your installation method') }}</h2><p>{{ t('Open in Safari on your iPhone or iPad.') }}</p></view>
+            <view class="install-methods">
+                <a v-for="method in methods" :key="method.name" :href="method.href" @click="method.name === 'IPA' && openIPA($event)">
+                    <UiIcon :name="method.icon" :size="24" color="#f0dcaa" />
+                    <strong>{{ method.name }}</strong>
+                    <span>{{ t(method.copy) }}</span>
+                </a>
             </view>
-            <p v-if="notice" class="status" role="status">{{ notice }}</p>
-            <view class="guide"><h2>安装说明</h2><p>确认系统安装提示后，返回主屏幕查看进度。网页无法确认安装是否完成。</p><p>安装需有效签名及设备授权；如系统提示，请按系统说明完成操作。</p></view>
-            <view class="footer">Spec Pay 万事达 U卡</view>
+            <text class="install-footer">{{ t('Global payments, in your hands.') }}</text>
         </view>
     </view>
 </template>
 <style scoped>
-.ios-distribution{min-height:100vh;background:radial-gradient(ellipse at top right,#3b3018,#11100c 65%);color:#f5edda;padding:32px 22px;box-sizing:border-box}.distribution-wrap{max-width:540px;margin:auto}.brand{font-size:20px;font-weight:700;letter-spacing:2px;display:flex;justify-content:space-between;align-items:center}.brand text{font-size:12px;letter-spacing:0;border:1px solid #776646;border-radius:20px;padding:6px 12px}.eyebrow{display:block;margin-top:58px;color:#bdab7a;font-size:11px;letter-spacing:4px}h1{font-size:34px;margin:15px 0}h2{font-size:20px;margin:12px 0}.intro,.guide p,.package-card p{color:#bfb5a0;font-size:14px;line-height:1.8}.package-card{margin-top:28px;padding:24px;background:#211e17;border:1px solid #655638;border-radius:22px}.app-icon{width:56px;height:56px;border-radius:14px;background:linear-gradient(120deg,#eddaa3,#b5944e);color:#252014;font-size:34px;text-align:center;line-height:56px;font-weight:bold}.install{margin-top:24px;background:linear-gradient(110deg,#f1dda5,#c2a35a);color:#211b0e;font-size:16px;border-radius:28px}.download{display:block;text-align:center;color:#dfcc99;margin-top:18px;font-size:14px}.status{margin-top:28px;padding:20px;background:#282318;border-radius:16px;line-height:1.8}.status button{margin-top:12px}.guide{margin-top:38px}.footer{color:#8f856f;text-align:center;margin:42px 0 20px;font-size:12px}
+.apple-install{min-height:100vh;background:#211c14;color:#252118;font-family:Inter,system-ui,sans-serif}.install-header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:22px max(22px,calc((100vw - 1100px)/2));background:#d6bd79}.install-header>image{height:46px;max-width:62%}.install-brand{display:flex;align-items:center;gap:9px;font-size:23px;font-weight:750;overflow-wrap:anywhere}.install-platform{font-size:12px;white-space:nowrap}.install-main{max-width:1100px;margin:auto;text-align:center;padding:52px 20px 28px;color:#f4f1e7;background:radial-gradient(ellipse at 83% 37%,#936b3040 0%,transparent 58%),radial-gradient(ellipse at 98% 3%,#cfaa6120 0%,transparent 46%),#100f0d}.install-eyebrow{font-size:12px;letter-spacing:3px}h1{font-size:clamp(40px,8vw,76px);line-height:1.05;margin:20px 0 14px;overflow-wrap:anywhere}.install-tagline{font-size:18px;line-height:1.6;margin:0}.install-art{display:block;width:100%;max-width:670px;margin:24px auto 8px}.install-copy h2{font-size:22px;margin:20px 0 10px}.install-copy p{font-size:13px;line-height:1.7;color:#b9ab8e;margin:0 0 25px}.install-methods{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;max-width:670px;margin:auto}.install-methods a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;min-height:125px;padding:15px 7px;border:1px solid #d6bd79;border-radius:17px;background:#211c14;color:#f0dcaa;text-decoration:none;box-shadow:0 3px 0 #a8894c}.install-methods strong{font-size:18px}.install-methods span{font-size:11px;line-height:1.5}.install-methods a:focus-visible{outline:3px solid #087e63;outline-offset:4px}.install-footer{display:block;font-size:11px;color:#b9ab8e;margin:35px 0 0;padding-bottom:env(safe-area-inset-bottom)}@media(min-width:768px){.install-main{padding-top:60px}.install-methods a{min-height:140px}.install-methods strong{font-size:22px}.install-methods span{font-size:13px}}
 </style>

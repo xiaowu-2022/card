@@ -2,6 +2,7 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'Deposit refunds in progress': '申请退押途中金额',
     'Card authorization': '交易消费',
     'Card fund collection': '资金收取',
     'Card ATM deposit': 'ATM 存款',
@@ -13,23 +14,30 @@ export const adminCatalog: Record<string, string> = {
     'Card status is still pending.': '三方结果尚未确认，请稍后再次刷新。',
     'Card request status refreshed.': '开卡订单状态已刷新。',
     '{{days}}-day average': '前{{days}}天日均',
-    'Averages cover complete days before today in Beijing time, including days with no activity.': '日均按北京时间统计今天之前的完整自然日，包含零流水日期，不含今天。',
+    'Averages cover complete days before today in Beijing time, including days with no activity.':
+        '日均按北京时间统计今天之前的完整自然日，包含零流水日期，不含今天。',
     'Security deposit refunds': '保证金退回金额',
     'Partner details': '合伙人详情',
-    'U1 uses card groups and asynchronous order results. Check the account and card groups before accepting new business.': 'U1 按卡组开卡，订单结果通过异步通知核实。接受新业务前请检查账户并同步卡组。',
+    'U1 uses card groups and asynchronous order results. Check the account and card groups before accepting new business.':
+        'U1 按卡组开卡，订单结果通过异步通知核实。接受新业务前请检查账户并同步卡组。',
     'Accept new card business': '接受新开卡业务',
-    'U1 has confirmed no additional recharge or withdrawal fees': '已向 U1 确认充值及卡内提现无额外手续费',
-    'Recharge and return remain unavailable until funding fees are confirmed. No upstream requestId is sent; uncertain requests are never automatically resent.': '确认资金费用后才开放充值及卡内提现。暂不传上游 requestId；结果不确定的请求不会自动重发。',
+    'U1 has confirmed no additional recharge or withdrawal fees':
+        '已向 U1 确认充值及卡内提现无额外手续费',
+    'Recharge and return remain unavailable until funding fees are confirmed. No upstream requestId is sent; uncertain requests are never automatically resent.':
+        '确认资金费用后才开放充值及卡内提现。暂不传上游 requestId；结果不确定的请求不会自动重发。',
 
     'U1 account saved.': 'U1 卡商配置已保存。',
     'Check U1 account and synchronize card groups': '检查 U1 账户并同步卡组',
-    'Standard card provider connection. Supported card operations use the normal order and settlement workflow.': '标准卡商接入，支持的卡片操作使用正常订单及结算流程。',
+    'Standard card provider connection. Supported card operations use the normal order and settlement workflow.':
+        '标准卡商接入，支持的卡片操作使用正常订单及结算流程。',
     'Save configuration changes before checking.': '请先保存配置变更，再检查连接。',
     'Card group': '卡组',
     'Reprocess notification': '重新处理通知',
-    'Notification amounts are not independently verified. Business balances are refreshed through scoped provider queries.': '通知中的金额尚未独立核实，业务余额通过对应卡商查询更新。',
+    'Notification amounts are not independently verified. Business balances are refreshed through scoped provider queries.':
+        '通知中的金额尚未独立核实，业务余额通过对应卡商查询更新。',
     'Select a card BIN or group': '选择卡片 BIN 或卡组',
-    RETRY: '等待重试', UNMAPPED: '未关联本地业务',
+    RETRY: '等待重试',
+    UNMAPPED: '未关联本地业务',
 
     'API URL': 'API 地址',
     'Fee amount': '手续费金额',
@@ -359,6 +367,8 @@ export const adminCatalog: Record<string, string> = {
     'Funds and cards': '资金与卡片',
     'Platform management': '平台管理',
     'More filters': '更多筛选',
+    'Team scope': '团队范围',
+    'Direct referrals': '直推',
     'Subordinates ({{count}})': '下级（{{count}}）',
     'Revoke partner': '撤销合伙人',
     'Confirm revoking this partner? The account becomes an ordinary user. Share settings, cooperation history, funds and account restrictions are preserved.':
@@ -708,11 +718,14 @@ export const adminCatalog: Record<string, string> = {
     'Registration time': '注册时间',
     'Enable company invitation code': '启用公司邀请码',
     'Company invitation updated.': '公司邀请码已更新。',
-    'Company code changes affect new registration requests only. Personal invitation codes, accepted verifications and existing relationships remain unchanged.': '公司邀请码变更仅影响新的注册请求，个人邀请码、已受理的注册验证及已有邀请关系保持不变。',
-    'I confirm this company invitation change. Replaced or disabled codes cannot accept new registration requests.': '我确认修改公司邀请码及状态，旧码或已禁用的邀请码将不再接受新的注册请求。',
+    'Company code changes affect new registration requests only. Personal invitation codes, accepted verifications and existing relationships remain unchanged.':
+        '公司邀请码变更仅影响新的注册请求，个人邀请码、已受理的注册验证及已有邀请关系保持不变。',
+    'I confirm this company invitation change. Replaced or disabled codes cannot accept new registration requests.':
+        '我确认修改公司邀请码及状态，旧码或已禁用的邀请码将不再接受新的注册请求。',
     'No changes to save.': '没有需要保存的修改。',
     'Choose an active company.': '请选择正常启用的公司。',
-    'This offline environment has no saved details for this card. Import a matching encrypted card snapshot to view it.': '本地离线环境没有这张卡的加密信息，请导入包含该卡加密信息的匹配备份后查看。',
+    'This offline environment has no saved details for this card. Import a matching encrypted card snapshot to view it.':
+        '本地离线环境没有这张卡的加密信息，请导入包含该卡加密信息的匹配备份后查看。',
     'Cumulative advances': '累计预支金额',
     'Withdrawal amount': '提现金额',
     'Product / Card': '产品 / 卡片',

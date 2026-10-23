@@ -6,13 +6,9 @@ use App\Application\Assets\AssetValuation;
 use App\Application\Assets\MarketPrices;
 use App\Application\CardProviderDirectory\CardProviderReferenceQuery;
 use App\Application\Partners\LegacyStockReport;
-use App\Application\Partners\PartnerAccountBalance;
-use App\Application\Partners\PartnerAnnualSubsidies;
 use App\Application\Partners\PartnerBusinessStock;
-use App\Application\Partners\PartnerStockValue;
-use App\Application\Partners\UserAdvances;
+use App\Application\Partners\PartnerStockProjection;
 use App\Application\Payment\DepositReceiptClassification;
-use App\Application\User\PlatformUserFinancialSummary;
 use App\Domain\Assets\MarketSnapshot;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
@@ -54,6 +50,7 @@ final class PlatformOverviewQuery
         }
         if ($access['partners']) {
             $overview['partners'] = $this->partners();
+            $overview['pendingDepositRefunds'] = $this->decimal($this->pendingDepositRefunds($at)->sum('r.amount'));
             $overview['reimbursement'] = $this->decimal(DB::table('partner_journal_entries')->where('kind', 'REIMBURSEMENT')
                 ->selectRaw('COALESCE(SUM(CASE WHEN reverses_id IS NULL THEN amount ELSE -amount END),0) AS amount')->value('amount'));
             $overview += $this->operations($today, $at);
@@ -78,6 +75,16 @@ final class PlatformOverviewQuery
         }
 
         return $overview;
+    }
+
+    /** Live applications awaiting the atomic credit to USER_AVAILABLE, across all companies/users. */
+    public function pendingDepositRefunds(CarbonImmutable $at): Builder
+    {
+        return DB::table('security_deposit_refund_requests as r')
+            ->join('users as u', fn ($j) => $j->on('u.id', 'r.user_id')->on('u.tenant_id', 'r.tenant_id'))
+            ->join('tenants as t', 't.id', 'r.tenant_id')
+            ->where('r.status', 'CHECKING')->whereNull('r.cancel_requested_at')->whereNull('r.ledger_entry_id')
+            ->where('r.created_at', '<=', $at->toIso8601String());
     }
 
     /** Sources shared by overview totals and drill-downs; immutable settled receipts only. */
@@ -129,37 +136,15 @@ final class PlatformOverviewQuery
     private function partners(): array
     {
         $totals = array_fill_keys(['stock', 'theoretical', 'actual', 'difference'], '0.00000000');
-        // Sum each enabled report's stock as requested, even when teams overlap.
+        // Only current top-level roots; descendants are already represented recursively.
         foreach ($this->topLevelPartners()->get(['p.id', 'p.tenant_id', 'p.user_id'])->groupBy('tenant_id') as $tenant => $partners) {
-            foreach ($partners->chunk(100) as $rows) {
-                $ids = $rows->pluck('id');
-                $ownAdvances = app(UserAdvances::class)->ownTotals($tenant, $rows->pluck('user_id')->all());
-                $annualSubsidies = app(PartnerAnnualSubsidies::class)->totals($tenant, $ids->all());
-                $subordinateAdvances = app(UserAdvances::class)->subordinateTotals($tenant, $rows->pluck('user_id')->all());
-                $users = $rows->map(fn ($p) => (object) ['id' => $p->user_id, 'tenant_id' => $tenant])->all();
-                $income = app(PlatformUserFinancialSummary::class)->forUsers($users, ['commission' => true]);
-                $actual = DB::table('ledger_accounts')->where('tenant_id', $tenant)->whereIn('user_id', $rows->pluck('user_id'))
-                    ->where('asset_code', 'USDT')->where('account_type', 'USER_AVAILABLE')->select('user_id')->selectRaw('SUM(balance)::text AS amount')->groupBy('user_id')->pluck('amount', 'user_id');
-                $journals = DB::table('partner_journal_entries')->where('tenant_id', $tenant)->whereIn('partner_id', $ids)->select('partner_id')
-                    ->selectRaw("COALESCE(SUM(CASE WHEN reverses_id IS NULL THEN amount ELSE -amount END) FILTER(WHERE kind='ADVANCE'),0)::text AS advance,
-                        COALESCE(SUM(CASE WHEN reverses_id IS NULL THEN amount ELSE -amount END) FILTER(WHERE kind='REIMBURSEMENT'),0)::text AS reimbursement,
-                        COALESCE(SUM((CASE WHEN reverses_id IS NULL THEN amount ELSE -amount END)*(CASE WHEN kind='ADJUSTMENT_DECREASE' THEN -1 ELSE 1 END)) FILTER(WHERE kind IN ('ADJUSTMENT_INCREASE','ADJUSTMENT_DECREASE')),0)::text AS adjustment")
-                    ->groupBy('partner_id')->get()->keyBy('partner_id');
-                $entries = null;
-                $difference = BigDecimal::zero();
-                foreach ($rows as $p) {
-                    $query = app(PartnerBusinessStock::class)->entries($tenant, $p->user_id);
-                    $entries === null ? $entries = $query : $entries->unionAll($query);
-                    $f = $income[$tenant.':'.$p->user_id];
-                    $j = $journals->get($p->id);
-                    $balance = PartnerAccountBalance::calculate($ownAdvances[$p->user_id] ?? '0', $f['annualExpense'], $f['activationCommission'], $f['annualCommission'], $f['unclassifiedCommission'], $j->reimbursement ?? '0', $j->adjustment ?? '0', $actual[$p->user_id] ?? '0', false);
-                    $difference = $difference->plus($balance['difference']);
-                    foreach (['theoretical', 'actual', 'difference'] as $key) {
-                        $totals[$key] = $this->decimal(BigDecimal::of($totals[$key])->plus($balance[$key]));
-                    }
+            $projection = app(PartnerStockProjection::class)->forUsers($tenant, $partners->pluck('user_id')->all());
+            foreach ($partners as $partner) {
+                $r = $projection[$partner->user_id];
+                $totals['stock'] = $this->decimal(BigDecimal::of($totals['stock'])->plus($r['stock']));
+                foreach (['theoretical', 'actual', 'difference'] as $key) {
+                    $totals[$key] = $this->decimal(BigDecimal::of($totals[$key])->plus($r['accountBalance'][$key]));
                 }
-                $stock = DB::query()->fromSub($entries, 'entries')->selectRaw("COALESCE(SUM(CASE WHEN category IN ('deposits','annual') THEN amount ELSE -amount END),0) AS amount")->value('amount');
-                $totals['stock'] = $this->decimal(BigDecimal::of($totals['stock'])->plus(PartnerStockValue::afterDifference((string) $stock, (string) $difference, (string) array_reduce($subordinateAdvances, fn ($sum, $v) => BigDecimal::of($sum)->plus($v), '0'), (string) array_reduce($annualSubsidies, fn ($sum, $v) => BigDecimal::of($sum)->plus($v), '0'))));
             }
         }
 

@@ -29,14 +29,27 @@ for(const [name,engine,options] of [['chromium',chromium,{channel:'chrome'}],['w
   await page.getByRole('link',{name:/下载 App|Download app/}).first().waitFor();
   const bootstrapBefore=requests.filter(p=>p.startsWith('/api/mobile/v1/bootstrap')).length;
   await page.getByRole('link',{name:/下载 App|Download app/}).first().click();
-  await page.getByRole('heading',{name:'U 卡，随身同行。'}).waitFor();
+  await page.locator('.install-methods a').first().waitFor();
   assert.match(page.url(),/#\/pages\/app-download\/index$/);
+  assert.equal(await page.locator('.install-methods a').count(),3);
+  assert.equal(await page.locator('.install-methods a').nth(1).getAttribute('href'),'/webclip/');
+  assert.equal(await page.locator('.install-methods a').nth(2).getAttribute('href'),'/pwa/');
+  assert.equal(metadataCalls,0,'chooser never loads IPA metadata');
+  assert.equal(await page.locator('.marketing-desktop-nav').count(),0);
+  for (const width of [375,768,1440]) {
+   await page.setViewportSize({width,height:844});
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+   await page.screenshot({path:'output/uni-ios-distribution/'+name+'-chooser-'+width+'.png',fullPage:true});
+  }
+  await page.locator('.install-methods a').first().click();
+  await page.getByRole('heading',{name:'U 卡，随身同行。'}).waitFor();
+  assert.match(page.url(),/#\/pages\/app-download\/ipa$/);
   await page.getByText('正在读取安装包…',{exact:true}).waitFor();
   assert.equal(requests.filter(p=>p.startsWith('/api/mobile/v1/bootstrap')).length,bootstrapBefore,'no full bootstrap before iOS navigation');
   while(!release)await new Promise(resolve=>setTimeout(resolve,10));
   release();await page.getByText('重试',{exact:true}).click();
   await page.getByText('安装到 iPhone / iPad',{exact:true}).waitFor();
-  assert.equal(await page.getByRole('link',{name:'下载 IPA 文件'}).getAttribute('href'),'https://cdn.example.test/app.ipa');
+  assert.equal(await page.getByRole('link',{name:'下载 IPA 文件'}).count(),0);
   assert.equal(requests.some(p=>p==='/ipa'||p==='/ipa/'),false);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   assert.deepEqual(errors,[]);

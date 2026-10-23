@@ -37,6 +37,43 @@ final class UserOperationsController extends Controller
         return Inertia::render('platform/Users', $props);
     }
 
+    public function subordinates(Request $request, string $tenant, string $user): JsonResponse
+    {
+        $data = $request->validate([
+            'scope' => 'nullable|in:direct,all', 'search' => 'nullable|string|max:254',
+            'page' => 'nullable|integer|min:1|max:100000',
+        ]);
+        DB::table('users')->where('tenant_id', $tenant)->where('id', $user)->firstOrFail();
+        $query = DB::table('users as u')
+            ->join('tenants as t', 't.id', '=', 'u.tenant_id')
+            ->leftJoin('user_profiles as p', fn ($j) => $j->on('p.user_id', '=', 'u.id')->on('p.tenant_id', '=', 'u.tenant_id'))
+            ->where('u.tenant_id', $tenant)->where('u.id', '<>', $user);
+        if (($data['scope'] ?? 'all') === 'direct') {
+            $query->whereExists(fn ($q) => $q->selectRaw('1')->from('promotion_members as m')
+                ->join('promotion_members as parent', fn ($j) => $j->on('parent.id', '=', 'm.inviter_id')->on('parent.tenant_id', '=', 'm.tenant_id'))
+                ->whereColumn('m.tenant_id', 'u.tenant_id')->whereColumn('m.user_id', 'u.id')->where('parent.user_id', $user));
+        } else {
+            $query->whereRaw('u.id IN (WITH RECURSIVE team AS (
+                SELECT id, user_id, tenant_id FROM promotion_members WHERE tenant_id = ? AND user_id = ?
+                UNION
+                SELECT m.id, m.user_id, m.tenant_id FROM promotion_members m JOIN team ON m.inviter_id = team.id AND m.tenant_id = team.tenant_id
+            ) SELECT user_id FROM team)', [$tenant, $user]);
+        }
+        $search = trim($data['search'] ?? '');
+        if ($search !== '') {
+            $pattern = '%'.addcslashes($search, '%_').'%';
+            $query->where(fn ($q) => $q->where('u.account_id', 'like', $pattern)->orWhere('u.email', 'ilike', $pattern)->orWhere('p.display_name', 'ilike', $pattern));
+        }
+        $page = $query->orderByDesc('u.created_at')->orderBy('u.id')->paginate(20, [
+            'u.id', 'u.tenant_id as companyId', 't.name as companyName', 'u.account_id as accountId',
+            'p.display_name as displayName', 'u.email',
+        ]);
+        $counts = app(PlatformUserDescendantCounts::class)->forUsers($page->pluck('id')->all());
+        $page->through(fn ($row) => (array) $row + ['descendantCount' => $counts[$row->id] ?? 0]);
+
+        return response()->json($page)->header('Cache-Control', 'private, no-store');
+    }
+
     public function export(Request $request, PlatformListFilters $lists, AuthorizationService $authorization, ExportPlatformUsers $export)
     {
         $filters = $this->filters($request, $lists);

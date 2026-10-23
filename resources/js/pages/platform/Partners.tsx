@@ -1,3 +1,4 @@
+import { UserSubordinates } from '@/components/admin/UserSubordinates';
 import { UserSnapshotExport } from '@/components/admin/UserSnapshotExport';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 import { ReferrerFilterSelect } from '@/components/admin/ReferrerFilterSelect';
@@ -38,6 +39,7 @@ import {
 import '../../../css/partner-stock.css';
 type Page<T> = { data: T[]; current_page: number; last_page: number; total: number };
 type Partner = {
+    descendantCount?: number;
     promotionRank?: number;
     ordinaryMember?: boolean;
     directReferrer?: { accountId: string; displayName: string | null } | null;
@@ -499,7 +501,19 @@ export default function Partners({
                                             {partners.data.map((p) => (
                                                 <tr key={p.id}>
                                                     <td className="partner-summary-identity">
-                                                        <RecordUserCell row={p} />
+                                                        <RecordUserCell
+                                                            row={p}
+                                                            nameSuffix={
+                                                                p.userInfo ? (
+                                                                    <UserSubordinates
+                                                                        user={p.userInfo}
+                                                                        count={
+                                                                            p.descendantCount ?? 0
+                                                                        }
+                                                                    />
+                                                                ) : undefined
+                                                            }
+                                                        />
                                                         <div className="mt-2 text-xs text-muted-foreground">
                                                             {t(p.enabled ? 'Enabled' : 'Disabled')}{' '}
                                                             · {exactAmount(p.share_percent)}%

@@ -15,6 +15,7 @@
     // #endif
     // #ifdef H5
     { "path": "pages/app-download/index" },
+    { "path": "pages/app-download/ipa" },
     // #endif
     {
       "path": "pages/assets/index"

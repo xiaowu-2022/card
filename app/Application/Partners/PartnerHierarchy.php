@@ -2,7 +2,6 @@
 
 namespace App\Application\Partners;
 
-use Brick\Math\BigDecimal;
 use Illuminate\Support\Facades\DB;
 
 /** Read-only views over current invitation edges, never a second partner tree. */
@@ -78,19 +77,17 @@ final class PartnerHierarchy
                 ) SELECT root,COUNT(*) FILTER (WHERE user_id<>root) AS total FROM teams GROUP BY root", [$tenant, ...$rows->pluck('user_id')->all(), $tenant]))->keyBy('root');
             }
 
-            $annualSubsidies = app(PartnerAnnualSubsidies::class)->totals($tenant, $rows->pluck('partner_id')->all());
-            $subordinateAdvances = app(UserAdvances::class)->subordinateTotals($tenant, $rows->pluck('user_id')->all());
+            $projection = app(PartnerStockProjection::class)->forUsers($tenant, $rows->pluck('user_id')->all());
 
-            return ['subject' => $identity, 'listPath' => $base, 'items' => $rows->map(function ($row) use ($tenant, $counts, $subordinateAdvances, $annualSubsidies) {
+            return ['subject' => $identity, 'listPath' => $base, 'items' => $rows->map(function ($row) use ($counts, $projection) {
                 // Only the current page's scoped, enabled partners; reuse report evidence
                 // without loading journals, risk pages or performing financial writes.
-                $totals = app(PartnerBusinessStock::class)->totals($tenant, $row->user_id);
 
                 return [
                     'id' => $row->partner_id, 'name' => trim($row->display_name ?? '') ?: $row->account_id, 'accountId' => $row->account_id,
                     'email' => $row->email,
-                    'stock' => PartnerStockValue::afterDifference((string) BigDecimal::of($totals['inflow'])->minus($totals['outflow']), app(LegacyStockReport::class)->accountBalance($tenant, $row->user_id, $row->partner_id)['difference'], $subordinateAdvances[$row->user_id] ?? '0', $annualSubsidies[$row->partner_id] ?? '0'),
-                    'subordinateAdvances' => (string) BigDecimal::of($subordinateAdvances[$row->user_id] ?? '0')->toScale(8),
+                    'stock' => $projection[$row->user_id]['stock'],
+                    'subordinateAdvances' => $projection[$row->user_id]['subordinateAdvances'],
                     'teamCount' => (int) ($counts->get($row->user_id)?->total ?? 0),
                 ];
             })->all(), 'page' => $page, 'total' => $total, 'hasMore' => $page * 20 < $total];

@@ -8,10 +8,14 @@ use App\Application\Kyc\ProcessPendingKyc;
 use App\Application\Kyc\SubmitKycApplicationAction;
 use App\Application\Partners\FeeValuation;
 use App\Application\Partners\LegacyStockReport;
+use App\Application\Partners\PartnerHierarchy;
 use App\Application\Partners\PartnerListSummary;
 use App\Application\Partners\PartnerManagement;
 use App\Application\Partners\PartnerReport;
+use App\Application\Partners\PartnerStockProjection;
+use App\Application\Partners\UserAdvances;
 use App\Application\Promotion\AdjustManualCommission;
+use App\Application\Promotion\ChangeReferrer;
 use App\Application\Promotion\ConfigurePaidPromotion;
 use App\Application\Promotion\ManualPromotion;
 use App\Application\Promotion\PaidPromotionPurchase;
@@ -37,9 +41,11 @@ use App\Domain\Ledger\DTOs\LedgerPostingPlan;
 use App\Domain\Ledger\Models\LedgerAccount;
 use App\Domain\Ledger\Services\LedgerWriter;
 use App\Domain\Ledger\ValueObjects\Money;
+use App\Domain\SecurityDeposit\Models\SecurityDepositRefundRequest;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use App\Domain\User\Models\UserProfile;
+use App\Domain\Wallet\Models\Wallet;
 use App\Support\Errors\DomainException;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
@@ -845,7 +851,7 @@ it('converts guarantees once and excludes commissions received by the owner and 
     expect((string) $sum->toScale(8))->toBe($r['totals']['outflow']);
     stockPartner($this, $child);
     $r = $query->read($this->tenant->id, $owner->id);
-    expect($r['stockBeforeDifference'])->toBe('0.00000000')->and($r['stock'])->toBe((string) BigDecimal::of('0')->minus($r['accountBalance']['difference'])->toScale(8))->and($r['totals']['annualCommission'])->toBe('0.00000000');
+    expect($r['stockBeforeDifference'])->toBe($query->read($this->tenant->id, $child->id)['stockForParent'])->and($r['stock'])->toBe((string) BigDecimal::of($r['stockBeforeDifference'])->minus($r['accountBalance']['difference'])->toScale(8))->and($r['totals']['annualCommission'])->toBe('0.00000000');
     Http::assertNothingSent();
 });
 
@@ -860,14 +866,14 @@ it('retains business reimbursement evidence and deducts signed personal differen
     $this->management->journal($this->admin, $this->tenant->id, $owner->id, stockEntry('ADVANCE', '900'));
     $query = app(PartnerReport::class);
     $r = $query->read($this->tenant->id, $this->user->id, true, 1, 'outflow');
-    expect($r['stockBeforeDifference'])->toBe('-25.00000001')->and($r['stock'])->toBe('-804.87654322')->and($r['negative'])->toBeTrue()->and($r['totals']['reimbursements'])->toBe('125.12345679')
-        ->and($r['flowDetails']['total'])->toBe(2);
+    expect($r['stockBeforeDifference'])->toBe('-20.00000001')->and($r['stock'])->toBe('-799.87654322')->and($r['negative'])->toBeTrue()->and($r['totals']['reimbursements'])->toBe('120.12345679')
+        ->and($r['flowDetails']['total'])->toBe(1);
     $this->management->journal($this->admin, $this->tenant->id, $owner->id, stockEntry('REIMBURSEMENT', '120.12345679') + ['reverses_id' => $first->id]);
     $r = $query->read($this->tenant->id, $this->user->id, true, 1, 'outflow');
-    expect($r['stockBeforeDifference'])->toBe('95.12345678')->and($r['stock'])->toBe((string) BigDecimal::of('95.12345678')->minus($r['accountBalance']['difference'])->toScale(8))->and($r['totals']['reimbursements'])->toBe('5.00000000')->and($r['flowDetails']['total'])->toBe(3)
+    expect($r['stockBeforeDifference'])->toBe('100.12345678')->and($r['stock'])->toBe((string) BigDecimal::of('100.12345678')->minus($r['accountBalance']['difference'])->toScale(8))->and($r['totals']['reimbursements'])->toBe('0.00000000')->and($r['flowDetails']['total'])->toBe(2)
         ->and(collect($r['flowDetails']['items'])->where('amount', '<', 0))->toHaveCount(1);
     stockGuarantee($child, '-50'); // Completed refund leaves held principal once.
-    expect($query->read($this->tenant->id, $this->user->id)['stockBeforeDifference'])->toBe('45.12345678');
+    expect($query->read($this->tenant->id, $this->user->id)['stockBeforeDifference'])->toBe('50.12345678');
     Http::assertNothingSent();
 });
 
@@ -891,11 +897,11 @@ it('paginates business contribution details and retains current direct branches 
     };
     $check('30.00000003', [$direct, $nested, $leaf]);
     stockPartner($this, $direct);
-    $check('20.00000002', [$nested, $leaf]);
+    $check('20.00000002', []);
     stockPartner($this, $nested);
-    $check('10.00000001', [$leaf]);
+    $check('10.00000001', []);
     stockPartner($this, $direct, false);
-    $check('20.00000002', [$direct, $leaf]);
+    $check('20.00000002', [$direct]);
     stockPartner($this, $nested, false);
     $check('30.00000003', [$direct, $nested, $leaf]);
     expect($query->read($this->tenant->id, $leaf->id, false)['totals'])->toBe($standard['totals']);
@@ -1056,18 +1062,20 @@ it('deducts non-partner descendant net commission income and attributes details 
         ->and($r['trends']['annualCommission']['today'])->toBe('7.00000000')
         ->and($r['trends']['activation'][3])->toBe('0.00000000');
     expect($r['totals']['activation'])->toBe('10.12345678')
-        ->and($r['totals']['annualCommission'])->toBe('7.00000000')
-        ->and($r['totals']['outflow'])->toBe('17.12345678')
-        ->and($r['stock'])->toBe('-17.12345678')->and($r['flowDetails']['total'])->toBe(3);
-    $annual = collect($r['flowDetails']['items'])->firstWhere('source', 'annualCommission');
+        ->and($r['totals']['annualCommission'])->toBe('0.00000000')
+        ->and($r['totals']['outflow'])->toBe('10.12345678')
+        ->and($r['childrenStock'])->toBe('-7.00000000')
+        ->and($r['stock'])->toBe('-17.12345678')->and($r['flowDetails']['total'])->toBe(2);
+    $nestedReport = app(PartnerReport::class)->read($this->tenant->id, $nested->id, true, 1, 'outflow');
+    $annual = collect($nestedReport['flowDetails']['items'])->firstWhere('source', 'annualCommission');
     expect($annual['account_id'])->toBe($grandchild->account_id)
-        ->and($annual['direct_account_id'])->toBe($nested->account_id)
+        ->and($annual['direct_account_id'])->toBe($grandchild->account_id)
         ->and(DB::table('ledger_accounts')->orderBy('id')->pluck('balance', 'id')->all())->toBe($balances)
         ->and(DB::table('ledger_entries')->count())->toBe($entries);
     stockPartner($this, $child);
-    expect(app(PartnerReport::class)->read($this->tenant->id, $this->user->id)['totals']['outflow'])->toBe('7.00000000');
+    expect(app(PartnerReport::class)->read($this->tenant->id, $this->user->id)['totals']['outflow'])->toBe('0.00000000');
     stockPartner($this, $child, false);
-    expect(app(PartnerReport::class)->read($this->tenant->id, $this->user->id)['totals']['outflow'])->toBe('17.12345678');
+    expect(app(PartnerReport::class)->read($this->tenant->id, $this->user->id)['totals']['outflow'])->toBe('10.12345678');
     Http::assertNothingSent();
 });
 
@@ -1100,7 +1108,7 @@ it('counts own completed annual settlements in personal reconciliation and adjus
         ->and($a['theoretical'])->toBe((string) BigDecimal::of($a['advances'])->plus($a['activationCommission'])->plus($a['annualCommission'])->plus($a['unclassifiedCommission'])->minus($a['reimbursements'])->toScale(8))
         ->and($a['actual'])->toBe((string) BigDecimal::of($before['accountBalance']['actual'])->minus($walletPaid)->plus($a['activationCommission'])->plus($a['annualCommission'])->toScale(8))
         ->and($a['difference'])->toBe((string) BigDecimal::of($a['theoretical'])->minus($a['actual'])->toScale(8))
-        ->and($after['stockBeforeDifference'])->toBe($before['stockBeforeDifference'])
+        ->and($after['stockBeforeDifference'])->toBe($report->read($this->tenant->id, $child->id)['stockForParent'])
         ->and($after['stock'])->toBe((string) BigDecimal::of($after['stockBeforeDifference'])->minus($a['difference'])->toScale(8))
         ->and($after['totals']['advances'])->toBe('100.12345678')
         ->and($after['journal'])->toEqual($before['journal'])
@@ -1130,7 +1138,7 @@ it('records theoretical adjustments and reversals without moving money or busine
         ->and($report['accountBalance']['theoretical'])->toBe('-19.87654322')
         ->and($report['accountBalance']['actual'])->toBe($before['accountBalance']['actual'])
         ->and($report['accountBalance']['difference'])->toBe('-19.87654322')
-        ->and($report['stockBeforeDifference'])->toBe($before['stockBeforeDifference'])->and($report['stock'])->toBe('19.87654322')->and($report['totals'])->toBe($before['totals'])
+        ->and($report['stockBeforeDifference'])->toBe('-900.00000000')->and($report['stock'])->toBe('-880.12345678')->and($report['totals'])->toBe($before['totals'])
         ->and($report['journal']['total'])->toBe(3);
     expect(fn () => $this->management->journal($this->admin, $this->tenant->id, $partner->id, array_replace($up, ['amount' => '1'])))->toThrow(HttpException::class);
     foreach ([$increase, $decrease] as $row) {
@@ -1466,7 +1474,6 @@ it('overview source dialogs reject company administrators missing metric permiss
     Http::assertNothingSent();
 });
 
-
 it('uses Beijing midnight for today totals and source rows regardless of database timezone', function (string $databaseTimezone) {
     foreach (['2026-10-12T08:24:00Z', '2026-10-12T15:59:59Z', '2026-10-12T16:00:00Z', '2026-10-13T14:00:00Z', '2026-10-13T16:00:00Z'] as $time) {
         $this->travelTo(CarbonImmutable::parse($time));
@@ -1483,7 +1490,6 @@ it('uses Beijing midnight for today totals and source rows regardless of databas
         ->assertOk()->assertJsonPath('amount', '40.00000000')->assertJsonPath('rows.total', 2)
         ->assertJsonPath('timezone', 'Asia/Shanghai');
 })->with(['UTC', 'Asia/Shanghai']);
-
 
 it('uses Beijing days for administrative partner statistics even when company time differs', function () {
     $this->tenant->update(['timezone' => 'America/New_York']);
@@ -1518,16 +1524,17 @@ it('deducts signed personal differences consistently across reports lists hierar
     expect($report['stockBeforeDifference'])->toBe('0.00000000')->and($report['stock'])->toBe($expected)
         ->and($report['share'])->toBe((string) BigDecimal::of($expected)->multipliedBy($report['sharePercent'])->withPointMovedLeft(2)->toScale(8, RoundingMode::HalfUp))
         ->and($report['negative'])->toBe(BigDecimal::of($expected)->isNegative());
-    $rows = app(\App\Application\Partners\PartnerListSummary::class)->forRows([$root, $partner]);
+    $rows = app(PartnerListSummary::class)->forRows([$root, $partner]);
     expect($rows[$partner->id]['summary']['stock'])->toBe($expected);
-    $children = app(\App\Application\Partners\PartnerHierarchy::class)->read($this->tenant->id, $this->user->id, null, 'children');
+    $children = app(PartnerHierarchy::class)->read($this->tenant->id, $this->user->id, null, 'children');
     expect($children['items'][0]['stock'])->toBe($expected);
     $access = array_fill_keys(['partners', 'inflow', 'outflow', 'cards', 'providers', 'assets'], false);
     $access['partners'] = true;
     $overview = app(PlatformOverviewQuery::class)->execute($access);
-    expect($overview['partners']['stock'])->toBe('-77.00000000');
+    $expectedRoot = (string) BigDecimal::of($expected)->minus('77')->toScale(8);
+    expect($overview['partners']['stock'])->toBe($expectedRoot);
     $this->actingAs($this->admin, 'platform_admin')->getJson('http://admin.localhost/platform/overview/sources?metric=stock')
-        ->assertOk()->assertJsonPath('rows.items.0.amount', '-77.00000000');
+        ->assertOk()->assertJsonPath('rows.items.0.amount', $expectedRoot);
     expect([DB::table('ledger_entries')->count(), DB::table('ledger_accounts')->orderBy('id')->get()->toJson(), DB::table('partner_journal_entries')->count()])->toBe($before);
     Http::assertNothingSent();
 })->with([
@@ -1535,3 +1542,174 @@ it('deducts signed personal differences consistently across reports lists hierar
     ['ADJUSTMENT_DECREASE', '12.34567891', '12.34567891'],
     ['NONE', '0', '0.00000000'],
 ]);
+
+it('rolls up nearest partner stock once with signed differences and owner-only subsidies', function () {
+    Http::preventStrayRequests();
+    $root = stockPartner($this, $this->user);
+    $bridge = stockChild($this->user);
+    $child = stockChild($bridge);
+    $pChild = stockPartner($this, $child);
+    $childMember = stockChild($child);
+    $grandchild = stockChild($childMember);
+    $pGrandchild = stockPartner($this, $grandchild);
+    $leaf = stockChild($grandchild);
+    stockGuarantee($bridge, '10.12345678');
+    stockGuarantee($childMember, '20');
+    stockGuarantee($leaf, '30');
+    stockGuarantee($child, '777'); // An enabled partner's own deposit is excluded.
+    $journal = fn ($p, $kind, $amount) => $this->management->journal($this->admin, $this->tenant->id, $p->id, stockEntry($kind, $amount) + ['confirmed' => true]);
+    $journal($root, 'ADJUSTMENT_INCREASE', '2');
+    $journal($root, 'REIMBURSEMENT', '3');
+    $journal($root, 'ANNUAL_SUBSIDY', '1');
+    $journal($pChild, 'ADJUSTMENT_INCREASE', '100');
+    $journal($pChild, 'REIMBURSEMENT', '6');
+    $journal($pChild, 'ANNUAL_SUBSIDY', '3');
+    $grandAdjustment = $journal($pGrandchild, 'ADJUSTMENT_DECREASE', '7');
+    $journal($pGrandchild, 'ANNUAL_SUBSIDY', '4');
+    app(UserAdvances::class)->record($this->admin, $this->tenant->id, $bridge->id, ['amount' => '4', 'business_date' => now()->format('Y-m-d'), 'note' => 'Offline recursive fixture', 'request_id' => (string) Str::uuid(), 'confirmed' => true]);
+    $ledger = DB::table('ledger_accounts')->orderBy('id')->get()->toJson();
+    $counts = [DB::table('wallets')->count(), DB::table('ledger_entries')->count(), DB::table('partner_journal_entries')->count()];
+    $query = app(PartnerReport::class);
+    $report = $query->read($this->tenant->id, $this->user->id, false, 1, 'childrenStock');
+    $c = $query->read($this->tenant->id, $child->id, false);
+    $g = $query->read($this->tenant->id, $grandchild->id, false);
+    expect($g['stock'])->toBe('33.00000000')->and($g['stockForParent'])->toBe('37.00000000')
+        ->and($c['stock'])->toBe('-46.00000000')->and($c['stockForParent'])->toBe('-43.00000000')
+        ->and($report['totals']['deposits'])->toBe('10.12345678')->and($report['totals']['reimbursements'])->toBe('3.00000000')
+        ->and($report['childrenStock'])->toBe('-43.00000000')->and($report['stock'])->toBe('-39.87654322')
+        ->and($report['flowDetails']['total'])->toBe(1)
+        ->and($report['flowDetails']['items'][0])->toMatchArray(['id' => $pChild->id, 'stock' => '-46.00000000', 'annualSubsidy' => '3.00000000', 'amount' => '-43.00000000']);
+    $summary = app(PartnerListSummary::class)->forRows([$root, $pChild, $pGrandchild]);
+    foreach ([[$root, $report], [$pChild, $c], [$pGrandchild, $g]] as [$partner, $r]) {
+        expect($summary[$partner->id]['summary']['stock'])->toBe($r['stock']);
+    }
+    $csv = $this->actingAs($this->admin, 'platform_admin')->get('http://admin.localhost/platform/partners/export?company='.$this->tenant->id)->assertOk()->getContent();
+    $lines = array_map(fn ($line) => str_getcsv($line, ',', '"', ''), explode("\r\n", trim(substr($csv, 3))));
+    $header = array_shift($lines);
+    $rootRow = collect($lines)->first(fn ($row) => $row[array_search('账号', $header)] === $this->user->account_id);
+    // CSV formula escaping prefixes signed cells with a single quote.
+    expect(ltrim($rootRow[array_search('库存 USDT', $header)], "'"))->toBe($report['stock']);
+    $overview = operatingOverview();
+    $sources = app(PlatformOverviewSources::class)->read('stock', 'total', 1, null);
+    expect($overview['partners']['stock'])->toBe($report['stock'])->and($sources['amount'])->toBe($report['stock'])
+        ->and($sources['rows']['items'][0]['amount'])->toBe($report['stock'])
+        ->and(DB::table('ledger_accounts')->orderBy('id')->get()->toJson())->toBe($ledger)
+        ->and([DB::table('wallets')->count(), DB::table('ledger_entries')->count(), DB::table('partner_journal_entries')->count()])->toBe($counts);
+    $journal($pGrandchild, 'ANNUAL_SUBSIDY', '-50.12345678');
+    expect($query->read($this->tenant->id, $grandchild->id, false)['stock'])->toBe('83.12345678')
+        ->and($query->read($this->tenant->id, $child->id, false)['stock'])->toBe($c['stock'])
+        ->and($query->read($this->tenant->id, $this->user->id, false)['stock'])->toBe($report['stock']);
+    $this->management->journal($this->admin, $this->tenant->id, $pGrandchild->id, stockEntry('ADJUSTMENT_DECREASE', '7') + ['confirmed' => true, 'reverses_id' => $grandAdjustment->id]);
+    expect($query->read($this->tenant->id, $this->user->id, false)['stock'])->toBe('-46.87654322')
+        ->and(DB::table('ledger_accounts')->orderBy('id')->get()->toJson())->toBe($ledger);
+    Http::assertNothingSent();
+});
+
+it('paginates subordinate stock without including grandchildren twice or exposing journal notes', function () {
+    $root = stockPartner($this, $this->user);
+    foreach (range(1, 21) as $n) {
+        $child = stockChild($this->user);
+        stockPartner($this, $child);
+        if ($n === 1) {
+            stockPartner($this, stockChild($child));
+        }
+    }
+    $query = app(PartnerReport::class);
+    $first = $query->read($this->tenant->id, $this->user->id, false, 1, 'childrenStock');
+    $last = $query->read($this->tenant->id, $this->user->id, false, 1, 'childrenStock', 2);
+    expect($first['flowDetails']['total'])->toBe(21)->and($first['flowDetails']['items'])->toHaveCount(20)
+        ->and($last['flowDetails']['items'])->toHaveCount(1)->and($last['flowDetails']['hasMore'])->toBeFalse()
+        ->and(array_intersect(array_column($first['flowDetails']['items'], 'id'), array_column($last['flowDetails']['items'], 'id')))->toBe([])
+        ->and(json_encode($first['flowDetails']))->not->toContain('actor_id')->not->toContain('note');
+    $this->actingAs($this->admin, 'platform_admin')->getJson('http://admin.localhost/platform/partners/'.$root->id.'/stock?flow=childrenStock&flow_page=2')->assertOk()->assertJsonPath('report.flowDetails.total', 21);
+    expect(app(PartnerStockProjection::class)->forUsers(Tenant::where('slug', 'tenant-b')->value('id'), [$this->user->id]))->toBe([]);
+});
+
+it('reassigns recursive stock on current partner status and referral changes without moving evidence', function () {
+    $root = stockPartner($this, $this->user);
+    $branch = stockChild($this->user);
+    $partner = stockPartner($this, $branch);
+    $ordinary = stockChild($branch);
+    stockGuarantee($ordinary, '25.12345678');
+    $this->management->journal($this->admin, $this->tenant->id, $partner->id, stockEntry('ADJUSTMENT_INCREASE', '10') + ['confirmed' => true]);
+    $this->management->journal($this->admin, $this->tenant->id, $partner->id, stockEntry('ANNUAL_SUBSIDY', '9') + ['confirmed' => true]);
+    $query = app(PartnerReport::class);
+    expect($query->read($this->tenant->id, $this->user->id)['stock'])->toBe('15.12345678');
+    stockPartner($this, $branch, false);
+    $disabled = $query->read($this->tenant->id, $this->user->id);
+    expect($disabled['childrenStock'])->toBe('0.00000000')->and($disabled['totals']['deposits'])->toBe('25.12345678')->and($disabled['stock'])->toBe('25.12345678');
+    stockPartner($this, $branch);
+    expect($query->read($this->tenant->id, $this->user->id)['stock'])->toBe('15.12345678');
+    $other = $this->user->replicate(['account_id']);
+    $other->forceFill(['email' => 'recursive-other@example.test'])->save();
+    $other->refresh();
+    stockPartner($this, $other);
+    $member = app(PromotionMembershipAction::class)->ensure($this->tenant->id, $branch->id);
+    $target = app(PromotionMembershipAction::class)->ensure($this->tenant->id, $other->id);
+    $ledger = DB::table('ledger_accounts')->orderBy('id')->get()->toJson();
+    app(ChangeReferrer::class)->execute($this->tenant->id, $branch->id, $this->admin, ['old_inviter_id' => $member->inviter_id, 'new_inviter_id' => $target->id, 'revision' => $member->referrer_revision, 'reason' => 'Offline recursive stock scope', 'request_id' => (string) Str::uuid()]);
+    expect($query->read($this->tenant->id, $this->user->id)['stock'])->toBe('0.00000000')
+        ->and($query->read($this->tenant->id, $other->id)['stock'])->toBe('15.12345678')
+        ->and(DB::table('ledger_accounts')->orderBy('id')->get()->toJson())->toBe($ledger);
+    Http::assertNothingSent();
+});
+
+it('totals all effective pending deposit refunds with matching paginated sources and no writes', function () {
+    $at = CarbonImmutable::parse('2026-10-23T01:00:00+08:00')->utc();
+    $this->travelTo($at);
+    $included = [];
+    foreach (range(0, 28) as $n) {
+        $user = $n === 0 ? User::where('tenant_id', '<>', $this->tenant->id)->firstOrFail() : stockChild($this->user);
+        if ($n === 1) {
+            stockPartner($this, $user);
+        }
+        $wallet = Wallet::create(['tenant_id' => $user->tenant_id, 'user_id' => $user->id, 'asset_code' => 'USDT', 'status' => 'ACTIVE']);
+        $excluded = $n >= 26;
+        $started = $n === 28 ? $at->addSecond() : ($n % 2 ? $at->subDays(4) : $at->subDays(8));
+        $row = SecurityDepositRefundRequest::create([
+            'tenant_id' => $user->tenant_id, 'user_id' => $user->id, 'wallet_id' => $wallet->id,
+            'request_id' => (string) Str::uuid(), 'amount' => '1.12345678', 'asset_code' => 'USDT',
+            'status' => $n === 26 ? 'CANCELLED' : 'CHECKING', 'created_at' => $started,
+            'refund_wait_days' => 7, 'refund_eligible_at' => $started->addDays(7),
+            'progress' => $n === 27 ? 'restoring' : ($n % 2 ? 'waiting' : 'blocked'),
+            'cancel_requested_at' => $n === 27 ? $at : null,
+        ]);
+        if (! $excluded) {
+            $included[] = $row->id;
+        }
+    }
+    $snapshot = fn () => collect(['wallets', 'ledger_accounts', 'ledger_entries', 'security_deposit_refund_requests', 'audit_logs'])
+        ->mapWithKeys(fn ($table) => [$table => DB::table($table)->orderBy('id')->get()->toJson()])->all();
+    $before = $snapshot();
+    expect(operatingOverview()['pendingDepositRefunds'])->toBe('29.20987628');
+    $first = app(PlatformOverviewSources::class)->read('pendingDepositRefunds', 'total', 1, null);
+    $second = app(PlatformOverviewSources::class)->read('pendingDepositRefunds', 'total', 2, null);
+    expect($first['amount'])->toBe('29.20987628')->and($first['rows']['total'])->toBe(26)
+        ->and($first['rows']['items'])->toHaveCount(25)->and($second['rows']['items'])->toHaveCount(1)
+        ->and(array_merge(array_column($first['rows']['items'], 'id'), array_column($second['rows']['items'], 'id')))->toEqualCanonicalizing($included);
+    $access = array_fill_keys(['partners', 'inflow', 'outflow', 'cards', 'providers', 'assets'], false);
+    expect(app(PlatformOverviewQuery::class)->execute($access))->not->toHaveKey('pendingDepositRefunds');
+    $this->actingAs($this->admin, 'platform_admin')->getJson('http://admin.localhost/platform/overview/sources?metric=pendingDepositRefunds&page=2')
+        ->assertOk()->assertJsonPath('amount', '29.20987628')->assertJsonPath('rows.total', 26)->assertJsonCount(1, 'rows.items');
+    expect($snapshot())->toBe($before);
+    Http::assertNothingSent();
+});
+
+it('removes a deposit refund from the in-progress total only after the available-balance credit', function () {
+    Queue::fake();
+    $user = stockChild($this->user);
+    stockGuarantee($user, '12.34567890');
+    $this->tenant->businessSettings()->update(['security_deposit_refund_wait_days' => 1]);
+    $action = app(RefundSecurityDepositAction::class);
+    $this->travel(-2)->days();
+    $refund = $action->request($this->tenant->id, $user->id, (string) Str::uuid());
+    expect(operatingOverview()['pendingDepositRefunds'])->toBe('12.34567890');
+    $this->travel(2)->days();
+    // Even an overdue application remains in transit until its actual ledger credit.
+    expect(operatingOverview()['pendingDepositRefunds'])->toBe('12.34567890');
+    expect($action->settle($this->tenant->id, $user->id, $refund->id)->status)->toBe('COMPLETED');
+    expect(operatingOverview()['pendingDepositRefunds'])->toBe('0.00000000')
+        ->and(app(PlatformOverviewSources::class)->read('pendingDepositRefunds', 'total', 1, null)['rows']['total'])->toBe(0)
+        ->and((string) BigDecimal::of(DB::table('ledger_accounts')->where('tenant_id', $this->tenant->id)->where('user_id', $user->id)->where('account_type', 'USER_AVAILABLE')->value('balance'))->toScale(8))->toBe('12.34567890');
+    Http::assertNothingSent();
+});

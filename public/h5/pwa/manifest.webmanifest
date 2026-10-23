@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "U 卡",
+  "short_name": "U 卡",
+  "description": "Spec Pay 万事达U卡网页快捷入口",
+  "lang": "zh-CN",
+  "start_url": "/#/pages/login/index",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/pwa/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

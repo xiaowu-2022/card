@@ -10,6 +10,7 @@ const amounts = { today: '123456789012.12345678', d3: '200000000000.00000001', d
 const fixture = {
     updatedAt: '2026-10-12T04:00:00Z', timezone: 'Asia/Kuala_Lumpur', rateAt: '2026-10-12T04:00:00Z', bubble: null,
     partners: { stock: '123456789012.12345678', theoretical: '500000000000.00000001', actual: '600000000000', difference: '-100000000000.00000001' },
+    pendingDepositRefunds: '29.20987628',
     reimbursement: '-123456.00000001', inflow: { totals: amounts, native: { USDT: amounts, ETH: amounts } }, outflow: { totals: amounts, native: { USDT: amounts, ETH: amounts } },
     cards: { balance: '123456789012.12345678', today: '20', total: '99999999999' }, providerBalance: '333333333333.33',
     assets: { partner: '123456789012.12345678', ordinary: '234567890123.12345678' },
@@ -45,7 +46,7 @@ for (const [name, browserType] of [['chromium', chromium], ['webkit', webkit]]) 
                 const sourcePage = Number(url.searchParams.get('page') || 1);
                 return route.fulfill({ json: { amount: '123.00000001', asset: 'USDT', updatedAt: fixture.updatedAt, timezone: fixture.timezone,
                     rows: { page: sourcePage, lastPage: emptySource ? 1 : 2, total: emptySource ? 0 : 26, items: emptySource ? [] : [{
-                        id: 'fixture-' + sourcePage, companyName: '示例公司', userInfo: { id: 'user', companyId: 'company', companyName: '示例公司', accountId: '123456', email: 'source@example.test', displayName: '来源客户', remark: '来源备注' },
+                        id: 'fixture-' + sourcePage, companyName: '示例公司', userInfo: { id: 'user', companyId: 'company', companyName: '示例公司', accountId: '123456', email: 'source@example.test', displayName: sourcePage === 2 ? 'fixture-2' : '来源客户', remark: '来源备注' },
                         amount: '123.00000001', asset: 'USDT', usdt: '123.00000001', source: 'Actual receipt', time: fixture.updatedAt,
                     }] } } });
             }
@@ -72,6 +73,9 @@ for (const [name, browserType] of [['chromium', chromium], ['webkit', webkit]]) 
                 await page.goto(origin + '/platform/demo');
                 const overview = page.locator('[data-platform-overview]');
                 await overview.waitFor();
+                await overview.getByText(locale === 'zh-CN' ? '申请退押途中金额' : 'Deposit refunds in progress', { exact: true }).waitFor();
+                const metricLabels = await overview.locator('div.grid').first().locator('> div > p').allTextContents();
+                assert.equal(metricLabels[1], locale === 'zh-CN' ? '申请退押途中金额' : 'Deposit refunds in progress');
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${name} ${locale} ${width}: viewport overflow`);
                 assert.equal(await overview.locator('tbody tr').count(), 5);
                 assert.equal(await overview.locator('thead th').count(), 7);
@@ -80,7 +84,7 @@ for (const [name, browserType] of [['chromium', chromium], ['webkit', webkit]]) 
                 assert.equal(await page.locator('details').first().getAttribute('open'), null);
                 if (locale === 'zh-CN' && width === 1440) {
                     for (const summary of await overview.getByText('各币种累计金额', { exact: true }).all()) await summary.click();
-                    const buttons = overview.getByRole('button');
+                    const buttons = overview.getByRole('button', { name: /数据来源$/ });
                     const count = await buttons.count();
                     assert.ok(count >= 55, 'Every displayed amount has a source button');
                     for (let index = 0; index < count; index++) {
@@ -93,7 +97,7 @@ for (const [name, browserType] of [['chromium', chromium], ['webkit', webkit]]) 
                         await dialog.waitFor({ state: 'hidden' });
                         await page.waitForFunction(label => document.activeElement?.getAttribute('aria-label') === label, await button.getAttribute('aria-label'), { timeout: 3000 });
                     }
-                    assert.equal(new Set(sourceRequests.map(r => r.metric)).size, 21);
+                    assert.equal(new Set(sourceRequests.map(r => r.metric)).size, 22);
                     await buttons.first().click();
                     const dialog = page.getByRole('dialog');
                     await dialog.getByText('来源客户', { exact: true }).waitFor();
@@ -121,10 +125,10 @@ for (const [name, browserType] of [['chromium', chromium], ['webkit', webkit]]) 
         assert.equal(await page.getByText('暂不可估算', { exact: true }).count(), 2);
         assert.equal(await page.getByText('暂不可用', { exact: true }).count(), 1);
         await page.getByRole('button', { name: '刷新', exact: true }).click();
-        await page.locator('[data-platform-overview]').waitFor();
+        await page.locator('[data-platform-overview]').waitFor({ state: 'attached' });
         state = { updatedAt: fixture.updatedAt, timezone: fixture.timezone, rateAt: null, bubble: null };
         await page.goto(origin + '/platform/demo');
-        await page.locator('[data-platform-overview]').waitFor();
+        await page.locator('[data-platform-overview]').waitFor({ state: 'attached' });
         assert.equal(await page.getByText('合伙人总资产估值合计', { exact: true }).count(), 0);
         assert.deepEqual(errors, []);
         assert.deepEqual(unexpected, []);

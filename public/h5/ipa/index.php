@@ -100,7 +100,7 @@ header('Content-Type: text/html; charset=utf-8');
 <div class="details"><div class="title"><h2><?= $escape($package['title']) ?></h2><?php if ($index === 0) { ?><span class="badge">最近上传</span><?php } ?></div>
 <p>版本 <?= $escape($package['version']) ?> · Build <?= $escape($package['build']) ?> · <?= number_format($package['size'] / 1048576, 1) ?> MB</p>
 <p class="filename"><?= $escape($package['file']) ?></p></div>
-<div class="actions"><a class="install" href="<?= $escape($install) ?>">安装到设备</a><a class="download" href="<?= $escape(ipaDownloadUrl($package, $base)) ?>" download>下载 IPA 文件</a></div>
+<div class="actions"><a class="install" href="<?= $escape($install) ?>">安装到设备</a></div>
 </article>
 <?php } ?>
 </section>

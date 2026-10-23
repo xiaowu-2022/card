@@ -12,6 +12,7 @@ use App\Application\Partners\PartnerManagement;
 use App\Application\Partners\PartnerReport;
 use App\Application\Partners\PlatformPartnerIdentity;
 use App\Application\Partners\PlatformPartnerQuery;
+use App\Application\User\PlatformUserDescendantCounts;
 use App\Application\User\PlatformUserSummary;
 use App\Application\User\Snapshots\UserSnapshotReader;
 use App\Domain\Admin\Enums\ScopeType;
@@ -38,7 +39,7 @@ final class PartnerController extends Controller
 
     public function hierarchy(Request $request, string $partner, PartnerHierarchy $query)
     {
-        $data = $request->validate(['company' => 'nullable|uuid|exists:tenants,id', 'page' => 'nullable|integer|min:1|max:100000', 'flow' => 'nullable|in:inflow,outflow,subordinateAdvances', 'flow_page' => 'nullable|integer|min:1|max:100000', 'user_id' => 'prohibited', 'tenant_id' => 'prohibited']);
+        $data = $request->validate(['company' => 'nullable|uuid|exists:tenants,id', 'page' => 'nullable|integer|min:1|max:100000', 'flow' => 'nullable|in:inflow,outflow,subordinateAdvances,childrenStock', 'flow_page' => 'nullable|integer|min:1|max:100000', 'user_id' => 'prohibited', 'tenant_id' => 'prohibited']);
 
         $result = $query->read($data['company'] ?? null, null, $partner, str_ends_with($request->path(), '/stock') ? 'report' : 'children', $request->integer('page', 1), $request->query('flow'), $request->integer('flow_page', 1));
         if (isset($result['items'])) {
@@ -65,7 +66,7 @@ final class PartnerController extends Controller
 
     public function index(Request $request)
     {
-        $request->validate(['sort' => 'nullable|in:registered_at,advance', 'direction' => 'nullable|in:asc,desc', 'company' => 'nullable|uuid|exists:tenants,id', 'tenant' => 'nullable|uuid|exists:tenants,id', 'partner' => 'nullable|uuid', 'invitation_partner' => 'nullable|uuid', 'page' => 'nullable|integer|min:1|max:100000', 'report_page' => 'nullable|integer|min:1|max:100000', 'referrer' => 'nullable|string|max:120', 'fees_page' => 'nullable|integer|min:1|max:100000', 'flow' => 'nullable|in:inflow,outflow,subordinateAdvances', 'flow_page' => 'nullable|integer|min:1|max:100000']);
+        $request->validate(['sort' => 'nullable|in:registered_at,advance', 'direction' => 'nullable|in:asc,desc', 'company' => 'nullable|uuid|exists:tenants,id', 'tenant' => 'nullable|uuid|exists:tenants,id', 'partner' => 'nullable|uuid', 'invitation_partner' => 'nullable|uuid', 'page' => 'nullable|integer|min:1|max:100000', 'report_page' => 'nullable|integer|min:1|max:100000', 'referrer' => 'nullable|string|max:120', 'fees_page' => 'nullable|integer|min:1|max:100000', 'flow' => 'nullable|in:inflow,outflow,subordinateAdvances,childrenStock', 'flow_page' => 'nullable|integer|min:1|max:100000']);
         $tenant = $request->query('company', $request->query('tenant'));
         $selected = null;
         $report = null;
@@ -81,7 +82,8 @@ final class PartnerController extends Controller
         $partnerQuery = app(PlatformPartnerQuery::class)->query($request, $tenant, $canReadAmounts);
         $partnerPage = $partnerQuery->paginate(20, PlatformPartnerQuery::COLUMNS)->withQueryString();
         $summaries = $canReadAmounts ? app(PartnerListSummary::class)->forRows($partnerPage->items()) : [];
-        $partnerPage->through(fn ($p) => (array) $p + ($summaries[$p->id] ?? []));
+        $descendants = app(PlatformUserDescendantCounts::class)->forUsers($partnerPage->pluck('user_id')->all());
+        $partnerPage->through(fn ($p) => (array) $p + ['descendantCount' => $descendants[$p->user_id] ?? 0] + ($summaries[$p->id] ?? []));
 
         $selectedPartner = $selected ? DB::table('partner_configurations as p')
             ->join('users as u', fn ($j) => $j->on('u.id', '=', 'p.user_id')->on('u.tenant_id', '=', 'p.tenant_id'))

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ComponentProps } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type ComponentProps } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import type { SharedProps } from '@/types/global';
 import { t } from '@/i18n/admin';
@@ -24,11 +24,13 @@ export function UserInfoCell({
     interactive = true,
     action = false,
     asOf = null,
+    nameSuffix,
 }: {
     user: UserInfo;
     interactive?: boolean;
     action?: boolean;
     asOf?: string | null;
+    nameSuffix?: ReactNode;
 }) {
     const [open, setOpen] = useState(false);
     const trigger = useRef<HTMLButtonElement | null>(null);
@@ -46,8 +48,20 @@ export function UserInfoCell({
                     ·
                 </span>
                 <span className="min-w-0 truncate font-semibold text-foreground">
-                    {user.displayName || '—'}
+                    {nameSuffix && interactive && canRead ? (
+                        <button
+                            type="button"
+                            ref={trigger}
+                            onClick={() => setOpen(true)}
+                            className="hover:underline"
+                        >
+                            {user.displayName || '—'}
+                        </button>
+                    ) : (
+                        user.displayName || '—'
+                    )}
                 </span>
+                {nameSuffix}
                 {user.supportAgent && (
                     <span className="shrink-0 text-xs text-emerald-700">{t('Support agent')}</span>
                 )}
@@ -77,7 +91,7 @@ export function UserInfoCell({
                 <Button ref={trigger} variant="secondary" size="sm" onClick={() => setOpen(true)}>
                     {t('Details')}
                 </Button>
-            ) : interactive && canRead && user.id ? (
+            ) : interactive && canRead && user.id && !nameSuffix ? (
                 <button
                     ref={trigger}
                     type="button"
@@ -207,7 +221,9 @@ function UserDetails({
 /** Existing limited list identities remain visible for readers without users.read. */
 export function RecordUserCell({
     row,
+    nameSuffix,
 }: {
+    nameSuffix?: ReactNode;
     row: {
         userInfo?: UserInfo | null;
         userId?: string;
@@ -226,6 +242,7 @@ export function RecordUserCell({
 }) {
     return (
         <UserInfoCell
+            nameSuffix={nameSuffix}
             user={
                 row.userInfo ?? {
                     id: row.userId ?? '',

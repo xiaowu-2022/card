@@ -4,6 +4,7 @@ import ReportPagination from './ReportPagination.vue';
 import { t, dateTime } from '../lib/i18n';
 import type { StockReport } from '../lib/stock';
 const stockEntryLabels: Record<string, string> = {
+    childrenStock: 'Subordinate partner stock',
     deposits: 'Eligible security deposit balances',
     annual: 'Total annual fees paid',
     activation: 'Activation commissions paid',
@@ -28,7 +29,10 @@ const details = computed(() => props.report.flowDetails!);
         <view v-for="row in details.items" :key="row.source + row.id" class="flow-item">
             <text class="strong">{{ t('Transaction member') }}: {{ row.account_id }}</text>
             <text>{{ row.email }}</text>
-            <view v-if="details.direction !== 'subordinateAdvances'" class="branch">
+            <view
+                v-if="!['subordinateAdvances', 'childrenStock'].includes(details.direction)"
+                class="branch"
+            >
                 <text
                     >{{ t('Direct branch member') }}:
                     {{ row.direct_account_id ?? t('This partner') }}</text
@@ -39,7 +43,11 @@ const details = computed(() => props.report.flowDetails!);
                 }}</text>
             </view>
             <text>{{ t(stockEntryLabels[row.source] ?? 'Amount') }}: {{ row.amount }} USDT</text>
-            <text class="muted">{{
+            <text v-if="details.direction === 'childrenStock'"
+                >{{ t('Displayed stock') }}: {{ row.stock }} USDT · {{ t('Subsidy added back') }}:
+                {{ row.annualSubsidy }} USDT</text
+            >
+            <text v-if="details.direction !== 'childrenStock'" class="muted">{{
                 row.posted_at
                     ? t('Posted at') + ': ' + dateTime(row.posted_at)
                     : t('Current security deposit balance')
