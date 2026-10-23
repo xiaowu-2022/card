@@ -7,8 +7,8 @@ mkdirSync('output/uni-ios-distribution',{recursive:true});
 for(const [name,engine,options] of [['chromium',chromium,{channel:'chrome'}],['webkit',webkit,{}]]){
  const browser=await engine.launch({headless:true,...options});
  try{
-  const page=await browser.newPage({viewport:{width:390,height:844},userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1'});
-  const errors=[],requests=[];let release,metadataCalls=0;
+  const page=await browser.newPage({viewport:{width:390,height:844},locale:'en-US',userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1'});
+  const errors=[],requests=[];let release,metadataCalls=0,bootstrapLocale='zh-CN';
   page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',async route=>{
    const req=route.request(),url=new URL(req.url());requests.push(url.pathname+url.search);
@@ -20,11 +20,16 @@ for(const [name,engine,options] of [['chromium',chromium,{channel:'chrome'}],['w
     if(metadataCalls===1)return route.fulfill({status:503,json:{}});
     return route.fulfill({json:{packages:[{title:'U 卡',file:'U card.ipa',version:'2.6.21',build:'2621',size:9816000,downloadUrl:'https://cdn.example.test/app.ipa'}],unavailable:0}});
    }
-   if(url.pathname==='/api/mobile/v1/bootstrap')return route.fulfill({json:{...fixture.guest,locale:'zh-CN',unread:null,publicAssets:{}}});
+   if(url.pathname==='/api/mobile/v1/bootstrap')return route.fulfill({json:{...fixture.guest,locale:bootstrapLocale,unread:null,publicAssets:{}}});
    if(url.pathname.startsWith('/api/mobile/v1/client'))return route.fulfill({json:fixture.pages['/']});
    if(url.pathname.startsWith('/api/'))return route.fulfill({json:{}});
    try{const p=root+(url.pathname==='/'?'/index.html':url.pathname);return route.fulfill({body:readFileSync(p),contentType:p.endsWith('.js')?'text/javascript':p.endsWith('.css')?'text/css':'text/html'});}catch{return route.abort();}
   });
+  await page.goto(origin+'/#/pages/app-download/index');
+  await page.getByRole('heading',{name:'选择安装方式',exact:true}).waitFor();
+  assert.deepEqual((await page.locator('.install-methods a').allTextContents()).map(text=>text.trim()),['app','轻量版app','便携版app']);
+  assert.equal(requests.filter(p=>p.startsWith('/api/mobile/v1/bootstrap')).length,0,'a direct download link defaults to Chinese without waiting for bootstrap');
+  assert.equal(metadataCalls,0);
   await page.goto(origin+'/#/pages/screen/index?path=%2F');
   await page.getByRole('link',{name:/下载 App|Download app/}).first().waitFor();
   const bootstrapBefore=requests.filter(p=>p.startsWith('/api/mobile/v1/bootstrap')).length;
@@ -61,6 +66,13 @@ for(const [name,engine,options] of [['chromium',chromium,{channel:'chrome'}],['w
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   assert.deepEqual(errors,[]);
   await page.screenshot({path:'output/uni-ios-distribution/'+name+'.png',fullPage:true});
-  console.log('PASS '+name+': immediate internal iOS page, independent metadata loading/retry, no bootstrap or directory redirect');
+  bootstrapLocale='en';
+  await page.goto(origin+'/#/pages/screen/index?path=%2F');
+  await page.reload();
+  await page.getByRole('link',{name:'Download app',exact:true}).first().click();
+  await page.getByRole('heading',{name:'Choose your installation method',exact:true}).waitFor();
+  assert.deepEqual((await page.locator('.install-methods a').allTextContents()).map(text=>text.trim()),['app','Lightweight app','Portable app'],'an already resolved language is retained');
+  assert.deepEqual(errors,[]);
+  console.log('PASS '+name+': direct download defaults to Chinese, resolved language is retained, first-screen buttons and independent iOS metadata loading/retry');
  }finally{await browser.close();}
 }

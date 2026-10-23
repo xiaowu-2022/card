@@ -3,8 +3,10 @@ import { computed } from 'vue';
 import { session } from '../../lib/session';
 import { photoUrl } from '../../lib/api';
 import { staticAsset } from '../../lib/origin';
-import { t } from '../../lib/i18n';
+import { t, changeLocale } from '../../lib/i18n';
 import UiIcon from '../../components/UiIcon.vue';
+// A direct download link has no bootstrap locale yet; keep this public page Chinese by default.
+if (!session.value) changeLocale('zh-CN');
 const brand = computed(() => session.value?.tenant.name ?? 'SPEC PAY');
 const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
 const methods = [
