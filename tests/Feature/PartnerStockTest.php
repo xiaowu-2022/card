@@ -13,6 +13,7 @@ use App\Application\Partners\PartnerListSummary;
 use App\Application\Partners\PartnerManagement;
 use App\Application\Partners\PartnerReport;
 use App\Application\Partners\PartnerStockProjection;
+use App\Application\Partners\PlatformPartnerAncestors;
 use App\Application\Partners\UserAdvances;
 use App\Application\Promotion\AdjustManualCommission;
 use App\Application\Promotion\ChangeReferrer;
@@ -1692,6 +1693,57 @@ it('totals all effective pending deposit refunds with matching paginated sources
     $this->actingAs($this->admin, 'platform_admin')->getJson('http://admin.localhost/platform/overview/sources?metric=pendingDepositRefunds&page=2')
         ->assertOk()->assertJsonPath('amount', '29.20987628')->assertJsonPath('rows.total', 26)->assertJsonCount(1, 'rows.items');
     expect($snapshot())->toBe($before);
+    Http::assertNothingSent();
+});
+
+it('shows only the nearest two enabled same-company upstream partners on refund source rows', function () {
+    $root = stockPartner($this, $this->user);
+    $grandparent = stockChild($this->user);
+    $grandparentPartner = stockPartner($this, $grandparent);
+    $disabled = stockChild($grandparent);
+    stockPartner($this, $disabled, false);
+    $parent = stockChild(stockChild($disabled));
+    $parentPartner = stockPartner($this, $parent);
+    $subject = stockChild(stockChild($parent));
+    stockPartner($this, $subject); // An applicant's own partner configuration is not an ancestor.
+    UserProfile::updateOrCreate(['tenant_id' => $parent->tenant_id, 'user_id' => $parent->id], ['display_name' => '最近上级']);
+    $single = stockChild($this->user);
+    $foreign = User::where('tenant_id', '<>', $this->tenant->id)->firstOrFail();
+    stockPartner($this, $foreign);
+    $requests = [];
+    foreach ([$subject, $single, $this->user, $foreign] as $user) {
+        $wallet = Wallet::create(['tenant_id' => $user->tenant_id, 'user_id' => $user->id, 'asset_code' => 'USDT', 'status' => 'ACTIVE']);
+        $requests[$user->id] = SecurityDepositRefundRequest::create([
+            'tenant_id' => $user->tenant_id, 'user_id' => $user->id, 'wallet_id' => $wallet->id,
+            'request_id' => (string) Str::uuid(), 'amount' => '1.12345678', 'asset_code' => 'USDT',
+            'status' => 'CHECKING', 'created_at' => now(), 'refund_wait_days' => 7,
+            'refund_eligible_at' => now()->addDays(7), 'progress' => 'waiting',
+        ])->id;
+    }
+    $before = collect(['wallets', 'ledger_accounts', 'ledger_entries', 'security_deposit_refund_requests', 'audit_logs'])
+        ->mapWithKeys(fn ($table) => [$table => DB::table($table)->orderBy('id')->get()->toJson()])->all();
+    $response = $this->actingAs($this->admin, 'platform_admin')
+        ->getJson('http://admin.localhost/platform/overview/sources?metric=pendingDepositRefunds')
+        ->assertOk()->assertJsonPath('amount', '4.49382712')->assertJsonPath('rows.total', 4);
+    $rows = collect($response->json('rows.items'))->keyBy('id');
+    expect(array_column($rows[$requests[$subject->id]]['upstreamPartners'], 'id'))->toBe([$parentPartner->id, $grandparentPartner->id])
+        ->and($rows[$requests[$subject->id]]['upstreamPartners'][0]['name'])->toBe('最近上级')
+        ->and($rows[$requests[$subject->id]]['upstreamPartners'][1]['name'])->toBe($grandparent->account_id)
+        ->and(array_column($rows[$requests[$single->id]]['upstreamPartners'], 'id'))->toBe([$root->id])
+        ->and($rows[$requests[$this->user->id]]['upstreamPartners'])->toBe([])
+        ->and($rows[$requests[$foreign->id]]['upstreamPartners'])->toBe([]);
+    // A source identity cannot be resolved against a different company's invitation tree.
+    expect(app(PlatformPartnerAncestors::class)->forRows([
+        ['companyId' => $foreign->tenant_id, 'userId' => $subject->id],
+    ]))->toBe([]);
+    foreach ($before as $table => $json) {
+        expect(DB::table($table)->orderBy('id')->get()->toJson())->toBe($json);
+    }
+    $permission = DB::table('permissions')->where('name', 'users.read')->value('id');
+    DB::table('role_permissions')->where('permission_id', $permission)->delete();
+    expect(app(PlatformPartnerAncestors::class)->forRows([
+        ['companyId' => $this->tenant->id, 'userId' => $subject->id],
+    ]))->toBe([]);
     Http::assertNothingSent();
 });
 

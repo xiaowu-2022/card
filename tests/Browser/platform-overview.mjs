@@ -48,6 +48,7 @@ for (const [name, browserType] of [['chromium', chromium], ['webkit', webkit]]) 
                     rows: { page: sourcePage, lastPage: emptySource ? 1 : 2, total: emptySource ? 0 : 26, items: emptySource ? [] : [{
                         id: 'fixture-' + sourcePage, companyName: '示例公司', userInfo: { id: 'user', companyId: 'company', companyName: '示例公司', accountId: '123456', email: 'source@example.test', displayName: sourcePage === 2 ? 'fixture-2' : '来源客户', remark: '来源备注' },
                         amount: '123.00000001', asset: 'USDT', usdt: '123.00000001', source: 'Actual receipt', time: fixture.updatedAt,
+                        upstreamPartners: sourcePage === 1 ? [{ id: 'parent', name: '最近上级', accountId: '123457' }, { id: 'grandparent', name: '再上级', accountId: '123458' }] : [{ id: 'parent', name: '仅一位上级', accountId: '123457' }],
                     }] } } });
             }
             if (url.pathname !== '/platform/demo') {
@@ -82,6 +83,21 @@ for (const [name, browserType] of [['chromium', chromium], ['webkit', webkit]]) 
                 assert.equal(await overview.getByLabel(locale === 'zh-CN' ? '泡沫' : 'Bubble', { exact: true }).innerText(), '');
                 assert.match(await overview.innerText(), /-100,000,000,000\.00000001/);
                 assert.equal(await page.locator('details').first().getAttribute('open'), null);
+                if (locale === 'zh-CN' && [375, 1440].includes(width)) {
+                    await overview.getByRole('button', { name: /^申请退押途中金额.*数据来源$/ }).click();
+                    const dialog = page.getByRole('dialog');
+                    await dialog.getByRole('columnheader', { name: '上级合伙人', exact: true }).waitFor();
+                    const parent = dialog.getByText('最近上级', { exact: true });
+                    const grandparent = dialog.getByText('再上级', { exact: true });
+                    await parent.waitFor();
+                    assert.ok((await parent.boundingBox()).y < (await grandparent.boundingBox()).y, 'Nearest partner is above its parent');
+                    assert.equal(await dialog.locator('thead th').count(), 6);
+                    await page.screenshot({ path: `${output}/${name}-refund-partners-${width}.png`, fullPage: true });
+                    await dialog.getByRole('button', { name: '2', exact: true }).click();
+                    await dialog.getByText('仅一位上级', { exact: true }).waitFor();
+                    assert.equal(await grandparent.count(), 0);
+                    await page.keyboard.press('Escape');
+                }
                 if (locale === 'zh-CN' && width === 1440) {
                     for (const summary of await overview.getByText('各币种累计金额', { exact: true }).all()) await summary.click();
                     const buttons = overview.getByRole('button', { name: /数据来源$/ });

@@ -7,6 +7,7 @@ use App\Application\CardProviderDirectory\CardProviderReferenceQuery;
 use App\Application\Partners\LegacyStockReport;
 use App\Application\Partners\PartnerBusinessStock;
 use App\Application\Partners\PartnerListSummary;
+use App\Application\Partners\PlatformPartnerAncestors;
 use App\Application\User\PlatformUserSummary;
 use App\Domain\Assets\MarketSnapshot;
 use Brick\Math\BigDecimal;
@@ -93,6 +94,11 @@ final class PlatformOverviewSources
                         'source' => $r->source, 'time' => $r->posted_at === null ? null : CarbonImmutable::parse($r->posted_at)->toIso8601String()];
                 });
                 $rows = PlatformUserSummary::page($rows);
+            }
+
+            if ($metric === 'pendingDepositRefunds') {
+                $ancestors = app(PlatformPartnerAncestors::class)->forRows($rows->items());
+                $rows->through(fn ($row) => [...$row, 'upstreamPartners' => $ancestors[$row['companyId'].':'.$row['userId']] ?? []]);
             }
 
             $adjustments = null;

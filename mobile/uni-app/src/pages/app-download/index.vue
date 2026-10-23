@@ -8,9 +8,9 @@ import UiIcon from '../../components/UiIcon.vue';
 const brand = computed(() => session.value?.tenant.name ?? 'SPEC PAY');
 const logo = computed(() => photoUrl(session.value?.tenant.logoUrl ?? null));
 const methods = [
-    { name: 'IPA', copy: 'Install the iOS app', href: '#/pages/app-download/ipa', icon: 'download' },
-    { name: 'WebClip', copy: 'Install a home screen shortcut', href: '/webclip/', icon: 'plus' },
-    { name: 'PWA', copy: 'Add the web app to your home screen', href: '/pwa/', icon: 'globe' },
+    { name: 'App download', copy: 'Install the iOS app', href: '#/pages/app-download/ipa', icon: 'download' },
+    { name: 'Lightweight App', copy: 'Install a home screen shortcut', href: '/webclip/', icon: 'plus' },
+    { name: 'Portable App', copy: 'Add the web app to your home screen', href: '/pwa/', icon: 'globe' },
 ];
 function openIPA(event: Event) {
     event.preventDefault();
@@ -31,9 +31,9 @@ function openIPA(event: Event) {
             <image class="install-art" :src="staticAsset('images/marketing/spec-pay-gold-world.png')" mode="widthFix" />
             <view class="install-copy"><h2>{{ t('Choose your installation method') }}</h2><p>{{ t('Open in Safari on your iPhone or iPad.') }}</p></view>
             <view class="install-methods">
-                <a v-for="method in methods" :key="method.name" :href="method.href" @click="method.name === 'IPA' && openIPA($event)">
+                <a v-for="method in methods" :key="method.name" :href="method.href" @click="method.name === 'App download' && openIPA($event)">
                     <UiIcon :name="method.icon" :size="24" color="#f0dcaa" />
-                    <strong>{{ method.name }}</strong>
+                    <strong>{{ t(method.name) }}</strong>
                     <span>{{ t(method.copy) }}</span>
                 </a>
             </view>

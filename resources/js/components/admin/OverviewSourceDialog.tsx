@@ -39,6 +39,7 @@ type Report = {
             companyName?: string;
             name?: string;
             userInfo?: UserInfo | null;
+            upstreamPartners?: { id: string; name: string; accountId: string }[];
             amount: string | null;
             asset: string;
             usdt: string | null;
@@ -67,6 +68,7 @@ export function OverviewSourceDialog({
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [retry, setRetry] = useState(0);
+    const showUpstreamPartners = target.metric === 'pendingDepositRefunds';
     useEffect(() => {
         const controller = new AbortController();
         setLoading(true);
@@ -152,12 +154,18 @@ export function OverviewSourceDialog({
                                     <tr className="border-b bg-muted/40 text-left text-muted-foreground">
                                         {[
                                             'Customer',
-                                            'Time',
+                                            ...(showUpstreamPartners ? ['Upstream partners'] : []),
+                                            target.metric === 'pendingDepositRefunds'
+                                                ? 'Application time'
+                                                : 'Time',
                                             'Currency',
                                             'Amount',
                                             'USDT estimate',
                                         ].map((label) => (
-                                            <th key={label} className="px-3 py-2.5 font-medium">
+                                            <th
+                                                key={label}
+                                                className="whitespace-nowrap px-3 py-2.5 font-medium"
+                                            >
                                                 {t(label)}
                                             </th>
                                         ))}
@@ -167,7 +175,7 @@ export function OverviewSourceDialog({
                                     {report.rows.items.length === 0 ? (
                                         <tr>
                                             <td
-                                                colSpan={5}
+                                                colSpan={showUpstreamPartners ? 6 : 5}
                                                 className="p-6 text-center text-muted-foreground"
                                             >
                                                 {t('No source records.')}
@@ -189,6 +197,29 @@ export function OverviewSourceDialog({
                                                         row.name || row.companyName || '—'
                                                     )}
                                                 </td>
+                                                {showUpstreamPartners && (
+                                                    <td className="px-3 py-2.5">
+                                                        {row.upstreamPartners?.length ? (
+                                                            <div className="space-y-2">
+                                                                {row.upstreamPartners.map(
+                                                                    (partner) => (
+                                                                        <div
+                                                                            key={partner.id}
+                                                                            className="whitespace-nowrap"
+                                                                            title={
+                                                                                partner.accountId
+                                                                            }
+                                                                        >
+                                                                            {partner.name}
+                                                                        </div>
+                                                                    ),
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            '—'
+                                                        )}
+                                                    </td>
+                                                )}
                                                 <td className="whitespace-nowrap px-3 py-2.5">
                                                     {row.time
                                                         ? dateTime(row.time, report.timezone)

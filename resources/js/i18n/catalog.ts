@@ -16,6 +16,9 @@ import { accountCatalog } from './account-catalog';
 
 export const catalog = {
     'iOS installation': ['苹果安装', 'Pemasangan iOS', 'Instalación de iOS'],
+    'App download': ['App下载', 'Muat turun App', 'Descargar App'],
+    'Lightweight App': ['轻量版App', 'App Ringan', 'App ligera'],
+    'Portable App': ['便携版App', 'App Mudah Alih', 'App portátil'],
     'Choose your installation method': ['选择安装方式', 'Pilih kaedah pemasangan anda', 'Elige el método de instalación'],
     'Open in Safari on your iPhone or iPad.': ['请在 iPhone 或 iPad 上使用 Safari 打开。', 'Buka dalam Safari pada iPhone atau iPad anda.', 'Abre Safari en tu iPhone o iPad.'],
     'Install the iOS app': ['安装苹果客户端', 'Pasang aplikasi iOS', 'Instala la aplicación iOS'],
