@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync,mkdirSync} from 'node:fs';
 import {chromium,webkit} from 'playwright';
 const fixture=JSON.parse(readFileSync('storage/framework/testing/uni-parity/fixtures.json','utf8'));
-const root='dist/clients/specpay/release/h5',origin='https://distribution.example.test';
+const root=process.env.IOS_DISTRIBUTION_ROOT ?? 'public/h5',origin='https://distribution.example.test';
 mkdirSync('output/uni-ios-distribution',{recursive:true});
 for(const [name,engine,options] of [['chromium',chromium,{channel:'chrome'}],['webkit',webkit,{}]]){
  const browser=await engine.launch({headless:true,...options});
@@ -20,7 +20,7 @@ for(const [name,engine,options] of [['chromium',chromium,{channel:'chrome'}],['w
     if(metadataCalls===1)return route.fulfill({status:503,json:{}});
     return route.fulfill({json:{packages:[{title:'U 卡',file:'U card.ipa',version:'2.6.21',build:'2621',size:9816000,downloadUrl:'https://cdn.example.test/app.ipa'}],unavailable:0}});
    }
-   if(url.pathname==='/api/mobile/v1/bootstrap')return route.fulfill({json:{...fixture.guest,unread:null,publicAssets:{}}});
+   if(url.pathname==='/api/mobile/v1/bootstrap')return route.fulfill({json:{...fixture.guest,locale:'zh-CN',unread:null,publicAssets:{}}});
    if(url.pathname.startsWith('/api/mobile/v1/client'))return route.fulfill({json:fixture.pages['/']});
    if(url.pathname.startsWith('/api/'))return route.fulfill({json:{}});
    try{const p=root+(url.pathname==='/'?'/index.html':url.pathname);return route.fulfill({body:readFileSync(p),contentType:p.endsWith('.js')?'text/javascript':p.endsWith('.css')?'text/css':'text/html'});}catch{return route.abort();}
@@ -32,6 +32,8 @@ for(const [name,engine,options] of [['chromium',chromium,{channel:'chrome'}],['w
   await page.locator('.install-methods a').first().waitFor();
   assert.match(page.url(),/#\/pages\/app-download\/index$/);
   assert.equal(await page.locator('.install-methods a').count(),3);
+  assert.deepEqual(await page.locator('.install-methods strong').allTextContents(),['app','轻量版app','便携版app']);
+  assert.doesNotMatch(await page.locator('.install-methods').innerText(), /\b(?:ipa|webclip|pwa)\b/i);
   assert.equal(await page.locator('.install-methods a').nth(1).getAttribute('href'),'/webclip/');
   assert.equal(await page.locator('.install-methods a').nth(2).getAttribute('href'),'/pwa/');
   assert.equal(metadataCalls,0,'chooser never loads IPA metadata');
