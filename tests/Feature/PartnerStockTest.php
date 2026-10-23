@@ -749,7 +749,7 @@ it('adds personal manual commission to reconciliation without attributing it to 
 });
 
 // Synthetic archived external-order evidence; no provider calls or real funds.
-function stockExternal(User $user, string $asset, string $amount, bool $incoming = true, bool $complete = true, bool $legacy = false): void
+function stockExternal(User $user, string $asset, string $amount, bool $incoming = true, bool $complete = true, bool $legacy = false): string
 {
     $tenant = Tenant::findOrFail($user->tenant_id);
     $access = app(AssetAccess::class);
@@ -765,20 +765,22 @@ function stockExternal(User $user, string $asset, string $amount, bool $incoming
     if ($legacy && $incoming) {
         DB::table('wallet_topup_orders')->insert($base + ['status' => $complete ? 'CREDITED' : 'CREATED', 'payment_provider' => 'mock', 'ledger_entry_id' => $complete ? $entry->id : null, 'credited_at' => $complete ? now() : null, 'paid_at' => $complete ? now() : null]);
 
-        return;
+        return $id;
     }
     if ($legacy && ! $incoming) {
         $destination = (string) Str::uuid();
         DB::table('withdrawal_destinations')->insert(['id' => $destination, 'tenant_id' => $tenant->id, 'user_id' => $user->id, 'asset_code' => 'USDT', 'network_code' => 'TRON', 'address_ciphertext' => 'synthetic', 'address_hash' => hash('sha256', $id), 'masked_address' => 'synthetic', 'status' => 'ACTIVE', 'created_at' => now(), 'updated_at' => now()]);
         DB::table('withdrawal_orders')->insert($base + ['withdrawal_destination_id' => $destination, 'network_code' => 'TRON', 'status' => $complete ? 'SUCCEEDED' : 'PENDING', 'requested_at' => now(), 'settlement_ledger_entry_id' => $complete ? $entry->id : null, 'fee_amount' => '0.1']);
 
-        return;
+        return $id;
     }
     $rail = AssetRail::where('asset_code', $asset)->where('network', $asset === 'BTC' ? 'BITCOIN' : 'ETHEREUM')->firstOrFail();
     $base += ['rail_code' => $rail->code, 'network' => $rail->network, 'address' => 'synthetic-report-only', 'address_hash' => hash('sha256', $id), 'chain_event_id' => $complete ? $id : null, 'ledger_entry_id' => $complete ? $entry->id : null];
     DB::table($incoming ? 'asset_deposit_orders' : 'asset_withdrawal_orders')->insert($base + ($incoming
         ? ['status' => $complete ? 'CREDITED' : 'PENDING', 'requested_amount' => $amount, 'expires_at' => now()->addHour()]
         : ['status' => $complete ? 'COMPLETED' : 'PENDING', 'fee_amount' => '0.1']));
+
+    return $id;
 }
 
 // Exact synthetic guarantee evidence for report-only scope/precision tests.
@@ -1652,6 +1654,101 @@ it('reassigns recursive stock on current partner status and referral changes wit
     expect($query->read($this->tenant->id, $this->user->id)['stock'])->toBe('0.00000000')
         ->and($query->read($this->tenant->id, $other->id)['stock'])->toBe('15.12345678')
         ->and(DB::table('ledger_accounts')->orderBy('id')->get()->toJson())->toBe($ledger);
+    Http::assertNothingSent();
+});
+
+it('totals pending withdrawal applications across companies with exact paginated sources and no writes', function () {
+    $at = CarbonImmutable::parse('2026-10-23T01:00:00+08:00')->utc();
+    $this->travelTo($at);
+    stockPartner($this, $this->user);
+    $foreign = User::where('tenant_id', '<>', $this->tenant->id)->firstOrFail();
+    $included = [];
+    foreach (range(0, 29) as $n) {
+        $user = $n === 0 ? $foreign : ($n === 1 ? $this->user : stockChild($this->user));
+        $this->travelTo($n === 29 ? $at->addSecond() : $at->subDays($n % 2 ? 40 : 0));
+        $id = stockExternal($user, 'USDT', '1.12345678', false, false, true);
+        $status = $n < 26 ? ['PENDING', 'APPROVED', 'VERIFYING'][$n % 3] : ['SUCCEEDED', 'CANCELLED', 'REJECTED', 'PENDING'][$n - 26];
+        $state = ['status' => $status];
+        if (in_array($status, ['VERIFYING', 'SUCCEEDED'], true)) {
+            $state['submitted_tx_hash'] = hash('sha256', $id);
+        }
+        $entry = DB::table('ledger_entries')->where('tenant_id', $user->tenant_id)->where('asset_code', 'USDT')->value('id');
+        if ($status === 'SUCCEEDED') {
+            $state += ['settlement_ledger_entry_id' => $entry, 'blockchain_confirmed_at' => now()];
+        } elseif (in_array($status, ['CANCELLED', 'REJECTED'], true)) {
+            $state['release_ledger_entry_id'] = $entry;
+        }
+        DB::table('withdrawal_orders')->where('id', $id)->update($state);
+        if ($n < 26) {
+            $included[] = $id;
+        }
+    }
+    $this->travelTo($at);
+    $tables = ['withdrawal_orders', 'asset_withdrawal_orders', 'wallets', 'ledger_accounts', 'ledger_entries', 'ledger_postings', 'audit_logs'];
+    $before = collect($tables)->mapWithKeys(fn ($table) => [$table => DB::table($table)->orderBy('id')->get()->toJson()]);
+    $access = array_replace(array_fill_keys(['inflow', 'outflow', 'partners', 'cards', 'providers', 'assets'], false), ['outflow' => true]);
+    expect(app(PlatformOverviewQuery::class)->execute($access)['pendingWithdrawals'])->toBe('29.20987628')
+        ->and(app(PlatformOverviewQuery::class)->execute(array_replace($access, ['outflow' => false])))->not->toHaveKey('pendingWithdrawals');
+    $this->actingAs($this->admin, 'platform_admin');
+    $url = 'http://admin.localhost/platform/overview/sources?metric=pendingWithdrawals';
+    $first = $this->getJson($url)->assertOk()->assertJsonPath('amount', '29.20987628')->assertJsonPath('rows.total', 26)
+        ->assertJsonCount(25, 'rows.items')->assertHeader('Cache-Control', 'no-store, private')->json('rows.items');
+    $last = $this->getJson($url.'&page=2')->assertOk()->assertJsonPath('amount', '29.20987628')->assertJsonCount(1, 'rows.items')->json('rows.items');
+    $all = array_merge($first, $last);
+    expect(array_column($all, 'id'))->toEqualCanonicalizing($included);
+    $child = collect($all)->first(fn ($row) => $row['userInfo']['id'] !== $this->user->id && $row['companyId'] === $this->tenant->id);
+    expect($child['upstreamPartners'])->toHaveCount(1)->and($child['upstreamPartners'][0]['accountId'])->toBe($this->user->account_id);
+    expect(json_encode($all))->not->toContain('address_ciphertext')->not->toContain('submitted_tx_hash')->not->toContain('request_hash');
+    foreach ($before as $table => $json) {
+        expect(DB::table($table)->orderBy('id')->get()->toJson())->toBe($json);
+    }
+    $this->withoutVite();
+    $permission = DB::table('permissions')->where('name', 'partners.manage')->value('id');
+    DB::table('role_permissions')->where('permission_id', $permission)->delete();
+    $this->get('http://admin.localhost/platform/demo')->assertOk()->assertInertia(fn ($p) => $p
+        ->missing('overview.partners')->where('overview.pendingWithdrawals', '29.20987628'));
+    $permission = DB::table('permissions')->where('name', 'withdrawals.read')->value('id');
+    DB::table('role_permissions')->where('permission_id', $permission)->delete();
+    $this->getJson($url)->assertForbidden();
+    $this->get('http://admin.localhost/platform/demo')->assertOk()->assertInertia(fn ($p) => $p->missing('overview.pendingWithdrawals'));
+    Http::assertNothingSent();
+});
+
+it('keeps unknown withdrawals pending and removes gross applications only on terminal outcomes using saved rates', function () {
+    $access = array_replace(array_fill_keys(['inflow', 'outflow', 'partners', 'cards', 'providers', 'assets'], false), ['outflow' => true]);
+    $query = app(PlatformOverviewQuery::class);
+    $primary = stockExternal($this->user, 'USDT', '10.12345678', false, false, true);
+    $eth = stockExternal($this->user, 'ETH', '0.123456789012345678', false, false);
+    $usdc = stockExternal($this->user, 'USDC', '3.123456', false, false);
+    DB::table('asset_withdrawal_orders')->where('id', $eth)->update(['status' => 'UNKNOWN']);
+    DB::table('asset_withdrawal_orders')->where('id', $usdc)->update(['status' => 'PROCESSING']);
+    expect($query->execute($access)['pendingWithdrawals'])->toBeNull();
+    $sources = app(PlatformOverviewSources::class);
+    $missing = $sources->read('pendingWithdrawals', 'total', 1, null);
+    expect($missing['amount'])->toBeNull()->and($missing['rows']['total'])->toBe(3);
+    $ethRow = collect($missing['rows']['items'])->firstWhere('id', $eth);
+    expect($ethRow['amount'])->toBe('0.123456789012345678')->and($ethRow['usdt'])->toBeNull();
+    MarketSnapshot::create(['provider' => 'OKX', 'usd_prices' => [], 'usdt_rates' => ['USDC' => '1.01', 'ETH' => '2000', 'BTC' => '60000'], 'observed_at' => now()]);
+    $expected = BigDecimal::of('10.12345678')->plus(BigDecimal::of('0.123456789012345678')->multipliedBy('2000'))->plus(BigDecimal::of('3.123456')->multipliedBy('1.01'));
+    expect($query->execute($access)['pendingWithdrawals'])->toBe((string) $expected->toScale(8, RoundingMode::HalfUp))
+        ->and($sources->read('pendingWithdrawals', 'total', 1, null)['amount'])->toBe((string) $expected->toScale(8, RoundingMode::HalfUp));
+    DB::table('withdrawal_orders')->where('id', $primary)->update(['status' => 'VERIFYING', 'submitted_tx_hash' => hash('sha256', $primary)]);
+    expect($query->execute($access)['pendingWithdrawals'])->toBe((string) $expected->toScale(8, RoundingMode::HalfUp));
+    // Synthetic confirmed settlement evidence in the isolated fixture, without chain/provider operations.
+    $entry = fn ($asset) => DB::table('ledger_entries')->where('tenant_id', $this->tenant->id)->where('asset_code', $asset)->value('id');
+    DB::table('withdrawal_orders')->where('id', $primary)->update(['status' => 'SUCCEEDED', 'settlement_ledger_entry_id' => $entry('USDT'), 'blockchain_confirmed_at' => now()]);
+    $expected = $expected->minus('10.12345678');
+    expect($query->execute($access)['pendingWithdrawals'])->toBe((string) $expected->toScale(8, RoundingMode::HalfUp))
+        ->and($query->execute($access)['outflow']['native']['USDT']['total'])->toBe('10.02345678');
+    DB::table('asset_withdrawal_orders')->where('id', $eth)->update(['status' => 'COMPLETED', 'ledger_entry_id' => $entry('ETH'), 'chain_event_id' => 'synthetic:'.$eth]);
+    $expected = BigDecimal::of('3.123456')->multipliedBy('1.01');
+    expect($query->execute($access)['pendingWithdrawals'])->toBe((string) $expected->toScale(8, RoundingMode::HalfUp))
+        ->and($sources->read('pendingWithdrawals', 'total', 1, null)['rows']['total'])->toBe(1);
+    $this->travel(121)->seconds();
+    expect($query->execute($access)['pendingWithdrawals'])->toBeNull();
+    DB::table('asset_withdrawal_orders')->where('id', $usdc)->update(['status' => 'COMPLETED', 'ledger_entry_id' => $entry('USDC'), 'chain_event_id' => 'synthetic:'.$usdc]);
+    expect($query->execute($access)['pendingWithdrawals'])->toBe('0.00000000')
+        ->and($sources->read('pendingWithdrawals', 'total', 1, null)['rows']['total'])->toBe(0);
     Http::assertNothingSent();
 });
 

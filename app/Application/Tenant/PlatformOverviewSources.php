@@ -18,12 +18,12 @@ use Illuminate\Support\Facades\DB;
 
 final class PlatformOverviewSources
 {
-    public const METRICS = ['pendingDepositRefunds', 'stock', 'theoretical', 'actual', 'difference', 'reimbursement', 'inflow', 'outflow', 'cardBalance', 'cardFunding', 'providerBalance', 'partnerAssets', 'ordinaryAssets', 'deposits', 'annual', 'depositRefunds', 'activation', 'rebates', 'annualCommission', 'remaining', 'refund10', 'refund3'];
+    public const METRICS = ['pendingWithdrawals', 'pendingDepositRefunds', 'stock', 'theoretical', 'actual', 'difference', 'reimbursement', 'inflow', 'outflow', 'cardBalance', 'cardFunding', 'providerBalance', 'partnerAssets', 'ordinaryAssets', 'deposits', 'annual', 'depositRefunds', 'activation', 'rebates', 'annualCommission', 'remaining', 'refund10', 'refund3'];
 
     public static function gate(string $metric): string
     {
         return match ($metric) {
-            'inflow' => 'inflow', 'outflow' => 'outflow', 'cardBalance', 'cardFunding' => 'cards',
+            'inflow' => 'inflow', 'outflow', 'pendingWithdrawals' => 'outflow', 'cardBalance', 'cardFunding' => 'cards',
             'providerBalance' => 'providers', 'partnerAssets', 'ordinaryAssets' => 'assets', default => 'partners',
         };
     }
@@ -45,6 +45,7 @@ final class PlatformOverviewSources
             $total = match ($metric) {
                 'stock', 'theoretical', 'actual', 'difference' => $overview['partners'][$metric],
                 'pendingDepositRefunds' => $overview['pendingDepositRefunds'],
+                'pendingWithdrawals' => $overview['pendingWithdrawals'],
                 'reimbursement' => $overview['reimbursement'], 'inflow', 'outflow' => $overview[$metric]['totals'][$period],
                 'cardBalance' => $overview['cards']['balance'], 'cardFunding' => $overview['cards'][$period],
                 'providerBalance' => $overview['providerBalance'], 'partnerAssets' => $overview['assets']['partner'],
@@ -96,7 +97,7 @@ final class PlatformOverviewSources
                 $rows = PlatformUserSummary::page($rows);
             }
 
-            if ($metric === 'pendingDepositRefunds') {
+            if (in_array($metric, ['pendingDepositRefunds', 'pendingWithdrawals'], true)) {
                 $ancestors = app(PlatformPartnerAncestors::class)->forRows($rows->items());
                 $rows->through(fn ($row) => [...$row, 'upstreamPartners' => $ancestors[$row['companyId'].':'.$row['userId']] ?? []]);
             }
@@ -119,6 +120,8 @@ final class PlatformOverviewSources
         $overview = app(PlatformOverviewQuery::class);
         if (in_array($metric, ['inflow', 'outflow'], true)) {
             $source = $overview->cashSource($metric === 'outflow');
+        } elseif ($metric === 'pendingWithdrawals') {
+            $source = $overview->pendingWithdrawals($at);
         } elseif ($metric === 'pendingDepositRefunds') {
             $source = $overview->pendingDepositRefunds($at)->selectRaw("r.id, r.tenant_id, r.user_id, r.asset_code, r.amount, r.created_at AS posted_at, 'Deposit refunds in progress'::text AS source");
         } elseif ($metric === 'cardFunding') {

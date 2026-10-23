@@ -5,6 +5,7 @@ export const adminCatalog: Record<string, string> = {
     'Deposit refunds in progress': '申请退押途中金额',
     'Upstream partners': '上级合伙人',
     'Application time': '申请时间',
+    'Withdrawal applications in progress': '申请提现中金额',
     'Card authorization': '交易消费',
     'Card fund collection': '资金收取',
     'Card ATM deposit': 'ATM 存款',

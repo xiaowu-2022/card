@@ -20,6 +20,7 @@ export type PlatformOverviewData = {
     partners?: Record<'stock' | 'theoretical' | 'actual' | 'difference', string>;
     reimbursement?: string;
     pendingDepositRefunds?: string;
+    pendingWithdrawals?: string | null;
     inflow?: Cash;
     outflow?: Cash;
     cards?: { balance: string | null; today: string; total: string };
@@ -192,9 +193,11 @@ export function PlatformOverview({ overview }: { overview: PlatformOverviewData 
     return (
         <SourceContext.Provider value={setTarget}>
             <div data-platform-overview className="min-w-0 space-y-4">
-                {overview.partners && (
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-                        <Metric label="Stock" metric="stock" value={overview.partners.stock} />
+                {(overview.partners || overview.pendingWithdrawals !== undefined) && (
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-7">
+                        {overview.partners && (
+                            <Metric label="Stock" metric="stock" value={overview.partners.stock} />
+                        )}
                         {overview.pendingDepositRefunds !== undefined && (
                             <Metric
                                 label="Deposit refunds in progress"
@@ -202,21 +205,32 @@ export function PlatformOverview({ overview }: { overview: PlatformOverviewData 
                                 value={overview.pendingDepositRefunds}
                             />
                         )}
-                        <Metric
-                            label="Theoretical balance"
-                            metric="theoretical"
-                            value={overview.partners.theoretical}
-                        />
-                        <Metric
-                            label="Actual balance"
-                            metric="actual"
-                            value={overview.partners.actual}
-                        />
-                        <Metric
-                            label="Partner balance difference"
-                            metric="difference"
-                            value={overview.partners.difference}
-                        />
+                        {overview.pendingWithdrawals !== undefined && (
+                            <Metric
+                                label="Withdrawal applications in progress"
+                                metric="pendingWithdrawals"
+                                value={overview.pendingWithdrawals}
+                            />
+                        )}
+                        {overview.partners && (
+                            <>
+                                <Metric
+                                    label="Theoretical balance"
+                                    metric="theoretical"
+                                    value={overview.partners.theoretical}
+                                />
+                                <Metric
+                                    label="Actual balance"
+                                    metric="actual"
+                                    value={overview.partners.actual}
+                                />
+                                <Metric
+                                    label="Partner balance difference"
+                                    metric="difference"
+                                    value={overview.partners.difference}
+                                />
+                            </>
+                        )}
                         {overview.reimbursement !== undefined && (
                             <Metric
                                 label="Reimbursements"

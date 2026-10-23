@@ -22,6 +22,22 @@ from the new net-payout overview.
 无上级显示破折号。按当前页批量读取并复用来源快照与 users.read 权限，不变更金额范围。
 仅需发布 PHP 与后台资源，无迁移、H5 或原生修改；隔离/离线验证，不操作生产资金或供应商。
 
+## 2026-10-23 申请提现中金额
+
+在“申请退押途中金额”下方新增黑色可点击卡片 `pendingWithdrawals`。汇总全平台所有
+公司的有效提现申请金额（包含订单手续费），不限制用户或合伙人身份，也不限制申请天数。
+主 USDT/TRC20 订单计入 PENDING、APPROVED、VERIFYING 且无结算 Ledger 的记录；
+多币种订单计入 PENDING、APPROVED、PROCESSING、UNKNOWN 且无结算 Ledger 的记录。
+按申请时间不晚于当前快照截断。成功出金并结算后整笔申请移除；取消、拒绝不计入，
+核验未确认或 UNKNOWN 继续保留。成功出金统计继续使用原有扣除手续费后的净额口径。
+
+聚合以已有新鲜保存汇率折算为 USDT；缺失或过期汇率导致不可估算，不返回局部合计或零。
+来源 `metric=pendingWithdrawals` 复用同一查询、汇率快照和截止时间，25 条编号分页，
+展示安全客户信息、最多两级上级合伙人、申请时间、原币种及原精度金额、USDT 估算。
+首页和来源受 `withdrawals.read` 权限控制，客户及上级身份继续受 `users.read` 控制；
+不依赖合伙人报表权限。只读快照不创建钱包、不修改订单或 Ledger、不核验链或请求卡商。
+只需 PHP 与后台资源，无迁移、H5 或原生修改；仅隔离/离线验证。
+
 ## Confirmed amounts
 
 - Stock, theoretical balance, actual balance and difference sum **currently enabled

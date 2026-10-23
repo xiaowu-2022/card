@@ -47,6 +47,7 @@ final class PlatformOverviewQuery
         if ($access['outflow']) {
             $withdrawals = $this->cashSource(true);
             $overview['outflow'] = $this->cashPeriods($withdrawals, $today, $at, $snapshot);
+            $overview['pendingWithdrawals'] = $this->cashPeriods($this->pendingWithdrawals($at), $today, $at, $snapshot)['totals']['total'];
         }
         if ($access['partners']) {
             $overview['partners'] = $this->partners();
@@ -85,6 +86,22 @@ final class PlatformOverviewQuery
             ->join('tenants as t', 't.id', 'r.tenant_id')
             ->where('r.status', 'CHECKING')->whereNull('r.cancel_requested_at')->whereNull('r.ledger_entry_id')
             ->where('r.created_at', '<=', $at->toIso8601String());
+    }
+
+    /** Accepted gross applications still awaiting success; shared by totals and source pages. */
+    public function pendingWithdrawals(CarbonImmutable $at): Builder
+    {
+        $primary = DB::table('withdrawal_orders')->whereIn('status', ['PENDING', 'APPROVED', 'VERIFYING'])
+            ->whereNull('settlement_ledger_entry_id')
+            ->selectRaw("id, tenant_id, user_id, asset_code, amount, requested_at AS posted_at, 'Withdrawal application'::text AS source");
+        $assets = DB::table('asset_withdrawal_orders')->whereIn('status', ['PENDING', 'APPROVED', 'PROCESSING', 'UNKNOWN'])
+            ->whereNull('ledger_entry_id')
+            ->selectRaw("id, tenant_id, user_id, asset_code, amount, created_at AS posted_at, 'Withdrawal application'::text AS source");
+
+        return DB::query()->fromSub($primary->unionAll($assets), 'w')
+            ->join('users as u', fn ($j) => $j->on('u.id', 'w.user_id')->on('u.tenant_id', 'w.tenant_id'))
+            ->join('tenants as t', 't.id', 'w.tenant_id')
+            ->where('w.posted_at', '<=', $at->toIso8601String())->select('w.*');
     }
 
     /** Sources shared by overview totals and drill-downs; immutable settled receipts only. */

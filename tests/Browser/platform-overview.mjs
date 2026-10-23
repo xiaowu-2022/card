@@ -11,6 +11,7 @@ const fixture = {
     updatedAt: '2026-10-12T04:00:00Z', timezone: 'Asia/Kuala_Lumpur', rateAt: '2026-10-12T04:00:00Z', bubble: null,
     partners: { stock: '123456789012.12345678', theoretical: '500000000000.00000001', actual: '600000000000', difference: '-100000000000.00000001' },
     pendingDepositRefunds: '29.20987628',
+    pendingWithdrawals: '12.12345678',
     reimbursement: '-123456.00000001', inflow: { totals: amounts, native: { USDT: amounts, ETH: amounts } }, outflow: { totals: amounts, native: { USDT: amounts, ETH: amounts } },
     cards: { balance: '123456789012.12345678', today: '20', total: '99999999999' }, providerBalance: '333333333333.33',
     assets: { partner: '123456789012.12345678', ordinary: '234567890123.12345678' },
@@ -77,6 +78,7 @@ for (const [name, browserType] of [['chromium', chromium], ['webkit', webkit]]) 
                 await overview.getByText(locale === 'zh-CN' ? '申请退押途中金额' : 'Deposit refunds in progress', { exact: true }).waitFor();
                 const metricLabels = await overview.locator('div.grid').first().locator('> div > p').allTextContents();
                 assert.equal(metricLabels[1], locale === 'zh-CN' ? '申请退押途中金额' : 'Deposit refunds in progress');
+                assert.equal(metricLabels[2], locale === 'zh-CN' ? '申请提现中金额' : 'Withdrawal applications in progress');
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${name} ${locale} ${width}: viewport overflow`);
                 assert.equal(await overview.locator('tbody tr').count(), 5);
                 assert.equal(await overview.locator('thead th').count(), 7);
@@ -97,6 +99,11 @@ for (const [name, browserType] of [['chromium', chromium], ['webkit', webkit]]) 
                     await dialog.getByText('仅一位上级', { exact: true }).waitFor();
                     assert.equal(await grandparent.count(), 0);
                     await page.keyboard.press('Escape');
+                    await overview.getByRole('button', { name: /^申请提现中金额.*数据来源$/ }).click();
+                    await dialog.getByRole('columnheader', { name: '申请时间', exact: true }).waitFor();
+                    await dialog.getByText('最近上级', { exact: true }).waitFor();
+                    await page.screenshot({ path: `${output}/${name}-pending-withdrawals-${width}.png`, fullPage: true });
+                    await page.keyboard.press('Escape');
                 }
                 if (locale === 'zh-CN' && width === 1440) {
                     for (const summary of await overview.getByText('各币种累计金额', { exact: true }).all()) await summary.click();
@@ -113,7 +120,7 @@ for (const [name, browserType] of [['chromium', chromium], ['webkit', webkit]]) 
                         await dialog.waitFor({ state: 'hidden' });
                         await page.waitForFunction(label => document.activeElement?.getAttribute('aria-label') === label, await button.getAttribute('aria-label'), { timeout: 3000 });
                     }
-                    assert.equal(new Set(sourceRequests.map(r => r.metric)).size, 22);
+                    assert.equal(new Set(sourceRequests.map(r => r.metric)).size, 23);
                     await buttons.first().click();
                     const dialog = page.getByRole('dialog');
                     await dialog.getByText('来源客户', { exact: true }).waitFor();
@@ -142,6 +149,10 @@ for (const [name, browserType] of [['chromium', chromium], ['webkit', webkit]]) 
         assert.equal(await page.getByText('暂不可用', { exact: true }).count(), 1);
         await page.getByRole('button', { name: '刷新', exact: true }).click();
         await page.locator('[data-platform-overview]').waitFor({ state: 'attached' });
+        state = { updatedAt: fixture.updatedAt, timezone: fixture.timezone, rateAt: null, bubble: null, pendingWithdrawals: null };
+        await page.goto(origin + '/platform/demo');
+        await page.getByRole('button', { name: /^申请提现中金额.*数据来源$/ }).waitFor();
+        assert.equal(await page.getByRole('button', { name: /^存量.*数据来源$/ }).count(), 0);
         state = { updatedAt: fixture.updatedAt, timezone: fixture.timezone, rateAt: null, bubble: null };
         await page.goto(origin + '/platform/demo');
         await page.locator('[data-platform-overview]').waitFor({ state: 'attached' });

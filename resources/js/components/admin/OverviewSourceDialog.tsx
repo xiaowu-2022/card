@@ -68,7 +68,9 @@ export function OverviewSourceDialog({
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [retry, setRetry] = useState(0);
-    const showUpstreamPartners = target.metric === 'pendingDepositRefunds';
+    const showUpstreamPartners = ['pendingDepositRefunds', 'pendingWithdrawals'].includes(
+        target.metric,
+    );
     useEffect(() => {
         const controller = new AbortController();
         setLoading(true);
@@ -155,9 +157,7 @@ export function OverviewSourceDialog({
                                         {[
                                             'Customer',
                                             ...(showUpstreamPartners ? ['Upstream partners'] : []),
-                                            target.metric === 'pendingDepositRefunds'
-                                                ? 'Application time'
-                                                : 'Time',
+                                            showUpstreamPartners ? 'Application time' : 'Time',
                                             'Currency',
                                             'Amount',
                                             'USDT estimate',
