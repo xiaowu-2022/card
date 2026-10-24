@@ -23,7 +23,7 @@ final class KycStatusService
         $latest = KycApplication::query()->where('tenant_id', $tenantId)->where('user_id', $userId)->latest('submitted_at')->first();
 
         return match ($latest?->review_status) {
-            KycReviewStatus::Pending => KycUserStatus::Pending,
+            KycReviewStatus::Pending => $latest->processing_status === 'FAILED' ? KycUserStatus::ResubmissionRequired : KycUserStatus::Pending,
             KycReviewStatus::Rejected => KycUserStatus::Rejected,
             KycReviewStatus::ResubmissionRequired => KycUserStatus::ResubmissionRequired,
             KycReviewStatus::Approved => KycUserStatus::Approved,

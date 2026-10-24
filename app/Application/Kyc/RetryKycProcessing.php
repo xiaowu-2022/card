@@ -31,7 +31,7 @@ final class RetryKycProcessing
             abort_if(KycApplication::where('tenant_id', $tenant)->where('user_id', $row->user_id)->where('resubmission_of_id', $row->id)->exists(), 409);
             abort_unless(KycApplication::where('tenant_id', $tenant)->where('user_id', $row->user_id)->latest('submitted_at')->first()->id === $row->id, 409);
             if (KycApplication::where('tenant_id', $tenant)->where('user_id', $row->user_id)
-                ->where('review_status', KycReviewStatus::Pending)->where('id', '<>', $row->id)->exists()) {
+                ->where('review_status', KycReviewStatus::Pending)->where(fn ($query) => $query->whereNull('processing_status')->orWhere('processing_status', '<>', 'FAILED'))->where('id', '<>', $row->id)->exists()) {
                 throw new DomainException('KYC_ALREADY_PENDING', 'Identity verification is already under review.', 409);
             }
             if ($row->review_status === KycReviewStatus::Rejected) {

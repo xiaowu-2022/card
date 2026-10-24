@@ -34,7 +34,7 @@ final readonly class UserKycQuery
                 'KYC_DOCUMENT_STORAGE_FAILED', 'KYC_DOCUMENT_INTEGRITY_FAILED', 'KYC_SUBMISSION_UNAVAILABLE',
             ], true) ? $application->processing_error : 'KYC_PROCESSING_UNAVAILABLE')
             : null;
-        $hasPendingApplication = KycApplication::where('tenant_id', $tenantId)->where('user_id', $userId)->where('review_status', 'PENDING')->exists();
+        $hasPendingApplication = KycApplication::where('tenant_id', $tenantId)->where('user_id', $userId)->where('review_status', 'PENDING')->where(fn ($query) => $query->whereNull('processing_status')->orWhere('processing_status', '<>', 'FAILED'))->exists();
         $reverificationPending = $identity && $hasPendingApplication;
         if ($identity) {
             $application = KycApplication::where('tenant_id', $tenantId)->where('user_id', $userId)

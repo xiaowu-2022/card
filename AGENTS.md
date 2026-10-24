@@ -1,3 +1,9 @@
+On 2026-10-24 the user clarified failed KYC processing must allow immediate new
+linked submissions. Only active pending reviews block submission; FAILED attempts
+retain immutable evidence without occupying that slot. Preserve scope, service
+restrictions, locking, idempotency and superseded-review/retry guards. This supersedes
+the 2026-10-21 failed-pending submission ban. See docs/architecture/ASYNC_KYC.md.
+
 On 2026-10-23 the user added Platform homepage “申请退押途中金额” immediately
 below Stock: sum all companies/users' live CHECKING security-deposit refund applications
 not yet credited to available balance, excluding cancelled/cancel-requested applications.

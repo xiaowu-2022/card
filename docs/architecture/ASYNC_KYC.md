@@ -55,21 +55,21 @@ Implementation validation in this workstation is limited while Docker/PHP are
 unavailable. Frontend checks/builds and PHP syntax parsing do not validate PostgreSQL
 constraints, scheduler execution or server-side regression behavior.
 
-## One pending application per account (2026-10-21)
+## One active pending application per account (2026-10-24)
 
-Within a company, an account with any PENDING review cannot submit another application,
-including when technical processing has FAILED or a newer historical row exists.
-Submission and administrator retry share the tenant transaction lock; submission also
-locks the user. Replays of an already accepted submission return that application.
-Failed pending work can be retried on the original application or manually reviewed.
-After rejection or a resubmission-required decision, new documents may create a linked
-application. Existing review and document evidence remain unchanged.
+Processing FAILED applications retain their original review and document evidence,
+but do not occupy the pending review slot. Consumers may upload new documents to
+create a linked application immediately after failure. QUEUED, PROCESSING,
+WAITING_REVIEW and legacy pending applications without a processing state still
+block duplicate submission. Account/company restrictions and global KYC enablement
+remain enforced. Consumer status projects a failed pending attempt as
+RESUBMISSION_REQUIRED while retaining its public processing failure category.
 
-The consumer submission and re-verification gates include failed pending applications.
-Administrator retries cannot create or reactivate an application while another pending
-review exists. The historical partial index excludes technical failures; the stricter
-rule is enforced by the shared locked application paths without changing that index or
-rewriting historical duplicate rows. Deploy matching PHP; no native rebuild is required.
+Submission and administrator retry share the tenant transaction lock; submission
+also locks the user. Retry cannot reactivate a superseded failure or create a second
+active pending review. Accepted request replays retain their original application.
+The existing partial unique index excludes FAILED processing and already enforces
+this rule. No migration or consumer build is required; deploy matching PHP.
 
 ## Manual decisions independent of OCR (2026-10-08)
 

@@ -79,14 +79,14 @@ final readonly class SubmitKycApplicationAction
                 throw new DomainException('KYC_SUBMISSION_UNAVAILABLE', 'Identity verification submission is not currently available.', 403);
             }
             // The tenant/user locks serialize every submission and administrator retry.
-            // Processing failure does not complete a pending manual review.
-            if (KycApplication::where('tenant_id', $tenant->id)->where('user_id', $user->id)->where('review_status', KycReviewStatus::Pending)->exists()) {
+            // Failed processing retains evidence but does not occupy the active review slot.
+            if (KycApplication::where('tenant_id', $tenant->id)->where('user_id', $user->id)->where('review_status', KycReviewStatus::Pending)->where(fn ($query) => $query->whereNull('processing_status')->orWhere('processing_status', '<>', 'FAILED'))->exists()) {
                 throw new DomainException('KYC_ALREADY_PENDING', 'Identity verification is already under review.', 409);
             }
             $identity = IdentityRecord::where('tenant_id', $tenant->id)->where('user_id', $user->id)->first();
             abort_unless($reverify === (bool) $identity, 409);
             $latest = KycApplication::where('tenant_id', $tenant->id)->where('user_id', $user->id)->latest('submitted_at')->lockForUpdate()->first();
-            if ($latest && ! in_array($latest->review_status, [KycReviewStatus::ResubmissionRequired, KycReviewStatus::Rejected], true)
+            if ($latest && $latest->processing_status !== 'FAILED' && ! in_array($latest->review_status, [KycReviewStatus::ResubmissionRequired, KycReviewStatus::Rejected], true)
                 && ! ($reverify && $latest->review_status === KycReviewStatus::Approved)) {
                 throw new DomainException('KYC_ALREADY_PENDING', 'Identity verification is already under review.', 409);
             }
