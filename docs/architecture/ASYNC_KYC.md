@@ -160,3 +160,9 @@ when review is PENDING and processing has FAILED. Completed review decisions rem
 authoritative. Preserve raw reviewStatus for manual review authorization and audit;
 this presentation correction never rejects or mutates an application on reads.
 Deploy matching PHP and administration assets.
+
+Platform identity verification list uses the same FAILED display projection as
+its details. FAILED filtering selects pending reviews with failed processing;
+PENDING filtering excludes these failures and includes legacy null processing
+states. Completed decisions retain precedence. Pagination totals use these exact
+filters. Manual review authorization continues to use the original review state.

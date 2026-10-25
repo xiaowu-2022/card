@@ -1,3 +1,4 @@
+import { kycDisplayStatus } from '@/components/admin/user-kyc-state';
 import { RecordUserCell, type UserInfo } from '@/components/admin/UserInfoCell';
 import { useRef, useState } from 'react';
 import type { SharedProps } from '@/types/global';
@@ -18,6 +19,7 @@ type Application = {
     user: { displayName: string | null; contact: string | null };
     documentCountry: string;
     reviewStatus: string;
+    processingStatus: string | null;
     submittedAt: string;
 };
 
@@ -49,7 +51,7 @@ export default function Kyc({
                     filters={filters}
                     url="/platform/kyc"
                     searchLabel={t('Search email, phone or user ID')}
-                    statuses={['PENDING', 'APPROVED', 'REJECTED', 'RESUBMISSION_REQUIRED']}
+                    statuses={['PENDING', 'FAILED', 'APPROVED', 'REJECTED', 'RESUBMISSION_REQUIRED']}
                     columns={[
                         {
                             label: 'Company / User',
@@ -66,11 +68,11 @@ export default function Kyc({
                                     status={
                                         row.reviewStatus === 'APPROVED'
                                             ? 'SUCCESS'
-                                            : row.reviewStatus === 'REJECTED'
+                                            : ['REJECTED', 'FAILED'].includes(kycDisplayStatus(row))
                                               ? 'DANGER'
                                               : 'WARNING'
                                     }
-                                    label={t(row.reviewStatus)}
+                                    label={t(kycDisplayStatus(row))}
                                 />
                             ),
                         },

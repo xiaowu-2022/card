@@ -17,7 +17,7 @@ final class AccountOperationsController extends Controller
     public function index(Request $request, PlatformListFilters $lists, PlatformKycQuery $kyc): Response|RedirectResponse
     {
         $isKyc = $request->routeIs('platform.kyc.index');
-        $filters = $lists->validated($request, $isKyc ? ['status' => ['nullable', 'in:PENDING,APPROVED,REJECTED,RESUBMISSION_REQUIRED']] : []);
+        $filters = $lists->validated($request, $isKyc ? ['status' => ['nullable', 'in:PENDING,APPROVED,REJECTED,RESUBMISSION_REQUIRED,FAILED']] : []);
         if (! $isKyc) {
             return redirect('/platform/users'.($filters ? '?'.http_build_query($filters) : ''));
         }

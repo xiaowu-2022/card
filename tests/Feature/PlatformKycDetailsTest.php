@@ -152,3 +152,24 @@ it('lists all applications newest first with pagination and explicit company fil
     $this->get($url.'?status=PENDING')->assertOk()->assertInertia(fn ($p) => $p->where('applications.total', 0));
     $this->getJson($url.'?company=invalid')->assertUnprocessable();
 });
+
+it('separates processing failures from pending list filters without changing review evidence', function () {
+    $failed = $this->kyc->replicate();
+    $failed->forceFill(['review_status' => 'PENDING', 'processing_status' => 'FAILED',
+        'reviewed_at' => null, 'automatically_approved' => false])->save();
+    $pending = $failed->replicate();
+    $pending->forceFill(['processing_status' => 'QUEUED'])->save();
+    $url = 'https://admin.localhost/platform/kyc';
+    $this->get($url.'?status=FAILED')->assertOk()->assertInertia(fn ($p) => $p
+        ->where('applications.total', 1)->where('applications.data.0.id', $failed->id)
+        ->where('applications.data.0.reviewStatus', 'PENDING')
+        ->where('applications.data.0.processingStatus', 'FAILED'));
+    $this->get($url.'?status=PENDING')->assertOk()->assertInertia(fn ($p) => $p
+        ->where('applications.total', 1)->where('applications.data.0.id', $pending->id));
+    $pending->forceFill(['processing_status' => null])->save();
+    $this->get($url.'?status=PENDING')->assertOk()->assertInertia(fn ($p) => $p
+        ->where('applications.total', 1)->where('applications.data.0.id', $pending->id));
+    $this->get($url.'?status=APPROVED')->assertOk()->assertInertia(fn ($p) => $p
+        ->where('applications.total', 1)->where('applications.data.0.id', $this->kyc->id));
+    expect($failed->fresh()->review_status->value)->toBe('PENDING');
+});
