@@ -1,3 +1,4 @@
+import { kycDisplayStatus } from './user-kyc-state';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { useEffect, useState, type RefObject } from 'react';
@@ -22,7 +23,7 @@ type Detail = {
     company: { id: string; name: string };
     user: { id: string; displayName: string | null; email: string | null };
     applications: {
-        items: { id: string; reviewStatus: string; submittedAt: string }[];
+        items: { id: string; reviewStatus: string; processingStatus?: string | null; submittedAt: string }[];
         page: number;
         lastPage: number;
         total: number;
@@ -144,13 +145,13 @@ export function UserKycDrawer({
                                                 ) && (
                                                     <option value={detail.application.id}>
                                                         {dateTime(detail.application.submittedAt)} ·{' '}
-                                                        {t(detail.application.reviewStatus)}
+                                                        {t(kycDisplayStatus(detail.application))}
                                                     </option>
                                                 )}
                                             {detail.applications.items.map((item) => (
                                                 <option key={item.id} value={item.id}>
                                                     {dateTime(item.submittedAt)} ·{' '}
-                                                    {t(item.reviewStatus)}
+                                                    {t(kycDisplayStatus(item))}
                                                 </option>
                                             ))}
                                         </select>

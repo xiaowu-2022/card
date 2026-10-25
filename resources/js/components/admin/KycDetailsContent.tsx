@@ -1,3 +1,4 @@
+import { kycDisplayStatus } from './user-kyc-state';
 import { showOperationResult } from './operation-result';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { router } from '@inertiajs/react';
@@ -212,7 +213,7 @@ export function KycDetailsContent({
                     ['Document type', t(application.documentType)],
                     ['Document country', countryName(application.documentCountry)],
                     ['Identity number', application.maskedIdentityNumber],
-                    ['Status', t(application.reviewStatus)],
+                    ['Status', t(kycDisplayStatus(application))],
                     [
                         'Processing status',
                         t(application.processingStatus ?? application.ocrStatus ?? '—'),

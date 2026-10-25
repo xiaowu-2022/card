@@ -152,3 +152,11 @@ Deploy the rebuilt `public/h5` for the WebView shell. This presentation change
 requires no backend migration or APK rebuild. Offline frontend tests cover the
 real upload/action path; browser fixtures cover failed re-verification upload and
 unconfirmed submission without contacting document services.
+
+## Platform verification detail display (2026-10-25)
+
+The shared Platform verification detail and user drawer history display FAILED
+when review is PENDING and processing has FAILED. Completed review decisions remain
+authoritative. Preserve raw reviewStatus for manual review authorization and audit;
+this presentation correction never rejects or mutates an application on reads.
+Deploy matching PHP and administration assets.

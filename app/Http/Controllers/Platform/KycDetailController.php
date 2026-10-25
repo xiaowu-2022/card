@@ -47,7 +47,7 @@ final class KycDetailController extends Controller
         $data = $request->validate(['application' => 'nullable|uuid', 'page' => 'nullable|integer|min:1|max:100000']);
         $member = User::where('tenant_id', $tenant->id)->with('profile')->findOrFail($user);
         $applications = KycApplication::where('tenant_id', $tenant->id)->where('user_id', $member->id);
-        $page = (clone $applications)->orderByDesc('submitted_at')->orderByDesc('id')->paginate(20, ['id', 'review_status', 'submitted_at']);
+        $page = (clone $applications)->orderByDesc('submitted_at')->orderByDesc('id')->paginate(20, ['id', 'review_status', 'processing_status', 'submitted_at']);
         $selected = isset($data['application'])
             ? (clone $applications)->whereKey($data['application'])->firstOrFail(['id'])
             : $page->first();
@@ -58,6 +58,7 @@ final class KycDetailController extends Controller
             'platformVerified' => \Illuminate\Support\Facades\DB::table('platform_user_creations')->where('tenant_id', $tenant->id)->where('user_id', $member->id)->exists(),
             'applications' => ['items' => $page->map(fn ($application) => [
                 'id' => $application->id, 'reviewStatus' => $application->review_status->value,
+                'processingStatus' => $application->processing_status,
                 'submittedAt' => $application->submitted_at->toIso8601String(),
             ]), 'page' => $page->currentPage(), 'lastPage' => $page->lastPage(), 'total' => $page->total()],
             'application' => $selected ? $query->detail($tenant->id, $selected->id)['application'] : null,

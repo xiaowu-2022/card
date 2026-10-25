@@ -17,3 +17,14 @@ export function kycLocation(target: KycTarget | null, application?: string, page
     }
     history.replaceState(history.state, '', url);
 }
+
+// A technical failure is the displayed outcome until a review decision is made.
+// Keep reviewStatus unchanged for authorized manual review and audit history.
+export function kycDisplayStatus(application: {
+    reviewStatus: string;
+    processingStatus?: string | null;
+}): string {
+    return application.reviewStatus === 'PENDING' && application.processingStatus === 'FAILED'
+        ? 'FAILED'
+        : application.reviewStatus;
+}
