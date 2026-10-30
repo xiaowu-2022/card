@@ -10,6 +10,10 @@ matching PHP/admin/H5; the WebView shell is unchanged. Isolated offline tests on
 no real OCR, provider or financial operations. See docs/architecture/ASYNC_KYC.md
 and docs/architecture/IMAGE_URL_KYC.md.
 
+For Git-based delivery, copy the compiled consumer H5 into tracked `public/h5`
+and commit the matching entry, manifest and new assets. Copy assets before atomically
+replacing the entry, retaining older hashes and existing download/distribution files.
+
 On 2026-10-28 the user requested card-provider balance synchronization every five
 minutes. Schedule cards:refresh-provider-reports through the existing single minute
 scheduler; queue existing read-only PhotonPay and verified U1 merchant report jobs,
