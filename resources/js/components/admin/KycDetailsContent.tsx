@@ -1,4 +1,9 @@
-import { kycDisplayStatus } from './user-kyc-state';
+import {
+    kycDisplayStatus,
+    kycReviewable,
+    kycRetryable,
+    type KycActionEligibility,
+} from './user-kyc-state';
 import { showOperationResult } from './operation-result';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { router } from '@inertiajs/react';
@@ -10,26 +15,28 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 const processingErrorMessages: Record<string, string> = {
-    IDENTITY_ACCOUNT_LIMIT_REACHED: 'This identity has reached the Tenant account limit.',
+    IDENTITY_ACCOUNT_LIMIT_REACHED:
+        'The document has reached the company account limit. Check existing verified accounts before reviewing.',
     KYC_OCR_MISMATCH:
-        'The document number could not be recognized or validated. Please upload clear photos of your identity documents.',
+        'Document number recognition failed validation. Check the documents before manual review or retry verification.',
     KYC_BACK_VALIDITY_UNRECOGNIZED:
-        'The ID card validity period could not be recognized or validated. Please upload a clear, complete photo of the back.',
-    KYC_DOCUMENT_EXPIRED: 'The ID card has expired. Please upload a valid identity document.',
+        'The ID card back validity period could not be recognized or validated. Check the document before manual review or retry verification.',
+    KYC_DOCUMENT_EXPIRED:
+        'The ID card has expired. Check the document validity and any later submissions before reviewing.',
     KYC_DOCUMENT_NOT_YET_VALID:
-        'The ID card is not yet valid. Please upload an identity document that is currently valid.',
+        'The ID card is not yet valid. Check the document validity and any later submissions before reviewing.',
     KYC_OCR_UNAVAILABLE:
-        'Document recognition is temporarily unavailable. Please contact support to retry verification.',
+        'Document recognition is temporarily unavailable. Check the retained documents or retry verification.',
     KYC_DOCUMENT_STORAGE_FAILED:
-        'The document images could not be read. Please upload them again or contact support.',
+        'The retained document images could not be read. Check document storage before retrying verification.',
     KYC_DOCUMENT_INTEGRITY_FAILED:
-        'The document images could not be verified. Please upload them again or contact support.',
+        'The retained document images failed integrity checks. Check the originals before retrying verification.',
     KYC_SUBMISSION_UNAVAILABLE:
-        'Identity verification is currently unavailable. Please contact support.',
+        'Identity verification submission is unavailable. Check company, account and verification settings.',
     KYC_PROCESSING_UNAVAILABLE: 'Verification processing failed',
 };
 
-export type KycApplication = {
+export type KycApplication = KycActionEligibility & {
     id: string;
     user: { id: string; displayName: string | null; contact: string | null };
     documentType: string;
@@ -50,6 +57,7 @@ export function KycDetailsContent({
     canViewDocuments,
     canReview = false,
     onChanged,
+    onOpenApplication,
     onBusyChange,
 }: {
     application: KycApplication;
@@ -57,10 +65,13 @@ export function KycDetailsContent({
     canViewDocuments: boolean;
     canReview?: boolean;
     onChanged?: (id: string) => void;
+    onOpenApplication?: (id: string) => void;
     onBusyChange?: (busy: boolean) => void;
 }) {
     useAdminTranslation();
     const [reason, setReason] = useState('');
+    const reviewable = kycReviewable(application);
+    const retryable = kycRetryable(application);
     const [identityNumber, setIdentityNumber] = useState('');
     const needsIdentityNumber =
         application.requiresIdentityNumber ??
@@ -142,7 +153,7 @@ export function KycDetailsContent({
         }
     }
     async function review(decision: 'approve' | 'reject' | 'retry') {
-        if (reviewBusy) return;
+        if (reviewBusy || !canReview || !(decision === 'retry' ? retryable : reviewable)) return;
         if (decision !== 'approve' && reason.trim().length < 3) {
             setError(t('Enter a reason.'));
             return;
@@ -185,10 +196,26 @@ export function KycDetailsContent({
             );
             const data = (await readEditorResponse(response)) as {
                 applicationId?: string;
-                error?: { message?: string };
+                error?: { code?: string; message?: string };
                 errors?: Record<string, string[]>;
             };
             if (current !== generation.current) return;
+            if (!response.ok && data.error?.code === 'KYC_APPLICATION_SUPERSEDED') {
+                setError(
+                    t(
+                        'This application has been replaced by a newer submission. Open the current application to review it.',
+                    ),
+                );
+                if (onChanged) onChanged(application.id);
+                else router.reload();
+                return;
+            }
+            if (!response.ok && data.error?.code === 'KYC_ALREADY_REVIEWED') {
+                setError(t('This application has already been reviewed.'));
+                if (onChanged) onChanged(application.id);
+                else router.reload();
+                return;
+            }
             if (!response.ok)
                 throw new Error(
                     data.error?.message ??
@@ -244,6 +271,32 @@ export function KycDetailsContent({
                     </div>
                 ))}
             </dl>
+            {application.isSuperseded && (
+                <section className="space-y-3 rounded-lg border bg-muted p-4">
+                    <p>
+                        {t(
+                            'This application has been replaced by a newer submission. Open the current application to review it.',
+                        )}
+                    </p>
+                    {application.currentApplicationId &&
+                        application.currentApplicationId !== application.id && (
+                            <Button
+                                variant="secondary"
+                                disabled={reviewBusy || busy}
+                                onClick={() => {
+                                    const id = application.currentApplicationId!;
+                                    if (onOpenApplication) onOpenApplication(id);
+                                    else
+                                        router.visit(
+                                            `/platform/tenants/${encodeURIComponent(company.id)}/kyc/${encodeURIComponent(id)}`,
+                                        );
+                                }}
+                            >
+                                {t('Open current application')}
+                            </Button>
+                        )}
+                </section>
+            )}
             <Button
                 variant="secondary"
                 disabled={reviewBusy || busy}
@@ -251,72 +304,69 @@ export function KycDetailsContent({
             >
                 {t('Refresh status')}
             </Button>
-            {canReview &&
-                (application.reviewStatus === 'PENDING' ||
-                    (application.processingStatus && application.reviewStatus === 'REJECTED')) && (
-                    <section className="space-y-3 rounded-lg border p-4">
-                        {application.reviewStatus === 'PENDING' && needsIdentityNumber && (
-                            <label className="block space-y-2">
-                                <span>{t('Identity number')}</span>
-                                <Input
-                                    value={identityNumber}
-                                    onChange={(event) =>
-                                        setIdentityNumber(event.target.value.toUpperCase())
-                                    }
-                                    maxLength={18}
-                                    autoComplete="off"
-                                    disabled={reviewBusy}
-                                    aria-label={t('Identity number')}
-                                />
-                                <p className="text-sm text-muted-foreground">
-                                    {t(
-                                        'Enter the identity number before approving. Existing numbers cannot be changed.',
-                                    )}
-                                </p>
-                            </label>
-                        )}
+            {canReview && (reviewable || retryable) && (
+                <section className="space-y-3 rounded-lg border p-4">
+                    {reviewable && needsIdentityNumber && (
                         <label className="block space-y-2">
-                            <span>{t('Reason')}</span>
-                            <textarea
-                                className="w-full rounded-md border p-2"
-                                value={reason}
-                                onChange={(e) => setReason(e.target.value)}
-                                maxLength={500}
+                            <span>{t('Identity number')}</span>
+                            <Input
+                                value={identityNumber}
+                                onChange={(event) =>
+                                    setIdentityNumber(event.target.value.toUpperCase())
+                                }
+                                maxLength={18}
+                                autoComplete="off"
                                 disabled={reviewBusy}
+                                aria-label={t('Identity number')}
                             />
+                            <p className="text-sm text-muted-foreground">
+                                {t(
+                                    'Enter the identity number before approving. Existing numbers cannot be changed.',
+                                )}
+                            </p>
                         </label>
-                        <div className="flex flex-wrap gap-2">
-                            {application.reviewStatus === 'PENDING' && (
-                                <>
-                                    <Button
-                                        disabled={reviewBusy}
-                                        onClick={() => void review('approve')}
-                                    >
-                                        {t('Approve')}
-                                    </Button>
-                                    <Button
-                                        variant="secondary"
-                                        disabled={reviewBusy}
-                                        onClick={() => void review('reject')}
-                                    >
-                                        {t('Reject')}
-                                    </Button>
-                                </>
-                            )}
-                            {(application.processingStatus === 'FAILED' ||
-                                application.reviewStatus === 'REJECTED') && (
-                                <Button disabled={reviewBusy} onClick={() => void review('retry')}>
-                                    {t('Retry verification')}
+                    )}
+                    <label className="block space-y-2">
+                        <span>{t('Reason')}</span>
+                        <textarea
+                            className="w-full rounded-md border p-2"
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value)}
+                            maxLength={500}
+                            disabled={reviewBusy}
+                        />
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                        {reviewable && (
+                            <>
+                                <Button
+                                    disabled={reviewBusy}
+                                    onClick={() => void review('approve')}
+                                >
+                                    {t('Approve')}
                                 </Button>
-                            )}
-                        </div>
-                        {error && (
-                            <OperationFeedback role="alert" className="text-red-600">
-                                {error}
-                            </OperationFeedback>
+                                <Button
+                                    variant="secondary"
+                                    disabled={reviewBusy}
+                                    onClick={() => void review('reject')}
+                                >
+                                    {t('Reject')}
+                                </Button>
+                            </>
                         )}
-                    </section>
-                )}
+                        {retryable && (
+                            <Button disabled={reviewBusy} onClick={() => void review('retry')}>
+                                {t('Retry verification')}
+                            </Button>
+                        )}
+                    </div>
+                    {error && (
+                        <OperationFeedback role="alert" className="text-red-600">
+                            {error}
+                        </OperationFeedback>
+                    )}
+                </section>
+            )}
             {canViewDocuments && (
                 <section className="space-y-4">
                     <h2 className="font-semibold">{t('Identity document photos')}</h2>

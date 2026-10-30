@@ -36,10 +36,16 @@ export function KycApplicationDialog({
     onChanged: () => void;
 }) {
     const [selectedId, setSelectedId] = useState(applicationId);
+    const [reviewing, setReviewing] = useState(review);
     const [detail, setDetail] = useState<Detail | null>(null);
     const [failed, setFailed] = useState(false);
     const [revision, setRevision] = useState(0);
     const [busy, setBusy] = useState(false);
+    useEffect(() => {
+        setSelectedId(applicationId);
+        setReviewing(review);
+        setRevision(0);
+    }, [companyId, applicationId, review]);
     useEffect(() => {
         const controller = new AbortController();
         setDetail(null);
@@ -64,7 +70,7 @@ export function KycApplicationDialog({
             });
         return () => controller.abort();
     }, [companyId, selectedId, revision]);
-    const Content = review ? DialogContent : DetailDrawerContent;
+    const Content = reviewing ? DialogContent : DetailDrawerContent;
     return (
         <Dialog
             open
@@ -73,7 +79,7 @@ export function KycApplicationDialog({
             }}
         >
             <Content
-                className={review ? 'max-w-3xl' : undefined}
+                className={reviewing ? 'max-w-3xl' : undefined}
                 closeLabel={t('Close')}
                 closeDisabled={busy}
                 onEscapeKeyDown={(event) => {
@@ -89,7 +95,7 @@ export function KycApplicationDialog({
             >
                 <DialogHeader className="shrink-0 pr-12">
                     <DialogTitle>
-                        {t(review ? 'Review' : 'Identity verification details')}
+                        {t(reviewing ? 'Review' : 'Identity verification details')}
                     </DialogTitle>
                     <DialogDescription>
                         {detail
@@ -112,8 +118,13 @@ export function KycApplicationDialog({
                     ) : (
                         <KycDetailsContent
                             {...detail}
-                            canReview={review && detail.canReview}
+                            canReview={reviewing && detail.canReview}
                             onBusyChange={setBusy}
+                            onOpenApplication={(id) => {
+                                setReviewing(true);
+                                setSelectedId(id);
+                                setRevision((value) => value + 1);
+                            }}
                             onChanged={(id) => {
                                 setBusy(false);
                                 setSelectedId(id);

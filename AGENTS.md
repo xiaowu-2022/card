@@ -1,3 +1,13 @@
+On 2026-10-30 the user reiterated that processing FAILED applications must remain
+manually approvable and rejected consumer-facing "contact support" copy in the
+administration review dialog. Keep pending failed manual review, identity-number
+requirements and terminal/superseded guards. Expose current per-application review/
+retry eligibility and an explicit current-application read link for replaced history;
+never silently approve another application. Administration errors must give operator
+instructions independently of consumer copy. Deliver matching PHP/admin assets;
+no migration, H5/native change, real OCR/provider calls or production tests.
+See docs/architecture/ASYNC_KYC.md.
+
 On 2026-10-30 the user reported an empty 409 response on the consumer re-verification
 submission endpoint. Page and submission eligibility must recognize the same trusted
 company/user-scoped Platform creation verification even without an IdentityRecord.

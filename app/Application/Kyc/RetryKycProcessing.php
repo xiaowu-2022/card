@@ -26,10 +26,20 @@ final class RetryKycProcessing
                 return KycApplication::where('tenant_id', $tenant)->findOrFail($old->result_application_id);
             }
             $row = KycApplication::where('tenant_id', $tenant)->whereKey($id)->lockForUpdate()->firstOrFail();
+            if (KycApplication::where('tenant_id', $tenant)->where('user_id', $row->user_id)->where('resubmission_of_id', $row->id)->exists()) {
+                $availability = app(KycReviewAvailability::class)->forApplication($tenant, $row->user_id, $row->id,
+                    $row->review_status->value, $row->processing_status);
+                throw new DomainException('KYC_APPLICATION_SUPERSEDED', 'This application has been replaced by a newer submission. Open the current application to review it.', 409,
+                    ['currentApplicationId' => $availability['currentApplicationId']]);
+            }
             abort_unless(($row->processing_status === 'FAILED' && $row->review_status === KycReviewStatus::Pending)
                 || ($row->processing_status !== null && $row->review_status === KycReviewStatus::Rejected), 409);
-            abort_if(KycApplication::where('tenant_id', $tenant)->where('user_id', $row->user_id)->where('resubmission_of_id', $row->id)->exists(), 409);
-            abort_unless(KycApplication::where('tenant_id', $tenant)->where('user_id', $row->user_id)->latest('submitted_at')->first()->id === $row->id, 409);
+            $latest = KycApplication::where('tenant_id', $tenant)->where('user_id', $row->user_id)
+                ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('kyc_applications as child')
+                    ->whereColumn('child.resubmission_of_id', 'kyc_applications.id')
+                    ->whereColumn('child.tenant_id', 'kyc_applications.tenant_id')->whereColumn('child.user_id', 'kyc_applications.user_id'))
+                ->orderByDesc('submitted_at')->orderByDesc('id')->first();
+            abort_unless($latest?->id === $row->id, 409);
             if (KycApplication::where('tenant_id', $tenant)->where('user_id', $row->user_id)
                 ->where('review_status', KycReviewStatus::Pending)->where(fn ($query) => $query->whereNull('processing_status')->orWhere('processing_status', '<>', 'FAILED'))->where('id', '<>', $row->id)->exists()) {
                 throw new DomainException('KYC_ALREADY_PENDING', 'Identity verification is already under review.', 409);

@@ -43,8 +43,16 @@ final readonly class ApproveKycAction
             return DB::transaction(function () use ($tenantId, $applicationId, $reviewer, $requestId, $identityNumber): IdentityRecord {
                 Tenant::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
                 $application = KycApplication::query()->where('tenant_id', $tenantId)->whereKey($applicationId)->lockForUpdate()->firstOrFail();
-                if ($application->review_status !== KycReviewStatus::Pending || ($reviewer === null && $application->processing_status === 'FAILED')
-                    || KycApplication::where('tenant_id', $tenantId)->where('resubmission_of_id', $application->id)->exists()) {
+                if ($application->review_status !== KycReviewStatus::Pending) {
+                    throw new DomainException('KYC_ALREADY_REVIEWED', 'This application has already been reviewed.', 409);
+                }
+                if (KycApplication::where('tenant_id', $tenantId)->where('user_id', $application->user_id)->where('resubmission_of_id', $application->id)->exists()) {
+                    $availability = app(KycReviewAvailability::class)->forApplication($tenantId, $application->user_id, $application->id,
+                        $application->review_status->value, $application->processing_status);
+                    throw new DomainException('KYC_APPLICATION_SUPERSEDED', 'This application has been replaced by a newer submission. Open the current application to review it.', 409,
+                        ['currentApplicationId' => $availability['currentApplicationId']]);
+                }
+                if ($reviewer === null && $application->processing_status === 'FAILED') {
                     throw new DomainException('KYC_ALREADY_REVIEWED', 'This application has already been reviewed.', 409);
                 }
                 $manualNumber = false;

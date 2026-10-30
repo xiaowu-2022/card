@@ -160,6 +160,32 @@ and rebuilt administration assets. The migration changes constraints and adds
 identity review provenance without replaying or approving historical applications.
 No consumer rebuild or live OCR/financial testing is needed for this change.
 
+## Administrative review of failed attempts (2026-10-30)
+
+Processing `FAILED` does not constitute a completed review. An unsuperseded
+`PENDING` application remains manually approvable or rejectable, including missing
+or expired back-side OCR evidence. Existing national-ID number validation, identity
+account limits and scoped authorization still apply. The list, detail dialog and
+user history expose the same read-only `reviewable` and `retryable` capabilities.
+
+When a linked replacement exists, the retained old application is historical.
+Return `KYC_APPLICATION_SUPERSEDED` rather than claiming that a review occurred;
+include only its same-company/user current application UUID. The administration UI
+offers an explicit read of that current application, then requires a new deliberate
+review action and confirmation. A stale dialog refreshes the selected evidence on
+this conflict and never silently submits approval against a different application.
+Terminal decisions remain immutable; an eligible rejected asynchronous application
+can instead enter the existing confirmed retry workflow to create a linked attempt.
+
+Retry eligibility and execution choose the latest unsuperseded leaf consistently,
+including attempts with identical submission timestamps. Keep per-tenant locks,
+active-pending exclusion and request-idempotent retry replays. Administration copy
+uses operator instructions rather than consumer support or photo-upload directions;
+consumer translations are unchanged. Deploy matching PHP and the administration
+build together. No additional migration, consumer H5 or native rebuild is required.
+The matching compiled administration assets and installation steps are in
+[`output/kyc-admin-review-20261030.md`](../../output/kyc-admin-review-20261030.md).
+
 ## Required national ID number on new manual approvals (2026-10-08)
 
 This supersedes numberless new national-ID approvals above. Platform's review form

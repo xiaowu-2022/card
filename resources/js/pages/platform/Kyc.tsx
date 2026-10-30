@@ -1,4 +1,8 @@
-import { kycDisplayStatus } from '@/components/admin/user-kyc-state';
+import {
+    kycDisplayStatus,
+    kycReviewable,
+    type KycActionEligibility,
+} from '@/components/admin/user-kyc-state';
 import { RecordUserCell, type UserInfo } from '@/components/admin/UserInfoCell';
 import { useRef, useState } from 'react';
 import type { SharedProps } from '@/types/global';
@@ -10,7 +14,7 @@ import { PlatformAccountTable, type AccountPage } from '@/components/shared/Plat
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 
-type Application = {
+type Application = KycActionEligibility & {
     userInfo?: UserInfo;
     userId?: string;
     id: string;
@@ -51,7 +55,13 @@ export default function Kyc({
                     filters={filters}
                     url="/platform/kyc"
                     searchLabel={t('Search email, phone or user ID')}
-                    statuses={['PENDING', 'FAILED', 'APPROVED', 'REJECTED', 'RESUBMISSION_REQUIRED']}
+                    statuses={[
+                        'PENDING',
+                        'FAILED',
+                        'APPROVED',
+                        'REJECTED',
+                        'RESUBMISSION_REQUIRED',
+                    ]}
                     columns={[
                         {
                             label: 'Company / User',
@@ -90,7 +100,7 @@ export default function Kyc({
                                     >
                                         {t('View details')}
                                     </Button>
-                                    {canReview && row.reviewStatus === 'PENDING' && (
+                                    {canReview && kycReviewable(row) && (
                                         <Button
                                             variant="secondary"
                                             size="sm"

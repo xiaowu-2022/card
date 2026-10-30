@@ -2,6 +2,29 @@
 import { promotionCatalog } from './promotion-catalog';
 
 export const adminCatalog: Record<string, string> = {
+    'This application has already been reviewed.':
+        '该申请已有审核决定，或审核状态已变化。请刷新申请状态后再操作。',
+    'The document has reached the company account limit. Check existing verified accounts before reviewing.':
+        '该证件已达到当前公司的认证账号数上限，请核对已有认证账号后处理。',
+    'Document number recognition failed validation. Check the documents before manual review or retry verification.':
+        '证件号码未能识别或未通过校验。可人工核对证件后审核，或重新核验。',
+    'The ID card back validity period could not be recognized or validated. Check the document before manual review or retry verification.':
+        '身份证背面有效期未能识别或格式异常。可人工核对证件后审核，或重新核验。',
+    'The ID card has expired. Check the document validity and any later submissions before reviewing.':
+        '身份证已过期，请核对证件有效期及后续提交记录后处理审核。',
+    'The ID card is not yet valid. Check the document validity and any later submissions before reviewing.':
+        '身份证尚未生效，请核对证件有效期及后续提交记录后处理审核。',
+    'Document recognition is temporarily unavailable. Check the retained documents or retry verification.':
+        '证件识别服务暂时不可用，可核对已保存的证件资料，或重新核验。',
+    'The retained document images could not be read. Check document storage before retrying verification.':
+        '已保存的证件照片读取失败，请检查证件存储后重新核验。',
+    'The retained document images failed integrity checks. Check the originals before retrying verification.':
+        '已保存的证件照片未通过完整性校验，请核对原件后重新核验。',
+    'Identity verification submission is unavailable. Check company, account and verification settings.':
+        '当前不可提交身份认证，请检查公司、账号和认证配置。',
+    'This application has been replaced by a newer submission. Open the current application to review it.':
+        '该申请已有后续新提交，旧申请仅保留历史记录。请打开当前申请，核对后再审核。',
+    'Open current application': '打开当前申请',
     'Deposit refunds in progress': '申请退押途中金额',
     'Upstream partners': '上级合伙人',
     'Application time': '申请时间',
@@ -2519,6 +2542,8 @@ export const adminCatalog: Record<string, string> = {
 };
 
 export const adminEnglish: Record<string, string> = {
+    'This application has already been reviewed.':
+        'This application already has a review decision or its review status has changed. Refresh the application status before continuing.',
     'Invitation directory basis':
         'Filter accounts by all, users (not enabled partners), or currently enabled partners. Each account retains its complete consumer invitation report scope. Open details for commissions, direct/indirect records and reward rates at each level.',
     'Invitation report detail description':

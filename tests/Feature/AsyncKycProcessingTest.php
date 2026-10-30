@@ -195,7 +195,7 @@ it('allows new documents after processing failure and keeps only one active revi
     }
     expect(KycApplication::count())->toBe(2);
     expect(fn () => app(RetryKycProcessing::class)->execute($this->tenant->id, $old->id, $this->admin, (string) Str::uuid(), 'Retry superseded failure'))
-        ->toThrow(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        ->toThrow(fn (\App\Support\Errors\DomainException $error) => expect($error->errorCode)->toBe('KYC_APPLICATION_SUPERSEDED'));
 });
 
 it('allows new documents after rejection without changing the completed review', function () {
@@ -536,7 +536,7 @@ it('allows immediate linked resubmission after expired back OCR and retains the 
     expect($new->resubmission_of_id)->toBe($old->id)->and($old->fresh()->getAttributes())->toBe($before)
         ->and(StoredImage::where('business_reference', $old->id)->where('state', 'ready')->count())->toBe(2);
     expect(fn () => app(RetryKycProcessing::class)->execute($this->tenant->id, $old->id, $this->admin, (string) Str::uuid(), 'Cannot revive superseded expiry'))
-        ->toThrow(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        ->toThrow(fn (\App\Support\Errors\DomainException $error) => expect($error->errorCode)->toBe('KYC_APPLICATION_SUPERSEDED'));
 });
 
 it('rechecks stored back evidence after Beijing midnight and reuses it on a linked administrator retry', function () {

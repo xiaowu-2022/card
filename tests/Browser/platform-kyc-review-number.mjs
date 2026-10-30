@@ -30,6 +30,7 @@ try {
             application: { id, user: { id: 'member', displayName: 'Synthetic', contact: 'member@example.test' }, documentType: 'NATIONAL_ID', documentCountry: 'CN',
                 maskedIdentityNumber: missing && !reviewed ? '—' : '**************002X', requiresIdentityNumber: missing && !reviewed,
                 reviewStatus: reviewed ? 'APPROVED' : 'PENDING', ocrStatus: missing ? 'FAILED' : 'SUCCEEDED', processingStatus: reviewed ? 'COMPLETE' : 'FAILED',
+                isSuperseded: false, currentApplicationId: id, reviewable: !reviewed, retryable: !reviewed,
                 submittedAt: '2026-10-08T00:00:00Z', reviewedAt: reviewed ? '2026-10-08T01:00:00Z' : null },
         } };
         if (request.headers()['x-inertia']) return route.fulfill({ headers: { 'X-Inertia': 'true' }, json: state });
@@ -38,9 +39,11 @@ try {
     await page.goto(origin + path);
     await page.getByRole('button', { name: 'Approve', exact: true }).click();
     await page.getByText('Enter a valid identity number.', { exact: true }).waitFor();
+    await page.getByRole('alertdialog').getByRole('button', { name: /^ok$/i }).click();
     assert.equal(writes.length, 0);
     await page.getByRole('textbox', { name: 'Identity number', exact: true }).fill('11010519491231002x');
     await page.getByRole('button', { name: 'Approve', exact: true }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: /^ok$/i }).click();
     await page.getByRole('button', { name: 'Approve', exact: true }).waitFor({ state: 'hidden' });
     assert.deepEqual(writes[0], { decision: 'approve', identity_number: '11010519491231002X' });
     missing = false; reviewed = false;
@@ -48,12 +51,14 @@ try {
     await page.getByRole('button', { name: 'Approve', exact: true }).waitFor();
     assert.equal(await page.getByRole('textbox', { name: 'Identity number', exact: true }).count(), 0);
     await page.getByRole('button', { name: 'Approve', exact: true }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: /^ok$/i }).click();
     await page.getByRole('button', { name: 'Approve', exact: true }).waitFor({ state: 'hidden' });
     assert.deepEqual(writes[1], { decision: 'approve' });
     missing = true; reviewed = false;
     await page.reload();
     await page.locator('textarea').fill('Documents are unclear');
     await page.getByRole('button', { name: 'Reject', exact: true }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: /^ok$/i }).click();
     await page.getByRole('button', { name: 'Approve', exact: true }).waitFor({ state: 'hidden' });
     assert.equal(writes[2].decision, 'reject');
     assert.equal('identity_number' in writes[2], false);

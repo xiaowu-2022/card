@@ -23,7 +23,12 @@ type Detail = {
     company: { id: string; name: string };
     user: { id: string; displayName: string | null; email: string | null };
     applications: {
-        items: { id: string; reviewStatus: string; processingStatus?: string | null; submittedAt: string }[];
+        items: {
+            id: string;
+            reviewStatus: string;
+            processingStatus?: string | null;
+            submittedAt: string;
+        }[];
         page: number;
         lastPage: number;
         total: number;
@@ -172,6 +177,10 @@ export function UserKycDrawer({
                                     company={detail.company}
                                     canViewDocuments={detail.canViewDocuments}
                                     canReview={detail.canReview}
+                                    onOpenApplication={(id) => {
+                                        select(id, selection.page);
+                                        setRetry((n) => n + 1);
+                                    }}
                                     onChanged={(id) => {
                                         select(id, selection.page);
                                         setRetry((n) => n + 1);

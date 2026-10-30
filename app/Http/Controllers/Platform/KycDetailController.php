@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Platform;
 
 use App\Application\Admin\PlatformAdminRecentAuthentication;
 use App\Application\Kyc\TenantKycQueueQuery;
+use App\Application\Kyc\KycReviewAvailability;
 use App\Application\Media\ImagePresentation;
 use App\Application\Media\ImageStorage;
 use App\Domain\Admin\Enums\ScopeType;
@@ -42,7 +43,7 @@ final class KycDetailController extends Controller
         return response()->json(['reviewed' => true]);
     }
 
-    public function user(Tenant $tenant, string $user, Request $request, TenantKycQueueQuery $query, AuthorizationService $authorization)
+    public function user(Tenant $tenant, string $user, Request $request, TenantKycQueueQuery $query, AuthorizationService $authorization, KycReviewAvailability $availability)
     {
         $data = $request->validate(['application' => 'nullable|uuid', 'page' => 'nullable|integer|min:1|max:100000']);
         $member = User::where('tenant_id', $tenant->id)->with('profile')->findOrFail($user);
@@ -51,6 +52,10 @@ final class KycDetailController extends Controller
         $selected = isset($data['application'])
             ? (clone $applications)->whereKey($data['application'])->firstOrFail(['id'])
             : $page->first();
+        $reviewStates = $availability->forApplications($page->getCollection()->map(fn ($application): array => [
+            'tenantId' => $tenant->id, 'userId' => $member->id, 'applicationId' => $application->id,
+            'reviewStatus' => $application->review_status->value, 'processingStatus' => $application->processing_status,
+        ])->all());
 
         return response()->json([
             'company' => ['id' => $tenant->id, 'name' => $tenant->name],
@@ -60,6 +65,7 @@ final class KycDetailController extends Controller
                 'id' => $application->id, 'reviewStatus' => $application->review_status->value,
                 'processingStatus' => $application->processing_status,
                 'submittedAt' => $application->submitted_at->toIso8601String(),
+                ...$reviewStates[$application->id],
             ]), 'page' => $page->currentPage(), 'lastPage' => $page->lastPage(), 'total' => $page->total()],
             'application' => $selected ? $query->detail($tenant->id, $selected->id)['application'] : null,
             'canViewDocuments' => $authorization->allows($request->user('platform_admin'), ScopeType::Platform, null, 'kyc.document.view'),

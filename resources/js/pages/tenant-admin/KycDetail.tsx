@@ -27,8 +27,9 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { TenantAdminLayout } from '@/layouts/TenantAdminLayout';
 import type { SharedProps } from '@/types/global';
+import { kycReviewable, type KycActionEligibility } from '@/components/admin/user-kyc-state';
 
-type Application = {
+type Application = KycActionEligibility & {
     id: string;
     user: { id: string; displayName: string | null; contact: string | null };
     documentType: string;
@@ -244,11 +245,33 @@ export default function KycDetail({
                                 <CardTitle>{t('Manual review')}</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-5">
+                                {application.isSuperseded && (
+                                    <div className="space-y-3 rounded-lg border bg-muted p-4">
+                                        <p>
+                                            {t(
+                                                'This application has been replaced by a newer submission. Open the current application to review it.',
+                                            )}
+                                        </p>
+                                        {application.currentApplicationId &&
+                                            application.currentApplicationId !== application.id && (
+                                                <Button
+                                                    variant="secondary"
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            `/admin/kyc/${encodeURIComponent(application.currentApplicationId!)}`,
+                                                        )
+                                                    }
+                                                >
+                                                    {t('Open current application')}
+                                                </Button>
+                                            )}
+                                    </div>
+                                )}
                                 <StatusBadge
                                     status={tone(application.reviewStatus)}
                                     label={t(application.reviewStatus)}
                                 />
-                                {application.reviewStatus === 'PENDING' &&
+                                {kycReviewable(application) &&
                                 permissions.includes('kyc.review') ? (
                                     <>
                                         <ReviewDecisionDialog

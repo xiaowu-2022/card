@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
 
 final readonly class TenantKycQueueQuery
 {
-    public function __construct(private IdentityNumberProtector $identities, private KycDataCipher $cipher) {}
+    public function __construct(private IdentityNumberProtector $identities, private KycDataCipher $cipher, private KycReviewAvailability $availability) {}
 
     /** @return LengthAwarePaginator<int, array<string, mixed>> */
     public function paginate(string $tenantId, ?string $search, ?string $status, ?string $date): LengthAwarePaginator
@@ -35,13 +35,21 @@ final readonly class TenantKycQueueQuery
                 ->where('submitted_at', '<', $day->addDay()->toIso8601String());
         }
 
-        return $query->latest('submitted_at')->paginate(20)->through(fn (KycApplication $application) => [
+        $page = $query->latest('submitted_at')->paginate(20);
+        $availability = $this->availability->forApplications($page->getCollection()->map(fn (KycApplication $application): array => [
+            'tenantId' => $tenantId, 'userId' => $application->user_id, 'applicationId' => $application->id,
+            'reviewStatus' => $application->review_status->value, 'processingStatus' => $application->processing_status,
+        ])->all());
+
+        return $page->through(fn (KycApplication $application) => [
             'id' => $application->id,
             'user' => ['id' => $application->user_id, 'displayName' => $application->user->profile?->display_name, 'contact' => $application->user->email ?? $application->user->phone],
             'documentCountry' => $application->document_country,
             'ocrStatus' => $application->ocr_status->value,
             'reviewStatus' => $application->review_status->value,
+            'processingStatus' => $application->processing_status,
             'submittedAt' => $application->submitted_at->toIso8601String(),
+            ...$availability[$application->id],
         ]);
     }
 
@@ -72,6 +80,8 @@ final readonly class TenantKycQueueQuery
                 'automaticallyApproved' => $application->automatically_approved,
                 'submittedAt' => $application->submitted_at->toIso8601String(),
                 'reviewedAt' => $application->reviewed_at?->toIso8601String(),
+                ...$this->availability->forApplication($tenantId, $application->user_id, $application->id,
+                    $application->review_status->value, $application->processing_status),
             ],
         ];
     }

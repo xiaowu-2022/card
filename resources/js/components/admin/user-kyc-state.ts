@@ -1,4 +1,30 @@
 export type KycTarget = { company: string; user: string };
+export type KycActionEligibility = {
+    reviewStatus: string;
+    processingStatus?: string | null;
+    isSuperseded?: boolean;
+    currentApplicationId?: string;
+    reviewable?: boolean;
+    retryable?: boolean;
+};
+
+export function kycReviewable(application: KycActionEligibility): boolean {
+    return (
+        application.reviewStatus === 'PENDING' &&
+        !application.isSuperseded &&
+        (application.reviewable ?? true)
+    );
+}
+
+export function kycRetryable(application: KycActionEligibility): boolean {
+    return (
+        !application.isSuperseded &&
+        ['PENDING', 'REJECTED'].includes(application.reviewStatus) &&
+        (application.retryable ??
+            (application.processingStatus === 'FAILED' ||
+                (!!application.processingStatus && application.reviewStatus === 'REJECTED')))
+    );
+}
 export function initialKycTarget(): KycTarget | null {
     const query = new URL(location.href).searchParams;
     const company = query.get('kyc_company');

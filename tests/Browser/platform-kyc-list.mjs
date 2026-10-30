@@ -23,7 +23,7 @@ try {
             writes.push(request.postDataJSON()); reviewed = true;
             return route.fulfill({ json: { reviewed: true } });
         }
-        const application = { id, companyId: company, companyName: 'Test company', user: { id: 'member', displayName: 'Synthetic', contact: 'member@example.test' }, documentType: 'NATIONAL_ID', documentCountry: 'CN', maskedIdentityNumber: reviewed ? '**************002X' : '—', requiresIdentityNumber: !reviewed, reviewStatus: reviewed ? 'APPROVED' : 'PENDING', processingStatus: 'FAILED', submittedAt: '2026-10-08T00:00:00Z', reviewedAt: null };
+        const application = { id, companyId: company, companyName: 'Test company', user: { id: 'member', displayName: 'Synthetic', contact: 'member@example.test' }, documentType: 'NATIONAL_ID', documentCountry: 'CN', maskedIdentityNumber: reviewed ? '**************002X' : '—', requiresIdentityNumber: !reviewed, reviewStatus: reviewed ? 'APPROVED' : 'PENDING', processingStatus: 'FAILED', isSuperseded: false, currentApplicationId: id, reviewable: !reviewed, retryable: !reviewed, submittedAt: '2026-10-08T00:00:00Z', reviewedAt: null };
         if (url.pathname === detailPath) {
             reads++;
             return route.fulfill({ json: { application, company: { id: company, name: 'Test company' }, canViewDocuments: false, canReview: allowed } });
@@ -52,9 +52,11 @@ try {
     assert.equal(await dialog.getAttribute('data-admin-detail-drawer'), null);
     await dialog.getByRole('button', { name: 'Approve', exact: true }).click();
     await page.getByText('Enter a valid identity number.', { exact: true }).waitFor();
+    await page.getByRole('alertdialog').getByRole('button', { name: /^ok$/i }).click();
     assert.equal(writes.length, 0);
     await page.getByRole('textbox', { name: 'Identity number', exact: true }).fill('11010519491231002x');
     await dialog.getByRole('button', { name: 'Approve', exact: true }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: /^ok$/i }).click();
     await dialog.getByRole('button', { name: 'Refresh status', exact: true }).waitFor();
     await dialog.getByRole('button', { name: 'Approve', exact: true }).waitFor({ state: 'hidden' });
     await page.getByRole('button', { name: 'Close', exact: true }).click();
