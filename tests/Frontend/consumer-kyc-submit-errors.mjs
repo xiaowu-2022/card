@@ -17,6 +17,27 @@ function harness() {
         },
         uploadFile(o) { calls.push(o); o.success({ statusCode: 204, data: '' }); },
     };
+    // H5 uses fetch with omitted cookies. Adapt the existing controllable transport
+    // fixtures to that boundary; local photo bytes are synthetic and never read.
+    const fetchFixture = async (url, options = {}) => {
+        assert.equal(options.credentials, 'omit');
+        if (!url.startsWith('/api/')) return new Response(url, { headers: { 'Content-Type': 'image/jpeg' } });
+        const multipart = options.body instanceof FormData;
+        const photo = multipart ? options.body.get('file') : null;
+        const filePath = photo instanceof Blob ? await photo.text() : '';
+        return new Promise((resolve, reject) => {
+            const operation = {
+                url, filePath, method: options.method, header: options.headers,
+                data: multipart ? {} : JSON.parse(options.body ?? '{}'),
+                success: response => resolve(new Response(response.statusCode === 204 ? null
+                    : typeof response.data === 'string' ? response.data : JSON.stringify(response.data),
+                    { status: response.statusCode, headers: response.header })),
+                fail: error => reject(new Error(error?.errMsg ?? 'offline')),
+            };
+            if (multipart) uni.uploadFile(operation);
+            else uni.request(operation);
+        });
+    };
     const hooks = {};
     function load(path) {
         path = resolve(path);
@@ -25,11 +46,13 @@ function harness() {
         const source = readFileSync(path, 'utf8').replaceAll('import.meta.env.UNI_PLATFORM', '"h5"');
         runInNewContext(ts.transpileModule(source, {
             compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-        }).outputText, { exports, uni, URLSearchParams, require: id => {
+        }).outputText, { exports, uni, URLSearchParams, AbortController, Response, Blob, FormData,
+            setTimeout, clearTimeout, fetch: fetchFixture, require: id => {
             if (id === 'vue') return { ref: value => ({ value }), onScopeDispose: fn => hooks.dispose = fn };
             if (id === './origin') return { ensureCompanyOrigin: async () => {}, companyOrigin: () => '' };
             if (id.endsWith('company.json')) return {};
             if (id === './session') return { session: { value: {} } };
+            if (id === './browser-credentials') return { loadBrowserToken: async () => '12|' + 'A'.repeat(64) };
             if (id === './navigation') return {};
             return load(resolve(dirname(path), id + '.ts'));
         } });
@@ -78,7 +101,7 @@ test('uncertain submission requests refresh before retry and never automatically
     const c = harness(), send = c.uni.request;
     c.uni.request = o => {
         if (!o.url.endsWith('/kyc/applications')) return send(o);
-        c.calls.push(o); o.fail({ errMsg: 'request:fail timeout' });
+        c.calls.push(o); o.success({ statusCode: 504, data: {} });
     };
     await submit(c);
     assert.match(c.action.errors.value.operation, /身份认证申请/);

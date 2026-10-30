@@ -9,8 +9,10 @@ use App\Application\Media\DirectImageUploads;
 use App\Application\Media\OssSettings;
 use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
+use App\Domain\Kyc\DTOs\KycDocumentValidityDTO;
 use App\Domain\Kyc\DTOs\KycOcrResultDTO;
 use App\Domain\Kyc\Enums\KycOcrOutcome;
+use App\Domain\Kyc\Enums\KycOcrSide;
 use App\Domain\Kyc\Enums\KycReviewReason;
 use App\Domain\Kyc\Models\IdentityRecord;
 use App\Domain\Kyc\Models\KycApplication;
@@ -70,12 +72,14 @@ function queuedKyc($test): KycApplication
     return app(SubmitKycApplicationAction::class)->execute($test->tenant, $test->user, 'CN', '', $files['front'], $files['back'], (string) Str::uuid());
 }
 
-function asyncOcrOnce(): void
+function asyncOcrOnce(?KycDocumentValidityDTO $validity = null): void
 {
     $provider = Mockery::mock(KycOcrProviderInterface::class);
     $provider->shouldReceive('name')->andReturn('TEST');
-    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->backUrl === '' && str_starts_with($request->frontUrl, 'http://images.example.test/')))
+    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->side === KycOcrSide::Front && $request->backUrl === '' && str_starts_with($request->frontUrl, 'http://images.example.test/')))
         ->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, '11010519491231002X'));
+    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->side === KycOcrSide::Back && $request->frontUrl === '' && str_starts_with($request->backUrl, 'http://images.example.test/')))
+        ->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, validity: $validity ?? new KycDocumentValidityDTO('2020-01-01', '2099-12-31', false)));
     app()->instance(KycOcrProviderInterface::class, $provider);
 }
 
@@ -246,7 +250,7 @@ it('rejects legacy URL-only documents before creating an asynchronous applicatio
 
 it('exposes only safe failure categories to the consumer and clears them while processing', function () {
     $application = queuedKyc($this);
-    foreach (['IDENTITY_ACCOUNT_LIMIT_REACHED', 'KYC_OCR_UNAVAILABLE', 'KYC_OCR_MISMATCH'] as $code) {
+    foreach (['IDENTITY_ACCOUNT_LIMIT_REACHED', 'KYC_OCR_UNAVAILABLE', 'KYC_OCR_MISMATCH', 'KYC_BACK_VALIDITY_UNRECOGNIZED', 'KYC_DOCUMENT_EXPIRED', 'KYC_DOCUMENT_NOT_YET_VALID'] as $code) {
         $application->forceFill(['processing_status' => 'FAILED', 'processing_error' => $code, 'next_processing_at' => null])->save();
         expect(app(\App\Application\Kyc\UserKycQuery::class)->get($this->tenant->id, $this->user->id)['processingError'])->toBe($code);
     }
@@ -274,7 +278,8 @@ it('allows platform manual decisions before or after OCR failure without fabrica
         ->and($application->automatically_approved)->toBeFalse()
         ->and($application->next_processing_at)->toBeNull()
         ->and($application->ocr_status->value)->toBe($ocr)
-        ->and($application->ocr_result_encrypted)->toBeNull();
+        ->and($application->ocr_result_encrypted)->toBeNull()
+        ->and($application->back_ocr_result_encrypted)->toBeNull();
     if ($decision === 'approve') {
         $identity = IdentityRecord::sole();
         expect($identity->verification_basis)->toBe('MANUAL')->and($identity->identity_hash)->not->toBeNull()
@@ -443,3 +448,157 @@ it('keeps database identity fills atomic with recognition or administrator appro
     ])))->toThrow(\Illuminate\Database\QueryException::class);
     expect($application->fresh()->identity_number_source)->toBe('ADMIN')->and($application->fresh()->ocr_status->value)->toBe('NOT_STARTED');
 });
+
+it('requires a recognized currently valid back side before automatically approving', function (string $from, ?string $until, bool $longTerm, ?string $error) {
+    $this->travelTo(\Carbon\CarbonImmutable::parse('2026-10-30T15:59:59Z'));
+    asyncOcrOnce(new KycDocumentValidityDTO($from, $until, $longTerm));
+    $application = queuedKyc($this);
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    $application->refresh();
+    expect($application->ocr_status->value)->toBe('SUCCEEDED')
+        ->and($application->identity_number_source)->toBe('OCR')
+        ->and($application->identity_hash)->not->toBeNull();
+    if ($error === null) {
+        expect($application->review_status->value)->toBe('APPROVED')
+            ->and($application->processing_status)->toBe('COMPLETE')
+            ->and($application->back_ocr_result_encrypted)->not->toBeNull()
+            ->and($application->back_ocr_result_encrypted)->not->toContain($from)
+            ->and(IdentityRecord::count())->toBe(1);
+    } else {
+        expect($application->review_status->value)->toBe('PENDING')
+            ->and($application->processing_status)->toBe('FAILED')
+            ->and($application->processing_error)->toBe($error)
+            ->and(IdentityRecord::count())->toBe(0);
+    }
+    Http::assertNothingSent();
+})->with([
+    'last second of Beijing expiry day' => ['2020-01-01', '2026-10-30', false, null],
+    'expired yesterday' => ['2020-01-01', '2026-10-29', false, 'KYC_DOCUMENT_EXPIRED'],
+    'starts tomorrow' => ['2026-10-31', '2036-10-31', false, 'KYC_DOCUMENT_NOT_YET_VALID'],
+    'explicit long term' => ['2020-01-01', null, true, null],
+    'future long term' => ['2026-10-31', null, true, 'KYC_DOCUMENT_NOT_YET_VALID'],
+    'invalid date' => ['2020-02-30', '2030-01-01', false, 'KYC_BACK_VALIDITY_UNRECOGNIZED'],
+    'reversed dates' => ['2020-01-01', '2010-01-01', false, 'KYC_BACK_VALIDITY_UNRECOGNIZED'],
+    'no end and no long term' => ['2020-01-01', null, false, 'KYC_BACK_VALIDITY_UNRECOGNIZED'],
+]);
+
+it('keeps a successful front number while retrying only an unavailable back OCR', function () {
+    $provider = Mockery::mock(KycOcrProviderInterface::class);
+    $provider->shouldReceive('name')->andReturn('TEST');
+    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->side === KycOcrSide::Front))
+        ->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, '11010519491231002X'));
+    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->side === KycOcrSide::Back))
+        ->andThrow(new RuntimeException('PRIVATE upstream response and image URL'));
+    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->side === KycOcrSide::Back))
+        ->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, validity: new KycDocumentValidityDTO('2020-01-01', '2099-12-31', false)));
+    app()->instance(KycOcrProviderInterface::class, $provider);
+    $application = queuedKyc($this);
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    $application->refresh();
+    expect($application->processing_status)->toBe('QUEUED')->and($application->processing_error)->toBe('KYC_OCR_UNAVAILABLE')
+        ->and($application->identity_hash)->not->toBeNull()->and($application->back_ocr_result_encrypted)->toBeNull();
+    $frontEvidence = $application->ocr_result_encrypted;
+    $numberEvidence = $application->identity_number_encrypted;
+    $this->travel(61)->seconds();
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    expect($application->fresh()->review_status->value)->toBe('APPROVED')
+        ->and($application->fresh()->ocr_result_encrypted)->toBe($frontEvidence)
+        ->and($application->fresh()->identity_number_encrypted)->toBe($numberEvidence);
+});
+
+it('does not automatically approve a recognized front without any back validity evidence', function () {
+    $provider = Mockery::mock(KycOcrProviderInterface::class);
+    $provider->shouldReceive('name')->andReturn('TEST');
+    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->side === KycOcrSide::Front))
+        ->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, '11010519491231002X'));
+    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->side === KycOcrSide::Back))
+        ->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success));
+    app()->instance(KycOcrProviderInterface::class, $provider);
+    $application = queuedKyc($this);
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    $application->refresh();
+    expect($application->processing_status)->toBe('FAILED')->and($application->processing_error)->toBe('KYC_BACK_VALIDITY_UNRECOGNIZED')
+        ->and($application->ocr_status->value)->toBe('SUCCEEDED')->and($application->back_ocr_result_encrypted)->toBeNull();
+    expect(fn () => app(ApproveKycAction::class)->executeAutomatic($this->tenant->id, $application->id))
+        ->toThrow(\App\Support\Errors\DomainException::class);
+    expect(IdentityRecord::count())->toBe(0);
+});
+
+it('allows immediate linked resubmission after expired back OCR and retains the failed evidence', function () {
+    $this->travelTo(\Carbon\CarbonImmutable::parse('2026-10-30T04:00:00Z'));
+    asyncOcrOnce(new KycDocumentValidityDTO('2020-01-01', '2026-10-29', false));
+    $old = queuedKyc($this);
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $old->id);
+    expect($old->fresh()->processing_status)->toBe('FAILED')->and($old->fresh()->processing_error)->toBe('KYC_DOCUMENT_EXPIRED');
+    $before = $old->fresh()->getAttributes();
+    $this->travel(1)->seconds();
+    $new = queuedKyc($this);
+    expect($new->resubmission_of_id)->toBe($old->id)->and($old->fresh()->getAttributes())->toBe($before)
+        ->and(StoredImage::where('business_reference', $old->id)->where('state', 'ready')->count())->toBe(2);
+    expect(fn () => app(RetryKycProcessing::class)->execute($this->tenant->id, $old->id, $this->admin, (string) Str::uuid(), 'Cannot revive superseded expiry'))
+        ->toThrow(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+});
+
+it('rechecks stored back evidence after Beijing midnight and reuses it on a linked administrator retry', function () {
+    PlatformKycSetting::current()->update(['review_mode' => 'MANUAL']);
+    $this->travelTo(\Carbon\CarbonImmutable::parse('2026-10-30T15:59:59Z'));
+    asyncOcrOnce(new KycDocumentValidityDTO('2020-01-01', '2026-10-30', false));
+    $old = queuedKyc($this);
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $old->id);
+    expect($old->fresh()->processing_status)->toBe('WAITING_REVIEW');
+    $evidence = $old->fresh()->back_ocr_result_encrypted;
+    expect($evidence)->not->toBeNull();
+    $this->travel(2)->seconds();
+    try {
+        app(ApproveKycAction::class)->executeAutomatic($this->tenant->id, $old->id);
+        $this->fail('Automatic approval must recheck the current Beijing date.');
+    } catch (\App\Support\Errors\DomainException $error) {
+        expect($error->errorCode)->toBe('KYC_DOCUMENT_EXPIRED');
+    }
+    app(RejectKycAction::class)->execute($this->tenant->id, $old->id, $this->admin, KycReviewReason::Other, 'Retained documents for review');
+    PlatformKycSetting::current()->update(['review_mode' => 'AUTOMATIC']);
+    $new = app(RetryKycProcessing::class)->execute($this->tenant->id, $old->id, $this->admin, (string) Str::uuid(), 'Recheck retained expiry evidence');
+    expect($new->back_ocr_result_encrypted)->toBe($evidence);
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $new->id);
+    expect($new->fresh()->processing_status)->toBe('FAILED')->and($new->fresh()->processing_error)->toBe('KYC_DOCUMENT_EXPIRED')
+        ->and($new->fresh()->back_ocr_result_encrypted)->toBe($evidence)
+        ->and($old->fresh()->review_status->value)->toBe('REJECTED')->and(IdentityRecord::count())->toBe(0);
+});
+
+it('preserves the manual approval path after back expiry without fabricating valid OCR', function () {
+    $this->travelTo(\Carbon\CarbonImmutable::parse('2026-10-30T04:00:00Z'));
+    asyncOcrOnce(new KycDocumentValidityDTO('2020-01-01', '2026-10-29', false));
+    $application = queuedKyc($this);
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    expect($application->fresh()->processing_error)->toBe('KYC_DOCUMENT_EXPIRED');
+    $backEvidence = $application->fresh()->back_ocr_result_encrypted;
+    app(ApproveKycAction::class)->execute($this->tenant->id, $application->id, $this->admin);
+    expect($application->fresh()->review_status->value)->toBe('APPROVED')
+        ->and($application->fresh()->automatically_approved)->toBeFalse()
+        ->and($application->fresh()->back_ocr_result_encrypted)->toBe($backEvidence)
+        ->and(IdentityRecord::sole()->verification_basis)->toBe('MANUAL');
+});
+
+it('does not record a late back OCR result after a manual terminal decision', function (string $decision) {
+    $application = queuedKyc($this);
+    $provider = Mockery::mock(KycOcrProviderInterface::class);
+    $provider->shouldReceive('name')->andReturn('TEST');
+    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->side === KycOcrSide::Front))
+        ->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, '11010519491231002X'));
+    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->side === KycOcrSide::Back))
+        ->andReturnUsing(function () use ($application, $decision) {
+            if ($decision === 'approve') {
+                app(ApproveKycAction::class)->execute($this->tenant->id, $application->id, $this->admin);
+            } else {
+                app(RejectKycAction::class)->execute($this->tenant->id, $application->id, $this->admin, KycReviewReason::Other, 'Manual decision during back OCR');
+            }
+            return new KycOcrResultDTO(KycOcrOutcome::Success, validity: new KycDocumentValidityDTO('2020-01-01', '2099-12-31', false));
+        });
+    app()->instance(KycOcrProviderInterface::class, $provider);
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    expect($application->fresh()->review_status->value)->toBe($decision === 'approve' ? 'APPROVED' : 'REJECTED')
+        ->and($application->fresh()->back_ocr_result_encrypted)->toBeNull()
+        ->and($application->fresh()->reviewed_by_admin_user_id)->toBe($this->admin->id)
+        ->and($application->fresh()->automatically_approved)->toBeFalse()
+        ->and($application->fresh()->next_processing_at)->toBeNull();
+})->with(['approve', 'reject']);

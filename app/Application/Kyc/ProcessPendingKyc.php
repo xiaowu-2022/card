@@ -7,6 +7,7 @@ use App\Application\Media\ImageStorage;
 use App\Application\Media\ServerImages;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
+use App\Domain\Kyc\Enums\KycDocumentType;
 use App\Domain\Kyc\Enums\KycOcrStatus;
 use App\Domain\Kyc\Enums\KycReviewStatus;
 use App\Domain\Kyc\Models\KycApplication;
@@ -44,6 +45,7 @@ final class ProcessPendingKyc
                 return $row;
             });
             if (! $application) return;
+            $generation = $application->processing_generation;
             if ($application->processing_attempts > 3) throw new DomainException('KYC_PROCESSING_UNAVAILABLE', 'Processing attempts exhausted.', 503);
             $tenant = Tenant::findOrFail($tenantId);
             $context->set($tenant);
@@ -55,6 +57,7 @@ final class ProcessPendingKyc
             URL::forceRootUrl($scheme.'://'.$domain->hostname);
             URL::forceScheme($scheme);
             $images = app(ImageStorage::class);
+            $originalHashes = [];
             foreach (array_filter(['front' => $application->front_object_key, 'back' => $application->back_object_key]) as $side => $key) {
                 $stage = $side.'_replica_read';
                 $image = $images->record((string) config('kyc.document_disk'), $key);
@@ -65,6 +68,7 @@ final class ProcessPendingKyc
                 if (! $imageLock->get()) throw new DomainException('KYC_DOCUMENT_STORAGE_FAILED', 'Document replication in progress.', 503);
                 try {
                     $bytes = app(ServerImages::class)->read($image);
+                    $originalHashes[$side] = hash('sha256', $bytes);
                     $config = $images->active();
                     if (! $config && ! ServerImages::enabled()) throw new DomainException('KYC_DOCUMENT_STORAGE_FAILED', 'Storage configuration unavailable.', 503);
                     if ($config) {
@@ -82,25 +86,62 @@ final class ProcessPendingKyc
                     $imageLock->release();
                 }
             }
-            $stage = 'ocr';
+            $stage = 'front_ocr';
+            $application->refresh();
+            if (! $this->isCurrent($application, $generation)) return;
             if ($application->ocr_status !== KycOcrStatus::Succeeded) {
                 $result = app(RecognizeKycNumber::class)->execute($application->document_type, $application->document_country,
                     $images->ocrUrl((string) config('kyc.document_disk'), $application->front_object_key));
                 $protected = app(IdentityNumberProtector::class)->protect($tenantId, $application->document_type->value, $application->document_country, $result->candidateIdentityNumber);
-                DB::transaction(function () use ($application, $protected, $result) {
-                    $row = KycApplication::whereKey($application->id)->lockForUpdate()->firstOrFail();
-                    abort_unless($row->review_status === KycReviewStatus::Pending && $row->processing_generation === $application->processing_generation, 409);
+                $recognized = DB::transaction(function () use ($application, $protected, $result, $generation) {
+                    $row = KycApplication::where('tenant_id', $application->tenant_id)->whereKey($application->id)->lockForUpdate()->firstOrFail();
+                    if (! $this->isCurrent($row, $generation)) return null;
                     $row->forceFill(['identity_number_encrypted' => $protected['encrypted'], 'identity_hash' => $protected['hash'], 'identity_number_source' => 'OCR',
                         'ocr_status' => KycOcrStatus::Succeeded, 'ocr_provider' => app(KycOcrProviderInterface::class)->name(),
                         'ocr_reference' => $result->providerReference,
                         'ocr_result_encrypted' => app(KycDataCipher::class)->encrypt(json_encode(['identity_number_source' => 'OCR', 'identity_number_recognized' => true], JSON_THROW_ON_ERROR))])->save();
+                    return $row;
                 });
+                if (! $recognized) return;
+                $application = $recognized;
+            }
+            $stage = 'back_ocr';
+            if ($application->document_type === KycDocumentType::NationalId) {
+                $application->refresh();
+                if (! $this->isCurrent($application, $generation)) return;
+                if ($application->back_ocr_result_encrypted === null) {
+                    if (! $application->back_object_key || ! isset($originalHashes['back'])) {
+                        throw new DomainException('KYC_BACK_VALIDITY_UNRECOGNIZED', 'The identity card validity period could not be recognized. Please upload a clear photo of the back.');
+                    }
+                    $result = app(RecognizeKycBackValidity::class)->execute(
+                        $images->ocrUrl((string) config('kyc.document_disk'), $application->back_object_key));
+                    $evidence = app(KycDataCipher::class)->encrypt(json_encode([
+                        'version' => 1, 'document_type' => KycDocumentType::NationalId->value,
+                        'tenant_id' => $tenantId, 'user_id' => $application->user_id,
+                        'back_object_key' => $application->back_object_key, 'sha256' => $originalHashes['back'],
+                        'provider' => app(KycOcrProviderInterface::class)->name(),
+                        'valid_from' => $result->validity->validFrom, 'valid_until' => $result->validity->validUntil,
+                        'long_term' => $result->validity->longTerm,
+                    ], JSON_THROW_ON_ERROR));
+                    $recognized = DB::transaction(function () use ($application, $evidence, $generation) {
+                        $row = KycApplication::where('tenant_id', $application->tenant_id)->whereKey($application->id)->lockForUpdate()->firstOrFail();
+                        if (! $this->isCurrent($row, $generation)) return null;
+                        if ($row->back_ocr_result_encrypted === null) {
+                            $row->forceFill(['back_ocr_result_encrypted' => $evidence])->save();
+                        }
+                        return $row;
+                    });
+                    if (! $recognized) return;
+                    $application = $recognized;
+                }
+                // Retain recognized expired/future dates as immutable evidence before rejecting.
+                app(RequireCurrentBackValidity::class)->execute($application);
             }
             $stage = 'review';
-            DB::transaction(function () use ($application, $tenantId) {
+            DB::transaction(function () use ($application, $tenantId, $generation) {
                 Tenant::whereKey($tenantId)->lockForUpdate()->firstOrFail();
                 $row = KycApplication::whereKey($application->id)->lockForUpdate()->firstOrFail();
-                if ($row->review_status !== KycReviewStatus::Pending || $row->processing_generation !== $application->processing_generation) return;
+                if (! $this->isCurrent($row, $generation)) return;
                 $settings = PlatformKycSetting::current(true);
                 if (! $settings->enabled || $row->user->status->value !== 'ACTIVE' || $row->tenant->status->value !== 'ACTIVE') {
                     throw new DomainException('KYC_SUBMISSION_UNAVAILABLE', 'Identity verification is unavailable.', 403);
@@ -119,9 +160,9 @@ final class ProcessPendingKyc
             $code = $error instanceof DomainException ? $error->errorCode : 'KYC_PROCESSING_UNAVAILABLE';
             $reason = $error instanceof DomainException ? ($error->details['reason'] ?? null) : null;
             if (! in_array($reason, ['permission', 'access_key', 'signature', 'clock', 'bucket', 'method', 'redirect', 'timeout', 'dns', 'tls', 'connect', 'unknown'], true)) $reason = null;
-            DB::transaction(function () use ($application, $code, $stage, $error) {
-                $row = KycApplication::whereKey($application->id)->lockForUpdate()->firstOrFail();
-                if ($row->review_status !== KycReviewStatus::Pending || $row->processing_generation !== $application->processing_generation) return;
+            DB::transaction(function () use ($application, $code, $stage, $error, $generation) {
+                $row = KycApplication::where('tenant_id', $application->tenant_id)->whereKey($application->id)->lockForUpdate()->firstOrFail();
+                if (! $this->isCurrent($row, $generation)) return;
                 $terminal = $row->processing_attempts >= 3 || ($error instanceof DomainException && $error->httpStatus < 500);
                 $row->forceFill(['processing_status' => $terminal ? 'FAILED' : 'QUEUED', 'processing_error' => $code,
                     'ocr_status' => $row->ocr_status === KycOcrStatus::Succeeded ? KycOcrStatus::Succeeded : KycOcrStatus::Failed,
@@ -138,5 +179,12 @@ final class ProcessPendingKyc
             $previousTenant ? $context->set($previousTenant) : $context->clear();
             $lock->release();
         }
+    }
+
+    private function isCurrent(KycApplication $application, int $generation): bool
+    {
+        return $application->review_status === KycReviewStatus::Pending
+            && $application->processing_status === 'PROCESSING'
+            && $application->processing_generation === $generation;
     }
 }

@@ -45,6 +45,26 @@ test('recognition validation and service outages give distinct next steps', () =
     assert.match(state('KYC_SUBMISSION_UNAVAILABLE').description, /currently unavailable/);
 });
 
+test('back validity failures distinguish unreadable, expired and not-yet-valid ID cards', () => {
+    const errors = [
+        ['KYC_BACK_VALIDITY_UNRECOGNIZED', /validity period could not be recognized or validated.*complete photo of the back/],
+        ['KYC_DOCUMENT_EXPIRED', /has expired.*valid identity document/],
+        ['KYC_DOCUMENT_NOT_YET_VALID', /not yet valid.*currently valid/],
+    ];
+    for (const status of ['RESUBMISSION_REQUIRED', 'APPROVED']) {
+        for (const [processingError, description] of errors) {
+            const state = stateFor({ status, processingStatus: 'FAILED', processingError });
+            assert.equal(state.title, 'Verification processing failed');
+            assert.match(state.description, description);
+            assert.equal(state.tone, 'warning');
+            for (const lang of ['en', 'zh-Hans', 'es', 'ms']) {
+                const locale = JSON.parse(readFileSync(`mobile/uni-app/src/locale/${lang}.json`));
+                assert.ok(locale[state.description]);
+            }
+        }
+    }
+});
+
 test('unknown errors stay generic and stale failures do not override active or approved states', () => {
     const unknown = stateFor({ status: 'PENDING', processingStatus: 'FAILED', processingError: 'internal-sensitive-error' });
     assert.doesNotMatch(unknown.description, /internal-sensitive-error/);
@@ -75,6 +95,7 @@ test('KYC status and failure banners follow the active language in the actual ru
     const runtime = loadRuntime('mobile/uni-app/src/lib/i18n.ts');
     const failures = [
         'IDENTITY_ACCOUNT_LIMIT_REACHED', 'KYC_OCR_MISMATCH', 'KYC_OCR_UNAVAILABLE',
+        'KYC_BACK_VALIDITY_UNRECOGNIZED', 'KYC_DOCUMENT_EXPIRED', 'KYC_DOCUMENT_NOT_YET_VALID',
         'KYC_DOCUMENT_STORAGE_FAILED', 'KYC_DOCUMENT_INTEGRITY_FAILED',
         'KYC_SUBMISSION_UNAVAILABLE', 'UNKNOWN',
     ].map(processingError => stateFor({ status: 'PENDING', processingStatus: 'FAILED', processingError }));

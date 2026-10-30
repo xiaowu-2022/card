@@ -31,6 +31,7 @@ final readonly class UserKycQuery
         $processingError = $processingStatus === 'FAILED'
             ? (in_array($application->processing_error, [
                 'IDENTITY_ACCOUNT_LIMIT_REACHED', 'KYC_OCR_MISMATCH', 'KYC_OCR_UNAVAILABLE',
+                'KYC_BACK_VALIDITY_UNRECOGNIZED', 'KYC_DOCUMENT_EXPIRED', 'KYC_DOCUMENT_NOT_YET_VALID',
                 'KYC_DOCUMENT_STORAGE_FAILED', 'KYC_DOCUMENT_INTEGRITY_FAILED', 'KYC_SUBMISSION_UNAVAILABLE',
             ], true) ? $application->processing_error : 'KYC_PROCESSING_UNAVAILABLE')
             : null;

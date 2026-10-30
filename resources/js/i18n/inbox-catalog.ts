@@ -16,6 +16,22 @@ export const inboxCatalog = {
             'Nombor dokumen tidak dapat dikenal pasti atau disahkan. Sila muat naik foto dokumen pengenalan yang jelas.',
             'No se pudo reconocer o validar el número del documento. Sube fotos claras de tus documentos de identidad.',
         ],
+    'The ID card validity period could not be recognized or validated. Please upload a clear, complete photo of the back.':
+        [
+            '身份证背面有效期未能识别或格式异常，请重新上传清晰、完整的背面照片。',
+            'Tempoh sah kad pengenalan tidak dapat dikenal pasti atau disahkan. Sila muat naik foto bahagian belakang yang jelas dan lengkap.',
+            'No se pudo reconocer o validar la vigencia del documento de identidad. Sube una foto clara y completa del reverso.',
+        ],
+    'The ID card has expired. Please upload a valid identity document.': [
+        '身份证已过期，请上传有效的身份证件。',
+        'Kad pengenalan telah tamat tempoh. Sila muat naik dokumen pengenalan yang sah.',
+        'El documento de identidad ha caducado. Sube un documento vigente.',
+    ],
+    'The ID card is not yet valid. Please upload an identity document that is currently valid.': [
+        '身份证尚未生效，请上传当前有效的身份证件。',
+        'Kad pengenalan belum berkuat kuasa. Sila muat naik dokumen pengenalan yang sah pada masa ini.',
+        'El documento de identidad aún no está vigente. Sube un documento que sea válido actualmente.',
+    ],
     'Document recognition is temporarily unavailable. Please contact support to retry verification.':
         [
             '证件识别服务暂时不可用，请联系客服重试认证。',

@@ -20,12 +20,27 @@ final class KycApplication extends Model
     protected $guarded = ['*'];
 
     protected $hidden = [
-        'identity_number_encrypted', 'identity_hash', 'front_object_key', 'back_object_key', 'ocr_result_encrypted',
+        'identity_number_encrypted', 'identity_hash', 'front_object_key', 'back_object_key', 'ocr_result_encrypted', 'back_ocr_result_encrypted',
     ];
 
     protected static function booted(): void
     {
         self::deleting(fn () => throw new LogicException('KYC applications are immutable history and cannot be deleted.'));
+        self::creating(function (self $application): void {
+            if ($application->back_ocr_result_encrypted === null) {
+                return;
+            }
+            $source = $application->resubmission_of_id ? self::query()->whereKey($application->resubmission_of_id)
+                ->where('tenant_id', $application->tenant_id)->where('user_id', $application->user_id)->first() : null;
+            if ($application->document_type !== KycDocumentType::NationalId || ! $application->back_object_key
+                || $application->review_status !== KycReviewStatus::Pending || $application->processing_status !== 'QUEUED'
+                || $application->processing_generation < 1 || ! $source || $source->review_status !== KycReviewStatus::Rejected
+                || $source->document_type !== $application->document_type || $source->document_country !== $application->document_country
+                || $source->back_object_key !== $application->back_object_key
+                || $source->back_ocr_result_encrypted !== $application->back_ocr_result_encrypted) {
+                throw new LogicException('Retained back-side OCR evidence may only be copied from a rejected application.');
+            }
+        });
         self::updating(function (self $application): void {
             $immutable = [
                 'id', 'tenant_id', 'user_id', 'resubmission_of_id', 'document_type', 'document_country',
@@ -33,6 +48,14 @@ final class KycApplication extends Model
             ];
             if ($application->isDirty($immutable)) {
                 throw new LogicException('Submitted KYC identity data and documents are immutable.');
+            }
+            if ($application->isDirty('back_ocr_result_encrypted')
+                && ($application->getRawOriginal('back_ocr_result_encrypted') !== null || ! $application->back_ocr_result_encrypted
+                    || $application->getRawOriginal('review_status') !== KycReviewStatus::Pending->value || $application->review_status !== KycReviewStatus::Pending
+                    || $application->document_type !== KycDocumentType::NationalId || ! $application->back_object_key
+                    || $application->getRawOriginal('processing_status') !== 'PROCESSING' || $application->processing_status !== 'PROCESSING'
+                    || $application->processing_generation < 1 || $application->isDirty('processing_generation'))) {
+                throw new LogicException('Back-side OCR evidence may only be recorded once during pending processing.');
             }
             if ($application->isDirty(['identity_number_encrypted', 'identity_hash', 'identity_number_source'])) {
                 $manualApproval = $application->identity_number_source === 'ADMIN'

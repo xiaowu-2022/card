@@ -38,7 +38,7 @@ final class RetryKycProcessing
                 $previous = $row;
                 $row = new KycApplication;
                 $row->forceFill($previous->only(['tenant_id', 'user_id', 'document_type', 'document_country', 'identity_number_encrypted', 'identity_hash',
-                    'front_object_key', 'back_object_key', 'ocr_status', 'ocr_provider', 'ocr_reference', 'ocr_result_encrypted']));
+                    'front_object_key', 'back_object_key', 'ocr_status', 'ocr_provider', 'ocr_reference', 'ocr_result_encrypted', 'back_ocr_result_encrypted']));
                 $row->forceFill(['id' => (string) Str::uuid(), 'resubmission_of_id' => $previous->id, 'review_status' => KycReviewStatus::Pending,
                     'submitted_at' => now(), 'processing_generation' => 0]);
             }

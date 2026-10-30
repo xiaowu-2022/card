@@ -7,8 +7,10 @@ use App\Domain\Admin\Models\AdminUser;
 use App\Domain\Card\Models\CardProviderEvent;
 use App\Domain\CardProduct\Models\CardProduct;
 use App\Domain\Kyc\Contracts\KycOcrProviderInterface;
+use App\Domain\Kyc\DTOs\KycDocumentValidityDTO;
 use App\Domain\Kyc\DTOs\KycOcrResultDTO;
 use App\Domain\Kyc\Enums\KycOcrOutcome;
+use App\Domain\Kyc\Enums\KycOcrSide;
 use App\Domain\Tenant\Models\Tenant;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
@@ -32,7 +34,9 @@ function fakeMatchingKycOcr(string $number): void
 {
     $provider = Mockery::mock(KycOcrProviderInterface::class);
     $provider->shouldReceive('name')->andReturn('TEST');
-    $provider->shouldReceive('extractIdentityDocument')->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, $number));
+    $provider->shouldReceive('extractIdentityDocument')->andReturnUsing(fn ($request) => $request->side === KycOcrSide::Back
+        ? new KycOcrResultDTO(KycOcrOutcome::Success, validity: new KycDocumentValidityDTO('2020-01-01', null, true))
+        : new KycOcrResultDTO(KycOcrOutcome::Success, $number));
     app()->instance(KycOcrProviderInterface::class, $provider);
 }
 

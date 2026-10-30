@@ -7,6 +7,7 @@ use App\Domain\Kyc\DTOs\KycOcrResultDTO;
 use App\Domain\Kyc\Enums\KycDocumentType;
 use App\Domain\Kyc\Enums\KycOcrFailureReason;
 use App\Domain\Kyc\Enums\KycOcrOutcome;
+use App\Domain\Kyc\Enums\KycOcrSide;
 use Illuminate\Support\Facades\Log;
 
 /** Text extraction is not document authenticity or holder verification. */
@@ -14,6 +15,15 @@ final class IdentityDocumentParser
 {
     public function parse(#[\SensitiveParameter] KycOcrRequestDTO $request, callable $recognize): KycOcrResultDTO
     {
+        if ($request->side === KycOcrSide::Back) {
+            if ($request->documentType !== KycDocumentType::NationalId || $request->documentCountry !== 'CN' || $request->backUrl === '') {
+                return $this->reject(KycOcrFailureReason::BackFields);
+            }
+            $validity = (new NationalIdValidityParser)->parse($recognize($request->backUrl));
+
+            return $validity === null ? $this->reject(KycOcrFailureReason::BackFields)
+                : new KycOcrResultDTO(KycOcrOutcome::Success, validity: $validity);
+        }
         $passport = $request->documentType === KycDocumentType::Passport;
         if (! $passport && $request->documentCountry !== 'CN') {
             return $this->reject(KycOcrFailureReason::NumberFormat);

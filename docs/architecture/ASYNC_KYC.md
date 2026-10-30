@@ -15,9 +15,11 @@ with 60/180 second delays. Scheduler cadence can extend these delays. Credential
 image contents, OCR text and signed URLs are never diagnostic fields.
 
 For OSS mode the processor uploads pending originals from their verified encrypted
-replicas and reads back both originals to check SHA-256. It then recognizes only
-the front, via the configured HTTP original URL, retaining the identity validation
-and encrypted evidence. Identity number/hash can be filled once after recognition;
+replicas and reads back both originals to check SHA-256. It then recognizes the
+front and, for national IDs, the back through the existing text-recognition service
+using server-generated HTTP original URLs. Front identity validation and back
+validity evidence remain encrypted. Identity number/hash can be filled once after
+recognition;
 previously recognized identity data and completed reviews remain immutable.
 Server mode uses signed original URLs on the company's active domain.
 
@@ -36,6 +38,40 @@ immutable images and recognized evidence. Prior reviews are not overwritten.
 Already approved applications cannot be retried. Re-uploading new images remains
 the existing resubmission/re-verification workflow.
 
+## National-ID back validity for automatic approval (2026-10-30)
+
+New submissions and explicit re-verifications retain the asynchronous upload and
+processing flow. National IDs also send their retained back original to the existing
+fixed text-recognition endpoint. A complete, unambiguous validity period must be
+recognized before automatic approval. Missing or malformed periods expose only
+`KYC_BACK_VALIDITY_UNRECOGNIZED`; expired and future-start periods expose
+`KYC_DOCUMENT_EXPIRED` and `KYC_DOCUMENT_NOT_YET_VALID` respectively. Consumer and
+administration views translate these safe categories without exposing OCR output,
+image URLs or internal errors.
+
+Compare calendar dates in `Asia/Shanghai`, independently of company, browser or
+server timezone. The start day and the whole expiry day are valid. Explicit
+long-term validity is accepted only with a recognized start date that has arrived.
+Store only normalized validity evidence encrypted with the KYC evidence; do not
+add a client-entered date or use unrelated dates as a fallback. Automatic approval
+rechecks the saved validity period against the current Beijing date. Passport
+recognition and its approval requirements are unchanged.
+
+Manual approval/rejection retains the existing rules, including manual approval
+before OCR finishes or after recognition failure. This new rule adds no manual
+review prerequisite. A failed application keeps its immutable original images and
+evidence and permits an immediate linked submission; active pending review guards
+and superseded retry/review guards remain. Failed re-verification leaves the current
+approved identity in force. Existing approved identities are not re-recognized or
+revoked by this change.
+
+Deploy `2026_10_30_120000_add_kyc_back_validity_evidence.php` together with matching
+PHP, administration assets and H5. The WebView shell and its authentication/line
+selection are unchanged; this change does not require a shell rebuild. Validate
+using isolated database fixtures, fake HTTP OCR responses and offline frontend/
+browser fixtures only. Do not submit real identity documents or contact production
+OCR, provider or financial services.
+
 ## Deployment / validation
 
 - Requires migration `2026_10_05_190000_add_async_kyc_processing.php`, matching PHP,
@@ -51,9 +87,11 @@ the existing resubmission/re-verification workflow.
 - No real KYC documents, notifications to real customers, provider operations or
   financial transactions are part of validation.
 
-Implementation validation in this workstation is limited while Docker/PHP are
-unavailable. Frontend checks/builds and PHP syntax parsing do not validate PostgreSQL
-constraints, scheduler execution or server-side regression behavior.
+Historical validation note (2026-10-05): Docker/PHP were unavailable on the
+workstation during the original asynchronous implementation. The 2026-10-30
+back-validity change is validated with isolated PostgreSQL/PHP regressions and
+offline frontend/browser fixtures; frontend builds alone do not validate database
+constraints or server-side behavior.
 
 ## One active pending application per account (2026-10-24)
 

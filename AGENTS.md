@@ -1,3 +1,15 @@
+On 2026-10-30 the user required national-ID back-side OCR validity checks for new
+asynchronous KYC submissions and automatic approval. Recognize a complete validity
+period through the existing text-recognition service; reject unrecognized/malformed,
+expired or not-yet-valid periods for automatic approval. Use Beijing calendar dates,
+include the expiry day, and accept explicit long-term validity only after its start
+date. Preserve manual review rules, passport behavior, encrypted immutable evidence,
+failed-attempt immediate linked resubmission, locks/idempotency and existing approved
+identities; do not re-recognize history. Deploy the back-validity migration with
+matching PHP/admin/H5; the WebView shell is unchanged. Isolated offline tests only,
+no real OCR, provider or financial operations. See docs/architecture/ASYNC_KYC.md
+and docs/architecture/IMAGE_URL_KYC.md.
+
 On 2026-10-28 the user requested card-provider balance synchronization every five
 minutes. Schedule cards:refresh-provider-reports through the existing single minute
 scheduler; queue existing read-only PhotonPay and verified U1 merchant report jobs,

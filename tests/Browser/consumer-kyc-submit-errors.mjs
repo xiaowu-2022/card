@@ -1,15 +1,18 @@
 import assert from 'node:assert/strict';
 import { readFileSync, mkdirSync } from 'node:fs';
+import { extname } from 'node:path';
 import { chromium, webkit } from 'playwright';
 
 const fixture = JSON.parse(readFileSync('storage/framework/testing/uni-parity/fixtures.json'));
 const origin = process.env.UNI_PARITY_ORIGIN ?? 'http://127.0.0.1:5231';
-const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
+const root = process.env.CONSUMER_H5_TEST_ROOT ?? 'mobile/uni-app/dist/build/h5';
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADklEQVQImWP4DwYMEAoAU7oL9W/sIDEAAAAASUVORK5CYII=', 'base64');
 mkdirSync('artifacts/uni-parity/kyc-submit-errors', { recursive: true });
 for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome' }], ['webkit', webkit, {}]]) {
     const browser = await engine.launch({ headless: true, ...options });
     try {
         const context = await browser.newContext({ viewport: { width: 390, height: 780 }, isMobile: true });
+        await context.addInitScript(() => localStorage.setItem('consumer-bearer-v1', '12|' + 'A'.repeat(64)));
         const page = await context.newPage();
         const errors = [], submissions = [];
         let mode = 'size';
@@ -19,8 +22,12 @@ for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome
         page.on('pageerror', e => errors.push(e.message));
         await context.route('**/*', route => {
             const req = route.request(), u = new URL(req.url());
-            if (u.pathname.startsWith('/api/v1')) {
-                const key = u.pathname.slice(7);
+            if (u.protocol === 'blob:' || u.protocol === 'data:') return route.continue();
+            if (u.origin !== origin) return route.abort();
+            if (u.pathname.startsWith('/api/')) {
+                assert.ok(u.pathname.startsWith('/api/mobile/v1/'));
+                assert.equal(req.headers().cookie, undefined);
+                const key = u.pathname.slice('/api/mobile/v1'.length);
                 if (key === '/bootstrap') return route.fulfill({ json: { ...fixture.authenticated, locale: 'zh-CN' } });
                 if (key === '/client/kyc') return route.fulfill({ json: dto });
                 if (key === '/unread') return route.fulfill({ json: { messages: 0, support: 0 } });
@@ -35,8 +42,11 @@ for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome
                 }
                 return route.fulfill({ json: fixture.api[key] ?? {} });
             }
-            if (u.origin !== origin || req.method() !== 'GET') return route.abort();
-            return route.continue();
+            if (req.method() !== 'GET') return route.abort();
+            const file = root + (u.pathname === '/' ? '/index.html' : u.pathname);
+            const types = { '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg' };
+            try { return route.fulfill({ body: readFileSync(file), contentType: types[extname(file)] ?? 'text/html' }); }
+            catch { return route.abort(); }
         });
         await page.goto(origin + '/#/pages/screen/index?path=%2Fkyc');
         for (mode of ['size', 'timeout']) {
@@ -65,6 +75,8 @@ for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome
             assert.equal(await page.locator('.upload-preview').count(), 2, 'keep photos for user correction');
             await page.evaluate(() => window.scrollTo(0, 0));
             await page.screenshot({ path: `artifacts/uni-parity/kyc-submit-errors/${name}-${mode}.png` });
+            const keepPage = page.getByRole('alertdialog').getByRole('button', { name: '暂不刷新', exact: true });
+            if (await keepPage.isVisible()) await keepPage.click();
             await page.locator('.kyc-card > uni-button.secondary').click();
             await page.getByText('重新认证', { exact: true }).click();
             assert.equal(await page.locator('.form-errors').count(), 0, 'new attempt has no stale error');

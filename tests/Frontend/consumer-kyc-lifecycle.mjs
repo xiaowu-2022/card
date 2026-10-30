@@ -44,7 +44,11 @@ test('KYC foreground return does not refetch or discard an in-flight page respon
     const js = ts.transpileModule(source + '\nexport { data, load };', { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
     const exports = {};
     runInNewContext(js, { exports, document: doc, uni: {}, require: id => {
-        if (id === 'vue') return { ref: value => ({ value }), nextTick: async () => {}, onErrorCaptured() {} };
+        if (id === 'vue') return { ref: value => ({ value }), nextTick: async () => {}, onErrorCaptured() {},
+            computed: getter => ({ get value() { return getter(); } }), watch() {} };
+        if (id.endsWith('/lazy-screen')) return { lazyScreen: () => ({}) };
+        if (id.endsWith('/page-position')) return { usePagePosition() {} };
+        if (id.endsWith('/session')) return { consumerSessionScope: () => 'offline-tenant:offline-user' };
         if (id === '@dcloudio/uni-app') return { onPageScroll() {}, onLoad: fn => hooks.load = fn, onShow: fn => hooks.show = fn, onHide: fn => hooks.hide = fn };
         if (id.endsWith('/client')) return {
             ensureBootstrap: async () => {}, explainError: () => ({}),

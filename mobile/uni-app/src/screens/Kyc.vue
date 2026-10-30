@@ -99,6 +99,9 @@ const failure = computed(() => {
     };
     const descriptions: Record<string, string> = {
         KYC_OCR_MISMATCH: 'The document number could not be recognized or validated. Please upload clear photos of your identity documents.',
+        KYC_BACK_VALIDITY_UNRECOGNIZED: 'The ID card validity period could not be recognized or validated. Please upload a clear, complete photo of the back.',
+        KYC_DOCUMENT_EXPIRED: 'The ID card has expired. Please upload a valid identity document.',
+        KYC_DOCUMENT_NOT_YET_VALID: 'The ID card is not yet valid. Please upload an identity document that is currently valid.',
         KYC_OCR_UNAVAILABLE: 'Document recognition is temporarily unavailable. Please contact support to retry verification.',
         KYC_DOCUMENT_STORAGE_FAILED: 'The document images could not be read. Please upload them again or contact support.',
         KYC_DOCUMENT_INTEGRITY_FAILED: 'The document images could not be verified. Please upload them again or contact support.',

@@ -69,6 +69,7 @@ final readonly class ApproveKycAction
                 // Automatic approval still requires successful encrypted OCR evidence.
                 // Manual review records its own decision without inventing OCR or a number.
                 if ($reviewer === null) {
+                    app(RequireCurrentBackValidity::class)->execute($application);
                     $evidence = $application->ocr_result_encrypted ? json_decode(app(KycDataCipher::class)->decrypt($application->ocr_result_encrypted), true) : [];
                     if ($application->ocr_status !== KycOcrStatus::Succeeded || ! $application->identity_hash || ! $application->identity_number_encrypted
                         || (($evidence['candidate_identity_match'] ?? null) !== 'MATCH' && ! (($evidence['identity_number_source'] ?? null) === 'OCR' && ($evidence['identity_number_recognized'] ?? false) === true))) {

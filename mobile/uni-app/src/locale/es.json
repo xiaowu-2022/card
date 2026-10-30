@@ -20,5 +20,8 @@
     "The document images could not be read. Please upload them again or contact support.": "No se pudieron leer las imágenes del documento. Súbelas de nuevo o contacta con soporte.",
     "The document images could not be verified. Please upload them again or contact support.": "No se pudieron verificar las imágenes del documento. Súbelas de nuevo o contacta con soporte.",
     "Identity verification is currently unavailable. Please contact support.": "La verificación de identidad no está disponible actualmente. Contacta con soporte.",
-    "Verification could not be completed. Please contact support to check the reason.": "No se pudo completar la verificación. Contacta con soporte para consultar el motivo."
+    "Verification could not be completed. Please contact support to check the reason.": "No se pudo completar la verificación. Contacta con soporte para consultar el motivo.",
+    "The ID card validity period could not be recognized or validated. Please upload a clear, complete photo of the back.": "No se pudo reconocer o validar la vigencia del documento de identidad. Sube una foto clara y completa del reverso.",
+    "The ID card has expired. Please upload a valid identity document.": "El documento de identidad ha caducado. Sube un documento vigente.",
+    "The ID card is not yet valid. Please upload an identity document that is currently valid.": "El documento de identidad aún no está vigente. Sube un documento que sea válido actualmente."
 }

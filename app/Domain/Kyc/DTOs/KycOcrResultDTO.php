@@ -14,5 +14,6 @@ final readonly class KycOcrResultDTO
         public ?string $confidence = null,
         public ?string $providerReference = null,
         public ?KycOcrFailureReason $failureReason = null,
+        public ?KycDocumentValidityDTO $validity = null,
     ) {}
 }

@@ -20,5 +20,8 @@
     "The document images could not be read. Please upload them again or contact support.": "Imej dokumen tidak dapat dibaca. Sila muat naik semula atau hubungi sokongan.",
     "The document images could not be verified. Please upload them again or contact support.": "Imej dokumen tidak dapat disahkan. Sila muat naik semula atau hubungi sokongan.",
     "Identity verification is currently unavailable. Please contact support.": "Pengesahan identiti tidak tersedia pada masa ini. Sila hubungi sokongan.",
-    "Verification could not be completed. Please contact support to check the reason.": "Pengesahan tidak dapat diselesaikan. Sila hubungi sokongan untuk menyemak sebabnya."
+    "Verification could not be completed. Please contact support to check the reason.": "Pengesahan tidak dapat diselesaikan. Sila hubungi sokongan untuk menyemak sebabnya.",
+    "The ID card validity period could not be recognized or validated. Please upload a clear, complete photo of the back.": "Tempoh sah kad pengenalan tidak dapat dikenal pasti atau disahkan. Sila muat naik foto bahagian belakang yang jelas dan lengkap.",
+    "The ID card has expired. Please upload a valid identity document.": "Kad pengenalan telah tamat tempoh. Sila muat naik dokumen pengenalan yang sah.",
+    "The ID card is not yet valid. Please upload an identity document that is currently valid.": "Kad pengenalan belum berkuat kuasa. Sila muat naik dokumen pengenalan yang sah pada masa ini."
 }
