@@ -1,3 +1,12 @@
+On 2026-10-28 the user requested card-provider balance synchronization every five
+minutes. Schedule cards:refresh-provider-reports through the existing single minute
+scheduler; queue existing read-only PhotonPay and verified U1 merchant report jobs,
+including paused accounts but excluding deleted/manual entries and unverified U1 connections.
+Preserve per-account locks, retries, credential/status/stale-snapshot guards, native
+precision and database-only page reads. This does not authorize card polling or
+financial operations. PHP-only deployment, no migration or frontend/native rebuild;
+verify only with isolated offline tests. See PHOTONPAY_ACCOUNTS.md and U1_CARD_PROVIDER.md.
+
 On 2026-10-24 the user clarified failed KYC processing must allow immediate new
 linked submissions. Only active pending reviews block submission; FAILED attempts
 retain immutable evidence without occupying that slot. Preserve scope, service

@@ -10,7 +10,10 @@ use App\Domain\CardProvider\Contracts\CardProviderInterface;
 use App\Domain\CardProviderDirectory\Models\CardProviderReference;
 use App\Domain\Ledger\Models\LedgerAccount;
 use App\Domain\Ledger\Models\LedgerEntry;
+use App\Infrastructure\Providers\Card\PhotonPayMerchantReport;
+use App\Jobs\RefreshPhotonPayAccountReport;
 use App\Support\Errors\DomainException;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -234,7 +237,7 @@ it('rolls back deletion and its audit together and returns emptied pagination to
     Http::assertNothingSent();
 });
 
-it('uses the same cached API balance as the directory instead of manual values for the homepage', function (): void {
+it('uses the same saved API balance as the directory without provider calls from homepage reads', function (): void {
     $action = app(SaveCardProviderReferenceAction::class);
     $connected = $action->execute(null, [...$this->data, 'name' => 'Connected', 'reference_balance' => '999'], $this->owner);
     $connected->forceFill(['photonpay_reporting_encrypted' => Crypt::encryptString(json_encode([
@@ -254,13 +257,18 @@ it('uses the same cached API balance as the directory instead of manual values f
     $before = LedgerAccount::query()->orderBy('id')->pluck('balance', 'id')->all();
     $access = array_fill_keys(['inflow', 'outflow', 'partners', 'cards', 'providers', 'assets'], false);
     expect(app(PlatformOverviewQuery::class)->execute($access))->not->toHaveKey('providerBalance');
+    expect(app(PlatformOverviewQuery::class)->execute([...$access, 'providers' => true])['providerBalance'])->toBeNull();
     Http::assertNothingSent();
+    (new RefreshPhotonPayAccountReport($connected->id))->handle(app(PhotonPayMerchantReport::class));
+    Http::assertSentCount(3);
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
     $overview = app(PlatformOverviewQuery::class)->execute([...$access, 'providers' => true]);
     expect($overview['providerBalance'])->toBe('1393.54000001');
     $rows = app(CardProviderReferenceQuery::class)->balanceRows();
     expect(collect($rows)->firstWhere('id', $connected->id)['amount'])->toBe('1393.33000001');
     $this->getJson('http://admin.localhost/platform/overview/sources?metric=providerBalance')->assertOk()->assertJsonPath('amount', '1393.54000001')->assertJsonPath('rows.total', 22)->assertJsonMissingPath('rows.items.0.photonpay_reporting_encrypted');
-    Http::assertSentCount(3);
+    Http::assertNothingSent();
     expect(LedgerAccount::query()->orderBy('id')->pluck('balance', 'id')->all())->toBe($before);
 });
 

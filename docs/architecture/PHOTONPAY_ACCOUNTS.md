@@ -63,6 +63,24 @@ The first successful issue or LOAD/RETURN/CANCEL_RETURN order transition queues 
 
 Deploy 2026_10_15_150000_add_photonpay_report_snapshot with PHP, migrate, restart queue workers, then run php artisan photonpay:refresh-reports once to enqueue existing-provider initialization. This command only queues read-only reporting; never run financial operations for deployment verification. No frontend/H5 build is required.
 
+### 2026-10-28 Five-minute merchant balance refresh
+
+`cards:refresh-provider-reports` runs every five minutes through the existing Laravel
+scheduler, with overlap and single-server guards. It reuses `photonpay:refresh-reports`
+and queues the existing U1 report job for verified connections in the current provider
+directory. Paused connections remain eligible for reporting; deleted providers, manual
+reference balances and unverified U1 connections are excluded. Each job retains its
+account lock, bounded retries, exact decimal validation and stale-credential/report guards.
+U1 also rechecks verified status before querying and saving. Failed refreshes retain the
+last saved balance and query time; page reads continue using database snapshots only.
+
+This schedules merchant balance/card-count reporting, without card polling, financial
+operations or Wallet/Ledger writes. Deploy PHP and restart queue workers; the existing
+once-per-minute `schedule:run` entry and asynchronous worker must be running. No new cron
+entry, migration or frontend/native build is required. Cadence controls job dispatch;
+completion depends on the worker and provider response. Verify with `schedule:list`
+and isolated offline tests, without invoking the full scheduler or live reporting jobs.
+
 ## 2026-10-15 Encrypted saved card details (supersedes transient-only reveals)
 
 At the user's request, complete PAN/CVV/expiry are encrypted together in user_cards.sensitive_details_encrypted, bound inside authenticated ciphertext to card/company/user/provider/provider-card identity. The field is hidden from model serialization and normal page/list DTOs. Valid details must match the saved card last4; malformed, placeholder or mismatched data is never stored. Existing cleanup/backups include the encrypted column as part of the same card row.

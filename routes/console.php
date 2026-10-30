@@ -29,3 +29,4 @@ Schedule::command('kyc:process-pending --limit=20')->everyMinute()->withoutOverl
 
 Schedule::command('cards:sync-pending-issues')->everyMinute()->withoutOverlapping(5)->onOneServer();
 Schedule::command('cards:sync-saved-details')->everyMinute()->withoutOverlapping(5)->onOneServer();
+Schedule::command('cards:refresh-provider-reports')->everyFiveMinutes()->withoutOverlapping(5)->onOneServer();

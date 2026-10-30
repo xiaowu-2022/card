@@ -249,6 +249,19 @@ ps -eo pid,user,args | grep -E '[a]rtisan schedule:(run|work)'
 仍硬编码路径。`fileinfo/exif is already loaded` 则是 CLI 扩展重复加载；根据 `php --ini`
 定位主配置和附加 ini，只保留一份加载配置。它与调度抢锁跳过是两个独立问题。
 
+## 卡商余额每五分钟同步（2026-10-28）
+
+发布 PHP（含 `routes/console.php`）并按既有流程重载 PHP-FPM，执行
+`php artisan queue:restart` 使受管 worker 加载新代码。保持现有 Redis 异步队列及
+每分钟一次的 `schedule:run` 入口；不要额外添加每 5 分钟 cron 或重复启动调度器。
+`cards:refresh-provider-reports` 自行按 `*/5 * * * *` 投递 PhotonPay、已验证 U1 的
+只读商户余额/卡数报表任务，保留防重叠、单服务器执行和每账号任务锁。未运行队列
+worker 时只会积压任务，不会更新余额。失败保留原快照，页面显示上次成功查询时间。
+
+本次无数据库迁移、后台/H5/native 资源构建。可用 `php artisan schedule:list` 只读
+确认上述命令及周期；不要为验证执行 `schedule:run`、手工运行报表刷新或调用卡商。
+回归仅在隔离 `card_ui_test` 使用 HTTP/队列 fake 完成，不进行生产资金或卡商测试。
+
 ## 2026-10-11 指定账号清理部署
 
 参见 [清理数据契约](../architecture/PLATFORM_DATA_CLEANUP.md)。部署迁移

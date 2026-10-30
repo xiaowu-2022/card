@@ -80,6 +80,13 @@ Webhook signatures are validated only on notification receipt; callbacks wake th
 
 2026-10-15 automatic merchant report refresh: the first confirmed SUCCEEDED transition of each OPEN/LOAD/RETURN intent dispatches RefreshU1AccountReport after commit. The queued job reads queryaccount only, updates the saved USD available balance/cardCount/queriedAt, serializes per connection and rejects stale credential or report writes. It does not alter check status, card groups, eligibility or financial evidence. Failures retain the previous report and retry with bounded backoff, eventually logging a safe failure. Directory/homepage continue reading database snapshots; GETs never trigger provider calls. Deploy PHP and restart queue workers; no migration or frontend rebuild.
 
+2026-10-28 定时同步：既有调度器每 5 分钟执行 `cards:refresh-provider-reports`，
+为当前卡商目录中检查通过（VERIFIED）的 U1 连接投递上述报表任务，同时复用 PhotonPay
+报表刷新命令。历史 enabled 开关不限制报表同步；已删除、未检查或检查失败的连接不投递。
+任务执行前和保存快照前均复核连接检查状态及目录有效性，密钥轮换、检查失败或删除后
+不应用旧请求结果。失败保留已保存余额和查询时间，页面仍只读取数据库；不轮询卡片或
+执行资金操作。仅发布 PHP、重启队列 worker，保持现有每分钟调度入口，无迁移或资源重建。
+
 ## 2026-10-15 Encrypted saved card details (supersedes transient-only reveals)
 
 At the user's request, complete PAN/CVV/expiry are encrypted together in user_cards.sensitive_details_encrypted, bound inside authenticated ciphertext to card/company/user/provider/provider-card identity. The field is hidden from model serialization and normal page/list DTOs. Valid details must match the saved card last4; malformed, placeholder or mismatched data is never stored. Existing cleanup/backups include the encrypted column as part of the same card row.

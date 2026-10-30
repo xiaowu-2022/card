@@ -60,7 +60,8 @@ from the new net-payout overview.
   and LOAD arrivals plus locally funded overflow, excluding opening/load fees. Returns
   are not deducted from cumulative funding. Provider transaction copies never count.
 - Third-party balance uses the same source as the provider directory: API-connected
-  entries use the existing 60-second cached, verified PhotonPay merchant report;
+  entries use saved PhotonPay/U1 merchant report snapshots, refreshed in background
+  after successful business events and every five minutes;
   unconnected entries use manual `reference_balance`. Sum all active directory entries
   across pages, excluding deletion audit tombstones. USD/USDT follow the existing U
   presentation; no market conversion is introduced. Any missing or unsupported balance
@@ -109,8 +110,8 @@ global endpoint.
 
 Controller reads run in one repeatable-read/read-only snapshot and return private,
 no-store responses. Never provision wallets/members, change user status, refresh
-prices, contact chains or replay financial operations from this page. The only remote
-read exception is the existing provider-directory merchant report for third-party balance.
+prices, contact chains or replay financial operations from this page. Third-party
+balance also reads database snapshots only; page reads never contact card providers.
 All financial values remain decimal strings, formatted with insignificant zeros
 removed; null is never rendered as a fabricated zero.
 
@@ -149,14 +150,14 @@ settlement, fee exclusion, partner exclusions, inclusive UTC+8 periods and dedup
 aligned with totals. Asset components retain quote precision; the aggregate keeps the
 overview's round-once valuation. Partner totals and source pagination use the same current enabled top-level
 partner selector; nested partner reports are not added separately. Provider rows use the same
-cache as the directory and exclude deletion tombstones.
+saved merchant report snapshots as the directory and exclude deletion tombstones.
 
 Each modal read uses a repeatable-read/read-only database snapshot and returns private
 no-store JSON. Amounts/current balances are refreshed when opened or paged, and the
 modal shows its read time and aggregate; changes since the initial dashboard load are
 not fabricated as historical balances. Reads never provision, refresh market rates,
-replay payments or mutate financial evidence. Only the approved provider-balance
-merchant reporting exception may contact a provider. No migration or H5 rebuild.
+replay payments, contact providers or mutate financial evidence. Merchant reporting
+refreshes run independently in background jobs. No migration or H5 rebuild.
 
 ## Actual receipt exclusion (2026-10-12)
 

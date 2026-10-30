@@ -181,8 +181,9 @@ final class U1Accounts
     /** Refresh reporting only; never change credentials, enabled state or card-group eligibility. */
     public function refreshReport(string $connectionId): void
     {
-        $connection = DB::table('u1_connections')->where('id', $connectionId)->firstOrFail();
-        if (! CardProviderReference::query()->whereKey($connection->reference_id)->exists()) return;
+        $connection = DB::table('u1_connections')->where('id', $connectionId)->first();
+        if (! $connection || $connection->check_status !== 'VERIFIED'
+            || ! CardProviderReference::query()->whereKey($connection->reference_id)->exists()) return;
         $started = now();
         $account = (new U1ApiClient($connection->customer_no, Crypt::decryptString($connection->api_key_encrypted), $connection->base_url))->account();
         if ($account['resultCode'] !== '0000' || ! is_array($account['data']['amount'] ?? null)) {
@@ -197,8 +198,9 @@ final class U1Accounts
         $report = ['balance' => $balance, 'asset' => 'USD', 'issuedCardCount' => $count, 'queriedAt' => $started->toIso8601String()];
         DB::transaction(function () use ($connection, $started, $report): void {
             $current = DB::table('u1_connections')->where('id', $connection->id)->lockForUpdate()->firstOrFail();
-            if ($current->customer_no !== $connection->customer_no || $current->api_key_encrypted !== $connection->api_key_encrypted
-                || $current->base_url !== $connection->base_url) return;
+            if ($current->check_status !== 'VERIFIED' || $current->customer_no !== $connection->customer_no
+                || $current->api_key_encrypted !== $connection->api_key_encrypted || $current->base_url !== $connection->base_url
+                || ! CardProviderReference::query()->whereKey($current->reference_id)->exists()) return;
             $previous = $current->account_report ? json_decode($current->account_report, true, flags: JSON_THROW_ON_ERROR) : [];
             if (isset($previous['queriedAt']) && \Carbon\CarbonImmutable::parse($previous['queriedAt'])->greaterThan($started)) return;
             DB::table('u1_connections')->where('id', $connection->id)->update(['account_report' => json_encode($report, JSON_THROW_ON_ERROR)]);
