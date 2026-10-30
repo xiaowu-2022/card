@@ -23,5 +23,15 @@
     "Verification could not be completed. Please contact support to check the reason.": "No se pudo completar la verificación. Contacta con soporte para consultar el motivo.",
     "The ID card validity period could not be recognized or validated. Please upload a clear, complete photo of the back.": "No se pudo reconocer o validar la vigencia del documento de identidad. Sube una foto clara y completa del reverso.",
     "The ID card has expired. Please upload a valid identity document.": "El documento de identidad ha caducado. Sube un documento vigente.",
-    "The ID card is not yet valid. Please upload an identity document that is currently valid.": "El documento de identidad aún no está vigente. Sube un documento que sea válido actualmente."
+    "The ID card is not yet valid. Please upload an identity document that is currently valid.": "El documento de identidad aún no está vigente. Sube un documento que sea válido actualmente.",
+    "Your identity verification status has changed. Refresh status and start verification again.": "Tu estado de verificación de identidad ha cambiado. Actualiza el estado e inicia la verificación de nuevo.",
+    "This submission differs from the previous request. Refresh status before submitting again.": "Este envío difiere de la solicitud anterior. Actualiza el estado antes de volver a enviarlo.",
+    "The document upload has not been verified. Please select and upload the photos again.": "La subida del documento aún no se ha verificado. Selecciona y sube las fotos de nuevo.",
+    "The document upload is not ready. Please select and upload the photos again.": "La subida del documento aún no está lista. Selecciona y sube las fotos de nuevo.",
+    "This document upload has already been used. Refresh status before uploading new photos.": "Esta subida de documentos ya se ha utilizado. Actualiza el estado antes de subir fotos nuevas.",
+    "The uploaded document changed after verification. Please select and upload the photos again.": "El documento subido cambió después de la verificación. Selecciona y sube las fotos de nuevo.",
+    "The document upload reference has changed. Please select and upload the photos again.": "La referencia de la subida del documento ha cambiado. Selecciona y sube las fotos de nuevo.",
+    "The document upload method has changed. Please select and upload the photos again.": "El método de subida del documento ha cambiado. Selecciona y sube las fotos de nuevo.",
+    "Your sign-in status changed during submission. Refresh status before trying again.": "Tu estado de inicio de sesión cambió durante el envío. Actualiza el estado antes de volver a intentarlo.",
+    "Verification error code: {{code}}": "Código de error de verificación: {{code}}"
 }

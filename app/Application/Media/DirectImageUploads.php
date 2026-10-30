@@ -165,11 +165,15 @@ final class DirectImageUploads
         $upload = $this->scoped($tenant, $user, $id);
         abort_unless(in_array($upload->upload_mode, ['verified_copy', 'dual_copy', 'server'], true), 422);
         abort_unless($upload->purpose === $purpose && $upload->field === $field, 422);
-        abort_unless($upload->verified_at, 409);
+        if (! $upload->verified_at) {
+            throw new DomainException('IMAGE_UPLOAD_NOT_VERIFIED', 'The image upload has not been verified. Please upload it again.', 409);
+        }
         // Claimed references remain readable for an existing business request replay.
         abort_if(! $upload->claimed_at && $upload->expires_at->isPast(), 410);
         $image = StoredImage::findOrFail($upload->image_id);
-        abort_unless($image->state === 'ready', 409);
+        if ($image->state !== 'ready') {
+            throw new DomainException('IMAGE_UPLOAD_NOT_READY', 'The uploaded image is not ready. Please upload it again.', 409);
+        }
         $bytes = $purpose === 'kyc' && $image->backup_key
             ? app(ImageReplicas::class)->read($image) : $this->images->readImage($image);
         abort_unless(hash_equals($image->sha256, hash('sha256', $bytes)), 422);
@@ -183,10 +187,23 @@ final class DirectImageUploads
 
         return DB::transaction(function () use ($file, $tenant, $disk, $key, $purpose, $reference) {
             $upload = DirectImageUpload::whereKey($file->id)->where('tenant_id', $tenant)->where('user_id', $file->userId)->lockForUpdate()->firstOrFail();
-            abort_unless($upload->verified_at && ! $upload->claimed_at && $upload->purpose === $purpose && $upload->field === $file->field, 409);
+            if (! $upload->verified_at) {
+                throw new DomainException('IMAGE_UPLOAD_NOT_VERIFIED', 'The image upload has not been verified. Please upload it again.', 409);
+            }
+            if ($upload->claimed_at) {
+                throw new DomainException('IMAGE_UPLOAD_ALREADY_CLAIMED', 'The uploaded image has already been used. Refresh status before uploading it again.', 409);
+            }
+            if ($upload->purpose !== $purpose || $upload->field !== $file->field) {
+                throw new DomainException('IMAGE_UPLOAD_REFERENCE_CHANGED', 'The image upload does not match this request. Please upload it again.', 409);
+            }
             abort_if($upload->expires_at->isPast(), 410);
             $image = StoredImage::whereKey($upload->image_id)->lockForUpdate()->firstOrFail();
-            abort_unless($image->state === 'ready' && hash_equals($image->sha256, hash('sha256', $file->getContent())), 409);
+            if ($image->state !== 'ready') {
+                throw new DomainException('IMAGE_UPLOAD_NOT_READY', 'The uploaded image is not ready. Please upload it again.', 409);
+            }
+            if (! hash_equals($image->sha256, hash('sha256', $file->getContent()))) {
+                throw new DomainException('IMAGE_UPLOAD_CONTENT_CHANGED', 'The uploaded image no longer matches this request. Please upload it again.', 409);
+            }
             $image->update(['source_disk' => $disk, 'source_key' => $key, 'business_reference' => $reference]);
             $upload->update(['claimed_at' => now()]);
 

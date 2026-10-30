@@ -23,5 +23,15 @@
     "Verification could not be completed. Please contact support to check the reason.": "认证未能完成，请联系客服查询具体原因。",
     "The ID card validity period could not be recognized or validated. Please upload a clear, complete photo of the back.": "身份证背面有效期未能识别或格式异常，请重新上传清晰、完整的背面照片。",
     "The ID card has expired. Please upload a valid identity document.": "身份证已过期，请上传有效的身份证件。",
-    "The ID card is not yet valid. Please upload an identity document that is currently valid.": "身份证尚未生效，请上传当前有效的身份证件。"
+    "The ID card is not yet valid. Please upload an identity document that is currently valid.": "身份证尚未生效，请上传当前有效的身份证件。",
+    "Your identity verification status has changed. Refresh status and start verification again.": "身份认证状态已变化，请先刷新状态，再重新开始认证。",
+    "This submission differs from the previous request. Refresh status before submitting again.": "本次提交与之前的申请信息不一致，请先刷新状态再重新提交。",
+    "The document upload has not been verified. Please select and upload the photos again.": "证件照片尚未完成上传校验，请重新选择并上传照片。",
+    "The document upload is not ready. Please select and upload the photos again.": "证件照片尚未准备完成，请重新选择并上传照片。",
+    "This document upload has already been used. Refresh status before uploading new photos.": "本次上传的证件照片已被使用，请先刷新状态，再上传新的照片。",
+    "The uploaded document changed after verification. Please select and upload the photos again.": "证件照片在校验后发生变化，请重新选择并上传照片。",
+    "The document upload reference has changed. Please select and upload the photos again.": "证件上传记录已变化，请重新选择并上传照片。",
+    "The document upload method has changed. Please select and upload the photos again.": "证件上传方式已变化，请重新选择并上传照片。",
+    "Your sign-in status changed during submission. Refresh status before trying again.": "提交期间登录状态发生变化，请先刷新状态再重试。",
+    "Verification error code: {{code}}": "认证失败代码：{{code}}"
 }

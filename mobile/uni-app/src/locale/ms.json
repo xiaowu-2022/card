@@ -23,5 +23,15 @@
     "Verification could not be completed. Please contact support to check the reason.": "Pengesahan tidak dapat diselesaikan. Sila hubungi sokongan untuk menyemak sebabnya.",
     "The ID card validity period could not be recognized or validated. Please upload a clear, complete photo of the back.": "Tempoh sah kad pengenalan tidak dapat dikenal pasti atau disahkan. Sila muat naik foto bahagian belakang yang jelas dan lengkap.",
     "The ID card has expired. Please upload a valid identity document.": "Kad pengenalan telah tamat tempoh. Sila muat naik dokumen pengenalan yang sah.",
-    "The ID card is not yet valid. Please upload an identity document that is currently valid.": "Kad pengenalan belum berkuat kuasa. Sila muat naik dokumen pengenalan yang sah pada masa ini."
+    "The ID card is not yet valid. Please upload an identity document that is currently valid.": "Kad pengenalan belum berkuat kuasa. Sila muat naik dokumen pengenalan yang sah pada masa ini.",
+    "Your identity verification status has changed. Refresh status and start verification again.": "Status pengesahan identiti anda telah berubah. Segarkan status dan mulakan pengesahan semula.",
+    "This submission differs from the previous request. Refresh status before submitting again.": "Penghantaran ini berbeza daripada permintaan sebelumnya. Segarkan status sebelum menghantar semula.",
+    "The document upload has not been verified. Please select and upload the photos again.": "Muat naik dokumen belum disahkan. Sila pilih dan muat naik foto semula.",
+    "The document upload is not ready. Please select and upload the photos again.": "Muat naik dokumen belum sedia. Sila pilih dan muat naik foto semula.",
+    "This document upload has already been used. Refresh status before uploading new photos.": "Muat naik dokumen ini telah digunakan. Segarkan status sebelum memuat naik foto baharu.",
+    "The uploaded document changed after verification. Please select and upload the photos again.": "Dokumen yang dimuat naik berubah selepas disahkan. Sila pilih dan muat naik foto semula.",
+    "The document upload reference has changed. Please select and upload the photos again.": "Rujukan muat naik dokumen telah berubah. Sila pilih dan muat naik foto semula.",
+    "The document upload method has changed. Please select and upload the photos again.": "Kaedah muat naik dokumen telah berubah. Sila pilih dan muat naik foto semula.",
+    "Your sign-in status changed during submission. Refresh status before trying again.": "Status log masuk anda berubah semasa penghantaran. Segarkan status sebelum mencuba semula.",
+    "Verification error code: {{code}}": "Kod ralat pengesahan: {{code}}"
 }

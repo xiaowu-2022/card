@@ -52,7 +52,7 @@ function harness() {
             if (id === './origin') return { ensureCompanyOrigin: async () => {}, companyOrigin: () => '' };
             if (id.endsWith('company.json')) return {};
             if (id === './session') return { session: { value: {} } };
-            if (id === './browser-credentials') return { loadBrowserToken: async () => '12|' + 'A'.repeat(64) };
+            if (id === './browser-credentials') return { loadBrowserToken: async () => '12|' + 'A'.repeat(64), saveBrowserToken() {} };
             if (id === './navigation') return {};
             return load(resolve(dirname(path), id + '.ts'));
         } });
@@ -153,4 +153,72 @@ test('field validation stays localized and untrusted provider details are not di
             if (locale !== 'en') assert.ok(!result.operation.startsWith('Unable') && !result.operation.startsWith('Identity'));
         }
     }
+});
+
+test('named KYC conflicts override the HTTP fallback and show only allowlisted codes and UUID references', () => {
+    const c = harness();
+    const codes = [
+        'KYC_REVERIFICATION_STATE_CHANGED', 'KYC_SUBMISSION_REPLAY_CONFLICT', 'KYC_ALREADY_PENDING',
+        'IMAGE_UPLOAD_NOT_VERIFIED', 'IMAGE_UPLOAD_NOT_READY', 'IMAGE_UPLOAD_ALREADY_CLAIMED',
+        'IMAGE_UPLOAD_CONTENT_CHANGED', 'IMAGE_UPLOAD_REFERENCE_CHANGED', 'IMAGE_STORAGE_CHANGED', 'CLIENT_SESSION_CHANGED',
+    ];
+    const reference = '11111111-1111-4111-8111-111111111111';
+    for (const language of ['en', 'zh-CN', 'ms', 'es']) {
+        c.i18n.locale.value = language;
+        for (const code of codes) {
+            const original = new c.api.ApiError(409, { error: { code, message: 'SECRET https://private.example/document' } }, reference);
+            const wrapped = new c.api.UploadError('submit', null, original);
+            assert.equal(wrapped.requestId, reference);
+            const result = c.explain(wrapped, 'NATIONAL_ID');
+            assert.notEqual(result.reason, c.i18n.t('The verification or upload status has changed. Refresh status before trying again.'));
+            assert.ok(result.code.includes(code));
+            assert.ok(result.reference.includes(reference));
+            assert.ok(!JSON.stringify(result).includes('SECRET') && !JSON.stringify(result).includes('private.example'));
+            assert.ok(!JSON.stringify(result).includes('{{'));
+            if (language !== 'en') assert.notEqual(result.code, `Verification error code: ${code}`);
+        }
+    }
+    c.i18n.locale.value = 'zh-CN';
+    const unknown = c.explain(new c.api.UploadError('submit', null, new c.api.ApiError(409, {
+        error: { code: 'UNKNOWN_SECRET_PROVIDER_CODE', message: 'SECRET body', request_id: 'https://private.example/token' },
+    })), 'NATIONAL_ID');
+    assert.match(unknown.reason, /认证或上传状态已变化/);
+    assert.equal(unknown.code, undefined);
+    assert.equal(unknown.reference, undefined);
+    assert.ok(!JSON.stringify(unknown).includes('SECRET'));
+    const unnamed = c.explain(new c.api.UploadError('submit', null, new c.api.ApiError(409, {}, reference)), 'NATIONAL_ID');
+    assert.equal(unnamed.code, undefined);
+    assert.ok(unnamed.reference.includes(reference));
+});
+
+test('a session generation conflict before the final POST has its own safe code and never replays or loses photos', async () => {
+    const c = harness();
+    await c.action.submit('/kyc/applications', { document_type: 'NATIONAL_ID', document_country: 'CN', reverify: true }, {
+        files, navigate: false, explainFailure: error => c.explain(error, 'NATIONAL_ID'),
+        onProgress: progress => {
+            if (progress.stage === 'submitting') queueMicrotask(() => c.api.setToken('12|' + 'A'.repeat(64)));
+        },
+    });
+    assert.equal(c.action.failureStatus.value, 409);
+    assert.equal(c.action.failureCode.value, 'CLIENT_SESSION_CHANGED');
+    assert.match(c.action.errors.value.reason, /登录状态发生变化/);
+    assert.equal(c.calls.filter(call => call.url.endsWith('/kyc/applications')).length, 0);
+    assert.equal(files.length, 2);
+    assert.equal(c.action.pending.value, false);
+});
+
+test('a session change during an image upload preserves only its known local conflict code', async () => {
+    const c = harness();
+    c.uni.uploadFile = operation => {
+        c.calls.push(operation);
+        operation.success({ statusCode: 204, data: '' });
+        c.api.setToken('12|' + 'A'.repeat(64));
+    };
+    await submit(c);
+    assert.equal(c.action.failureStatus.value, 409);
+    assert.equal(c.action.failureCode.value, 'CLIENT_SESSION_CHANGED');
+    assert.match(c.action.errors.value.operation, /正面.*上传失败/);
+    assert.match(c.action.errors.value.reason, /登录状态发生变化/);
+    assert.equal(c.calls.filter(call => call.url.endsWith('/kyc/applications')).length, 0);
+    assert.equal(c.calls.filter(call => call.url.endsWith('/backup')).length, 1);
 });

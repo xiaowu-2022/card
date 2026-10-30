@@ -36,7 +36,8 @@ final readonly class UserKycQuery
             ], true) ? $application->processing_error : 'KYC_PROCESSING_UNAVAILABLE')
             : null;
         $hasPendingApplication = KycApplication::where('tenant_id', $tenantId)->where('user_id', $userId)->where('review_status', 'PENDING')->where(fn ($query) => $query->whereNull('processing_status')->orWhere('processing_status', '<>', 'FAILED'))->exists();
-        $reverificationPending = $identity && $hasPendingApplication;
+        // Platform-created accounts are verified without a fabricated IdentityRecord.
+        $reverificationPending = $status === KycUserStatus::Approved && $hasPendingApplication;
         if ($identity) {
             $application = KycApplication::where('tenant_id', $tenantId)->where('user_id', $userId)
                 ->whereKey($identity->source_kyc_application_id)->firstOrFail();

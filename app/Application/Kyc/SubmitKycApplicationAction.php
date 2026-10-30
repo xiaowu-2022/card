@@ -70,7 +70,9 @@ final readonly class SubmitKycApplicationAction
             if ($submissionKey) {
                 $existing = KycApplication::where('tenant_id', $tenant->id)->where('user_id', $user->id)->where('submission_key', $submissionKey)->first();
                 if ($existing) {
-                    abort_unless(hash_equals($existing->submission_fingerprint, $fingerprint), 409);
+                    if (! hash_equals($existing->submission_fingerprint, $fingerprint)) {
+                        throw new DomainException('KYC_SUBMISSION_REPLAY_CONFLICT', 'The submitted document request has changed. Refresh status before submitting again.', 409);
+                    }
                     return $existing;
                 }
             }
@@ -84,7 +86,11 @@ final readonly class SubmitKycApplicationAction
                 throw new DomainException('KYC_ALREADY_PENDING', 'Identity verification is already under review.', 409);
             }
             $identity = IdentityRecord::where('tenant_id', $tenant->id)->where('user_id', $user->id)->first();
-            abort_unless($reverify === (bool) $identity, 409);
+            $alreadyVerified = (bool) $identity || DB::table('platform_user_creations')
+                ->where('tenant_id', $tenant->id)->where('user_id', $user->id)->exists();
+            if ($reverify !== $alreadyVerified) {
+                throw new DomainException('KYC_REVERIFICATION_STATE_CHANGED', 'Your verification status has changed. Refresh status before submitting again.', 409);
+            }
             $latest = KycApplication::where('tenant_id', $tenant->id)->where('user_id', $user->id)->latest('submitted_at')->lockForUpdate()->first();
             if ($latest && $latest->processing_status !== 'FAILED' && ! in_array($latest->review_status, [KycReviewStatus::ResubmissionRequired, KycReviewStatus::Rejected], true)
                 && ! ($reverify && $latest->review_status === KycReviewStatus::Approved)) {

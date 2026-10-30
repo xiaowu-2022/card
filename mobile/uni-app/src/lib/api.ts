@@ -73,9 +73,13 @@ export class ApiError extends Error {
     }
 }
 export type UploadStage = 'read' | 'prepare' | 'upload' | 'verify' | 'submit';
+function sessionChanged(): ApiError {
+    return new ApiError(409, { error: { code: 'CLIENT_SESSION_CHANGED' } });
+}
 export class UploadError extends ApiError {
     constructor(public stage: UploadStage, public field: string | null, error: unknown) {
-        super(error instanceof ApiError ? error.status : 0, error instanceof ApiError ? error.payload : undefined);
+        super(error instanceof ApiError ? error.status : 0, error instanceof ApiError ? error.payload : undefined,
+            error instanceof ApiError ? error.requestId : undefined);
     }
 }
 async function uploadStep<T>(stage: UploadStage, field: string | null, run: () => Promise<T>): Promise<T> {
@@ -94,6 +98,7 @@ async function uploadStep<T>(stage: UploadStage, field: string | null, run: () =
     finally { if (timer !== undefined) clearTimeout(timer); }
 }
 function transportError(error?: { errMsg?: string }) {
+    if (error?.errMsg === 'CLIENT_SESSION_CHANGED') return sessionChanged();
     return new ApiError(0, /timeout/i.test(error?.errMsg ?? '')
         ? { error: { code: 'CLIENT_REQUEST_TIMEOUT' } } : { error: { code: 'CLIENT_NETWORK_UNAVAILABLE' } });
 }
@@ -143,7 +148,7 @@ export async function request<T>(
 ): Promise<T> {
     const generation = sessionGeneration, context = page, requestLanguage = language;
     await ensureToken();
-    if (generation !== sessionGeneration) throw new ApiError(409);
+    if (generation !== sessionGeneration) throw sessionChanged();
     const recoveryRevision = !native && typeof networkRecovery !== 'undefined' ? networkRecovery.checkpoint() : 0;
     const background = options.background === true || /^\/(?:unread|presence|session|support\/realtime(?:\/auth)?)(?:\?|$)/.test(path);
     const key = JSON.stringify([generation, native ? [company.appId, company.tenantSlug, company.apiOrigin] : companyOrigin(), requestLanguage, context, path, stableReadData(data ?? null), anonymous]);
@@ -167,7 +172,7 @@ export async function request<T>(
     } else flight = run();
     try {
         const result = await flight;
-        if (generation !== sessionGeneration) throw new ApiError(409);
+        if (generation !== sessionGeneration) throw sessionChanged();
         if (!native && typeof networkRecovery !== 'undefined' && method === 'GET'
             && !background && (path.startsWith('/client/') || ['/home/summary', '/account', '/cards', '/support', '/bootstrap?defer_unread=1'].includes(path) || path.startsWith('/messages?')) && context === page)
             networkRecovery.success(recoveryRevision);
@@ -187,18 +192,18 @@ async function requestOnce<T>(
 ): Promise<T> {
     await ensureToken();
     const generation = scope?.generation ?? sessionGeneration;
-    if (generation !== sessionGeneration) throw new ApiError(409);
+    if (generation !== sessionGeneration) throw sessionChanged();
     // Refresh an idle form proof before sending, without replaying a mutation.
     if (method === 'POST' && flow && Date.now() - flowUpdatedAt >= 60 * 60 * 1000)
         await request('/bootstrap?defer_unread=1');
-    if (generation !== sessionGeneration) throw new ApiError(409);
+    if (generation !== sessionGeneration) throw sessionChanged();
     const requestHeaders = { ...(scope?.header ?? headers(!anonymous)) };
     delete requestHeaders['X-Consumer-Flow'];
     if (flow) requestHeaders['X-Consumer-Flow'] = flow;
     await ensureCompanyOrigin().catch(() => {
         throw new ApiError(0, { error: { code: 'CLIENT_ORIGIN_UNAVAILABLE' } });
     });
-    if (generation !== sessionGeneration) throw new ApiError(409);
+    if (generation !== sessionGeneration) throw sessionChanged();
     const reference = globalThis.crypto?.randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
         const value = Math.floor(Math.random() * 16);
         return (c === 'x' ? value : (value & 3) | 8).toString(16);
@@ -208,7 +213,7 @@ async function requestOnce<T>(
         : path.split('?')[0] === '/support/messages' ? 60000
         : /^\/images\/direct\/[^/]+\/complete$/.test(path) ? 150000 : 20000;
     const complete = (status: number, data: unknown, header: Record<string, unknown> | undefined): T => {
-        if (generation !== sessionGeneration) throw new ApiError(409);
+        if (generation !== sessionGeneration) throw sessionChanged();
         capture(header);
         const requestId = String(Object.entries(header ?? {}).find(([key]) => key.toLowerCase() === 'x-request-id')?.[1] ?? reference);
         onResponse?.(status, requestId);
@@ -300,9 +305,11 @@ function uploadTransport(options: UniApp.UploadFileOption) {
         }
         if (settled) return;
         const response = await browserFetch(options.url, { method: 'POST', headers: options.header, body: form }, options.timeout ?? 60000);
-        if (generation !== sessionGeneration) throw new ApiError(409);
+        if (generation !== sessionGeneration) throw sessionChanged();
         options.success?.({ statusCode: response.status, data: await response.text(), errMsg: 'uploadFile:ok' });
-    })().catch(error => options.fail?.({ errMsg: error instanceof ApiError && error.status === 0 ? error.payload?.error?.code ?? 'network' : 'uploadFile:fail' }));
+    })().catch(error => options.fail?.({ errMsg: error instanceof ApiError && error.status === 409
+        && error.payload?.error?.code === 'CLIENT_SESSION_CHANGED' ? 'CLIENT_SESSION_CHANGED'
+        : error instanceof ApiError && error.status === 0 ? error.payload?.error?.code ?? 'network' : 'uploadFile:fail' }));
 }
 type UploadTicket = { id: string; mode?: string; url: string; imageUrl?: string; fields: Record<string, string> };
 export type UploadProgress = { stage: 'uploading' | 'submitting'; completed: number; total: number };
@@ -323,11 +330,11 @@ async function uploadOnce<T>(
     generation = sessionGeneration,
 ): Promise<T> {
     await ensureToken();
-    if (generation !== sessionGeneration) throw new ApiError(409);
+    if (generation !== sessionGeneration) throw sessionChanged();
     await uploadStep('prepare', null, () => ensureCompanyOrigin().catch(() => {
         throw new ApiError(0);
     }));
-    if (generation !== sessionGeneration) throw new ApiError(409);
+    if (generation !== sessionGeneration) throw sessionChanged();
     const purpose = ({
         '/client/kyc/applications': 'kyc',
         '/client/kyc/recognize-front': 'kyc',
@@ -473,13 +480,13 @@ async function privateImageOnce(path: string, expectedGeneration: number): Promi
         throw new ApiError(0);
     });
     await ensureToken();
-    if (expectedGeneration !== sessionGeneration) throw new ApiError(409);
+    if (expectedGeneration !== sessionGeneration) throw sessionChanged();
     const url = (native ? companyOrigin() : '') + '/api/mobile/v1' + path;
     const header = headers();
     if (!native) {
         const generation = sessionGeneration;
         const response = await browserFetch(url, { headers: header }, 60000);
-        if (generation !== sessionGeneration) throw new ApiError(409);
+        if (generation !== sessionGeneration) throw sessionChanged();
         if (!response.ok) throw new ApiError(response.status);
         return URL.createObjectURL(await response.blob());
     }

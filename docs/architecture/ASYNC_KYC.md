@@ -72,6 +72,30 @@ using isolated database fixtures, fake HTTP OCR responses and offline frontend/
 browser fixtures only. Do not submit real identity documents or contact production
 OCR, provider or financial services.
 
+## Re-verification submission conflicts (2026-10-30)
+
+Platform-created accounts are verified by their immutable, company-scoped creation
+record without fabricating an identity record. The submission action recognizes
+the same trusted verification fact as the page when checking `reverify`; it must
+not reject an offered re-verification merely because no `identity_records` row
+exists yet. An active pending attempt also blocks the re-verification button for
+these accounts. The current identity or Platform verification remains in force
+while the new application is queued, fails, or awaits review.
+
+Keep tenant/user locking, explicit re-verification, active-pending exclusion and
+upload-based idempotency. A mismatched verification mode or changed accepted
+submission returns a named 409 conflict instead of an empty message. Upload
+verification, readiness, ownership, single-use claim and content checks retain
+their guards and return safe conflict categories. Consumer copy distinguishes
+these allowlisted errors and may show only a validated request-reference UUID;
+raw responses, upload IDs, documents and credentials are never diagnostic text.
+There is no automatic upload or application replay.
+
+Deploy matching PHP and the rebuilt, tracked `public/h5` entry/new hashes together,
+retaining older static resources. This correction needs no additional migration or
+native-shell rebuild. Verify through isolated Bearer/flow/upload/application HTTP
+fixtures and fully intercepted browser tests, never real identity submissions.
+
 ## Deployment / validation
 
 - Requires migration `2026_10_05_190000_add_async_kyc_processing.php`, matching PHP,

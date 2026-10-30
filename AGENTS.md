@@ -1,3 +1,12 @@
+On 2026-10-30 the user reported an empty 409 response on the consumer re-verification
+submission endpoint. Page and submission eligibility must recognize the same trusted
+company/user-scoped Platform creation verification even without an IdentityRecord.
+Keep active-pending, tenant/user locks, explicit mode, upload claims and idempotency
+guards; return safe named conflicts and request references without document data.
+Deliver matching PHP and compiled tracked public/h5, retaining older hashes. No new
+migration, native rebuild, real OCR/provider calls or production tests are authorized
+by this correction. See docs/architecture/ASYNC_KYC.md.
+
 On 2026-10-30 the user required national-ID back-side OCR validity checks for new
 asynchronous KYC submissions and automatic approval. Recognize a complete validity
 period through the existing text-recognition service; reject unrecognized/malformed,

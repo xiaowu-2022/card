@@ -17,6 +17,7 @@ use App\Domain\Tenant\Models\PlatformKycSetting;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use App\Infrastructure\Storage\OssImages;
+use App\Support\Errors\DomainException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -166,7 +167,8 @@ it('binds verified originals and makes completion immune to staging overwrites',
     expect(app(ImageStorage::class)->read('private', $key))->toBe(kycTestImage()->getContent());
     expect($this->oss->copies)->toBe(1)->and(DirectImageUpload::find($ticket['id'])->claimed_at)->not->toBeNull();
     Storage::disk('private')->assertMissing($key);
-    expect(fn () => app(ImageStorage::class)->putUpload($this->tenant->id, 'private', 'support/'.$this->tenant->id.'/'.Str::uuid(), $file, 'support'))->toThrow(HttpException::class);
+    expect(fn () => app(ImageStorage::class)->putUpload($this->tenant->id, 'private', 'support/'.$this->tenant->id.'/'.Str::uuid(), $file, 'support'))
+        ->toThrow(DomainException::class, 'The uploaded image has already been used.');
 });
 
 it('rejects wrong users purposes expired tickets and non-images before publishing', function () {

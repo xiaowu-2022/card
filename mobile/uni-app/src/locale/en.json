@@ -23,5 +23,15 @@
     "Verification could not be completed. Please contact support to check the reason.": "Verification could not be completed. Please contact support to check the reason.",
     "The ID card validity period could not be recognized or validated. Please upload a clear, complete photo of the back.": "The ID card validity period could not be recognized or validated. Please upload a clear, complete photo of the back.",
     "The ID card has expired. Please upload a valid identity document.": "The ID card has expired. Please upload a valid identity document.",
-    "The ID card is not yet valid. Please upload an identity document that is currently valid.": "The ID card is not yet valid. Please upload an identity document that is currently valid."
+    "The ID card is not yet valid. Please upload an identity document that is currently valid.": "The ID card is not yet valid. Please upload an identity document that is currently valid.",
+    "Your identity verification status has changed. Refresh status and start verification again.": "Your identity verification status has changed. Refresh status and start verification again.",
+    "This submission differs from the previous request. Refresh status before submitting again.": "This submission differs from the previous request. Refresh status before submitting again.",
+    "The document upload has not been verified. Please select and upload the photos again.": "The document upload has not been verified. Please select and upload the photos again.",
+    "The document upload is not ready. Please select and upload the photos again.": "The document upload is not ready. Please select and upload the photos again.",
+    "This document upload has already been used. Refresh status before uploading new photos.": "This document upload has already been used. Refresh status before uploading new photos.",
+    "The uploaded document changed after verification. Please select and upload the photos again.": "The uploaded document changed after verification. Please select and upload the photos again.",
+    "The document upload reference has changed. Please select and upload the photos again.": "The document upload reference has changed. Please select and upload the photos again.",
+    "The document upload method has changed. Please select and upload the photos again.": "The document upload method has changed. Please select and upload the photos again.",
+    "Your sign-in status changed during submission. Refresh status before trying again.": "Your sign-in status changed during submission. Refresh status before trying again.",
+    "Verification error code: {{code}}": "Verification error code: {{code}}"
 }

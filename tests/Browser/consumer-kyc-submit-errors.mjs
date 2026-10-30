@@ -38,6 +38,10 @@ for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome
                 if (key.endsWith('/complete')) return route.fulfill({ status: 204 });
                 if (key === '/client/kyc/applications') {
                     submissions.push(req.postDataJSON());
+                    if (mode === 'conflict') return route.fulfill({ status: 409, json: {
+                        error: { code: 'KYC_REVERIFICATION_STATE_CHANGED', message: 'SECRET provider body',
+                            request_id: '11111111-1111-4111-8111-111111111111' },
+                    } });
                     return route.fulfill({ status: 504, contentType: 'text/html', body: '<h1>SECRET timeout</h1>' });
                 }
                 return route.fulfill({ json: fixture.api[key] ?? {} });
@@ -49,8 +53,8 @@ for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome
             catch { return route.abort(); }
         });
         await page.goto(origin + '/#/pages/screen/index?path=%2Fkyc');
-        for (mode of ['size', 'timeout']) {
-            if (mode === 'timeout') await page.reload();
+        for (mode of ['size', 'timeout', 'conflict']) {
+            if (mode !== 'size') await page.reload();
             await page.getByText('重新认证', { exact: true }).click();
             for (const control of await page.locator('.upload-control').all()) {
                 const chooser = page.waitForEvent('filechooser');
@@ -66,11 +70,17 @@ for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome
                 assert.match(text, /背面上传失败/);
                 assert.match(text, /超过服务器允许的上传大小/);
                 assert.equal(submissions.length, 0);
-            } else {
+            } else if (mode === 'timeout') {
                 assert.match(text, /提交结果/);
                 assert.match(text, /请求超时/);
                 assert.match(text, /先刷新状态/);
                 assert.equal(submissions.length, 1);
+            } else {
+                assert.match(text, /身份认证状态已变化.*重新开始认证/);
+                assert.match(text, /KYC_REVERIFICATION_STATE_CHANGED/);
+                assert.match(text, /11111111-1111-4111-8111-111111111111/);
+                assert.equal(submissions.length, 2, 'a conflict is not replayed automatically');
+                assert.equal(submissions[1].reverify, true);
             }
             assert.equal(await page.locator('.upload-preview').count(), 2, 'keep photos for user correction');
             await page.evaluate(() => window.scrollTo(0, 0));
@@ -82,6 +92,6 @@ for (const [name, engine, options] of [['chromium', chromium, { channel: 'chrome
             assert.equal(await page.locator('.form-errors').count(), 0, 'new attempt has no stale error');
         }
         assert.deepEqual(errors, []);
-        console.log(`PASS ${name}: document side, upload limit, uncertain submission, draft and reset`);
+        console.log(`PASS ${name}: document side, upload limit, uncertain submission, named conflict, safe reference, draft and reset`);
     } finally { await browser.close(); }
 }

@@ -62,7 +62,8 @@ it('validates and binds server uploads exactly once with no cloud policy', funct
     $key = 'kyc/'.$this->tenant->id.'/'.Str::uuid();
     $uploads->claim($file, $this->tenant->id, 'private', $key, 'kyc', null);
     expect(app(ImageStorage::class)->read('private', $key))->toBe($this->bytes);
-    expect(fn () => $uploads->claim($file, $this->tenant->id, 'private', $key, 'kyc', null))->toThrow(HttpException::class);
+    expect(fn () => $uploads->claim($file, $this->tenant->id, 'private', $key, 'kyc', null))
+        ->toThrow(DomainException::class, 'The uploaded image has already been used.');
     expect(DirectImageUpload::find($ticket['id'])->claimed_at)->not->toBeNull();
 });
 

@@ -1,4 +1,55 @@
 export const inboxCatalog = {
+    'Your identity verification status has changed. Refresh status and start verification again.': [
+        '身份认证状态已变化，请先刷新状态，再重新开始认证。',
+        'Status pengesahan identiti anda telah berubah. Segarkan status dan mulakan pengesahan semula.',
+        'Tu estado de verificación de identidad ha cambiado. Actualiza el estado e inicia la verificación de nuevo.',
+    ],
+    'This submission differs from the previous request. Refresh status before submitting again.': [
+        '本次提交与之前的申请信息不一致，请先刷新状态再重新提交。',
+        'Penghantaran ini berbeza daripada permintaan sebelumnya. Segarkan status sebelum menghantar semula.',
+        'Este envío difiere de la solicitud anterior. Actualiza el estado antes de volver a enviarlo.',
+    ],
+    'The document upload has not been verified. Please select and upload the photos again.': [
+        '证件照片尚未完成上传校验，请重新选择并上传照片。',
+        'Muat naik dokumen belum disahkan. Sila pilih dan muat naik foto semula.',
+        'La subida del documento aún no se ha verificado. Selecciona y sube las fotos de nuevo.',
+    ],
+    'The document upload is not ready. Please select and upload the photos again.': [
+        '证件照片尚未准备完成，请重新选择并上传照片。',
+        'Muat naik dokumen belum sedia. Sila pilih dan muat naik foto semula.',
+        'La subida del documento aún no está lista. Selecciona y sube las fotos de nuevo.',
+    ],
+    'This document upload has already been used. Refresh status before uploading new photos.': [
+        '本次上传的证件照片已被使用，请先刷新状态，再上传新的照片。',
+        'Muat naik dokumen ini telah digunakan. Segarkan status sebelum memuat naik foto baharu.',
+        'Esta subida de documentos ya se ha utilizado. Actualiza el estado antes de subir fotos nuevas.',
+    ],
+    'The uploaded document changed after verification. Please select and upload the photos again.':
+        [
+            '证件照片在校验后发生变化，请重新选择并上传照片。',
+            'Dokumen yang dimuat naik berubah selepas disahkan. Sila pilih dan muat naik foto semula.',
+            'El documento subido cambió después de la verificación. Selecciona y sube las fotos de nuevo.',
+        ],
+    'The document upload reference has changed. Please select and upload the photos again.': [
+        '证件上传记录已变化，请重新选择并上传照片。',
+        'Rujukan muat naik dokumen telah berubah. Sila pilih dan muat naik foto semula.',
+        'La referencia de la subida del documento ha cambiado. Selecciona y sube las fotos de nuevo.',
+    ],
+    'The document upload method has changed. Please select and upload the photos again.': [
+        '证件上传方式已变化，请重新选择并上传照片。',
+        'Kaedah muat naik dokumen telah berubah. Sila pilih dan muat naik foto semula.',
+        'El método de subida del documento ha cambiado. Selecciona y sube las fotos de nuevo.',
+    ],
+    'Your sign-in status changed during submission. Refresh status before trying again.': [
+        '提交期间登录状态发生变化，请先刷新状态再重试。',
+        'Status log masuk anda berubah semasa penghantaran. Segarkan status sebelum mencuba semula.',
+        'Tu estado de inicio de sesión cambió durante el envío. Actualiza el estado antes de volver a intentarlo.',
+    ],
+    'Verification error code: {{code}}': [
+        '认证失败代码：{{code}}',
+        'Kod ralat pengesahan: {{code}}',
+        'Código de error de verificación: {{code}}',
+    ],
     'Identity document account limit reached': [
         '该证件认证账号数已达上限',
         'Had akaun dokumen pengenalan telah dicapai',
