@@ -249,6 +249,25 @@ ps -eo pid,user,args | grep -E '[a]rtisan schedule:(run|work)'
 仍硬编码路径。`fileinfo/exif is already loaded` 则是 CLI 扩展重复加载；根据 `php --ini`
 定位主配置和附加 ini，只保留一份加载配置。它与调度抢锁跳过是两个独立问题。
 
+## KYC 调度启动与状态刷新（2026-10-30）
+
+部署匹配的 PHP（含 `routes/console.php`）和已编译的 `public/h5`。先复制新 H5
+资产，再替换入口与 manifest，保留旧哈希文件和下载分发文件。无需新迁移、后台资源
+或 native shell 重建；现有常驻 PHP/scheduler 按既有流程重载，不新增 queue worker。
+
+仍只保留上面的单个每分钟 `schedule:run`。KYC 事件移到同步扫描任务之前并使用
+`runInBackground()`，保留每分钟、`--limit=20`、`onOneServer()` 和
+`withoutOverlapping(30)`。其他任务的顺序与配置不变，不增加独立 KYC cron。
+这消除被前序扫描阻塞的启动等待；下一分钟 tick、已有 KYC 批次及批内串行处理仍可
+产生等待，正反面 OCR 的现有 120 秒超时与重试没有缩短。
+
+可见的待处理 H5 页面使用有界、去重的只读状态刷新；离开可见页面或达到终态后停止。
+每个可见刷新窗口最多读取 60 次，前 30 次间隔 10 秒、后 30 次间隔 30 秒，正常覆盖
+约 20 分钟；网络失败退避最多 60 秒且不增加次数。显式刷新或重新可见可开启新窗口。
+这些读取不会提交申请、触发识别或修改审核结果。可只读查看调度事件的排序与
+background 标记；不要为验收运行生产 `schedule:run`、`kyc:process-pending`
+或真实 OCR/卡商/资金操作。参见 [异步 KYC](../architecture/ASYNC_KYC.md)。
+
 ## 卡商余额每五分钟同步（2026-10-28）
 
 发布 PHP（含 `routes/console.php`）并按既有流程重载 PHP-FPM，执行

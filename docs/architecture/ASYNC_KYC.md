@@ -7,6 +7,8 @@ these tickets and the application. The request returns 202 with a retained
 application; it does not mean identity approval.
 
 `kyc:process-pending` is scheduled every minute by Laravel's existing scheduler.
+Its event starts before synchronous scans and runs as a background command, so
+unrelated slow scheduled scans do not delay its launch or wait for its completion.
 It processes only explicitly queued new submissions or administrator retries,
 never historical approved applications. No additional queue worker is required.
 A per-application lock and persistent next-processing deadline allow recovery
@@ -95,6 +97,42 @@ Deploy matching PHP and the rebuilt, tracked `public/h5` entry/new hashes togeth
 retaining older static resources. This correction needs no additional migration or
 native-shell rebuild. Verify through isolated Bearer/flow/upload/application HTTP
 fixtures and fully intercepted browser tests, never real identity submissions.
+
+## Scheduling and visible status refresh (2026-10-30)
+
+The existing `kyc:process-pending --limit=20` event runs first in the minute
+scheduler and uses `runInBackground()`. Keep `everyMinute()`, `onOneServer()` and
+`withoutOverlapping(30)`, including their existing mutex identity. No additional
+cron, queue worker or OCR concurrency is introduced. Other scheduled commands
+retain their existing configuration and order.
+
+This removes waiting behind unrelated synchronous scheduled scans. New submissions
+can still wait for the next minute tick, an existing KYC batch, or earlier retained
+applications. Applications inside a batch and their two OCR sides remain sequential;
+the existing 120-second OCR timeout, processing retries and recovery deadlines are
+unchanged. A background launch is not evidence that recognition or approval has
+completed.
+
+Visible pending consumer pages refresh their existing scoped status through
+bounded, deduplicated reads, so completed background work is reflected without a
+manual page refresh. Hide, route/identity changes and terminal status stop those
+reads. Status refresh never resubmits an application, starts OCR, changes review
+state or discards an in-progress submission's selected photos.
+
+Each visible refresh window allows at most 60 automatic reads: the first 30 use
+10-second intervals and the remaining 30 use 30-second intervals, covering about
+20 minutes without failures. Network failures back off to at most 60 seconds
+without increasing that read budget. Explicit refresh or returning to a visible
+pending page starts a new bounded window; ordinary successful reads do not reset
+the budget. Transient failures retain the mounted page
+and draft, while confirmed loss of access follows the existing authentication flow.
+
+Deploy matching PHP and compiled H5 in tracked `public/h5`, copying new assets
+before replacing the entry and retaining previous hashes and distribution files.
+Keep the existing single minute `schedule:run` entry. No new migration,
+administration build or native shell rebuild is required. Validate scheduler
+metadata and consumer lifecycle only with isolated/offline fixtures; do not run
+the production scheduler, submit real documents or call OCR/providers for testing.
 
 ## Deployment / validation
 

@@ -14,7 +14,10 @@ function stateFor(kyc) {
     runInNewContext(js, {
         exports, defineProps: () => ({ page: { kyc } }), defineEmits: () => () => {},
         require: id => {
-            if (id === 'vue') return { ref: value => ({ value }), reactive: value => value, computed: getter => ({ get value() { return getter(); } }) };
+            if (id === 'vue') return { ref: value => ({ value }), reactive: value => value, computed: getter => ({ get value() { return getter(); } }), watch() {}, onMounted() {}, onBeforeUnmount() {} };
+            if (id === '@dcloudio/uni-app') return { onShow() {}, onHide() {} };
+            if (id.endsWith('/session')) return { consumerSessionScope: () => 'offline-tenant:offline-user' };
+            if (id.endsWith('/kyc-status-refresh')) return { createKycStatusRefresh: () => ({ sync() {}, setVisible() {}, dispose() {}, refresh() {} }) };
             if (id.endsWith('/sensitive')) return { useSensitiveScreen() {} };
             if (id.endsWith('/client')) return { useAction: () => ({}) };
             return {};

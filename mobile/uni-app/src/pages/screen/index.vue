@@ -220,6 +220,45 @@ function retryLoad() {
     void load();
 }
 let loadFlight: { generation: number; path: string; promise: Promise<void> } | null = null;
+let kycRefreshFlight: Promise<void> | null = null;
+function refreshKycStatus(isCurrent: () => boolean): Promise<void> {
+    if (kycRefreshFlight) return kycRefreshFlight;
+    if (data.value?.component !== 'user/Kyc' || loading.value || !isCurrent()) return Promise.resolve();
+    const run = generation, target = path.value, scope = consumerSessionScope();
+    const current = () => isCurrent() && run === generation && target === path.value && scope === consumerSessionScope();
+    const promise = Promise.resolve().then(async () => {
+        try {
+            if (!current()) return;
+            // The page is already authenticated. This is a quiet scoped GET only.
+            const response = await getPage<any>(target, { background: true });
+            if (!current()) return;
+            if ('redirect' in response) {
+                data.value = null;
+                go(String(response.redirect), true);
+            } else if (response.component === 'user/Kyc') {
+                const props = response.props, kyc = props?.kyc;
+                if (!props || typeof props !== 'object' || Array.isArray(props)
+                    || !kyc || typeof kyc !== 'object' || Array.isArray(kyc) || typeof kyc.status !== 'string'
+                    || (kyc.processingStatus != null && typeof kyc.processingStatus !== 'string')) throw new ApiError(502);
+                data.value = { ...data.value!, props: response.props };
+            } else if (response.component === 'user/Restricted') data.value = response;
+            else throw new ApiError(502);
+        } catch (error) {
+            if (!current()) return;
+            // Transient failures retain the mounted form; confirmed loss of access does not.
+            if (error instanceof ApiError && [401,403,404,419].includes(error.status)) {
+                data.value = null;
+                errors.value = explainError(error);
+                if (error.status === 401) { clearSession(); go('/login', true); }
+            }
+            throw error;
+        } finally {
+            if (kycRefreshFlight === promise) kycRefreshFlight = null;
+        }
+    });
+    kycRefreshFlight = promise;
+    return promise;
+}
 function load(): Promise<void> {
     if (loadFlight?.generation === generation && loadFlight.path === path.value) return loadFlight.promise;
     const promise = loadOnce();
@@ -306,7 +345,7 @@ async function loadOnce() {
                   : 'rewards'
         "
         :page="data.props"
-    /><Kyc v-else-if="data.component === 'user/Kyc'" :page="data.props" @reload="load" /><Security
+    /><Kyc v-else-if="data.component === 'user/Kyc'" :page="data.props" :refresh-status="refreshKycStatus" @reload="load" /><Security
         v-else-if="data.component === 'user/Security'"
         :page="data.props"
         @reload="load"

@@ -8,6 +8,8 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+Schedule::command('kyc:process-pending --limit=20')->everyMinute()->withoutOverlapping(30)->onOneServer()->runInBackground();
+
 Schedule::command('payments:recover')->everyMinute()->withoutOverlapping(5)->onOneServer();
 Schedule::command('topups:scan-trc20')->everyMinute()->withoutOverlapping(5)->onOneServer();
 Schedule::command('promotion:recover')->everyMinute()->withoutOverlapping(30)->onOneServer();
@@ -24,8 +26,6 @@ Schedule::command('images:recover')->everyMinute()->withoutOverlapping(5)->onOne
 Schedule::command('data-cleanup:expire-backups')->hourly()->withoutOverlapping(30)->onOneServer();
 
 Schedule::command('images:replicate --limit=20')->everyMinute()->withoutOverlapping(10)->onOneServer();
-
-Schedule::command('kyc:process-pending --limit=20')->everyMinute()->withoutOverlapping(30)->onOneServer();
 
 Schedule::command('cards:sync-pending-issues')->everyMinute()->withoutOverlapping(5)->onOneServer();
 Schedule::command('cards:sync-saved-details')->everyMinute()->withoutOverlapping(5)->onOneServer();

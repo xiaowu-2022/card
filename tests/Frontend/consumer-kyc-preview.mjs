@@ -19,7 +19,10 @@ function screen(backHref = '/account') {
         defineEmits: () => event => events.push(event),
         require: id => {
             if (id === 'vue') return { ref: value => ({ value }), reactive: value => value,
-                computed: getter => ({ get value() { return getter(); } }) };
+                computed: getter => ({ get value() { return getter(); } }), watch() {}, onMounted() {}, onBeforeUnmount() {} };
+            if (id === '@dcloudio/uni-app') return { onShow() {}, onHide() {} };
+            if (id.endsWith('/session')) return { consumerSessionScope: () => 'offline-tenant:offline-user' };
+            if (id.endsWith('/kyc-status-refresh')) return { createKycStatusRefresh: () => ({ sync() {}, setVisible() {}, dispose() {}, refresh() {} }) };
             if (id.endsWith('/sensitive')) return { useSensitiveScreen: fn => { hooks.clear = fn; } };
             if (id.endsWith('/i18n')) return { t: key => key, locale: { value: 'en' } };
             if (id.endsWith('/client')) return { useAction: () => action };

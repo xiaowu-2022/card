@@ -10,8 +10,8 @@ export type ActionResult = {
     csrfToken?: string;
     token?: string;
 };
-export async function getPage<T>(path: string) {
-    return request<ClientPage<T>>('/client' + path);
+export async function getPage<T>(path: string, options: { background?: boolean } = {}) {
+    return request<ClientPage<T>>('/client' + path, 'GET', undefined, undefined, false, options);
 }
 export function requestId(): string {
     // An idempotency identifier, never an authentication token. Keep it unchanged on retry.

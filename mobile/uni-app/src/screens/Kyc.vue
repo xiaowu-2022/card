@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import DocumentPhoto from '../components/DocumentPhoto.vue';
 import { useSensitiveScreen } from '../lib/sensitive';
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { onShow, onHide } from '@dcloudio/uni-app';
+import { createKycStatusRefresh } from '../lib/kyc-status-refresh';
+import { consumerSessionScope } from '../lib/session';
 import { t, locale, dateTime } from '../lib/i18n';
 import { useAction } from '../lib/client';
 import { explainKycSubmissionError } from '../lib/kyc-errors';
@@ -15,6 +18,7 @@ import SelectField from '../components/SelectField.vue';
 import UploadField from '../components/UploadField.vue';
 import countries from '../generated/countries.json';
 const props = defineProps<{
+    refreshStatus?: (isCurrent: () => boolean) => Promise<void>;
     page: {
         kyc: {
             status: string;
@@ -42,6 +46,42 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ reload: [] }>();
 const action = useAction();
+let pageVisible = true;
+const statusRefresh = createKycStatusRefresh({
+    status: () => props.page.kyc.processingStatus,
+    busy: () => action.pending.value || !props.refreshStatus,
+    scope: consumerSessionScope,
+    reload: async (isCurrent) => {
+        if (props.refreshStatus) await props.refreshStatus(isCurrent);
+    },
+});
+watch([() => props.page.kyc.processingStatus, () => action.pending.value, consumerSessionScope], statusRefresh.sync, { flush: 'sync' });
+function updateVisibility() { statusRefresh.setVisible(pageVisible && !document.hidden); }
+onMounted(() => {
+    // #ifdef H5
+    document.addEventListener('visibilitychange', updateVisibility);
+    updateVisibility();
+    // #endif
+});
+onShow(() => {
+    pageVisible = true;
+    // #ifdef H5
+    updateVisibility();
+    // #endif
+});
+onHide(() => { pageVisible = false; statusRefresh.setVisible(false); });
+onBeforeUnmount(() => {
+    statusRefresh.dispose();
+    // #ifdef H5
+    document.removeEventListener('visibilitychange', updateVisibility);
+    // #endif
+});
+function refreshStatus() {
+    // #ifdef H5
+    if (props.refreshStatus) { void statusRefresh.refresh(); return; }
+    // #endif
+    emit('reload');
+}
 const progress = ref<UploadProgress>({ stage: 'uploading', completed: 0, total: 2 });
 const processingMessage = computed(() =>
     progress.value.stage === 'submitting'
@@ -199,7 +239,7 @@ async function submit() {
                 <button
                     v-if="page.kyc.processingStatus && page.kyc.processingStatus !== 'COMPLETE'"
                     class="secondary status-refresh"
-                    @click="emit('reload')"
+                    @click="refreshStatus"
                 >
                     {{ t('Refresh status') }}
                 </button>
@@ -257,7 +297,7 @@ async function submit() {
                                 : [page.kyc.frontUrl ?? '']
                         "
                         :originals="page.kyc.frontOriginalSources ?? []"
-                        @refresh="emit('reload')"
+                        @refresh="refreshStatus"
                     />
                 </view>
                 <view v-if="page.kyc.documentType !== 'PASSPORT'"
@@ -270,7 +310,7 @@ async function submit() {
                                 : [page.kyc.backUrl ?? '']
                         "
                         :originals="page.kyc.backOriginalSources ?? []"
-                        @refresh="emit('reload')"
+                        @refresh="refreshStatus"
                     />
                 </view>
             </view>
@@ -288,7 +328,7 @@ async function submit() {
             }}</text
             ><view v-if="Object.keys(action.errors.value).length"
                 ><FormErrors :errors="action.errors.value" /><view class="error-actions"
-                    ><text @click="emit('reload')">{{ t('Refresh status') }}</text
+                    ><text @click="refreshStatus">{{ t('Refresh status') }}</text
                     ><text @click="go('/support')">{{ t('Online support') }}</text></view
                 ></view
             >

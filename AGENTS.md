@@ -1,3 +1,14 @@
+On 2026-10-30 the user reported waiting for KYC results after submitting documents.
+Start the existing minute KYC scheduler event before synchronous scans and run that command in the
+background, retaining limit 20, onOneServer, the 30-minute overlap mutex and all
+per-application processing locks/guards. Visible pending consumer pages may refresh
+their scoped read-only status with bounded, deduplicated reads; stop on terminal
+states or leaving the visible page. Keep the single minute scheduler, sequential
+OCR and existing timeouts/retries; add no worker, cron, OCR concurrency or historical
+replay. Deliver matching PHP and compiled tracked public/h5, retaining older hashes;
+no migration, admin/native rebuild, real OCR/provider calls or production tests.
+See docs/architecture/ASYNC_KYC.md and docs/deployment/PRODUCTION_DEPLOYMENT.md.
+
 On 2026-10-30 the user reiterated that processing FAILED applications must remain
 manually approvable and rejected consumer-facing "contact support" copy in the
 administration review dialog. Keep pending failed manual review, identity-number
