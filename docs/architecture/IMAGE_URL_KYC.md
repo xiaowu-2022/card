@@ -32,6 +32,33 @@ Failed applications retain their originals and allow immediate linked resubmissi
 failed re-verification preserves the current identity. Historical approvals are not
 re-recognized or automatically invalidated. See [asynchronous KYC](ASYNC_KYC.md).
 
+## Permanent KYC originals (2026-11-02)
+
+KYC originals stored on the application server now use permanent, host-bound
+signed `/media/images/{image}?profile=original&signature=...` URLs. They have no
+`expires` parameter and require no administrator session when read by OCR. The
+signature still prevents changing the image, profile or hostname; the original
+remains encrypted in private storage and is served only from its trusted, ready
+KYC image mapping. The link does not time out while that host, signing key and
+stored original remain available. Other image previews retain their existing
+expiration rules. OSS originals keep the existing storage and HTTP OCR convention.
+
+Platform document photos provide Copy original link for each available side.
+An explicit scoped POST to
+`/platform/tenants/{tenant}/kyc/{kyc}/documents/original` accepts `side` and the
+existing recent-password confirmation, requires active `kyc.read` and
+`kyc.document.view`, and returns only that side's original URL in a private/no-store
+response. It records the application, administrator and side in the existing audit,
+never the URL, signature or document contents. The UI keeps the link in memory,
+supports clipboard/manual copying and clears it on leaving that application.
+Ordinary detail DTOs and preview access do not automatically disclose these links.
+Generating or copying a link does not call OCR, replay processing or change a review.
+
+Deploy matching PHP/routes and compiled admin `public/build`. No migration,
+consumer H5 or native rebuild is required. Existing expiring links keep their
+original expiration; copying an original or a future OCR request generates the new
+permanent link without rewriting stored evidence or re-recognizing history.
+
 ## Legacy number preview compatibility
 
 The maintained uni-app H5 selects photos locally, uploads both required originals

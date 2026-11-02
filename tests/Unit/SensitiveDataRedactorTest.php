@@ -12,6 +12,15 @@ it('redacts nested OCR original URLs and encrypted preview evidence', function (
     expect($redactor->redact(['image' => 'signed-original-url', 'kyc_ocr_evidence_encrypted' => 'ciphertext']))->each->toBe('[REDACTED]');
 });
 
+it('redacts permanent KYC original links from structured context and log strings', function (): void {
+    $redactor = new SensitiveDataRedactor;
+    $url = 'https://images.example.test/media/images/11111111-1111-4111-8111-111111111111?profile=original&signature=private-signature';
+    expect($redactor->redact(['originalUrl' => $url, 'ocr_url' => $url]))->each->toBe('[REDACTED]');
+    expect($redactor->redactString('Original fetch failed: '.$url))->toBe('Original fetch failed: [REDACTED]');
+    expect($redactor->redact(['url' => $url, 'application_id' => 'safe-reference']))
+        ->toBe(['url' => '[REDACTED]', 'application_id' => 'safe-reference']);
+});
+
 it('redacts SMTP tokens test recipients and transport transcripts', function (): void {
     expect((new SensitiveDataRedactor)->redact(['smtp_token' => 'test-token', 'test_email' => 'test@example.test', 'recipient_hash' => 'test-hash',
         'smtp_transcript' => 'AUTH and DATA', 'smtpDebug' => 'AUTH and DATA']))->each->toBe('[REDACTED]');

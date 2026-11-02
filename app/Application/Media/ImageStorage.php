@@ -129,6 +129,14 @@ final class ImageStorage
         return URL::temporarySignedRoute('media.image', now()->addHours(12), ['image' => $image->id, 'profile' => $profile]);
     }
 
+    public function permanentKycOriginalUrl(string $tenant, string $disk, string $key): string
+    {
+        $image = $this->record($disk, $key);
+        abort_unless($image && $image->tenant_id === $tenant && $image->purpose === 'kyc' && $image->state === 'ready', 404);
+
+        return URL::signedRoute('media.image', ['image' => $image->id, 'profile' => 'original']);
+    }
+
     public function url(string $disk, ?string $key): ?string
     {
         if ($published = $this->publishedBrandingUrl($disk, $key)) {
@@ -315,6 +323,9 @@ final class ImageStorage
         }
         if (! ServerImages::enabled() && ! $image?->configuration_id && ! $image?->backup_key && ! app()->environment('testing') && config('kyc.ocr_driver') !== 'mock') {
             throw new DomainException('KYC_DOCUMENT_STORAGE_FAILED', 'Configure and enable OSS before identity verification.', 503);
+        }
+        if ($image?->purpose === 'kyc') {
+            return $this->permanentKycOriginalUrl($image->tenant_id, $disk, $key);
         }
 
         return $this->url($disk, $key);

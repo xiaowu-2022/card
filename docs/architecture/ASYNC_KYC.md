@@ -23,7 +23,13 @@ using server-generated HTTP original URLs. Front identity validation and back
 validity evidence remain encrypted. Identity number/hash can be filled once after
 recognition;
 previously recognized identity data and completed reviews remain immutable.
-Server mode uses signed original URLs on the company's active domain.
+Server mode uses signed original URLs on the company's active domain. Since
+2026-11-02, KYC original URLs have no time expiry; generation still uses the exact
+trusted image mapping and the read requires a valid host-bound signature. The
+Platform per-side Copy original link action uses the same private original under
+current document permissions and recent-password confirmation. This does not alter
+the processing scheduler, retries, immutable evidence or review state. See
+[permanent KYC originals](IMAGE_URL_KYC.md#permanent-kyc-originals-2026-11-02).
 
 The current global review policy selects automatic approval or the manual queue.
 Approval retains account limits and identity locking. Processing failures retain

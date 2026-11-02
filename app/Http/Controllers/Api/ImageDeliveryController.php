@@ -11,11 +11,14 @@ final class ImageDeliveryController extends Controller
 {
     public function __invoke(string $image, Request $request, ImageStorage $images)
     {
-        // A short-lived, host-bound capability generated only from owned server mappings.
+        // A host-bound capability generated only from owned server mappings.
         abort_unless($request->hasValidSignature(), 403);
         $record = StoredImage::whereKey($image)->where('state', 'ready')->firstOrFail();
         $profile = $request->query('profile', 'original');
         abort_unless(in_array($profile, ['original', 'brand', 'thumbnail', 'preview', 'document', 'poster'], true), 422);
+        if (! $request->query->has('expires')) {
+            abort_unless($record->purpose === 'kyc' && $profile === 'original', 403);
+        }
 
         abort_unless(in_array($request->query('delivery'), [null, 'replica'], true), 422);
 

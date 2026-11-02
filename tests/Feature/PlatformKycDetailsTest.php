@@ -1,6 +1,8 @@
 <?php
 
 use App\Domain\Admin\Models\AdminUser;
+use App\Application\Media\ImageReplicas;
+use App\Application\Media\ImageStorage;
 use App\Domain\Kyc\Models\KycApplication;
 use App\Domain\Kyc\Services\KycDataCipher;
 use App\Domain\Media\OssConfiguration;
@@ -10,6 +12,7 @@ use App\Domain\User\Models\User;
 use App\Infrastructure\Storage\OssImages;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -17,6 +20,7 @@ beforeEach(function () {
     $this->withoutVite();
     config(['inertia.ssr.enabled' => false]);
     Storage::fake('private');
+    Http::preventStrayRequests();
     $this->admin = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
     $this->admin->forceFill(['password' => Hash::make('synthetic-password')])->save();
     $this->tenant = Tenant::where('slug', 'tenant-a')->firstOrFail();
@@ -24,12 +28,83 @@ beforeEach(function () {
     $this->kyc = new KycApplication;
     $this->kyc->forceFill(['tenant_id' => $this->tenant->id, 'user_id' => $user->id, 'document_type' => 'NATIONAL_ID', 'document_country' => 'CN',
         'identity_number_encrypted' => app(KycDataCipher::class)->encrypt('11010519491231002X'), 'identity_hash' => hash('sha256', 'synthetic'),
-        'front_object_key' => 'kyc/test-front', 'back_object_key' => 'kyc/test-back', 'review_status' => 'APPROVED', 'reviewed_at' => now(), 'automatically_approved' => true, 'ocr_status' => 'SUCCEEDED', 'submitted_at' => now()])->save();
+        'front_object_key' => 'kyc/test-front', 'back_object_key' => 'kyc/test-back', 'review_status' => 'APPROVED', 'reviewed_at' => now(),
+        'reviewed_by_admin_user_id' => $this->admin->id, 'automatically_approved' => false, 'ocr_status' => 'SUCCEEDED', 'submitted_at' => now()])->save();
     Storage::disk('private')->put('kyc/test-front', kycTestImage()->getContent());
     Storage::disk('private')->put('kyc/test-back', kycTestImage()->getContent());
     $this->base = 'https://admin.localhost/platform/tenants/'.$this->tenant->id.'/kyc/'.$this->kyc->id;
     $this->actingAs($this->admin, 'platform_admin');
 });
+
+function platformPermanentKycImages($test): void
+{
+    DB::table('media_storage_settings')->where('id', 1)->update(['storage_driver' => 'server']);
+    foreach (['front', 'back'] as $side) {
+        $bytes = kycTestImage()->getContent();
+        $image = StoredImage::create(['tenant_id' => $test->tenant->id, 'source_disk' => 'private', 'source_key' => 'kyc/test-'.$side,
+            'purpose' => 'kyc', 'object_key' => 'kyc/test-'.$side, 'mime' => 'image/png',
+            'size' => strlen($bytes), 'sha256' => hash('sha256', $bytes), 'state' => 'ready']);
+        app(ImageReplicas::class)->save($image, $bytes);
+    }
+    $oss = Mockery::mock(OssImages::class);
+    $oss->shouldNotReceive('get')->shouldNotReceive('getBounded')->shouldNotReceive('display')->shouldNotReceive('put');
+    app()->instance(OssImages::class, $oss);
+}
+
+it('issues audited password gated permanent original links without changing KYC or financial evidence', function () {
+    platformPermanentKycImages($this);
+    $tables = ['kyc_applications', 'identity_records', 'ledger_entries', 'ledger_accounts', 'wallets', 'stored_images'];
+    $before = collect($tables)->mapWithKeys(fn ($table) => [$table => DB::table($table)->orderBy('id')->get()->toJson()]);
+    $url = $this->base.'/documents/original';
+    $this->postJson($url, ['side' => 'front'])->assertUnprocessable()->assertJsonValidationErrors('password');
+    $this->postJson($url, ['side' => 'front', 'password' => 'wrong'])->assertUnprocessable()->assertJsonValidationErrors('password');
+    $result = $this->postJson($url, ['side' => 'front', 'password' => 'synthetic-password'])->assertOk()
+        ->assertHeader('Cache-Control', 'no-store, private')->assertJsonPath('side', 'front')
+        ->assertJsonPath('tenantId', $this->tenant->id)->assertJsonPath('applicationId', $this->kyc->id);
+    $original = $result->json('originalUrl');
+    expect($original)->toContain('/media/images/', 'profile=original', 'signature=')->not->toContain('expires=', 'viewer=', 'kyc/test');
+    $audit = DB::table('audit_logs')->where('action', 'KYC_DOCUMENT_ORIGINAL_LINK_VIEWED')->sole();
+    expect(json_decode($audit->after_data, true))->toBe(['document_side' => 'FRONT'])
+        ->and($audit->tenant_id)->toBe($this->tenant->id)->and($audit->resource_id)->toBe($this->kyc->id)
+        ->and(json_encode($audit))->not->toContain($original, 'signature=', 'synthetic-password');
+    $back = $this->postJson($url, ['side' => 'back'])->assertOk()->assertJsonPath('side', 'back')->json('originalUrl');
+    expect($back)->not->toBe($original);
+    $this->travel(16)->minutes();
+    $this->postJson($url, ['side' => 'front'])->assertUnprocessable()->assertJsonValidationErrors('password');
+    $this->postJson($url, ['side' => 'front', 'password' => 'synthetic-password'])->assertOk()->assertJsonPath('originalUrl', $original);
+    auth('platform_admin')->logout();
+    $this->flushSession();
+    $this->travel(1)->years();
+    $this->get($original)->assertOk()->assertContent(kycTestImage()->getContent())->assertHeader('Cache-Control', 'no-store, private');
+    $this->get($back)->assertOk()->assertContent(kycTestImage()->getContent());
+    foreach ($before as $table => $snapshot) {
+        expect(DB::table($table)->orderBy('id')->get()->toJson())->toBe($snapshot);
+    }
+    expect(DB::table('audit_logs')->where('action', 'KYC_DOCUMENT_ORIGINAL_LINK_VIEWED')->count())->toBe(3);
+    Http::assertNothingSent();
+});
+
+it('rejects cross scope non KYC and revoked original link issuance without exposing a link', function () {
+    platformPermanentKycImages($this);
+    $url = $this->base.'/documents/original';
+    $input = ['side' => 'front', 'password' => 'synthetic-password'];
+    $this->postJson($url, ['side' => 'portrait'])->assertUnprocessable()->assertJsonValidationErrors('side');
+    $other = Tenant::where('id', '<>', $this->tenant->id)->firstOrFail();
+    $this->postJson(str_replace($this->tenant->id, $other->id, $url), $input)->assertNotFound();
+    $image = app(ImageStorage::class)->record('private', 'kyc/test-front');
+    $image->update(['purpose' => 'support']);
+    $this->postJson($url, $input)->assertNotFound();
+    $image->update(['purpose' => 'kyc', 'state' => 'uploading']);
+    $this->postJson($url, $input)->assertNotFound();
+    $image->update(['state' => 'ready', 'tenant_id' => $other->id]);
+    $this->postJson($url, $input)->assertNotFound();
+    DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'kyc.document.view')->value('id'))->delete();
+    $this->actingAs($this->admin->fresh(), 'platform_admin')->postJson($url, $input)->assertForbidden();
+    $this->actingAs(AdminUser::where('email', 'owner@a.localhost')->firstOrFail(), 'platform_admin')->postJson($url, $input)->assertForbidden();
+    expect(DB::table('audit_logs')->where('action', 'KYC_DOCUMENT_ORIGINAL_LINK_VIEWED')->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
 it('shows masked identity metadata and audited password-gated scoped photos', function () {
     $before = DB::table('audit_logs')->count();
     $this->get($this->base)->assertOk()->assertInertia(fn ($p) => $p->component('platform/KycDetail')->where('application.documentType', 'NATIONAL_ID')->where('canViewDocuments', true));
@@ -74,6 +149,8 @@ it('returns the current OSS domain without server reads even when a local backup
         ->and($r->json('documentSources.front.2'))->toContain('delivery=replica')
         ->and($r->json('documents.front'))->toStartWith('https://images.example.com/images/test-front.png?x-oss-process=')
         ->and($r->json('documents.back'))->toStartWith('https://images.example.com/images/test-back.png?x-oss-process=');
+    $original = $this->postJson($this->base.'/documents/original', ['side' => 'front'])->assertOk()->json('originalUrl');
+    expect($original)->toContain('/media/images/', 'profile=original', 'signature=')->not->toContain('expires=', 'x-oss-process=');
 });
 
 it('loads only the selected users masked KYC history without document access or business writes', function () {
@@ -156,7 +233,7 @@ it('lists all applications newest first with pagination and explicit company fil
 it('separates processing failures from pending list filters without changing review evidence', function () {
     $failed = $this->kyc->replicate();
     $failed->forceFill(['review_status' => 'PENDING', 'processing_status' => 'FAILED',
-        'reviewed_at' => null, 'automatically_approved' => false])->save();
+        'reviewed_at' => null, 'reviewed_by_admin_user_id' => null, 'automatically_approved' => false])->save();
     $pending = $failed->replicate();
     $pending->forceFill(['processing_status' => 'QUEUED'])->save();
     $url = 'https://admin.localhost/platform/kyc';

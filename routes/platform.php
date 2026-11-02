@@ -281,6 +281,7 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
     });
     Route::middleware(['admin.scope:platform,kyc.read', 'admin.scope:platform,kyc.document.view'])->group(function (): void {
         Route::post('/tenants/{tenant}/kyc/{kyc}/documents', [KycDetailController::class, 'access'])->whereUuid(['tenant', 'kyc'])->middleware('throttle:10,1')->name('kyc.documents.access');
+        Route::post('/tenants/{tenant}/kyc/{kyc}/documents/original', [KycDetailController::class, 'original'])->whereUuid(['tenant', 'kyc'])->middleware('throttle:10,1')->name('kyc.documents.original');
         Route::get('/tenants/{tenant}/kyc/{kyc}/documents/{side}', [KycDetailController::class, 'image'])->whereUuid(['tenant', 'kyc'])->whereIn('side', ['front', 'back'])->middleware('signed')->name('kyc.documents.show');
     });
     Route::middleware('admin.scope:platform,kyc.read')->group(function (): void {

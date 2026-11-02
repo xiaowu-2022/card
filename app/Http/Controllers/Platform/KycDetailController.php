@@ -92,13 +92,7 @@ final class KycDetailController extends Controller
     {
         $application = KycApplication::where('tenant_id', $tenant->id)->findOrFail($kyc);
         $admin = $request->user('platform_admin');
-        if (! $recent->valid($request->session(), $admin, $tenant->id)) {
-            $input = $request->validate(['password' => ['required', 'string', 'max:255']]);
-            if (! Hash::check($input['password'], $admin->password)) {
-                throw ValidationException::withMessages(['password' => 'The password is incorrect.']);
-            }
-            $recent->mark($request->session(), $admin, $tenant->id);
-        }
+        $this->confirmDocumentAccess($request, $tenant, $recent);
         $documents = [];
         $documentSources = [];
         foreach (['front', 'back'] as $side) {
@@ -124,6 +118,34 @@ final class KycDetailController extends Controller
         }
 
         return response()->json(['documents' => $documents, 'documentSources' => $documentSources])->header('Cache-Control', 'private, no-store');
+    }
+
+    public function original(Tenant $tenant, string $kyc, Request $request, PlatformAdminRecentAuthentication $recent, AuditLogger $audit)
+    {
+        $data = $request->validate(['side' => ['required', 'in:front,back']]);
+        $application = KycApplication::where('tenant_id', $tenant->id)->findOrFail($kyc);
+        $this->confirmDocumentAccess($request, $tenant, $recent);
+        $side = $data['side'];
+        $key = $application->{$side.'_object_key'};
+        abort_unless(is_string($key) && $key !== '', 404);
+        $url = app(ImageStorage::class)->permanentKycOriginalUrl($tenant->id, (string) config('kyc.document_disk'), $key);
+        $audit->record($tenant->id, 'ADMIN', $request->user('platform_admin')->id, 'KYC_DOCUMENT_ORIGINAL_LINK_VIEWED',
+            'kyc_application', $application->id, null, ['document_side' => strtoupper($side)], $request->attributes->get('request_id'));
+
+        return response()->json(['originalUrl' => $url, 'side' => $side, 'tenantId' => $tenant->id, 'applicationId' => $application->id])
+            ->header('Cache-Control', 'private, no-store');
+    }
+
+    private function confirmDocumentAccess(Request $request, Tenant $tenant, PlatformAdminRecentAuthentication $recent): void
+    {
+        $admin = $request->user('platform_admin');
+        if (! $recent->valid($request->session(), $admin, $tenant->id)) {
+            $input = $request->validate(['password' => ['required', 'string', 'max:255']]);
+            if (! Hash::check($input['password'], $admin->password)) {
+                throw ValidationException::withMessages(['password' => 'The password is incorrect.']);
+            }
+            $recent->mark($request->session(), $admin, $tenant->id);
+        }
     }
 
     public function image(Tenant $tenant, string $kyc, string $side, Request $request, PlatformAdminRecentAuthentication $recent)

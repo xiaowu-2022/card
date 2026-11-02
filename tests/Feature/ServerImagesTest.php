@@ -14,7 +14,9 @@ use App\Infrastructure\Storage\OssImages;
 use App\Support\Errors\DomainException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -23,6 +25,7 @@ beforeEach(function () {
     config(['media.storage' => 'server']);
     Storage::fake('private');
     Storage::fake('public');
+    Http::preventStrayRequests();
     $oss = Mockery::mock(OssImages::class);
     foreach (['put', 'get', 'getBounded', 'display', 'delete', 'metadata', 'directUploadPolicy', 'copyDirectImage', 'publishDirectImage'] as $method) {
         $oss->shouldNotReceive($method);
@@ -43,11 +46,43 @@ it('stores originals privately and serves signed original OCR URLs without OSS c
     expect(Storage::disk('private')->get($image->backup_key))->not->toBe($this->bytes);
     expect($images->read('private', $key))->toBe($this->bytes);
     $url = $images->ocrUrl('private', $key);
-    expect($url)->toContain('/media/images/')->toContain('signature=');
+    expect($url)->toContain('/media/images/')->toContain('signature=')->not->toContain('expires=');
     $this->get($url)->assertOk()->assertContent($this->bytes);
     $this->get(strtok($url, '?'))->assertForbidden();
+    $this->get($url.'&expires='.now()->addYear()->getTimestamp())->assertForbidden();
+    $this->travel(13)->hours();
+    $this->get($url)->assertOk()->assertContent($this->bytes);
     expect(app(PublicAssets::class)->manifest(true))->toBe([]);
     $this->artisan('images:replicate')->assertSuccessful();
+});
+
+it('limits permanent original capabilities to ready tenant scoped KYC images and keeps other media expiring', function () {
+    $images = app(ImageStorage::class);
+    $key = 'kyc/'.$this->tenant->id.'/'.Str::uuid();
+    $images->put($this->tenant->id, 'private', $key, $this->bytes, 'kyc');
+    $kyc = $images->record('private', $key);
+    $url = $images->permanentKycOriginalUrl($this->tenant->id, 'private', $key);
+    expect($url)->toContain('profile=original')->not->toContain('expires=', 'viewer=');
+    $this->get(str_replace('profile=original', 'profile=document', $url))->assertForbidden();
+    $this->get(preg_replace('~^https?://[^/]+~', 'http://other.example.test', $url))->assertForbidden();
+    $other = Tenant::where('id', '<>', $this->tenant->id)->firstOrFail();
+    expect(fn () => $images->permanentKycOriginalUrl($other->id, 'private', $key))->toThrow(HttpException::class);
+    foreach (['support', 'card', 'branding'] as $purpose) {
+        $otherKey = $purpose.'/'.$this->tenant->id.'/'.Str::uuid();
+        $images->put($this->tenant->id, 'private', $otherKey, $this->bytes, $purpose);
+        $image = $images->record('private', $otherKey);
+        expect(fn () => $images->permanentKycOriginalUrl($this->tenant->id, 'private', $otherKey))->toThrow(HttpException::class);
+        $this->get(URL::signedRoute('media.image', ['image' => $image->id, 'profile' => 'original']))->assertForbidden();
+        $temporary = $images->gatewayUrl($image);
+        expect($temporary)->toContain('expires=');
+        $this->get(preg_replace('/([?&])expires=[^&]+&?/', '$1', $temporary))->assertForbidden();
+        $this->get($temporary)->assertOk();
+    }
+    $this->get(URL::signedRoute('media.image', ['image' => $kyc->id, 'profile' => 'document']))->assertForbidden();
+    $kyc->update(['state' => 'cleanup_pending']);
+    expect(fn () => $images->permanentKycOriginalUrl($this->tenant->id, 'private', $key))->toThrow(HttpException::class);
+    $this->get($url)->assertNotFound();
+    Http::assertNothingSent();
 });
 
 it('validates and binds server uploads exactly once with no cloud policy', function () {

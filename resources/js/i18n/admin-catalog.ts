@@ -918,6 +918,17 @@ export const adminCatalog: Record<string, string> = {
     'Identity verification details': '实名认证详情',
     'Identity document photos': '实名证件照片',
     'View photos': '查看照片',
+    'Verify your password to view photos or copy original image links.':
+        '验证管理员密码后，可查看照片或复制原图链接。',
+    'Original image links do not expire and need no renewal.': '原图链接永久有效，无需续期。',
+    'Copy original link': '复制原图链接',
+    'Obtaining original link…': '正在获取原图链接…',
+    'Original link copied.': '原图链接已复制。',
+    'Original image link': '原图链接',
+    'Copy failed. Select and copy the original image link below.':
+        '自动复制失败，请选中下方原图链接手动复制。',
+    'Unable to obtain the original image link. Please retry.': '获取原图链接失败，请重试。',
+    'Confirm your current administrator password and try again.': '请确认当前管理员密码后重试。',
     'Verify your password to view photos. Access is temporary and audited.':
         '验证当前管理员密码后查看照片，访问临时有效并记录审计。',
     'Photo unavailable. Verify access again or check image storage.':
