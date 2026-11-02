@@ -32,6 +32,9 @@ it('redacts Aliyun credentials OTP parameters and sensitive request query string
     expect($redactor->redactString('https://dysmsapi.aliyuncs.com/?PhoneNumbers=8613800138000&TemplateParam=%7Bcode%7D&TemplateCode=SMS_123'))
         ->toBe('https://dysmsapi.aliyuncs.com/?PhoneNumbers=[REDACTED]&TemplateParam=[REDACTED]&TemplateCode=SMS_123');
     expect($redactor->redactString('ACS3-HMAC-SHA256 Credential=test-key,SignedHeaders=host,Signature=test-signature'))->toBe('ACS3-HMAC-SHA256 [REDACTED]');
+    expect($redactor->redact(['ALIYUN_OCR_ACCESS_KEY_ID' => 'test-ocr-key', 'ALIYUN_OCR_ACCESS_KEY_SECRET' => 'test-ocr-secret', 'ALIYUN_OCR_SECURITY_TOKEN' => 'test-sts-token']))->each->toBe('[REDACTED]');
+    expect($redactor->redactString('https://ocr-api.cn-hangzhou.aliyuncs.com/?Url=https%3A%2F%2Fprivate.test%2Foriginal%3Fsignature%3Dsecret'))
+        ->toBe('https://ocr-api.cn-hangzhou.aliyuncs.com/?Url=[REDACTED]');
 });
 
 it('redacts sensitive values recursively', function (): void {

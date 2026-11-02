@@ -14,7 +14,7 @@ final class SensitiveDataRedactor
         foreach ($data as $key => $value) {
             $normalized = $this->normalizeKey((string) $key);
             $redacted[$key] = preg_match(self::SENSITIVE_KEY_PATTERN, $normalized) === 1
-                || in_array($normalized, ['photonpay_issuing_encrypted', 'photonpay_reporting_encrypted', 'address', 'reset_contact', 'password_reset_binding', 'ip_hash', 'trongrid_api_key_encrypted', 'original_url', 'ocr_url'], true)
+                || in_array($normalized, ['photonpay_issuing_encrypted', 'photonpay_reporting_encrypted', 'address', 'reset_contact', 'password_reset_binding', 'ip_hash', 'trongrid_api_key_encrypted', 'original_url', 'ocr_url', 'aliyun_ocr_access_key_id'], true)
                 || in_array($normalized, ['pin', 'pin_confirmation', 'pin_confirm', 'recipient_first_name', 'recipient_last_name', 'address_line1', 'address_line2', 'address_line3', 'postal_code', 'mobile_prefix', 'cardholder_name_abbreviation', 'recipient_snapshot_encrypted', 'credential', 'new_contact', 'destination_hash', 'session_hash', 'credential_hash', 'contact_change_binding', 'support_message', 'support_image', 'image_object_key', 'image_hash', 'test_email', 'recipient_hash', 'smtp_transcript', 'smtp_debug', 'holder_changes_encrypted'], true)
                 ? '[REDACTED]'
                 : $this->redactValue($value);
@@ -29,7 +29,7 @@ final class SensitiveDataRedactor
         $value = preg_replace('/ACS3-HMAC-SHA256\s+Credential=[^\r\n]+/i', 'ACS3-HMAC-SHA256 [REDACTED]', $value) ?? $value;
         $value = preg_replace('~https?://[^\s<>"\']*/media/images/[^\s<>"\']+~i', '[REDACTED]', $value) ?? $value;
 
-        return preg_replace('/([?&](?:image|apikey|PhoneNumbers|TemplateParam|AccessKeyId|AccessKeySecret)=)[^&\s]+/i', '$1[REDACTED]', $value) ?? $value;
+        return preg_replace('/([?&](?:image|Url|apikey|PhoneNumbers|TemplateParam|AccessKeyId|AccessKeySecret)=)[^&\s]+/i', '$1[REDACTED]', $value) ?? $value;
     }
 
     private function normalizeKey(string $key): string

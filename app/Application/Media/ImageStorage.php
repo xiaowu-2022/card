@@ -315,11 +315,8 @@ final class ImageStorage
                 throw new DomainException('KYC_DOCUMENT_STORAGE_FAILED', 'Image storage is unavailable. Please try again.', 503, ['reason' => $reason]);
             }
 
-            // The selected OCR service requires HTTP for OSS originals. Display/upload
-            // URLs retain their configured scheme; signed server URLs are not rewritten.
-            $url = $this->oss->url($config, $image->object_key);
-
-            return preg_replace('/^https:\/\//i', 'http://', $url);
+            // Aliyun accepts the configured original URL, including HTTPS.
+            return $this->oss->url($config, $image->object_key);
         }
         if (! ServerImages::enabled() && ! $image?->configuration_id && ! $image?->backup_key && ! app()->environment('testing') && config('kyc.ocr_driver') !== 'mock') {
             throw new DomainException('KYC_DOCUMENT_STORAGE_FAILED', 'Configure and enable OSS before identity verification.', 503);

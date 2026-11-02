@@ -1,5 +1,10 @@
 # Image URL KYC (2026-10-01)
 
+> Since 2026-11-02, runtime KYC uses [Aliyun OCR](ALIYUN_KYC_OCR.md). The fixed
+> unauthenticated OCR endpoint and OSS HTTP rewrite below are historical only.
+> Server originals still use the permanent signed URLs described in this document;
+> Aliyun OSS inputs retain the configured scheme, including HTTPS.
+
 The user replaced Aliyun and OCR.Space with the fixed endpoint
 `http://202.95.12.200:9601/ocr`. Laravel sends GET requests with an `image` query
 parameter containing its own generated original URL for the required document side. Query encoding preserves

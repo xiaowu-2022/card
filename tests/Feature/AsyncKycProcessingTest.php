@@ -76,9 +76,9 @@ function asyncOcrOnce(?KycDocumentValidityDTO $validity = null): void
 {
     $provider = Mockery::mock(KycOcrProviderInterface::class);
     $provider->shouldReceive('name')->andReturn('TEST');
-    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->side === KycOcrSide::Front && $request->backUrl === '' && str_starts_with($request->frontUrl, 'http://images.example.test/')))
+    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->side === KycOcrSide::Front && $request->backUrl === '' && str_starts_with($request->frontUrl, 'https://images.example.test/')))
         ->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, '11010519491231002X'));
-    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->side === KycOcrSide::Back && $request->frontUrl === '' && str_starts_with($request->backUrl, 'http://images.example.test/')))
+    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->side === KycOcrSide::Back && $request->frontUrl === '' && str_starts_with($request->backUrl, 'https://images.example.test/')))
         ->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, validity: $validity ?? new KycDocumentValidityDTO('2020-01-01', '2099-12-31', false)));
     app()->instance(KycOcrProviderInterface::class, $provider);
 }

@@ -8,6 +8,7 @@ use App\Domain\Kyc\DTOs\KycOcrResultDTO;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
+/** Retained for isolated legacy transport tests; never selected by the KYC runtime. */
 final class ImageUrlKycOcrProvider implements KycOcrProviderInterface
 {
     public const ENDPOINT = 'http://202.95.12.200:9601/ocr';
