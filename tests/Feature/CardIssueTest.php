@@ -344,6 +344,48 @@ it('returns only confirmed net card funds and never replays a return', function 
     DB::statement('SET CONSTRAINTS card_management_accounting IMMEDIATE');
 });
 
+it('deducts only successful wallet returns from card list funding without changing consumption', function (ProviderOperationStatus $status, string $funded, string $consumed): void {
+    Http::preventStrayRequests();
+    $this->withoutVite();
+    config(['inertia.ssr.enabled' => false]);
+    [$card, $provider, $action] = managedCardFixture($this);
+    $provider->shouldReceive('returnCardFunds')->once()->andReturnUsing(fn ($id, $amount, $request) => new ProviderCardFundsDTO(
+        $status, $id, $request, 'LIST-RETURN', '10.00000000', '9.12345678', '0.87654322'
+    ));
+    $request = (string) Str::uuid();
+    $order = $action->operate($card->tenant_id, $card->user_id, $card->id, $request, 'RETURN', '10');
+    expect($action->operate($card->tenant_id, $card->user_id, $card->id, $request, 'RETURN', '10')->id)->toBe($order->id);
+    if ($status === ProviderOperationStatus::Succeeded) {
+        $card->forceFill(['provider_balance' => '10'])->save();
+        app(RecordCardTransactionsAction::class)->execute($card, [new ProviderCardTransactionDTO(
+            'LIST-RETURN', '10', 'USD', 'transfer_out', 'completed', now()->format('Y-m-d H:i:s'), null
+        )], CarbonImmutable::now());
+    }
+    $this->actingAs(AdminUser::where('email', 'owner@platform.local')->firstOrFail(), 'platform_admin');
+    app()->instance(CardProviderInterface::class, Mockery::mock(CardProviderInterface::class));
+    $tables = ['user_cards', 'card_issue_orders', 'card_management_orders', 'card_transactions', 'card_overflow_movements',
+        'wallets', 'ledger_accounts', 'ledger_entries', 'ledger_postings', 'audit_logs'];
+    $snapshot = fn () => collect($tables)->mapWithKeys(fn ($table) => [$table => DB::table($table)->orderBy('id')->get()->toJson()])->all();
+    $before = $snapshot();
+    $query = app(PlatformCardQuery::class);
+    $global = $this->get('http://admin.localhost/platform/cards?company='.$card->tenant_id)->assertOk()->inertiaProps('cards.data.0');
+    $url = 'http://admin.localhost/platform/tenants/'.$card->tenant_id.'/users/'.$card->user_id.'/cards';
+    $detail = $this->getJson($url)->assertOk()->assertHeader('Cache-Control', 'no-store, private')->json('cards.data.0');
+    expect($detail)->toBe($global)->and($global['funded'])->toBe($funded)->and($global['consumed'])->toBe($consumed);
+    // The asset summary retains cumulative funding; list net funding must not alter its consumption formula.
+    $summary = app(PlatformUserCardsSummary::class)->read($card->tenant_id, $card->user_id, false, 1);
+    expect($summary['items'][0]->funded)->toBe('20.00000000')->and($summary['items'][0]->consumed)->toBe($consumed)
+        ->and($snapshot())->toBe($before);
+    $card->forceFill(['provider_balance' => null])->save();
+    $unknown = $query->forUser($card->tenant_id, $card->user_id, 1)->items()[0];
+    expect($unknown['funded'])->toBe($funded)->and($unknown['consumed'])->toBeNull();
+    Http::assertNothingSent();
+})->with([
+    'successful net return' => [ProviderOperationStatus::Succeeded, '10.87654322', '0.87654322'],
+    'failed return' => [ProviderOperationStatus::Failed, '20.00000000', '0.00000000'],
+    'unconfirmed return' => [ProviderOperationStatus::Unknown, '20.00000000', '0.00000000'],
+]);
+
 it('shows settled returns without synchronization and replaces them once provider history arrives', function (): void {
     [$card, $provider, $action] = managedCardFixture($this);
     $provider->shouldReceive('returnCardFunds')->once()->andReturnUsing(fn ($id, $amount, $request) => new ProviderCardFundsDTO(ProviderOperationStatus::Succeeded, $id, $request, 'RETURN-HISTORY', '10.00000000', '9.00000000', '1.00000000'));
@@ -527,6 +569,9 @@ it('settles cancellation automatic return once without changing the security dep
         ->and(LedgerEntry::query()->where('reference_id', $result->id)->count())->toBe(1);
     $history = app(UserCardTransactionsQuery::class)->get($this->tenant->id, $this->user->id, $card->id, 1)['items'];
     expect($history)->toHaveCount(1)->and($history[0]['amount'])->toBe('-20.00000000')->and($history[0]['type'])->toBe('transfer_out');
+    $this->actingAs(AdminUser::where('email', 'owner@platform.local')->firstOrFail(), 'platform_admin');
+    $this->getJson('http://admin.localhost/platform/tenants/'.$card->tenant_id.'/users/'.$card->user_id.'/cards')
+        ->assertOk()->assertJsonPath('cards.data.0.funded', '1.00000000');
     DB::statement('SET CONSTRAINTS card_management_accounting IMMEDIATE');
 });
 
@@ -3318,6 +3363,8 @@ it('card void refunds verified net provider and overflow funds once before cance
     $service->retry($actor, $batch, ['confirmed' => true]);
     $service->show($actor, $batch);
     expect(LedgerEntry::count())->toBe($settled)->and(DB::table('card_overflow_movements')->where('kind', 'RETURN')->count())->toBe(1);
+    $listed = app(PlatformCardQuery::class)->forUser($card->tenant_id, $card->user_id, 1)->items()[0];
+    expect($listed['funded'])->toBe('1.00000000')->and($listed['consumed'])->toBe('1.00000000');
     DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
 })->with([false, true]);
 

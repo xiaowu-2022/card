@@ -5,6 +5,7 @@ namespace App\Application\Card;
 use App\Application\User\PlatformUserSummary;
 use App\Domain\Card\Models\CardIssueOrder;
 use App\Domain\Card\Models\UserCard;
+use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -82,8 +83,10 @@ final class PlatformCardQuery
             }
             $summary = $canSummarize ? $summaries[$key]->get($row['id']) : null;
             $fee = $fees->get($key.':'.$issueIds->get($row['id']));
+            // Consumption already deducts returns; only the list funding projection becomes net.
+            $funded = $summary ? (string) BigDecimal::of($summary->funded)->minus($summary->returned)->toScale(8) : null;
 
-            return [...$row, ...($identities[$key] ?? []), 'funded' => $summary?->funded, 'consumed' => $summary?->consumed,
+            return [...$row, ...($identities[$key] ?? []), 'funded' => $funded, 'consumed' => $summary?->consumed,
                 'openingFee' => $fee?->opening_fee, 'openingFeeAsset' => $fee?->wallet_asset];
         });
 

@@ -119,12 +119,23 @@ U-card funding, opening fee, estimated consumption and card wallet balance.
 Product/card identity, status and existing actions remain available afterward.
 Ranks and same-company direct inviters reuse PlatformUserListIdentity. Funding and
 consumption reuse PlatformUserCardsSummary for current-page card IDs, including
-archived cards when present in the existing list. Opening fees use each card's
+archived cards when present in the existing list. As corrected on 2026-11-02, list
+U-card funding is cumulative successful issue/load funding minus successful returns
+actually credited to the wallet: RETURN/CANCEL_RETURN net arrival plus local overflow
+RETURN movements. Failed/unconfirmed returns and duplicate provider transaction copies
+do not reduce it. Preserve native decimals and negative values; an unknown current
+balance does not hide known net funding. Global, user and partner detail card lists
+share this projection. The asset summary retains cumulative funding and its existing
+consumption formula (cumulative funding minus returns minus balance), so returns are
+deducted exactly once. Opening fees use each card's
 same-company/user successful issue order and retain its native wallet currency.
 Card wallet balance includes saved provider balance and local overflow; unknown
 balances and estimated consumption remain unavailable, and negatives are retained.
 All list projections share a read-only repeatable-read snapshot; no provider calls,
 wallet provisioning, migration or financial mutations occur on entry/pagination.
+This correction changes only the PHP read projection; existing admin assets consume
+the same DTO, with no frontend/H5/native build or migration required. Verify only
+against isolated offline fixtures, without provider calls or production operations.
 
 ## User and partner detail cards tab (2026-11-01)
 
