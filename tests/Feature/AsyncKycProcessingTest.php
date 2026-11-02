@@ -21,6 +21,7 @@ use App\Domain\Media\StoredImage;
 use App\Domain\Tenant\Models\PlatformKycSetting;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
+use App\Infrastructure\Providers\Kyc\ImageUrlKycOcrProvider;
 use App\Infrastructure\Storage\OssImages;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -76,12 +77,45 @@ function asyncOcrOnce(?KycDocumentValidityDTO $validity = null): void
 {
     $provider = Mockery::mock(KycOcrProviderInterface::class);
     $provider->shouldReceive('name')->andReturn('TEST');
-    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->side === KycOcrSide::Front && $request->backUrl === '' && str_starts_with($request->frontUrl, 'https://images.example.test/')))
+    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->side === KycOcrSide::Front && $request->backUrl === '' && str_starts_with($request->frontUrl, 'http://images.example.test/')))
         ->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, '11010519491231002X'));
-    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->side === KycOcrSide::Back && $request->frontUrl === '' && str_starts_with($request->backUrl, 'https://images.example.test/')))
+    $provider->shouldReceive('extractIdentityDocument')->once()->with(Mockery::on(fn ($request) => $request->side === KycOcrSide::Back && $request->frontUrl === '' && str_starts_with($request->backUrl, 'http://images.example.test/')))
         ->andReturn(new KycOcrResultDTO(KycOcrOutcome::Success, validity: $validity ?? new KycDocumentValidityDTO('2020-01-01', '2099-12-31', false)));
     app()->instance(KycOcrProviderInterface::class, $provider);
 }
+
+it('processes retained OSS originals through the configured image URL OCR provider using HTTP', function () {
+    config(['kyc.ocr_driver' => 'image_url']);
+    expect(app(KycOcrProviderInterface::class))->toBeInstanceOf(ImageUrlKycOcrProvider::class);
+    $originals = [];
+    Http::fake(function ($request) use (&$originals) {
+        parse_str(parse_url($request->url(), PHP_URL_QUERY), $query);
+        expect($request->method())->toBe('GET')
+            ->and(parse_url($request->url(), PHP_URL_SCHEME))->toBe('http')
+            ->and(parse_url($request->url(), PHP_URL_HOST))->toBe('202.95.12.200')
+            ->and(parse_url($request->url(), PHP_URL_PORT))->toBe(9601)
+            ->and(parse_url($request->url(), PHP_URL_PATH))->toBe('/ocr')
+            ->and(array_keys($query))->toBe(['image'])
+            ->and($request->body())->toBe('')
+            ->and($request->hasHeader('Authorization'))->toBeFalse()
+            ->and($request->hasHeader('apikey'))->toBeFalse()
+            ->and($request->hasHeader('Cookie'))->toBeFalse();
+        $originals[] = $query['image'];
+
+        return Http::response(['texts' => [count($originals) === 1
+            ? '11010519491231002X' : '有效期限 2020.01.01-2099.12.31']]);
+    });
+    $application = queuedKyc($this);
+    Http::assertNothingSent();
+    app(ProcessPendingKyc::class)->execute($this->tenant->id, $application->id);
+    expect($application->fresh()->processing_status)->toBe('COMPLETE')
+        ->and($application->fresh()->ocr_provider)->toBe('image_url')
+        ->and($application->fresh()->automatically_approved)->toBeTrue()
+        ->and(IdentityRecord::count())->toBe(1)
+        ->and($originals)->toBe(array_map(fn ($key) => 'http://images.example.test/'.StoredImage::where('source_disk', 'private')
+            ->where('source_key', $key)->value('object_key'), [$application->front_object_key, $application->back_object_key]));
+    Http::assertSentCount(2);
+});
 
 it('accepts both retained originals without OSS or OCR and finishes after a background retry', function () {
     $this->oss->offline = true;

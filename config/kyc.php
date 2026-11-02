@@ -3,16 +3,11 @@
 return [
     'data_encryption_key' => env('KYC_DATA_ENCRYPTION_KEY'),
     'identity_hash_key' => env('KYC_IDENTITY_HASH_KEY'),
-    // Old deployment values select Aliyun; never fall back to the retired OCR service.
-    'ocr_driver' => match (env('KYC_OCR_DRIVER', 'aliyun')) {
-        'image_url', 'ocr_space' => 'aliyun',
-        default => env('KYC_OCR_DRIVER', 'aliyun'),
+    // Legacy deployment values resolve to the restored image URL service.
+    'ocr_driver' => match (env('KYC_OCR_DRIVER', 'image_url')) {
+        'aliyun', 'ocr_space' => 'image_url',
+        default => env('KYC_OCR_DRIVER', 'image_url'),
     },
-    'aliyun' => [
-        'access_key_id' => env('ALIYUN_OCR_ACCESS_KEY_ID'),
-        'access_key_secret' => env('ALIYUN_OCR_ACCESS_KEY_SECRET'),
-        'security_token' => env('ALIYUN_OCR_SECURITY_TOKEN'),
-    ],
     'mock_ocr_mode' => env('KYC_MOCK_OCR_MODE', 'SUCCESS'),
     'document_disk' => env('KYC_DOCUMENT_DISK', 'private'),
     // Each identity image is capped at 5 MiB, including legacy deployment overrides.

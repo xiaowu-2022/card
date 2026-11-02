@@ -18,8 +18,8 @@ image contents, OCR text and signed URLs are never diagnostic fields.
 
 For OSS mode the processor uploads pending originals from their verified encrypted
 replicas and reads back both originals to check SHA-256. It then recognizes the
-front and, for national IDs, the back through Aliyun OCR using server-generated
-original URLs, preserving their configured HTTPS scheme. Front identity validation and back
+front and, for national IDs, the back through the existing text-recognition service
+using server-generated HTTP original URLs. Front identity validation and back
 validity evidence remain encrypted. Identity number/hash can be filled once after
 recognition;
 previously recognized identity data and completed reviews remain immutable.
@@ -30,8 +30,8 @@ Platform per-side Copy original link action uses the same private original under
 current document permissions and recent-password confirmation. This does not alter
 the processing scheduler, retries, immutable evidence or review state. See
 [permanent KYC originals](IMAGE_URL_KYC.md#permanent-kyc-originals-2026-11-02).
-The 2026-11-02 provider switch is documented in [Aliyun KYC OCR](ALIYUN_KYC_OCR.md).
-It does not enqueue historical applications or change prior recognition evidence.
+On 2026-11-02 the user reverted the Aliyun switch. Runtime uses the original
+`image_url` provider again; see [Image URL KYC](IMAGE_URL_KYC.md).
 
 The current global review policy selects automatic approval or the manual queue.
 Approval retains account limits and identity locking. Processing failures retain
@@ -52,7 +52,7 @@ the existing resubmission/re-verification workflow.
 
 New submissions and explicit re-verifications retain the asynchronous upload and
 processing flow. National IDs also send their retained back original to the existing
-configured Aliyun text-recognition endpoint. A complete, unambiguous validity period must be
+fixed text-recognition endpoint. A complete, unambiguous validity period must be
 recognized before automatic approval. Missing or malformed periods expose only
 `KYC_BACK_VALIDITY_UNRECOGNIZED`; expired and future-start periods expose
 `KYC_DOCUMENT_EXPIRED` and `KYC_DOCUMENT_NOT_YET_VALID` respectively. Consumer and

@@ -11,8 +11,8 @@ use App\Domain\Tenant\Models\PlatformKycSetting;
 use App\Domain\Tenant\Models\Tenant;
 use App\Domain\User\Models\User;
 use App\Http\Requests\SubmitKycApplicationRequest;
-use App\Infrastructure\Providers\Kyc\UnavailableKycOcrProvider;
 use App\Infrastructure\Providers\Kyc\ImageUrlKycOcrProvider;
+use App\Infrastructure\Providers\Kyc\UnavailableKycOcrProvider;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -25,8 +25,7 @@ beforeEach(function () {
     Storage::fake('private');
     $this->freezeTime();
     config(['kyc.ocr_driver' => 'image_url', 'media.storage' => 'server']);
-    // Retain isolated legacy transport/parser regressions; this adapter has no runtime binding.
-    app()->instance(KycOcrProviderInterface::class, new ImageUrlKycOcrProvider);
+    expect(app(KycOcrProviderInterface::class))->toBeInstanceOf(ImageUrlKycOcrProvider::class);
     Http::preventStrayRequests();
     $this->tenant = Tenant::where('slug', 'tenant-a')->firstOrFail();
     $this->user = User::where('tenant_id', $this->tenant->id)->firstOrFail();
