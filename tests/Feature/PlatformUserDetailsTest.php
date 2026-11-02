@@ -37,6 +37,7 @@ it('reads the exact user independently of list pagination and does not provision
         ->assertJsonPath('user.companyId', $this->tenant->id)
         ->assertJsonPath('user.email', $this->user->email)
         ->assertJsonPath('canViewFunds', true)
+        ->assertJsonPath('canViewCards', true)
         ->assertJsonStructure(['user' => ['accountId', 'displayName', 'remark', 'supportAgent', 'status', 'promotionRank', 'wallets', 'securityDeposit', 'commission', 'totalWithdrawn', 'createdAt', 'lastLoginAt']])
         ->assertJsonMissingPath('user.password')->assertJsonMissingPath('user.remember_token');
     expect(collect($tables)->mapWithKeys(fn ($table) => [$table => DB::table($table)->count()])->all())->toBe($before);
@@ -49,6 +50,20 @@ it('rejects mismatched company identities and non platform readers', function ()
     $this->actingAs(AdminUser::where('email', 'owner@a.localhost')->firstOrFail(), 'platform_admin')->getJson($this->url)->assertForbidden();
 });
 
+it('requires live platform user and card reads for the cards tab and scoped endpoint', function () {
+    $url = str_replace('/details', '/cards', $this->url);
+    $this->getJson($url)->assertOk()->assertJsonPath('cards.total', 0);
+    $tenantAdmin = AdminUser::where('email', 'owner@a.localhost')->firstOrFail();
+    $this->actingAs($tenantAdmin, 'platform_admin')->getJson($url)->assertForbidden();
+    $this->actingAs($this->owner, 'platform_admin');
+    DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'cards.read')->value('id'))->delete();
+    $this->actingAs($this->owner->fresh(), 'platform_admin')->getJson($this->url)->assertOk()->assertJsonPath('canViewCards', false);
+    $this->getJson($url)->assertForbidden();
+    $this->owner->forceFill(['status' => 'SUSPENDED'])->save();
+    $this->getJson($url)->assertForbidden();
+    Http::assertNothingSent();
+});
+
 it('requires user read access and independently hides financial details and actions', function () {
     DB::table('role_permissions')->whereIn('permission_id', DB::table('permissions')->whereIn('name', ['wallet.read', 'ledger.read', 'withdrawals.read'])->pluck('id'))->delete();
     $this->getJson($this->url)->assertOk()
@@ -57,6 +72,7 @@ it('requires user read access and independently hides financial details and acti
         ->assertJsonPath('canViewFunds', false)->assertJsonPath('canAdjustWallet', false)->assertJsonPath('canAdjustCommission', false);
     DB::table('role_permissions')->where('permission_id', DB::table('permissions')->where('name', 'users.read')->value('id'))->delete();
     $this->actingAs($this->owner->fresh(), 'platform_admin')->getJson($this->url)->assertForbidden();
+    $this->getJson(str_replace('/details', '/cards', $this->url))->assertForbidden();
 });
 
 it('batches summaries by both company and account without conflating business row ids', function () {

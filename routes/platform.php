@@ -229,6 +229,8 @@ Route::prefix('platform')->name('platform.')->group(function (): void {
             ->defaults('mode', $mode)->whereUuid(['tenant', 'user'])
             ->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,'.$permission]);
     }
+    Route::get('/tenants/{tenant}/users/{user}/cards', [UserSummaryController::class, 'cardList'])->whereUuid(['tenant', 'user'])
+        ->middleware(['admin.scope:platform,users.read', 'admin.scope:platform,cards.read']);
     Route::middleware(['admin.scope:platform,users.read', 'admin.scope:platform,wallet.read', 'admin.scope:platform,ledger.read', 'admin.scope:platform,cards.read'])->group(function (): void {
         Route::get('/tenants/{tenant}/users/{user}/funds-summary', [UserSummaryController::class, 'funds'])->whereUuid(['tenant', 'user']);
         Route::get('/tenants/{tenant}/users/{user}/cards-summary', [UserSummaryController::class, 'cards'])->whereUuid(['tenant', 'user']);

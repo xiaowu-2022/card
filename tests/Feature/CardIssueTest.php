@@ -1531,6 +1531,70 @@ it('exposes only read-only tenant and platform card operations routes', function
     expect($uris->filter(fn (string $route): bool => ! in_array($route, ['PUT platform/tenants/{tenant}/cards/{card}/balance-limit', 'POST platform/tenants/{tenant}/cards/{card}/reveal'], true) && preg_match('/cards.*(manual|success|settle|release|balance|reveal|freeze|cancel|reload)/i', $route) === 1)->all())->toBe([]);
 });
 
+it('shares the exact paginated card list in scoped user and partner details without provider reads or writes', function (): void {
+    Http::preventStrayRequests();
+    $this->withoutVite();
+    config(['inertia.ssr.enabled' => false]);
+    phaseTenReadyUser($this, '1000');
+    TenantCardProductConfig::where('tenant_id', $this->tenant->id)->where('card_product_id', $this->product->id)
+        ->update(['max_cards_per_user' => 30]);
+    for ($i = 0; $i < 21; $i++) {
+        if ($i > 0) {
+            phaseTenHolder($this);
+        }
+        phaseTenIssue($this);
+    }
+    $card = UserCard::where('tenant_id', $this->tenant->id)->where('user_id', $this->user->id)->firstOrFail();
+    $card->forceFill(['provider_balance' => '17.12345678', 'archived_at' => now()])->save();
+    $unknown = UserCard::where('tenant_id', $this->tenant->id)->where('id', '<>', $card->id)->firstOrFail();
+    $unknown->forceFill(['provider_balance' => null])->save();
+    $other = $this->user->replicate(['account_id']);
+    $other->email = 'card-detail-other@example.test';
+    $other->save();
+    $other->refresh();
+    $actor = AdminUser::where('email', 'owner@platform.local')->firstOrFail();
+    $this->actingAs($actor, 'platform_admin');
+    $reader = Mockery::mock(CardProviderInterface::class);
+    app()->instance(CardProviderInterface::class, $reader);
+    $tables = ['user_cards', 'card_issue_orders', 'card_management_orders', 'ledger_accounts', 'ledger_entries',
+        'ledger_postings', 'wallets', 'audit_logs', 'card_transactions', 'card_transaction_sync_items'];
+    $before = collect($tables)->mapWithKeys(fn ($table) => [$table => DB::table($table)->orderBy('id')->get()->toJson()]);
+    $base = 'http://admin.localhost/platform/tenants/'.$this->tenant->id.'/users/';
+    $url = $base.$this->user->id.'/cards';
+    $global = $this->get('http://admin.localhost/platform/cards?company='.$this->tenant->id.'&search='.$this->user->account_id)
+        ->assertOk()->inertiaProps('cards');
+    $first = $this->getJson($url.'?user='.$other->id.'&company='.Tenant::where('id', '<>', $this->tenant->id)->value('id'))
+        ->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('tenantId', $this->tenant->id)->assertJsonPath('userId', $this->user->id)
+        ->assertJsonPath('cards.total', 21)->assertJsonPath('cards.current_page', 1)->assertJsonPath('cards.last_page', 2)
+        ->assertJsonCount(20, 'cards.data')->json('cards.data');
+    expect($first)->toBe($global['data']);
+    $second = $this->getJson($url.'?page=2')->assertOk()->assertJsonPath('cards.current_page', 2)
+        ->assertJsonPath('cards.total', 21)->assertJsonCount(1, 'cards.data')->json('cards.data');
+    $rows = collect([...$first, ...$second])->keyBy('id');
+    expect($rows[$card->id]['balance'])->toBe('17.12345678')
+        ->and($rows[$card->id]['funded'])->toBe('20.00000000')
+        ->and($rows[$card->id]['openingFee'])->toBe('5.00000000')
+        ->and($rows[$card->id]['openingFeeAsset'])->toBe('USDT')
+        ->and($rows[$card->id]['userInfo']['id'])->toBe($this->user->id)
+        ->and($rows[$unknown->id]['balance'])->toBeNull()->and($rows[$unknown->id]['consumed'])->toBeNull();
+    $this->getJson($base.$other->id.'/cards')->assertOk()->assertJsonPath('cards.total', 0);
+    $this->getJson($url.'?page=0')->assertUnprocessable();
+    $this->getJson($url.'?as_of=2026-10-13T00:00:00')->assertUnprocessable()->assertJsonValidationErrors('as_of');
+    $cross = User::where('tenant_id', '<>', $this->tenant->id)->firstOrFail();
+    $this->getJson($base.$cross->id.'/cards')->assertNotFound();
+    $json = json_encode([...$first, ...$second], JSON_THROW_ON_ERROR);
+    expect($json)->not->toContain('provider_card_id', 'sensitive_details_encrypted', 'cvv', 'TEST-MOCK-FULL-PAN');
+    foreach ($before as $table => $snapshot) {
+        expect(DB::table($table)->orderBy('id')->get()->toJson())->toBe($snapshot);
+    }
+    app(\App\Application\Partners\PartnerManagement::class)->configure($actor, $this->tenant->id, [
+        'account_id' => $this->user->account_id, 'enabled' => true, 'share_percent' => '40',
+    ]);
+    $this->getJson($url)->assertOk()->assertJsonPath('cards.total', 21)->assertJsonPath('userId', $this->user->id);
+    Http::assertNothingSent();
+});
+
 it('enforces issue financial state and terminal immutability at the database boundary', function (): void {
     phaseTenReadyUser($this);
     $order = phaseTenIssue($this);

@@ -184,6 +184,7 @@ final class UserOperationsController extends Controller
             'canAdjustCommission' => $financialAccess['balances'] && $allowed('commissions.adjust'),
             'canViewKyc' => $allowed('kyc.read'),
             'canViewFunds' => $financialAccess['balances'] && $allowed('ledger.read'),
+            'canViewCards' => $allowed('cards.read'),
             'canViewTopups' => $allowed('wallet_topups.read'),
             'canAdjustWallet' => $financialAccess['balances'] && $allowed('wallet.adjust'),
         ];

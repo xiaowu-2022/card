@@ -13,7 +13,7 @@ import { CardLoadOrders, type CardLoadOrder } from '@/components/admin/CardLoadO
 import type { SharedProps } from '@/types/global';
 import { PlatformCardTransactions } from '@/components/admin/PlatformCardTransactions';
 import { displayMoney } from '@/lib/admin-amount';
-import { useAdminTranslation, t, dateTime } from '@/i18n/admin';
+import { useAdminTranslation, t } from '@/i18n/admin';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import {
@@ -32,7 +32,12 @@ import {
     DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
 import { PlatformAccountTable, type AccountPage } from '@/components/shared/PlatformAccountTable';
-import { StatusBadge, type StatusTone } from '@/components/shared/StatusBadge';
+import { StatusBadge } from '@/components/shared/StatusBadge';
+import {
+    platformCardColumns,
+    platformCardStatusTone,
+    type UserCard,
+} from '@/components/admin/PlatformCardColumns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PlatformLayout } from '@/layouts/PlatformLayout';
 
@@ -49,43 +54,6 @@ type Order = {
     asset: string;
     status: string;
 };
-type UserCard = {
-    promotionRank?: number;
-    ordinaryMember?: boolean;
-    directReferrer?: { accountId: string; displayName: string | null } | null;
-    funded: string | null;
-    consumed: string | null;
-    openingFee: string | null;
-    openingFeeAsset: string | null;
-    userInfo?: UserInfo;
-    userId?: string;
-    id: string;
-    tenantId: string;
-    balance: string | null;
-    overflowBalance: string;
-    providerBalance: string | null;
-    balanceLimit: string | null;
-    effectiveBalanceLimit: string | null;
-    currency: string;
-    balanceUpdatedAt: string | null;
-    lastTransactionSyncAt: string | null;
-    companyName: string;
-    userEmail: string;
-    productName: string;
-    maskedPan: string;
-    formFactor: string;
-    produceStatus: string | null;
-    trackingNumber: string | null;
-    providerStatus: string;
-};
-const tone = (status: string): StatusTone =>
-    status === 'SUCCEEDED' || status === 'normal'
-        ? 'SUCCESS'
-        : status === 'FAILED'
-          ? 'DANGER'
-          : status === 'UNKNOWN'
-            ? 'WARNING'
-            : 'INFO';
 
 export default function Cards({
     orders,
@@ -208,7 +176,11 @@ export default function Cards({
                         <TabsTrigger value="cards">{t('Cards')}</TabsTrigger>
                     </TabsList>
                     <TabsContent value="orders">
-                        {issueError && <p role="alert" className="mb-3 text-sm text-destructive">{issueError}</p>}
+                        {issueError && (
+                            <p role="alert" className="mb-3 text-sm text-destructive">
+                                {issueError}
+                            </p>
+                        )}
                         <PlatformAccountTable
                             key={JSON.stringify(filters)}
                             page={orders}
@@ -225,20 +197,42 @@ export default function Cards({
                                 { label: 'Product', render: (row) => row.productName },
                                 {
                                     label: 'Actions',
-                                    render: (row) => canManage && ['PENDING', 'PROCESSING', 'UNKNOWN'].includes(row.status) ? (
-                                        <Button variant="secondary" size="sm" disabled={refreshingIssue !== null}
-                                            onClick={() => {
-                                                setRefreshingIssue(row.id);
-                                                setIssueError(null);
-                                                router.post(`/platform/tenants/${row.tenantId}/card-issues/${row.id}/sync`, {}, {
-                                                    preserveScroll: true,
-                                                    onError: (errors) => setIssueError(Object.values(errors).join(' ')),
-                                                    onFinish: () => setRefreshingIssue(null),
-                                                });
-                                            }}>
-                                            {t(refreshingIssue === row.id ? 'Refreshing…' : 'Refresh status')}
-                                        </Button>
-                                    ) : '—',
+                                    render: (row) =>
+                                        canManage &&
+                                        ['PENDING', 'PROCESSING', 'UNKNOWN'].includes(
+                                            row.status,
+                                        ) ? (
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                disabled={refreshingIssue !== null}
+                                                onClick={() => {
+                                                    setRefreshingIssue(row.id);
+                                                    setIssueError(null);
+                                                    router.post(
+                                                        `/platform/tenants/${row.tenantId}/card-issues/${row.id}/sync`,
+                                                        {},
+                                                        {
+                                                            preserveScroll: true,
+                                                            onError: (errors) =>
+                                                                setIssueError(
+                                                                    Object.values(errors).join(' '),
+                                                                ),
+                                                            onFinish: () =>
+                                                                setRefreshingIssue(null),
+                                                        },
+                                                    );
+                                                }}
+                                            >
+                                                {t(
+                                                    refreshingIssue === row.id
+                                                        ? 'Refreshing…'
+                                                        : 'Refresh status',
+                                                )}
+                                            </Button>
+                                        ) : (
+                                            '—'
+                                        ),
                                 },
                                 {
                                     label: 'Amounts',
@@ -249,7 +243,7 @@ export default function Cards({
                                     label: 'Status',
                                     render: (row) => (
                                         <StatusBadge
-                                            status={tone(row.status)}
+                                            status={platformCardStatusTone(row.status)}
                                             label={t(row.status)}
                                         />
                                     ),
@@ -370,124 +364,7 @@ export default function Cards({
                                       ]
                                     : []),
 
-                                {
-                                    label: 'Company / User',
-                                    render: (row) => <RecordUserCell row={row} />,
-                                },
-                                {
-                                    label: 'User level',
-                                    render: (row) =>
-                                        row.promotionRank
-                                            ? t('Mastercard level {{rank}}', {
-                                                  rank: row.promotionRank,
-                                              })
-                                            : t(
-                                                  row.ordinaryMember
-                                                      ? 'Ordinary member'
-                                                      : 'Registered member',
-                                              ),
-                                },
-                                {
-                                    label: 'Direct referrer',
-                                    render: (row) =>
-                                        row.directReferrer ? (
-                                            <div>
-                                                {row.directReferrer.displayName || '—'}
-                                                <div className="text-xs text-muted-foreground">
-                                                    {row.directReferrer.accountId}
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            '—'
-                                        ),
-                                },
-                                {
-                                    label: 'U-card funding',
-                                    render: (row) =>
-                                        row.funded === null
-                                            ? t('Not available')
-                                            : `${displayMoney(row.funded)} USDT`,
-                                },
-                                {
-                                    label: 'Opening fee',
-                                    render: (row) =>
-                                        row.openingFee === null
-                                            ? t('Not available')
-                                            : `${displayMoney(row.openingFee)} ${adminAssetLabel(row.openingFeeAsset ?? 'USDT')}`,
-                                },
-                                {
-                                    label: 'Consumption amount',
-                                    render: (row) =>
-                                        row.consumed === null
-                                            ? t('Not available')
-                                            : `${displayMoney(row.consumed)} USDT`,
-                                },
-                                {
-                                    label: 'Card wallet balance',
-                                    render: (row) => (
-                                        <div className="whitespace-nowrap">
-                                            <div className="font-medium tabular-nums">
-                                                {row.balance === null
-                                                    ? t('Not available')
-                                                    : `${displayMoney(row.balance)} ${adminAssetLabel(row.currency)}`}
-                                            </div>
-                                            <div className="text-xs text-muted-foreground">
-                                                {row.balanceUpdatedAt
-                                                    ? dateTime(row.balanceUpdatedAt)
-                                                    : t('Not yet synced')}
-                                            </div>
-                                        </div>
-                                    ),
-                                },
-                                {
-                                    label: 'Product / Card',
-                                    render: (row) => (
-                                        <div className="max-w-52 space-y-1">
-                                            <div
-                                                className="truncate font-medium"
-                                                title={row.productName}
-                                            >
-                                                {row.productName}
-                                            </div>
-                                            <div className="flex items-center gap-2 whitespace-nowrap text-xs">
-                                                <span className="font-mono">{row.maskedPan}</span>
-                                                <span className="text-muted-foreground">
-                                                    {t(
-                                                        row.formFactor === 'physical_card'
-                                                            ? 'Physical card'
-                                                            : 'Virtual card',
-                                                    )}
-                                                </span>
-                                            </div>
-                                            {row.produceStatus && (
-                                                <span className="block text-xs">
-                                                    {t(
-                                                        row.produceStatus === 'produced'
-                                                            ? 'Card produced'
-                                                            : 'Card production pending',
-                                                    )}
-                                                </span>
-                                            )}
-                                            {row.trackingNumber && (
-                                                <span
-                                                    className="block truncate text-xs"
-                                                    title={row.trackingNumber}
-                                                >
-                                                    {t('Tracking number')}: {row.trackingNumber}
-                                                </span>
-                                            )}
-                                        </div>
-                                    ),
-                                },
-                                {
-                                    label: 'Status',
-                                    render: (row) => (
-                                        <StatusBadge
-                                            status={tone(row.providerStatus)}
-                                            label={t(row.providerStatus)}
-                                        />
-                                    ),
-                                },
+                                ...platformCardColumns,
                                 {
                                     label: 'Actions',
                                     render: (row) => (

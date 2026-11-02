@@ -11,6 +11,7 @@ import { UserInfoCell } from '@/components/admin/UserInfoCell';
 import { Fragment, type ReactNode } from 'react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UserOrdersPanel } from './UserOrdersPanel';
+import { UserCardsPanel } from './UserCardsPanel';
 import { OperationFeedback } from '@/components/admin/OperationFeedback';
 import { UserRestrictionsDialog } from '@/components/admin/UserRestrictionsDialog';
 import { userRestrictionLabels, type OperationRestrictions } from './user-operation-restrictions';
@@ -111,6 +112,7 @@ export default function UserManagement({
     canViewKyc,
     canViewFunds,
     canViewTopups,
+    canViewCards = false,
     canManageSupport,
     canManagePartners,
     canCreateUser,
@@ -138,6 +140,7 @@ export default function UserManagement({
     canViewKyc: boolean;
     canViewFunds: boolean;
     canViewTopups: boolean;
+    canViewCards?: boolean;
     users: AccountPage<PlatformUser>;
     companies: { id: string; name: string }[];
     filters: {
@@ -280,6 +283,15 @@ export default function UserManagement({
                                     {t('Verification')}
                                 </TabsTrigger>
                             )}
+                            {!readOnly && canViewCards && (
+                                <TabsTrigger
+                                    value="cards"
+                                    id={`${detailTabsId}-cards`}
+                                    aria-controls={`${detailTabsId}-panel`}
+                                >
+                                    {t('Cards')}
+                                </TabsTrigger>
+                            )}
                             {!readOnly && canViewTopups && (
                                 <TabsTrigger
                                     value="deposit"
@@ -373,6 +385,11 @@ export default function UserManagement({
                                       }}
                                       trigger={kycTrigger}
                                       onClose={() => setDetailTab('basic')}
+                                  />
+                              ) : detailTab === 'cards' && !readOnly && canViewCards ? (
+                                  <UserCardsPanel
+                                      key={`${users.data[0].companyId}:${users.data[0].id}`}
+                                      user={users.data[0]}
                                   />
                               ) : (detailTab === 'deposit' && canViewTopups) ||
                                 (detailTab === 'withdrawal' && financialAccess.withdrawals) ? (

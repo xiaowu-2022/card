@@ -126,6 +126,27 @@ balances and estimated consumption remain unavailable, and negatives are retaine
 All list projections share a read-only repeatable-read snapshot; no provider calls,
 wallet provisioning, migration or financial mutations occur on entry/pagination.
 
+## User and partner detail cards tab (2026-11-01)
+
+Platform user and partner detail workspaces share a Cards tab. It loads only the
+selected company's selected user's cards, with the same nine informational columns,
+formatting and saved financial evidence as the global card list. The shared query
+retains that list's archived-card scope, unknown balances and negative consumption.
+Each page contains 20 cards with exact numbered pagination; recorded transactions
+open through the existing card transaction drawer. Detail pagination retains the
+parent list and the selected user or partner.
+
+`GET /platform/tenants/{tenant}/users/{user}/cards?page=N` requires current active
+Platform users.read and cards.read. Financial projections retain the global card
+list's wallet.read/ledger.read gates. Company/user ownership is checked before the
+read-only repeatable-read query, and the private/no-store response includes explicit
+scope identifiers. The lazy tab cancels reads when closed, rejects mismatched scope,
+and supports loading, empty and retry states. Historical user snapshots omit this
+current-data tab; the endpoint rejects as_of instead of substituting current data.
+
+Deploy matching PHP/routes and compiled admin public/build resources. No migration,
+consumer H5/native build, provider synchronization or financial operation is needed.
+
 ## 2026-10-13 用户管理截止时刻快照与导出
 
 Platform `/platform/users` 接受可空的 `as_of=YYYY-MM-DDTHH:mm:ss`，统一按北京时间
