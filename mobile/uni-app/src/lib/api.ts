@@ -271,7 +271,7 @@ async function browserFetch(url: string, options: RequestInit, timeout: number):
     } catch { throw transportError({ errMsg: controller.signal.aborted ? 'timeout' : 'network' }); }
     finally { clearTimeout(timer); }
 }
-function uploadTransport(options: UniApp.UploadFileOption) {
+function uploadTransport(options: UniApp.UploadFileOption, browserFile?: Blob) {
     // Some runtimes omit failure callbacks; settle once and abort on our deadline.
     const success = options.success;
     const fail = options.fail;
@@ -300,8 +300,9 @@ function uploadTransport(options: UniApp.UploadFileOption) {
         for (const file of files) {
             const path = file.uri;
             if (!path) throw new ApiError(422);
-            const blob = await (await browserFetch(path, {}, 15000)).blob();
-            form.append(file.name ?? 'file', blob, 'image');
+            const blob = browserFile ?? await (await browserFetch(path, {}, 15000)).blob();
+            const extension = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' } as Record<string, string>)[blob.type];
+            form.append(file.name ?? 'file', blob, browserFile && extension ? 'image.' + extension : 'image');
         }
         if (settled) return;
         const response = await browserFetch(options.url, { method: 'POST', headers: options.header, body: form }, options.timeout ?? 60000);
@@ -312,6 +313,16 @@ function uploadTransport(options: UniApp.UploadFileOption) {
         : error instanceof ApiError && error.status === 0 ? error.payload?.error?.code ?? 'network' : 'uploadFile:fail' }));
 }
 type UploadTicket = { id: string; mode?: string; url: string; imageUrl?: string; fields: Record<string, string> };
+function imageMime(bytes: Uint8Array): string {
+    if (bytes.length >= 8 && [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((byte, index) => bytes[index] === byte))
+        return 'image/png';
+    if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
+        return 'image/jpeg';
+    if (bytes.length >= 12 && [0x52, 0x49, 0x46, 0x46].every((byte, index) => bytes[index] === byte)
+        && [0x57, 0x45, 0x42, 0x50].every((byte, index) => bytes[index + 8] === byte))
+        return 'image/webp';
+    return '';
+}
 export type UploadProgress = { stage: 'uploading' | 'submitting'; completed: number; total: number };
 export type Upload = { name: string; path: string };
 export async function upload<T>(
@@ -345,38 +356,43 @@ async function uploadOnce<T>(
         const payload: Record<string, unknown> = { ...data };
         let completed = 0;
         onProgress?.({ stage: 'uploading', completed, total: files.length });
-        const prepared: { file: Upload; ticket: UploadTicket }[] = [];
+        const prepared: { file: Upload; ticket: UploadTicket; blob?: Blob }[] = [];
         for (const file of files) {
-            const mime = await uploadStep('read', file.name, async () => {
+            const source = await uploadStep('read', file.name, async () => {
                 const info = await new Promise<UniApp.GetImageInfoSuccessData>((resolve, reject) =>
                     uni.getImageInfo({ src: file.path, success: resolve, fail: () => reject(new ApiError(422)) }),
                 );
                 const kind = info.type?.toLowerCase();
                 let mime = kind === 'jpg' || kind === 'jpeg' ? 'image/jpeg'
                     : kind === 'png' ? 'image/png' : kind === 'webp' ? 'image/webp' : '';
-                // H5 getImageInfo supplies dimensions but no type; selected images are local blobs.
-                if (!mime && !native && /^(blob:|data:image\/)/i.test(file.path)) {
-                    const blob = await browserFetch(file.path, {}, 15000).then((response) => response.blob()).catch(() => {
+                let blob: Blob | undefined;
+                if (!native) {
+                    blob = await browserFetch(file.path, {}, 15000).then((response) => response.blob()).catch(() => {
                         throw new ApiError(422);
                     });
-                    mime = blob.type.toLowerCase();
+                    // Browser File.type and image metadata may disagree with the original bytes.
+                    // Reuse this same file for every upload, changing only its MIME label.
+                    mime = imageMime(new Uint8Array(await blob.slice(0, 12).arrayBuffer()));
+                    blob = blob.slice(0, blob.size, mime);
                 }
                 if (!['image/jpeg', 'image/png', 'image/webp'].includes(mime))
                     throw new ApiError(422, { error: { code: 'CLIENT_IMAGE_FORMAT' } });
-                return mime;
+                return { mime, blob };
             });
+            if (generation !== sessionGeneration) throw sessionChanged();
             const ticket = await uploadStep('prepare', file.name, async () => {
                 const ticket = await request<UploadTicket>(
-                    '/images/direct', 'POST', { purpose, field: file.name, mime,
+                    '/images/direct', 'POST', { purpose, field: file.name, mime: source.mime,
                         ...(path.split('?')[0] === '/client/kyc/recognize-front' ? { recognize_front: true } : {}),
                     },
                 );
                 if (ticket.mode !== 'server' && !/^https:\/\/[a-z0-9.-]+\/?$/i.test(ticket.url)) throw new ApiError(502);
                 return ticket;
             });
-            prepared.push({ file, ticket });
+            prepared.push({ file, ticket, blob: source.blob });
         }
-        const send = ({ file, ticket }: typeof prepared[number]) => uploadStep('upload', file.name, async () => {
+        const send = ({ file, ticket, blob }: typeof prepared[number]) => uploadStep('upload', file.name, async () => {
+            if (generation !== sessionGeneration) throw sessionChanged();
             if (ticket.mode === 'kyc_url') {
                 if (purpose !== 'kyc' || !ticket.imageUrl || !/^https:\/\//i.test(ticket.imageUrl)) throw new ApiError(502);
                 await new Promise<void>((resolve, reject) => uploadTransport({
@@ -385,7 +401,7 @@ async function uploadOnce<T>(
                     success: response => response.statusCode >= 200 && response.statusCode < 300
                         ? resolve() : reject(new ApiError(502)),
                     fail: error => reject(transportError(error)),
-                }));
+                }, blob));
                 payload[file.name + '_upload_id'] = ticket.id;
                 payload[file.name + '_url'] = ticket.imageUrl;
                 completed++;
@@ -399,7 +415,8 @@ async function uploadOnce<T>(
                 success: response => response.statusCode >= 200 && response.statusCode < 300
                     ? resolve() : reject(uploadResponseError(response)),
                 fail: error => reject(transportError(error)),
-            }));
+            }, blob));
+            if (generation !== sessionGeneration) throw sessionChanged();
             if (ticket.mode !== 'server') await new Promise<void>((resolve, reject) => uploadTransport({
                 url: ticket.url,
                 filePath: file.path,
@@ -411,7 +428,8 @@ async function uploadOnce<T>(
                 success: (response) => response.statusCode >= 200 && response.statusCode < 300
                     ? resolve() : reject(new ApiError(502)),
                 fail: error => reject(transportError(error)),
-            })).catch(() => { /* Server copy remains available; completion records OSS retry. */ });
+            }, blob)).catch(() => { /* Server copy remains available; completion records OSS retry. */ });
+            if (generation !== sessionGeneration) throw sessionChanged();
             await uploadStep('verify', file.name, () => request('/images/direct/' + ticket.id + '/complete', 'POST'));
             payload[file.name + '_upload_id'] = ticket.id;
             completed++;
@@ -423,9 +441,13 @@ async function uploadOnce<T>(
             const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
             if (failed) throw failed.reason;
         }
+        if (generation !== sessionGeneration) throw sessionChanged();
         onProgress?.({ stage: 'submitting', completed, total: files.length });
         // Business submission is still authenticated and never replayed automatically.
-        return uploadStep('submit', null, () => request<T>(path, 'POST', payload));
+        return uploadStep('submit', null, () => {
+            if (generation !== sessionGeneration) throw sessionChanged();
+            return request<T>(path, 'POST', payload);
+        });
     }
     return new Promise((resolve, reject) =>
         uploadTransport({

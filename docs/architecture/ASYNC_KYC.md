@@ -265,6 +265,23 @@ Refresh after review preserves the list filters/page; closing restores trigger f
 The existing user-row Verification entry remains available. Deploy matching PHP
 and rebuilt admin assets; this navigation change requires no migration or H5 rebuild.
 
+## Original image MIME correction (2026-11-02)
+
+H5 and the current WebView's H5 upload path identify PNG, JPEG and WebP from
+the selected original's byte signature before requesting an upload ticket. Browser
+File MIME labels and `getImageInfo.type` may be missing or disagree with the
+actual bytes. The same in-memory Blob is reused for the server backup and any OSS
+upload, with only its multipart MIME label and filename extension normalized. There
+is no image conversion or recompression. The server still checks decoded format,
+actual MIME, ticket MIME, size, ownership and checksum before accepting an upload.
+Unsupported signatures fail before ticket creation; recognition remains asynchronous.
+
+Deploy the rebuilt tracked `public/h5` entry, manifest and new hashed assets,
+copying assets first and atomically replacing the entry while retaining old hashes
+and distribution files. This correction requires no PHP change, migration, admin
+build or native-shell rebuild. Verify with synthetic images and intercepted browser
+requests only; no real OCR/provider calls or historical processing.
+
 ## Consumer submission error details (2026-10-09)
 
 App/H5 KYC submission errors identify local photo reading, upload preparation,

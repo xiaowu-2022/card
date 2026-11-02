@@ -3,23 +3,36 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
-function client(platform = 'app', ossStatus = 204, backupStatus = 204, serverOnly = false, timers = {}) {
+const syntheticPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADklEQVQImWP4DwYMEAoAU7oL9W/sIDEAAAAASUVORK5CYII=', 'base64');
+const syntheticJpeg = Buffer.from('/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAACAAIDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAj/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAABP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AJ7ANFf/2Q==', 'base64');
+const syntheticWebp = Buffer.from('UklGRjAAAABXRUJQVlA4ICQAAABwAQCdASoCAAIAAUAmJYwCdAFAAAD++1XjAkrVm6WHJtcxAAA=', 'base64');
+function client(platform = 'app', ossStatus = 204, backupStatus = 204, serverOnly = false, timers = {}, photo = {}) {
     const calls = [];
+    let localReads = 0;
     const uni = {
-        getLocale: () => 'en', getImageInfo: o => o.success(platform === 'app' ? { type: 'png' } : {}),
+        getLocale: () => 'en', getImageInfo: o => o.success({ type: photo.imageInfoType ?? (platform === 'app' ? 'png' : undefined) }),
         request(o) {
             calls.push(o);
             o.success({ statusCode: o.url.endsWith('/complete') ? 204 : 200, data: o.url.endsWith('/images/direct')
                 ? serverOnly ? { id: 'ticket', mode: 'server' } : o.data.purpose === 'kyc' ? { id: 'ticket', mode: 'kyc_url', imageUrl: 'https://bucket.example.org/images/original', url: 'https://bucket.example.org', fields: { policy: 'short-policy', key: 'images/original' } } : { id: 'ticket', url: 'https://bucket.example.org', fields: { policy: 'short-policy', key: 'staging/key' } } : { ok: true } });
         },
-        uploadFile(o) { calls.push(o); o.success({ statusCode: o.url.endsWith('/backup') ? backupStatus : ossStatus }); },
+        uploadFile(o) {
+            calls.push(o);
+            if (o.url.endsWith('/backup')) photo.onBackup?.(exports);
+            o.success({ statusCode: o.url.endsWith('/backup') ? backupStatus : ossStatus });
+        },
     };
     const exports = {};
     const source = readFileSync('mobile/uni-app/src/lib/api.ts', 'utf8').replaceAll('import.meta.env.UNI_PLATFORM', JSON.stringify(platform));
     runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
-        { exports, uni, plus: { os: { name: 'Android' }, android: {} }, AbortController, Response, FormData, setTimeout, clearTimeout, ...timers,
+        { exports, uni, plus: { os: { name: 'Android' }, android: {} }, AbortController, Response, Blob, FormData, setTimeout, clearTimeout, ...timers,
             fetch: async (url, options = {}) => {
-                if(url.startsWith('blob:')) return new Response(new Blob(['image'],{type:'image/png'}));
+                assert.equal(options.credentials, 'omit');
+                if(url.startsWith('blob:')) {
+                    localReads++;
+                    photo.onLocalRead?.(exports);
+                    return new Response(new Blob([photo.bytes ?? syntheticPng], { type: photo.declaredMime ?? 'image/png' }));
+                }
                 return new Promise(resolve => {
                     const args={url,method:options.method,header:options.headers,
                         success:r=>resolve(new Response(r.statusCode===204?null:JSON.stringify(r.data),{status:r.statusCode})),
@@ -29,7 +42,7 @@ function client(platform = 'app', ossStatus = 204, backupStatus = 204, serverOnl
                 });
             },
             require: id => id === './browser-credentials' ? { loadBrowserToken: async () => null, saveBrowserToken() {}, publishBrowserToken: async () => {} } : id === './device-credentials' ? { androidCredentialVault: () => ({ read: () => null, write() {} }) } : id.includes('company.json') ? { default: { appId: 'test', tenantSlug: 'company-a', apiOrigin: 'https://app.example.org' } } : { ensureLatestApp: async () => {}, companyOrigin: () => 'https://app.example.org', ensureCompanyOrigin: async () => {} } });
-    exports.setToken('private-token'); return { api: exports, calls, uni };
+    exports.setToken('private-token'); return { api: exports, calls, uni, get localReads() { return localReads; } };
 }
 for (const platform of ['app', 'h5']) {
     test(platform + ' saves same image on server and OSS without leaking API credentials to OSS', async () => {
@@ -55,6 +68,93 @@ for (const platform of ['app', 'h5']) {
         assert.equal(calls[4].data.back_url, 'https://bucket.example.org/images/original');
     });
 }
+
+for (const photo of [
+    { declaredMime: 'image/jpeg' },
+    { declaredMime: 'application/octet-stream' },
+    { declaredMime: '' },
+    { declaredMime: 'image/jpeg', imageInfoType: 'jpeg' },
+    { declaredMime: 'image/png', imageInfoType: 'webp' },
+]) test('h5 detects PNG original bytes despite inconsistent metadata ' + JSON.stringify(photo), async () => {
+    const subject = client('h5', 204, 204, true, {}, photo);
+    await subject.api.upload('/client/kyc/applications', {}, [{ name: 'front', path: 'blob:front' }]);
+    const ticket = subject.calls.find(call => call.url.endsWith('/images/direct'));
+    const backup = subject.calls.find(call => call.url.endsWith('/backup'));
+    assert.equal(ticket.data.mime, 'image/png');
+    assert.equal(backup.formData.file.type, 'image/png');
+    assert.equal(backup.formData.file.name, 'image.png');
+    assert.deepEqual(Buffer.from(await backup.formData.file.arrayBuffer()), syntheticPng);
+    assert.equal(subject.localReads, 1, 'ticket metadata and multipart must use the same original Blob');
+    assert.equal(subject.calls.filter(call => call.url.endsWith('/client/kyc/applications')).length, 1);
+});
+
+for (const [bytes, mime, extension] of [
+    [syntheticJpeg, 'image/jpeg', 'jpg'],
+    [syntheticWebp, 'image/webp', 'webp'],
+]) test('h5 detects ' + mime + ' original bytes despite PNG metadata', async () => {
+    const subject = client('h5', 204, 204, true, {}, { bytes, declaredMime: 'image/png', imageInfoType: 'png' });
+    await subject.api.upload('/client/kyc/applications', {}, [{ name: 'front', path: 'blob:front' }]);
+    const ticket = subject.calls.find(call => call.url.endsWith('/images/direct'));
+    const file = subject.calls.find(call => call.url.endsWith('/backup')).formData.file;
+    assert.equal(ticket.data.mime, mime);
+    assert.equal(file.type, mime);
+    assert.equal(file.name, 'image.' + extension);
+    assert.deepEqual(Buffer.from(await file.arrayBuffer()), bytes);
+    assert.equal(subject.localReads, 1);
+});
+
+test('h5 sends identical normalized original bytes to both server and OSS without forwarding API credentials', async () => {
+    const subject = client('h5', 204, 204, false, {}, { declaredMime: 'image/jpeg', imageInfoType: 'jpeg' });
+    await subject.api.upload('/support/messages', { support_message: 'private' }, [{ name: 'support_image', path: 'blob:image' }]);
+    const ticket = subject.calls.find(call => call.url.endsWith('/images/direct'));
+    const backup = subject.calls.find(call => call.url.endsWith('/backup'));
+    const oss = subject.calls.find(call => call.url === 'https://bucket.example.org');
+    assert.equal(ticket.data.mime, 'image/png');
+    for (const call of [backup, oss]) {
+        assert.equal(call.formData.file.type, 'image/png');
+        assert.deepEqual(Buffer.from(await call.formData.file.arrayBuffer()), syntheticPng);
+    }
+    assert.equal(backup.header.Authorization, 'Bearer private-token');
+    assert.deepEqual(Object.keys(oss.header), []);
+    assert.equal(oss.formData.support_message, undefined);
+    assert.equal(subject.localReads, 1);
+});
+
+for (const bytes of [
+    Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64'),
+    Buffer.from('<script>not an image</script>'),
+    Buffer.from([0x89, 0x50, 0x4e]),
+    Buffer.alloc(0),
+]) test('h5 rejects unsupported original headers before requesting a ticket, size=' + bytes.length, async () => {
+    const subject = client('h5', 204, 204, true, {}, { bytes, declaredMime: 'image/png', imageInfoType: 'png' });
+    await assert.rejects(subject.api.upload('/client/kyc/applications', {}, [{ name: 'back', path: 'blob:back' }]),
+        error => error.stage === 'read' && error.field === 'back' && error.payload?.error?.code === 'CLIENT_IMAGE_FORMAT');
+    assert.equal(subject.calls.length, 0, 'invalid bytes never reach upload authorization or business submission');
+    assert.equal(subject.localReads, 1);
+});
+
+test('h5 stops before upload authorization when the session changes during the local Blob read', async () => {
+    const subject = client('h5', 204, 204, true, {}, {
+        onLocalRead: api => api.setToken('replacement-token'),
+    });
+    await assert.rejects(subject.api.upload('/client/kyc/applications', {}, [{ name: 'front', path: 'blob:front' }]),
+        error => error.status === 409 && error.payload?.error?.code === 'CLIENT_SESSION_CHANGED');
+    assert.equal(subject.localReads, 1);
+    assert.equal(subject.calls.length, 0, 'the old photo must not authorize or submit under the new session');
+});
+
+for (const serverOnly of [false, true]) test('h5 stops after backup when the session changes, serverOnly=' + serverOnly, async () => {
+    const subject = client('h5', 204, 204, serverOnly, {}, {
+        onBackup: api => api.setToken('replacement-token'),
+    });
+    await assert.rejects(subject.api.upload('/support/messages', { support_message: 'private' }, [{ name: 'support_image', path: 'blob:image' }]),
+        error => error.status === 409 && error.payload?.error?.code === 'CLIENT_SESSION_CHANGED');
+    assert.equal(subject.calls.length, 2);
+    assert.ok(subject.calls[0].url.endsWith('/images/direct'));
+    assert.ok(subject.calls[1].url.endsWith('/backup'));
+    assert.equal(subject.calls[1].header.Authorization, 'Bearer private-token');
+    assert.ok(subject.calls.every(call => !call.url.includes('bucket.example.org') && !call.url.endsWith('/complete') && !call.url.endsWith('/support/messages')));
+});
 test('server backup failure stops before OSS or business submission', async () => {
     const { api, calls } = client('app', 204, 500);
     await assert.rejects(api.upload('/support/messages', {}, [{ name: 'support_image', path: 'local' }]));

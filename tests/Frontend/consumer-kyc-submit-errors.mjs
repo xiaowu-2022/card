@@ -5,7 +5,8 @@ import { resolve, dirname } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 
-function harness() {
+const syntheticPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADklEQVQImWP4DwYMEAoAU7oL9W/sIDEAAAAASUVORK5CYII=', 'base64');
+function harness({ photoBytes = syntheticPng } = {}) {
     const cache = new Map(), calls = [];
     const uni = {
         getLocale: () => 'zh-CN',
@@ -18,10 +19,11 @@ function harness() {
         uploadFile(o) { calls.push(o); o.success({ statusCode: 204, data: '' }); },
     };
     // H5 uses fetch with omitted cookies. Adapt the existing controllable transport
-    // fixtures to that boundary; local photo bytes are synthetic and never read.
+    // fixtures to that boundary. A trailing test marker distinguishes the two
+    // synthetic PNGs after their unchanged image header; no real photo is read.
     const fetchFixture = async (url, options = {}) => {
         assert.equal(options.credentials, 'omit');
-        if (!url.startsWith('/api/')) return new Response(url, { headers: { 'Content-Type': 'image/jpeg' } });
+        if (!url.startsWith('/api/')) return new Response(new Blob([photoBytes, url], { type: 'image/png' }));
         const multipart = options.body instanceof FormData;
         const photo = multipart ? options.body.get('file') : null;
         const filePath = photo instanceof Blob ? await photo.text() : '';
@@ -87,7 +89,7 @@ test('back upload keeps API validation details and never submits an incomplete a
 
 test('read and unsupported-format failures identify the photo without leaking its path', async () => {
     for (const mode of ['read', 'format']) {
-        const c = harness();
+        const c = harness({ photoBytes: mode === 'format' ? Buffer.from('GIF89a unsupported fixture') : syntheticPng });
         c.uni.getImageInfo = o => mode === 'read' ? o.fail() : o.success({ type: 'heic' });
         await submit(c);
         assert.match(c.action.errors.value.operation, /无法读取.*正面/);
